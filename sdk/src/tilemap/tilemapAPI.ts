@@ -10,6 +10,14 @@ interface TilemapModule {
                      w: number, h: number, tileId: number): void;
     tilemap_setTiles(entity: number, tilesPtr: number, count: number): void;
     tilemap_hasLayer(entity: number): boolean;
+    tilemap_setRenderProps(entity: number, textureHandle: number, tilesetColumns: number,
+                           uvTileW: number, uvTileH: number,
+                           sortLayer: number, depth: number,
+                           parallaxX: number, parallaxY: number): void;
+    tilemap_setTint(entity: number, r: number, g: number, b: number, a: number,
+                    opacity: number): void;
+    tilemap_setVisible(entity: number, visible: boolean): void;
+    tilemap_setOriginEntity(layerKey: number, originEntity: number): void;
     tilemap_submitLayer(entity: number, textureId: number,
                         sortLayer: number, depth: number,
                         tilesetColumns: number,
@@ -107,6 +115,27 @@ export const TilemapAPI = {
     hasLayer(entity: number): boolean {
         if (!module_) return false;
         return module_.tilemap_hasLayer(entity);
+    },
+
+    setRenderProps(entity: number, textureHandle: number, tilesetColumns: number,
+                   uvTileW: number, uvTileH: number,
+                   sortLayer: number, depth: number,
+                   parallaxX: number, parallaxY: number): void {
+        module_?.tilemap_setRenderProps(entity, textureHandle, tilesetColumns,
+            uvTileW, uvTileH, sortLayer, depth, parallaxX, parallaxY);
+    },
+
+    setTint(entity: number, r: number, g: number, b: number, a: number,
+            opacity: number): void {
+        module_?.tilemap_setTint(entity, r, g, b, a, opacity);
+    },
+
+    setVisible(entity: number, visible: boolean): void {
+        module_?.tilemap_setVisible(entity, visible);
+    },
+
+    setOriginEntity(layerKey: number, originEntity: number): void {
+        module_?.tilemap_setOriginEntity(layerKey, originEntity);
     },
 
     submitLayer(entity: number, textureId: number,
