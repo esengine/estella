@@ -13,6 +13,9 @@ import { getAssetTypeDescriptor } from '../../asset/AssetTypeRegistry';
 import type { HierarchyState } from './HierarchyTypes';
 import { instantiateTemplate } from './EntityTemplates';
 
+const create = (state: HierarchyState, template: string, parent: Entity | null) =>
+    () => instantiateTemplate(state, template, parent);
+
 export function showEntityContextMenu(state: HierarchyState, x: number, y: number, entity: Entity | null): void {
     const entityData = entity !== null ? state.store.getEntityData(entity as number) : null;
     const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
@@ -26,42 +29,42 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
         } },
         { label: '', separator: true },
         { label: '2D', icon: icons.image(14), children: [
-            { label: 'Sprite', icon: icons.image(14), onClick: () => createEntityWithComponent(state, 'Sprite', entity) },
-            { label: 'Text', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'Text', entity) },
-            { label: 'BitmapText', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'BitmapText', entity) },
-            { label: 'Spine', icon: icons.bone(14), onClick: () => createEntityWithComponent(state, 'SpineAnimation', entity) },
-            { label: 'Shape', icon: icons.hexagon(14), onClick: () => createEntityWithComponent(state, 'ShapeRenderer', entity) },
-            { label: 'Particle', icon: icons.star(14), onClick: () => createEntityWithComponent(state, 'ParticleEmitter', entity) },
-            { label: 'Tilemap', icon: icons.grid(14), onClick: () => instantiateTemplate(state, 'Tilemap', entity) },
+            { label: 'Sprite', icon: icons.image(14), onClick: create(state, 'Sprite', entity) },
+            { label: 'Text', icon: icons.type(14), onClick: create(state, 'Text', entity) },
+            { label: 'BitmapText', icon: icons.type(14), onClick: create(state, 'BitmapText', entity) },
+            { label: 'Spine', icon: icons.bone(14), onClick: create(state, 'SpineAnimation', entity) },
+            { label: 'Shape', icon: icons.hexagon(14), onClick: create(state, 'ShapeRenderer', entity) },
+            { label: 'Particle', icon: icons.star(14), onClick: create(state, 'ParticleEmitter', entity) },
+            { label: 'Tilemap', icon: icons.grid(14), onClick: create(state, 'Tilemap', entity) },
         ] },
         { label: 'UI', icon: icons.pointer(14), children: [
-            { label: 'Canvas', icon: icons.template(14), onClick: () => createEntityWithComponent(state, 'Canvas', entity) },
+            { label: 'Canvas', icon: icons.template(14), onClick: create(state, 'Canvas', entity) },
             { label: '', separator: true },
-            { label: 'Button', icon: icons.pointer(14), onClick: () => instantiateTemplate(state, 'Button', entity) },
-            { label: 'TextInput', icon: icons.type(14), onClick: () => createTextInputEntity(state, entity) },
-            { label: 'Image', icon: icons.image(14), onClick: () => instantiateTemplate(state, 'Image', entity) },
-            { label: 'Panel', icon: icons.layers(14), onClick: () => instantiateTemplate(state, 'Panel', entity) },
+            { label: 'Button', icon: icons.pointer(14), onClick: create(state, 'Button', entity) },
+            { label: 'TextInput', icon: icons.type(14), onClick: create(state, 'TextInput', entity) },
+            { label: 'Image', icon: icons.image(14), onClick: create(state, 'Image', entity) },
+            { label: 'Panel', icon: icons.layers(14), onClick: create(state, 'Panel', entity) },
             { label: '', separator: true },
-            { label: 'Toggle', icon: icons.toggle(14), onClick: () => instantiateTemplate(state, 'Toggle', entity) },
-            { label: 'Slider', icon: icons.sliders(14), onClick: () => instantiateTemplate(state, 'Slider', entity) },
-            { label: 'ProgressBar', icon: icons.gauge(14), onClick: () => instantiateTemplate(state, 'ProgressBar', entity) },
-            { label: 'ScrollView', icon: icons.list(14), onClick: () => instantiateTemplate(state, 'ScrollView', entity) },
-            { label: 'Dropdown', icon: icons.chevronDown(14), onClick: () => instantiateTemplate(state, 'Dropdown', entity) },
+            { label: 'Toggle', icon: icons.toggle(14), onClick: create(state, 'Toggle', entity) },
+            { label: 'Slider', icon: icons.sliders(14), onClick: create(state, 'Slider', entity) },
+            { label: 'ProgressBar', icon: icons.gauge(14), onClick: create(state, 'ProgressBar', entity) },
+            { label: 'ScrollView', icon: icons.list(14), onClick: create(state, 'ScrollView', entity) },
+            { label: 'Dropdown', icon: icons.chevronDown(14), onClick: create(state, 'Dropdown', entity) },
         ] },
         { label: 'Audio', icon: icons.volume(14), children: [
-            { label: 'AudioSource', icon: icons.volume(14), onClick: () => createAudioEntity(state, 'AudioSource', entity) },
-            { label: 'AudioListener', icon: icons.headphones(14), onClick: () => createAudioEntity(state, 'AudioListener', entity) },
+            { label: 'AudioSource', icon: icons.volume(14), onClick: create(state, 'AudioSource', entity) },
+            { label: 'AudioListener', icon: icons.headphones(14), onClick: create(state, 'AudioListener', entity) },
         ] },
         { label: 'Physics', icon: icons.circle(14), children: [
-            { label: 'Box Collider', icon: icons.box(14), onClick: () => createPhysicsEntity(state, 'BoxCollider', entity) },
-            { label: 'Circle Collider', icon: icons.circle(14), onClick: () => createPhysicsEntity(state, 'CircleCollider', entity) },
-            { label: 'Capsule Collider', icon: icons.shield(14), onClick: () => createPhysicsEntity(state, 'CapsuleCollider', entity) },
-            { label: 'Segment Collider', icon: icons.minus(14), onClick: () => createPhysicsEntity(state, 'SegmentCollider', entity) },
-            { label: 'Polygon Collider', icon: icons.hexagon(14), onClick: () => createPhysicsEntity(state, 'PolygonCollider', entity) },
-            { label: 'Chain Collider', icon: icons.link(14), onClick: () => createPhysicsEntity(state, 'ChainCollider', entity) },
+            { label: 'Box Collider', icon: icons.box(14), onClick: create(state, 'BoxCollider', entity) },
+            { label: 'Circle Collider', icon: icons.circle(14), onClick: create(state, 'CircleCollider', entity) },
+            { label: 'Capsule Collider', icon: icons.shield(14), onClick: create(state, 'CapsuleCollider', entity) },
+            { label: 'Segment Collider', icon: icons.minus(14), onClick: create(state, 'SegmentCollider', entity) },
+            { label: 'Polygon Collider', icon: icons.hexagon(14), onClick: create(state, 'PolygonCollider', entity) },
+            { label: 'Chain Collider', icon: icons.link(14), onClick: create(state, 'ChainCollider', entity) },
         ] },
         { label: '', separator: true },
-        { label: 'Camera', icon: icons.camera(14), onClick: () => createEntityWithComponent(state, 'Camera', entity) },
+        { label: 'Camera', icon: icons.camera(14), onClick: create(state, 'Camera', entity) },
     ];
 
     const items: ContextMenuItem[] = [];
@@ -199,56 +202,6 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
     showContextMenu({ x, y, items });
 }
 
-function createEntityWithComponent(state: HierarchyState, componentType: string, parent: Entity | null): void {
-    const newEntity = state.store.createEntity(componentType, parent);
-
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-
-    if (componentType === 'Text') {
-        const parentHasUIRect = parent !== null && state.store.getComponent(parent, 'UIRect') !== null;
-        if (parentHasUIRect) {
-            state.store.addComponent(newEntity, 'UIRect', {
-                ...getInitialComponentData('UIRect'),
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 1, y: 1 },
-                size: { x: 0, y: 0 },
-            });
-        } else {
-            state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
-        }
-    }
-
-    state.store.addComponent(newEntity, componentType, getInitialComponentData(componentType));
-}
-
-function createAudioEntity(state: HierarchyState, componentType: string, parent: Entity | null): void {
-    const newEntity = state.store.createEntity(componentType, parent);
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, componentType, getInitialComponentData(componentType));
-}
-
-function createPhysicsEntity(state: HierarchyState, colliderType: string, parent: Entity | null): void {
-    const newEntity = state.store.createEntity(colliderType, parent);
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'RigidBody', getInitialComponentData('RigidBody'));
-    state.store.addComponent(newEntity, colliderType, getInitialComponentData(colliderType));
-}
-
-function createTextInputEntity(state: HierarchyState, parent: Entity | null): void {
-    const newEntity = state.store.createEntity('TextInput', parent);
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    const tiDefaults = getInitialComponentData('TextInput');
-    state.store.addComponent(newEntity, 'Image', {
-        ...getInitialComponentData('Image'),
-        color: tiDefaults.backgroundColor,
-    });
-    state.store.addComponent(newEntity, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 200, y: 36 },
-    });
-    state.store.addComponent(newEntity, 'Interactable', getInitialComponentData('Interactable'));
-    state.store.addComponent(newEntity, 'TextInput', getInitialComponentData('TextInput'));
-}
 
 export function duplicateEntity(state: HierarchyState, entity: Entity): void {
     const entityData = state.store.getEntityData(entity as number);

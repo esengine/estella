@@ -37,6 +37,7 @@ export interface PropertyEditorContext {
     onChange: (value: unknown) => void;
     componentData?: Record<string, unknown>;
     getComponentValue?: (name: string) => unknown;
+    getCurrentValue?: () => unknown;
 }
 
 export type PropertyEditorFactory = (

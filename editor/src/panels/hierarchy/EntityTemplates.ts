@@ -1,6 +1,7 @@
 import type { Entity } from 'esengine';
 import { getInitialComponentData } from '../../schemas/ComponentSchemas';
 import type { HierarchyState } from './HierarchyTypes';
+import { resolveUIParent } from './uiEntityUtils';
 
 interface ComponentEntry {
     type: string;
@@ -14,17 +15,84 @@ interface EntityTemplateNode {
     children?: EntityTemplateNode[];
 }
 
+type EntityCategory = 'ui' | 'physics' | 'general';
+
 interface EntityTemplate {
     root: EntityTemplateNode;
     bindings?: Record<string, string>;
+    category: EntityCategory;
 }
 
-function defineTemplate(root: EntityTemplateNode, bindings?: Record<string, string>): EntityTemplate {
-    return { root, bindings };
+function ui(root: EntityTemplateNode, bindings?: Record<string, string>): EntityTemplate {
+    return { root, bindings, category: 'ui' };
 }
+
+function physics(root: EntityTemplateNode): EntityTemplate {
+    return { root, category: 'physics' };
+}
+
+function general(root: EntityTemplateNode): EntityTemplate {
+    return { root, category: 'general' };
+}
+
+// =============================================================================
+// Template Registry
+// =============================================================================
 
 export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
-    Button: defineTemplate({
+    // ---- General ----
+    Sprite: general({
+        name: 'Sprite',
+        components: [{ type: 'Transform' }, { type: 'Sprite' }],
+    }),
+
+    BitmapText: general({
+        name: 'BitmapText',
+        components: [{ type: 'Transform' }, { type: 'BitmapText' }],
+    }),
+
+    SpineAnimation: general({
+        name: 'Spine',
+        components: [{ type: 'Transform' }, { type: 'SpineAnimation' }],
+    }),
+
+    ShapeRenderer: general({
+        name: 'Shape',
+        components: [{ type: 'Transform' }, { type: 'ShapeRenderer' }],
+    }),
+
+    ParticleEmitter: general({
+        name: 'Particle',
+        components: [{ type: 'Transform' }, { type: 'ParticleEmitter' }],
+    }),
+
+    Tilemap: general({
+        name: 'Tilemap',
+        components: [{ type: 'Transform' }, { type: 'Tilemap' }],
+    }),
+
+    Camera: general({
+        name: 'Camera',
+        components: [{ type: 'Transform' }, { type: 'Camera' }],
+    }),
+
+    AudioSource: general({
+        name: 'AudioSource',
+        components: [{ type: 'Transform' }, { type: 'AudioSource' }],
+    }),
+
+    AudioListener: general({
+        name: 'AudioListener',
+        components: [{ type: 'Transform' }, { type: 'AudioListener' }],
+    }),
+
+    // ---- UI ----
+    Canvas: general({
+        name: 'Canvas',
+        components: [{ type: 'Transform' }, { type: 'UIRect' }, { type: 'Canvas' }],
+    }),
+
+    Button: ui({
         name: 'Button',
         components: [
             { type: 'Transform' },
@@ -35,7 +103,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         ],
     }),
 
-    Panel: defineTemplate({
+    Panel: ui({
         name: 'Panel',
         components: [
             { type: 'Transform' },
@@ -45,7 +113,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         ],
     }),
 
-    Image: defineTemplate({
+    Image: ui({
         name: 'Image',
         components: [
             { type: 'Transform' },
@@ -54,7 +122,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         ],
     }),
 
-    Toggle: defineTemplate({
+    Toggle: ui({
         name: 'Toggle',
         components: [
             { type: 'Transform' },
@@ -77,7 +145,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         'Toggle.graphicEntity': 'checkmark',
     }),
 
-    ProgressBar: defineTemplate({
+    ProgressBar: ui({
         name: 'ProgressBar',
         components: [
             { type: 'Transform' },
@@ -99,7 +167,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         'ProgressBar.fillEntity': 'fill',
     }),
 
-    ScrollView: defineTemplate({
+    ScrollView: ui({
         name: 'ScrollView',
         components: [
             { type: 'Transform' },
@@ -122,7 +190,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         'ScrollView.contentEntity': 'content',
     }),
 
-    Slider: defineTemplate({
+    Slider: ui({
         name: 'Slider',
         components: [
             { type: 'Transform' },
@@ -154,7 +222,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         'Slider.handleEntity': 'handle',
     }),
 
-    Dropdown: defineTemplate({
+    Dropdown: ui({
         name: 'Dropdown',
         components: [
             { type: 'Transform' },
@@ -186,14 +254,61 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         'Dropdown.listEntity': 'list',
     }),
 
-    Tilemap: defineTemplate({
-        name: 'Tilemap',
+    Text: ui({
+        name: 'Text',
         components: [
             { type: 'Transform' },
-            { type: 'Tilemap' },
+            { type: 'UIRect' },
+            { type: 'Text' },
         ],
     }),
+
+    TextInput: ui({
+        name: 'TextInput',
+        components: [
+            { type: 'Transform' },
+            { type: 'Image' },
+            { type: 'UIRect', defaults: { size: { x: 200, y: 36 } } },
+            { type: 'Interactable' },
+            { type: 'TextInput' },
+        ],
+    }),
+
+    // ---- Physics ----
+    BoxCollider: physics({
+        name: 'BoxCollider',
+        components: [{ type: 'Transform' }, { type: 'RigidBody' }, { type: 'BoxCollider' }],
+    }),
+
+    CircleCollider: physics({
+        name: 'CircleCollider',
+        components: [{ type: 'Transform' }, { type: 'RigidBody' }, { type: 'CircleCollider' }],
+    }),
+
+    CapsuleCollider: physics({
+        name: 'CapsuleCollider',
+        components: [{ type: 'Transform' }, { type: 'RigidBody' }, { type: 'CapsuleCollider' }],
+    }),
+
+    SegmentCollider: physics({
+        name: 'SegmentCollider',
+        components: [{ type: 'Transform' }, { type: 'RigidBody' }, { type: 'SegmentCollider' }],
+    }),
+
+    PolygonCollider: physics({
+        name: 'PolygonCollider',
+        components: [{ type: 'Transform' }, { type: 'RigidBody' }, { type: 'PolygonCollider' }],
+    }),
+
+    ChainCollider: physics({
+        name: 'ChainCollider',
+        components: [{ type: 'Transform' }, { type: 'RigidBody' }, { type: 'ChainCollider' }],
+    }),
 };
+
+// =============================================================================
+// Instantiation (category-driven, no type inspection)
+// =============================================================================
 
 export function instantiateTemplate(
     state: HierarchyState,
@@ -203,9 +318,14 @@ export function instantiateTemplate(
     const template = ENTITY_TEMPLATES[templateName];
     if (!template) return null;
 
+    let effectiveParent = parent;
+    if (template.category === 'ui') {
+        effectiveParent = resolveUIParent(state.store, parent);
+    }
+
     const refMap = new Map<string, Entity>();
 
-    const rootEntity = createNode(state, template.root, parent, refMap);
+    const rootEntity = createNode(state, template.root, effectiveParent, refMap);
 
     if (template.bindings) {
         for (const [binding, ref] of Object.entries(template.bindings)) {

@@ -1,6 +1,5 @@
 import type { Entity, App } from 'esengine';
 import { Renderer, computeUIRectLayout, DEFAULT_SPRITE_SIZE, StatsCollector } from 'esengine';
-import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../../store/EditorStore';
 import type { EditorBridge } from '../../bridge/EditorBridge';
 import { getPlatformAdapter } from '../../platform/PlatformAdapter';
@@ -324,8 +323,7 @@ export class SceneViewPanel {
         }
     }
 
-    setSpineController(controller: SpineModuleController | null): void {
-        this.sceneRenderer_?.setSpineController(controller);
+    setSpineController(_controller: unknown): void {
     }
 
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
@@ -407,6 +405,7 @@ export class SceneViewPanel {
             this.sceneRenderer_.setStore(this.store_);
             this.sceneRenderer_.setRenderCallback(() => this.requestRender());
             sharedCtx.setRenderCallback(() => this.requestRender());
+            this.sceneRenderer_.onSpineInstanceReady(() => this.requestRender());
 
             this.webglInitialized_ = true;
             this.useWebGL_ = true;
@@ -1004,7 +1003,7 @@ export class SceneViewPanel {
         if (!getSettingsValue<boolean>('scene.showStats') || !this.useWebGL_) return;
 
         const stats = Renderer.getStats();
-        const spineCount = this.sceneRenderer_?.spineInstanceCount ?? stats.spine;
+        const spineCount = stats.spine;
         const fps = this.fpsCollector_.getFps();
         const entityCount = this.store_.scene.entities.length;
 

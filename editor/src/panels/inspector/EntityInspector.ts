@@ -499,6 +499,7 @@ export function renderComponent(
                 },
                 componentData: component.data,
                 getComponentValue: (name: string) => component.data[name],
+                getCurrentValue: () => component.data[key] ?? defaults[key],
             });
 
             if (editor) {
@@ -549,6 +550,7 @@ function renderPropertyRow(
             },
             componentData: component.data,
             getComponentValue: (name: string) => component.data[name],
+            getCurrentValue: () => ({ ...defaults, ...component.data }),
         });
 
         if (editor) {
@@ -613,6 +615,7 @@ function renderPropertyRow(
         },
         componentData: component.data,
         getComponentValue: (name: string) => component.data[name],
+        getCurrentValue: () => component.data[propMeta.name] ?? defaults[propMeta.name],
     });
 
     if (editor) {
