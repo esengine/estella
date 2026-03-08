@@ -456,6 +456,10 @@ GLAPI PFNGLSTENCILFUNCPROC glad_glStencilFunc;
 GLAPI PFNGLSTENCILOPPROC glad_glStencilOp;
 GLAPI PFNGLSTENCILMASKPROC glad_glStencilMask;
 
+/* ReadPixels */
+typedef void (APIENTRYP PFNGLREADPIXELSPROC)(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels);
+GLAPI PFNGLREADPIXELSPROC glad_glReadPixels;
+
 /* Framebuffer */
 GLAPI PFNGLGENFRAMEBUFFERSPROC glad_glGenFramebuffers;
 GLAPI PFNGLDELETEFRAMEBUFFERSPROC glad_glDeleteFramebuffers;
@@ -556,6 +560,7 @@ GLAPI PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer;
 #define glStencilFunc glad_glStencilFunc
 #define glStencilOp glad_glStencilOp
 #define glStencilMask glad_glStencilMask
+#define glReadPixels glad_glReadPixels
 
 #define glGenFramebuffers glad_glGenFramebuffers
 #define glDeleteFramebuffers glad_glDeleteFramebuffers

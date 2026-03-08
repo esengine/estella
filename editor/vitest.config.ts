@@ -22,6 +22,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      'esengine/physics': path.resolve(__dirname, '../sdk/dist/physics/index.js'),
+      'esengine/spine': path.resolve(__dirname, '../sdk/dist/spine/index.js'),
       'esengine': path.resolve(__dirname, '../sdk/dist/index.js'),
     },
   },
