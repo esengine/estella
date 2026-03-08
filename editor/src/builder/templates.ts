@@ -62,7 +62,7 @@ window.fetch=function(u,o){var d=typeof u==='string'&&__PA__[u];return d?_fetch.
   await es.initPlayableRuntime({
     app:app,module:Module,canvas:c,
     assets:__PA__,scenes:__SCENES__,firstScene:'{{STARTUP_SCENE}}',
-    spineWasmBase64:typeof __SPINE_WASM_B64__!=='undefined'?__SPINE_WASM_B64__:undefined,
+    spineModules:typeof __ES_SPINE_MODULES__!=='undefined'?__ES_SPINE_MODULES__:undefined,
     physicsWasmBase64:typeof __PHYSICS_WASM_B64__!=='undefined'?__PHYSICS_WASM_B64__:undefined,
     physicsConfig:{{PHYSICS_CONFIG}},manifest:__MANIFEST__
   });
@@ -80,16 +80,26 @@ export interface WeChatGameJsParams {
     userCode: string;
     firstSceneName: string;
     allSceneNames: string[];
-    hasSpine: boolean;
+    spineVersions: string[];
     hasPhysics: boolean;
     physicsConfig: string;
     runtimeConfig?: RuntimeBuildConfig;
 }
 
 export function generateWeChatGameJs(params: WeChatGameJsParams): string {
-    const { userCode, firstSceneName, allSceneNames, hasSpine, hasPhysics, physicsConfig, runtimeConfig } = params;
+    const { userCode, firstSceneName, allSceneNames, spineVersions, hasPhysics, physicsConfig, runtimeConfig } = params;
 
     const runtimeConfigJson = runtimeConfig ? JSON.stringify(runtimeConfig) : 'undefined';
+
+    const nonNativeVersions = spineVersions.filter(v => v !== '4.2');
+    let spineFactoriesCode = '';
+    if (nonNativeVersions.length > 0) {
+        const entries = nonNativeVersions.map(v => {
+            const tag = v.replace('.', '');
+            return `"${v}": require('./spine_${tag}.js')`;
+        });
+        spineFactoriesCode = `spineFactories: {${entries.join(', ')}},`;
+    }
 
     return `
 var ESEngineModule = require('./esengine.js');
@@ -106,7 +116,7 @@ ${userCode}
             firstScene: ${JSON.stringify(firstSceneName)},
             runtimeConfig: ${runtimeConfigJson},
             physicsConfig: ${physicsConfig},
-            ${hasSpine ? "spineFactory: require('./spine.js')," : ''}
+            ${spineFactoriesCode}
             ${hasPhysics ? "physicsFactory: require('./physics.js')," : ''}
         });
     } catch (err) {

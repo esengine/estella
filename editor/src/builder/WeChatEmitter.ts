@@ -59,7 +59,7 @@ export class WeChatEmitter implements PlatformEmitter {
             // 3. Compile and generate game.js
             progress.setPhase('compiling');
             progress.setCurrentTask('Compiling scripts...', 0);
-            await this.generateGameJs(fs, projectDir, outputDir, context);
+            await this.generateGameJs(fs, projectDir, outputDir, context, artifact);
             progress.log('info', 'Generated game.js');
 
             // 4. Write atlas pages
@@ -215,7 +215,8 @@ export class WeChatEmitter implements PlatformEmitter {
         fs: NativeFS,
         projectDir: string,
         outputDir: string,
-        context: BuildContext
+        context: BuildContext,
+        artifact: BuildArtifact,
     ): Promise<void> {
         const { imports, hasSrcDir } = await collectUserScriptImports(fs, projectDir);
 
@@ -244,20 +245,21 @@ export class WeChatEmitter implements PlatformEmitter {
             userCode,
             firstSceneName,
             allSceneNames,
-            hasSpine: !!context.spineVersion,
+            spineVersions: [...artifact.spineVersions],
             hasPhysics: !!context.enablePhysics,
             physicsConfig,
             runtimeConfig: context.runtimeConfig,
         });
 
         await fs.writeFile(joinPath(outputDir, 'game.js'), gameJs);
-        await this.copyWeChatSdk(fs, outputDir, context);
+        await this.copyWeChatSdk(fs, outputDir, context, artifact);
     }
 
     private async copyWeChatSdk(
         fs: NativeFS,
         outputDir: string,
-        context: BuildContext
+        context: BuildContext,
+        artifact: BuildArtifact,
     ): Promise<void> {
         const engineJs = await fs.getEngineWxgameJs();
         const engineWasm = await fs.getEngineWxgameWasm();
@@ -276,13 +278,14 @@ export class WeChatEmitter implements PlatformEmitter {
             await fs.writeFile(joinPath(outputDir, 'sdk.js'), sdkJs);
         }
 
-        const spineVersion = context.spineVersion;
-        if (spineVersion) {
-            const spineJs = await fs.getSpineJs(spineVersion);
-            const spineWasm = await fs.getSpineWasm(spineVersion);
+        for (const version of artifact.spineVersions) {
+            if (version === '4.2') continue;
+            const spineJs = await fs.getSpineJs(version);
+            const spineWasm = await fs.getSpineWasm(version);
             if (spineJs && spineWasm.length > 0) {
-                await fs.writeFile(joinPath(outputDir, 'spine.js'), spineJs);
-                await fs.writeBinaryFile(joinPath(outputDir, 'spine.wasm'), spineWasm);
+                const tag = version.replace('.', '');
+                await fs.writeFile(joinPath(outputDir, `spine_${tag}.js`), spineJs);
+                await fs.writeBinaryFile(joinPath(outputDir, `spine_${tag}.wasm`), spineWasm);
             }
         }
 

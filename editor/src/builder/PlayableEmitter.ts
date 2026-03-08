@@ -72,17 +72,21 @@ export class PlayableEmitter implements PlatformEmitter {
                 return { success: false, error: `Startup scene not found: ${startupScene}` };
             }
 
-            // 4. Load spine module if needed
+            // 4. Load spine modules if needed
             progress.setCurrentTask('Loading modules...', 25);
-            let spineJsSource = '';
-            let spineWasmBase64 = '';
-            if (context.spineVersion && fs.getSpineJs) {
-                const spineJs = await fs.getSpineJs(context.spineVersion);
-                const spineWasm = await fs.getSpineWasm(context.spineVersion);
+            const spineModules: Array<{ version: string; js: string; wasmBase64: string }> = [];
+            for (const version of artifact.spineVersions) {
+                if (version === '4.2') continue;
+                if (!fs.getSpineJs) continue;
+                const spineJs = await fs.getSpineJs(version);
+                const spineWasm = await fs.getSpineWasm(version);
                 if (spineJs && spineWasm.length > 0) {
-                    spineJsSource = spineJs;
-                    spineWasmBase64 = arrayBufferToBase64(spineWasm);
-                    progress.log('info', `Spine ${context.spineVersion} module loaded`);
+                    spineModules.push({
+                        version,
+                        js: spineJs,
+                        wasmBase64: arrayBufferToBase64(spineWasm),
+                    });
+                    progress.log('info', `Spine ${version} module loaded`);
                 }
             }
 
@@ -117,7 +121,7 @@ export class PlayableEmitter implements PlatformEmitter {
             progress.setCurrentTask('Assembling HTML...', 50);
             const html = this.assembleHTML(
                 wasmSdk, gameCode, allScenes, startupSceneName, assets,
-                spineJsSource, spineWasmBase64,
+                spineModules,
                 physicsJsSource, physicsWasmBase64,
                 context, manifestJson
             );
@@ -318,7 +322,7 @@ const __plugins = [${pluginList}];
         wasmSdk: string, gameCode: string,
         allScenes: Array<{ name: string; data: string }>, startupScene: string,
         assets: Map<string, string>,
-        spineJs: string, spineWasmBase64: string,
+        spineModules: Array<{ version: string; js: string; wasmBase64: string }>,
         physicsJs: string, physicsWasmBase64: string,
         context: BuildContext, manifestJson: string
     ): string {
@@ -328,8 +332,17 @@ const __plugins = [${pluginList}];
         }
 
         let spineScript = '';
-        if (spineJs && spineWasmBase64) {
-            spineScript = `<script>\nvar __SPINE_WASM_B64__="${spineWasmBase64}";\n${spineJs}\n</script>`;
+        if (spineModules.length > 0) {
+            const parts = spineModules.map(m => {
+                const tag = m.version.replace('.', '');
+                return `var __SPINE_${tag}_WASM_B64__="${m.wasmBase64}";\nvar __SPINE_${tag}_MODULE__=(function(){${m.js};return ESSpineModule;})();`;
+            });
+            const moduleEntries = spineModules.map(m => {
+                const tag = m.version.replace('.', '');
+                return `"${m.version}":{factory:__SPINE_${tag}_MODULE__,wasmBase64:__SPINE_${tag}_WASM_B64__}`;
+            });
+            parts.push(`var __ES_SPINE_MODULES__={${moduleEntries.join(',')}};`);
+            spineScript = `<script>\n${parts.join('\n')}\n</script>`;
         }
 
         let physicsScript = '';

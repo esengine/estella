@@ -358,11 +358,22 @@
             return { width: canvas.width, height: canvas.height };
         }
 
-        const SPINE_WASM_MAP = {
-            '3.8': '/wasm/spine38.js',
-            '4.1': '/wasm/spine41.js',
-            '4.2': '/wasm/spine42.js',
-        };
+        function createHttpSpineProvider() {
+            return {
+                async loadJs(version) {
+                    const tag = version.replace('.', '');
+                    const resp = await fetch('/wasm/spine' + tag + '.js');
+                    if (!resp.ok) throw new Error('Failed to fetch spine' + tag + '.js: ' + resp.status);
+                    return resp.text();
+                },
+                async loadWasm(version) {
+                    const tag = version.replace('.', '');
+                    const resp = await fetch('/wasm/spine' + tag + '.wasm');
+                    if (!resp.ok) throw new Error('Failed to fetch spine' + tag + '.wasm: ' + resp.status);
+                    return resp.arrayBuffer();
+                },
+            };
+        }
 
         function loadUmdScript(url) {
             return new Promise((resolve, reject) => {
@@ -414,24 +425,15 @@
                 const sdk = await withTimeout(import('/sdk/index.js'), 30000, 'SDK import');
                 window.__esSdk = sdk;
 
-                let spinePlugin = null;
                 let physicsPlugin = null;
                 let config = {};
                 try {
                     const configResp = await fetch('/.esengine/preview/config.json');
                     if (configResp.ok) {
                         config = await configResp.json();
-                        const spineUrl = config.spineVersion && SPINE_WASM_MAP[config.spineVersion];
-                        if (spineUrl) {
-                            step = 'load Spine ' + config.spineVersion;
-                            updateLoading('Loading Spine ' + config.spineVersion + '...');
-                            await loadUmdScript(spineUrl);
-                            const { SpinePlugin } = await import('esengine/spine');
-                            spinePlugin = new SpinePlugin(spineUrl, window.ESSpineModule);
-                        }
                     }
                 } catch (e) {
-                    console.warn('Spine module load skipped:', e);
+                    console.warn('Config load skipped:', e);
                 }
 
                 if (config.enablePhysics) {
@@ -490,7 +492,8 @@
                 const previewPlugin = new sdk.PreviewPlugin('/.esengine/preview/scene.json', '/');
 
                 const app = sdk.createWebApp(Module, {
-                    getViewportSize: getCanvasViewportSize
+                    getViewportSize: getCanvasViewportSize,
+                    spineProvider: createHttpSpineProvider(),
                 });
                 if (config.maxDeltaTime !== undefined) app.setMaxDeltaTime(config.maxDeltaTime);
                 if (config.maxFixedSteps !== undefined) app.setMaxFixedSteps(config.maxFixedSteps);
@@ -499,9 +502,6 @@
                 sdk.flushPendingSystems(app);
 
                 step = 'add plugins';
-                if (spinePlugin) {
-                    app.addPlugin(spinePlugin);
-                }
                 if (physicsPlugin) {
                     app.addPlugin(physicsPlugin);
                 }
