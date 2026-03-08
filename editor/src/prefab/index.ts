@@ -12,6 +12,7 @@ export {
     savePrefabToPath,
     loadPrefabFromPath,
     convertPrefabAssetRefs,
+    createVariantPrefab,
     type EntityTreeToPrefabResult,
 } from './PrefabSerializer';
 
@@ -34,3 +35,8 @@ export {
     recordComponentRemovedOverride,
     removePropertyOverride,
 } from './PrefabOverrideTracker';
+
+export {
+    PrefabDependencyTracker,
+    getPrefabDependencyTracker,
+} from './PrefabDependencyTracker';

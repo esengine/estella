@@ -189,28 +189,15 @@ export function getRegisteredAssetComponentTypes(): string[] {
 // Component Entity Reference Fields Registry
 // =============================================================================
 
-const COMPONENT_ENTITY_FIELDS = new Map<string, string[]>([
-    ['Slider', ['fillEntity', 'handleEntity']],
-    ['ProgressBar', ['fillEntity']],
-    ['Toggle', ['graphicEntity', 'group']],
-    ['ScrollView', ['contentEntity']],
-    ['Dropdown', ['listEntity', 'labelEntity']],
-    ['RevoluteJoint', ['connectedEntity']],
-]);
+export {
+    registerComponentEntityFields,
+    getComponentEntityFields,
+} from './componentEntityFields';
 
-export function registerComponentEntityFields(
-    componentType: string,
-    fields: string[]
-): void {
-    COMPONENT_ENTITY_FIELDS.set(componentType, fields);
-}
-
-export function getComponentEntityFields(componentType: string): string[] | undefined {
-    return COMPONENT_ENTITY_FIELDS.get(componentType);
-}
+import { getComponentEntityFields } from './componentEntityFields';
 
 export function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void {
-    const fields = COMPONENT_ENTITY_FIELDS.get(compData.type);
+    const fields = getComponentEntityFields(compData.type);
     if (!fields) return;
     const data = compData.data as Record<string, unknown>;
     for (const field of fields) {

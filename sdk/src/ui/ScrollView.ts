@@ -27,4 +27,4 @@ export const ScrollView = defineComponent<ScrollViewData>('ScrollView', {
     decelerationRate: 0.135,
     elastic: true,
     wheelSensitivity: 0.1,
-});
+}, { entityFields: ['contentEntity'] });

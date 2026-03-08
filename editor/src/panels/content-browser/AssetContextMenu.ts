@@ -12,7 +12,8 @@ import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
 import type { AssetItem, ContentBrowserState } from './ContentBrowserTypes';
 import { getNativeFS } from './ContentBrowserTypes';
 import { AssetType } from '../../constants/AssetTypes';
-import { getGlobalPathResolver } from '../../asset';
+import { getGlobalPathResolver, getAssetDatabase } from '../../asset';
+import { createVariantPrefab, serializePrefab } from '../../prefab';
 
 export function showAssetContextMenu(state: ContentBrowserState, e: MouseEvent, path: string, type: AssetItem['type']): void {
     const fs = getNativeFS();
@@ -42,6 +43,14 @@ export function showAssetContextMenu(state: ContentBrowserState, e: MouseEvent, 
             onClick: () => deleteAsset(state, path, fileName),
         },
     ];
+
+    if (type === AssetType.PREFAB) {
+        items.splice(items.length - 1, 0, {
+            label: 'Create Variant',
+            icon: icons.copy(14),
+            onClick: () => createVariantFromPrefab(state, path),
+        });
+    }
 
     const ctx: ContextMenuContext = { location: 'content-browser.asset', assetPath: path, assetType: type };
     const extensionItems = getContextMenuItems('content-browser.asset', ctx);
@@ -606,5 +615,58 @@ export async function saveDroppedEntityAsPrefab(state: ContentBrowserState, enti
         state.refresh();
     } else {
         showErrorToast('Failed to save prefab', filePath);
+    }
+}
+
+async function createVariantFromPrefab(state: ContentBrowserState, basePrefabPath: string): Promise<void> {
+    const fs = getNativeFS();
+    if (!fs) return;
+
+    const parentDir = getParentDir(basePrefabPath);
+    const baseName = basePrefabPath.split('/').pop()?.replace('.esprefab', '') ?? 'Prefab';
+    const platform = getPlatformAdapter();
+
+    const name = await showInputDialog({
+        title: 'Create Variant',
+        placeholder: 'Variant name',
+        defaultValue: `${baseName}_Variant`,
+        confirmText: 'Create',
+        validator: async (value) => {
+            if (!value.trim()) return 'Name is required';
+            if (/[<>:"/\\|?*\x00-\x1f]/.test(value.trim())) {
+                return 'Name contains invalid characters';
+            }
+            const fileName = value.trim().endsWith('.esprefab')
+                ? value.trim()
+                : `${value.trim()}.esprefab`;
+            const fullPath = joinPath(parentDir, fileName);
+            if (await platform.exists(fullPath)) {
+                return 'A file with this name already exists';
+            }
+            return null;
+        },
+    });
+
+    if (!name) return;
+
+    const fileName = name.trim().endsWith('.esprefab')
+        ? name.trim()
+        : `${name.trim()}.esprefab`;
+    const filePath = joinPath(parentDir, fileName);
+
+    const db = getAssetDatabase();
+    const relativePath = getGlobalPathResolver().toRelativePath(basePrefabPath);
+    const baseUuid = db.getUuid(relativePath) ?? await db.ensureMeta(relativePath);
+
+    const variant = createVariantPrefab(name.trim(), baseUuid);
+    const json = serializePrefab(variant);
+
+    const absolutePath = getGlobalPathResolver().toAbsolutePath(filePath);
+    const success = await fs.writeFile(absolutePath, json);
+    if (success) {
+        await db.ensureMeta(getGlobalPathResolver().toRelativePath(filePath));
+        state.refresh();
+    } else {
+        showErrorToast('Failed to create variant', filePath);
     }
 }

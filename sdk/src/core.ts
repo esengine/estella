@@ -467,9 +467,24 @@ export {
     type PrefabData,
     type PrefabEntityData,
     type PrefabOverride,
+    type NestedPrefabRef,
     type InstantiatePrefabOptions,
     type InstantiatePrefabResult,
 } from './prefab';
+
+export {
+    flattenPrefab,
+    applyOverrides,
+    remapComponentEntityRefs,
+    cloneComponents,
+    cloneComponentData,
+    collectNestedPrefabPaths,
+    preloadNestedPrefabs,
+    type ProcessedEntity,
+    type FlattenContext,
+    type FlattenResult,
+    type ComponentData as PrefabComponentData,
+} from './prefab/index';
 
 export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefabServer';
 

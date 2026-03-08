@@ -21,4 +21,4 @@ export const Toggle = defineComponent<ToggleData>('Toggle', {
     transition: null,
     onColor: { r: 0.2, g: 0.6, b: 1, a: 1 },
     offColor: { r: 0.4, g: 0.4, b: 0.4, a: 1 },
-});
+}, { entityFields: ['graphicEntity', 'group'] });

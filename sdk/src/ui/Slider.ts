@@ -24,4 +24,4 @@ export const Slider = defineComponent<SliderData>('Slider', {
     fillEntity: 0 as Entity,
     handleEntity: 0 as Entity,
     wholeNumbers: false,
-});
+}, { entityFields: ['fillEntity', 'handleEntity'] });

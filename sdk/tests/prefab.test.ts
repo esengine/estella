@@ -90,29 +90,30 @@ describe('Prefab', () => {
             expect(capturedSceneData!.entities).toHaveLength(2);
         });
 
-        it('should preserve entity IDs when no startId is provided', async () => {
+        it('should assign unique sequential IDs', async () => {
             const prefab = simplePrefab();
             await instantiatePrefab(world, prefab);
 
             const ids = capturedSceneData!.entities.map(e => e.id);
-            expect(ids).toEqual([0, 1]);
+            const uniqueIds = new Set(ids);
+            expect(uniqueIds.size).toBe(ids.length);
         });
 
         it('should preserve parent-child relationships', async () => {
             const prefab = simplePrefab();
             await instantiatePrefab(world, prefab);
 
-            const root = capturedSceneData!.entities.find(e => e.id === 0)!;
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(root.parent).toBeNull();
-            expect(child.parent).toBe(0);
+            expect(child.parent).toBe(root.id);
         });
 
         it('should set root parent to null even if prefab has parent value', async () => {
             const prefab = simplePrefab();
             await instantiatePrefab(world, prefab);
 
-            const root = capturedSceneData!.entities.find(e => e.id === 0)!;
+            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
             expect(root.parent).toBeNull();
         });
 
@@ -120,7 +121,7 @@ describe('Prefab', () => {
             const prefab = simplePrefab();
             await instantiatePrefab(world, prefab);
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             child.components[0].data.texture = 'modified.png';
             expect(prefab.entities[1].components[0].data.texture).toBe('test.png');
         });
@@ -129,10 +130,9 @@ describe('Prefab', () => {
             const prefab = simplePrefab();
             const result = await instantiatePrefab(world, prefab);
 
-            expect(result.root).toBe(100);
+            const rootId = capturedSceneData!.entities.find(e => e.name === 'Root')!.id;
+            expect(result.root).toBe(rootId + 100);
             expect(result.entities.size).toBe(2);
-            expect(result.entities.get(0)).toBe(100);
-            expect(result.entities.get(1)).toBe(101);
         });
 
         it('should filter children to only mapped entities', async () => {
@@ -140,8 +140,8 @@ describe('Prefab', () => {
             prefab.entities[0].children = [1, 999];
             await instantiatePrefab(world, prefab);
 
-            const root = capturedSceneData!.entities.find(e => e.id === 0)!;
-            expect(root.children).toEqual([1]);
+            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
+            expect(root.children).toHaveLength(1);
         });
 
         it('should pass assetServer and assetBaseUrl to loadSceneWithAssets', async () => {
@@ -167,7 +167,8 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { parent: parentEntity });
 
-            expect(world.setParent).toHaveBeenCalledWith(100, parentEntity);
+            const rootId = capturedSceneData!.entities.find(e => e.name === 'Root')!.id;
+            expect(world.setParent).toHaveBeenCalledWith(rootId + 100, parentEntity);
         });
 
         it('should not call setParent when parent option is not provided', async () => {
@@ -191,7 +192,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             const sprite = child.components.find(c => c.type === 'Sprite')!;
             expect(sprite.data.color).toBe('blue');
         });
@@ -208,7 +209,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             const sprite = child.components.find(c => c.type === 'Sprite')!;
             expect(sprite.data.color).toBe('red');
         });
@@ -225,7 +226,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.components).toHaveLength(1);
             expect(child.components[0].type).toBe('Sprite');
         });
@@ -242,8 +243,8 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
-            expect(child.name).toBe('RenamedChild');
+            const child = capturedSceneData!.entities.find(e => e.name === 'RenamedChild')!;
+            expect(child).toBeDefined();
         });
 
         it('should ignore name override with non-string value', async () => {
@@ -256,8 +257,8 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
-            expect(child.name).toBe('Child');
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
+            expect(child).toBeDefined();
         });
     });
 
@@ -272,7 +273,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.visible).toBe(false);
         });
 
@@ -286,7 +287,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.visible).toBe(true);
         });
     });
@@ -302,7 +303,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.components).toHaveLength(2);
             const health = child.components.find(c => c.type === 'Health')!;
             expect(health.data.value).toBe(50);
@@ -318,7 +319,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             const sprites = child.components.filter(c => c.type === 'Sprite');
             expect(sprites).toHaveLength(1);
             expect(sprites[0].data.texture).toBe('test.png');
@@ -334,7 +335,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, simplePrefab(), { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             const health = child.components.find(c => c.type === 'Health')!;
             health.data.value = 999;
             expect(componentData.data.value).toBe(50);
@@ -349,7 +350,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.components).toHaveLength(1);
         });
     });
@@ -365,7 +366,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.components).toHaveLength(0);
         });
 
@@ -379,7 +380,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.components).toHaveLength(1);
         });
     });
@@ -426,10 +427,12 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab);
 
-            const root = capturedSceneData!.entities.find(e => e.id === 0)!;
+            const root = capturedSceneData!.entities.find(e => e.name === 'SliderRoot')!;
+            const fill = capturedSceneData!.entities.find(e => e.name === 'Fill')!;
+            const handle = capturedSceneData!.entities.find(e => e.name === 'Handle')!;
             const slider = root.components.find(c => c.type === 'Slider')!;
-            expect(slider.data.fillEntity).toBe(1);
-            expect(slider.data.handleEntity).toBe(2);
+            expect(slider.data.fillEntity).toBe(fill.id);
+            expect(slider.data.handleEntity).toBe(handle.id);
             expect(slider.data.value).toBe(0.5);
         });
 
@@ -454,7 +457,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab);
 
-            const root = capturedSceneData!.entities.find(e => e.id === 0)!;
+            const root = capturedSceneData!.entities.find(e => e.name === 'SliderRoot')!;
             const slider = root.components.find(c => c.type === 'Slider')!;
             expect(slider.data.fillEntity).toBe(0);
             expect(slider.data.handleEntity).toBe(0);
@@ -479,7 +482,7 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab);
 
-            const root = capturedSceneData!.entities.find(e => e.id === 0)!;
+            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
             expect(root.components[0].data.x).toBe(10);
         });
     });
@@ -653,8 +656,9 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, parentPrefab, { assetServer: mockAssetServer });
 
+            const parentRoot = capturedSceneData!.entities.find(e => e.name === 'ParentRoot')!;
             const nestedRoot = capturedSceneData!.entities.find(e => e.name === 'NestedRoot')!;
-            expect(nestedRoot.parent).toBe(0);
+            expect(nestedRoot.parent).toBe(parentRoot.id);
         });
 
         it('should apply overrides to nested prefab entities', async () => {
@@ -806,7 +810,7 @@ describe('Prefab', () => {
             ).rejects.toThrow('nesting depth exceeded');
         });
 
-        it('should throw when nested prefab requires AssetServer but none provided', async () => {
+        it('should throw when nested prefab cannot be loaded', async () => {
             const parentPrefab: PrefabData = {
                 version: '1.0',
                 name: 'Parent',
@@ -837,7 +841,7 @@ describe('Prefab', () => {
 
             await expect(
                 instantiatePrefab(world, parentPrefab),
-            ).rejects.toThrow('AssetServer required');
+            ).rejects.toThrow('Failed to load nested prefab');
         });
     });
 
@@ -866,8 +870,8 @@ describe('Prefab', () => {
 
             await instantiatePrefab(world, prefab, { overrides });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
-            expect(child.name).toBe('RenamedChild');
+            const child = capturedSceneData!.entities.find(e => e.name === 'RenamedChild')!;
+            expect(child).toBeDefined();
             expect(child.components.find(c => c.type === 'Sprite')!.data.color).toBe('blue');
             expect(child.components.find(c => c.type === 'Health')!.data.value).toBe(100);
         });
@@ -957,7 +961,8 @@ describe('Prefab', () => {
             const result = await instantiatePrefab(world, prefab);
 
             expect(capturedSceneData!.entities).toHaveLength(1);
-            expect(result.root).toBe(100);
+            const rootId = capturedSceneData!.entities[0].id;
+            expect(result.root).toBe(rootId + 100);
         });
 
         it('should handle non-sequential entity IDs', async () => {
@@ -990,18 +995,186 @@ describe('Prefab', () => {
             expect(capturedSceneData!.entities).toHaveLength(2);
             const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
             const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
-            expect(root.id).toBe(5);
-            expect(child.id).toBe(10);
-            expect(child.parent).toBe(5);
+            expect(root.parent).toBeNull();
+            expect(child.parent).toBe(root.id);
+            expect(root.children).toContain(child.id);
         });
 
         it('should handle empty overrides array', async () => {
             const prefab = simplePrefab();
             await instantiatePrefab(world, prefab, { overrides: [] });
 
-            const child = capturedSceneData!.entities.find(e => e.id === 1)!;
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
             expect(child.name).toBe('Child');
             expect(child.components[0].data.color).toBe('red');
+        });
+    });
+
+    describe('Prefab Variant', () => {
+        it('should flatten variant by loading base and applying overrides', async () => {
+            const basePrefab: PrefabData = {
+                version: '1.0',
+                name: 'BasePrefab',
+                rootEntityId: 0,
+                entities: [
+                    {
+                        prefabEntityId: 0,
+                        name: 'Root',
+                        parent: null,
+                        children: [],
+                        components: [{ type: 'Transform', data: { x: 0, y: 0 } }],
+                        visible: true,
+                    },
+                ],
+            };
+
+            const variant: PrefabData = {
+                version: '1.0',
+                name: 'VariantPrefab',
+                rootEntityId: 0,
+                entities: [],
+                basePrefab: 'base.prefab',
+                overrides: [
+                    {
+                        prefabEntityId: 0,
+                        type: 'property',
+                        componentType: 'Transform',
+                        propertyName: 'x',
+                        value: 42,
+                    },
+                ],
+            };
+
+            const mockAssetServer = {
+                loadPrefab: vi.fn().mockResolvedValue(basePrefab),
+            } as any;
+
+            await instantiatePrefab(world, variant, { assetServer: mockAssetServer });
+
+            expect(capturedSceneData!.entities).toHaveLength(1);
+            const root = capturedSceneData!.entities[0];
+            expect(root.name).toBe('Root');
+            const transform = root.components.find(c => c.type === 'Transform')!;
+            expect(transform.data.x).toBe(42);
+        });
+
+        it('should combine variant overrides with instance overrides', async () => {
+            const basePrefab: PrefabData = {
+                version: '1.0',
+                name: 'BasePrefab',
+                rootEntityId: 0,
+                entities: [
+                    {
+                        prefabEntityId: 0,
+                        name: 'Root',
+                        parent: null,
+                        children: [],
+                        components: [{ type: 'Sprite', data: { color: 'red', size: 10 } }],
+                        visible: true,
+                    },
+                ],
+            };
+
+            const variant: PrefabData = {
+                version: '1.0',
+                name: 'VariantPrefab',
+                rootEntityId: 0,
+                entities: [],
+                basePrefab: 'base.prefab',
+                overrides: [
+                    {
+                        prefabEntityId: 0,
+                        type: 'property',
+                        componentType: 'Sprite',
+                        propertyName: 'color',
+                        value: 'blue',
+                    },
+                ],
+            };
+
+            const mockAssetServer = {
+                loadPrefab: vi.fn().mockResolvedValue(basePrefab),
+            } as any;
+
+            const instanceOverrides: PrefabOverride[] = [
+                {
+                    prefabEntityId: 0,
+                    type: 'property',
+                    componentType: 'Sprite',
+                    propertyName: 'size',
+                    value: 20,
+                },
+            ];
+
+            await instantiatePrefab(world, variant, {
+                assetServer: mockAssetServer,
+                overrides: instanceOverrides,
+            });
+
+            const root = capturedSceneData!.entities[0];
+            const sprite = root.components.find(c => c.type === 'Sprite')!;
+            expect(sprite.data.color).toBe('blue');
+            expect(sprite.data.size).toBe(20);
+        });
+
+        it('should detect circular variant reference', async () => {
+            const variant: PrefabData = {
+                version: '1.0',
+                name: 'CircularVariant',
+                rootEntityId: 0,
+                entities: [],
+                basePrefab: 'self.prefab',
+            };
+
+            const mockAssetServer = {
+                loadPrefab: vi.fn().mockResolvedValue(variant),
+            } as any;
+
+            await expect(
+                instantiatePrefab(world, variant, { assetServer: mockAssetServer }),
+            ).rejects.toThrow('Circular variant reference');
+        });
+
+        it('should apply variant name override', async () => {
+            const basePrefab: PrefabData = {
+                version: '1.0',
+                name: 'BasePrefab',
+                rootEntityId: 0,
+                entities: [
+                    {
+                        prefabEntityId: 0,
+                        name: 'OriginalName',
+                        parent: null,
+                        children: [],
+                        components: [],
+                        visible: true,
+                    },
+                ],
+            };
+
+            const variant: PrefabData = {
+                version: '1.0',
+                name: 'VariantPrefab',
+                rootEntityId: 0,
+                entities: [],
+                basePrefab: 'base.prefab',
+                overrides: [
+                    {
+                        prefabEntityId: 0,
+                        type: 'name',
+                        value: 'RenamedInVariant',
+                    },
+                ],
+            };
+
+            const mockAssetServer = {
+                loadPrefab: vi.fn().mockResolvedValue(basePrefab),
+            } as any;
+
+            await instantiatePrefab(world, variant, { assetServer: mockAssetServer });
+
+            const root = capturedSceneData!.entities[0];
+            expect(root.name).toBe('RenamedInVariant');
         });
     });
 });

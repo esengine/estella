@@ -16,4 +16,4 @@ export const ProgressBar = defineComponent<ProgressBarData>('ProgressBar', {
     value: 0,
     fillEntity: 0 as Entity,
     direction: FillDirection.LeftToRight,
-});
+}, { entityFields: ['fillEntity'] });

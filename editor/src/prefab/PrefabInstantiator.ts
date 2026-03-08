@@ -1,33 +1,23 @@
-/**
- * @file    PrefabInstantiator.ts
- * @brief   Prefab instantiation into scene
- */
-
-import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
-import type { PrefabData, PrefabOverride, PrefabInstanceData } from '../types/PrefabTypes';
+import type { SceneData, EntityData } from '../types/SceneTypes';
+import type { PrefabInstanceData } from '../types/PrefabTypes';
+import {
+    type PrefabData,
+    type PrefabOverride,
+    type ProcessedEntity,
+    type FlattenContext,
+    flattenPrefab,
+    preloadNestedPrefabs,
+} from 'esengine';
 import { loadPrefabFromPath } from './PrefabSerializer';
-import { getComponentEntityFields } from 'esengine';
-
-// =============================================================================
-// Instantiation Result
-// =============================================================================
 
 export interface InstantiateResult {
     rootEntityId: number;
     createdEntities: EntityData[];
 }
 
-// =============================================================================
-// ID Allocation
-// =============================================================================
-
 export function computeNextEntityId(scene: SceneData): number {
     return scene.entities.reduce((max, e) => Math.max(max, e.id), 0) + 1;
 }
-
-// =============================================================================
-// Instance ID Generation
-// =============================================================================
 
 let instanceCounter = 0;
 
@@ -35,77 +25,63 @@ function generateInstanceId(): string {
     return `prefab_${Date.now()}_${++instanceCounter}`;
 }
 
-// =============================================================================
-// Instantiation (non-recursive)
-// =============================================================================
+function processedToEntityData(
+    processed: ProcessedEntity[],
+    rootId: number,
+    parentEntityId: number | null,
+    prefabPath: string,
+    instanceId: string,
+    overrides: PrefabOverride[],
+    basePrefab?: string,
+): EntityData[] {
+    return processed.map(e => {
+        const instance: PrefabInstanceData = {
+            prefabPath,
+            prefabEntityId: e.prefabEntityId,
+            isRoot: e.id === rootId,
+            instanceId,
+            overrides: overrides.filter(o => o.prefabEntityId === e.prefabEntityId),
+        };
+        if (basePrefab) {
+            instance.basePrefab = basePrefab;
+        }
+        return {
+            id: e.id,
+            name: e.name,
+            parent: e.id === rootId ? parentEntityId : e.parent,
+            children: e.children,
+            components: e.components,
+            visible: e.visible,
+            prefab: instance,
+        };
+    });
+}
 
 export function instantiatePrefab(
     prefab: PrefabData,
     prefabPath: string,
-    _scene: SceneData,
+    scene: SceneData,
     parentEntityId: number | null,
     nextEntityIdStart: number,
     overrides: PrefabOverride[] = []
 ): InstantiateResult {
-    const idMapping = new Map<number, number>();
     let nextId = nextEntityIdStart;
 
-    for (const pe of prefab.entities) {
-        idMapping.set(pe.prefabEntityId, nextId++);
-    }
+    const ctx: FlattenContext = {
+        allocateId: () => nextId++,
+        loadPrefab: () => null,
+        visited: new Set<string>(),
+    };
+
+    const { entities: processed, rootId } = flattenPrefab(prefab, overrides, ctx);
 
     const instanceId = generateInstanceId();
-    const createdEntities: EntityData[] = [];
+    const createdEntities = processedToEntityData(
+        processed, rootId, parentEntityId, prefabPath, instanceId, overrides, prefab.basePrefab,
+    );
 
-    for (const pe of prefab.entities) {
-        const sceneId = idMapping.get(pe.prefabEntityId)!;
-        const isRoot = pe.prefabEntityId === prefab.rootEntityId;
-
-        let parent: number | null;
-        if (isRoot) {
-            parent = parentEntityId;
-        } else {
-            parent = pe.parent !== null ? idMapping.get(pe.parent) ?? null : null;
-        }
-
-        const children = pe.children
-            .map(cid => idMapping.get(cid))
-            .filter((id): id is number => id !== undefined);
-
-        const prefabInstance: PrefabInstanceData = {
-            prefabPath,
-            prefabEntityId: pe.prefabEntityId,
-            isRoot,
-            instanceId,
-            overrides: isRoot ? [...overrides] : [],
-        };
-
-        const components = deepCloneComponents(pe.components);
-        remapComponentEntityRefs(components, idMapping);
-
-        const entity: EntityData = {
-            id: sceneId,
-            name: pe.name,
-            parent,
-            children,
-            components,
-            visible: pe.visible,
-            prefab: prefabInstance,
-        };
-
-        applyOverrides(entity, overrides);
-        createdEntities.push(entity);
-    }
-
-    return {
-        rootEntityId: idMapping.get(prefab.rootEntityId)!,
-        createdEntities,
-    };
+    return { rootEntityId: rootId, createdEntities };
 }
-
-// =============================================================================
-// Recursive Instantiation (Phase 5)
-// =============================================================================
 
 export async function instantiatePrefabRecursive(
     prefabPath: string,
@@ -113,160 +89,50 @@ export async function instantiatePrefabRecursive(
     parentEntityId: number | null,
     nextEntityIdStart: number,
     overrides: PrefabOverride[] = [],
-    visitedPaths?: Set<string>
 ): Promise<InstantiateResult | null> {
-    const visited = visitedPaths ?? new Set<string>();
-    if (visited.has(prefabPath)) {
-        console.warn(`Circular prefab dependency detected: ${prefabPath}`);
-        return null;
-    }
-    visited.add(prefabPath);
-
     const prefab = await loadPrefabFromPath(prefabPath);
     if (!prefab) return null;
 
-    const idMapping = new Map<number, number>();
-    let nextId = nextEntityIdStart;
+    const prefabCache = new Map<string, PrefabData>();
 
-    for (const pe of prefab.entities) {
-        if (!pe.nestedPrefab) {
-            idMapping.set(pe.prefabEntityId, nextId++);
-        }
-    }
+    await preloadNestedPrefabs(
+        prefab,
+        async (path: string) => {
+            const nested = await loadPrefabFromPath(path);
+            if (!nested) throw new Error(`Failed to load nested prefab: ${path}`);
+            return nested;
+        },
+        prefabCache,
+    );
+
+    let nextId = nextEntityIdStart;
+    const ctx: FlattenContext = {
+        allocateId: () => nextId++,
+        loadPrefab: (p: string) => prefabCache.get(p) ?? null,
+        visited: new Set<string>(),
+    };
+
+    const { entities: processed, rootId } = flattenPrefab(prefab, overrides, ctx);
 
     const instanceId = generateInstanceId();
-    const allCreated: EntityData[] = [];
+    const createdEntities = processedToEntityData(
+        processed, rootId, parentEntityId, prefabPath, instanceId, overrides, prefab.basePrefab,
+    );
 
-    for (const pe of prefab.entities) {
-        const isRoot = pe.prefabEntityId === prefab.rootEntityId;
-
-        if (pe.nestedPrefab) {
-            const nestedParentPrefabId = pe.parent;
-            const nestedParentSceneId = nestedParentPrefabId !== null
-                ? idMapping.get(nestedParentPrefabId) ?? null
-                : (isRoot ? parentEntityId : null);
-
-            const nestedResult = await instantiatePrefabRecursive(
-                pe.nestedPrefab.prefabPath,
-                _scene,
-                nestedParentSceneId,
-                nextId,
-                pe.nestedPrefab.overrides,
-                visited
-            );
-
-            if (nestedResult) {
-                idMapping.set(pe.prefabEntityId, nestedResult.rootEntityId);
-                nextId = computeNextIdAfter(nestedResult.createdEntities, nextId);
-                allCreated.push(...nestedResult.createdEntities);
-            }
-            continue;
-        }
-
-        const sceneId = idMapping.get(pe.prefabEntityId)!;
-
-        let parent: number | null;
-        if (isRoot) {
-            parent = parentEntityId;
-        } else {
-            parent = pe.parent !== null ? idMapping.get(pe.parent) ?? null : null;
-        }
-
-        const children = pe.children
-            .map(cid => idMapping.get(cid))
-            .filter((id): id is number => id !== undefined);
-
-        const prefabInstance: PrefabInstanceData = {
-            prefabPath,
-            prefabEntityId: pe.prefabEntityId,
-            isRoot,
-            instanceId,
-            overrides: isRoot ? [...overrides] : [],
-        };
-
-        const components = deepCloneComponents(pe.components);
-        remapComponentEntityRefs(components, idMapping);
-
-        const entity: EntityData = {
-            id: sceneId,
-            name: pe.name,
-            parent,
-            children,
-            components,
-            visible: pe.visible,
-            prefab: prefabInstance,
-        };
-
-        applyOverrides(entity, overrides);
-        allCreated.push(entity);
-    }
-
-    const rootSceneId = idMapping.get(prefab.rootEntityId);
-    if (rootSceneId === undefined) return null;
-
-    return {
-        rootEntityId: rootSceneId,
-        createdEntities: allCreated,
-    };
+    return { rootEntityId: rootId, createdEntities };
 }
 
-// =============================================================================
-// Override Application
-// =============================================================================
-
-function applyOverrides(entity: EntityData, overrides: PrefabOverride[]): void {
-    const prefabEntityId = entity.prefab?.prefabEntityId;
-    if (prefabEntityId === undefined) return;
-
-    for (const override of overrides) {
-        if (override.prefabEntityId !== prefabEntityId) continue;
-
-        switch (override.type) {
-            case 'property':
-                if (override.componentType && override.propertyName !== undefined) {
-                    const comp = entity.components.find(c => c.type === override.componentType);
-                    if (comp) {
-                        comp.data[override.propertyName] = override.value;
-                    }
-                }
-                break;
-            case 'name':
-                if (typeof override.value === 'string') {
-                    entity.name = override.value;
-                }
-                break;
-            case 'visibility':
-                if (typeof override.value === 'boolean') {
-                    entity.visible = override.value;
-                }
-                break;
-            case 'component_added':
-                if (override.componentData) {
-                    const exists = entity.components.some(c => c.type === override.componentData!.type);
-                    if (!exists) {
-                        entity.components.push({
-                            type: override.componentData.type,
-                            data: JSON.parse(JSON.stringify(override.componentData.data)),
-                        });
-                    }
-                }
-                break;
-            case 'component_removed':
-                if (override.componentType) {
-                    entity.components = entity.components.filter(c => c.type !== override.componentType);
-                }
-                break;
+function collectInstanceOverrides(instanceEntities: EntityData[]): PrefabOverride[] {
+    const overrides: PrefabOverride[] = [];
+    for (const e of instanceEntities) {
+        if (e.prefab) {
+            overrides.push(...e.prefab.overrides);
         }
     }
+    return overrides;
 }
-
-// =============================================================================
-// Prefab Instance Sync
-// =============================================================================
 
 export async function syncPrefabInstances(scene: SceneData, prefabPath: string): Promise<boolean> {
-    let changed = false;
-
     const prefab = await loadPrefabFromPath(prefabPath);
     if (!prefab) return false;
 
@@ -278,145 +144,28 @@ export async function syncPrefabInstances(scene: SceneData, prefabPath: string):
         instanceGroups.set(entity.prefab.instanceId, group);
     }
 
-    for (const [instanceId, instanceEntities] of instanceGroups) {
+    let changed = false;
+
+    for (const [_instanceId, instanceEntities] of instanceGroups) {
         const root = instanceEntities.find(e => e.prefab?.isRoot);
         if (!root) continue;
 
-        const existingByPrefabId = new Map<number, EntityData>();
+        const rootParent = root.parent;
+        const savedOverrides = collectInstanceOverrides(instanceEntities);
+
         for (const e of instanceEntities) {
-            existingByPrefabId.set(e.prefab!.prefabEntityId, e);
-        }
-
-        const prefabEntityIds = new Set(prefab.entities.map(pe => pe.prefabEntityId));
-        const newPrefabEntities = prefab.entities.filter(
-            pe => !existingByPrefabId.has(pe.prefabEntityId)
-        );
-        const removedEntities = instanceEntities.filter(
-            e => !prefabEntityIds.has(e.prefab!.prefabEntityId)
-        );
-
-        if (newPrefabEntities.length === 0 && removedEntities.length === 0) continue;
-        changed = true;
-
-        let nextId = computeNextEntityId(scene);
-        const newIdMapping = new Map<number, number>();
-        for (const pe of newPrefabEntities) {
-            newIdMapping.set(pe.prefabEntityId, nextId++);
-        }
-
-        const fullIdMapping = new Map<number, number>();
-        for (const [prefabId, entityData] of existingByPrefabId) {
-            fullIdMapping.set(prefabId, entityData.id);
-        }
-        for (const [prefabId, sceneId] of newIdMapping) {
-            fullIdMapping.set(prefabId, sceneId);
-        }
-
-        for (const pe of newPrefabEntities) {
-            const sceneId = newIdMapping.get(pe.prefabEntityId)!;
-
-            let parent: number | null;
-            if (pe.parent !== null) {
-                parent = existingByPrefabId.get(pe.parent)?.id
-                    ?? newIdMapping.get(pe.parent) ?? null;
-            } else {
-                parent = null;
-            }
-
-            const children = pe.children
-                .map(cid => existingByPrefabId.get(cid)?.id ?? newIdMapping.get(cid))
-                .filter((id): id is number => id !== undefined);
-
-            const components = deepCloneComponents(pe.components);
-            remapComponentEntityRefs(components, fullIdMapping);
-
-            const entity: EntityData = {
-                id: sceneId,
-                name: pe.name,
-                parent,
-                children,
-                components,
-                visible: pe.visible,
-                prefab: {
-                    prefabPath,
-                    prefabEntityId: pe.prefabEntityId,
-                    isRoot: false,
-                    instanceId,
-                    overrides: [],
-                },
-            };
-
-            applyOverrides(entity, root.prefab!.overrides);
-            scene.entities.push(entity);
-            existingByPrefabId.set(pe.prefabEntityId, entity);
-        }
-
-        for (const pe of prefab.entities) {
-            const existing = existingByPrefabId.get(pe.prefabEntityId);
-            if (!existing) continue;
-
-            const expectedChildren = pe.children
-                .map(cid => existingByPrefabId.get(cid)?.id ?? newIdMapping.get(cid))
-                .filter((id): id is number => id !== undefined);
-
-            for (const childId of expectedChildren) {
-                if (!existing.children.includes(childId)) {
-                    existing.children.push(childId);
-                }
-            }
-        }
-
-        for (const removed of removedEntities) {
-            const idx = scene.entities.indexOf(removed);
+            const idx = scene.entities.indexOf(e);
             if (idx !== -1) scene.entities.splice(idx, 1);
-
-            if (removed.parent !== null) {
-                const parent = scene.entities.find(e => e.id === removed.parent);
-                if (parent) {
-                    parent.children = parent.children.filter(c => c !== removed.id);
-                }
-            }
         }
+
+        const nextId = computeNextEntityId(scene);
+        const result = instantiatePrefab(
+            prefab, prefabPath, scene, rootParent, nextId, savedOverrides,
+        );
+
+        scene.entities.push(...result.createdEntities);
+        changed = true;
     }
+
     return changed;
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function deepCloneComponents(components: ComponentData[]): ComponentData[] {
-    return components.map(c => ({
-        type: c.type,
-        data: JSON.parse(JSON.stringify(c.data)),
-    }));
-}
-
-function remapComponentEntityRefs(
-    components: ComponentData[],
-    idMapping: Map<number, number>,
-): void {
-    for (const comp of components) {
-        const fields = getComponentEntityFields(comp.type);
-        if (!fields) continue;
-        for (const field of fields) {
-            const value = comp.data[field];
-            if (typeof value === 'number' && value !== 0) {
-                const mapped = idMapping.get(value);
-                if (mapped !== undefined) {
-                    comp.data[field] = mapped;
-                }
-            }
-        }
-    }
-}
-
-function computeNextIdAfter(entities: EntityData[], currentNext: number): number {
-    let max = currentNext;
-    for (const e of entities) {
-        if (e.id >= max) {
-            max = e.id + 1;
-        }
-    }
-    return max;
 }
