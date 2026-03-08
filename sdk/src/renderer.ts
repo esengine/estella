@@ -52,6 +52,19 @@ export const Renderer = {
         module?.renderer_resize(width, height);
     },
 
+    beginFrame(): void {
+        module?.renderer_beginFrame();
+    },
+
+    updateTransforms(registry: { _cpp: CppRegistry }): void {
+        if (!module) return;
+        try {
+            module.renderer_updateTransforms(registry._cpp);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.updateTransforms');
+        }
+    },
+
     begin(viewProjection: Float32Array, target?: RenderTargetHandle): void {
         if (!module || !viewProjectionPtr) return;
         try {

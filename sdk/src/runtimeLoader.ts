@@ -3,20 +3,21 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { SpineAnimation, Transform, SceneOwner, type SpineAnimationData, type TransformData } from './component';
+import { SceneOwner } from './component';
 import { Material } from './material';
 import { loadSceneData, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, type AssetFieldType, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
-import { wrapSpineModule, type SpineWasmModule, type SpineWrappedAPI } from './spine/SpineModuleLoader';
+import type { SpineWasmModule } from './spine/SpineModuleLoader';
+import { SpineManager, type SpineVersion } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { App } from './app';
-import type { Entity, Vec2 } from './types';
+import type { Vec2 } from './types';
 import type { AddressableManifest } from './asset/AssetServer';
 import { Assets } from './asset/AssetPlugin';
 import { getAssetTypeEntry } from './assetTypes';
 import { SceneManager, type SceneConfig } from './sceneManager';
-import { DEFAULT_MAX_DELTA_TIME, DEFAULT_FALLBACK_DT, DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
+import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
 import { type AnimClipAssetData, extractAnimClipTexturePaths, parseAnimClipData } from './animation/AnimClipLoader';
 import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
@@ -162,14 +163,47 @@ function parseAtlasTextures(content: string): string[] {
     return textures;
 }
 
-async function loadSpineAssets(
+function ensureVirtualDir(module: ESEngineModule, virtualPath: string): void {
+    const fs = module.FS;
+    if (!fs) return;
+    const dir = virtualPath.substring(0, virtualPath.lastIndexOf('/'));
+    if (!dir) return;
+    const parts = dir.split('/').filter(p => p);
+    let currentPath = '';
+    for (const part of parts) {
+        currentPath += '/' + part;
+        try { fs.mkdir(currentPath); } catch { /* already exists */ }
+    }
+}
+
+function writeToVirtualFS(module: ESEngineModule, virtualPath: string, data: string | Uint8Array): boolean {
+    const fs = module.FS;
+    if (!fs) return false;
+    try {
+        ensureVirtualDir(module, virtualPath);
+        fs.writeFile(virtualPath, data);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+interface SpineAssetInfo {
+    version: SpineVersion | null;
+    skelData: Uint8Array | string;
+    atlasText: string;
+    textures: Map<string, { glId: number; w: number; h: number }>;
+}
+
+async function loadSpineAssetsToVirtualFS(
     module: ESEngineModule,
-    spineModule: SpineWasmModule,
-    spineAPI: SpineWrappedAPI,
     sceneData: SceneData,
     provider: RuntimeAssetProvider,
-): Promise<Record<string, number>> {
-    const skeletons: Record<string, number> = {};
+    spineManager?: SpineManager | null,
+): Promise<Map<string, SpineAssetInfo>> {
+    const loaded = new Set<string>();
+    const assetInfoMap = new Map<string, SpineAssetInfo>();
+
     for (const entity of sceneData.entities) {
         for (const comp of entity.components) {
             const spineDesc = getComponentSpineFieldDescriptor(comp.type);
@@ -178,193 +212,59 @@ async function loadSpineAssets(
             const atlasRef = comp.data[spineDesc.atlasField] as string;
             if (!skelRef || !atlasRef) continue;
 
-            const skelPath = provider.resolvePath(skelRef);
+            const cacheKey = `${skelRef}:${atlasRef}`;
+            if (loaded.has(cacheKey)) continue;
+            loaded.add(cacheKey);
+
             const atlasPath = provider.resolvePath(atlasRef);
 
             try {
                 const atlasContent = await provider.readText(atlasRef);
+
+                const skelPath = provider.resolvePath(skelRef);
                 const isBinary = getAssetTypeEntry(skelPath)?.contentType === 'binary';
+                const skelData = isBinary
+                    ? await provider.readBinary(skelRef)
+                    : await provider.readText(skelRef);
 
-                let skelDataPtr: number;
-                let skelDataLen: number;
-                if (isBinary) {
-                    const bytes = await provider.readBinary(skelRef);
-                    skelDataLen = bytes.length;
-                    skelDataPtr = spineModule._malloc(skelDataLen);
-                    spineModule.HEAPU8.set(bytes, skelDataPtr);
-                } else {
-                    const text = await provider.readText(skelRef);
-                    const encoder = new TextEncoder();
-                    const bytes = encoder.encode(text);
-                    skelDataLen = bytes.length;
-                    skelDataPtr = spineModule._malloc(skelDataLen + 1);
-                    spineModule.HEAPU8.set(bytes, skelDataPtr);
-                    spineModule.HEAPU8[skelDataPtr + skelDataLen] = 0;
-                }
-
-                const skelHandle = spineAPI.loadSkeleton(
-                    skelDataPtr, skelDataLen, atlasContent, atlasContent.length, isBinary);
-                spineModule._free(skelDataPtr);
-                if (skelHandle < 0) continue;
-
-                skeletons[skelRef] = skelHandle;
+                const version = spineManager
+                    ? (typeof skelData === 'string'
+                        ? SpineManager.detectVersionJson(skelData)
+                        : SpineManager.detectVersion(skelData))
+                    : null;
 
                 const texNames = parseAtlasTextures(atlasContent);
                 const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-                for (let k = 0; k < texNames.length; k++) {
-                    const texPath = atlasDir + '/' + texNames[k];
+                const rm = module.getResourceManager();
+                const textures = new Map<string, { glId: number; w: number; h: number }>();
+
+                for (const texName of texNames) {
+                    const texPath = atlasDir + '/' + texName;
                     try {
                         const result = provider.loadPixelsRaw
                             ? await provider.loadPixelsRaw(texPath)
                             : await provider.loadPixels(texPath);
                         const handle = createTextureFromPixels(module, result, false);
-                        const rm = module.getResourceManager();
-                        const glId = rm.getTextureGLId(handle);
-                        spineAPI.setAtlasPageTexture(skelHandle, k, glId, result.width, result.height);
+                        rm.registerTextureWithPath(handle, texPath);
+                        textures.set(texName, {
+                            glId: rm.getTextureGLId(handle),
+                            w: result.width,
+                            h: result.height,
+                        });
                     } catch { /* skip missing texture */ }
                 }
+
+                const isNative = !version || version === '4.2';
+                if (isNative) {
+                    writeToVirtualFS(module, atlasPath, atlasContent);
+                    writeToVirtualFS(module, skelPath, skelData);
+                }
+
+                assetInfoMap.set(cacheKey, { version, skelData, atlasText: atlasContent, textures });
             } catch { /* skip failed spine asset */ }
         }
     }
-    return skeletons;
-}
-
-function createSpineInstances(
-    spineAPI: SpineWrappedAPI,
-    sceneData: SceneData,
-    skeletons: Record<string, number>,
-    entityMap: Map<number, number>,
-): Record<number, number> {
-    const instances: Record<number, number> = {};
-    for (const entityData of sceneData.entities) {
-        if (entityData.visible === false) continue;
-        for (const comp of entityData.components) {
-            const spineDesc = getComponentSpineFieldDescriptor(comp.type);
-            if (!spineDesc || !comp.data) continue;
-            const skelRef = comp.data[spineDesc.skeletonField] as string;
-            const skelHandle = skeletons[skelRef];
-            if (skelHandle === undefined) continue;
-
-            const instanceId = spineAPI.createInstance(skelHandle);
-            if (instanceId < 0) continue;
-
-            const entity = entityMap.get(entityData.id);
-            if (entity !== undefined) instances[entity] = instanceId;
-
-            if (comp.data.animation) {
-                spineAPI.playAnimation(
-                    instanceId, comp.data.animation as string,
-                    comp.data.loop !== false, 0);
-            }
-            if (comp.data.skin) {
-                spineAPI.setSkin(instanceId, comp.data.skin as string);
-            }
-        }
-    }
-    return instances;
-}
-
-function buildTransformMatrix(
-    wt: TransformData,
-    skeletonScale: number,
-    flipX: boolean,
-    flipY: boolean,
-): Float32Array {
-    const sx = wt.worldScale.x * skeletonScale * (flipX ? -1 : 1);
-    const sy = wt.worldScale.y * skeletonScale * (flipY ? -1 : 1);
-    const sz = wt.worldScale.z;
-    const qx = wt.worldRotation.x, qy = wt.worldRotation.y, qz = wt.worldRotation.z, qw = wt.worldRotation.w;
-    const x2 = qx + qx, y2 = qy + qy, z2 = qz + qz;
-    const xx = qx * x2, xy = qx * y2, xz = qx * z2;
-    const yy = qy * y2, yz = qy * z2, zz = qz * z2;
-    const wx = qw * x2, wy = qw * y2, wz = qw * z2;
-    return new Float32Array([
-        (1 - (yy + zz)) * sx, (xy + wz) * sx, (xz - wy) * sx, 0,
-        (xy - wz) * sy, (1 - (xx + zz)) * sy, (yz + wx) * sy, 0,
-        (xz + wy) * sz, (yz - wx) * sz, (1 - (xx + yy)) * sz, 0,
-        wt.worldPosition.x, wt.worldPosition.y, wt.worldPosition.z, 1,
-    ]);
-}
-
-function setupSpineRenderer(
-    app: App,
-    module: ESEngineModule,
-    spineModule: SpineWasmModule,
-    spineAPI: SpineWrappedAPI,
-    instances: Record<number, number>,
-): void {
-    let lastElapsed = 0;
-    app.setSpineRenderer((_registry: unknown, elapsed: number) => {
-        let dt = elapsed - lastElapsed;
-        lastElapsed = elapsed;
-        if (dt <= 0 || dt > DEFAULT_MAX_DELTA_TIME) dt = DEFAULT_FALLBACK_DT;
-
-        const world = app.world;
-
-        for (const entity in instances) {
-            const entityId = Number(entity) as Entity;
-            const instanceId = instances[entity];
-
-            const spineData = world.has(entityId, SpineAnimation)
-                ? world.get(entityId, SpineAnimation) as SpineAnimationData
-                : null;
-
-            const playing = spineData?.playing !== false;
-            const timeScale = spineData?.timeScale ?? 1;
-            if (playing) {
-                spineAPI.update(instanceId, dt * timeScale);
-            }
-
-            let transformPtr = 0;
-            if (world.has(entityId, Transform)) {
-                const wt = world.get(entityId, Transform) as TransformData;
-                const skeletonScale = spineData?.skeletonScale ?? 1;
-                const flipX = spineData?.flipX ?? false;
-                const flipY = spineData?.flipY ?? false;
-                const mat = buildTransformMatrix(wt, skeletonScale, flipX, flipY);
-                transformPtr = module._malloc(64);
-                module.HEAPF32.set(mat, transformPtr >> 2);
-            }
-
-            const batchCount = spineAPI.getMeshBatchCount(instanceId);
-            for (let b = 0; b < batchCount; b++) {
-                const vertCount = spineAPI.getMeshBatchVertexCount(instanceId, b);
-                const idxCount = spineAPI.getMeshBatchIndexCount(instanceId, b);
-                if (!vertCount || !idxCount) continue;
-
-                const vertBytes = vertCount * 8 * 4;
-                const idxBytes = idxCount * 2;
-                const vertPtr = spineModule._malloc(vertBytes);
-                const idxPtr = spineModule._malloc(idxBytes);
-                const texIdPtr = spineModule._malloc(4);
-                const blendPtr = spineModule._malloc(4);
-
-                spineAPI.getMeshBatchData(instanceId, b, vertPtr, idxPtr, texIdPtr, blendPtr);
-                const texId = spineModule.HEAPU32[texIdPtr >> 2];
-                const blendMode = spineModule.HEAPU32[blendPtr >> 2];
-                const srcVerts = new Float32Array(spineModule.HEAPF32.buffer, vertPtr, vertCount * 8);
-                const srcIdx = new Uint16Array(spineModule.HEAPU8.buffer, idxPtr, idxCount);
-
-                const coreVertPtr = module._malloc(vertBytes);
-                const coreIdxPtr = module._malloc(idxBytes);
-                module.HEAPF32.set(srcVerts, coreVertPtr >> 2);
-                new Uint16Array(module.HEAPU8.buffer, coreIdxPtr, idxCount).set(srcIdx);
-
-                module.renderer_submitTriangles(
-                    coreVertPtr, vertCount, coreIdxPtr, idxCount,
-                    texId, blendMode, transformPtr);
-
-                module._free(coreVertPtr);
-                module._free(coreIdxPtr);
-                spineModule._free(vertPtr);
-                spineModule._free(idxPtr);
-                spineModule._free(texIdPtr);
-                spineModule._free(blendPtr);
-            }
-
-            if (transformPtr) module._free(transformPtr);
-        }
-    });
+    return assetInfoMap;
 }
 
 // =============================================================================
@@ -614,6 +514,7 @@ export interface LoadRuntimeSceneOptions {
     sceneData: SceneData;
     provider: RuntimeAssetProvider;
     spineModule?: SpineWasmModule | null;
+    spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
     manifest?: AddressableManifest | null;
@@ -621,17 +522,12 @@ export interface LoadRuntimeSceneOptions {
 }
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, provider, spineModule, physicsModule, physicsConfig, manifest, sceneName } = options;
+    const { app, module, sceneData, provider, spineManager, physicsModule, physicsConfig, manifest, sceneName } = options;
 
     const textureCache = await loadTextures(module, sceneData, provider);
     applyTextureMetadata(module, sceneData, textureCache);
 
-    let spineSkeletons: Record<string, number> = {};
-    let spineAPI: SpineWrappedAPI | null = null;
-    if (spineModule) {
-        spineAPI = wrapSpineModule(spineModule);
-        spineSkeletons = await loadSpineAssets(module, spineModule, spineAPI, sceneData, provider);
-    }
+    const spineAssetInfo = await loadSpineAssetsToVirtualFS(module, sceneData, provider, spineManager);
 
     if (physicsModule) {
         const config: PhysicsPluginConfig = {
@@ -660,16 +556,47 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         (module as ESEngineModule).transform_update(cppRegistry);
     }
 
+    if (spineManager && cppRegistry && spineAssetInfo.size > 0) {
+        for (const sceneEntity of sceneData.entities) {
+            for (const comp of sceneEntity.components) {
+                const spineDesc = getComponentSpineFieldDescriptor(comp.type);
+                if (!spineDesc || !comp.data) continue;
+                const skelRef = comp.data[spineDesc.skeletonField] as string;
+                const atlasRef = comp.data[spineDesc.atlasField] as string;
+                if (!skelRef || !atlasRef) continue;
+
+                const cacheKey = `${skelRef}:${atlasRef}`;
+                const info = spineAssetInfo.get(cacheKey);
+                if (!info || !info.version || info.version === '4.2') continue;
+
+                const entity = entityMap.get(sceneEntity.id);
+                if (entity === undefined) continue;
+
+                await spineManager.loadEntity(
+                    entity, info.skelData, info.atlasText, info.textures, cppRegistry);
+
+                spineManager.setEntityProps(entity, {
+                    skeletonScale: (comp.data.skeletonScale as number) ?? 1,
+                    flipX: (comp.data.flipX as boolean) ?? false,
+                    flipY: (comp.data.flipY as boolean) ?? false,
+                    layer: (comp.data.layer as number) ?? 0,
+                });
+                const skin = comp.data.skin as string;
+                if (skin) spineManager.setSkin(entity, skin);
+                const animation = comp.data.animation as string;
+                if (animation) {
+                    spineManager.setAnimation(entity, animation, comp.data.loop !== false);
+                }
+            }
+        }
+    }
+
     if (sceneName && app.hasResource(SceneManager)) {
         for (const entity of entityMap.values()) {
             app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
         }
     }
 
-    if (spineModule && spineAPI) {
-        const instances = createSpineInstances(spineAPI, sceneData, spineSkeletons, entityMap);
-        setupSpineRenderer(app, module, spineModule, spineAPI, instances);
-    }
 
     if (manifest) {
         const assetServer = app.getResource(Assets);
@@ -699,6 +626,7 @@ export interface RuntimeInitConfig {
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     spineModule?: SpineWasmModule | null;
+    spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
     manifest?: AddressableManifest | null;
@@ -715,6 +643,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         module: config.module,
         provider: config.provider,
         spineModule: config.spineModule,
+        spineManager: config.spineManager,
         physicsModule: config.physicsModule,
         physicsConfig: config.physicsConfig,
         manifest: config.manifest,

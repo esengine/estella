@@ -633,7 +633,6 @@ export {
     type Viewport,
     type RenderParams,
     type CameraRenderParams,
-    type SpineRendererFn,
 } from './renderPipeline';
 
 // =============================================================================

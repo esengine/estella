@@ -14,6 +14,7 @@ import { platformReadTextFile, platformReadFile, platformInstantiateWasm, platfo
 import { toBuildPath } from './assetTypes';
 import type { AddressableManifest } from './asset/AssetServer';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
+import { SpineManager, type SpineVersion } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -117,7 +118,7 @@ export interface WeChatRuntimeConfig {
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
-    spineFactory?: (opts: unknown) => Promise<SpineWasmModule>;
+    spineFactories?: Record<string, (opts: unknown) => Promise<SpineWasmModule>>;
     physicsFactory?: (opts: unknown) => Promise<PhysicsWasmModule>;
 }
 
@@ -161,9 +162,16 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         applyBuildRuntimeConfig(app, config.runtimeConfig);
     }
 
-    let spineModule: SpineWasmModule | null = null;
-    if (config.spineFactory) {
-        spineModule = await initWasmModule(config.spineFactory, 'spine.wasm');
+    let spineManager: SpineManager | null = null;
+    if (config.spineFactories && Object.keys(config.spineFactories).length > 0) {
+        const factories = new Map<SpineVersion, () => Promise<SpineWasmModule>>();
+        for (const [version, factory] of Object.entries(config.spineFactories)) {
+            const ver = version as SpineVersion;
+            const tag = version.replace('.', '');
+            const wasmPath = `spine_${tag}.wasm`;
+            factories.set(ver, () => initWasmModule(factory, wasmPath) as Promise<SpineWasmModule>);
+        }
+        spineManager = new SpineManager(module, factories);
     }
 
     let physicsModule: PhysicsWasmModule | null = null;
@@ -185,7 +193,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         provider,
         scenes,
         firstScene: config.firstScene,
-        spineModule,
+        spineManager,
         physicsModule,
         physicsConfig: config.physicsConfig,
         manifest,
