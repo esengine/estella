@@ -351,8 +351,8 @@ function renderAddButton(
 }
 
 export function registerPostProcessVolumeInspector(registrar: PluginRegistrar): void {
-    registrar.provide(COMPONENT_INSPECTOR, 'postprocess-volume', {
-        id: 'postprocess-volume',
+    registrar.provide(COMPONENT_INSPECTOR, 'PostProcessVolume', {
+        id: 'PostProcessVolume',
         componentType: 'PostProcessVolume',
         render: renderInspector,
     });
