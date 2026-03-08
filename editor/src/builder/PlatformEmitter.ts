@@ -20,6 +20,7 @@ export interface BuildArtifact {
     compiledMaterials: CompiledMaterial[];
     assetLibrary: AssetDatabase;
     atlasInputHash?: string;
+    spineVersions: Set<string>;
 }
 
 export interface PlatformEmitter {

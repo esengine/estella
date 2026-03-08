@@ -17,7 +17,8 @@ import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { compileMaterials } from './MaterialCompiler';
 import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
 import type { PrefabData } from '../types/PrefabTypes';
-import { toBuildPath, getComponentAssetFieldDescriptors, getComponentDefaults, registerAssetBuildTransform } from 'esengine';
+import { toBuildPath, getComponentAssetFieldDescriptors, getComponentDefaults, registerAssetBuildTransform, getComponentSpineFieldDescriptor } from 'esengine';
+import { SpineManager } from 'esengine/spine';
 import { normalizePath, joinPath, isAbsolutePath, getParentDir } from '../utils/path';
 import { getEsbuildWasmURL } from '../context/EditorContext';
 import { getSettingsValue } from '../settings/SettingsRegistry';
@@ -158,6 +159,8 @@ export async function buildArtifact(
         scenes.set(name, data);
     }
 
+    const spineVersions = await scanSpineVersions(fs, projectDir, sceneDataList, assetLibrary);
+
     return {
         scenes,
         assetPaths,
@@ -166,7 +169,60 @@ export async function buildArtifact(
         compiledMaterials,
         assetLibrary,
         atlasInputHash,
+        spineVersions,
     };
+}
+
+async function scanSpineVersions(
+    fs: NativeFS,
+    projectDir: string,
+    sceneDataList: Array<{ name: string; data: Record<string, unknown> }>,
+    assetLibrary: AssetLibrary,
+): Promise<Set<string>> {
+    const versions = new Set<string>();
+    const scanned = new Set<string>();
+
+    for (const { data } of sceneDataList) {
+        const entities = data.entities as Array<{
+            components: Array<{ type: string; data: Record<string, unknown> }>;
+        }> | undefined;
+        if (!entities) continue;
+
+        for (const entity of entities) {
+            for (const comp of entity.components || []) {
+                const spineDesc = getComponentSpineFieldDescriptor(comp.type);
+                if (!spineDesc || !comp.data) continue;
+
+                let skelRef = comp.data[spineDesc.skeletonField] as string;
+                if (!skelRef) continue;
+                if (isUUID(skelRef)) {
+                    skelRef = assetLibrary.getPath(skelRef) ?? skelRef;
+                }
+                if (scanned.has(skelRef)) continue;
+                scanned.add(skelRef);
+
+                const fullPath = joinPath(projectDir, skelRef);
+                try {
+                    const isBinary = skelRef.endsWith('.skel');
+                    if (isBinary) {
+                        const data = await fs.readBinaryFile(fullPath);
+                        if (data) {
+                            const ver = SpineManager.detectVersion(data);
+                            if (ver) versions.add(ver);
+                        }
+                    } else {
+                        const text = await fs.readFile(fullPath);
+                        if (text) {
+                            const ver = SpineManager.detectVersionJson(text);
+                            if (ver) versions.add(ver);
+                        }
+                    }
+                } catch { /* skip unreadable skeleton */ }
+            }
+        }
+    }
+
+    return versions;
 }
 
 function collectNonAtlasCapableTextures(

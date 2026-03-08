@@ -71,12 +71,6 @@ async function showLauncher(container: HTMLElement): Promise<void> {
     });
 }
 
-const SPINE_WASM_MAP: Record<string, string> = {
-    '3.8': '/wasm/spine38.js',
-    '4.1': '/wasm/spine41.js',
-    '4.2': '/wasm/spine42.js',
-};
-
 async function loadPhysicsFactory(editor: Editor): Promise<void> {
     try {
         const factory = await loadUmdModule('/wasm/physics.js', 'ESPhysicsModule');
@@ -101,33 +95,6 @@ async function openEditor(container: HTMLElement, projectPath: string): Promise<
     const config = await loadProjectConfig(projectPath);
 
     await loadPhysicsFactory(editor);
-
-    const spineVersion = config?.spineVersion ?? '4.2';
-    await loadSpineModule(editor, spineVersion);
-
-    editor.onSpineVersionChange((version) => {
-        loadSpineModule(editor, version);
-    });
-}
-
-async function loadSpineModule(editor: Editor, version: string): Promise<void> {
-    const url = SPINE_WASM_MAP[version];
-    if (!url) return;
-    try {
-        const factory = await loadUmdModule(url, 'ESSpineModule');
-        const wasmFile = url.replace(/\.js$/, '.wasm');
-        const module = await factory({
-            locateFile: (path: string) => {
-                if (path.endsWith('.wasm')) {
-                    return wasmFile;
-                }
-                return path;
-            },
-        });
-        editor.setSpineModule(module, version);
-    } catch (e) {
-        console.warn(`Failed to load Spine ${version} module:`, e);
-    }
 }
 
 function loadUmdModule(url: string, globalName: string): Promise<any> {
