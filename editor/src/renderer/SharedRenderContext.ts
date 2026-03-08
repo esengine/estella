@@ -35,10 +35,11 @@ import {
     clearTimelineHandles,
 } from 'esengine';
 import { PhysicsPlugin, type PhysicsPluginConfig } from 'esengine/physics';
-import type { SpineModuleController } from 'esengine/spine';
+import { SpinePlugin, SpineManager, createSpineFactories, type SpineWasmProvider } from 'esengine/spine';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
 import { AssetPathResolver } from '../asset';
 import type { GameViewRenderer } from './GameViewRenderer';
+import { getEditorContext } from '../context/EditorContext';
 
 export class SharedRenderContext {
     module_: ESEngineModule | null = null;
@@ -53,8 +54,6 @@ export class SharedRenderContext {
     private gameViewRenderer_: GameViewRenderer | null = null;
     private inputState_: InputState | null = null;
     private startTime_ = 0;
-    private lastElapsed_ = 0;
-
     private playMode_ = false;
     private paused_ = false;
     private playSpeed_ = 1;
@@ -64,6 +63,7 @@ export class SharedRenderContext {
     private continuousRender_ = false;
     private isDirty_ = true;
     private physicsFactory_: unknown = null;
+    private spineManager_: SpineManager | null = null;
     private sceneViewportW_ = 0;
     private sceneViewportH_ = 0;
     private gameViewportW_ = 0;
@@ -168,6 +168,8 @@ export class SharedRenderContext {
         app.addPlugin(audioPlugin);
         app.addPlugin(particlePlugin);
         app.addPlugin(tilemapPlugin);
+        this.spineManager_ = this.createSpineManager_(module);
+        app.addPlugin(new SpinePlugin(this.spineManager_ ?? undefined));
         app.addPlugin(sceneManagerPlugin);
         app.addPlugin(postProcessPlugin);
         app.addPlugin(timelinePlugin);
@@ -177,6 +179,7 @@ export class SharedRenderContext {
         this.app_ = app;
 
         this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_, app.world);
+        this.sceneManager_.setSpineManager(this.spineManager_);
         this.sceneManager_.registerSystems(app);
         this.initialized_ = true;
 
@@ -232,21 +235,6 @@ export class SharedRenderContext {
     setProjectDir(projectDir: string): void {
         this.pathResolver_.setProjectDir(projectDir);
         this.sceneManager_?.setProjectDir(projectDir);
-    }
-
-    setSpineController(controller: SpineModuleController | null): void {
-        this.sceneManager_?.setSpineController(controller);
-
-        if (controller && this.pipeline_ && this.module_) {
-            const module = this.module_;
-            this.pipeline_.setSpineRenderer((_registry, elapsed) => {
-                const dt = elapsed - this.lastElapsed_;
-                this.lastElapsed_ = elapsed;
-                this.sceneManager_?.updateAndSubmitSpine(module, dt);
-            });
-        } else {
-            this.pipeline_?.setSpineRenderer(null);
-        }
     }
 
     get elapsed(): number {
@@ -311,8 +299,30 @@ export class SharedRenderContext {
         this.postTickCallback_?.();
     }
 
+    get spineManager(): SpineManager | null {
+        return this.spineManager_;
+    }
+
     setPhysicsFactory(factory: unknown): void {
         this.physicsFactory_ = factory;
+    }
+
+    private createSpineManager_(module: ESEngineModule): SpineManager {
+        const provider: SpineWasmProvider = {
+            async loadJs(version: string): Promise<string> {
+                const fs = getEditorContext().fs;
+                if (!fs) throw new Error('NativeFS not available');
+                return fs.getSpineJs(version);
+            },
+            async loadWasm(version: string): Promise<ArrayBuffer> {
+                const fs = getEditorContext().fs;
+                if (!fs) throw new Error('NativeFS not available');
+                const bytes = await fs.getSpineWasm(version);
+                return bytes.buffer as ArrayBuffer;
+            },
+        };
+        const factories = createSpineFactories(provider);
+        return new SpineManager(module, factories);
     }
 
     async enterPlayMode(physicsConfig?: PhysicsPluginConfig): Promise<void> {
@@ -373,6 +383,11 @@ export class SharedRenderContext {
         if (this.animationId_ !== null) {
             cancelAnimationFrame(this.animationId_);
             this.animationId_ = null;
+        }
+
+        if (this.spineManager_) {
+            this.spineManager_.shutdown();
+            this.spineManager_ = null;
         }
 
         if (this.sceneManager_) {

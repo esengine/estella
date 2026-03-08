@@ -21,7 +21,6 @@ import {
     Audio,
     INVALID_FONT,
     INVALID_MATERIAL,
-    DEFAULT_SPINE_SKIN,
     UIRect,
     UIMask,
     defineSystem,
@@ -32,7 +31,6 @@ import {
     getAnimClip,
     type AnimClipAssetData,
     type SceneComponentData,
-    type TransformData,
     type TextInputData,
     type LayoutRect,
     ScaleMode,
@@ -43,8 +41,7 @@ import {
     registerTimelineAsset,
     parseTimelineAsset,
 } from 'esengine';
-import type { SpineModuleController } from 'esengine/spine';
-import { submitSpineMeshesToCore } from 'esengine/spine';
+import { SpineCpp, SpineManager } from 'esengine/spine';
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { EditorAssetServer } from '../asset/EditorAssetServer';
 import { AssetPathResolver } from '../asset/AssetPathResolver';
@@ -54,9 +51,6 @@ import { getEditorContext } from '../context/EditorContext';
 import { getEditorContainer } from '../container/EditorContainer';
 import { COMPONENT_LIFECYCLE, type ComponentLifecycle } from '../container/tokens';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
-import {
-    transformToMatrix4x4,
-} from '../math/Transform';
 
 const BitmapTextAlign = {
     Left: 0,
@@ -85,17 +79,18 @@ export class EditorSceneManager {
     private syncing_ = false;
     private pendingScene_: SceneData | null = null;
     private syncCompleteResolvers_: (() => void)[] = [];
-    private spineController_: SpineModuleController | null = null;
-    private spineInstances_ = new Map<number, number>();
-    private spineSkeletons_ = new Map<string, number>();
-    private spineInstanceKeys_ = new Map<number, string>();
-    private spineCurrentState_ = new Map<number, { animation: string; skin: string; loop: boolean }>();
     private spineReadyListeners_ = new Set<(entityId: number) => void>();
     private updatingEntities_ = new Map<number, Promise<void>>();
     private viewportAspect_ = 0;
     private postLoadHooks_ = new Map<string, (entityId: number, data: Record<string, any>) => Promise<void>>();
 
     private ownsWorld_: boolean;
+    private spineManager_: SpineManager | null = null;
+    private pendingSpineData_ = new Map<number, {
+        skelData: Uint8Array | string;
+        atlasText: string;
+        textures: Map<string, { glId: number; w: number; h: number }>;
+    }>();
 
     constructor(module: ESEngineModule, pathResolver: AssetPathResolver, world?: World) {
         this.module_ = module;
@@ -134,10 +129,14 @@ export class EditorSceneManager {
             },
         });
         container.provide(COMPONENT_LIFECYCLE, 'SpineAnimation', {
-            remove: (_world, _entity, entityId) => {
-                this.destroySpineInstance(entityId);
+            remove: (_world, entity, _entityId) => {
+                this.spineManager_?.removeEntity(entity);
             },
         });
+    }
+
+    setSpineManager(manager: SpineManager | null): void {
+        this.spineManager_ = manager;
     }
 
     setProjectDir(projectDir: string): void {
@@ -206,34 +205,6 @@ export class EditorSceneManager {
             right: cameraPos.x + halfW,
             top: cameraPos.y + halfH,
         };
-    }
-
-    setSpineController(controller: SpineModuleController | null): void {
-        this.clearSpineInstances();
-        this.spineController_ = controller;
-        if (controller) {
-            this.resyncSpineEntities();
-        }
-    }
-
-    private async resyncSpineEntities(): Promise<void> {
-        for (const [entityId, entityData] of this.entityDataMap_) {
-            const spineComp = entityData.components.find(c => c.type === 'SpineAnimation');
-            if (!spineComp) continue;
-            const data = spineComp.data as Record<string, any>;
-            const skelRef = data.skeletonPath ?? '';
-            const atlasRef = data.atlasPath ?? '';
-            if (!skelRef || !atlasRef) continue;
-            await this.syncSpineInstance(entityId, {
-                ...data,
-                skeletonPath: this.resolveAssetRef(skelRef),
-                atlasPath: this.resolveAssetRef(atlasRef),
-            });
-        }
-    }
-
-    get spineController(): SpineModuleController | null {
-        return this.spineController_;
     }
 
     // =========================================================================
@@ -403,7 +374,6 @@ export class EditorSceneManager {
     removeEntity(entityId: number): void {
         const entity = this.entityMap_.get(entityId);
         if (entity !== undefined) {
-            this.destroySpineInstance(entityId);
             getDependencyGraph().clearEntity(entityId);
             try {
                 this.world_.despawn(entity);
@@ -515,59 +485,8 @@ export class EditorSceneManager {
     }
 
     // =========================================================================
-    // Spine Module Rendering
+    // Spine (C++ path)
     // =========================================================================
-
-    updateAndSubmitSpine(coreModule: ESEngineModule, dt: number): void {
-        if (!this.spineController_ || this.spineInstances_.size === 0) return;
-
-        for (const [entityId, instanceId] of this.spineInstances_) {
-            const entityData = this.entityDataMap_.get(entityId);
-            if (!entityData || entityData.visible === false) continue;
-
-            const spineComp = entityData.components.find(c => c.type === 'SpineAnimation');
-            const spineData = spineComp?.data as Record<string, unknown> | undefined;
-            if (spineData?.enabled === false) continue;
-
-            const skeletonScale = (spineData?.skeletonScale as number) ?? 1;
-            const flipX = (spineData?.flipX as boolean) ?? false;
-            const flipY = (spineData?.flipY as boolean) ?? false;
-            const playing = spineData?.playing !== false;
-            const timeScale = (spineData?.timeScale as number) ?? 1;
-            const color = spineData?.color as { r: number; g: number; b: number; a: number } | undefined;
-
-            if (playing) {
-                this.spineController_.update(instanceId, dt * timeScale);
-            }
-
-            const entity = this.entityMap_.get(entityId);
-            if (entity === undefined) continue;
-
-            const scaleX = skeletonScale * (flipX ? -1 : 1);
-            const scaleY = skeletonScale * (flipY ? -1 : 1);
-
-            const registry = this.registry;
-            let transform: Float32Array | undefined;
-
-            if (registry.hasTransform(entity)) {
-                const wt = registry.getTransform(entity) as TransformData;
-                transform = transformToMatrix4x4({
-                    position: wt.worldPosition,
-                    rotation: wt.worldRotation,
-                    scale: { x: wt.worldScale.x * scaleX, y: wt.worldScale.y * scaleY, z: wt.worldScale.z },
-                });
-            }
-
-            submitSpineMeshesToCore(coreModule, this.spineController_, instanceId, transform, color);
-        }
-    }
-
-    getSpineBoundsFromModule(sceneEntityId: number): { x: number; y: number; width: number; height: number } | null {
-        if (!this.spineController_) return null;
-        const instanceId = this.spineInstances_.get(sceneEntityId);
-        if (instanceId === undefined) return null;
-        return this.spineController_.getBounds(instanceId);
-    }
 
     getBitmapTextBounds(entityId: number): { width: number; height: number; offsetX: number; offsetY: number } | null {
         const entity = this.entityMap_.get(entityId);
@@ -592,16 +511,10 @@ export class EditorSceneManager {
     }
 
     hasSpineInstance(entityId: number): boolean {
-        return this.spineInstances_.has(entityId);
-    }
-
-    get spineInstanceCount(): number {
-        let count = 0;
-        for (const entityId of this.spineInstances_.keys()) {
-            const entityData = this.entityDataMap_.get(entityId);
-            if (entityData && entityData.visible !== false) count++;
-        }
-        return count;
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return false;
+        if (this.spineManager_?.hasInstance(entity)) return true;
+        return SpineCpp.hasInstance(entity);
     }
 
     onSpineInstanceReady(listener: (entityId: number) => void): () => void {
@@ -610,39 +523,19 @@ export class EditorSceneManager {
     }
 
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
-        if (!this.spineController_) return null;
-        const instanceId = this.spineInstances_.get(entityId);
-        if (instanceId === undefined) return null;
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return null;
+        if (this.spineManager_?.hasInstance(entity)) {
+            return {
+                animations: this.spineManager_.getAnimations(entity),
+                skins: this.spineManager_.getSkins(entity),
+            };
+        }
+        if (!SpineCpp.hasInstance(entity)) return null;
         return {
-            animations: this.spineController_.getAnimations(instanceId),
-            skins: this.spineController_.getSkins(instanceId),
+            animations: SpineCpp.getAnimations(entity),
+            skins: SpineCpp.getSkins(entity),
         };
-    }
-
-    // =========================================================================
-    // Spine Instance Lifecycle
-    // =========================================================================
-
-    private destroySpineInstance(entityId: number): void {
-        const instanceId = this.spineInstances_.get(entityId);
-        if (instanceId !== undefined && this.spineController_) {
-            this.spineController_.destroyInstance(instanceId);
-        }
-        this.spineInstances_.delete(entityId);
-        this.spineInstanceKeys_.delete(entityId);
-        this.spineCurrentState_.delete(entityId);
-    }
-
-    private clearSpineInstances(): void {
-        if (this.spineController_) {
-            for (const instanceId of this.spineInstances_.values()) {
-                this.spineController_.destroyInstance(instanceId);
-            }
-        }
-        this.spineInstances_.clear();
-        this.spineSkeletons_.clear();
-        this.spineInstanceKeys_.clear();
-        this.spineCurrentState_.clear();
     }
 
     // =========================================================================
@@ -650,10 +543,15 @@ export class EditorSceneManager {
     // =========================================================================
 
     clear(): void {
-        this.clearSpineInstances();
         for (const entityId of this.entityMap_.keys()) {
             getDependencyGraph().clearEntity(entityId);
         }
+        if (this.spineManager_) {
+            for (const entity of this.entityMap_.values()) {
+                this.spineManager_.removeEntity(entity);
+            }
+        }
+        this.pendingSpineData_.clear();
         for (const entity of this.world_.getAllEntities()) {
             this.world_.despawn(entity);
         }
@@ -826,7 +724,18 @@ export class EditorSceneManager {
                 data[spineDesc.skeletonField] = skelPath;
                 data[spineDesc.atlasField] = atlasPath;
 
-                if (!this.spineController_) {
+                if (this.spineManager_) {
+                    const rawResult = await this.assetServer_.loadSpineWithRawData(skelPath, atlasPath);
+                    if (rawResult.success && rawResult.skelData) {
+                        this.pendingSpineData_.set(entityId, {
+                            skelData: rawResult.skelData,
+                            atlasText: rawResult.atlasText!,
+                            textures: rawResult.textures!,
+                        });
+                    } else {
+                        console.warn(`[EditorSceneManager] Failed to load Spine raw data: ${rawResult.error}`);
+                    }
+                } else {
                     const result = await this.assetServer_.loadSpine(skelPath, atlasPath);
                     if (!result.success) {
                         console.warn(`[EditorSceneManager] Failed to load Spine: ${result.error}`);
@@ -918,7 +827,7 @@ export class EditorSceneManager {
     }
 
     // =========================================================================
-    // Spine Instance Sync (post-load hook)
+    // Post-load hooks
     // =========================================================================
 
     private async applyAnimFirstFrame(entityId: number, data: Record<string, any>): Promise<void> {
@@ -944,67 +853,35 @@ export class EditorSceneManager {
     }
 
     private async syncSpineInstance(entityId: number, data: Record<string, any>): Promise<void> {
-        if (!this.spineController_) return;
-
-        const controller = this.spineController_;
-        const skeletonPath = data.skeletonPath ?? '';
-        const atlasPath = data.atlasPath ?? '';
-        if (!skeletonPath || !atlasPath) return;
-
-        const cacheKey = `${skeletonPath}:${atlasPath}`;
-        const existingKey = this.spineInstanceKeys_.get(entityId);
-        let instanceId = this.spineInstances_.get(entityId);
-
-        if (instanceId === undefined || existingKey !== cacheKey) {
-            this.destroySpineInstance(entityId);
-
-            let skeletonHandle = this.spineSkeletons_.get(cacheKey);
-            if (skeletonHandle === undefined) {
-                const result = await this.assetServer_.assetLoader.loadSpineToModule(
-                    controller, skeletonPath, atlasPath,
-                );
-                if (!result.success || result.skeletonHandle === undefined) {
-                    console.warn(`[EditorSceneManager] Failed to load Spine to module: ${result.error}`);
-                    return;
-                }
-                if (this.spineController_ !== controller) return;
-                skeletonHandle = result.skeletonHandle;
-                this.spineSkeletons_.set(cacheKey, skeletonHandle);
-            }
-
-            try {
-                instanceId = controller.createInstance(skeletonHandle);
-            } catch (e) {
-                console.warn(`[EditorSceneManager] Spine createInstance failed for entity ${entityId}:`, e);
-                return;
-            }
-            this.spineInstances_.set(entityId, instanceId);
-            this.spineInstanceKeys_.set(entityId, cacheKey);
-            this.spineCurrentState_.delete(entityId);
-
-            for (const cb of this.spineReadyListeners_) {
-                cb(entityId);
-            }
-        }
-
-        const skin = data.skin ?? DEFAULT_SPINE_SKIN;
-        const animation = data.animation ?? '';
-        const loop = data.loop ?? true;
-        const prev = this.spineCurrentState_.get(entityId);
-
-        try {
-            if (!prev || prev.skin !== skin) {
-                controller.setSkin(instanceId, skin);
-            }
-            if (!prev || prev.animation !== animation || prev.loop !== loop) {
-                if (animation) {
-                    controller.play(instanceId, animation, loop);
+        const pending = this.pendingSpineData_.get(entityId);
+        if (pending && this.spineManager_) {
+            this.pendingSpineData_.delete(entityId);
+            const entity = this.entityMap_.get(entityId);
+            if (entity !== undefined) {
+                const cppRegistry = this.world_.getCppRegistry();
+                if (cppRegistry) {
+                    const version = await this.spineManager_.loadEntity(
+                        entity, pending.skelData, pending.atlasText,
+                        pending.textures, cppRegistry);
+                    if (version) {
+                        this.spineManager_.setEntityProps(entity, {
+                            skeletonScale: (data.skeletonScale as number) ?? 1,
+                            flipX: (data.flipX as boolean) ?? false,
+                            flipY: (data.flipY as boolean) ?? false,
+                            layer: (data.layer as number) ?? 0,
+                        });
+                        const skin = data.skin as string;
+                        if (skin) this.spineManager_.setSkin(entity, skin);
+                        const animation = data.animation as string;
+                        if (animation) {
+                            this.spineManager_.setAnimation(entity, animation, data.loop !== false);
+                        }
+                    }
                 }
             }
-        } catch (e) {
-            console.warn(`[EditorSceneManager] Spine state update failed for entity ${entityId}:`, e);
         }
-
-        this.spineCurrentState_.set(entityId, { animation, skin, loop });
+        for (const cb of this.spineReadyListeners_) {
+            cb(entityId);
+        }
     }
 }

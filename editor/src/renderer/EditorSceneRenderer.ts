@@ -10,7 +10,6 @@ import {
     type PostProcessEffectData,
     type PostProcessVolumeData,
 } from 'esengine';
-import type { SpineModuleController } from 'esengine/spine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
 import type { EditorStore } from '../store/EditorStore';
 import { EditorCamera } from './EditorCamera';
@@ -186,10 +185,6 @@ export class EditorSceneRenderer {
         this.context_.setProjectDir(projectDir);
     }
 
-    setSpineController(controller: SpineModuleController | null): void {
-        this.context_.setSpineController(controller);
-    }
-
     get pathResolver(): AssetPathResolver {
         return this.context_.pathResolver_;
     }
@@ -215,19 +210,19 @@ export class EditorSceneRenderer {
         return this.sceneManager_?.assetServer ?? null;
     }
 
-    get spineInstanceCount(): number {
-        return this.sceneManager_?.spineInstanceCount ?? 0;
-    }
-
     getSpineBounds(sceneEntityId: number): { x: number; y: number; width: number; height: number } | null {
-        if (!this.module_ || !this.sceneManager_) return null;
-
-        const moduleBounds = this.sceneManager_.getSpineBoundsFromModule(sceneEntityId);
-        if (moduleBounds) return moduleBounds;
+        if (!this.sceneManager_) return null;
 
         const entity = this.sceneManager_.getEntityMap().get(sceneEntityId);
         if (entity === undefined) return null;
 
+        const spineManager = this.context_.spineManager;
+        if (spineManager) {
+            const moduleBounds = spineManager.getBounds(entity);
+            if (moduleBounds) return moduleBounds;
+        }
+
+        if (!this.module_) return null;
         const bounds = this.module_.getSpineBounds?.(this.sceneManager_.registry, entity);
         if (!bounds?.valid) return null;
 
@@ -392,6 +387,7 @@ export class EditorSceneRenderer {
 
             Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
             Renderer.resize(width, height);
+            Renderer.beginFrame();
             Renderer.setViewport(0, 0, width, height);
             Renderer.clearBuffers(3);
             Renderer.begin(matrix);
@@ -420,6 +416,7 @@ export class EditorSceneRenderer {
         const registry = { _cpp: cppReg };
 
         try {
+            Renderer.beginFrame();
             Renderer.setViewport(0, 0, width, height);
             Renderer.clearBuffers(3);
             Renderer.begin(vpMatrix);
