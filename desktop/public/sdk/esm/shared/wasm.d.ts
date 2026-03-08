@@ -488,6 +488,20 @@ interface ESEngineModule {
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
     getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
+    spine_update?(registry: CppRegistry, dt: number): void;
+    spine_play?(entity: number, animation: string, loop: boolean, track: number): boolean;
+    spine_addAnimation?(entity: number, animation: string, loop: boolean, delay: number, track: number): boolean;
+    spine_setSkin?(entity: number, skinName: string): boolean;
+    spine_getBonePosition?(entity: number, boneName: string): {
+        x: number;
+        y: number;
+    } | null;
+    spine_hasInstance?(entity: number): boolean;
+    spine_reloadAssets?(registry: CppRegistry): void;
+    spine_getAnimations?(entity: number): string[];
+    spine_getSkins?(entity: number): string[];
+    spine_setNeedsReload?(registry: CppRegistry, entity: number, value: boolean): void;
+    renderer_submitSpineBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number): void;
     invalidateMaterialCache(materialId: number): void;
     clearMaterialCache(): void;
     draw_begin(matrixPtr: number): void;
@@ -541,6 +555,8 @@ interface ESEngineModule {
     postprocess_setScreenUniformVec4(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
+    renderer_beginFrame(): void;
+    renderer_updateTransforms(registry: CppRegistry): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
     renderer_flush(): void;
     renderer_end(): void;
@@ -551,7 +567,6 @@ interface ESEngineModule {
     renderer_submitSpine?(registry: CppRegistry): void;
     renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitAll(registry: CppRegistry, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
-    renderer_submitTriangles(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
     particle_play?(registry: CppRegistry, entity: number): void;
     particle_stop?(registry: CppRegistry, entity: number): void;
@@ -680,4 +695,4 @@ interface ESEngineModule {
 }
 
 export { INVALID_ENTITY as I, INVALID_FONT as f, INVALID_MATERIAL as g, INVALID_TEXTURE as h, color as i, vec3 as j, vec4 as k, quat as q, vec2 as v };
-export type { Color as C, ESEngineModule as E, FontHandle as F, Padding as P, Quat as Q, SpineBounds as S, TextureHandle as T, Vec2 as V, Entity as a, Vec3 as b, CppRegistry as c, Vec4 as d, CppResourceManager as e, EmscriptenFS as l };
+export type { CppRegistry as C, Entity as E, FontHandle as F, Padding as P, Quat as Q, SpineBounds as S, TextureHandle as T, Vec2 as V, ESEngineModule as a, Color as b, Vec3 as c, Vec4 as d, CppResourceManager as e, EmscriptenFS as l };
