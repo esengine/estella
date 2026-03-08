@@ -88,6 +88,24 @@ export interface ESEngineModule {
     getResourceManager(): CppResourceManager;
     getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
 
+    spine_update?(registry: CppRegistry, dt: number): void;
+    spine_play?(entity: number, animation: string, loop: boolean, track: number): boolean;
+    spine_addAnimation?(entity: number, animation: string, loop: boolean, delay: number, track: number): boolean;
+    spine_setSkin?(entity: number, skinName: string): boolean;
+    spine_getBonePosition?(entity: number, boneName: string): { x: number; y: number } | null;
+    spine_hasInstance?(entity: number): boolean;
+    spine_reloadAssets?(registry: CppRegistry): void;
+    spine_getAnimations?(entity: number): string[];
+    spine_getSkins?(entity: number): string[];
+    spine_setNeedsReload?(registry: CppRegistry, entity: number, value: boolean): void;
+    renderer_submitSpineBatch?(
+        verticesPtr: number, vertexCount: number,
+        indicesPtr: number, indexCount: number,
+        textureId: number, blendMode: number,
+        transformPtr: number,
+        entity: number, layer: number, depth: number
+    ): void;
+
     // Material cache
     invalidateMaterialCache(materialId: number): void;
     clearMaterialCache(): void;
@@ -159,6 +177,8 @@ export interface ESEngineModule {
     // Renderer API (RenderFrame)
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
+    renderer_beginFrame(): void;
+    renderer_updateTransforms(registry: CppRegistry): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
     renderer_flush(): void;
     renderer_end(): void;
@@ -169,11 +189,6 @@ export interface ESEngineModule {
     renderer_submitSpine?(registry: CppRegistry): void;
     renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitAll(registry: CppRegistry, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
-    renderer_submitTriangles(
-        verticesPtr: number, vertexCount: number,
-        indicesPtr: number, indexCount: number,
-        textureId: number, blendMode: number,
-        transformPtr: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
     particle_play?(registry: CppRegistry, entity: number): void;
     particle_stop?(registry: CppRegistry, entity: number): void;

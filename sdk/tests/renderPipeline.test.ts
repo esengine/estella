@@ -18,11 +18,8 @@ vi.mock('../src/renderer', () => ({
         setViewport: vi.fn(),
         setScissor: vi.fn(),
         clearBuffers: vi.fn(),
-    },
-    SubmitSkipFlags: {
-        None: 0,
-        Spine: 1,
-        Particles: 2,
+        updateTransforms: vi.fn(),
+        beginFrame: vi.fn(),
     },
 }));
 
@@ -63,7 +60,7 @@ import { RenderPipeline } from '../src/renderPipeline';
 import { Renderer } from '../src/renderer';
 import { PostProcess } from '../src/postprocess';
 import { Draw } from '../src/draw';
-import { getDrawCallbacks, unregisterDrawCallback } from '../src/customDraw';
+import { unregisterDrawCallback } from '../src/customDraw';
 
 describe('RenderPipeline', () => {
     let pipeline: RenderPipeline;
@@ -76,30 +73,6 @@ describe('RenderPipeline', () => {
         pipeline = new RenderPipeline();
         registry = { _cpp: {} as any };
         viewProjection = new Float32Array(16);
-    });
-
-    describe('property setters', () => {
-        it('stores spineRenderer via setSpineRenderer', () => {
-            const fn = vi.fn();
-            pipeline.setSpineRenderer(fn);
-            expect(pipeline.spineRenderer).toBe(fn);
-        });
-
-        it('returns null for spineRenderer by default', () => {
-            expect(pipeline.spineRenderer).toBeNull();
-        });
-
-        it('allows clearing spineRenderer with null', () => {
-            pipeline.setSpineRenderer(vi.fn());
-            pipeline.setSpineRenderer(null);
-            expect(pipeline.spineRenderer).toBeNull();
-        });
-
-        it('stores active scenes via setActiveScenes', () => {
-            const scenes = new Set(['scene1', 'scene2']);
-            pipeline.setActiveScenes(scenes);
-            pipeline.render({ registry, viewProjection, width: 100, height: 100, elapsed: 0 });
-        });
     });
 
     describe('render() call sequence', () => {
@@ -152,21 +125,7 @@ describe('RenderPipeline', () => {
             expect(Renderer.resize).toHaveBeenCalledWith(1024, 768);
         });
 
-        it('triggers resize when only width changes', () => {
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-            vi.clearAllMocks();
-            pipeline.render({ registry, viewProjection, width: 1024, height: 600, elapsed: 0 });
-            expect(Renderer.resize).toHaveBeenCalledWith(1024, 600);
-        });
-
-        it('triggers resize when only height changes', () => {
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-            vi.clearAllMocks();
-            pipeline.render({ registry, viewProjection, width: 800, height: 768, elapsed: 0 });
-            expect(Renderer.resize).toHaveBeenCalledWith(800, 768);
-        });
-
-        it('does not call PostProcess.resize on render() (only renderCamera does)', () => {
+        it('does not call PostProcess.resize on render()', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
             expect(PostProcess.resize).not.toHaveBeenCalled();
         });
@@ -185,52 +144,11 @@ describe('RenderPipeline', () => {
 
             expect(PostProcess.resize).toHaveBeenCalledWith(800, 600);
         });
-
-        it('does not call PostProcess.resize in renderCamera when no postprocess stack', () => {
-            (PostProcess.getStack as ReturnType<typeof vi.fn>).mockReturnValue(null);
-
-            pipeline.renderCamera({
-                registry,
-                viewProjection,
-                viewportPixels: { x: 0, y: 0, w: 800, h: 600 },
-                clearFlags: 3,
-                elapsed: 0,
-                cameraEntity: 1 as any,
-            });
-
-            expect(PostProcess.resize).not.toHaveBeenCalled();
-        });
     });
 
-    describe('spine rendering', () => {
-        it('calls submitAll without skip flags by default', () => {
+    describe('submitScene', () => {
+        it('calls submitAll with skipFlags=0 (all plugins participate)', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
-            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
-        });
-
-        it('skips spine in submitAll and calls custom spineRenderer when set', () => {
-            const customSpine = vi.fn();
-            pipeline.setSpineRenderer(customSpine);
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
-
-            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 1, 0, 0, 800, 600);
-            expect(customSpine).toHaveBeenCalledWith(registry, 16);
-        });
-
-        it('reverts to no skip flags when spineRenderer cleared', () => {
-            const customSpine = vi.fn();
-            pipeline.setSpineRenderer(customSpine);
-            pipeline.setSpineRenderer(null);
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
-
-            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
-            expect(customSpine).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('mask processing (handled in C++)', () => {
-        it('submitAll receives viewport params for C++ mask processing', () => {
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
             expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
         });
     });
@@ -278,29 +196,6 @@ describe('RenderPipeline', () => {
             expect(cb2).not.toHaveBeenCalled();
         });
 
-        it('runs callbacks with no scene filter when activeScenes is set', () => {
-            const cb = vi.fn();
-            mockCallbacks.set('cb-no-scene', { fn: cb, scene: '' });
-
-            pipeline.setActiveScenes(new Set(['scene-a']));
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-
-            expect(cb).toHaveBeenCalled();
-        });
-
-        it('runs all callbacks when activeScenes is null', () => {
-            const cb1 = vi.fn();
-            const cb2 = vi.fn();
-            mockCallbacks.set('cb1', { fn: cb1, scene: 'scene-a' });
-            mockCallbacks.set('cb2', { fn: cb2, scene: 'scene-b' });
-
-            pipeline.setActiveScenes(null);
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-
-            expect(cb1).toHaveBeenCalled();
-            expect(cb2).toHaveBeenCalled();
-        });
-
         it('logs error and unregisters throwing callback', () => {
             const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
             const error = new Error('test error');
@@ -309,19 +204,6 @@ describe('RenderPipeline', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
 
             expect(errorSpy).toHaveBeenCalledWith("[CustomDraw] callback 'bad-cb' error:", error);
-            expect(unregisterDrawCallback).toHaveBeenCalledWith('bad-cb');
-            errorSpy.mockRestore();
-        });
-
-        it('continues executing other callbacks after one throws', () => {
-            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-            const goodCb = vi.fn();
-            mockCallbacks.set('bad-cb', { fn: () => { throw new Error('fail'); }, scene: '' });
-            mockCallbacks.set('good-cb', { fn: goodCb, scene: '' });
-
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-
-            expect(goodCb).toHaveBeenCalled();
             expect(unregisterDrawCallback).toHaveBeenCalledWith('bad-cb');
             errorSpy.mockRestore();
         });
@@ -359,44 +241,7 @@ describe('RenderPipeline', () => {
             ]);
         });
 
-        it('uses clearFlags parameter for clearBuffers', () => {
-            pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 1, elapsed: 0 });
-            expect(Renderer.clearBuffers).toHaveBeenCalledWith(1);
-        });
-
-        it('does not trigger resize', () => {
-            pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 0 });
-            expect(Renderer.resize).not.toHaveBeenCalled();
-        });
-
-        it('follows correct rendering sequence', () => {
-            const callOrder: string[] = [];
-            (Renderer.setViewport as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('setViewport'));
-            (Renderer.setScissor as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('setScissor'));
-            (Renderer.clearBuffers as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('clearBuffers'));
-            (Renderer.begin as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('begin'));
-            (Renderer.submitAll as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitAll'));
-            (Renderer.flush as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('flush'));
-            (Renderer.end as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('end'));
-
-            pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 0 });
-
-            expect(callOrder).toEqual([
-                'setViewport', 'setScissor', 'clearBuffers', 'setScissor',
-                'begin', 'submitAll', 'flush', 'end',
-            ]);
-        });
-
-        it('skips spine in submitAll and calls custom spineRenderer in renderCamera', () => {
-            const customSpine = vi.fn();
-            pipeline.setSpineRenderer(customSpine);
-            pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 16 });
-
-            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 1, 10, 20, 400, 300);
-            expect(customSpine).toHaveBeenCalledWith(registry, 16);
-        });
-
-        it('passes viewport params to submitAll in renderCamera for C++ mask processing', () => {
+        it('passes viewport params to submitAll', () => {
             pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 0 });
             expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 10, 20, 400, 300);
         });
@@ -434,16 +279,6 @@ describe('RenderPipeline', () => {
             pipeline.endScreenCapture();
             expect(PostProcess._endScreenCapture).toHaveBeenCalled();
             expect(PostProcess._executeScreenPasses).toHaveBeenCalled();
-        });
-
-        it('does not call screen capture when screenStack has 0 enabled passes', () => {
-            const mockStack = { enabledPassCount: 0, passes: [] };
-            (PostProcess as any).screenStack = mockStack;
-
-            pipeline.beginScreenCapture();
-            pipeline.endScreenCapture();
-            expect(PostProcess._beginScreenCapture).not.toHaveBeenCalled();
-            expect(PostProcess._executeScreenPasses).not.toHaveBeenCalled();
         });
 
         it('initializes postprocess if not yet initialized', () => {

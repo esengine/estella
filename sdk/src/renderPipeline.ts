@@ -5,7 +5,7 @@
 
 import type { CppRegistry } from './wasm';
 import type { Entity } from './types';
-import { Renderer, SubmitSkipFlags } from './renderer';
+import { Renderer } from './renderer';
 import { PostProcess } from './postprocess';
 import { Draw } from './draw';
 import { getDrawCallbacks, unregisterDrawCallback } from './customDraw';
@@ -34,31 +34,22 @@ export interface CameraRenderParams {
     cameraEntity?: Entity;
 }
 
-export type SpineRendererFn = (registry: { _cpp: CppRegistry }, elapsed: number) => void;
-
-export type TilemapRendererFn = () => void;
-
 export class RenderPipeline {
-    private spineRenderer_: SpineRendererFn | null = null;
-    private tilemapRenderer_: TilemapRendererFn | null = null;
     private lastWidth_ = 0;
     private lastHeight_ = 0;
     private activeScenes_: Set<string> | null = null;
-
-    get spineRenderer(): SpineRendererFn | null {
-        return this.spineRenderer_;
-    }
-
-    setSpineRenderer(fn: SpineRendererFn | null): void {
-        this.spineRenderer_ = fn;
-    }
-
-    setTilemapRenderer(fn: TilemapRendererFn | null): void {
-        this.tilemapRenderer_ = fn;
-    }
+    private preFlushCallbacks_: ((registry: { _cpp: CppRegistry }) => void)[] = [];
 
     setActiveScenes(scenes: Set<string> | null): void {
         this.activeScenes_ = scenes;
+    }
+
+    addPreFlushCallback(cb: (registry: { _cpp: CppRegistry }) => void): void {
+        this.preFlushCallbacks_.push(cb);
+    }
+
+    beginFrame(): void {
+        Renderer.beginFrame();
     }
 
     beginScreenCapture(): void {
@@ -82,21 +73,14 @@ export class RenderPipeline {
         registry: { _cpp: CppRegistry },
         viewProjection: Float32Array,
         viewport: Viewport,
-        elapsed: number,
+        _elapsed: number,
     ): void {
-        const skipFlags = this.spineRenderer_ ? SubmitSkipFlags.Spine : SubmitSkipFlags.None;
-        Renderer.submitAll(registry, skipFlags, viewport.x, viewport.y, viewport.w, viewport.h);
-
-        if (this.tilemapRenderer_) {
-            this.tilemapRenderer_();
-        }
-
-        if (this.spineRenderer_) {
-            this.spineRenderer_(registry, elapsed);
-        }
+        Renderer.updateTransforms(registry);
+        Renderer.submitAll(registry, 0, viewport.x, viewport.y, viewport.w, viewport.h);
+        for (const cb of this.preFlushCallbacks_) cb(registry);
         Renderer.flush();
 
-        this.executeDrawCallbacks(viewProjection, elapsed);
+        this.executeDrawCallbacks(viewProjection, _elapsed);
     }
 
     render(params: RenderParams): void {
@@ -108,6 +92,7 @@ export class RenderPipeline {
             this.lastHeight_ = height;
         }
 
+        Renderer.beginFrame();
         Renderer.setViewport(0, 0, width, height);
         Renderer.clearBuffers(3);
         Renderer.begin(viewProjection);

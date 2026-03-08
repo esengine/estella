@@ -11,12 +11,17 @@ import { Assets } from './asset/AssetPlugin';
 import type { AddressableManifest } from './asset/AssetServer';
 import type { Vec2 } from './types';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
+import { SpineManager, type SpineVersion } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { SceneData } from './scene';
 import { Audio } from './audio/Audio';
 
-declare const ESSpineModule: ((opts: unknown) => Promise<SpineWasmModule>) | undefined;
 declare const ESPhysicsModule: ((opts: unknown) => Promise<PhysicsWasmModule>) | undefined;
+
+export interface SpineModuleEntry {
+    factory: (opts: unknown) => Promise<SpineWasmModule>;
+    wasmBase64: string;
+}
 
 export interface PlayableRuntimeConfig {
     app: App;
@@ -25,7 +30,7 @@ export interface PlayableRuntimeConfig {
     assets: Record<string, string>;
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
-    spineWasmBase64?: string;
+    spineModules?: Record<string, SpineModuleEntry>;
     physicsWasmBase64?: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
     manifest?: AddressableManifest | null;
@@ -132,18 +137,42 @@ async function instantiateWasmModule(
     }
 }
 
-async function initSpineModule(wasmBase64: string): Promise<SpineWasmModule | null> {
-    if (typeof ESSpineModule === 'undefined') return null;
-    const mod = await instantiateWasmModule(ESSpineModule, wasmBase64);
-    if (!mod) console.warn('Spine module not available');
-    return mod as SpineWasmModule | null;
-}
-
 async function initPhysicsModule(wasmBase64: string): Promise<PhysicsWasmModule | null> {
     if (typeof ESPhysicsModule === 'undefined') return null;
     const mod = await instantiateWasmModule(ESPhysicsModule, wasmBase64);
     if (!mod) console.warn('Physics module not available');
     return mod as PhysicsWasmModule | null;
+}
+
+function buildSpineManager(
+    module: ESEngineModule,
+    spineModules: Record<string, SpineModuleEntry>,
+): SpineManager {
+    const factories = new Map<SpineVersion, () => Promise<SpineWasmModule>>();
+    for (const [version, entry] of Object.entries(spineModules)) {
+        const ver = version as SpineVersion;
+        factories.set(ver, async () => {
+            const wasmBytes = decodeBase64ToWasm(entry.wasmBase64);
+            return entry.factory({
+                instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
+                    const response = new Response(wasmBytes.buffer as ArrayBuffer, {
+                        headers: { 'Content-Type': 'application/wasm' },
+                    });
+                    WebAssembly.instantiateStreaming(response, imports).then(
+                        r => cb(r.instance, r.module),
+                        () => {
+                            WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
+                                r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
+                                        (r as WebAssembly.WebAssemblyInstantiatedSource).module),
+                            );
+                        },
+                    );
+                    return {};
+                },
+            }) as Promise<SpineWasmModule>;
+        });
+    }
+    return new SpineManager(module, factories);
 }
 
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
@@ -155,9 +184,10 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         assetServer.setEmbeddedOnly(true);
     }
 
-    const spineModule = config.spineWasmBase64
-        ? await initSpineModule(config.spineWasmBase64)
-        : null;
+    let spineManager: SpineManager | null = null;
+    if (config.spineModules && Object.keys(config.spineModules).length > 0) {
+        spineManager = buildSpineManager(module, config.spineModules);
+    }
 
     const physicsModule = config.physicsWasmBase64
         ? await initPhysicsModule(config.physicsWasmBase64)
@@ -177,7 +207,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         provider,
         scenes,
         firstScene,
-        spineModule,
+        spineManager,
         physicsModule,
         physicsConfig: config.physicsConfig,
         manifest: config.manifest,

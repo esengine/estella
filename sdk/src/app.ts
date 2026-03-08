@@ -23,7 +23,7 @@ import { setWasmErrorHandler } from './wasmError';
 import { platformNow, platformDevicePixelRatio } from './platform';
 import { ProjectionType, ScaleMode, SceneOwner } from './component';
 import type { Entity } from './types';
-import { RenderPipeline, type SpineRendererFn } from './renderPipeline';
+import { RenderPipeline } from './renderPipeline';
 import { Renderer } from './renderer';
 import { PostProcess } from './postprocess';
 import type { SceneConfig } from './sceneManager';
@@ -109,6 +109,10 @@ export class App {
     // =========================================================================
     // Plugins
     // =========================================================================
+
+    getPlugin<T extends Plugin>(ctor: new (...args: any[]) => T): T | undefined {
+        return this.installed_plugins_.find((p): p is T => p instanceof ctor);
+    }
 
     addPlugin(plugin: Plugin): this {
         if (this.installedPluginSet_.has(plugin)) return this;
@@ -206,10 +210,6 @@ export class App {
 
     setPipeline(pipeline: RenderPipeline): void {
         this.pipeline_ = pipeline;
-    }
-
-    setSpineRenderer(fn: SpineRendererFn | null): void {
-        this.pipeline_?.setSpineRenderer(fn);
     }
 
     get spineInitPromise(): Promise<unknown> | undefined {
@@ -781,6 +781,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                     width, height, elapsed,
                 });
             } else {
+                pipeline.beginFrame();
                 pipeline.beginScreenCapture();
                 for (const cam of cameras) {
                     const vp = cam.viewportRect;

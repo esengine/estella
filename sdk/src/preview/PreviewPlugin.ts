@@ -11,6 +11,7 @@ import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } 
 import { platformFetch } from '../platform';
 import { SceneManager } from '../sceneManager';
 import { WebAssetProvider } from './WebAssetProvider';
+import { SpinePlugin } from '../spine/SpinePlugin';
 
 const PREVIEW_SCENE = '__preview__';
 
@@ -70,19 +71,15 @@ export class PreviewPlugin implements Plugin {
         const provider = new WebAssetProvider(this.baseUrl_);
         await provider.prefetch(sceneData);
 
-        let spineModule = null;
-        const spinePromise = this.app_.spineInitPromise;
-        if (spinePromise) {
-            const result = await spinePromise as { controller: { raw: any }; coreModule: unknown };
-            spineModule = result.controller.raw;
-        }
+        const spinePlugin = this.app_.getPlugin(SpinePlugin);
+        const spineManager = spinePlugin?.spineManager ?? null;
 
         await loadRuntimeScene({
             app: this.app_,
             module: this.app_.wasmModule!,
             sceneData,
             provider,
-            spineModule,
+            spineManager,
             sceneName: PREVIEW_SCENE,
         });
     }

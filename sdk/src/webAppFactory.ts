@@ -8,6 +8,8 @@ import { particlePlugin } from './particle';
 import { tilemapPlugin } from './tilemap';
 import { postProcessPlugin } from './postprocess';
 import { timelinePlugin } from './timeline';
+import { SpinePlugin } from './spine';
+import type { SpineWasmProvider } from './spine';
 
 export { uiPlugins };
 export { textPlugin, TextPlugin } from './ui/TextPlugin';
@@ -36,8 +38,14 @@ export { ParticlePlugin, particlePlugin } from './particle';
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';
 export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, clearTimelineHandles } from './timeline';
 
-const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
+export interface CreateWebAppOptions extends WebAppOptions {
+    spineProvider?: SpineWasmProvider;
+}
 
-export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
-    return _createWebApp(module, { plugins: defaultPlugins, ...options });
+const basePlugins = [animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
+
+export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
+    const spinePlugin = new SpinePlugin(options?.spineProvider);
+    const plugins = [...uiPlugins, ...basePlugins, spinePlugin, ...(options?.plugins ?? [])];
+    return _createWebApp(module, { ...options, plugins });
 }
