@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { createWriteStream } from 'fs';
 import { mkdir, rm, cp, readdir, stat, chmod } from 'fs/promises';
 import { execSync } from 'child_process';
 
@@ -37,6 +38,49 @@ async function dirSize(dirPath) {
 function formatSize(bytes) {
     if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
     return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+async function downloadFile(url, dest) {
+    const https = await import('https');
+    const http = await import('http');
+    return new Promise((resolve, reject) => {
+        const request = (reqUrl, redirectCount = 0) => {
+            if (redirectCount > 10) { reject(new Error('Too many redirects')); return; }
+            const mod = reqUrl.startsWith('https') ? https : http;
+            mod.get(reqUrl, (res) => {
+                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    const loc = res.headers.location;
+                    const next = loc.startsWith('http') ? loc : new URL(loc, reqUrl).href;
+                    request(next, redirectCount + 1);
+                    return;
+                }
+                if (res.statusCode !== 200) {
+                    reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+                    return;
+                }
+                const ws = createWriteStream(dest);
+                res.pipe(ws);
+                ws.on('finish', () => ws.close(resolve));
+                ws.on('error', reject);
+            }).on('error', reject);
+        };
+        request(url);
+    });
+}
+
+async function extractTarGz(archivePath, destDir) {
+    execSync(`tar xzf "${archivePath}" -C "${destDir}"`, { stdio: 'inherit' });
+}
+
+async function extractZip(archivePath, destDir) {
+    if (os.platform() === 'win32') {
+        execSync(
+            `powershell -NoProfile -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force"`,
+            { stdio: 'inherit' },
+        );
+    } else {
+        execSync(`unzip -q "${archivePath}" -d "${destDir}"`, { stdio: 'inherit' });
+    }
 }
 
 function loadManifest() {
@@ -161,7 +205,7 @@ async function packageCmake(manifest) {
     const archivePath = path.join(tmpDir, filename);
 
     try {
-        execSync(`curl -sL -o "${archivePath}" "${url}"`, { stdio: 'inherit' });
+        await downloadFile(url, archivePath);
 
         log('Extracting cmake...');
 
@@ -172,9 +216,9 @@ async function packageCmake(manifest) {
 
         const isZip = filename.endsWith('.zip');
         if (isZip) {
-            execSync(`unzip -q "${archivePath}" -d "${tmpDir}"`, { stdio: 'inherit' });
+            await extractZip(archivePath, tmpDir);
         } else {
-            execSync(`tar xzf "${archivePath}" -C "${tmpDir}"`, { stdio: 'inherit' });
+            await extractTarGz(archivePath, tmpDir);
         }
 
         const extractedRoot = path.join(tmpDir, stripPrefix);

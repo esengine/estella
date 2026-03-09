@@ -594,7 +594,8 @@ pub async fn compile_wasm(
     // Configure
     emit_progress(&app, "configure", "Configuring CMake...", 0.1);
 
-    let emcmake = emsdk_dir.join("upstream/emscripten/emcmake");
+    let emcmake_name = if cfg!(windows) { "emcmake.bat" } else { "emcmake" };
+    let emcmake = emsdk_dir.join("upstream/emscripten").join(emcmake_name);
     let mut cmake_args = vec![cmake_str.clone()];
     cmake_args.extend(build_cmake_flags(&options));
     cmake_args.push(engine_src.to_string_lossy().to_string());
