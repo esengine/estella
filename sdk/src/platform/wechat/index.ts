@@ -149,16 +149,16 @@ class WeChatPlatformAdapter implements PlatformAdapter {
     setStorageItem(key: string, value: string): void {
         try {
             wx.setStorageSync(key, value);
-        } catch {
-            // silent fail
+        } catch (e) {
+            console.warn('[WeChat] setStorageSync failed:', e);
         }
     }
 
     removeStorageItem(key: string): void {
         try {
             wx.removeStorageSync(key);
-        } catch {
-            // silent fail
+        } catch (e) {
+            console.warn('[WeChat] removeStorageSync failed:', e);
         }
     }
 
@@ -170,8 +170,8 @@ class WeChatPlatformAdapter implements PlatformAdapter {
                     wx.removeStorageSync(k);
                 }
             }
-        } catch {
-            // silent fail
+        } catch (e) {
+            console.warn('[WeChat] clearStorage failed:', e);
         }
     }
 }
