@@ -114,13 +114,20 @@ export function createSpineFactories(provider: SpineWasmProvider): Map<SpineVers
                 provider.loadJs(version),
                 provider.loadWasm(version),
             ]);
-            const moduleFactory = new Function(`${jsSource}; return ESSpineModule;`)() as
+            const blob = new Blob([`${jsSource};\nself.__ESSpineModule__ = ESSpineModule;`], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            await import(/* webpackIgnore: true */ url);
+            URL.revokeObjectURL(url);
+            const moduleFactory = (globalThis as any).__ESSpineModule__ as
                 (opts: Record<string, unknown>) => Promise<SpineWasmModule>;
+            delete (globalThis as any).__ESSpineModule__;
             return moduleFactory({
                 instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
                     WebAssembly.instantiate(wasmBytes, imports).then(
                         r => cb(r.instance, r.module),
-                    );
+                    ).catch(e => {
+                        console.error('[Spine] WASM instantiation failed:', e);
+                    });
                     return {};
                 },
             });
