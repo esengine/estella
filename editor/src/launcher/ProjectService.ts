@@ -222,7 +222,32 @@ export async function createFromExample(
             return { success: false, error: `Failed to fetch example: ${response.statusText}` };
         }
 
-        const arrayBuffer = await response.arrayBuffer();
+        const contentLength = Number(response.headers.get('content-length') || 0);
+        let arrayBuffer: ArrayBuffer;
+
+        if (contentLength > 0 && response.body) {
+            const reader = response.body.getReader();
+            const chunks: Uint8Array[] = [];
+            let received = 0;
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                received += value.length;
+                const percent = Math.round((received / contentLength) * 100);
+                updateToast(toastId, { message: `Downloading ${example.name}... ${percent}%` });
+            }
+            const merged = new Uint8Array(received);
+            let offset = 0;
+            for (const chunk of chunks) {
+                merged.set(chunk, offset);
+                offset += chunk.length;
+            }
+            arrayBuffer = merged.buffer as ArrayBuffer;
+        } else {
+            arrayBuffer = await response.arrayBuffer();
+        }
+
         const zipBytes = Array.from(new Uint8Array(arrayBuffer));
 
         updateToast(toastId, { message: 'Extracting files...' });
