@@ -1,0 +1,49 @@
+{
+    "$schema": "Declares which files to bundle into the editor toolchain for WASM compilation.",
+    "engine": {
+        "root_files": ["CMakeLists.txt"],
+        "directories": [
+            "cmake",
+            "tools",
+            "src/esengine"
+        ]
+    },
+    "third_party": {
+        "root_files": ["CMakeLists.txt"],
+        "full": [
+            "stb",
+            "nlohmann",
+            "cute_tiled"
+        ],
+        "partial": {
+            "glm": ["glm"],
+            "spine-runtimes-3.8": ["spine-c/spine-c/src", "spine-c/spine-c/include"],
+            "spine-runtimes-4.1": ["spine-c/spine-c/src", "spine-c/spine-c/include"],
+            "spine-runtimes-4.2": [
+                "spine-cpp/spine-cpp/src", "spine-cpp/spine-cpp/include",
+                "spine-c/spine-c/src", "spine-c/spine-c/include"
+            ]
+        }
+    },
+    "cmake": {
+        "version": "3.31.7",
+        "platforms": {
+            "darwin": {
+                "filename": "cmake-${version}-macos-universal.tar.gz",
+                "strip_prefix": "cmake-${version}-macos-universal/CMake.app/Contents"
+            },
+            "win32": {
+                "filename": "cmake-${version}-windows-x86_64.zip",
+                "strip_prefix": "cmake-${version}-windows-x86_64"
+            },
+            "linux-x64": {
+                "filename": "cmake-${version}-linux-x86_64.tar.gz",
+                "strip_prefix": "cmake-${version}-linux-x86_64"
+            },
+            "linux-arm64": {
+                "filename": "cmake-${version}-linux-aarch64.tar.gz",
+                "strip_prefix": "cmake-${version}-linux-aarch64"
+            }
+        }
+    }
+}
