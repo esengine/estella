@@ -126,7 +126,9 @@ async function instantiateWasmModule(
                         WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
                             r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
                                     (r as WebAssembly.WebAssemblyInstantiatedSource).module),
-                        );
+                        ).catch(e => {
+                            console.error('[Playable] WASM instantiation fallback failed:', e);
+                        });
                     },
                 );
                 return {};
@@ -134,6 +136,7 @@ async function instantiateWasmModule(
         };
         return await factory(opts);
     } catch (e) {
+        console.error('[Playable] WASM module init failed:', e);
         return null;
     }
 }
@@ -165,7 +168,9 @@ function buildSpineManager(
                             WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
                                 r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
                                         (r as WebAssembly.WebAssemblyInstantiatedSource).module),
-                            );
+                            ).catch(e => {
+                                console.error('[Playable] Spine WASM instantiation fallback failed:', e);
+                            });
                         },
                     );
                     return {};

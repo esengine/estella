@@ -46,7 +46,9 @@ export class PreviewPlugin implements Plugin {
         });
         manager.setInitial(PREVIEW_SCENE);
 
-        this.loadPromise_ = manager.load(PREVIEW_SCENE).then(() => {});
+        this.loadPromise_ = manager.load(PREVIEW_SCENE).then(() => {}).catch(e => {
+            console.error('[Preview] Failed to load preview scene:', e);
+        });
         this.setupHotReload();
     }
 

@@ -89,6 +89,8 @@ function createWasmInstantiator(wasmPath: string) {
     return (imports: WebAssembly.Imports, successCallback: Function) => {
         platformInstantiateWasm(wasmPath, imports).then((result) => {
             successCallback(result.instance, result.module);
+        }).catch((e) => {
+            console.error('[WeChat] WASM instantiation failed:', e);
         });
         return {};
     };
