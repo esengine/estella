@@ -114,7 +114,7 @@ jobs:
 
       # Type-check & test SDK first (editor depends on it)
       - name: Type-check SDK
-        run: pnpm exec tsc --noEmit -p sdk/tsconfig.json
+        run: pnpm --filter ./sdk exec tsc --noEmit
 
       - name: Run SDK tests
         run: pnpm --filter ./sdk exec vitest run
@@ -124,7 +124,7 @@ jobs:
 
       # Now editor (depends on SDK build output)
       - name: Type-check Editor
-        run: pnpm exec tsc --noEmit -p editor/tsconfig.json
+        run: pnpm --filter ./editor exec tsc --noEmit
 
       - name: Run Editor tests
         run: pnpm --filter ./editor exec vitest run
