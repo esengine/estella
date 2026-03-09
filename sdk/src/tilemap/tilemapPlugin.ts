@@ -42,6 +42,17 @@ export class TilemapPlugin implements Plugin {
                 const layerEntities = world.getEntitiesWithComponents(
                     [TilemapLayer, Transform],
                 );
+
+                const currentLayerSet = new Set(layerEntities);
+                for (const entity of initializedLayers) {
+                    if (entity >= SYNTHETIC_KEY_BASE) continue;
+                    if (!currentLayerSet.has(entity)) {
+                        TilemapAPI.destroyLayer(entity);
+                        initializedLayers.delete(entity);
+                        layerState.delete(entity);
+                    }
+                }
+
                 for (const entity of layerEntities) {
                     const layerData = world.tryGet(entity, TilemapLayer) as TilemapLayerData | null;
                     if (!layerData) continue;
@@ -151,6 +162,18 @@ export class TilemapPlugin implements Plugin {
                             initializedLayers.add(key);
                         }
                         sourceEntityKeys.set(entity, keys);
+                    }
+                }
+
+                const currentTilemapSet = new Set(tilemapEntities);
+                for (const [entity, keys] of sourceEntityKeys) {
+                    if (!currentTilemapSet.has(entity)) {
+                        for (const key of keys) {
+                            TilemapAPI.destroyLayer(key);
+                            initializedLayers.delete(key);
+                            layerState.delete(key);
+                        }
+                        sourceEntityKeys.delete(entity);
                     }
                 }
             },
