@@ -251,7 +251,9 @@ async function loadSpineAssetsToVirtualFS(
                             w: result.width,
                             h: result.height,
                         });
-                    } catch { /* skip missing texture */ }
+                    } catch (err) {
+                        console.warn(`[Spine] Failed to load texture: ${texPath}`, err);
+                    }
                 }
 
                 const isNative = !version || version === '4.2';
@@ -261,7 +263,9 @@ async function loadSpineAssetsToVirtualFS(
                 }
 
                 assetInfoMap.set(cacheKey, { version, skelData, atlasText: atlasContent, textures });
-            } catch { /* skip failed spine asset */ }
+            } catch (err) {
+                console.warn(`[Runtime] Failed to load spine asset: skel=${skelRef} atlas=${atlasRef}`, err);
+            }
         }
     }
     return assetInfoMap;
