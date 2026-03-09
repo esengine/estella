@@ -1,0 +1,149 @@
+name: Cross-Platform Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for running this build'
+        required: false
+        default: 'Manual verification'
+  milestone:
+    types: [closed]
+  schedule:
+    - cron: '0 4 * * 1'  # Every Monday 4:00 UTC
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            name: macOS
+            tauri-args: --target universal-apple-darwin
+          - platform: windows-latest
+            name: Windows
+
+    name: ${{ matrix.name }} Build
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS universal target
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 5.0.0
+
+      - name: Setup ccache (non-Windows)
+        if: matrix.platform != 'windows-latest'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.platform }}-cross
+          max-size: 1G
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Copy esbuild.wasm to desktop public
+        shell: bash
+        run: cp $(find node_modules/.pnpm -name 'esbuild.wasm' -path '*/esbuild-wasm/*' | head -1) desktop/public/esbuild.wasm
+
+      # SDK + Editor type-check
+      - name: Type-check SDK
+        run: pnpm exec tsc --noEmit -p sdk/tsconfig.json
+
+      - name: Type-check Editor
+        run: pnpm exec tsc --noEmit -p editor/tsconfig.json
+
+      # SDK + Editor tests
+      - name: Run SDK tests
+        run: pnpm --filter ./sdk exec vitest run
+
+      - name: Run Editor tests
+        run: pnpm --filter ./editor exec vitest run
+
+      # Full engine build (WASM + SDK)
+      - name: Build engine (WASM + SDK)
+        run: node build-tools/cli.js build -t all
+
+      # Toolchain packaging
+      - name: Package toolchain
+        run: node build-tools/cli.js toolchain
+
+      # Build workspace packages
+      - name: Build workspace packages
+        run: pnpm --filter ./sdk build && pnpm --filter ./editor build
+
+      # Rust compilation check (Tauri app)
+      - name: Tauri build check
+        shell: bash
+        run: cd desktop/src-tauri && cargo check
+
+      # Artifact size report
+      - name: Report artifact sizes
+        shell: bash
+        run: |
+          echo "## 📦 Artifact Size Report (${{ matrix.name }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|" >> $GITHUB_STEP_SUMMARY
+
+          # SDK bundle
+          if [ -f sdk/dist/index.bundled.js ]; then
+            size=$(du -sh sdk/dist/index.bundled.js | cut -f1)
+            echo "| SDK bundle (index.bundled.js) | $size |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # WASM core
+          for f in desktop/public/*.wasm; do
+            if [ -f "$f" ]; then
+              name=$(basename "$f")
+              size=$(du -sh "$f" | cut -f1)
+              echo "| WASM ($name) | $size |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          # Toolchain
+          if [ -d desktop/src-tauri/toolchain ]; then
+            total=$(du -sh desktop/src-tauri/toolchain | cut -f1)
+            echo "| Toolchain (total) | $total |" >> $GITHUB_STEP_SUMMARY
+
+            if [ -d desktop/src-tauri/toolchain/engine-src ]; then
+              size=$(du -sh desktop/src-tauri/toolchain/engine-src | cut -f1)
+              echo "| ├─ engine-src | $size |" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -d desktop/src-tauri/toolchain/cmake ]; then
+              size=$(du -sh desktop/src-tauri/toolchain/cmake | cut -f1)
+              echo "| ├─ cmake | $size |" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          # esbuild.wasm
+          if [ -f desktop/public/esbuild.wasm ]; then
+            size=$(du -sh desktop/public/esbuild.wasm | cut -f1)
+            echo "| esbuild.wasm | $size |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Generated at $(date -u '+%Y-%m-%d %H:%M UTC')_" >> $GITHUB_STEP_SUMMARY

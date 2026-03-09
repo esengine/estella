@@ -700,7 +700,7 @@ pub async fn compile_wasm(
 
         if wasm_opt.exists() && wasm_file.exists() {
             let wasm_path = wasm_file.to_string_lossy().to_string();
-            let _ = run_command_streamed(
+            if let Err(e) = run_command_streamed(
                 &app,
                 wasm_opt.to_string_lossy().as_ref(),
                 &[
@@ -714,7 +714,10 @@ pub async fn compile_wasm(
                 &build_dir,
                 &env_vars,
             )
-            .await;
+            .await
+            {
+                emit_progress(&app, "warning", &format!("wasm-opt failed (non-fatal): {}", e), 0.85);
+            }
         }
     }
 
@@ -925,8 +928,8 @@ async fn run_command_streamed(
         format!("Failed to spawn {}: {} (cwd: {})", cmd, e, cwd.display())
     })?;
 
-    let stdout = child.stdout.take().ok_or("No stdout")?;
-    let stderr = child.stderr.take().ok_or("No stderr")?;
+    let stdout = child.stdout.take().ok_or(format!("Failed to capture stdout for: {}", cmd))?;
+    let stderr = child.stderr.take().ok_or(format!("Failed to capture stderr for: {}", cmd))?;
 
     let app_out = app.clone();
     let stdout_handle = tokio::spawn(async move {
