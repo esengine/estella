@@ -7,6 +7,8 @@ on:
         description: 'Reason for running this build'
         required: false
         default: 'Manual verification'
+  issue_comment:
+    types: [created]
   milestone:
     types: [closed]
   schedule:
@@ -14,6 +16,11 @@ on:
 
 jobs:
   build:
+    # Only run on /build comment or non-comment triggers
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.comment.body == '/build' &&
+       github.event.issue.state == 'open')
     strategy:
       fail-fast: false
       matrix:
@@ -26,8 +33,23 @@ jobs:
 
     name: ${{ matrix.name }} Build
     runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: read
+      issues: write
 
     steps:
+      - name: React to comment
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -101,49 +123,98 @@ jobs:
         run: cd desktop/src-tauri && cargo check
 
       # Artifact size report
-      - name: Report artifact sizes
+      - name: Collect artifact sizes
+        id: sizes
         shell: bash
         run: |
-          echo "## 📦 Artifact Size Report (${{ matrix.name }})" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Artifact | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|------|" >> $GITHUB_STEP_SUMMARY
+          report=""
+          report+="| Artifact | Size |\n"
+          report+="|----------|------|\n"
 
-          # SDK bundle
           if [ -f sdk/dist/index.bundled.js ]; then
             size=$(du -sh sdk/dist/index.bundled.js | cut -f1)
-            echo "| SDK bundle (index.bundled.js) | $size |" >> $GITHUB_STEP_SUMMARY
+            report+="| SDK bundle | $size |\n"
           fi
 
-          # WASM core
           for f in desktop/public/*.wasm; do
             if [ -f "$f" ]; then
               name=$(basename "$f")
               size=$(du -sh "$f" | cut -f1)
-              echo "| WASM ($name) | $size |" >> $GITHUB_STEP_SUMMARY
+              report+="| WASM ($name) | $size |\n"
             fi
           done
 
-          # Toolchain
           if [ -d desktop/src-tauri/toolchain ]; then
             total=$(du -sh desktop/src-tauri/toolchain | cut -f1)
-            echo "| Toolchain (total) | $total |" >> $GITHUB_STEP_SUMMARY
-
+            report+="| Toolchain (total) | $total |\n"
             if [ -d desktop/src-tauri/toolchain/engine-src ]; then
               size=$(du -sh desktop/src-tauri/toolchain/engine-src | cut -f1)
-              echo "| ├─ engine-src | $size |" >> $GITHUB_STEP_SUMMARY
+              report+="| - engine-src | $size |\n"
             fi
             if [ -d desktop/src-tauri/toolchain/cmake ]; then
               size=$(du -sh desktop/src-tauri/toolchain/cmake | cut -f1)
-              echo "| ├─ cmake | $size |" >> $GITHUB_STEP_SUMMARY
+              report+="| - cmake | $size |\n"
             fi
           fi
 
-          # esbuild.wasm
           if [ -f desktop/public/esbuild.wasm ]; then
             size=$(du -sh desktop/public/esbuild.wasm | cut -f1)
-            echo "| esbuild.wasm | $size |" >> $GITHUB_STEP_SUMMARY
+            report+="| esbuild.wasm | $size |\n"
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "_Generated at $(date -u '+%Y-%m-%d %H:%M UTC')_" >> $GITHUB_STEP_SUMMARY
+          # Write to step summary
+          echo -e "## Artifact Size Report (${{ matrix.name }})\n" >> $GITHUB_STEP_SUMMARY
+          echo -e "$report" >> $GITHUB_STEP_SUMMARY
+
+          # Save for issue comment
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "report<<$EOF" >> $GITHUB_OUTPUT
+          echo -e "$report" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+  # Report results back to Issue
+  report:
+    needs: build
+    if: always() && github.event_name == 'issue_comment'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Post result to Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+
+            const buildJobs = jobs.data.jobs.filter(j => j.name !== 'Report Results');
+            const lines = buildJobs.map(j => {
+              const icon = j.conclusion === 'success' ? '✅' : '❌';
+              const dur = j.completed_at && j.started_at
+                ? Math.round((new Date(j.completed_at) - new Date(j.started_at)) / 1000)
+                : 0;
+              return `| ${j.name} | ${icon} ${j.conclusion || 'unknown'} | ${dur}s |`;
+            });
+
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = [
+              `## 🔨 Cross-Platform Build Results`,
+              '',
+              '| Platform | Status | Duration |',
+              '|----------|--------|----------|',
+              ...lines,
+              '',
+              `[View full run](${runUrl})`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body,
+            });
