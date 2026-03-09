@@ -68,7 +68,7 @@ function migrateLegacySettings(): void {
         }
         localStorage.removeItem(LEGACY_GIZMO_KEY);
         saveToStorage();
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[Settings] Failed to migrate legacy settings:', e); }
 }
 
 function loadFromStorage(): void {
@@ -80,7 +80,7 @@ function loadFromStorage(): void {
                 values_.set(key, value);
             }
         }
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[Settings] Failed to load settings, using defaults:', e); }
 }
 
 function saveToStorage(): void {
@@ -90,7 +90,7 @@ function saveToStorage(): void {
             data[key] = value;
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[Settings] Failed to save settings:', e); }
 }
 
 loadFromStorage();

@@ -20,6 +20,7 @@ pub struct PreviewServer {
     worker_handle: Option<thread::JoinHandle<()>>,
     reload_signal: Arc<ReloadSignal>,
     project_dir: Arc<RwLock<PathBuf>>,
+    public_dir: Arc<PathBuf>,
     port: u16,
 }
 
@@ -71,11 +72,13 @@ impl ReloadSignal {
 
 impl PreviewServer {
     pub fn new(project_dir: PathBuf, port: u16) -> Self {
+        let public_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../public");
         Self {
             server: None,
             worker_handle: None,
             reload_signal: Arc::new(ReloadSignal::new()),
             project_dir: Arc::new(RwLock::new(project_dir)),
+            public_dir: Arc::new(public_dir),
             port,
         }
     }
@@ -92,6 +95,7 @@ impl PreviewServer {
         self.server = Some(Arc::clone(&server));
 
         let project_dir = Arc::clone(&self.project_dir);
+        let public_dir = Arc::clone(&self.public_dir);
         let reload_signal = Arc::clone(&self.reload_signal);
 
         let handle = thread::spawn(move || {
@@ -126,6 +130,7 @@ impl PreviewServer {
                     "sdk/shared/material.js.map" => serve_embedded(embedded_assets::SDK_SHARED_MATERIAL_JS_MAP, "application/json"),
                     "sdk/shared/SpineModuleLoader.js" => serve_embedded(embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS, "application/javascript"),
                     "sdk/shared/SpineModuleLoader.js.map" => serve_embedded(embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS_MAP, "application/json"),
+                    _ if path.starts_with("wasm/") => serve_public_file(&public_dir, path),
                     _ => serve_project_file(&current_dir, path),
                 };
 
@@ -245,6 +250,21 @@ fn serve_embedded(data: &[u8], content_type_str: &str) -> Response<std::io::Curs
     Response::from_data(data.to_vec())
         .with_header(content_type(content_type_str))
         .with_header(no_cache())
+        .with_header(cors())
+}
+
+fn serve_public_file(public_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+    let full_path = public_dir.join(path);
+    if full_path.starts_with(public_dir) {
+        if let Ok(data) = std::fs::read(&full_path) {
+            return Response::from_data(data)
+                .with_header(content_type(get_mime_type(path)))
+                .with_header(no_cache())
+                .with_header(cors());
+        }
+    }
+    Response::from_data(b"Not found".to_vec())
+        .with_status_code(404)
         .with_header(cors())
 }
 

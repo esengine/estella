@@ -143,11 +143,11 @@ fn get_embedded_asset(name: String) -> Result<Vec<u8>, String> {
         "sdk.spine.dts" => Ok(embedded_assets::SDK_SPINE_DTS.to_vec()),
         "editor.dts" => Ok(embedded_assets::EDITOR_DTS.to_vec()),
         "esbuild.wasm" => Ok(embedded_assets::ESBUILD_WASM.to_vec()),
-        // Build assets removed — use toolchain compilation
+        // Build assets served from public/wasm/ via HTTP, not embedded
         "engine.single.js" | "engine.wxgame.js" | "engine.wxgame.wasm"
         | "spine38.js" | "spine38.wasm" | "spine41.js" | "spine41.wasm"
         | "spine42.js" | "spine42.wasm" | "physics.js" | "physics.wasm" => {
-            Err(format!("Asset '{}' is no longer embedded. Use toolchain compilation.", name))
+            Err(format!("Asset '{}' is served from public/wasm/, not embedded.", name))
         }
         _ => Err(format!("Unknown embedded asset: {}", name)),
     }

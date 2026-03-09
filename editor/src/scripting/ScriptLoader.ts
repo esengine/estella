@@ -298,7 +298,8 @@ function extractAndRegisterComponents(source: string): string[] {
         const objStr = extractObjectLiteral(rest);
         if (!objStr) continue;
         try {
-            const defaults = new Function(`return ${objStr}`)() as Record<string, unknown>;
+            const defaults = safeParseObjectLiteral(objStr);
+            if (!defaults) continue;
             defineComponent(name, defaults);
             registerSchema?.(name, defaults, false);
             names.push(name);
@@ -313,6 +314,18 @@ function extractAndRegisterComponents(source: string): string[] {
     }
 
     return names;
+}
+
+function safeParseObjectLiteral(objStr: string): Record<string, unknown> | null {
+    try {
+        const json = objStr
+            .replace(/'/g, '"')
+            .replace(/(\w+)\s*:/g, '"$1":')
+            .replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(json) as Record<string, unknown>;
+    } catch {
+        return null;
+    }
 }
 
 function extractObjectLiteral(source: string): string | null {

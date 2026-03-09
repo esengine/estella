@@ -20,6 +20,7 @@ import { flattenPrefab, type FlattenContext, type PrefabData } from 'esengine';
 import { getPrefabDependencyTracker } from '../prefab';
 import { getGlobalPathResolver, getAssetDatabase, isUUID } from '../asset';
 import { showConfirmDialog } from '../ui/dialog';
+import { showSuccessToast } from '../ui/Toast';
 import type { DirtyFlag, EntityLifecycleEvent } from './EditorStore';
 
 export interface PrefabEditHost {
@@ -298,6 +299,8 @@ export class PrefabEditService {
         if (saved) {
             this.host_.state_.isDirty = false;
             this.host_.notify('scene');
+            const fileName = this.prefabEditingPath_.split('/').pop() ?? 'Prefab';
+            showSuccessToast('Prefab saved', fileName);
         }
         return saved;
     }

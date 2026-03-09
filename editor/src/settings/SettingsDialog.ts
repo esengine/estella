@@ -504,5 +504,5 @@ export function showSettingsDialog(): void {
         unsubscribe();
         for (const dispose of customDisposers) dispose();
         customDisposers.length = 0;
-    });
+    }).catch(() => {});
 }

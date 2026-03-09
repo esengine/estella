@@ -88,7 +88,7 @@ export function showInputDialog(options: InputDialogOptions): Promise<string | n
             } else {
                 resolve(null);
             }
-        });
+        }).catch(() => resolve(null));
 
         requestAnimationFrame(() => {
             input.focus();
@@ -111,7 +111,7 @@ export function showConfirmDialog(options: ConfirmDialogOptions): Promise<boolea
 
         dialog.open().then((result) => {
             resolve(result.action === 'confirm');
-        });
+        }).catch(() => resolve(false));
     });
 }
 
@@ -130,6 +130,6 @@ export function showAlertDialog(options: AlertDialogOptions): Promise<void> {
 
         dialog.open().then(() => {
             resolve();
-        });
+        }).catch(() => resolve());
     });
 }

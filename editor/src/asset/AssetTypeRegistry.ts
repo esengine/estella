@@ -230,7 +230,7 @@ export function registerBuiltinAssetTypes(registrar?: import('../container').Plu
                     const defaultSize = getDefaultComponentData('Sprite').size;
                     store.updateProperty(newEntity, 'Sprite', 'size', defaultSize, size);
                 }
-            });
+            }).catch(() => {});
         },
         onCreateEntity: async (state, asset, parent) => {
             const baseName = asset.name.replace(/\.[^.]+$/, '');
@@ -246,7 +246,7 @@ export function registerBuiltinAssetTypes(registrar?: import('../container').Plu
                 if (size) {
                     state.store.updateProperty(newEntity, 'Sprite', 'size', { x: 32, y: 32 }, size);
                 }
-            });
+            }).catch(() => {});
         },
     });
 

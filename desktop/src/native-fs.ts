@@ -404,8 +404,9 @@ export const nativeFS: NativeFS = {
             '4.2': 'spine42',
         };
         const prefix = versionMap[version] ?? 'spine42';
-        const data = await invoke<number[]>('get_embedded_asset', { name: `${prefix}.js` });
-        return new TextDecoder().decode(new Uint8Array(data));
+        const res = await fetch(`/wasm/${prefix}.js`);
+        if (!res.ok) throw new Error(`Failed to load spine JS: ${prefix}.js`);
+        return res.text();
     },
 
     async getSpineWasm(version: string) {
@@ -415,18 +416,21 @@ export const nativeFS: NativeFS = {
             '4.2': 'spine42',
         };
         const prefix = versionMap[version] ?? 'spine42';
-        const data = await invoke<number[]>('get_embedded_asset', { name: `${prefix}.wasm` });
-        return new Uint8Array(data);
+        const res = await fetch(`/wasm/${prefix}.wasm`);
+        if (!res.ok) throw new Error(`Failed to load spine WASM: ${prefix}.wasm`);
+        return new Uint8Array(await res.arrayBuffer());
     },
 
     async getPhysicsJs() {
-        const data = await invoke<number[]>('get_embedded_asset', { name: 'physics.js' });
-        return new TextDecoder().decode(new Uint8Array(data));
+        const res = await fetch('/wasm/physics.js');
+        if (!res.ok) throw new Error('Failed to load physics.js');
+        return res.text();
     },
 
     async getPhysicsWasm() {
-        const data = await invoke<number[]>('get_embedded_asset', { name: 'physics.wasm' });
-        return new Uint8Array(data);
+        const res = await fetch('/wasm/physics.wasm');
+        if (!res.ok) throw new Error('Failed to load physics.wasm');
+        return new Uint8Array(await res.arrayBuffer());
     },
 
     async getEsbuildWasm() {

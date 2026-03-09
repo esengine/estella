@@ -15,6 +15,7 @@ import { SdkExportService } from '../sdk';
 import { EditorExportService } from '../extension/EditorExportService';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
+import { showProgressToast, updateToast, dismissToast, showErrorToast, showSuccessToast } from '../ui/Toast';
 
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;
@@ -95,6 +96,13 @@ export async function createProject(
     }
 
     const { name, location, template } = options;
+
+    const invalidChars = /[<>:"/\\|?*\x00-\x1f]/;
+    const reservedNames = /^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i;
+    if (!name || !name.trim() || invalidChars.test(name) || reservedNames.test(name) || name.endsWith('.') || name.endsWith(' ')) {
+        return { success: false, error: 'Invalid project name: contains illegal characters or is a reserved name' };
+    }
+
     const projectDir = getProjectDir(location, name);
 
     // Check if directory already exists
@@ -205,15 +213,19 @@ export async function createFromExample(
         return { success: false, error: 'Project directory already exists' };
     }
 
+    const toastId = showProgressToast('Creating project', `Downloading ${example.name}...`);
+
     try {
         const response = await fetch(`/${example.zipFile}`);
         if (!response.ok) {
+            dismissToast(toastId);
             return { success: false, error: `Failed to fetch example: ${response.statusText}` };
         }
 
         const arrayBuffer = await response.arrayBuffer();
         const zipBytes = Array.from(new Uint8Array(arrayBuffer));
 
+        updateToast(toastId, { message: 'Extracting files...' });
         await invoke('unzip_to_directory', {
             zipBytes,
             targetDir: projectDir,
@@ -247,8 +259,12 @@ export async function createFromExample(
             lastOpened: new Date().toISOString(),
         });
 
+        dismissToast(toastId);
+        showSuccessToast('Project created', name);
         return { success: true, data: projectFilePath };
     } catch (err) {
+        dismissToast(toastId);
+        showErrorToast('Project creation failed', String(err));
         return { success: false, error: String(err) };
     }
 }
