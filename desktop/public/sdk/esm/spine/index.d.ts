@@ -7,8 +7,10 @@ import { C as CppRegistry, E as Entity, a as ESEngineModule } from '../shared/wa
 declare class SpinePlugin implements Plugin {
     private spineManager_;
     private provider_;
+    private app_;
     constructor(managerOrProvider?: SpineManager | SpineWasmProvider);
     get spineManager(): SpineManager | null;
+    setSpineManager(manager: SpineManager): void;
     build(app: App): void;
 }
 

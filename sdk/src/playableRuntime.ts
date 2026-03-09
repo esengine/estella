@@ -12,6 +12,7 @@ import type { AddressableManifest } from './asset/AssetServer';
 import type { Vec2 } from './types';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import { SpineManager, type SpineVersion } from './spine/SpineManager';
+import { SpinePlugin } from './spine/SpinePlugin';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { SceneData } from './scene';
 import { Audio } from './audio/Audio';
@@ -187,6 +188,10 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     let spineManager: SpineManager | null = null;
     if (config.spineModules && Object.keys(config.spineModules).length > 0) {
         spineManager = buildSpineManager(module, config.spineModules);
+        const spinePlugin = app.getPlugin(SpinePlugin);
+        if (spinePlugin) {
+            spinePlugin.setSpineManager(spineManager);
+        }
     }
 
     const physicsModule = config.physicsWasmBase64

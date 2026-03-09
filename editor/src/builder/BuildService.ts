@@ -168,7 +168,7 @@ export class BuildService {
             progress.setCurrentTask('Compiling WASM...', 0);
             progress.log('info', 'Compiling engine WASM via toolchain...');
 
-            const compileResult = await compileWasm(config, context, options?.cleanBuild);
+            const compileResult = await compileWasm(config, context, artifact.spineVersions, options?.cleanBuild);
             if (!compileResult.success) {
                 progress.fail(compileResult.error || 'WASM compilation failed');
                 return {
@@ -318,15 +318,19 @@ interface CompileWasmResult {
     physicsWasmPath?: string;
 }
 
-async function compileWasm(config: BuildConfig, context: BuildContext, cleanBuild?: boolean): Promise<CompileWasmResult> {
+async function compileWasm(config: BuildConfig, context: BuildContext, detectedSpineVersions: Set<string>, cleanBuild?: boolean): Promise<CompileWasmResult> {
     const { invoke } = await import('@tauri-apps/api/core');
 
     const modules = config.engineModules ?? createDefaultEngineModules();
     const target = config.platform === 'wechat' ? 'wechat' : 'playable';
 
     const spineVersions: string[] = [];
-    if (modules.spine && context.spineVersion) {
-        spineVersions.push(context.spineVersion);
+    if (modules.spine) {
+        if (detectedSpineVersions.size > 0) {
+            spineVersions.push(...detectedSpineVersions);
+        } else if (context.spineVersion) {
+            spineVersions.push(context.spineVersion);
+        }
     }
 
     const result = await invoke<{
