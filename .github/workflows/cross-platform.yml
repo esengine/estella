@@ -93,10 +93,10 @@ jobs:
 
       # SDK + Editor type-check
       - name: Type-check SDK
-        run: pnpm exec tsc --noEmit -p sdk/tsconfig.json
+        run: pnpm --filter ./sdk exec tsc --noEmit
 
       - name: Type-check Editor
-        run: pnpm exec tsc --noEmit -p editor/tsconfig.json
+        run: pnpm --filter ./editor exec tsc --noEmit
 
       # SDK + Editor tests
       - name: Run SDK tests
