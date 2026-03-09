@@ -4,19 +4,9 @@
 // WASM Modules
 // =============================================================================
 
+// Editor runtime only — build assets are compiled dynamically via toolchain
 pub const ENGINE_JS: &[u8] = include_bytes!("../../public/wasm/esengine.js");
 pub const ENGINE_WASM: &[u8] = include_bytes!("../../public/wasm/esengine.wasm");
-pub const ENGINE_SINGLE_JS: &[u8] = include_bytes!("../../public/wasm/esengine.single.js");
-pub const ENGINE_WXGAME_JS: &[u8] = include_bytes!("../../public/wasm/esengine.wxgame.js");
-pub const ENGINE_WXGAME_WASM: &[u8] = include_bytes!("../../public/wasm/esengine.wxgame.wasm");
-pub const SPINE38_JS: &[u8] = include_bytes!("../../public/wasm/spine38.js");
-pub const SPINE38_WASM: &[u8] = include_bytes!("../../public/wasm/spine38.wasm");
-pub const SPINE41_JS: &[u8] = include_bytes!("../../public/wasm/spine41.js");
-pub const SPINE41_WASM: &[u8] = include_bytes!("../../public/wasm/spine41.wasm");
-pub const SPINE42_JS: &[u8] = include_bytes!("../../public/wasm/spine42.js");
-pub const SPINE42_WASM: &[u8] = include_bytes!("../../public/wasm/spine42.wasm");
-pub const PHYSICS_JS: &[u8] = include_bytes!("../../public/wasm/physics.js");
-pub const PHYSICS_WASM: &[u8] = include_bytes!("../../public/wasm/physics.wasm");
 
 // =============================================================================
 // ESBuild

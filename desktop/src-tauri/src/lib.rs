@@ -128,11 +128,10 @@ fn open_folder(path: String) -> Result<(), String> {
 #[tauri::command]
 fn get_embedded_asset(name: String) -> Result<Vec<u8>, String> {
     match name.as_str() {
+        // Editor runtime
         "engine.js" => Ok(embedded_assets::ENGINE_JS.to_vec()),
         "engine.wasm" => Ok(embedded_assets::ENGINE_WASM.to_vec()),
-        "engine.single.js" => Ok(embedded_assets::ENGINE_SINGLE_JS.to_vec()),
-        "engine.wxgame.js" => Ok(embedded_assets::ENGINE_WXGAME_JS.to_vec()),
-        "engine.wxgame.wasm" => Ok(embedded_assets::ENGINE_WXGAME_WASM.to_vec()),
+        // SDK
         "sdk.wechat.js" => Ok(embedded_assets::SDK_WECHAT_JS.to_vec()),
         "sdk.esm.js" => Ok(embedded_assets::SDK_ESM_JS.to_vec()),
         "sdk.esm.dts" => Ok(embedded_assets::SDK_ESM_DTS.to_vec()),
@@ -143,15 +142,13 @@ fn get_embedded_asset(name: String) -> Result<Vec<u8>, String> {
         "sdk.physics.dts" => Ok(embedded_assets::SDK_PHYSICS_DTS.to_vec()),
         "sdk.spine.dts" => Ok(embedded_assets::SDK_SPINE_DTS.to_vec()),
         "editor.dts" => Ok(embedded_assets::EDITOR_DTS.to_vec()),
-        "spine38.js" => Ok(embedded_assets::SPINE38_JS.to_vec()),
-        "spine38.wasm" => Ok(embedded_assets::SPINE38_WASM.to_vec()),
-        "spine41.js" => Ok(embedded_assets::SPINE41_JS.to_vec()),
-        "spine41.wasm" => Ok(embedded_assets::SPINE41_WASM.to_vec()),
-        "spine42.js" => Ok(embedded_assets::SPINE42_JS.to_vec()),
-        "spine42.wasm" => Ok(embedded_assets::SPINE42_WASM.to_vec()),
-        "physics.js" => Ok(embedded_assets::PHYSICS_JS.to_vec()),
-        "physics.wasm" => Ok(embedded_assets::PHYSICS_WASM.to_vec()),
         "esbuild.wasm" => Ok(embedded_assets::ESBUILD_WASM.to_vec()),
+        // Build assets removed — use toolchain compilation
+        "engine.single.js" | "engine.wxgame.js" | "engine.wxgame.wasm"
+        | "spine38.js" | "spine38.wasm" | "spine41.js" | "spine41.wasm"
+        | "spine42.js" | "spine42.wasm" | "physics.js" | "physics.wasm" => {
+            Err(format!("Asset '{}' is no longer embedded. Use toolchain compilation.", name))
+        }
         _ => Err(format!("Unknown embedded asset: {}", name)),
     }
 }

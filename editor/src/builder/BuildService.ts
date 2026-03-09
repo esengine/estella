@@ -3,7 +3,7 @@
  * @brief   Build service for compiling and packaging projects
  */
 
-import type { BuildConfig, EngineModules } from '../types/BuildTypes';
+import type { BuildConfig } from '../types/BuildTypes';
 import { createDefaultEngineModules } from '../types/BuildTypes';
 import type { SpineVersion } from '../types/ProjectTypes';
 import type { PlatformEmitter } from './PlatformEmitter';
@@ -54,6 +54,9 @@ export interface RuntimeBuildConfig {
 export interface CustomWasmPaths {
     jsPath?: string;
     wasmPath?: string;
+    spineModules?: Array<{ version: string; jsPath: string; wasmPath: string }>;
+    physicsJsPath?: string;
+    physicsWasmPath?: string;
 }
 
 export interface BuildContext {
@@ -73,6 +76,7 @@ export interface BuildContext {
 
 export interface BuildOptions {
     useCache?: boolean;
+    cleanBuild?: boolean;
     progress?: BuildProgressReporter;
 }
 
@@ -160,27 +164,28 @@ export class BuildService {
                 };
             }
 
-            if (config.engineModules && !isAllModulesEnabled(config.engineModules)) {
-                progress.setPhase('compiling');
-                progress.setCurrentTask('Compiling custom WASM...', 0);
-                progress.log('info', 'Custom engine modules detected, compiling WASM...');
+            progress.setPhase('compiling');
+            progress.setCurrentTask('Compiling WASM...', 0);
+            progress.log('info', 'Compiling engine WASM via toolchain...');
 
-                const compileResult = await compileCustomWasm(config);
-                if (!compileResult.success) {
-                    progress.fail(compileResult.error || 'WASM compilation failed');
-                    return {
-                        success: false,
-                        error: compileResult.error || 'WASM compilation failed',
-                        duration: Date.now() - startTime,
-                    };
-                }
-
-                context.customWasm = {
-                    jsPath: compileResult.jsPath,
-                    wasmPath: compileResult.wasmPath,
+            const compileResult = await compileWasm(config, context, options?.cleanBuild);
+            if (!compileResult.success) {
+                progress.fail(compileResult.error || 'WASM compilation failed');
+                return {
+                    success: false,
+                    error: compileResult.error || 'WASM compilation failed',
+                    duration: Date.now() - startTime,
                 };
-                progress.log('info', `Custom WASM compiled (${formatSize(compileResult.wasmSize)})`);
             }
+
+            context.customWasm = {
+                jsPath: compileResult.jsPath,
+                wasmPath: compileResult.wasmPath,
+                spineModules: compileResult.spineModules,
+                physicsJsPath: compileResult.physicsJsPath,
+                physicsWasmPath: compileResult.physicsWasmPath,
+            };
+            progress.log('info', `WASM compiled (${formatSize(compileResult.wasmSize)})`);
 
             const hooks = config.hooks ?? [];
             const outputPath = config.playableSettings?.outputPath
@@ -308,20 +313,21 @@ interface CompileWasmResult {
     wasmPath?: string;
     wasmSize?: number;
     error?: string;
+    spineModules?: Array<{ version: string; jsPath: string; wasmPath: string }>;
+    physicsJsPath?: string;
+    physicsWasmPath?: string;
 }
 
-function isAllModulesEnabled(modules: EngineModules): boolean {
-    const defaults = createDefaultEngineModules();
-    return (Object.keys(defaults) as Array<keyof EngineModules>).every(
-        key => modules[key] !== false
-    );
-}
-
-async function compileCustomWasm(config: BuildConfig): Promise<CompileWasmResult> {
+async function compileWasm(config: BuildConfig, context: BuildContext, cleanBuild?: boolean): Promise<CompileWasmResult> {
     const { invoke } = await import('@tauri-apps/api/core');
 
     const modules = config.engineModules ?? createDefaultEngineModules();
     const target = config.platform === 'wechat' ? 'wechat' : 'playable';
+
+    const spineVersions: string[] = [];
+    if (modules.spine && context.spineVersion) {
+        spineVersions.push(context.spineVersion);
+    }
 
     const result = await invoke<{
         success: boolean;
@@ -329,6 +335,9 @@ async function compileCustomWasm(config: BuildConfig): Promise<CompileWasmResult
         js_path: string | null;
         wasm_size: number | null;
         error: string | null;
+        spine_modules: Array<{ version: string; js_path: string; wasm_path: string }>;
+        physics_js_path: string | null;
+        physics_wasm_path: string | null;
     }>('compile_wasm', {
         options: {
             features: {
@@ -340,8 +349,11 @@ async function compileCustomWasm(config: BuildConfig): Promise<CompileWasmResult
                 spine: modules.spine,
             },
             target,
-            debug: config.defines.includes('DEBUG'),
-            optimization: '-O2',
+            debug: false,
+            optimization: '-Oz',
+            enable_physics: context.enablePhysics ?? false,
+            spine_versions: spineVersions,
+            clean_build: cleanBuild ?? false,
         },
     });
 
@@ -351,6 +363,13 @@ async function compileCustomWasm(config: BuildConfig): Promise<CompileWasmResult
         wasmPath: result.wasm_path ?? undefined,
         wasmSize: result.wasm_size ?? undefined,
         error: result.error ?? undefined,
+        spineModules: result.spine_modules.map(m => ({
+            version: m.version,
+            jsPath: m.js_path,
+            wasmPath: m.wasm_path,
+        })),
+        physicsJsPath: result.physics_js_path ?? undefined,
+        physicsWasmPath: result.physics_wasm_path ?? undefined,
     };
 }
 

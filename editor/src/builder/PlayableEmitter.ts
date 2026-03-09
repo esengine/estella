@@ -47,13 +47,14 @@ export class PlayableEmitter implements PlatformEmitter {
         const projectDir = getProjectDir(context.projectPath);
 
         try {
-            // 1. Load SDK
+            // 1. Load compiled SDK
             progress.setCurrentTask('Loading SDK...', 0);
-            const wasmSdk = context.customWasm?.jsPath
-                ? await fs.readFile(context.customWasm.jsPath)
-                : await this.loadSdk(fs);
+            if (!context.customWasm?.jsPath) {
+                return { success: false, error: 'WASM not compiled. Toolchain compilation is required.' };
+            }
+            const wasmSdk = await fs.readFile(context.customWasm.jsPath);
             if (!wasmSdk) {
-                return { success: false, error: "SDK not found. Please run 'scripts/build-web-single.bat' first." };
+                return { success: false, error: `Compiled SDK not found at: ${context.customWasm.jsPath}` };
             }
             progress.log('info', `SDK loaded: ${wasmSdk.length} bytes`);
 
@@ -75,33 +76,32 @@ export class PlayableEmitter implements PlatformEmitter {
                 return { success: false, error: `Startup scene not found: ${startupScene}` };
             }
 
-            // 4. Load spine modules if needed
+            // 4. Load spine modules from compiled output
             progress.setCurrentTask('Loading modules...', 25);
             const spineModules: Array<{ version: string; js: string; wasmBase64: string }> = [];
-            const spineEnabled = context.config.engineModules?.spine !== false;
-            for (const version of spineEnabled ? artifact.spineVersions : []) {
-                if (version === '4.2') continue;
-                if (!fs.getSpineJs) continue;
-                const spineJs = await fs.getSpineJs(version);
-                const spineWasm = await fs.getSpineWasm(version);
-                if (spineJs && spineWasm.length > 0) {
-                    spineModules.push({
-                        version,
-                        js: spineJs,
-                        wasmBase64: arrayBufferToBase64(spineWasm),
-                    });
-                    progress.log('info', `Spine ${version} module loaded`);
+            if (context.customWasm?.spineModules) {
+                for (const mod of context.customWasm.spineModules) {
+                    const spineJs = await fs.readFile(mod.jsPath);
+                    const spineWasm = await fs.readBinaryFile(mod.wasmPath);
+                    if (spineJs && spineWasm && spineWasm.length > 0) {
+                        spineModules.push({
+                            version: mod.version,
+                            js: spineJs,
+                            wasmBase64: arrayBufferToBase64(spineWasm),
+                        });
+                        progress.log('info', `Spine ${mod.version} module loaded`);
+                    }
                 }
             }
 
-            // 5. Load physics module if needed
+            // 5. Load physics module from compiled output
             let physicsJsSource = '';
             let physicsWasmBase64 = '';
-            if (context.enablePhysics && fs.getPhysicsJs) {
+            if (context.customWasm?.physicsJsPath && context.customWasm?.physicsWasmPath) {
                 progress.setCurrentTask('Loading physics module...', 27);
-                const physicsJs = await fs.getPhysicsJs();
-                const physicsWasm = await fs.getPhysicsWasm();
-                if (physicsJs && physicsWasm.length > 0) {
+                const physicsJs = await fs.readFile(context.customWasm.physicsJsPath);
+                const physicsWasm = await fs.readBinaryFile(context.customWasm.physicsWasmPath);
+                if (physicsJs && physicsWasm && physicsWasm.length > 0) {
                     physicsJsSource = physicsJs;
                     physicsWasmBase64 = arrayBufferToBase64(physicsWasm);
                     progress.log('info', 'Physics module loaded');
@@ -164,19 +164,6 @@ export class PlayableEmitter implements PlatformEmitter {
     // Private Methods
     // =========================================================================
 
-    private async loadSdk(fs: NativeFS): Promise<string | null> {
-        try {
-            if (fs.getEngineSingleJs) {
-                return await fs.getEngineSingleJs();
-            }
-            const response = await fetch('/wasm/esengine.single.js');
-            if (!response.ok) return null;
-            return await response.text();
-        } catch {
-            return null;
-        }
-    }
-
     private async compilePlayableScripts(
         fs: NativeFS,
         projectDir: string,
@@ -215,10 +202,16 @@ const __plugins = [${pluginList}];
             minify: settings.minifyCode,
             sdkResolver: async (path) => {
                 if (path === 'esengine') {
-                    return { contents: await fs.getSdkEsmJs(), loader: 'js' as esbuild.Loader };
+                    const resp = await fetch('/sdk/esm/esengine.js');
+                    return { contents: await resp.text(), loader: 'js' as esbuild.Loader };
                 }
                 if (path === 'esengine/wasm') {
                     return { contents: await fs.getSdkWasmJs(), loader: 'js' as esbuild.Loader };
+                }
+                const sdkPath = path.replace(/^\.\//, '');
+                const resp = await fetch(`/sdk/esm/${sdkPath}`);
+                if (resp.ok) {
+                    return { contents: await resp.text(), loader: 'js' as esbuild.Loader };
                 }
                 return { contents: '', loader: 'js' as esbuild.Loader };
             },

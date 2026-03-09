@@ -54,6 +54,12 @@ pub struct CompileOptions {
     pub target: String,
     pub debug: bool,
     pub optimization: String,
+    #[serde(default)]
+    pub enable_physics: bool,
+    #[serde(default)]
+    pub spine_versions: Vec<String>,
+    #[serde(default)]
+    pub clean_build: bool,
 }
 
 impl Default for CompileOptions {
@@ -62,7 +68,10 @@ impl Default for CompileOptions {
             features: FeatureFlags::default(),
             target: "web".to_string(),
             debug: false,
-            optimization: "-O2".to_string(),
+            optimization: "-Oz".to_string(),
+            enable_physics: false,
+            spine_versions: Vec::new(),
+            clean_build: false,
         }
     }
 }
@@ -75,6 +84,13 @@ struct CompileProgress {
 }
 
 #[derive(Serialize)]
+pub struct SpineModuleResult {
+    pub version: String,
+    pub js_path: String,
+    pub wasm_path: String,
+}
+
+#[derive(Serialize)]
 pub struct CompileResult {
     pub success: bool,
     pub wasm_path: Option<String>,
@@ -82,6 +98,9 @@ pub struct CompileResult {
     pub wasm_size: Option<u64>,
     pub error: Option<String>,
     pub cache_key: String,
+    pub spine_modules: Vec<SpineModuleResult>,
+    pub physics_js_path: Option<String>,
+    pub physics_wasm_path: Option<String>,
 }
 
 const EMSDK_VERSION: &str = "5.0.0";
@@ -479,18 +498,26 @@ pub async fn compile_wasm(
         .map_err(|e| e.to_string())?
         .join("build-cache");
     let build_dir = build_base.join(&cache_key);
+
+    if options.clean_build && build_dir.exists() {
+        emit_progress(&app, "configure", "Cleaning build cache...", 0.05);
+        std::fs::remove_dir_all(&build_dir).map_err(|e| e.to_string())?;
+    }
+
     std::fs::create_dir_all(&build_dir).map_err(|e| e.to_string())?;
 
     // Check cache
-    let wasm_output = if options.target == "playable" {
-        build_dir.join("sdk/esengine.single.js")
-    } else {
-        build_dir.join("sdk/esengine-core.wasm")
-    };
+    if !options.clean_build {
+        let wasm_output = if options.target == "playable" {
+            build_dir.join("sdk/esengine.single.js")
+        } else {
+            build_dir.join("sdk/esengine-core.wasm")
+        };
 
-    if wasm_output.exists() {
-        emit_progress(&app, "complete", "Using cached build", 1.0);
-        return Ok(make_result(true, &build_dir, &cache_key, &options.target));
+        if wasm_output.exists() {
+            emit_progress(&app, "complete", "Using cached build", 1.0);
+            return Ok(make_result(true, &build_dir, &cache_key, &options));
+        }
     }
 
     let env_vars = build_env_vars(&emsdk_dir);
@@ -537,6 +564,59 @@ pub async fn compile_wasm(
     )
     .await?;
 
+    // Build spine modules
+    if options.features.spine && !options.spine_versions.is_empty() {
+        emit_progress(&app, "compile", "Compiling Spine modules...", 0.5);
+        for version in &options.spine_versions {
+            let cmake_target = match version.as_str() {
+                "3.8" => "spine_module_38",
+                "4.1" => "spine_module_41",
+                "4.2" => "spine_module",
+                _ => continue,
+            };
+            run_command_streamed(
+                &app,
+                "cmake",
+                &[
+                    "--build".to_string(),
+                    ".".to_string(),
+                    "-j".to_string(),
+                    num_cpus().to_string(),
+                    "--target".to_string(),
+                    cmake_target.to_string(),
+                ],
+                &build_dir,
+                &env_vars,
+            )
+            .await?;
+        }
+    }
+
+    // Build physics module (only if box2d source is available)
+    if options.enable_physics {
+        let box2d_dir = engine_src.join("third_party/box2d");
+        if box2d_dir.exists() {
+            emit_progress(&app, "compile", "Compiling Physics module...", 0.65);
+            run_command_streamed(
+                &app,
+                "cmake",
+                &[
+                    "--build".to_string(),
+                    ".".to_string(),
+                    "-j".to_string(),
+                    num_cpus().to_string(),
+                    "--target".to_string(),
+                    "physics_module".to_string(),
+                ],
+                &build_dir,
+                &env_vars,
+            )
+            .await?;
+        } else {
+            emit_progress(&app, "compile", "Physics module skipped (box2d not bundled)", 0.65);
+        }
+    }
+
     // Optimize
     if !options.debug {
         emit_progress(&app, "optimize", "Optimizing WASM...", 0.8);
@@ -570,7 +650,7 @@ pub async fn compile_wasm(
 
     emit_progress(&app, "complete", "Build complete!", 1.0);
 
-    Ok(make_result(true, &build_dir, &cache_key, &options.target))
+    Ok(make_result(true, &build_dir, &cache_key, &options))
 }
 
 #[tauri::command]
@@ -590,8 +670,8 @@ pub fn clear_build_cache(app: AppHandle) -> Result<(), String> {
 // Helpers
 // =============================================================================
 
-fn make_result(success: bool, build_dir: &Path, cache_key: &str, target: &str) -> CompileResult {
-    let (js_name, wasm_name) = if target == "playable" {
+fn make_result(success: bool, build_dir: &Path, cache_key: &str, options: &CompileOptions) -> CompileResult {
+    let (js_name, wasm_name) = if options.target == "playable" {
         ("sdk/esengine.single.js", None)
     } else {
         ("sdk/esengine-core.js", Some("sdk/esengine-core.wasm"))
@@ -603,6 +683,33 @@ fn make_result(success: bool, build_dir: &Path, cache_key: &str, target: &str) -
     let size_path = wasm_path.as_ref().unwrap_or(&js_path);
     let wasm_size = std::fs::metadata(size_path).map(|m| m.len()).ok();
 
+    let mut spine_modules = Vec::new();
+    if options.features.spine {
+        for version in &options.spine_versions {
+            let tag = version.replace('.', "");
+            let sjs = build_dir.join(format!("sdk/spine{tag}.js"));
+            let swasm = build_dir.join(format!("sdk/spine{tag}.wasm"));
+            if sjs.exists() && swasm.exists() {
+                spine_modules.push(SpineModuleResult {
+                    version: version.clone(),
+                    js_path: sjs.to_string_lossy().to_string(),
+                    wasm_path: swasm.to_string_lossy().to_string(),
+                });
+            }
+        }
+    }
+
+    let (physics_js_path, physics_wasm_path) = if options.enable_physics {
+        let pjs = build_dir.join("sdk/physics.js");
+        let pwasm = build_dir.join("sdk/physics.wasm");
+        (
+            pjs.exists().then(|| pjs.to_string_lossy().to_string()),
+            pwasm.exists().then(|| pwasm.to_string_lossy().to_string()),
+        )
+    } else {
+        (None, None)
+    };
+
     CompileResult {
         success,
         js_path: js_path.exists().then(|| js_path.to_string_lossy().to_string()),
@@ -612,6 +719,9 @@ fn make_result(success: bool, build_dir: &Path, cache_key: &str, target: &str) -
         wasm_size,
         error: None,
         cache_key: cache_key.to_string(),
+        spine_modules,
+        physics_js_path,
+        physics_wasm_path,
     }
 }
 
@@ -630,6 +740,8 @@ fn compute_cache_key(options: &CompileOptions) -> String {
     options.target.hash(&mut hasher);
     options.debug.hash(&mut hasher);
     options.optimization.hash(&mut hasher);
+    options.enable_physics.hash(&mut hasher);
+    options.spine_versions.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 
