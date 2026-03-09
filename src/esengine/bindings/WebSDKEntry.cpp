@@ -20,7 +20,9 @@
 #include "RendererBindings.hpp"
 #include "ImmediateDrawBindings.hpp"
 #include "GeometryBindings.hpp"
+#ifdef ES_ENABLE_POSTPROCESS
 #include "PostProcessBindings.hpp"
+#endif
 
 #include "../ecs/UILayoutSystem.hpp"
 #include "../ecs/UIHitTestSystem.hpp"
@@ -36,9 +38,13 @@
 #include "../renderer/plugins/UIElementPlugin.hpp"
 #include "../renderer/plugins/TextPlugin.hpp"
 #include "../renderer/plugins/ShapePlugin.hpp"
+#ifdef ES_ENABLE_PARTICLES
 #include "../renderer/plugins/ParticlePlugin.hpp"
+#endif
+#ifdef ES_ENABLE_TILEMAP
 #include "../renderer/plugins/TilemapRenderPlugin.hpp"
 #include "../tilemap/TilemapSystem.hpp"
+#endif
 #ifdef ES_ENABLE_SPINE
 #include "../renderer/plugins/SpinePlugin.hpp"
 #endif
@@ -51,6 +57,9 @@
 #include "../ecs/components/Collider.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../animation/TweenSystem.hpp"
+#ifdef ES_ENABLE_PARTICLES
+#include "../particle/ParticleSystem.hpp"
+#endif
 #include "../core/Log.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
@@ -65,7 +74,9 @@ static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte 
 
 namespace esengine {
 
+#ifdef ES_ENABLE_TILEMAP
 tilemap::TilemapSystem& getTilemapSystem();
+#endif
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
@@ -76,7 +87,9 @@ static EngineContext& ctx() { return EngineContext::instance(); }
 #define g_spineResourceManager (ctx().spineResourceManager())
 #endif
 #define g_renderContext (ctx().renderContext())
+#ifdef ES_ENABLE_PARTICLES
 #define g_particleSystem (ctx().particleSystem())
+#endif
 
 EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBlendModePtr, int outUniformBufPtr, int outUniformCountPtr), {
     var fn = Module['materialDataProvider'];
@@ -206,8 +219,12 @@ static void initSubsystems() {
 
     ctx().setTransformSystem(makeUnique<ecs::TransformSystem>());
     ctx().setTweenSystem(makeUnique<animation::TweenSystem>());
+#ifdef ES_ENABLE_TIMELINE
     ctx().setTimelineSystem(makeUnique<animation::TimelineSystem>());
+#endif
+#ifdef ES_ENABLE_PARTICLES
     ctx().setParticleSystem(makeUnique<particle::ParticleSystem>());
+#endif
 
 #ifdef ES_ENABLE_SPINE
     auto spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
@@ -228,11 +245,13 @@ static void initSubsystems() {
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
     renderFrame->addPlugin(std::make_unique<TextPlugin>());
     renderFrame->addPlugin(std::make_unique<ShapePlugin>());
+#ifdef ES_ENABLE_TILEMAP
     {
         auto tilemapPlugin = std::make_unique<TilemapRenderPlugin>();
         tilemapPlugin->setTilemapSystem(&getTilemapSystem());
         renderFrame->addPlugin(std::move(tilemapPlugin));
     }
+#endif
 #ifdef ES_ENABLE_SPINE
     {
         auto spinePlugin = std::make_unique<SpinePlugin>();
@@ -240,11 +259,13 @@ static void initSubsystems() {
         renderFrame->addPlugin(std::move(spinePlugin));
     }
 #endif
+#ifdef ES_ENABLE_PARTICLES
     {
         auto particlePlugin = std::make_unique<ParticlePlugin>();
         particlePlugin->setParticleSystem(ctx().particleSystem());
         renderFrame->addPlugin(std::move(particlePlugin));
     }
+#endif
     renderFrame->init(1280, 720);
     ctx().setRenderFrame(std::move(renderFrame));
 
@@ -491,11 +512,14 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("getTextureGLId", &esengine::rm_getTextureGLId)
         .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
+#ifdef ES_ENABLE_BITMAP_TEXT
         .function("loadBitmapFont", &esengine::rm_loadBitmapFont)
         .function("createLabelAtlasFont", &esengine::rm_createLabelAtlasFont)
         .function("releaseBitmapFont", &esengine::rm_releaseBitmapFont)
         .function("getBitmapFontRefCount", &esengine::rm_getBitmapFontRefCount)
-        .function("measureBitmapText", &esengine::rm_measureBitmapText);
+        .function("measureBitmapText", &esengine::rm_measureBitmapText)
+#endif
+        ;
 
 #ifdef ES_ENABLE_SPINE
     emscripten::value_object<esengine::SpineBounds>("SpineBounds")
@@ -549,6 +573,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("geometry_release", &esengine::geometry_release);
     emscripten::function("geometry_isValid", &esengine::geometry_isValid);
 
+#ifdef ES_ENABLE_POSTPROCESS
     emscripten::function("postprocess_init", &esengine::postprocess_init);
     emscripten::function("postprocess_shutdown", &esengine::postprocess_shutdown);
     emscripten::function("postprocess_resize", &esengine::postprocess_resize);
@@ -574,6 +599,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_clearScreenPasses", &esengine::postprocess_clearScreenPasses);
     emscripten::function("postprocess_setScreenUniformFloat", &esengine::postprocess_setScreenUniformFloat);
     emscripten::function("postprocess_setScreenUniformVec4", &esengine::postprocess_setScreenUniformVec4);
+#endif
 
     emscripten::function("renderer_init", &esengine::renderer_init);
     emscripten::function("renderer_resize", &esengine::renderer_resize);
@@ -583,19 +609,25 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_end", &esengine::renderer_end);
     emscripten::function("renderer_submitSprites", &esengine::renderer_submitSprites);
     emscripten::function("renderer_submitUIElements", &esengine::renderer_submitUIElements);
+#ifdef ES_ENABLE_BITMAP_TEXT
     emscripten::function("renderer_submitBitmapText", &esengine::renderer_submitBitmapText);
+#endif
     emscripten::function("renderer_submitShapes", &esengine::renderer_submitShapes);
 #ifdef ES_ENABLE_SPINE
     emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
 #endif
+#ifdef ES_ENABLE_PARTICLES
     emscripten::function("renderer_submitParticles", &esengine::renderer_submitParticles);
+#endif
     emscripten::function("renderer_updateTransforms", &esengine::renderer_updateTransforms);
     emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
+#ifdef ES_ENABLE_PARTICLES
     emscripten::function("particle_update", &esengine::particle_update);
     emscripten::function("particle_play", &esengine::particle_play);
     emscripten::function("particle_stop", &esengine::particle_stop);
     emscripten::function("particle_reset", &esengine::particle_reset);
     emscripten::function("particle_getAliveCount", &esengine::particle_getAliveCount);
+#endif
     emscripten::function("renderer_setStage", &esengine::renderer_setStage);
     emscripten::function("renderer_createTarget", &esengine::renderer_createTarget);
     emscripten::function("renderer_releaseTarget", &esengine::renderer_releaseTarget);

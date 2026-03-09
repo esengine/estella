@@ -20,7 +20,9 @@ enum class RenderType : u8 {
     Mesh = 2,
     ExternalMesh = 3,
     Text = 4,
+#ifdef ES_ENABLE_PARTICLES
     Particle = 5,
+#endif
     Shape = 6,
     UIElement = 7,
 };

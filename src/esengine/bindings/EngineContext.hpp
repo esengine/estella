@@ -16,8 +16,12 @@
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
 #include "../animation/TweenSystem.hpp"
+#ifdef ES_ENABLE_TIMELINE
 #include "../animation/TimelineSystem.hpp"
+#endif
+#ifdef ES_ENABLE_PARTICLES
 #include "../particle/ParticleSystem.hpp"
+#endif
 
 namespace esengine {
 
@@ -25,7 +29,9 @@ class RenderContext;
 class RenderFrame;
 class ImmediateDraw;
 class GeometryManager;
+#ifdef ES_ENABLE_POSTPROCESS
 class PostProcessPipeline;
+#endif
 
 namespace resource {
 class ResourceManager;
@@ -64,12 +70,18 @@ public:
     RenderFrame* renderFrame() { return renderFrame_.get(); }
     ImmediateDraw* immediateDraw() { return immediateDraw_.get(); }
     GeometryManager* geometryManager() { return geometryManager_.get(); }
+#ifdef ES_ENABLE_POSTPROCESS
     PostProcessPipeline* postProcessPipeline() { return postProcessPipeline_.get(); }
+#endif
     resource::ResourceManager* resourceManager() { return resourceManager_.get(); }
     ecs::TransformSystem* transformSystem() { return transformSystem_.get(); }
     animation::TweenSystem* tweenSystem() { return tweenSystem_.get(); }
+#ifdef ES_ENABLE_TIMELINE
     animation::TimelineSystem* timelineSystem() { return timelineSystem_.get(); }
+#endif
+#ifdef ES_ENABLE_PARTICLES
     particle::ParticleSystem* particleSystem() { return particleSystem_.get(); }
+#endif
 
 #ifdef ES_ENABLE_SPINE
     spine::SpineResourceManager* spineResourceManager() { return spineResourceManager_.get(); }
@@ -109,12 +121,18 @@ public:
     void setRenderFrame(Unique<RenderFrame> frame);
     void setImmediateDraw(Unique<ImmediateDraw> draw);
     void setGeometryManager(Unique<GeometryManager> mgr);
+#ifdef ES_ENABLE_POSTPROCESS
     void setPostProcessPipeline(Unique<PostProcessPipeline> pipeline);
+#endif
     void setResourceManager(Unique<resource::ResourceManager> mgr);
     void setTransformSystem(Unique<ecs::TransformSystem> sys);
     void setTweenSystem(Unique<animation::TweenSystem> sys);
+#ifdef ES_ENABLE_TIMELINE
     void setTimelineSystem(Unique<animation::TimelineSystem> sys);
+#endif
+#ifdef ES_ENABLE_PARTICLES
     void setParticleSystem(Unique<particle::ParticleSystem> sys);
+#endif
 
 #ifdef ES_ENABLE_SPINE
     void setSpineResourceManager(Unique<spine::SpineResourceManager> mgr);
@@ -129,12 +147,18 @@ private:
     Unique<RenderFrame> renderFrame_;
     Unique<ImmediateDraw> immediateDraw_;
     Unique<GeometryManager> geometryManager_;
+#ifdef ES_ENABLE_POSTPROCESS
     Unique<PostProcessPipeline> postProcessPipeline_;
+#endif
     Unique<resource::ResourceManager> resourceManager_;
     Unique<ecs::TransformSystem> transformSystem_;
     Unique<animation::TweenSystem> tweenSystem_;
+#ifdef ES_ENABLE_TIMELINE
     Unique<animation::TimelineSystem> timelineSystem_;
+#endif
+#ifdef ES_ENABLE_PARTICLES
     Unique<particle::ParticleSystem> particleSystem_;
+#endif
 
 #ifdef ES_ENABLE_SPINE
     Unique<spine::SpineResourceManager> spineResourceManager_;

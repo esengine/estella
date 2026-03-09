@@ -60,6 +60,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "toolchain/": "toolchain/"
+    },
     "windows": {
       "wix": null,
       "nsis": null

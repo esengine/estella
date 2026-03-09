@@ -5,7 +5,9 @@
 #include "RenderTarget.hpp"
 #include "RenderContext.hpp"
 #include "RenderTypePlugin.hpp"
+#ifdef ES_ENABLE_POSTPROCESS
 #include "PostProcessPipeline.hpp"
+#endif
 #include "FrameCapture.hpp"
 #include "StateTracker.hpp"
 #include "TransientBufferPool.hpp"
@@ -85,6 +87,7 @@ public:
         Entity entity, i32 layer, f32 depth
     );
 
+#ifdef ES_ENABLE_SPINE
     void submitSpineBatch(
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
@@ -92,11 +95,14 @@ public:
         const f32* transform16,
         Entity entity, i32 layer, f32 depth
     );
+#endif
 
     void setStage(RenderStage stage) { current_stage_ = stage; }
     RenderStage getStage() const { return current_stage_; }
 
+#ifdef ES_ENABLE_POSTPROCESS
     PostProcessPipeline* postProcess() { return post_process_.get(); }
+#endif
     RenderTargetManager& targetManager() { return target_manager_; }
 
     const Stats& stats() const { return stats_; }
@@ -118,7 +124,9 @@ private:
     resource::ResourceManager& resource_manager_;
     StateTracker state_tracker_;
 
+#ifdef ES_ENABLE_POSTPROCESS
     Unique<PostProcessPipeline> post_process_;
+#endif
     RenderTargetManager target_manager_;
 
     glm::mat4 view_projection_{1.0f};

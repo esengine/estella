@@ -8,14 +8,18 @@ import {
     type BuildPlatform,
     type BuildConfig,
     type BuildSettings,
+    type EngineModules,
     PLATFORMS,
+    ENGINE_MODULE_INFO,
     createDefaultBuildConfig,
     createDefaultBuildSettings,
+    createDefaultEngineModules,
 } from '../types/BuildTypes';
 import { getEditorContext } from '../context/EditorContext';
 import { getEditorStore } from '../store';
-import { type BuildResult } from './BuildService';
-import { showProgressToast, dismissToast, showToast } from '../ui/Toast';
+import { type BuildResult, type BuildOptions } from './BuildService';
+import { BuildProgressReporter } from './BuildProgress';
+import { showProgressToast, dismissToast, showToast, showSuccessToast, showErrorToast, updateToast } from '../ui/Toast';
 import { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon, type BuildHistoryEntry } from './BuildHistory';
 import { BuildConfigService, initBuildConfigService } from './BuildConfigService';
 import { downloadConfigsAsFile, uploadConfigsFromFile } from './BuildConfigIO';
@@ -32,7 +36,7 @@ import type { BuildHook, BuildHookPhase, BuildHookType, CopyFilesConfig, RunComm
 
 export interface BuildSettingsDialogOptions {
     projectPath: string;
-    onBuild: (config: BuildConfig) => Promise<BuildResult>;
+    onBuild: (config: BuildConfig, options?: BuildOptions) => Promise<BuildResult>;
     onClose: () => void;
 }
 
@@ -71,6 +75,7 @@ export class BuildSettingsDialog {
 
         this.render();
         this.setupEvents();
+        this.checkToolchainStatus();
     }
 
     dispose(): void {
@@ -212,8 +217,10 @@ export class BuildSettingsDialog {
                 <div class="es-build-data-section">
                     ${this.renderScenesSection(config)}
                     ${this.renderDefinesSection(config)}
+                    ${this.renderEngineModulesSection(config)}
                 </div>
                 <div class="es-build-settings-section">
+                    ${this.renderToolchainSection()}
                     ${this.renderPlatformSettings(config)}
                     ${this.renderHooksSection(config)}
                 </div>
@@ -582,6 +589,107 @@ export class BuildSettingsDialog {
         `;
     }
 
+    private renderEngineModulesSection(config: BuildConfig): string {
+        const isExpanded = this.expandedSections_.has('engine-modules');
+        const modules = config.engineModules ?? createDefaultEngineModules();
+        const enabledCount = Object.values(modules).filter(Boolean).length;
+        const totalCount = Object.keys(ENGINE_MODULE_INFO).length;
+
+        const modulesHtml = (Object.entries(ENGINE_MODULE_INFO) as [keyof EngineModules, { name: string; description: string }][])
+            .map(([key, info]) => `
+                <div class="es-build-module-item">
+                    <label>
+                        <input type="checkbox" data-module="${key}" ${modules[key] ? 'checked' : ''}>
+                        <span class="es-build-module-name">${info.name}</span>
+                    </label>
+                    <span class="es-build-module-desc">${info.description}</span>
+                </div>
+            `).join('');
+
+        return `
+            <div class="es-build-collapse ${isExpanded ? 'es-expanded' : ''}" data-section="engine-modules">
+                <div class="es-build-collapse-header">
+                    ${isExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
+                    <span>Engine Modules</span>
+                    <span class="es-build-collapse-count">${enabledCount}/${totalCount}</span>
+                </div>
+                <div class="es-build-collapse-content">
+                    <div class="es-build-module-list">
+                        <div class="es-build-module-item es-build-module-core">
+                            <label>
+                                <input type="checkbox" checked disabled>
+                                <span class="es-build-module-name">Core</span>
+                            </label>
+                            <span class="es-build-module-desc">ECS, Renderer, Sprite, Text</span>
+                        </div>
+                        ${modulesHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private renderToolchainSection(): string {
+        const isExpanded = this.expandedSections_.has('toolchain');
+        const s = this.toolchainStatus_;
+
+        let statusBadge: string;
+        let infoHtml: string;
+
+        if (this.toolchainError_) {
+            statusBadge = '';
+            infoHtml = '<span class="es-build-module-desc">Not available in browser mode</span>';
+        } else if (!s) {
+            statusBadge = '';
+            infoHtml = '<span class="es-build-module-desc">Detecting...</span>';
+        } else if (s.installed) {
+            statusBadge = '<span class="es-build-toolchain-badge es-ready">Ready</span>';
+            infoHtml = this.renderToolchainRows(s);
+        } else {
+            statusBadge = '<span class="es-build-toolchain-badge es-not-ready">Not ready</span>';
+            infoHtml = this.renderToolchainRows(s);
+        }
+
+        return `
+            <div class="es-build-collapse ${isExpanded ? 'es-expanded' : ''}" data-section="toolchain">
+                <div class="es-build-collapse-header">
+                    ${isExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
+                    <span>Toolchain (emsdk)</span>
+                    ${statusBadge}
+                </div>
+                <div class="es-build-collapse-content">
+                    <div class="es-build-toolchain-info">
+                        ${infoHtml}
+                    </div>
+                    <div class="es-build-toolchain-actions">
+                        <button class="es-btn" data-action="browse-emsdk">
+                            ${icons.folder(12)} Select emsdk
+                        </button>
+                        <button class="es-btn" data-action="install-emsdk">
+                            ${icons.download(12)} Install emsdk
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private renderToolchainRows(s: NonNullable<typeof this.toolchainStatus_>): string {
+        const row = (label: string, value: string | null, ok: boolean, minVersion?: string) => {
+            const cls = ok ? '' : ' es-warning';
+            let display = value ?? 'not found';
+            if (value && !ok && minVersion) {
+                display += ` (requires >= ${minVersion})`;
+            }
+            return `<div class="es-build-toolchain-row${cls}">${label}: ${display}</div>`;
+        };
+        return [
+            row('Emscripten', s.emscripten_version ?? (s.emsdk_path ? 'unknown' : null), s.emscripten_ok, '5.0.0'),
+            row('CMake', s.cmake_version, s.cmake_ok, '3.16'),
+            row('Python', s.python_version, s.python_ok, '3.0'),
+        ].join('');
+    }
+
     private getPlatformName(platform: BuildPlatform): string {
         return PLATFORMS.find(p => p.id === platform)?.name ?? platform;
     }
@@ -631,10 +739,16 @@ export class BuildSettingsDialog {
                 if (section) {
                     if (this.expandedSections_.has(section)) {
                         this.expandedSections_.delete(section);
+                        collapse.classList.remove('es-expanded');
                     } else {
                         this.expandedSections_.add(section);
+                        collapse.classList.add('es-expanded');
                     }
-                    this.render();
+                    const chevron = collapseHeader.querySelector('svg');
+                    if (chevron) {
+                        const expanded = this.expandedSections_.has(section);
+                        chevron.outerHTML = expanded ? icons.chevronDown(12) : icons.chevronRight(12);
+                    }
                 }
                 return;
             }
@@ -872,6 +986,14 @@ export class BuildSettingsDialog {
             case 'browse-output':
                 this.browseFile('playable-output', 'HTML File', ['html']);
                 break;
+
+            case 'browse-emsdk':
+                this.handleBrowseEmsdk();
+                break;
+
+            case 'install-emsdk':
+                this.handleInstallEmsdk();
+                break;
         }
     }
 
@@ -932,7 +1054,94 @@ export class BuildSettingsDialog {
             }
         }
 
+        // Engine module checkboxes
+        const moduleKey = (target as HTMLElement).dataset?.module as keyof EngineModules | undefined;
+        if (moduleKey && moduleKey in ENGINE_MODULE_INFO) {
+            if (!config.engineModules) {
+                config.engineModules = createDefaultEngineModules();
+            }
+            config.engineModules[moduleKey] = (target as HTMLInputElement).checked;
+        }
+
         this.saveSettings();
+    }
+
+    private async checkToolchainStatus(): Promise<void> {
+        try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            this.toolchainStatus_ = await invoke('get_toolchain_status');
+            this.toolchainError_ = false;
+        } catch {
+            this.toolchainStatus_ = null;
+            this.toolchainError_ = true;
+        }
+        this.updateToolchainUI();
+    }
+
+    private updateToolchainUI(): void {
+        const section = this.overlay_?.querySelector('[data-section="toolchain"]');
+        if (!section) return;
+
+        const s = this.toolchainStatus_;
+        const header = section.querySelector('.es-build-collapse-header');
+        const badgeEl = section.querySelector('.es-build-toolchain-badge');
+        const infoEl = section.querySelector('.es-build-toolchain-info');
+
+        if (this.toolchainError_) {
+            if (badgeEl) badgeEl.remove();
+            if (infoEl) infoEl.innerHTML = '<span class="es-build-module-desc">Not available in browser mode</span>';
+            return;
+        }
+
+        if (!s) {
+            if (infoEl) infoEl.innerHTML = '<span class="es-build-module-desc">Detecting...</span>';
+            return;
+        }
+
+        const badgeClass = s.installed ? 'es-ready' : 'es-not-ready';
+        const badgeText = s.installed ? 'Ready' : 'Not ready';
+
+        if (badgeEl) {
+            badgeEl.className = `es-build-toolchain-badge ${badgeClass}`;
+            badgeEl.textContent = badgeText;
+        } else if (header) {
+            header.insertAdjacentHTML('beforeend', `<span class="es-build-toolchain-badge ${badgeClass}">${badgeText}</span>`);
+        }
+
+        if (infoEl) {
+            infoEl.innerHTML = this.renderToolchainRows(s);
+        }
+    }
+
+    private async handleBrowseEmsdk(): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const selected = await fs.selectDirectory();
+        if (!selected) return;
+
+        try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            await invoke('set_emsdk_path', { path: selected });
+            showSuccessToast('emsdk path set');
+            await this.checkToolchainStatus();
+        } catch (err: any) {
+            showErrorToast(err.toString());
+        }
+    }
+
+    private async handleInstallEmsdk(): Promise<void> {
+        const toastId = showProgressToast('Installing emsdk...');
+        try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            await invoke('install_emsdk');
+            dismissToast(toastId);
+            showSuccessToast('emsdk installed');
+            await this.checkToolchainStatus();
+        } catch (err: any) {
+            dismissToast(toastId);
+            showErrorToast(`Install failed: ${err}`);
+        }
     }
 
     private showAddConfigDialog(): void {
@@ -1156,6 +1365,13 @@ export class BuildSettingsDialog {
     }
 
     private async handleBuild(config: BuildConfig): Promise<void> {
+        if (config.engineModules && Object.values(config.engineModules).some(v => v === false)) {
+            if (!this.toolchainStatus_?.installed) {
+                showErrorToast('Toolchain not ready. Custom engine modules require emsdk, CMake and Python.');
+                return;
+            }
+        }
+
         const buildBtn = this.overlay_.querySelector('[data-action="build"]') as HTMLButtonElement;
         const buildAllBtn = this.overlay_.querySelector('[data-action="build-all"]') as HTMLButtonElement;
 
@@ -1173,8 +1389,17 @@ export class BuildSettingsDialog {
             `Target: ${platformName}`
         );
 
+        const progress = new BuildProgressReporter();
+        progress.onProgress((p) => {
+            const task = p.currentTask || p.phase;
+            updateToast(toastId, {
+                message: task,
+                progress: p.overallProgress,
+            });
+        });
+
         try {
-            const result = await this.options_.onBuild(config);
+            const result = await this.options_.onBuild(config, { progress });
 
             dismissToast(toastId);
 
@@ -1576,10 +1801,23 @@ export class BuildSettingsDialog {
     private configService_!: BuildConfigService;
     private history_!: BuildHistory;
     private batchBuilder_!: BatchBuilder;
-    private expandedSections_: Set<string> = new Set(['scenes', 'defines', 'platform']);
+    private expandedSections_: Set<string> = new Set(['scenes', 'defines', 'platform', 'engine-modules']);
     private keyHandler_: ((e: KeyboardEvent) => void) | null = null;
     private dragSourceIndex_ = -1;
     private lastBuildOutputFiles_: Map<string, Array<{ path: string; size: number }>> = new Map();
+    private toolchainStatus_: {
+        installed: boolean;
+        emsdk_path: string | null;
+        emscripten_version: string | null;
+        emscripten_ok: boolean;
+        cmake_found: boolean;
+        cmake_version: string | null;
+        cmake_ok: boolean;
+        python_found: boolean;
+        python_version: string | null;
+        python_ok: boolean;
+    } | null = null;
+    private toolchainError_ = false;
 }
 
 // =============================================================================

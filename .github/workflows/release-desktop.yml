@@ -65,6 +65,9 @@ jobs:
       - name: Build engine and sync to desktop
         run: node build-tools/cli.js build -t all
 
+      - name: Package engine source for toolchain
+        run: node build-tools/cli.js toolchain
+
       - name: Build workspace packages
         run: pnpm --filter ./sdk build && pnpm --filter ./editor build
 

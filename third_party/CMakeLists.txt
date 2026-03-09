@@ -51,8 +51,10 @@ target_compile_definitions(glm INTERFACE
 # cute_tiled - Tiled JSON map parser
 # =============================================================================
 
-add_library(cute_tiled INTERFACE)
-target_include_directories(cute_tiled INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/cute_tiled)
+if(ES_ENABLE_TILEMAP)
+    add_library(cute_tiled INTERFACE)
+    target_include_directories(cute_tiled INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/cute_tiled)
+endif()
 
 # =============================================================================
 # Native Platform Dependencies

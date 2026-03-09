@@ -78,3 +78,7 @@ Testing/
 CTestTestfile.cmake
 coverage/
 design/
+
+# Toolchain (downloaded by build-tools/toolchain/package.js)
+desktop/src-tauri/toolchain/
+!desktop/src-tauri/toolchain/.gitkeep

@@ -1,4 +1,5 @@
 #ifdef ES_PLATFORM_WEB
+#ifdef ES_ENABLE_TILEMAP
 
 #include "EngineContext.hpp"
 #include "../tilemap/TilemapSystem.hpp"
@@ -469,4 +470,5 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tiled_getLayerParallaxY", &esengine::tiled_getLayerParallaxY);
 }
 
+#endif  // ES_ENABLE_TILEMAP
 #endif  // ES_PLATFORM_WEB

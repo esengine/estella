@@ -87,8 +87,10 @@ void RenderFrame::init(u32 width, u32 height) {
 
     state_tracker_.init();
 
+#ifdef ES_ENABLE_POSTPROCESS
     post_process_ = makeUnique<PostProcessPipeline>(context_, resource_manager_);
     post_process_->init(width, height);
+#endif
 
     pool_.init();
     batch_shader_id_ = initBatchShader();
@@ -113,10 +115,12 @@ void RenderFrame::shutdown() {
     plugins_.clear();
     pool_.shutdown();
 
+#ifdef ES_ENABLE_POSTPROCESS
     if (post_process_) {
         post_process_->shutdown();
         post_process_.reset();
     }
+#endif
 
     ES_LOG_INFO("RenderFrame shutdown");
 }
@@ -125,9 +129,11 @@ void RenderFrame::resize(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
+#ifdef ES_ENABLE_POSTPROCESS
     if (post_process_) {
         post_process_->resize(width, height);
     }
+#endif
 }
 
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target) {
@@ -144,10 +150,15 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     draw_list_.clear();
     clip_state_.clear();
 
+#ifdef ES_ENABLE_POSTPROCESS
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
                           !post_process_->isBypassed() && post_process_->getPassCount() > 0;
+#else
+    bool usePostProcess = false;
+#endif
 
     if (usePostProcess) {
+#ifdef ES_ENABLE_POSTPROCESS
         if (target != RenderTargetManager::INVALID_HANDLE) {
             auto* rt = target_manager_.get(target);
             if (rt) {
@@ -155,6 +166,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
             }
         }
         post_process_->begin();
+#endif
     } else if (target != RenderTargetManager::INVALID_HANDLE) {
         auto* rt = target_manager_.get(target);
         if (rt) {
@@ -189,7 +201,9 @@ void RenderFrame::flush() {
         case RenderType::Mesh:
         case RenderType::ExternalMesh:
             stats_.meshes += cmd.entity_count; break;
+#ifdef ES_ENABLE_PARTICLES
         case RenderType::Particle: stats_.particles += cmd.entity_count; break;
+#endif
         case RenderType::Shape:    stats_.shapes += cmd.entity_count; break;
 #ifdef ES_ENABLE_SPINE
         case RenderType::Spine:    stats_.spine += cmd.entity_count; break;
@@ -206,11 +220,17 @@ void RenderFrame::end() {
         flush();
     }
 
+#ifdef ES_ENABLE_POSTPROCESS
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
                           !post_process_->isBypassed() && post_process_->getPassCount() > 0;
+#else
+    bool usePostProcess = false;
+#endif
 
     if (usePostProcess) {
+#ifdef ES_ENABLE_POSTPROCESS
         post_process_->end();
+#endif
     } else if (current_target_ != RenderTargetManager::INVALID_HANDLE) {
         auto* rt = target_manager_.get(current_target_);
         if (rt) {
@@ -628,6 +648,7 @@ void RenderFrame::submitTileQuad(
     draw_list_.push(cmd);
 }
 
+#ifdef ES_ENABLE_SPINE
 void RenderFrame::submitSpineBatch(
     const f32* vertices, i32 vertexCount,
     const u16* indices, i32 indexCount,
@@ -677,6 +698,7 @@ void RenderFrame::submitSpineBatch(
     clip_state_.applyTo(entity, cmd);
     draw_list_.push(cmd);
 }
+#endif
 
 // ============================================================================
 // Plugin Pipeline

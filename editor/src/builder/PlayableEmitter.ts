@@ -15,6 +15,7 @@ import type { NativeFS } from '../types/NativeFS';
 import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
 import {
     analyzeUsedPlugins,
+    filterPluginsByModules,
     collectUserScriptImports,
     compileUserScripts,
     resolveSceneUUIDs,
@@ -48,7 +49,9 @@ export class PlayableEmitter implements PlatformEmitter {
         try {
             // 1. Load SDK
             progress.setCurrentTask('Loading SDK...', 0);
-            const wasmSdk = await this.loadSdk(fs);
+            const wasmSdk = context.customWasm?.jsPath
+                ? await fs.readFile(context.customWasm.jsPath)
+                : await this.loadSdk(fs);
             if (!wasmSdk) {
                 return { success: false, error: "SDK not found. Please run 'scripts/build-web-single.bat' first." };
             }
@@ -75,7 +78,8 @@ export class PlayableEmitter implements PlatformEmitter {
             // 4. Load spine modules if needed
             progress.setCurrentTask('Loading modules...', 25);
             const spineModules: Array<{ version: string; js: string; wasmBase64: string }> = [];
-            for (const version of artifact.spineVersions) {
+            const spineEnabled = context.config.engineModules?.spine !== false;
+            for (const version of spineEnabled ? artifact.spineVersions : []) {
                 if (version === '4.2') continue;
                 if (!fs.getSpineJs) continue;
                 const spineJs = await fs.getSpineJs(version);
@@ -183,7 +187,10 @@ export class PlayableEmitter implements PlatformEmitter {
 
         const usedPlugins = analyzeUsedPlugins(artifact);
         const alwaysPlugins = ['animationPlugin', 'audioPlugin', 'particlePlugin'];
-        const allPlugins = [...new Set([...usedPlugins, ...alwaysPlugins])];
+        const allPlugins = filterPluginsByModules(
+            [...new Set([...usedPlugins, ...alwaysPlugins])],
+            context.config.engineModules,
+        );
         const pluginImports = allPlugins.join(', ');
         const pluginList = allPlugins.join(', ');
 

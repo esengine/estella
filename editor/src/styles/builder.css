@@ -261,11 +261,7 @@
     flex-shrink: 0;
 }
 
-.es-build-scene-item span {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.es-build-scene-item .es-build-scene-path {
     color: var(--es-text-primary);
 }
 
@@ -1703,4 +1699,94 @@
     font-size: 11px;
     opacity: 0.5;
     font-style: italic;
+}
+
+/* Engine Modules */
+.es-build-module-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.es-build-module-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    transition: background 0.1s;
+}
+
+.es-build-module-item:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-build-module-item label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.es-build-module-item input[type="checkbox"] {
+    margin: 0;
+    accent-color: var(--es-accent);
+}
+
+.es-build-module-name {
+    font-weight: 500;
+    color: var(--es-text-primary);
+}
+
+.es-build-module-desc {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    text-align: right;
+}
+
+.es-build-module-core {
+    opacity: 0.6;
+}
+
+.es-build-module-core label {
+    cursor: default;
+}
+
+/* Toolchain */
+.es-build-toolchain-badge {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.es-build-toolchain-badge.es-ready {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4caf50;
+}
+
+.es-build-toolchain-badge.es-not-ready {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ff9800;
+}
+
+.es-build-toolchain-info {
+    font-size: 12px;
+    color: var(--es-text-secondary);
+    margin-bottom: 8px;
+}
+
+.es-build-toolchain-row {
+    padding: 2px 0;
+}
+
+.es-build-toolchain-row.es-warning {
+    color: #ff9800;
+}
+
+.es-build-toolchain-actions {
+    display: flex;
+    gap: 8px;
 }

@@ -39,7 +39,9 @@ static EngineContext& ctx() { return EngineContext::instance(); }
 #ifdef ES_ENABLE_SPINE
 #define g_spineSystem (ctx().spineSystem())
 #endif
+#ifdef ES_ENABLE_PARTICLES
 #define g_particleSystem (ctx().particleSystem())
+#endif
 
 static u32 checkGLErrors(const char* context) {
     if (!g_glErrorCheckEnabled) return 0;
@@ -306,9 +308,11 @@ void renderer_submitUIElements(ecs::Registry& registry) {
     (void)registry;
 }
 
+#ifdef ES_ENABLE_BITMAP_TEXT
 void renderer_submitBitmapText(ecs::Registry& registry) {
     (void)registry;
 }
+#endif
 
 void renderer_submitShapes(ecs::Registry& registry) {
     (void)registry;
@@ -320,9 +324,11 @@ void renderer_submitSpine(ecs::Registry& registry) {
 }
 #endif
 
+#ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry) {
     (void)registry;
 }
+#endif
 
 void renderer_updateTransforms(ecs::Registry& registry) {
     ensureTransformsUpdated(registry);
@@ -336,6 +342,7 @@ void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY
     g_renderFrame->collectAll(registry, skipFlags);
 }
 
+#ifdef ES_ENABLE_PARTICLES
 void particle_update(ecs::Registry& registry, f32 dt) {
     if (!g_particleSystem) return;
     g_particleSystem->update(registry, dt);
@@ -363,6 +370,7 @@ u32 particle_getAliveCount(Entity entity) {
     if (!g_particleSystem) return 0;
     return g_particleSystem->aliveCount(entity);
 }
+#endif
 
 void renderer_setStage(i32 stage) {
     if (!g_renderFrame) return;

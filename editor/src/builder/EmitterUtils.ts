@@ -6,6 +6,7 @@
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildArtifact } from './PlatformEmitter';
 import type { BuildContext } from './BuildService';
+import type { EngineModules } from '../types/BuildTypes';
 import type { NativeFS } from '../types/NativeFS';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath } from '../utils/path';
@@ -71,6 +72,32 @@ export function analyzeUsedPlugins(artifact: BuildArtifact): string[] {
     }
 
     return Array.from(plugins);
+}
+
+// =============================================================================
+// Engine Module → Plugin Mapping
+// =============================================================================
+
+const MODULE_PLUGIN_MAP: Record<keyof EngineModules, string[]> = {
+    particles: ['particlePlugin'],
+    tilemap: ['tilemapPlugin'],
+    timeline: ['timelinePlugin'],
+    postprocess: ['postProcessPlugin'],
+    bitmapText: [],
+    spine: [],
+};
+
+export function filterPluginsByModules(plugins: string[], modules?: EngineModules): string[] {
+    if (!modules) return plugins;
+
+    const disabled = new Set<string>();
+    for (const [mod, pluginNames] of Object.entries(MODULE_PLUGIN_MAP)) {
+        if (!modules[mod as keyof EngineModules]) {
+            for (const p of pluginNames) disabled.add(p);
+        }
+    }
+
+    return plugins.filter(p => !disabled.has(p));
 }
 
 // =============================================================================

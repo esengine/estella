@@ -241,11 +241,12 @@ export class WeChatEmitter implements PlatformEmitter {
 
         const physicsConfig = generatePhysicsConfig(context);
 
+        const spineEnabled = context.config.engineModules?.spine !== false;
         const gameJs = generateWeChatGameJs({
             userCode,
             firstSceneName,
             allSceneNames,
-            spineVersions: [...artifact.spineVersions],
+            spineVersions: spineEnabled ? [...artifact.spineVersions] : [],
             hasPhysics: !!context.enablePhysics,
             physicsConfig,
             runtimeConfig: context.runtimeConfig,
@@ -261,8 +262,21 @@ export class WeChatEmitter implements PlatformEmitter {
         context: BuildContext,
         artifact: BuildArtifact,
     ): Promise<void> {
-        const engineJs = await fs.getEngineWxgameJs();
-        const engineWasm = await fs.getEngineWxgameWasm();
+        let engineJs: string;
+        let engineWasm: Uint8Array;
+
+        if (context.customWasm?.jsPath && context.customWasm?.wasmPath) {
+            const js = await fs.readFile(context.customWasm.jsPath);
+            const wasm = await fs.readBinaryFile(context.customWasm.wasmPath);
+            if (!js || !wasm) {
+                throw new Error('Custom WASM build output not found');
+            }
+            engineJs = js;
+            engineWasm = wasm;
+        } else {
+            engineJs = await fs.getEngineWxgameJs();
+            engineWasm = await fs.getEngineWxgameWasm();
+        }
 
         if (!engineJs || engineJs.length === 0) {
             throw new Error(
@@ -278,14 +292,17 @@ export class WeChatEmitter implements PlatformEmitter {
             await fs.writeFile(joinPath(outputDir, 'sdk.js'), sdkJs);
         }
 
-        for (const version of artifact.spineVersions) {
-            if (version === '4.2') continue;
-            const spineJs = await fs.getSpineJs(version);
-            const spineWasm = await fs.getSpineWasm(version);
-            if (spineJs && spineWasm.length > 0) {
-                const tag = version.replace('.', '');
-                await fs.writeFile(joinPath(outputDir, `spine_${tag}.js`), spineJs);
-                await fs.writeBinaryFile(joinPath(outputDir, `spine_${tag}.wasm`), spineWasm);
+        const spineEnabled = context.config.engineModules?.spine !== false;
+        if (spineEnabled) {
+            for (const version of artifact.spineVersions) {
+                if (version === '4.2') continue;
+                const spineJs = await fs.getSpineJs(version);
+                const spineWasm = await fs.getSpineWasm(version);
+                if (spineJs && spineWasm.length > 0) {
+                    const tag = version.replace('.', '');
+                    await fs.writeFile(joinPath(outputDir, `spine_${tag}.js`), spineJs);
+                    await fs.writeBinaryFile(joinPath(outputDir, `spine_${tag}.wasm`), spineWasm);
+                }
             }
         }
 

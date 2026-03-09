@@ -49,7 +49,9 @@ void renderer_flush();
 void renderer_end();
 void renderer_submitSprites(ecs::Registry& registry);
 void renderer_submitUIElements(ecs::Registry& registry);
+#ifdef ES_ENABLE_BITMAP_TEXT
 void renderer_submitBitmapText(ecs::Registry& registry);
+#endif
 void renderer_submitShapes(ecs::Registry& registry);
 #ifdef ES_ENABLE_SPINE
 void renderer_submitSpine(ecs::Registry& registry);
@@ -62,14 +64,18 @@ void renderer_submitSpineBatch(
 );
 void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value);
 #endif
+#ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);
+#endif
 void renderer_updateTransforms(ecs::Registry& registry);
 void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
+#ifdef ES_ENABLE_PARTICLES
 void particle_update(ecs::Registry& registry, f32 dt);
 void particle_play(ecs::Registry& registry, Entity entity);
 void particle_stop(ecs::Registry& registry, Entity entity);
 void particle_reset(ecs::Registry& registry, Entity entity);
 u32 particle_getAliveCount(Entity entity);
+#endif
 void renderer_setStage(i32 stage);
 u32 renderer_createTarget(u32 width, u32 height, i32 flags);
 u32 renderer_getTargetDepthTexture(u32 handle);

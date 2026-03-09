@@ -202,4 +202,18 @@ program
         logger.printTime(Date.now() - startTime);
     });
 
+program
+    .command('toolchain')
+    .description('Package local emsdk + cmake into Tauri resources for bundling')
+    .option('--no-strip', 'Skip stripping unnecessary files')
+    .option('--no-archive', 'Skip creating tar.gz archive')
+    .action(async (options) => {
+        const args = [import.meta.dirname + '/toolchain/package.js'];
+        if (!options.strip) args.push('--no-strip');
+        if (!options.archive) args.push('--no-archive');
+
+        const { execSync } = await import('child_process');
+        execSync(`node ${args.join(' ')}`, { stdio: 'inherit', cwd: config.paths.root });
+    });
+
 program.parse();

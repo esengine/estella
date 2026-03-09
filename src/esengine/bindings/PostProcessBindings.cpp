@@ -1,4 +1,5 @@
 #ifdef ES_PLATFORM_WEB
+#ifdef ES_ENABLE_POSTPROCESS
 
 #include "PostProcessBindings.hpp"
 #include "EngineContext.hpp"
@@ -183,4 +184,5 @@ void postprocess_setScreenUniformVec4(const std::string& passName,
 
 }  // namespace esengine
 
+#endif  // ES_ENABLE_POSTPROCESS
 #endif  // ES_PLATFORM_WEB

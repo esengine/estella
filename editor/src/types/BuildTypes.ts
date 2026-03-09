@@ -76,6 +76,39 @@ export interface BuildHook {
 }
 
 // =============================================================================
+// Engine Modules
+// =============================================================================
+
+export interface EngineModules {
+    tilemap: boolean;
+    particles: boolean;
+    timeline: boolean;
+    postprocess: boolean;
+    bitmapText: boolean;
+    spine: boolean;
+}
+
+export function createDefaultEngineModules(): EngineModules {
+    return {
+        tilemap: true,
+        particles: true,
+        timeline: true,
+        postprocess: true,
+        bitmapText: true,
+        spine: true,
+    };
+}
+
+export const ENGINE_MODULE_INFO: Record<keyof EngineModules, { name: string; description: string }> = {
+    tilemap: { name: 'Tilemap', description: 'Tiled map rendering' },
+    particles: { name: 'Particles', description: 'Particle system' },
+    timeline: { name: 'Timeline', description: 'Timeline animation' },
+    postprocess: { name: 'Post Process', description: 'Post-processing effects' },
+    bitmapText: { name: 'Bitmap Text', description: 'Bitmap font rendering' },
+    spine: { name: 'Spine', description: 'Spine skeletal animation' },
+};
+
+// =============================================================================
 // Build Configuration
 // =============================================================================
 
@@ -87,6 +120,7 @@ export interface BuildConfig {
     defines: string[];
     additionalAssets?: string[];
     hooks?: BuildHook[];
+    engineModules?: EngineModules;
     playableSettings?: PlayableSettings;
     wechatSettings?: WeChatSettings;
 }

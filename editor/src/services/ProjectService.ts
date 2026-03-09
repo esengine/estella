@@ -66,8 +66,8 @@ export class ProjectService {
         const buildService = new BuildService(this.projectPath_);
         showBuildSettingsDialog({
             projectPath: this.projectPath_,
-            onBuild: async (config) => {
-                return await buildService.build(config);
+            onBuild: async (config, options) => {
+                return await buildService.build(config, options);
             },
             onClose: () => {},
         });

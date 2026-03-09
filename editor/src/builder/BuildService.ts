@@ -3,7 +3,8 @@
  * @brief   Build service for compiling and packaging projects
  */
 
-import type { BuildConfig } from '../types/BuildTypes';
+import type { BuildConfig, EngineModules } from '../types/BuildTypes';
+import { createDefaultEngineModules } from '../types/BuildTypes';
 import type { SpineVersion } from '../types/ProjectTypes';
 import type { PlatformEmitter } from './PlatformEmitter';
 import { buildArtifact } from './ArtifactBuilder';
@@ -50,6 +51,11 @@ export interface RuntimeBuildConfig {
     assetFailureCooldown?: number;
 }
 
+export interface CustomWasmPaths {
+    jsPath?: string;
+    wasmPath?: string;
+}
+
 export interface BuildContext {
     projectPath: string;
     config: BuildConfig;
@@ -62,6 +68,7 @@ export interface BuildContext {
     runtimeConfig?: RuntimeBuildConfig;
     progress?: BuildProgressReporter;
     cache?: BuildCache;
+    customWasm?: CustomWasmPaths;
 }
 
 export interface BuildOptions {
@@ -151,6 +158,28 @@ export class BuildService {
                     success: false,
                     error: `Unknown platform: ${config.platform}`,
                 };
+            }
+
+            if (config.engineModules && !isAllModulesEnabled(config.engineModules)) {
+                progress.setPhase('compiling');
+                progress.setCurrentTask('Compiling custom WASM...', 0);
+                progress.log('info', 'Custom engine modules detected, compiling WASM...');
+
+                const compileResult = await compileCustomWasm(config);
+                if (!compileResult.success) {
+                    progress.fail(compileResult.error || 'WASM compilation failed');
+                    return {
+                        success: false,
+                        error: compileResult.error || 'WASM compilation failed',
+                        duration: Date.now() - startTime,
+                    };
+                }
+
+                context.customWasm = {
+                    jsPath: compileResult.jsPath,
+                    wasmPath: compileResult.wasmPath,
+                };
+                progress.log('info', `Custom WASM compiled (${formatSize(compileResult.wasmSize)})`);
             }
 
             const hooks = config.hooks ?? [];
@@ -267,4 +296,66 @@ export class BuildService {
             await this.cache_.clearAllCaches();
         }
     }
+}
+
+// =============================================================================
+// Custom WASM compilation
+// =============================================================================
+
+interface CompileWasmResult {
+    success: boolean;
+    jsPath?: string;
+    wasmPath?: string;
+    wasmSize?: number;
+    error?: string;
+}
+
+function isAllModulesEnabled(modules: EngineModules): boolean {
+    const defaults = createDefaultEngineModules();
+    return (Object.keys(defaults) as Array<keyof EngineModules>).every(
+        key => modules[key] !== false
+    );
+}
+
+async function compileCustomWasm(config: BuildConfig): Promise<CompileWasmResult> {
+    const { invoke } = await import('@tauri-apps/api/core');
+
+    const modules = config.engineModules ?? createDefaultEngineModules();
+    const target = config.platform === 'wechat' ? 'wechat' : 'playable';
+
+    const result = await invoke<{
+        success: boolean;
+        wasm_path: string | null;
+        js_path: string | null;
+        wasm_size: number | null;
+        error: string | null;
+    }>('compile_wasm', {
+        options: {
+            features: {
+                tilemap: modules.tilemap,
+                particles: modules.particles,
+                timeline: modules.timeline,
+                postprocess: modules.postprocess,
+                bitmap_text: modules.bitmapText,
+                spine: modules.spine,
+            },
+            target,
+            debug: config.defines.includes('DEBUG'),
+            optimization: '-O2',
+        },
+    });
+
+    return {
+        success: result.success,
+        jsPath: result.js_path ?? undefined,
+        wasmPath: result.wasm_path ?? undefined,
+        wasmSize: result.wasm_size ?? undefined,
+        error: result.error ?? undefined,
+    };
+}
+
+function formatSize(bytes?: number): string {
+    if (bytes == null) return 'unknown';
+    if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
 }

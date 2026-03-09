@@ -11,6 +11,11 @@ option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_SINGLE_FILE "Build single-file SDK (WASM inlined)" OFF)
 option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
 option(ES_ENABLE_BOX2D "Enable Box2D physics support" OFF)
+option(ES_ENABLE_TILEMAP "Enable Tilemap support" ON)
+option(ES_ENABLE_PARTICLES "Enable Particle system" ON)
+option(ES_ENABLE_TIMELINE "Enable Timeline animation" ON)
+option(ES_ENABLE_POSTPROCESS "Enable Post-processing pipeline" ON)
+option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
 option(ES_BUILD_MAIN_MODULE "Build as MAIN_MODULE for dynamic linking" OFF)
 option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
 
@@ -46,7 +51,6 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/RenderTarget.cpp
     src/esengine/renderer/ImmediateDraw.cpp
     src/esengine/renderer/CustomGeometry.cpp
-    src/esengine/renderer/PostProcessPipeline.cpp
     src/esengine/renderer/StateTracker.cpp
     src/esengine/renderer/TransientBufferPool.cpp
     src/esengine/renderer/DrawList.cpp
@@ -54,18 +58,42 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/plugins/UIElementPlugin.cpp
     src/esengine/renderer/plugins/TextPlugin.cpp
     src/esengine/renderer/plugins/ShapePlugin.cpp
-    src/esengine/renderer/plugins/TilemapRenderPlugin.cpp
-    src/esengine/renderer/plugins/ParticlePlugin.cpp
-    src/esengine/text/BitmapFont.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
-    src/esengine/animation/TimelineSystem.cpp
-    src/esengine/particle/Particle.cpp
-    src/esengine/particle/ParticleSystem.cpp
-    src/esengine/tilemap/TilemapSystem.cpp
-    src/esengine/tilemap/TiledMapLoader.cpp
 )
+
+if(ES_ENABLE_POSTPROCESS)
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/renderer/PostProcessPipeline.cpp
+    )
+endif()
+
+if(ES_ENABLE_TILEMAP)
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/renderer/plugins/TilemapRenderPlugin.cpp
+        src/esengine/tilemap/TilemapSystem.cpp
+        src/esengine/tilemap/TiledMapLoader.cpp
+    )
+endif()
+
+if(ES_ENABLE_PARTICLES)
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/renderer/plugins/ParticlePlugin.cpp
+        src/esengine/particle/Particle.cpp
+        src/esengine/particle/ParticleSystem.cpp
+    )
+endif()
+
+if(ES_ENABLE_TIMELINE)
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/animation/TimelineSystem.cpp
+    )
+endif()
+
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/text/BitmapFont.cpp
+    )
 
 if(ES_ENABLE_SPINE)
     list(APPEND ESENGINE_SOURCES
@@ -98,7 +126,6 @@ set(ESENGINE_HEADERS
     src/esengine/ecs/components/Common.hpp
     src/esengine/ecs/components/SpineAnimation.hpp
     src/esengine/ecs/components/BitmapText.hpp
-    src/esengine/text/BitmapFont.hpp
     src/esengine/math/Math.hpp
     src/esengine/resource/Handle.hpp
     src/esengine/resource/ResourcePool.hpp
@@ -118,7 +145,6 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/ImmediateDraw.hpp
     src/esengine/renderer/BlendMode.hpp
     src/esengine/renderer/CustomGeometry.hpp
-    src/esengine/renderer/PostProcessPipeline.hpp
     src/esengine/renderer/StateTracker.hpp
     src/esengine/renderer/TransientBufferPool.hpp
     src/esengine/renderer/DrawCommand.hpp
@@ -129,9 +155,7 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/plugins/UIElementPlugin.hpp
     src/esengine/renderer/plugins/TextPlugin.hpp
     src/esengine/renderer/plugins/ShapePlugin.hpp
-    src/esengine/renderer/plugins/TilemapRenderPlugin.hpp
     src/esengine/renderer/plugins/SpinePlugin.hpp
-    src/esengine/renderer/plugins/ParticlePlugin.hpp
     src/esengine/platform/Platform.hpp
     src/esengine/platform/FileSystem.hpp
     src/esengine/platform/input/Input.hpp
@@ -143,11 +167,39 @@ set(ESENGINE_HEADERS
     src/esengine/animation/TweenData.hpp
     src/esengine/animation/EasingFunctions.hpp
     src/esengine/animation/TweenSystem.hpp
-    src/esengine/animation/TimelineData.hpp
-    src/esengine/animation/TimelineSystem.hpp
-    src/esengine/tilemap/TilemapSystem.hpp
-    src/esengine/tilemap/TiledMapLoader.hpp
 )
+
+if(ES_ENABLE_POSTPROCESS)
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/renderer/PostProcessPipeline.hpp
+    )
+endif()
+
+if(ES_ENABLE_TILEMAP)
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/renderer/plugins/TilemapRenderPlugin.hpp
+        src/esengine/tilemap/TilemapSystem.hpp
+        src/esengine/tilemap/TiledMapLoader.hpp
+    )
+endif()
+
+if(ES_ENABLE_PARTICLES)
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/renderer/plugins/ParticlePlugin.hpp
+        src/esengine/particle/ParticleSystem.hpp
+    )
+endif()
+
+if(ES_ENABLE_TIMELINE)
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/animation/TimelineData.hpp
+        src/esengine/animation/TimelineSystem.hpp
+    )
+endif()
+
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/text/BitmapFont.hpp
+    )
 
 if(ES_ENABLE_SPINE)
     list(APPEND ESENGINE_HEADERS
@@ -232,7 +284,28 @@ target_include_directories(esengine
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
 
-target_link_libraries(esengine PUBLIC glm cute_tiled)
+target_link_libraries(esengine PUBLIC glm)
+
+if(ES_ENABLE_TILEMAP)
+    target_link_libraries(esengine PUBLIC cute_tiled)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_TILEMAP)
+endif()
+
+if(ES_ENABLE_PARTICLES)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_PARTICLES)
+endif()
+
+if(ES_ENABLE_TIMELINE)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_TIMELINE)
+endif()
+
+if(ES_ENABLE_POSTPROCESS)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_POSTPROCESS)
+endif()
+
+if(ES_ENABLE_BITMAP_TEXT)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_BITMAP_TEXT)
+endif()
 
 if(ES_ENABLE_SPINE)
     target_link_libraries(esengine PUBLIC spine-cpp)
@@ -262,17 +335,26 @@ esengine_set_strict_warnings(esengine)
 # =============================================================================
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-    add_executable(esengine_sdk
+    set(SDK_BINDING_SOURCES
         src/esengine/bindings/WebSDKEntry.cpp
         src/esengine/bindings/EngineContext.cpp
         src/esengine/bindings/ResourceManagerBindings.cpp
         src/esengine/bindings/RendererBindings.cpp
         src/esengine/bindings/ImmediateDrawBindings.cpp
         src/esengine/bindings/GeometryBindings.cpp
-        src/esengine/bindings/PostProcessBindings.cpp
-        src/esengine/bindings/TilemapBindings.cpp
-        src/esengine/bindings/TimelineBindings.cpp
-        ${GENERATED_WEB_BINDINGS})
+        ${GENERATED_WEB_BINDINGS}
+    )
+    if(ES_ENABLE_POSTPROCESS)
+        list(APPEND SDK_BINDING_SOURCES src/esengine/bindings/PostProcessBindings.cpp)
+    endif()
+    if(ES_ENABLE_TILEMAP)
+        list(APPEND SDK_BINDING_SOURCES src/esengine/bindings/TilemapBindings.cpp)
+    endif()
+    if(ES_ENABLE_TIMELINE)
+        list(APPEND SDK_BINDING_SOURCES src/esengine/bindings/TimelineBindings.cpp)
+    endif()
+
+    add_executable(esengine_sdk ${SDK_BINDING_SOURCES})
     target_link_libraries(esengine_sdk PRIVATE esengine)
     es_apply_sdk_settings(esengine_sdk)
 
@@ -283,16 +365,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
 
     # Single-file SDK (WASM inlined as Base64, for playable ads)
     if(ES_BUILD_SINGLE_FILE)
-        add_executable(esengine_single
-            src/esengine/bindings/WebSDKEntry.cpp
-            src/esengine/bindings/EngineContext.cpp
-            src/esengine/bindings/ResourceManagerBindings.cpp
-            src/esengine/bindings/RendererBindings.cpp
-            src/esengine/bindings/ImmediateDrawBindings.cpp
-            src/esengine/bindings/GeometryBindings.cpp
-            src/esengine/bindings/PostProcessBindings.cpp
-            src/esengine/bindings/TilemapBindings.cpp
-            ${GENERATED_WEB_BINDINGS})
+        add_executable(esengine_single ${SDK_BINDING_SOURCES})
         target_link_libraries(esengine_single PRIVATE esengine)
         es_apply_single_file_settings(esengine_single)
 
@@ -380,16 +453,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 
     # WeChat MiniGame SDK (CommonJS compatible)
     if(ES_BUILD_WXGAME)
-        add_executable(esengine_wxgame
-            src/esengine/bindings/WebSDKEntry.cpp
-            src/esengine/bindings/EngineContext.cpp
-            src/esengine/bindings/ResourceManagerBindings.cpp
-            src/esengine/bindings/RendererBindings.cpp
-            src/esengine/bindings/ImmediateDrawBindings.cpp
-            src/esengine/bindings/GeometryBindings.cpp
-            src/esengine/bindings/PostProcessBindings.cpp
-            src/esengine/bindings/TilemapBindings.cpp
-            ${GENERATED_WEB_BINDINGS})
+        add_executable(esengine_wxgame ${SDK_BINDING_SOURCES})
         target_link_libraries(esengine_wxgame PRIVATE esengine)
         es_apply_wxgame_sdk_settings(esengine_wxgame)
 
@@ -478,16 +542,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 
     # Main module SDK (MAIN_MODULE=2, supports loading side modules)
     if(ES_BUILD_MAIN_MODULE)
-        add_executable(esengine_sdk_main
-            src/esengine/bindings/WebSDKEntry.cpp
-            src/esengine/bindings/EngineContext.cpp
-            src/esengine/bindings/ResourceManagerBindings.cpp
-            src/esengine/bindings/RendererBindings.cpp
-            src/esengine/bindings/ImmediateDrawBindings.cpp
-            src/esengine/bindings/GeometryBindings.cpp
-            src/esengine/bindings/PostProcessBindings.cpp
-            src/esengine/bindings/TilemapBindings.cpp
-            ${GENERATED_WEB_BINDINGS})
+        add_executable(esengine_sdk_main ${SDK_BINDING_SOURCES})
         target_link_libraries(esengine_sdk_main PRIVATE esengine)
         es_apply_main_module_settings(esengine_sdk_main)
         set_target_properties(esengine_sdk_main PROPERTIES
@@ -496,16 +551,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
 
         if(ES_BUILD_WXGAME)
-            add_executable(esengine_wxgame_main
-                src/esengine/bindings/WebSDKEntry.cpp
-                src/esengine/bindings/EngineContext.cpp
-                src/esengine/bindings/ResourceManagerBindings.cpp
-                src/esengine/bindings/RendererBindings.cpp
-                src/esengine/bindings/ImmediateDrawBindings.cpp
-                src/esengine/bindings/GeometryBindings.cpp
-                src/esengine/bindings/PostProcessBindings.cpp
-                src/esengine/bindings/TilemapBindings.cpp
-                ${GENERATED_WEB_BINDINGS})
+            add_executable(esengine_wxgame_main ${SDK_BINDING_SOURCES})
             target_link_libraries(esengine_wxgame_main PRIVATE esengine)
             es_apply_wxgame_main_module_settings(esengine_wxgame_main)
             set_target_properties(esengine_wxgame_main PROPERTIES

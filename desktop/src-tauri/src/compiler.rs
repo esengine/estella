@@ -1,0 +1,785 @@
+//! Toolchain management and WASM compilation.
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+
+// =============================================================================
+// Types
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolchainStatus {
+    pub installed: bool,
+    pub emsdk_path: Option<String>,
+    pub emscripten_version: Option<String>,
+    pub emscripten_ok: bool,
+    pub cmake_found: bool,
+    pub cmake_version: Option<String>,
+    pub cmake_ok: bool,
+    pub python_found: bool,
+    pub python_version: Option<String>,
+    pub python_ok: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureFlags {
+    pub tilemap: bool,
+    pub particles: bool,
+    pub timeline: bool,
+    pub postprocess: bool,
+    pub bitmap_text: bool,
+    pub spine: bool,
+}
+
+impl Default for FeatureFlags {
+    fn default() -> Self {
+        Self {
+            tilemap: true,
+            particles: true,
+            timeline: true,
+            postprocess: true,
+            bitmap_text: true,
+            spine: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompileOptions {
+    pub features: FeatureFlags,
+    pub target: String,
+    pub debug: bool,
+    pub optimization: String,
+}
+
+impl Default for CompileOptions {
+    fn default() -> Self {
+        Self {
+            features: FeatureFlags::default(),
+            target: "web".to_string(),
+            debug: false,
+            optimization: "-O2".to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Serialize)]
+struct CompileProgress {
+    stage: String,
+    message: String,
+    progress: f32,
+}
+
+#[derive(Serialize)]
+pub struct CompileResult {
+    pub success: bool,
+    pub wasm_path: Option<String>,
+    pub js_path: Option<String>,
+    pub wasm_size: Option<u64>,
+    pub error: Option<String>,
+    pub cache_key: String,
+}
+
+const EMSDK_VERSION: &str = "5.0.0";
+const EMSDK_GIT_URL: &str = "https://github.com/emscripten-core/emsdk.git";
+
+const MIN_EMSCRIPTEN_VERSION: &str = "5.0.0";
+const MIN_CMAKE_VERSION: &str = "3.16";
+const MIN_PYTHON_VERSION: &str = "3.0";
+
+fn version_ge(actual: &str, required: &str) -> bool {
+    let parse = |s: &str| -> Vec<u32> {
+        s.split('.')
+            .filter_map(|p| p.trim().parse::<u32>().ok())
+            .collect()
+    };
+    let a = parse(actual);
+    let r = parse(required);
+    for i in 0..r.len() {
+        let av = a.get(i).copied().unwrap_or(0);
+        let rv = r[i];
+        if av > rv { return true; }
+        if av < rv { return false; }
+    }
+    true
+}
+
+// =============================================================================
+// Toolchain settings persistence
+// =============================================================================
+
+fn toolchain_config_path(app: &AppHandle) -> PathBuf {
+    app.path()
+        .app_data_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("toolchain.json")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct ToolchainConfig {
+    emsdk_path: Option<String>,
+}
+
+fn load_config(app: &AppHandle) -> ToolchainConfig {
+    let path = toolchain_config_path(app);
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_config(app: &AppHandle, config: &ToolchainConfig) -> Result<(), String> {
+    let path = toolchain_config_path(app);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+// =============================================================================
+// Toolchain discovery
+// =============================================================================
+
+fn find_emcc_in_emsdk(emsdk_path: &Path) -> Option<PathBuf> {
+    let emcc = emsdk_path.join("upstream/emscripten/emcc");
+    if emcc.exists() {
+        return Some(emcc);
+    }
+    let emcc_bat = emsdk_path.join("upstream/emscripten/emcc.bat");
+    if emcc_bat.exists() {
+        return Some(emcc_bat);
+    }
+    None
+}
+
+fn validate_emsdk(emsdk_path: &Path) -> bool {
+    find_emcc_in_emsdk(emsdk_path).is_some()
+}
+
+fn get_emcc_version(emsdk_path: &Path) -> Option<String> {
+    let emcc = find_emcc_in_emsdk(emsdk_path)?;
+    let output = std::process::Command::new(&emcc)
+        .arg("--version")
+        .env("EMSDK", emsdk_path)
+        .env(
+            "EM_CONFIG",
+            emsdk_path.join(".emscripten"),
+        )
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let re_version = stdout
+        .lines()
+        .find_map(|line| {
+            line.split_whitespace()
+                .find(|w| w.chars().next().map_or(false, |c| c.is_ascii_digit()))
+        })
+        .map(|s| s.trim_end_matches(|c: char| !c.is_ascii_digit() && c != '.').to_string());
+    re_version
+}
+
+fn find_cmake() -> Option<(PathBuf, String)> {
+    let cmake = if cfg!(windows) { "cmake.exe" } else { "cmake" };
+    let output = std::process::Command::new(cmake)
+        .arg("--version")
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let version = stdout
+        .lines()
+        .next()?
+        .split_whitespace()
+        .last()?
+        .to_string();
+
+    let path = which_sync(cmake)?;
+    Some((path, version))
+}
+
+fn find_python() -> Option<(PathBuf, String)> {
+    for bin in &["python3", "python"] {
+        let output = std::process::Command::new(bin)
+            .arg("--version")
+            .output()
+            .ok();
+        if let Some(out) = output {
+            if out.status.success() {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                let text = if stdout.contains("Python") { stdout } else { stderr };
+                let version = text
+                    .trim()
+                    .strip_prefix("Python ")
+                    .unwrap_or(text.trim())
+                    .to_string();
+                if let Some(path) = which_sync(bin) {
+                    return Some((path, version));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn which_sync(bin: &str) -> Option<PathBuf> {
+    let cmd = if cfg!(windows) { "where" } else { "which" };
+    let output = std::process::Command::new(cmd)
+        .arg(bin)
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let path = stdout.lines().next()?.trim();
+    if path.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(path))
+    }
+}
+
+fn resolve_engine_src(app: &AppHandle) -> Result<PathBuf, String> {
+    // Bundled engine source in resources
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to resolve resource dir: {}", e))?;
+
+    let engine_src = resource_dir.join("toolchain/engine-src");
+    if engine_src.exists() {
+        return Ok(engine_src);
+    }
+
+    // Dev mode fallback
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|root| root.join("desktop/src-tauri/toolchain/engine-src"));
+
+    if let Some(path) = dev_path {
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+
+    Err("Engine source not found. Rebuild the editor.".to_string())
+}
+
+fn auto_detect_emsdk(app: &AppHandle) -> Option<PathBuf> {
+    // 1. Find emcc via PATH, derive emsdk root (emcc lives at <emsdk>/upstream/emscripten/emcc)
+    let emcc_bin = if cfg!(windows) { "emcc.bat" } else { "emcc" };
+    if let Some(emcc_path) = which_sync(emcc_bin) {
+        if let Some(emsdk_root) = emcc_path.parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
+        {
+            if validate_emsdk(emsdk_root) {
+                return Some(emsdk_root.to_path_buf());
+            }
+        }
+    }
+
+    // 2. EMSDK environment variable
+    if let Ok(emsdk_env) = std::env::var("EMSDK") {
+        let path = PathBuf::from(&emsdk_env);
+        if validate_emsdk(&path) {
+            return Some(path);
+        }
+    }
+
+    // 3. Our own install location (from "Install emsdk" button)
+    let own_install = default_emsdk_install_path(app);
+    if validate_emsdk(&own_install) {
+        return Some(own_install);
+    }
+
+    None
+}
+
+fn default_emsdk_install_path(app: &AppHandle) -> PathBuf {
+    app.path()
+        .app_data_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("emsdk")
+}
+
+// =============================================================================
+// Tauri commands
+// =============================================================================
+
+#[tauri::command]
+pub fn get_toolchain_status(app: AppHandle) -> ToolchainStatus {
+    let mut config = load_config(&app);
+
+    let (emsdk_path, emscripten_version) = config
+        .emsdk_path
+        .as_ref()
+        .and_then(|p| {
+            let path = PathBuf::from(p);
+            if validate_emsdk(&path) {
+                let version = get_emcc_version(&path);
+                Some((Some(p.clone()), version))
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            let detected = auto_detect_emsdk(&app)?;
+            let version = get_emcc_version(&detected);
+            let path_str = detected.to_string_lossy().to_string();
+
+            config.emsdk_path = Some(path_str.clone());
+            let _ = save_config(&app, &config);
+
+            Some((Some(path_str), version))
+        })
+        .unwrap_or((None, None));
+
+    let (cmake_found, cmake_version) = find_cmake()
+        .map(|(_, v)| (true, Some(v)))
+        .unwrap_or((false, None));
+
+    let (python_found, python_version) = find_python()
+        .map(|(_, v)| (true, Some(v)))
+        .unwrap_or((false, None));
+
+    let emscripten_ok = emscripten_version
+        .as_deref()
+        .map_or(false, |v| version_ge(v, MIN_EMSCRIPTEN_VERSION));
+    let cmake_ok = cmake_version
+        .as_deref()
+        .map_or(false, |v| version_ge(v, MIN_CMAKE_VERSION));
+    let python_ok = python_version
+        .as_deref()
+        .map_or(false, |v| version_ge(v, MIN_PYTHON_VERSION));
+
+    ToolchainStatus {
+        installed: emscripten_ok && cmake_ok && python_ok,
+        emsdk_path,
+        emscripten_version,
+        emscripten_ok,
+        cmake_found,
+        cmake_version,
+        cmake_ok,
+        python_found,
+        python_version,
+        python_ok,
+    }
+}
+
+#[tauri::command]
+pub fn set_emsdk_path(app: AppHandle, path: String) -> Result<ToolchainStatus, String> {
+    let emsdk_path = PathBuf::from(&path);
+    if !validate_emsdk(&emsdk_path) {
+        return Err(format!(
+            "Invalid emsdk directory: emcc not found at {}/upstream/emscripten/emcc",
+            path
+        ));
+    }
+
+    let mut config = load_config(&app);
+    config.emsdk_path = Some(path);
+    save_config(&app, &config)?;
+
+    Ok(get_toolchain_status(app))
+}
+
+#[tauri::command]
+pub async fn install_emsdk(app: AppHandle) -> Result<ToolchainStatus, String> {
+    let install_dir = default_emsdk_install_path(&app);
+    let install_dir_str = install_dir.to_string_lossy().to_string();
+
+    emit_progress(&app, "download", "Cloning emsdk...", 0.1);
+
+    // Clone emsdk
+    if install_dir.exists() {
+        std::fs::remove_dir_all(&install_dir).map_err(|e| e.to_string())?;
+    }
+
+    run_command_streamed(
+        &app,
+        "git",
+        &[
+            "clone".to_string(),
+            "--depth".to_string(),
+            "1".to_string(),
+            EMSDK_GIT_URL.to_string(),
+            install_dir_str.clone(),
+        ],
+        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        &HashMap::new(),
+    )
+    .await?;
+
+    // Install + activate
+    emit_progress(&app, "install", "Installing Emscripten...", 0.3);
+
+    let emsdk_bin = if cfg!(windows) {
+        install_dir.join("emsdk.bat")
+    } else {
+        install_dir.join("emsdk")
+    };
+    let emsdk_str = emsdk_bin.to_string_lossy().to_string();
+
+    run_command_streamed(
+        &app,
+        &emsdk_str,
+        &["install".to_string(), EMSDK_VERSION.to_string()],
+        &install_dir,
+        &HashMap::new(),
+    )
+    .await?;
+
+    emit_progress(&app, "activate", "Activating Emscripten...", 0.7);
+
+    run_command_streamed(
+        &app,
+        &emsdk_str,
+        &["activate".to_string(), EMSDK_VERSION.to_string()],
+        &install_dir,
+        &HashMap::new(),
+    )
+    .await?;
+
+    emit_progress(&app, "complete", "emsdk installed!", 1.0);
+
+    // Save path
+    let mut config = load_config(&app);
+    config.emsdk_path = Some(install_dir_str);
+    save_config(&app, &config)?;
+
+    Ok(get_toolchain_status(app))
+}
+
+#[tauri::command]
+pub async fn compile_wasm(
+    app: AppHandle,
+    options: CompileOptions,
+) -> Result<CompileResult, String> {
+    let config = load_config(&app);
+    let emsdk_path = config
+        .emsdk_path
+        .ok_or("emsdk not configured. Set the path or install it first.")?;
+    let emsdk_dir = PathBuf::from(&emsdk_path);
+
+    if !validate_emsdk(&emsdk_dir) {
+        return Err(format!("Invalid emsdk at: {}", emsdk_path));
+    }
+
+    let engine_src = resolve_engine_src(&app)?;
+    let cache_key = compute_cache_key(&options);
+
+    // Build directory
+    let build_base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("build-cache");
+    let build_dir = build_base.join(&cache_key);
+    std::fs::create_dir_all(&build_dir).map_err(|e| e.to_string())?;
+
+    // Check cache
+    let wasm_output = if options.target == "playable" {
+        build_dir.join("sdk/esengine.single.js")
+    } else {
+        build_dir.join("sdk/esengine-core.wasm")
+    };
+
+    if wasm_output.exists() {
+        emit_progress(&app, "complete", "Using cached build", 1.0);
+        return Ok(make_result(true, &build_dir, &cache_key, &options.target));
+    }
+
+    let env_vars = build_env_vars(&emsdk_dir);
+
+    // Configure
+    emit_progress(&app, "configure", "Configuring CMake...", 0.1);
+
+    let emcmake = emsdk_dir.join("upstream/emscripten/emcmake");
+    let mut cmake_args = vec!["cmake".to_string()];
+    cmake_args.extend(build_cmake_flags(&options));
+    cmake_args.push(engine_src.to_string_lossy().to_string());
+
+    run_command_streamed(
+        &app,
+        emcmake.to_string_lossy().as_ref(),
+        &cmake_args,
+        &build_dir,
+        &env_vars,
+    )
+    .await?;
+
+    // Build
+    emit_progress(&app, "compile", "Compiling C++ to WASM...", 0.3);
+
+    let build_target = match options.target.as_str() {
+        "wechat" => "esengine_wxgame",
+        "playable" => "esengine_single",
+        _ => "esengine_sdk",
+    };
+
+    run_command_streamed(
+        &app,
+        "cmake",
+        &[
+            "--build".to_string(),
+            ".".to_string(),
+            "-j".to_string(),
+            num_cpus().to_string(),
+            "--target".to_string(),
+            build_target.to_string(),
+        ],
+        &build_dir,
+        &env_vars,
+    )
+    .await?;
+
+    // Optimize
+    if !options.debug {
+        emit_progress(&app, "optimize", "Optimizing WASM...", 0.8);
+
+        let wasm_opt = if cfg!(windows) {
+            emsdk_dir.join("upstream/bin/wasm-opt.exe")
+        } else {
+            emsdk_dir.join("upstream/bin/wasm-opt")
+        };
+        let wasm_file = build_dir.join("sdk/esengine-core.wasm");
+
+        if wasm_opt.exists() && wasm_file.exists() {
+            let wasm_path = wasm_file.to_string_lossy().to_string();
+            let _ = run_command_streamed(
+                &app,
+                wasm_opt.to_string_lossy().as_ref(),
+                &[
+                    options.optimization.clone(),
+                    "--enable-bulk-memory".to_string(),
+                    "--enable-nontrapping-float-to-int".to_string(),
+                    "-o".to_string(),
+                    wasm_path.clone(),
+                    wasm_path,
+                ],
+                &build_dir,
+                &env_vars,
+            )
+            .await;
+        }
+    }
+
+    emit_progress(&app, "complete", "Build complete!", 1.0);
+
+    Ok(make_result(true, &build_dir, &cache_key, &options.target))
+}
+
+#[tauri::command]
+pub fn clear_build_cache(app: AppHandle) -> Result<(), String> {
+    let cache_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("build-cache");
+    if cache_dir.exists() {
+        std::fs::remove_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+fn make_result(success: bool, build_dir: &Path, cache_key: &str, target: &str) -> CompileResult {
+    let (js_name, wasm_name) = if target == "playable" {
+        ("sdk/esengine.single.js", None)
+    } else {
+        ("sdk/esengine-core.js", Some("sdk/esengine-core.wasm"))
+    };
+
+    let js_path = build_dir.join(js_name);
+    let wasm_path = wasm_name.map(|n| build_dir.join(n));
+
+    let size_path = wasm_path.as_ref().unwrap_or(&js_path);
+    let wasm_size = std::fs::metadata(size_path).map(|m| m.len()).ok();
+
+    CompileResult {
+        success,
+        js_path: js_path.exists().then(|| js_path.to_string_lossy().to_string()),
+        wasm_path: wasm_path.and_then(|p| {
+            p.exists().then(|| p.to_string_lossy().to_string())
+        }),
+        wasm_size,
+        error: None,
+        cache_key: cache_key.to_string(),
+    }
+}
+
+fn compute_cache_key(options: &CompileOptions) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    let f = &options.features;
+    f.tilemap.hash(&mut hasher);
+    f.particles.hash(&mut hasher);
+    f.timeline.hash(&mut hasher);
+    f.postprocess.hash(&mut hasher);
+    f.bitmap_text.hash(&mut hasher);
+    f.spine.hash(&mut hasher);
+    options.target.hash(&mut hasher);
+    options.debug.hash(&mut hasher);
+    options.optimization.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+fn build_cmake_flags(options: &CompileOptions) -> Vec<String> {
+    let mut flags = vec![
+        format!(
+            "-DCMAKE_BUILD_TYPE={}",
+            if options.debug { "Debug" } else { "Release" }
+        ),
+        "-DES_BUILD_WEB=ON".to_string(),
+        "-DES_BUILD_TESTS=OFF".to_string(),
+    ];
+
+    let feature_map = [
+        ("ES_ENABLE_TILEMAP", options.features.tilemap),
+        ("ES_ENABLE_PARTICLES", options.features.particles),
+        ("ES_ENABLE_TIMELINE", options.features.timeline),
+        ("ES_ENABLE_POSTPROCESS", options.features.postprocess),
+        ("ES_ENABLE_BITMAP_TEXT", options.features.bitmap_text),
+        ("ES_ENABLE_SPINE", options.features.spine),
+    ];
+
+    for (flag, enabled) in feature_map {
+        flags.push(format!("-D{}={}", flag, if enabled { "ON" } else { "OFF" }));
+    }
+
+    if !options.debug {
+        flags.push(format!("-DCMAKE_C_FLAGS={}", options.optimization));
+        flags.push(format!("-DCMAKE_CXX_FLAGS={}", options.optimization));
+        flags.push("-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON".to_string());
+    }
+
+    match options.target.as_str() {
+        "wechat" => {
+            flags.retain(|f| f != "-DES_BUILD_WEB=ON");
+            flags.push("-DES_BUILD_WXGAME=ON".to_string());
+        }
+        "playable" => {
+            flags.push("-DES_BUILD_SINGLE_FILE=ON".to_string());
+        }
+        _ => {}
+    }
+
+    flags
+}
+
+fn build_env_vars(emsdk_dir: &Path) -> HashMap<String, String> {
+    let mut env = HashMap::new();
+
+    let upstream_dir = emsdk_dir.join("upstream");
+    let emscripten_dir = upstream_dir.join("emscripten");
+
+    env.insert("EMSDK".to_string(), emsdk_dir.to_string_lossy().to_string());
+    env.insert(
+        "EM_CONFIG".to_string(),
+        emsdk_dir.join(".emscripten").to_string_lossy().to_string(),
+    );
+
+    let path_sep = if cfg!(windows) { ";" } else { ":" };
+    let system_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = [
+        emscripten_dir.to_string_lossy().to_string(),
+        upstream_dir.join("bin").to_string_lossy().to_string(),
+        system_path,
+    ]
+    .join(path_sep);
+
+    env.insert("PATH".to_string(), new_path);
+    env
+}
+
+fn emit_progress(app: &AppHandle, stage: &str, message: &str, progress: f32) {
+    let _ = app.emit(
+        "compile-progress",
+        CompileProgress {
+            stage: stage.to_string(),
+            message: message.to_string(),
+            progress,
+        },
+    );
+}
+
+async fn run_command_streamed(
+    app: &AppHandle,
+    cmd: &str,
+    args: &[String],
+    cwd: &Path,
+    env: &HashMap<String, String>,
+) -> Result<(), String> {
+    let mut command = Command::new(cmd);
+    command
+        .args(args)
+        .current_dir(cwd)
+        .envs(env)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = command.spawn().map_err(|e| {
+        format!("Failed to spawn {}: {} (cwd: {})", cmd, e, cwd.display())
+    })?;
+
+    let stdout = child.stdout.take().ok_or("No stdout")?;
+    let stderr = child.stderr.take().ok_or("No stderr")?;
+
+    let app_out = app.clone();
+    let stdout_handle = tokio::spawn(async move {
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_out.emit(
+                "compile-output",
+                super::CommandOutput {
+                    stream: "stdout".to_string(),
+                    data: line,
+                },
+            );
+        }
+    });
+
+    let app_err = app.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let reader = BufReader::new(stderr);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_err.emit(
+                "compile-output",
+                super::CommandOutput {
+                    stream: "stderr".to_string(),
+                    data: line,
+                },
+            );
+        }
+    });
+
+    let _ = tokio::join!(stdout_handle, stderr_handle);
+
+    let status = child.wait().await.map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!(
+            "Command failed: {} (exit code: {})",
+            cmd,
+            status.code().unwrap_or(-1)
+        ));
+    }
+
+    Ok(())
+}
+
+fn num_cpus() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+}

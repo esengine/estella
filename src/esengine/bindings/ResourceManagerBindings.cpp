@@ -98,6 +98,7 @@ u32 rm_getTextureGLId(resource::ResourceManager& rm, u32 handleId) {
     return tex ? tex->getId() : 0;
 }
 
+#ifdef ES_ENABLE_BITMAP_TEXT
 u32 rm_loadBitmapFont(resource::ResourceManager& rm, const std::string& fntContent,
                        u32 textureHandle, u32 texWidth, u32 texHeight) {
     auto handle = rm.createBitmapFont(fntContent,
@@ -137,6 +138,7 @@ emscripten::val rm_measureBitmapText(resource::ResourceManager& rm, u32 fontHand
     result.set("height", metrics.height);
     return result;
 }
+#endif
 
 void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
                             f32 left, f32 right, f32 top, f32 bottom) {

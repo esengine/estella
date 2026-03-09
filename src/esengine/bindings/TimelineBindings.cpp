@@ -1,4 +1,5 @@
 #ifdef ES_PLATFORM_WEB
+#ifdef ES_ENABLE_TIMELINE
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
@@ -385,4 +386,5 @@ EMSCRIPTEN_BINDINGS(esengine_timeline) {
     emscripten::function("_tl_setTrackTarget", &esengine::tl_setTrackTarget);
 }
 
+#endif  // ES_ENABLE_TIMELINE
 #endif  // ES_PLATFORM_WEB

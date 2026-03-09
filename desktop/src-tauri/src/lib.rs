@@ -1,5 +1,6 @@
 //! ESEngine Editor Library
 
+mod compiler;
 mod embedded_assets;
 mod preview_server;
 
@@ -300,6 +301,11 @@ pub fn run() {
             get_embedded_asset,
             check_update,
             install_update,
+            compiler::get_toolchain_status,
+            compiler::set_emsdk_path,
+            compiler::install_emsdk,
+            compiler::compile_wasm,
+            compiler::clear_build_cache,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
