@@ -678,18 +678,21 @@ export class BuildSettingsDialog {
     }
 
     private renderToolchainRows(s: NonNullable<typeof this.toolchainStatus_>): string {
-        const row = (label: string, value: string | null, ok: boolean, minVersion?: string) => {
+        const row = (label: string, value: string | null, ok: boolean, minVersion?: string, note?: string) => {
             const cls = ok ? '' : ' es-warning';
             let display = value ?? 'not found';
             if (value && !ok && minVersion) {
                 display += ` (requires >= ${minVersion})`;
             }
+            if (note) {
+                display += ` <span class="es-build-module-desc">(${note})</span>`;
+            }
             return `<div class="es-build-toolchain-row${cls}">${label}: ${display}</div>`;
         };
         return [
             row('Emscripten', s.emscripten_version ?? (s.emsdk_path ? 'unknown' : null), s.emscripten_ok, '5.0.0'),
-            row('CMake', s.cmake_version, s.cmake_ok, '3.16'),
-            row('Python', s.python_version, s.python_ok, '3.0'),
+            row('CMake', s.cmake_version, s.cmake_ok, '3.16', s.cmake_ok ? 'bundled' : undefined),
+            row('Python', s.python_version, s.python_ok, '3.0', s.python_ok ? 'from emsdk' : undefined),
         ].join('');
     }
 

@@ -202,7 +202,41 @@ fn get_emcc_version(emsdk_path: &Path) -> Option<String> {
     re_version
 }
 
-fn find_cmake() -> Option<(PathBuf, String)> {
+fn find_bundled_cmake(app: &AppHandle) -> Option<PathBuf> {
+    let cmake_name = if cfg!(windows) { "cmake.exe" } else { "cmake" };
+
+    // Bundled in resources
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let bundled = resource_dir.join("toolchain/cmake/bin").join(cmake_name);
+        if bundled.exists() {
+            return Some(bundled);
+        }
+    }
+
+    // Dev mode fallback
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("toolchain/cmake/bin")
+        .join(cmake_name);
+    if dev_path.exists() {
+        return Some(dev_path);
+    }
+
+    None
+}
+
+fn find_cmake(app: &AppHandle) -> Option<(PathBuf, String)> {
+    // Prefer bundled cmake
+    if let Some(bundled) = find_bundled_cmake(app) {
+        let output = std::process::Command::new(&bundled)
+            .arg("--version")
+            .output()
+            .ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let version = stdout.lines().next()?.split_whitespace().last()?.to_string();
+        return Some((bundled, version));
+    }
+
+    // Fall back to system cmake
     let cmake = if cfg!(windows) { "cmake.exe" } else { "cmake" };
     let output = std::process::Command::new(cmake)
         .arg("--version")
@@ -240,6 +274,33 @@ fn find_python() -> Option<(PathBuf, String)> {
                     return Some((path, version));
                 }
             }
+        }
+    }
+    None
+}
+
+fn find_emsdk_python(emsdk_path: &Path) -> Option<(PathBuf, String)> {
+    // emsdk bundles Python at <emsdk>/python/<version>/bin/python3
+    let python_dir = emsdk_path.join("python");
+    if !python_dir.exists() {
+        return None;
+    }
+    let entries = std::fs::read_dir(&python_dir).ok()?;
+    for entry in entries.flatten() {
+        let bin_name = if cfg!(windows) { "python.exe" } else { "python3" };
+        let python_bin = entry.path().join("bin").join(bin_name);
+        if python_bin.exists() {
+            let output = std::process::Command::new(&python_bin)
+                .arg("--version")
+                .output()
+                .ok()?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let version = stdout
+                .trim()
+                .strip_prefix("Python ")
+                .unwrap_or(stdout.trim())
+                .to_string();
+            return Some((python_bin, version));
         }
     }
     None
@@ -357,12 +418,14 @@ pub fn get_toolchain_status(app: AppHandle) -> ToolchainStatus {
         })
         .unwrap_or((None, None));
 
-    let (cmake_found, cmake_version) = find_cmake()
+    let (cmake_found, cmake_version) = find_cmake(&app)
         .map(|(_, v)| (true, Some(v)))
         .unwrap_or((false, None));
 
-    let (python_found, python_version) = find_python()
+    let python_from_emsdk = emsdk_path.as_ref().and_then(|p| find_emsdk_python(&PathBuf::from(p)));
+    let (python_found, python_version) = python_from_emsdk
         .map(|(_, v)| (true, Some(v)))
+        .or_else(|| find_python().map(|(_, v)| (true, Some(v))))
         .unwrap_or((false, None));
 
     let emscripten_ok = emscripten_version
@@ -520,13 +583,19 @@ pub async fn compile_wasm(
         }
     }
 
-    let env_vars = build_env_vars(&emsdk_dir);
+    let env_vars = build_env_vars(&emsdk_dir, &app);
+
+    // Resolve cmake binary (bundled or system)
+    let cmake_bin = find_bundled_cmake(&app)
+        .or_else(|| which_sync(if cfg!(windows) { "cmake.exe" } else { "cmake" }))
+        .ok_or("cmake not found. Run toolchain packaging first.")?;
+    let cmake_str = cmake_bin.to_string_lossy().to_string();
 
     // Configure
     emit_progress(&app, "configure", "Configuring CMake...", 0.1);
 
     let emcmake = emsdk_dir.join("upstream/emscripten/emcmake");
-    let mut cmake_args = vec!["cmake".to_string()];
+    let mut cmake_args = vec![cmake_str.clone()];
     cmake_args.extend(build_cmake_flags(&options));
     cmake_args.push(engine_src.to_string_lossy().to_string());
 
@@ -550,7 +619,7 @@ pub async fn compile_wasm(
 
     run_command_streamed(
         &app,
-        "cmake",
+        &cmake_str,
         &[
             "--build".to_string(),
             ".".to_string(),
@@ -576,7 +645,7 @@ pub async fn compile_wasm(
             };
             run_command_streamed(
                 &app,
-                "cmake",
+                &cmake_str,
                 &[
                     "--build".to_string(),
                     ".".to_string(),
@@ -599,7 +668,7 @@ pub async fn compile_wasm(
             emit_progress(&app, "compile", "Compiling Physics module...", 0.65);
             run_command_streamed(
                 &app,
-                "cmake",
+                &cmake_str,
                 &[
                     "--build".to_string(),
                     ".".to_string(),
@@ -788,7 +857,7 @@ fn build_cmake_flags(options: &CompileOptions) -> Vec<String> {
     flags
 }
 
-fn build_env_vars(emsdk_dir: &Path) -> HashMap<String, String> {
+fn build_env_vars(emsdk_dir: &Path, app: &AppHandle) -> HashMap<String, String> {
     let mut env = HashMap::new();
 
     let upstream_dir = emsdk_dir.join("upstream");
@@ -800,16 +869,28 @@ fn build_env_vars(emsdk_dir: &Path) -> HashMap<String, String> {
         emsdk_dir.join(".emscripten").to_string_lossy().to_string(),
     );
 
+    // Use emsdk-bundled Python so users don't need system Python
+    if let Some((python_path, _)) = find_emsdk_python(emsdk_dir) {
+        env.insert("EMSDK_PYTHON".to_string(), python_path.to_string_lossy().to_string());
+    }
+
     let path_sep = if cfg!(windows) { ";" } else { ":" };
     let system_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = [
+
+    let mut path_entries = vec![
         emscripten_dir.to_string_lossy().to_string(),
         upstream_dir.join("bin").to_string_lossy().to_string(),
-        system_path,
-    ]
-    .join(path_sep);
+    ];
 
-    env.insert("PATH".to_string(), new_path);
+    // Add bundled cmake to PATH
+    if let Some(bundled_cmake) = find_bundled_cmake(app) {
+        if let Some(cmake_bin_dir) = bundled_cmake.parent() {
+            path_entries.push(cmake_bin_dir.to_string_lossy().to_string());
+        }
+    }
+
+    path_entries.push(system_path);
+    env.insert("PATH".to_string(), path_entries.join(path_sep));
     env
 }
 
