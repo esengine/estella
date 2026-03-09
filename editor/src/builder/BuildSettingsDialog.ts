@@ -121,6 +121,9 @@ export class BuildSettingsDialog {
                         </button>
                     </div>
                     <div class="es-build-toolbar-right">
+                        <label class="es-build-clean-toggle" title="Delete cached build and recompile from scratch">
+                            <input type="checkbox" data-action="clean-build"> Clean Build
+                        </label>
                         <button class="es-btn" data-action="build-all" title="Build All Configs">
                             Build All
                         </button>
@@ -935,7 +938,8 @@ export class BuildSettingsDialog {
 
             case 'build':
                 if (config) {
-                    this.handleBuild(config);
+                    const cleanCheckbox = this.overlay_.querySelector('[data-action="clean-build"]') as HTMLInputElement | null;
+                    this.handleBuild(config, cleanCheckbox?.checked);
                 }
                 break;
 
@@ -1110,6 +1114,22 @@ export class BuildSettingsDialog {
 
         if (infoEl) {
             infoEl.innerHTML = this.renderToolchainRows(s);
+        }
+
+        this.updateBuildButtonState();
+    }
+
+    private updateBuildButtonState(): void {
+        const ready = !!this.toolchainStatus_?.installed;
+        const buildBtn = this.overlay_?.querySelector('[data-action="build"]') as HTMLButtonElement | null;
+        const buildAllBtn = this.overlay_?.querySelector('[data-action="build-all"]') as HTMLButtonElement | null;
+        if (buildBtn) {
+            buildBtn.disabled = !ready;
+            buildBtn.title = ready ? '' : 'Toolchain not ready';
+        }
+        if (buildAllBtn) {
+            buildAllBtn.disabled = !ready;
+            buildAllBtn.title = ready ? 'Build All Configs' : 'Toolchain not ready';
         }
     }
 
@@ -1364,12 +1384,10 @@ export class BuildSettingsDialog {
         }
     }
 
-    private async handleBuild(config: BuildConfig): Promise<void> {
-        if (config.engineModules && Object.values(config.engineModules).some(v => v === false)) {
-            if (!this.toolchainStatus_?.installed) {
-                showErrorToast('Toolchain not ready. Custom engine modules require emsdk, CMake and Python.');
-                return;
-            }
+    private async handleBuild(config: BuildConfig, cleanBuild?: boolean): Promise<void> {
+        if (!this.toolchainStatus_?.installed) {
+            showErrorToast('Toolchain not ready. Building requires emsdk, CMake and Python.');
+            return;
         }
 
         const buildBtn = this.overlay_.querySelector('[data-action="build"]') as HTMLButtonElement;
@@ -1399,7 +1417,7 @@ export class BuildSettingsDialog {
         });
 
         try {
-            const result = await this.options_.onBuild(config, { progress });
+            const result = await this.options_.onBuild(config, { progress, cleanBuild });
 
             dismissToast(toastId);
 

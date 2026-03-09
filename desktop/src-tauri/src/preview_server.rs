@@ -126,14 +126,6 @@ impl PreviewServer {
                     "sdk/shared/material.js.map" => serve_embedded(embedded_assets::SDK_SHARED_MATERIAL_JS_MAP, "application/json"),
                     "sdk/shared/SpineModuleLoader.js" => serve_embedded(embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS, "application/javascript"),
                     "sdk/shared/SpineModuleLoader.js.map" => serve_embedded(embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS_MAP, "application/json"),
-                    "wasm/spine38.js" => serve_embedded(embedded_assets::SPINE38_JS, "application/javascript"),
-                    "wasm/spine38.wasm" => serve_embedded(embedded_assets::SPINE38_WASM, "application/wasm"),
-                    "wasm/spine41.js" => serve_embedded(embedded_assets::SPINE41_JS, "application/javascript"),
-                    "wasm/spine41.wasm" => serve_embedded(embedded_assets::SPINE41_WASM, "application/wasm"),
-                    "wasm/spine42.js" => serve_embedded(embedded_assets::SPINE42_JS, "application/javascript"),
-                    "wasm/spine42.wasm" => serve_embedded(embedded_assets::SPINE42_WASM, "application/wasm"),
-                    "wasm/physics.js" => serve_embedded(embedded_assets::PHYSICS_JS, "application/javascript"),
-                    "wasm/physics.wasm" => serve_embedded(embedded_assets::PHYSICS_WASM, "application/wasm"),
                     _ => serve_project_file(&current_dir, path),
                 };
 

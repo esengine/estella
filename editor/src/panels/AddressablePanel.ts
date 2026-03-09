@@ -6,7 +6,7 @@
 import type { EditorStore } from '../store/EditorStore';
 import type { PanelInstance } from './PanelRegistry';
 import { icons } from '../utils/icons';
-import { getAssetDatabase, type AssetEntry } from '../asset/AssetDatabase';
+import { getAssetDatabase, type AssetEntry, type AssetDatabase } from '../asset/AssetDatabase';
 import type { AssetGroupService, AssetGroupDef, BundleMode } from '../asset/AssetGroup';
 import { AssetDependencyAnalyzer } from '../asset/AssetDependencyAnalyzer';
 import { getEditorContext } from '../context/EditorContext';
@@ -55,12 +55,15 @@ export class AddressablePanel implements PanelInstance {
     private groupConfigExpanded_ = false;
     private unreferencedUuids_: string[] = [];
     private analyzing_ = false;
+    private dependents_: Map<string, Set<string>> = new Map();
+    private unreferencedCollapsed_ = true;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
         this.store_ = store;
         this.buildLayout();
         this.render();
+        this.analyzeUnreferenced();
     }
 
     dispose(): void {
@@ -312,6 +315,7 @@ export class AddressablePanel implements PanelInstance {
             <div class="es-addr-table-header">
                 <span class="es-addr-col-name${this.sortColumn_ === 'name' ? ' es-sorted' : ''}" data-col="name">Name${sortIcon('name')}</span>
                 <span class="es-addr-col-address${this.sortColumn_ === 'address' ? ' es-sorted' : ''}" data-col="address">Address${sortIcon('address')}</span>
+                <span class="es-addr-col-source">Source</span>
                 <span class="es-addr-col-labels">Labels</span>
                 <span class="es-addr-col-type${this.sortColumn_ === 'type' ? ' es-sorted' : ''}" data-col="type">Type${sortIcon('type')}</span>
                 <span class="es-addr-col-size${this.sortColumn_ === 'size' ? ' es-sorted' : ''}" data-col="size">Size${sortIcon('size')}</span>
@@ -326,10 +330,12 @@ export class AddressablePanel implements PanelInstance {
             }).join('');
             const size = this.formatSize(entry.fileSize);
             const selected = this.selectedUuids_.has(entry.uuid);
+            const sourceHtml = this.renderSourceTags(entry.uuid, db);
             return `
                 <div class="es-addr-table-row${selected ? ' es-selected' : ''}" data-uuid="${entry.uuid}" draggable="true">
                     <span class="es-addr-col-name" title="${escapeHtml(entry.path)}">${escapeHtml(name)}</span>
                     <span class="es-addr-col-address">${escapeHtml(entry.address || '')}</span>
+                    <span class="es-addr-col-source">${sourceHtml}</span>
                     <span class="es-addr-col-labels">${labelsHtml}</span>
                     <span class="es-addr-col-type">${entry.type}</span>
                     <span class="es-addr-col-size">${size}</span>
@@ -535,41 +541,60 @@ export class AddressablePanel implements PanelInstance {
 
         this.unreferencedEl_.style.display = '';
         const db = getAssetDatabase();
-
-        const rowsHtml = this.unreferencedUuids_.map(uuid => {
+        const chevron = this.unreferencedCollapsed_ ? icons.chevronRight(10) : icons.chevronDown(10);
+        const totalSize = this.unreferencedUuids_.reduce((sum, uuid) => {
             const entry = db.getEntry(uuid);
-            if (!entry) return '';
-            const name = entry.path.split('/').pop() || '';
-            return `
-                <div class="es-addr-unreferenced-row" data-uuid="${uuid}" title="${escapeHtml(entry.path)}">
-                    <span class="es-addr-col-name">${escapeHtml(name)}</span>
-                    <span class="es-addr-col-type">${entry.type}</span>
-                    <span class="es-addr-col-size">${this.formatSize(entry.fileSize)}</span>
-                </div>
-            `;
-        }).join('');
+            return sum + (entry?.fileSize ?? 0);
+        }, 0);
+
+        let listHtml = '';
+        if (!this.unreferencedCollapsed_) {
+            const rowsHtml = this.unreferencedUuids_.map(uuid => {
+                const entry = db.getEntry(uuid);
+                if (!entry) return '';
+                const name = entry.path.split('/').pop() || '';
+                return `
+                    <div class="es-addr-unreferenced-row" data-uuid="${uuid}" title="${escapeHtml(entry.path)}">
+                        <span class="es-addr-col-name">${escapeHtml(name)}</span>
+                        <span class="es-addr-col-type">${entry.type}</span>
+                        <span class="es-addr-col-size">${this.formatSize(entry.fileSize)}</span>
+                    </div>
+                `;
+            }).join('');
+            listHtml = `<div class="es-addr-unreferenced-list">${rowsHtml}</div>`;
+        }
 
         this.unreferencedEl_.innerHTML = `
-            <div class="es-addr-unreferenced-header">Unreferenced Assets (${this.unreferencedUuids_.length})</div>
-            <div class="es-addr-unreferenced-list">${rowsHtml}</div>
+            <div class="es-addr-unreferenced-header" data-action="toggle-unreferenced">
+                ${chevron}
+                Unreferenced Assets (${this.unreferencedUuids_.length}) — ${this.formatSize(totalSize)}
+            </div>
+            ${listHtml}
         `;
 
-        this.unreferencedEl_.querySelectorAll('.es-addr-unreferenced-row').forEach(row => {
-            row.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                const uuid = (row as HTMLElement).dataset.uuid;
-                if (!uuid) return;
-                this.showUnreferencedContextMenu(e as MouseEvent, uuid);
-            });
-            row.addEventListener('dblclick', () => {
-                const uuid = (row as HTMLElement).dataset.uuid;
-                if (!uuid) return;
-                const entry = db.getEntry(uuid);
-                if (entry) {
-                    getNavigationService().navigateToAsset(entry.path);
-                }
-            });
+        this.unreferencedEl_.querySelector('[data-action="toggle-unreferenced"]')?.addEventListener('click', () => {
+            this.unreferencedCollapsed_ = !this.unreferencedCollapsed_;
+            this.renderUnreferenced();
         });
+
+        if (!this.unreferencedCollapsed_) {
+            this.unreferencedEl_.querySelectorAll('.es-addr-unreferenced-row').forEach(row => {
+                row.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    const uuid = (row as HTMLElement).dataset.uuid;
+                    if (!uuid) return;
+                    this.showUnreferencedContextMenu(e as MouseEvent, uuid);
+                });
+                row.addEventListener('dblclick', () => {
+                    const uuid = (row as HTMLElement).dataset.uuid;
+                    if (!uuid) return;
+                    const entry = db.getEntry(uuid);
+                    if (entry) {
+                        getNavigationService().navigateToAsset(entry.path);
+                    }
+                });
+            });
+        }
     }
 
     // =========================================================================
@@ -641,6 +666,8 @@ export class AddressablePanel implements PanelInstance {
             const analyzer = new AssetDependencyAnalyzer(fs, projectDir, db);
             const graph = await analyzer.analyze(scenePaths);
             this.unreferencedUuids_ = [...graph.unreferenced];
+            this.dependents_ = graph.dependents;
+            this.renderAssetTable();
             this.renderUnreferenced();
             this.renderStatusBar();
         } catch (e) {
@@ -891,6 +918,39 @@ export class AddressablePanel implements PanelInstance {
             hash = ((hash << 5) - hash + label.charCodeAt(i)) | 0;
         }
         return LABEL_COLORS[Math.abs(hash) % LABEL_COLORS.length];
+    }
+
+    private renderSourceTags(uuid: string, db: AssetDatabase): string {
+        const tags: string[] = [];
+        const entry = db.getEntry(uuid);
+
+        const deps = this.dependents_.get(uuid);
+        if (deps && deps.size > 0) {
+            for (const depUuid of deps) {
+                const depEntry = db.getEntry(depUuid);
+                if (!depEntry) continue;
+                const name = depEntry.path.split('/').pop()?.replace('.esscene', '') || depUuid;
+                if (depEntry.path.endsWith('.esscene')) {
+                    tags.push(`<span class="es-addr-source-tag es-addr-source-scene" title="${escapeHtml(depEntry.path)}">${escapeHtml(name)}</span>`);
+                } else {
+                    tags.push(`<span class="es-addr-source-tag es-addr-source-dep" title="${escapeHtml(depEntry.path)}">${escapeHtml(name)}</span>`);
+                }
+            }
+        }
+
+        if (entry) {
+            const gs = this.getGroupService();
+            const pattern = gs?.getMatchedPattern(entry.path, entry.group);
+            if (pattern) {
+                tags.push(`<span class="es-addr-source-tag es-addr-source-pattern" title="Include pattern: ${escapeHtml(pattern)}">${escapeHtml(pattern)}</span>`);
+            }
+        }
+
+        if (tags.length === 0) {
+            if (this.dependents_.size === 0) return '';
+            return '<span class="es-addr-source-tag es-addr-source-unused">unused</span>';
+        }
+        return tags.join('');
     }
 
     private formatSize(bytes: number): string {

@@ -182,6 +182,17 @@ export class AssetGroupService {
         return 'default';
     }
 
+    getMatchedPattern(assetPath: string, groupName: string): string | null {
+        const group = this.config_.groups.find(g => g.name === groupName);
+        if (!group) return null;
+        for (const pattern of group.include) {
+            if (this.globMatch(assetPath, pattern)) {
+                return pattern;
+            }
+        }
+        return null;
+    }
+
     private matchesIncludes(assetPath: string, patterns: string[]): boolean {
         for (const pattern of patterns) {
             if (this.globMatch(assetPath, pattern)) {

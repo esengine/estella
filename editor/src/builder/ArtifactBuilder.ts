@@ -563,6 +563,16 @@ export function createBuildVirtualFsPlugin(
                 namespace: 'esengine-sdk',
             }));
 
+            build.onResolve({ filter: /^\./ }, (args) => {
+                if (args.namespace !== 'esengine-sdk') return undefined;
+                const baseDir = args.importer.includes('/')
+                    ? args.importer.substring(0, args.importer.lastIndexOf('/'))
+                    : '';
+                const resolved = baseDir ? `${baseDir}/${args.path}` : args.path;
+                const normalized = resolved.replace(/^\.\//, '').replace(/\/\.\//g, '/').replace(/[^/]+\/\.\.\//g, '');
+                return { path: normalized, namespace: 'esengine-sdk' };
+            });
+
             build.onLoad({ filter: /.*/, namespace: 'esengine-sdk' }, async (args) => {
                 return loadSdkModule(args.path);
             });
