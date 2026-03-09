@@ -15,28 +15,17 @@ on:
     - cron: '0 4 * * 1'  # Every Monday 4:00 UTC
 
 jobs:
-  build:
-    # Only run on /build comment or non-comment triggers
+  # Post "building..." comment immediately
+  notify-start:
     if: >-
       github.event_name != 'issue_comment' ||
       (github.event.comment.body == '/build' &&
        github.event.issue.state == 'open')
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            name: macOS
-            tauri-args: --target universal-apple-darwin
-          - platform: windows-latest
-            name: Windows
-
-    name: ${{ matrix.name }} Build
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-latest
     permissions:
-      contents: read
       issues: write
-
+    outputs:
+      comment-id: ${{ steps.comment.outputs.comment-id }}
     steps:
       - name: React to comment
         if: github.event_name == 'issue_comment'
@@ -50,6 +39,38 @@ jobs:
               content: 'rocket'
             });
 
+      - name: Post progress comment
+        id: comment
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data } = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: `⏳ **Cross-Platform Build started...**\n\n| Platform | Status |\n|----------|--------|\n| macOS | 🔄 building... |\n| Windows | 🔄 building... |\n\n[View live logs](${runUrl})`,
+            });
+            core.setOutput('comment-id', data.id);
+
+  build:
+    needs: notify-start
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            name: macOS
+          - platform: windows-latest
+            name: Windows
+
+    name: ${{ matrix.name }} Build
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: read
+
+    steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -91,19 +112,25 @@ jobs:
         shell: bash
         run: cp $(find node_modules/.pnpm -name 'esbuild.wasm' -path '*/esbuild-wasm/*' | head -1) desktop/public/esbuild.wasm
 
-      # SDK + Editor type-check
+      # Type-check & test SDK first (editor depends on it)
       - name: Type-check SDK
-        run: pnpm --filter ./sdk exec tsc --noEmit
+        run: pnpm exec tsc --noEmit -p sdk/tsconfig.json
 
-      - name: Type-check Editor
-        run: pnpm --filter ./editor exec tsc --noEmit
-
-      # SDK + Editor tests
       - name: Run SDK tests
         run: pnpm --filter ./sdk exec vitest run
 
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      # Now editor (depends on SDK build output)
+      - name: Type-check Editor
+        run: pnpm exec tsc --noEmit -p editor/tsconfig.json
+
       - name: Run Editor tests
         run: pnpm --filter ./editor exec vitest run
+
+      - name: Build Editor
+        run: pnpm --filter ./editor build
 
       # Full engine build (WASM + SDK)
       - name: Build engine (WASM + SDK)
@@ -112,10 +139,6 @@ jobs:
       # Toolchain packaging
       - name: Package toolchain
         run: node build-tools/cli.js toolchain
-
-      # Build workspace packages
-      - name: Build workspace packages
-        run: pnpm --filter ./sdk build && pnpm --filter ./editor build
 
       # Rust compilation check (Tauri app)
       - name: Tauri build check
@@ -128,60 +151,60 @@ jobs:
         shell: bash
         run: |
           report=""
-          report+="| Artifact | Size |\n"
-          report+="|----------|------|\n"
 
           if [ -f sdk/dist/index.bundled.js ]; then
             size=$(du -sh sdk/dist/index.bundled.js | cut -f1)
-            report+="| SDK bundle | $size |\n"
+            report+="| SDK bundle | $size |"$'\n'
           fi
 
           for f in desktop/public/*.wasm; do
             if [ -f "$f" ]; then
               name=$(basename "$f")
               size=$(du -sh "$f" | cut -f1)
-              report+="| WASM ($name) | $size |\n"
+              report+="| WASM ($name) | $size |"$'\n'
             fi
           done
 
           if [ -d desktop/src-tauri/toolchain ]; then
             total=$(du -sh desktop/src-tauri/toolchain | cut -f1)
-            report+="| Toolchain (total) | $total |\n"
+            report+="| Toolchain (total) | $total |"$'\n'
             if [ -d desktop/src-tauri/toolchain/engine-src ]; then
               size=$(du -sh desktop/src-tauri/toolchain/engine-src | cut -f1)
-              report+="| - engine-src | $size |\n"
+              report+="| - engine-src | $size |"$'\n'
             fi
             if [ -d desktop/src-tauri/toolchain/cmake ]; then
               size=$(du -sh desktop/src-tauri/toolchain/cmake | cut -f1)
-              report+="| - cmake | $size |\n"
+              report+="| - cmake | $size |"$'\n'
             fi
           fi
 
           if [ -f desktop/public/esbuild.wasm ]; then
             size=$(du -sh desktop/public/esbuild.wasm | cut -f1)
-            report+="| esbuild.wasm | $size |\n"
+            report+="| esbuild.wasm | $size |"$'\n'
           fi
 
-          # Write to step summary
-          echo -e "## Artifact Size Report (${{ matrix.name }})\n" >> $GITHUB_STEP_SUMMARY
-          echo -e "$report" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifact Size Report (${{ matrix.name }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "$report" >> $GITHUB_STEP_SUMMARY
 
-          # Save for issue comment
+          # Save for final report
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "report<<$EOF" >> $GITHUB_OUTPUT
-          echo -e "$report" >> $GITHUB_OUTPUT
+          echo "$report" >> $GITHUB_OUTPUT
           echo "$EOF" >> $GITHUB_OUTPUT
 
-  # Report results back to Issue
+  # Update the progress comment with final results
   report:
-    needs: build
-    if: always() && github.event_name == 'issue_comment'
+    needs: [notify-start, build]
+    if: always() && github.event_name == 'issue_comment' && needs.notify-start.outputs.comment-id
     runs-on: ubuntu-latest
     permissions:
       issues: write
 
     steps:
-      - name: Post result to Issue
+      - name: Update progress comment with results
         uses: actions/github-script@v7
         with:
           script: |
@@ -191,19 +214,30 @@ jobs:
               run_id: context.runId,
             });
 
-            const buildJobs = jobs.data.jobs.filter(j => j.name !== 'Report Results');
+            const buildJobs = jobs.data.jobs.filter(j =>
+              j.name.includes('Build') && !j.name.includes('notify') && !j.name.includes('report')
+            );
+
+            const allPassed = buildJobs.every(j => j.conclusion === 'success');
+            const header = allPassed
+              ? '✅ **Cross-Platform Build passed!**'
+              : '❌ **Cross-Platform Build failed**';
+
             const lines = buildJobs.map(j => {
               const icon = j.conclusion === 'success' ? '✅' : '❌';
               const dur = j.completed_at && j.started_at
                 ? Math.round((new Date(j.completed_at) - new Date(j.started_at)) / 1000)
                 : 0;
-              return `| ${j.name} | ${icon} ${j.conclusion || 'unknown'} | ${dur}s |`;
+              const mins = Math.floor(dur / 60);
+              const secs = dur % 60;
+              const time = mins > 0 ? `${mins}m${secs}s` : `${secs}s`;
+              return `| ${j.name} | ${icon} ${j.conclusion || 'unknown'} | ${time} |`;
             });
 
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
             const body = [
-              `## 🔨 Cross-Platform Build Results`,
+              header,
               '',
               '| Platform | Status | Duration |',
               '|----------|--------|----------|',
@@ -212,9 +246,9 @@ jobs:
               `[View full run](${runUrl})`,
             ].join('\n');
 
-            await github.rest.issues.createComment({
+            await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
+              comment_id: ${{ needs.notify-start.outputs.comment-id }},
               body,
             });
