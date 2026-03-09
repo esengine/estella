@@ -123,7 +123,8 @@ export class SpineModuleController {
         const json = this.api_.getAnimations(instanceId);
         try {
             return JSON.parse(json);
-        } catch {
+        } catch (e) {
+            console.warn('[Spine] Failed to parse animations JSON', e);
             return [];
         }
     }
@@ -132,7 +133,8 @@ export class SpineModuleController {
         const json = this.api_.getSkins(instanceId);
         try {
             return JSON.parse(json);
-        } catch {
+        } catch (e) {
+            console.warn('[Spine] Failed to parse skins JSON', e);
             return [];
         }
     }

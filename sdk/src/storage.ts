@@ -38,7 +38,8 @@ export const Storage = {
         if (raw === null) return defaultValue;
         try {
             return JSON.parse(raw) as T;
-        } catch {
+        } catch (e) {
+            console.warn(`[Storage] Failed to parse JSON for key "${key}"`, e);
             return defaultValue;
         }
     },

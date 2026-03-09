@@ -183,7 +183,8 @@ function writeToVirtualFS(module: ESEngineModule, virtualPath: string, data: str
         ensureVirtualDir(module, virtualPath);
         fs.writeFile(virtualPath, data);
         return true;
-    } catch {
+    } catch (e) {
+        console.warn(`[Runtime] Failed to write virtual FS: ${virtualPath}`, e);
         return false;
     }
 }
@@ -318,7 +319,8 @@ async function loadBitmapFonts(
 
                 const rm = module.getResourceManager();
                 cache[ref] = rm.loadBitmapFont(fntContent, texHandle, pixels.width, pixels.height);
-            } catch {
+            } catch (e) {
+                console.warn(`[Runtime] Failed to load bitmap font: ${ref}`, e);
                 cache[ref] = 0;
             }
         }
@@ -358,7 +360,8 @@ async function loadMaterials(
                     shaderCache[shaderKey] = shaderHandle;
                 }
                 materialCache[matRef] = Material.createFromAsset(matData, shaderHandle);
-            } catch {
+            } catch (e) {
+                console.warn(`[Runtime] Failed to load material: ${matRef}`, e);
                 materialCache[matRef] = 0;
             }
         }
@@ -435,7 +438,8 @@ async function loadAnimClips(
                         try {
                             const result = await provider.loadPixels(texPath);
                             textureHandles.set(texPath, createTextureFromPixels(module, result));
-                        } catch {
+                        } catch (e) {
+                            console.warn(`[Runtime] Failed to load anim texture: ${texPath}`, e);
                             textureHandles.set(texPath, 0);
                         }
                     }
@@ -483,8 +487,8 @@ async function loadTilemaps(
                             const result = await provider.loadPixels(imagePath);
                             textureHandle = createTextureFromPixels(module, result);
                             registerTextureDimensions(textureHandle, result.width, result.height);
-                        } catch {
-                            /* skip missing tileset texture */
+                        } catch (e) {
+                            console.warn(`[Runtime] Failed to load tileset texture: ${imagePath}`, e);
                         }
                         tilesets.push({ textureHandle, columns: ts.columns });
                     }

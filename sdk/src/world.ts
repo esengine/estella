@@ -388,7 +388,7 @@ export class World {
         this.worldVersion_++;
 
         for (const cb of this.spawnCallbacks_) {
-            try { cb(entity); } catch {}
+            try { cb(entity); } catch (e) { console.warn('[World] Spawn callback error:', e); }
         }
 
         return entity;
@@ -403,7 +403,7 @@ export class World {
         }
 
         for (const cb of this.despawnCallbacks_) {
-            try { cb(entity); } catch {}
+            try { cb(entity); } catch (e) { console.warn('[World] Despawn callback error:', e); }
         }
 
         if (this.cppRegistry_) {
@@ -909,7 +909,7 @@ export class World {
     getComponentTypes(entity: Entity): string[] {
         const types = new Set<string>();
         for (const [name, methods] of this.builtinMethodCache_) {
-            try { if (methods.has(entity)) types.add(name); } catch {}
+            try { if (methods.has(entity)) types.add(name); } catch (e) { console.warn(`[World] Component check failed for ${name}:`, e); }
         }
         if (this.cppRegistry_) {
             for (const [name, comp] of getAllRegisteredComponents()) {
@@ -917,7 +917,7 @@ export class World {
                     try {
                         const m = this.getBuiltinMethods(comp._cppName);
                         if (m.has(entity)) types.add(name);
-                    } catch {}
+                    } catch (e) { console.warn(`[World] Builtin check failed for ${name}:`, e); }
                 }
             }
         }

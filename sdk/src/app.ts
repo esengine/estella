@@ -510,7 +510,7 @@ export class App {
         }
 
         for (const entity of this.world_.getAllEntities()) {
-            try { this.world_.despawn(entity); } catch (_) { /* ignore */ }
+            try { this.world_.despawn(entity); } catch (e) { console.warn('[App] Shutdown despawn error:', e); }
         }
         this.world_.disconnectCpp();
 

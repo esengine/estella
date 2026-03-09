@@ -354,7 +354,8 @@ export async function parseTiledMap(
 
         api.tiled_freeMap(handle);
         return result;
-    } catch {
+    } catch (e) {
+        console.warn('[Tiled] Failed to parse tilemap', e);
         api.tiled_freeMap(handle);
         return null;
     }
