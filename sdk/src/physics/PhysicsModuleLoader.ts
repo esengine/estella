@@ -85,6 +85,41 @@ export interface PhysicsWasmModule {
     _physics_getRevoluteAngle(entityId: number): number;
     _physics_getRevoluteMotorTorque(entityId: number): number;
 
+    _physics_createDistanceJoint(entityIdA: number, entityIdB: number,
+        anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number,
+        length: number, enableSpring: number, hertz: number, dampingRatio: number,
+        enableLimit: number, minLength: number, maxLength: number,
+        enableMotor: number, maxMotorForce: number, motorSpeed: number,
+        collideConnected: number): number;
+    _physics_createPrismaticJoint(entityIdA: number, entityIdB: number,
+        anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number,
+        axisX: number, axisY: number,
+        enableSpring: number, hertz: number, dampingRatio: number,
+        enableLimit: number, lowerTranslation: number, upperTranslation: number,
+        enableMotor: number, maxMotorForce: number, motorSpeed: number,
+        collideConnected: number): number;
+    _physics_createWeldJoint(entityIdA: number, entityIdB: number,
+        anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number,
+        linearHertz: number, angularHertz: number,
+        linearDampingRatio: number, angularDampingRatio: number,
+        collideConnected: number): number;
+    _physics_createWheelJoint(entityIdA: number, entityIdB: number,
+        anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number,
+        axisX: number, axisY: number,
+        enableSpring: number, hertz: number, dampingRatio: number,
+        enableLimit: number, lowerTranslation: number, upperTranslation: number,
+        enableMotor: number, maxMotorTorque: number, motorSpeed: number,
+        collideConnected: number): number;
+
+    _physics_raycast(originX: number, originY: number, dirX: number, dirY: number,
+        maxDistance: number, maskBits: number): number;
+    _physics_getRaycastBuffer(): number;
+    _physics_overlapCircle(centerX: number, centerY: number, radius: number, maskBits: number): number;
+    _physics_getOverlapBuffer(): number;
+
+    _physics_setAwake(entityId: number, awake: number): void;
+    _physics_isAwake(entityId: number): number;
+
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -184,6 +219,19 @@ export async function loadPhysicsSideModule(
         _physics_setRevoluteLimits: cwrap('physics_setRevoluteLimits', null, ['number', 'number', 'number']) as PhysicsWasmModule['_physics_setRevoluteLimits'],
         _physics_getRevoluteAngle: cwrap('physics_getRevoluteAngle', 'number', ['number']) as PhysicsWasmModule['_physics_getRevoluteAngle'],
         _physics_getRevoluteMotorTorque: cwrap('physics_getRevoluteMotorTorque', 'number', ['number']) as PhysicsWasmModule['_physics_getRevoluteMotorTorque'],
+
+        _physics_createDistanceJoint: cwrap('physics_createDistanceJoint', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createDistanceJoint'],
+        _physics_createPrismaticJoint: cwrap('physics_createPrismaticJoint', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createPrismaticJoint'],
+        _physics_createWeldJoint: cwrap('physics_createWeldJoint', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createWeldJoint'],
+        _physics_createWheelJoint: cwrap('physics_createWheelJoint', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createWheelJoint'],
+
+        _physics_raycast: cwrap('physics_raycast', 'number', ['number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_raycast'],
+        _physics_getRaycastBuffer: cwrap('physics_getRaycastBuffer', 'number', []) as PhysicsWasmModule['_physics_getRaycastBuffer'],
+        _physics_overlapCircle: cwrap('physics_overlapCircle', 'number', ['number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_overlapCircle'],
+        _physics_getOverlapBuffer: cwrap('physics_getOverlapBuffer', 'number', []) as PhysicsWasmModule['_physics_getOverlapBuffer'],
+
+        _physics_setAwake: cwrap('physics_setAwake', null, ['number', 'number']) as PhysicsWasmModule['_physics_setAwake'],
+        _physics_isAwake: cwrap('physics_isAwake', 'number', ['number']) as PhysicsWasmModule['_physics_isAwake'],
 
         get HEAPF32() { return mainModule.HEAPF32; },
         get HEAPU8() { return mainModule.HEAPU8; },

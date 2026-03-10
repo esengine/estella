@@ -18,6 +18,7 @@ export {
     type PhysicsEventsData,
     type CollisionEnterEvent,
     type SensorEvent,
+    type RaycastHit,
 } from './PhysicsPlugin';
 
 export {
@@ -37,6 +38,10 @@ export {
     PolygonCollider,
     ChainCollider,
     RevoluteJoint,
+    DistanceJoint,
+    PrismaticJoint,
+    WeldJoint,
+    WheelJoint,
     BodyType,
     type RigidBodyData,
     type BoxColliderData,
@@ -46,6 +51,10 @@ export {
     type PolygonColliderData,
     type ChainColliderData,
     type RevoluteJointData,
+    type DistanceJointData,
+    type PrismaticJointData,
+    type WeldJointData,
+    type WheelJointData,
 } from './PhysicsComponents';
 
 export {

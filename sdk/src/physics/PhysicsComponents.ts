@@ -220,6 +220,138 @@ export const RevoluteJoint = defineComponent<RevoluteJointData>('RevoluteJoint',
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
+export interface DistanceJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    length: number;
+    enableSpring: boolean;
+    hertz: number;
+    dampingRatio: number;
+    enableLimit: boolean;
+    minLength: number;
+    maxLength: number;
+    enableMotor: boolean;
+    maxMotorForce: number;
+    motorSpeed: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+
+export const DistanceJoint = defineComponent<DistanceJointData>('DistanceJoint', {
+    connectedEntity: -1,
+    anchorA: { x: 0, y: 0 },
+    anchorB: { x: 0, y: 0 },
+    length: 1,
+    enableSpring: false,
+    hertz: 1,
+    dampingRatio: 0.5,
+    enableLimit: false,
+    minLength: 0.5,
+    maxLength: 2,
+    enableMotor: false,
+    maxMotorForce: 0,
+    motorSpeed: 0,
+    collideConnected: false,
+    enabled: true,
+}, { entityFields: ['connectedEntity'] });
+
+export interface PrismaticJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    axis: Vec2;
+    enableSpring: boolean;
+    hertz: number;
+    dampingRatio: number;
+    enableLimit: boolean;
+    lowerTranslation: number;
+    upperTranslation: number;
+    enableMotor: boolean;
+    maxMotorForce: number;
+    motorSpeed: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+
+export const PrismaticJoint = defineComponent<PrismaticJointData>('PrismaticJoint', {
+    connectedEntity: -1,
+    anchorA: { x: 0, y: 0 },
+    anchorB: { x: 0, y: 0 },
+    axis: { x: 1, y: 0 },
+    enableSpring: false,
+    hertz: 1,
+    dampingRatio: 0.5,
+    enableLimit: false,
+    lowerTranslation: 0,
+    upperTranslation: 0,
+    enableMotor: false,
+    maxMotorForce: 0,
+    motorSpeed: 0,
+    collideConnected: false,
+    enabled: true,
+}, { entityFields: ['connectedEntity'] });
+
+export interface WeldJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    linearHertz: number;
+    angularHertz: number;
+    linearDampingRatio: number;
+    angularDampingRatio: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+
+export const WeldJoint = defineComponent<WeldJointData>('WeldJoint', {
+    connectedEntity: -1,
+    anchorA: { x: 0, y: 0 },
+    anchorB: { x: 0, y: 0 },
+    linearHertz: 0,
+    angularHertz: 0,
+    linearDampingRatio: 1,
+    angularDampingRatio: 1,
+    collideConnected: false,
+    enabled: true,
+}, { entityFields: ['connectedEntity'] });
+
+export interface WheelJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    axis: Vec2;
+    enableSpring: boolean;
+    hertz: number;
+    dampingRatio: number;
+    enableLimit: boolean;
+    lowerTranslation: number;
+    upperTranslation: number;
+    enableMotor: boolean;
+    maxMotorTorque: number;
+    motorSpeed: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+
+export const WheelJoint = defineComponent<WheelJointData>('WheelJoint', {
+    connectedEntity: -1,
+    anchorA: { x: 0, y: 0 },
+    anchorB: { x: 0, y: 0 },
+    axis: { x: 0, y: 1 },
+    enableSpring: true,
+    hertz: 5,
+    dampingRatio: 0.7,
+    enableLimit: false,
+    lowerTranslation: 0,
+    upperTranslation: 0,
+    enableMotor: false,
+    maxMotorTorque: 0,
+    motorSpeed: 0,
+    collideConnected: false,
+    enabled: true,
+}, { entityFields: ['connectedEntity'] });
+
 // =============================================================================
 // Body Type Enum (matches C++ BodyType)
 // =============================================================================
