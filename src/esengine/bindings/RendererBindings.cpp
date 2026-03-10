@@ -168,7 +168,9 @@ void renderer_submitSpineBatchByEntity(
     auto& t = registry.get<ecs::Transform>(entity);
     t.ensureDecomposed();
 
-    glm::vec3 s = t.worldScale * skelScale;
+    glm::vec3 s = t.worldScale;
+    s.x *= skelScale;
+    s.y *= skelScale;
     if (flipX) s.x = -s.x;
     if (flipY) s.y = -s.y;
 
