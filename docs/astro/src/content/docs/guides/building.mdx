@@ -14,6 +14,43 @@ ESEngine projects can be built for two target platforms from the editor: **Playa
 | Playable Ads | Single `.html` file | All assets, WASM, and scripts inlined into one file. Designed for ad networks that require a single-file deliverable. |
 | WeChat MiniGame | Directory | Contains `game.js`, `game.json`, `project.config.json`, scene files, and assets. Ready to open in WeChat DevTools. |
 
+## Toolchain Setup
+
+Before your first build, the editor needs a C++ toolchain to compile the engine WASM binary. Open **Build Settings** and expand the **Toolchain (emsdk)** section. The status badge shows whether the toolchain is ready:
+
+| Status | Meaning |
+|--------|---------|
+| **Ready** (green) | Emscripten, CMake, and Python are all detected and meet minimum versions |
+| **Not ready** (red) | One or more tools are missing or outdated |
+
+### Auto Install
+
+Click **Auto Install** to download a pre-packaged toolchain (~550–700 MB depending on platform). This includes Emscripten 5.0.0, CMake, and Python — no external dependencies required. Download progress is shown in a toast notification.
+
+### Manual Setup
+
+If you already have emsdk installed, click **Select emsdk** and point to your emsdk root directory. The editor validates the path and detects versions automatically.
+
+<Aside type="note">
+The toolchain is installed once and shared across all projects. It is stored in the editor's app data directory and persists across updates.
+</Aside>
+
+### Engine Modules
+
+Each build configuration can toggle which engine modules to include in the WASM binary:
+
+| Module | Description |
+|--------|-------------|
+| **Tilemap** | 2D tilemap renderer |
+| **Particles** | Particle system |
+| **Timeline** | Timeline animation system |
+| **PostProcess** | Post-processing effects |
+| **Bitmap Text** | Bitmap font rendering |
+| **Spine** | Spine skeletal animation (select runtime versions: 3.8, 4.1, 4.2) |
+| **Physics** | Box2D physics (compiled as a separate WASM module) |
+
+Disabling unused modules reduces the output WASM size. The engine is recompiled only when the module configuration changes; subsequent builds with the same configuration use a cached result.
+
 ## Using the Build Panel
 
 Open the **Build** panel from the editor toolbar. The panel has a three-column layout:
