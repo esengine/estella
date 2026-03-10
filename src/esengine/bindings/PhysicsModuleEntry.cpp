@@ -19,33 +19,52 @@
 #include <cstring>
 
 // =============================================================================
-// Global State
+// Physics Context
 // =============================================================================
 
-static b2WorldId g_worldId = b2_nullWorldId;
-static float g_fixedTimestep = 1.0f / 60.0f;
-static int g_subStepCount = 4;
-static float g_accumulator = 0.0f;
 static constexpr int MAX_PHYSICS_STEPS_PER_FRAME = 8;
 
-static std::unordered_map<uint32_t, b2BodyId> g_entityToBody;
-static std::unordered_map<uint32_t, b2ShapeId> g_entityToShape;
-static std::unordered_map<uint32_t, b2JointId> g_entityToJoint;
-static std::vector<uint32_t> g_dynamicBodyEntities;
+struct PhysicsContext {
+    b2WorldId worldId = b2_nullWorldId;
+    float fixedTimestep = 1.0f / 60.0f;
+    int subStepCount = 4;
+    float accumulator = 0.0f;
 
-// [entityId_bits, x, y, angle, ...]
-static std::vector<float> g_dynamicTransformBuffer;
+    std::unordered_map<uint32_t, b2BodyId> entityToBody;
+    std::unordered_map<uint32_t, b2ShapeId> entityToShape;
+    std::unordered_map<uint32_t, b2JointId> entityToJoint;
+    std::vector<uint32_t> dynamicBodyEntities;
 
-// Collision event flat buffers: [entityA0_bits, entityB0_bits, nx0, ny0, cx0, cy0, ...]
-static std::vector<float> g_collisionEnterBuffer;
-// [entityA0_bits, entityB0_bits, ...]
-static std::vector<float> g_collisionExitBuffer;
-// [sensor0_bits, visitor0_bits, ...]
-static std::vector<float> g_sensorEnterBuffer;
-static std::vector<float> g_sensorExitBuffer;
+    std::vector<float> dynamicTransformBuffer;
 
-static float g_velocityBuffer[2];
-static float g_gravityBuffer[2];
+    std::vector<float> collisionEnterBuffer;
+    std::vector<float> collisionExitBuffer;
+    std::vector<float> sensorEnterBuffer;
+    std::vector<float> sensorExitBuffer;
+
+    float velocityBuffer[2] = {};
+    float gravityBuffer[2] = {};
+
+    void reset() {
+        entityToBody.clear();
+        entityToShape.clear();
+        entityToJoint.clear();
+        dynamicBodyEntities.clear();
+        dynamicTransformBuffer.clear();
+        collisionEnterBuffer.clear();
+        collisionExitBuffer.clear();
+        sensorEnterBuffer.clear();
+        sensorExitBuffer.clear();
+        accumulator = 0.0f;
+
+        if (b2World_IsValid(worldId)) {
+            b2DestroyWorld(worldId);
+        }
+        worldId = b2_nullWorldId;
+    }
+};
+
+static PhysicsContext g_ctx;
 
 // =============================================================================
 // Helper: Entity ID from body user data
@@ -79,37 +98,23 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void physics_init(float gx, float gy, float timestep, int substeps,
                   float contactHertz, float contactDampingRatio, float contactSpeed) {
-    if (b2World_IsValid(g_worldId)) return;
+    if (b2World_IsValid(g_ctx.worldId)) return;
 
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = {gx, gy};
     worldDef.contactHertz = contactHertz;
     worldDef.contactDampingRatio = contactDampingRatio;
     worldDef.contactSpeed = contactSpeed;
-    g_worldId = b2CreateWorld(&worldDef);
+    g_ctx.worldId = b2CreateWorld(&worldDef);
 
-    g_fixedTimestep = timestep;
-    g_subStepCount = substeps;
-    g_accumulator = 0.0f;
+    g_ctx.fixedTimestep = timestep;
+    g_ctx.subStepCount = substeps;
+    g_ctx.accumulator = 0.0f;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_shutdown() {
-    if (!b2World_IsValid(g_worldId)) return;
-
-    g_entityToBody.clear();
-    g_entityToShape.clear();
-    g_entityToJoint.clear();
-    g_dynamicBodyEntities.clear();
-    g_dynamicTransformBuffer.clear();
-    g_collisionEnterBuffer.clear();
-    g_collisionExitBuffer.clear();
-    g_sensorEnterBuffer.clear();
-    g_sensorExitBuffer.clear();
-    g_accumulator = 0.0f;
-
-    b2DestroyWorld(g_worldId);
-    g_worldId = b2_nullWorldId;
+    g_ctx.reset();
 }
 
 // Body Management
@@ -118,9 +123,9 @@ EMSCRIPTEN_KEEPALIVE
 void physics_createBody(uint32_t entityId, int bodyType, float x, float y, float angle,
                         float gravityScale, float linearDamping, float angularDamping,
                         int fixedRotation, int bullet) {
-    if (!b2World_IsValid(g_worldId)) return;
+    if (!b2World_IsValid(g_ctx.worldId)) return;
     if (entityId == 0xFFFFFFFF) return;
-    if (g_entityToBody.contains(entityId)) return;
+    if (g_ctx.entityToBody.contains(entityId)) return;
 
     b2BodyDef bodyDef = b2DefaultBodyDef();
 
@@ -138,42 +143,42 @@ void physics_createBody(uint32_t entityId, int bodyType, float x, float y, float
     bodyDef.isBullet = bullet != 0;
     bodyDef.motionLocks.angularZ = fixedRotation != 0;
 
-    b2BodyId bodyId = b2CreateBody(g_worldId, &bodyDef);
+    b2BodyId bodyId = b2CreateBody(g_ctx.worldId, &bodyDef);
     b2Body_SetUserData(bodyId, reinterpret_cast<void*>(static_cast<uintptr_t>(entityId)));
-    g_entityToBody[entityId] = bodyId;
+    g_ctx.entityToBody[entityId] = bodyId;
     if (bodyDef.type == b2_dynamicBody) {
-        g_dynamicBodyEntities.push_back(entityId);
+        g_ctx.dynamicBodyEntities.push_back(entityId);
     }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_destroyBody(uint32_t entityId) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
 
-    auto jit = g_entityToJoint.find(entityId);
-    if (jit != g_entityToJoint.end()) {
+    auto jit = g_ctx.entityToJoint.find(entityId);
+    if (jit != g_ctx.entityToJoint.end()) {
         if (b2Joint_IsValid(jit->second)) {
             b2DestroyJoint(jit->second, false);
         }
-        g_entityToJoint.erase(jit);
+        g_ctx.entityToJoint.erase(jit);
     }
 
     if (b2Body_IsValid(it->second)) {
         b2DestroyBody(it->second);
     }
-    g_entityToBody.erase(it);
-    g_entityToShape.erase(entityId);
-    auto dit = std::find(g_dynamicBodyEntities.begin(), g_dynamicBodyEntities.end(), entityId);
-    if (dit != g_dynamicBodyEntities.end()) {
-        *dit = g_dynamicBodyEntities.back();
-        g_dynamicBodyEntities.pop_back();
+    g_ctx.entityToBody.erase(it);
+    g_ctx.entityToShape.erase(entityId);
+    auto dit = std::find(g_ctx.dynamicBodyEntities.begin(), g_ctx.dynamicBodyEntities.end(), entityId);
+    if (dit != g_ctx.dynamicBodyEntities.end()) {
+        *dit = g_ctx.dynamicBodyEntities.back();
+        g_ctx.dynamicBodyEntities.pop_back();
     }
 }
 
 EMSCRIPTEN_KEEPALIVE
 int physics_hasBody(uint32_t entityId) {
-    return g_entityToBody.contains(entityId) ? 1 : 0;
+    return g_ctx.entityToBody.contains(entityId) ? 1 : 0;
 }
 
 // Shape Management
@@ -183,8 +188,8 @@ void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
                          float offX, float offY, float radius,
                          float density, float friction, float restitution, int isSensor,
                          uint32_t categoryBits, uint32_t maskBits) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
 
     b2ShapeDef shapeDef = b2DefaultShapeDef();
     shapeDef.density = density;
@@ -205,7 +210,7 @@ void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
         polygon = b2MakeOffsetBox(halfW, halfH, {offX, offY}, b2MakeRot(0.0f));
     }
     b2ShapeId shapeId = b2CreatePolygonShape(it->second, &shapeDef, &polygon);
-    g_entityToShape[entityId] = shapeId;
+    g_ctx.entityToShape[entityId] = shapeId;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -213,8 +218,8 @@ void physics_addCircleShape(uint32_t entityId, float radius,
                             float offX, float offY,
                             float density, float friction, float restitution, int isSensor,
                             uint32_t categoryBits, uint32_t maskBits) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
 
     b2ShapeDef shapeDef = b2DefaultShapeDef();
     shapeDef.density = density;
@@ -231,7 +236,7 @@ void physics_addCircleShape(uint32_t entityId, float radius,
     circle.radius = radius;
 
     b2ShapeId shapeId = b2CreateCircleShape(it->second, &shapeDef, &circle);
-    g_entityToShape[entityId] = shapeId;
+    g_ctx.entityToShape[entityId] = shapeId;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -239,8 +244,8 @@ void physics_addCapsuleShape(uint32_t entityId, float radius, float halfHeight,
                              float offX, float offY,
                              float density, float friction, float restitution, int isSensor,
                              uint32_t categoryBits, uint32_t maskBits) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
 
     b2ShapeDef shapeDef = b2DefaultShapeDef();
     shapeDef.density = density;
@@ -258,15 +263,15 @@ void physics_addCapsuleShape(uint32_t entityId, float radius, float halfHeight,
     capsule.radius = radius;
 
     b2ShapeId shapeId = b2CreateCapsuleShape(it->second, &shapeDef, &capsule);
-    g_entityToShape[entityId] = shapeId;
+    g_ctx.entityToShape[entityId] = shapeId;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_addSegmentShape(uint32_t entityId, float x1, float y1, float x2, float y2,
                              float density, float friction, float restitution, int isSensor,
                              uint32_t categoryBits, uint32_t maskBits) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
 
     b2ShapeDef shapeDef = b2DefaultShapeDef();
     shapeDef.density = density;
@@ -283,15 +288,15 @@ void physics_addSegmentShape(uint32_t entityId, float x1, float y1, float x2, fl
     segment.point2 = {x2, y2};
 
     b2ShapeId shapeId = b2CreateSegmentShape(it->second, &shapeDef, &segment);
-    g_entityToShape[entityId] = shapeId;
+    g_ctx.entityToShape[entityId] = shapeId;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_addPolygonShape(uint32_t entityId, uintptr_t verticesPtr, int vertexCount, float radius,
                              float density, float friction, float restitution, int isSensor,
                              uint32_t categoryBits, uint32_t maskBits) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (vertexCount < 3 || vertexCount > B2_MAX_POLYGON_VERTICES) return;
 
     b2ShapeDef shapeDef = b2DefaultShapeDef();
@@ -317,15 +322,15 @@ void physics_addPolygonShape(uint32_t entityId, uintptr_t verticesPtr, int verte
         ? b2MakePolygon(&hull, radius)
         : b2MakePolygon(&hull, 0.0f);
     b2ShapeId shapeId = b2CreatePolygonShape(it->second, &shapeDef, &polygon);
-    g_entityToShape[entityId] = shapeId;
+    g_ctx.entityToShape[entityId] = shapeId;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_addChainShape(uint32_t entityId, uintptr_t pointsPtr, int pointCount, int isLoop,
                            float friction, float restitution,
                            uint32_t categoryBits, uint32_t maskBits) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (pointCount < 4) return;
 
     auto* floats = reinterpret_cast<float*>(pointsPtr);
@@ -354,24 +359,24 @@ void physics_addChainShape(uint32_t entityId, uintptr_t pointsPtr, int pointCoun
 
 EMSCRIPTEN_KEEPALIVE
 void physics_step(float dt) {
-    if (!b2World_IsValid(g_worldId)) return;
+    if (!b2World_IsValid(g_ctx.worldId)) return;
 
-    g_collisionEnterBuffer.clear();
-    g_collisionExitBuffer.clear();
-    g_sensorEnterBuffer.clear();
-    g_sensorExitBuffer.clear();
+    g_ctx.collisionEnterBuffer.clear();
+    g_ctx.collisionExitBuffer.clear();
+    g_ctx.sensorEnterBuffer.clear();
+    g_ctx.sensorExitBuffer.clear();
 
-    g_accumulator += dt;
+    g_ctx.accumulator += dt;
 
     int steps = 0;
-    while (g_accumulator >= g_fixedTimestep && steps < MAX_PHYSICS_STEPS_PER_FRAME) {
-        b2World_Step(g_worldId, g_fixedTimestep, g_subStepCount);
-        g_accumulator -= g_fixedTimestep;
+    while (g_ctx.accumulator >= g_ctx.fixedTimestep && steps < MAX_PHYSICS_STEPS_PER_FRAME) {
+        b2World_Step(g_ctx.worldId, g_ctx.fixedTimestep, g_ctx.subStepCount);
+        g_ctx.accumulator -= g_ctx.fixedTimestep;
         ++steps;
     }
 
-    if (g_accumulator > g_fixedTimestep) {
-        g_accumulator = g_fixedTimestep;
+    if (g_ctx.accumulator > g_ctx.fixedTimestep) {
+        g_ctx.accumulator = g_ctx.fixedTimestep;
     }
 }
 
@@ -379,8 +384,8 @@ void physics_step(float dt) {
 
 EMSCRIPTEN_KEEPALIVE
 void physics_setBodyTransform(uint32_t entityId, float x, float y, float angle) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
 
     b2Body_SetTransform(it->second, {x, y}, b2MakeRot(angle));
@@ -388,36 +393,36 @@ void physics_setBodyTransform(uint32_t entityId, float x, float y, float angle) 
 
 EMSCRIPTEN_KEEPALIVE
 int physics_getDynamicBodyCount() {
-    return static_cast<int>(g_dynamicBodyEntities.size());
+    return static_cast<int>(g_ctx.dynamicBodyEntities.size());
 }
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getDynamicBodyTransforms() {
-    g_dynamicTransformBuffer.clear();
+    g_ctx.dynamicTransformBuffer.clear();
 
-    for (uint32_t entityId : g_dynamicBodyEntities) {
-        auto it = g_entityToBody.find(entityId);
-        if (it == g_entityToBody.end() || !b2Body_IsValid(it->second)) continue;
+    for (uint32_t entityId : g_ctx.dynamicBodyEntities) {
+        auto it = g_ctx.entityToBody.find(entityId);
+        if (it == g_ctx.entityToBody.end() || !b2Body_IsValid(it->second)) continue;
 
         b2Vec2 pos = b2Body_GetPosition(it->second);
         float angle = b2Rot_GetAngle(b2Body_GetRotation(it->second));
 
-        pushEntityBits(g_dynamicTransformBuffer, entityId);
-        g_dynamicTransformBuffer.push_back(pos.x);
-        g_dynamicTransformBuffer.push_back(pos.y);
-        g_dynamicTransformBuffer.push_back(angle);
+        pushEntityBits(g_ctx.dynamicTransformBuffer, entityId);
+        g_ctx.dynamicTransformBuffer.push_back(pos.x);
+        g_ctx.dynamicTransformBuffer.push_back(pos.y);
+        g_ctx.dynamicTransformBuffer.push_back(angle);
     }
 
-    return reinterpret_cast<uintptr_t>(g_dynamicTransformBuffer.data());
+    return reinterpret_cast<uintptr_t>(g_ctx.dynamicTransformBuffer.data());
 }
 
 // Collision Events (flat buffer)
 
 EMSCRIPTEN_KEEPALIVE
 void physics_collectEvents() {
-    if (!b2World_IsValid(g_worldId)) return;
+    if (!b2World_IsValid(g_ctx.worldId)) return;
 
-    b2ContactEvents contactEvents = b2World_GetContactEvents(g_worldId);
+    b2ContactEvents contactEvents = b2World_GetContactEvents(g_ctx.worldId);
 
     for (int i = 0; i < contactEvents.beginCount; ++i) {
         auto& evt = contactEvents.beginEvents[i];
@@ -425,8 +430,8 @@ void physics_collectEvents() {
         uint32_t entityB = entityFromShape(evt.shapeIdB);
         if (entityA == 0xFFFFFFFF || entityB == 0xFFFFFFFF) continue;
 
-        pushEntityBits(g_collisionEnterBuffer, entityA);
-        pushEntityBits(g_collisionEnterBuffer, entityB);
+        pushEntityBits(g_ctx.collisionEnterBuffer, entityA);
+        pushEntityBits(g_ctx.collisionEnterBuffer, entityB);
 
         float nx = 0, ny = 0, cx = 0, cy = 0;
         if (b2Contact_IsValid(evt.contactId)) {
@@ -438,10 +443,10 @@ void physics_collectEvents() {
                 cy = cd.manifold.points[0].point.y;
             }
         }
-        g_collisionEnterBuffer.push_back(nx);
-        g_collisionEnterBuffer.push_back(ny);
-        g_collisionEnterBuffer.push_back(cx);
-        g_collisionEnterBuffer.push_back(cy);
+        g_ctx.collisionEnterBuffer.push_back(nx);
+        g_ctx.collisionEnterBuffer.push_back(ny);
+        g_ctx.collisionEnterBuffer.push_back(cx);
+        g_ctx.collisionEnterBuffer.push_back(cy);
     }
 
     for (int i = 0; i < contactEvents.endCount; ++i) {
@@ -452,11 +457,11 @@ void physics_collectEvents() {
         uint32_t entityB = entityFromShape(evt.shapeIdB);
         if (entityA == 0xFFFFFFFF || entityB == 0xFFFFFFFF) continue;
 
-        pushEntityBits(g_collisionExitBuffer, entityA);
-        pushEntityBits(g_collisionExitBuffer, entityB);
+        pushEntityBits(g_ctx.collisionExitBuffer, entityA);
+        pushEntityBits(g_ctx.collisionExitBuffer, entityB);
     }
 
-    b2SensorEvents sensorEvents = b2World_GetSensorEvents(g_worldId);
+    b2SensorEvents sensorEvents = b2World_GetSensorEvents(g_ctx.worldId);
 
     for (int i = 0; i < sensorEvents.beginCount; ++i) {
         auto& evt = sensorEvents.beginEvents[i];
@@ -464,8 +469,8 @@ void physics_collectEvents() {
         uint32_t visitor = entityFromShape(evt.visitorShapeId);
         if (sensor == 0xFFFFFFFF || visitor == 0xFFFFFFFF) continue;
 
-        pushEntityBits(g_sensorEnterBuffer, sensor);
-        pushEntityBits(g_sensorEnterBuffer, visitor);
+        pushEntityBits(g_ctx.sensorEnterBuffer, sensor);
+        pushEntityBits(g_ctx.sensorEnterBuffer, visitor);
     }
 
     for (int i = 0; i < sensorEvents.endCount; ++i) {
@@ -476,57 +481,57 @@ void physics_collectEvents() {
         uint32_t visitor = entityFromShape(evt.visitorShapeId);
         if (sensor == 0xFFFFFFFF || visitor == 0xFFFFFFFF) continue;
 
-        pushEntityBits(g_sensorExitBuffer, sensor);
-        pushEntityBits(g_sensorExitBuffer, visitor);
+        pushEntityBits(g_ctx.sensorExitBuffer, sensor);
+        pushEntityBits(g_ctx.sensorExitBuffer, visitor);
     }
 }
 
 EMSCRIPTEN_KEEPALIVE
 int physics_getCollisionEnterCount() {
-    return static_cast<int>(g_collisionEnterBuffer.size() / 6);
+    return static_cast<int>(g_ctx.collisionEnterBuffer.size() / 6);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getCollisionEnterBuffer() {
-    return reinterpret_cast<uintptr_t>(g_collisionEnterBuffer.data());
+    return reinterpret_cast<uintptr_t>(g_ctx.collisionEnterBuffer.data());
 }
 
 EMSCRIPTEN_KEEPALIVE
 int physics_getCollisionExitCount() {
-    return static_cast<int>(g_collisionExitBuffer.size() / 2);
+    return static_cast<int>(g_ctx.collisionExitBuffer.size() / 2);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getCollisionExitBuffer() {
-    return reinterpret_cast<uintptr_t>(g_collisionExitBuffer.data());
+    return reinterpret_cast<uintptr_t>(g_ctx.collisionExitBuffer.data());
 }
 
 EMSCRIPTEN_KEEPALIVE
 int physics_getSensorEnterCount() {
-    return static_cast<int>(g_sensorEnterBuffer.size() / 2);
+    return static_cast<int>(g_ctx.sensorEnterBuffer.size() / 2);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getSensorEnterBuffer() {
-    return reinterpret_cast<uintptr_t>(g_sensorEnterBuffer.data());
+    return reinterpret_cast<uintptr_t>(g_ctx.sensorEnterBuffer.data());
 }
 
 EMSCRIPTEN_KEEPALIVE
 int physics_getSensorExitCount() {
-    return static_cast<int>(g_sensorExitBuffer.size() / 2);
+    return static_cast<int>(g_ctx.sensorExitBuffer.size() / 2);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getSensorExitBuffer() {
-    return reinterpret_cast<uintptr_t>(g_sensorExitBuffer.data());
+    return reinterpret_cast<uintptr_t>(g_ctx.sensorExitBuffer.data());
 }
 
 // Force / Impulse / Velocity
 
 EMSCRIPTEN_KEEPALIVE
 void physics_applyForce(uint32_t entityId, float forceX, float forceY) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
 
     b2Vec2 center = b2Body_GetPosition(it->second);
@@ -535,8 +540,8 @@ void physics_applyForce(uint32_t entityId, float forceX, float forceY) {
 
 EMSCRIPTEN_KEEPALIVE
 void physics_applyImpulse(uint32_t entityId, float impulseX, float impulseY) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
 
     b2Vec2 center = b2Body_GetPosition(it->second);
@@ -545,8 +550,8 @@ void physics_applyImpulse(uint32_t entityId, float impulseX, float impulseY) {
 
 EMSCRIPTEN_KEEPALIVE
 void physics_setLinearVelocity(uint32_t entityId, float vx, float vy) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
 
     b2Body_SetLinearVelocity(it->second, {vx, vy});
@@ -554,75 +559,75 @@ void physics_setLinearVelocity(uint32_t entityId, float vx, float vy) {
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getLinearVelocity(uint32_t entityId) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) {
-        g_velocityBuffer[0] = 0;
-        g_velocityBuffer[1] = 0;
-        return reinterpret_cast<uintptr_t>(g_velocityBuffer);
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) {
+        g_ctx.velocityBuffer[0] = 0;
+        g_ctx.velocityBuffer[1] = 0;
+        return reinterpret_cast<uintptr_t>(g_ctx.velocityBuffer);
     }
     if (!b2Body_IsValid(it->second)) {
-        g_velocityBuffer[0] = 0;
-        g_velocityBuffer[1] = 0;
-        return reinterpret_cast<uintptr_t>(g_velocityBuffer);
+        g_ctx.velocityBuffer[0] = 0;
+        g_ctx.velocityBuffer[1] = 0;
+        return reinterpret_cast<uintptr_t>(g_ctx.velocityBuffer);
     }
 
     b2Vec2 v = b2Body_GetLinearVelocity(it->second);
-    g_velocityBuffer[0] = v.x;
-    g_velocityBuffer[1] = v.y;
-    return reinterpret_cast<uintptr_t>(g_velocityBuffer);
+    g_ctx.velocityBuffer[0] = v.x;
+    g_ctx.velocityBuffer[1] = v.y;
+    return reinterpret_cast<uintptr_t>(g_ctx.velocityBuffer);
 }
 
 // Gravity
 
 EMSCRIPTEN_KEEPALIVE
 void physics_setGravity(float gx, float gy) {
-    if (!b2World_IsValid(g_worldId)) return;
-    b2World_SetGravity(g_worldId, {gx, gy});
+    if (!b2World_IsValid(g_ctx.worldId)) return;
+    b2World_SetGravity(g_ctx.worldId, {gx, gy});
 }
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getGravity() {
-    if (!b2World_IsValid(g_worldId)) {
-        g_gravityBuffer[0] = 0;
-        g_gravityBuffer[1] = 0;
-        return reinterpret_cast<uintptr_t>(g_gravityBuffer);
+    if (!b2World_IsValid(g_ctx.worldId)) {
+        g_ctx.gravityBuffer[0] = 0;
+        g_ctx.gravityBuffer[1] = 0;
+        return reinterpret_cast<uintptr_t>(g_ctx.gravityBuffer);
     }
-    b2Vec2 g = b2World_GetGravity(g_worldId);
-    g_gravityBuffer[0] = g.x;
-    g_gravityBuffer[1] = g.y;
-    return reinterpret_cast<uintptr_t>(g_gravityBuffer);
+    b2Vec2 g = b2World_GetGravity(g_ctx.worldId);
+    g_ctx.gravityBuffer[0] = g.x;
+    g_ctx.gravityBuffer[1] = g.y;
+    return reinterpret_cast<uintptr_t>(g_ctx.gravityBuffer);
 }
 
 // Angular Velocity / Torque
 
 EMSCRIPTEN_KEEPALIVE
 void physics_setAngularVelocity(uint32_t entityId, float omega) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
     b2Body_SetAngularVelocity(it->second, omega);
 }
 
 EMSCRIPTEN_KEEPALIVE
 float physics_getAngularVelocity(uint32_t entityId) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return 0;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return 0;
     if (!b2Body_IsValid(it->second)) return 0;
     return b2Body_GetAngularVelocity(it->second);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_applyTorque(uint32_t entityId, float torque) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
     b2Body_ApplyTorque(it->second, torque, true);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_applyAngularImpulse(uint32_t entityId, float impulse) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
     b2Body_ApplyAngularImpulse(it->second, impulse, true);
 }
@@ -633,8 +638,8 @@ EMSCRIPTEN_KEEPALIVE
 void physics_updateBodyProperties(uint32_t entityId, int bodyType,
                                   float gravityScale, float linearDamping, float angularDamping,
                                   int fixedRotation, int bullet) {
-    auto it = g_entityToBody.find(entityId);
-    if (it == g_entityToBody.end()) return;
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
     if (!b2Body_IsValid(it->second)) return;
 
     b2BodyType type;
@@ -646,12 +651,12 @@ void physics_updateBodyProperties(uint32_t entityId, int bodyType,
     b2BodyType oldType = b2Body_GetType(it->second);
     b2Body_SetType(it->second, type);
     if (oldType != type) {
-        auto dit = std::find(g_dynamicBodyEntities.begin(), g_dynamicBodyEntities.end(), entityId);
-        if (type == b2_dynamicBody && dit == g_dynamicBodyEntities.end()) {
-            g_dynamicBodyEntities.push_back(entityId);
-        } else if (type != b2_dynamicBody && dit != g_dynamicBodyEntities.end()) {
-            *dit = g_dynamicBodyEntities.back();
-            g_dynamicBodyEntities.pop_back();
+        auto dit = std::find(g_ctx.dynamicBodyEntities.begin(), g_ctx.dynamicBodyEntities.end(), entityId);
+        if (type == b2_dynamicBody && dit == g_ctx.dynamicBodyEntities.end()) {
+            g_ctx.dynamicBodyEntities.push_back(entityId);
+        } else if (type != b2_dynamicBody && dit != g_ctx.dynamicBodyEntities.end()) {
+            *dit = g_ctx.dynamicBodyEntities.back();
+            g_ctx.dynamicBodyEntities.pop_back();
         }
     }
     b2Body_SetGravityScale(it->second, gravityScale);
@@ -673,11 +678,11 @@ int physics_createRevoluteJoint(uint32_t entityIdA, uint32_t entityIdB,
                                 int enableMotor, float motorSpeed, float maxMotorTorque,
                                 int enableLimit, float lowerAngle, float upperAngle,
                                 int collideConnected) {
-    if (!b2World_IsValid(g_worldId)) return 0;
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
 
-    auto itA = g_entityToBody.find(entityIdA);
-    auto itB = g_entityToBody.find(entityIdB);
-    if (itA == g_entityToBody.end() || itB == g_entityToBody.end()) return 0;
+    auto itA = g_ctx.entityToBody.find(entityIdA);
+    auto itB = g_ctx.entityToBody.find(entityIdB);
+    if (itA == g_ctx.entityToBody.end() || itB == g_ctx.entityToBody.end()) return 0;
     if (!b2Body_IsValid(itA->second) || !b2Body_IsValid(itB->second)) return 0;
 
     b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
@@ -693,81 +698,81 @@ int physics_createRevoluteJoint(uint32_t entityIdA, uint32_t entityIdB,
     jointDef.upperAngle = upperAngle;
     jointDef.base.collideConnected = collideConnected != 0;
 
-    b2JointId jointId = b2CreateRevoluteJoint(g_worldId, &jointDef);
-    g_entityToJoint[entityIdB] = jointId;
+    b2JointId jointId = b2CreateRevoluteJoint(g_ctx.worldId, &jointDef);
+    g_ctx.entityToJoint[entityIdB] = jointId;
     return 1;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_destroyJoint(uint32_t entityId) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return;
 
     if (b2Joint_IsValid(it->second)) {
         b2DestroyJoint(it->second, true);
     }
-    g_entityToJoint.erase(it);
+    g_ctx.entityToJoint.erase(it);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_setRevoluteMotorSpeed(uint32_t entityId, float speed) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return;
     if (!b2Joint_IsValid(it->second)) return;
     b2RevoluteJoint_SetMotorSpeed(it->second, speed);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_setRevoluteMaxMotorTorque(uint32_t entityId, float torque) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return;
     if (!b2Joint_IsValid(it->second)) return;
     b2RevoluteJoint_SetMaxMotorTorque(it->second, torque);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_enableRevoluteMotor(uint32_t entityId, int enable) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return;
     if (!b2Joint_IsValid(it->second)) return;
     b2RevoluteJoint_EnableMotor(it->second, enable != 0);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_enableRevoluteLimit(uint32_t entityId, int enable) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return;
     if (!b2Joint_IsValid(it->second)) return;
     b2RevoluteJoint_EnableLimit(it->second, enable != 0);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void physics_setRevoluteLimits(uint32_t entityId, float lower, float upper) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return;
     if (!b2Joint_IsValid(it->second)) return;
     b2RevoluteJoint_SetLimits(it->second, lower, upper);
 }
 
 EMSCRIPTEN_KEEPALIVE
 float physics_getRevoluteAngle(uint32_t entityId) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return 0;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return 0;
     if (!b2Joint_IsValid(it->second)) return 0;
     return b2RevoluteJoint_GetAngle(it->second);
 }
 
 EMSCRIPTEN_KEEPALIVE
 float physics_getRevoluteMotorTorque(uint32_t entityId) {
-    auto it = g_entityToJoint.find(entityId);
-    if (it == g_entityToJoint.end()) return 0;
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return 0;
     if (!b2Joint_IsValid(it->second)) return 0;
     return b2RevoluteJoint_GetMotorTorque(it->second);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int physics_hasJoint(uint32_t entityId) {
-    return g_entityToJoint.contains(entityId) ? 1 : 0;
+    return g_ctx.entityToJoint.contains(entityId) ? 1 : 0;
 }
 
 } // extern "C"
