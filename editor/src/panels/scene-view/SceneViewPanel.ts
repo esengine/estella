@@ -674,7 +674,7 @@ export class SceneViewPanel {
         this.drawStats(ctx, w, h);
         this.drawViewportPreview(ctx, w, h);
 
-        if (!this.store_.scene.entities.some(
+        if (!this.store_.isEditingPrefab && !this.store_.scene.entities.some(
             e => e.components.some(c => c.type === 'Camera'))) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.font = '14px system-ui, sans-serif';
