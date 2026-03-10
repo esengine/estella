@@ -216,6 +216,30 @@ fn parse_request(
             let selector = query_params.get("selector").cloned().unwrap_or_default();
             Ok(("getElementBounds".into(), json!({ "selector": selector })))
         }
+        ("POST", "/scene/create-entity") => {
+            let body = read_json_body(reader)?;
+            Ok(("createEntity".into(), body))
+        }
+        ("POST", "/scene/delete-entity") => {
+            let body = read_json_body(reader)?;
+            Ok(("deleteEntity".into(), body))
+        }
+        ("POST", "/scene/rename-entity") => {
+            let body = read_json_body(reader)?;
+            Ok(("renameEntity".into(), body))
+        }
+        ("POST", "/scene/reparent-entity") => {
+            let body = read_json_body(reader)?;
+            Ok(("reparentEntity".into(), body))
+        }
+        ("POST", "/scene/add-component") => {
+            let body = read_json_body(reader)?;
+            Ok(("addComponent".into(), body))
+        }
+        ("POST", "/scene/remove-component") => {
+            let body = read_json_body(reader)?;
+            Ok(("removeComponent".into(), body))
+        }
         ("POST", "/action/select") => {
             let body = read_json_body(reader)?;
             Ok(("selectEntity".into(), body))

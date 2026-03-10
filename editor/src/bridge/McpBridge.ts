@@ -10,6 +10,7 @@ import { getAllMenus, getMenuItems } from '../menus/MenuRegistry';
 import { getAllPanels } from '../panels/PanelRegistry';
 import { exportSettings, getSettingsValue } from '../settings/SettingsRegistry';
 import { PropertyCommand } from '../commands/PropertyCommand';
+import { getInitialComponentData } from '../schemas/ComponentSchemas';
 import type { SceneData, EntityData } from '../types/SceneTypes';
 import { RingBuffer } from './RingBuffer';
 
@@ -104,6 +105,12 @@ export class McpBridge {
             case 'getRenderStats': return this.getRenderStats_();
             case 'getElementBounds': return this.getElementBounds_(params.selector as string);
             case 'capture': return this.capture_(params);
+            case 'createEntity': return this.createEntity_(params);
+            case 'deleteEntity': return this.deleteEntity_(params);
+            case 'renameEntity': return this.renameEntity_(params);
+            case 'reparentEntity': return this.reparentEntity_(params);
+            case 'addComponent': return this.addComponent_(params);
+            case 'removeComponent': return this.removeComponent_(params);
             case 'selectEntity': return this.selectEntity_(params);
             case 'setProperty': return this.setProperty_(params);
             case 'executeMenu': return this.executeMenu_(params.id as string);
@@ -337,6 +344,88 @@ export class McpBridge {
         } catch {
             throw new Error(`Failed to capture panel: ${panelId}. html2canvas may not be available.`);
         }
+    }
+
+    // =========================================================================
+    // Entity CRUD
+    // =========================================================================
+
+    private createEntity_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const name = (params.name as string) ?? 'Entity';
+        const parentRef = params.parent;
+        const parent = parentRef == null ? null
+            : typeof parentRef === 'string' ? this.resolveEntityByName_(parentRef)
+            : parentRef as number;
+        const entity = store.createEntity(name, parent);
+
+        const components = params.components as Array<{ type: string; data?: Record<string, unknown> }> | undefined;
+        if (components) {
+            for (const comp of components) {
+                const defaults = getInitialComponentData(comp.type);
+                store.addComponent(entity, comp.type, { ...defaults, ...comp.data });
+            }
+        }
+
+        getSharedRenderContext().requestRender();
+        return { ok: true, entityId: entity };
+    }
+
+    private deleteEntity_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const id = this.resolveEntity_(params.id as number | undefined, params.name as string | undefined);
+        if (id == null) throw new Error('Entity not found');
+        store.deleteEntity(id);
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private renameEntity_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const id = this.resolveEntity_(params.id as number | undefined, params.name as string | undefined);
+        if (id == null) throw new Error('Entity not found');
+        const newName = params.newName as string;
+        if (!newName) throw new Error('newName is required');
+        store.renameEntity(id, newName);
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private reparentEntity_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const id = this.resolveEntity_(params.id as number | undefined, params.name as string | undefined);
+        if (id == null) throw new Error('Entity not found');
+        const parentRef = params.newParent;
+        const newParent = parentRef == null ? null
+            : typeof parentRef === 'string' ? this.resolveEntityByName_(parentRef)
+            : parentRef as number;
+        store.reparentEntity(id, newParent);
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private addComponent_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const id = this.resolveEntity_(params.id as number | undefined, params.name as string | undefined);
+        if (id == null) throw new Error('Entity not found');
+        const componentType = params.component as string;
+        if (!componentType) throw new Error('component type is required');
+        const defaults = getInitialComponentData(componentType);
+        const data = params.data as Record<string, unknown> | undefined;
+        store.addComponent(id, componentType, { ...defaults, ...data });
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private removeComponent_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const id = this.resolveEntity_(params.id as number | undefined, params.name as string | undefined);
+        if (id == null) throw new Error('Entity not found');
+        const componentType = params.component as string;
+        if (!componentType) throw new Error('component type is required');
+        store.removeComponent(id, componentType);
+        getSharedRenderContext().requestRender();
+        return { ok: true };
     }
 
     // =========================================================================

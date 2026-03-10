@@ -48,4 +48,100 @@ export function registerSceneTools(
             return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
         },
     );
+
+    server.tool(
+        'create_entity',
+        'Create a new entity in the scene, optionally with components',
+        {
+            name: z.string().optional().describe('Entity name (default: "Entity")'),
+            parent: z.union([z.number(), z.string()]).optional().describe('Parent entity ID or name'),
+            components: z.array(z.object({
+                type: z.string().describe('Component type (e.g., "Transform", "Sprite")'),
+                data: z.record(z.unknown()).optional().describe('Component data overrides'),
+            })).optional().describe('Components to add (defaults are auto-filled)'),
+        },
+        async (args: { name?: string; parent?: number | string; components?: Array<{ type: string; data?: Record<string, unknown> }> }) => {
+            const result = await bridge.post('/scene/create-entity', args);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'delete_entity',
+        'Delete an entity from the scene',
+        {
+            entity: z.union([z.number(), z.string()]).describe('Entity ID or name'),
+        },
+        async (args: { entity: number | string }) => {
+            const body = typeof args.entity === 'number' ? { id: args.entity } : { name: args.entity };
+            const result = await bridge.post('/scene/delete-entity', body);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'rename_entity',
+        'Rename an entity',
+        {
+            entity: z.union([z.number(), z.string()]).describe('Entity ID or current name'),
+            newName: z.string().describe('New name for the entity'),
+        },
+        async (args: { entity: number | string; newName: string }) => {
+            const body = typeof args.entity === 'number'
+                ? { id: args.entity, newName: args.newName }
+                : { name: args.entity, newName: args.newName };
+            const result = await bridge.post('/scene/rename-entity', body);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'reparent_entity',
+        'Move an entity under a new parent (or to root if newParent is null)',
+        {
+            entity: z.union([z.number(), z.string()]).describe('Entity ID or name'),
+            newParent: z.union([z.number(), z.string()]).nullable().describe('New parent entity ID/name, or null for root'),
+        },
+        async (args: { entity: number | string; newParent: number | string | null }) => {
+            const body: Record<string, unknown> = { newParent: args.newParent };
+            if (typeof args.entity === 'number') body.id = args.entity;
+            else body.name = args.entity;
+            const result = await bridge.post('/scene/reparent-entity', body);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'add_component',
+        'Add a component to an entity (defaults are auto-filled)',
+        {
+            entity: z.union([z.number(), z.string()]).describe('Entity ID or name'),
+            component: z.string().describe('Component type (e.g., "Transform", "Sprite", "RigidBody")'),
+            data: z.record(z.unknown()).optional().describe('Component data overrides'),
+        },
+        async (args: { entity: number | string; component: string; data?: Record<string, unknown> }) => {
+            const body: Record<string, unknown> = { component: args.component };
+            if (typeof args.entity === 'number') body.id = args.entity;
+            else body.name = args.entity;
+            if (args.data) body.data = args.data;
+            const result = await bridge.post('/scene/add-component', body);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'remove_component',
+        'Remove a component from an entity',
+        {
+            entity: z.union([z.number(), z.string()]).describe('Entity ID or name'),
+            component: z.string().describe('Component type to remove'),
+        },
+        async (args: { entity: number | string; component: string }) => {
+            const body: Record<string, unknown> = { component: args.component };
+            if (typeof args.entity === 'number') body.id = args.entity;
+            else body.name = args.entity;
+            const result = await bridge.post('/scene/remove-component', body);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
 }
