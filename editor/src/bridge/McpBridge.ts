@@ -298,8 +298,9 @@ export class McpBridge {
         if (!el) throw new Error(`Panel not found: ${panelId}`);
 
         try {
+            const modName = 'html2' + 'canvas';
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const mod = await import(/* webpackIgnore: true */ /* @vite-ignore */ 'html2canvas' as any) as any;
+            const mod = await (Function('m', 'return import(m)') as (m: string) => Promise<any>)(modName);
             const html2canvas = mod.default ?? mod;
             const canvas = await html2canvas(el, {
                 scale: 1,
