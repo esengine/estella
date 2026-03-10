@@ -477,26 +477,37 @@ class EmbindGenerator:
 
             if needs_wrap:
                 lines.append(f'        .function("get{name}", optional_override([](Registry& r, u32 e) {{')
-                lines.append(f'            return {to_js}(r.get<{full}>(static_cast<Entity>(e)));')
+                lines.append(f'            auto entity = static_cast<Entity>(e);')
+                lines.append(f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return {js}{{}};')
+                lines.append(f'            return {to_js}(r.get<{full}>(entity));')
                 lines.append('        }))')
                 lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {js}& js) {{')
-                lines.append(f'            r.emplaceOrReplace<{full}>(static_cast<Entity>(e), {from_js}(js));')
+                lines.append(f'            auto entity = static_cast<Entity>(e);')
+                lines.append(f'            if (!r.valid(entity)) return;')
+                lines.append(f'            r.emplaceOrReplace<{full}>(entity, {from_js}(js));')
                 lines.append('        }))')
             else:
                 lines.append(f'        .function("get{name}", optional_override([](Registry& r, u32 e) -> {full}& {{')
+                lines.append(f'            auto entity = static_cast<Entity>(e);')
+                lines.append(f'            static {full} s_dummy{{}};')
+                lines.append(f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return s_dummy;')
                 if name == 'Transform':
-                    lines.append(f'            auto& t = r.get<{full}>(static_cast<Entity>(e));')
+                    lines.append(f'            auto& t = r.get<{full}>(entity);')
                     lines.append(f'            t.ensureDecomposed();')
                     lines.append(f'            return t;')
                 else:
-                    lines.append(f'            return r.get<{full}>(static_cast<Entity>(e));')
+                    lines.append(f'            return r.get<{full}>(entity);')
                 lines.append('        }), allow_raw_pointers())')
                 lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {full}& c) {{')
-                lines.append(f'            r.emplaceOrReplace<{full}>(static_cast<Entity>(e), c);')
+                lines.append(f'            auto entity = static_cast<Entity>(e);')
+                lines.append(f'            if (!r.valid(entity)) return;')
+                lines.append(f'            r.emplaceOrReplace<{full}>(entity, c);')
                 lines.append('        }))')
 
             lines.append(f'        .function("remove{name}", optional_override([](Registry& r, u32 e) {{')
-            lines.append(f'            r.remove<{full}>(static_cast<Entity>(e));')
+            lines.append(f'            auto entity = static_cast<Entity>(e);')
+            lines.append(f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return;')
+            lines.append(f'            r.remove<{full}>(entity);')
             lines.append('        }))')
             lines.append('')
 
