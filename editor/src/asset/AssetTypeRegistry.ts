@@ -67,17 +67,7 @@ export function getDroppableTypes(): Set<string> {
     return result;
 }
 
-export function getDisplayType(editorType: string): string {
-    return getEditorContainer().get(ASSET_EDITOR_TYPE, editorType) ?? editorType;
-}
-
-export function getAssetTypeIcon(displayType: string, size: number = 16): string {
-    const desc = getEditorContainer().get(ASSET_TYPE, displayType);
-    if (desc) {
-        return desc.icon(size);
-    }
-    return icons.file(size);
-}
+export { getDisplayType, getAssetTypeIcon } from './AssetTypeLookup';
 
 export function getAssetTypeDisplayName(displayType: string): string {
     const desc = getEditorContainer().get(ASSET_TYPE, displayType);
