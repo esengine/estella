@@ -502,6 +502,7 @@ interface ESEngineModule {
     spine_getSkins?(entity: number): string[];
     spine_setNeedsReload?(registry: CppRegistry, entity: number, value: boolean): void;
     renderer_submitSpineBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number): void;
+    renderer_submitSpineBatchByEntity?(registry: CppRegistry, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number): void;
     invalidateMaterialCache(materialId: number): void;
     clearMaterialCache(): void;
     draw_begin(matrixPtr: number): void;

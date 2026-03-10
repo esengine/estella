@@ -154,6 +154,35 @@ void renderer_submitSpineBatch(
         textureId, blendMode, transform, entity, layer, depth);
 }
 
+void renderer_submitSpineBatchByEntity(
+    ecs::Registry& registry,
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, i32 blendMode,
+    Entity entity, f32 skelScale, bool flipX, bool flipY,
+    i32 layer, f32 depth
+) {
+    if (!g_initialized || !g_renderFrame) return;
+    if (!registry.has<ecs::Transform>(entity)) return;
+
+    auto& t = registry.get<ecs::Transform>(entity);
+    t.ensureDecomposed();
+
+    glm::vec3 s = t.worldScale * skelScale;
+    if (flipX) s.x = -s.x;
+    if (flipY) s.y = -s.y;
+
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), t.worldPosition)
+                     * glm::mat4_cast(t.worldRotation)
+                     * glm::scale(glm::mat4(1.0f), s);
+
+    auto* vertices = reinterpret_cast<const f32*>(verticesPtr);
+    auto* indices = reinterpret_cast<const u16*>(indicesPtr);
+    g_renderFrame->submitSpineBatch(
+        vertices, vertexCount, indices, indexCount,
+        textureId, blendMode, &model[0][0], entity, layer, depth);
+}
+
 void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value) {
     if (!registry.has<ecs::SpineAnimation>(entity)) return;
     auto& comp = registry.get<ecs::SpineAnimation>(entity);
