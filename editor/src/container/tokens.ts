@@ -64,3 +64,4 @@ export const RUNTIME_SERVICE = new ServiceToken<any>('RUNTIME_SERVICE');
 export const MULTI_WINDOW_SERVICE = new ServiceToken<any>('MULTI_WINDOW_SERVICE');
 export const PROJECT_SERVICE = new ServiceToken<any>('PROJECT_SERVICE');
 export const PLUGIN_MANAGER = new ServiceToken<any>('PLUGIN_MANAGER');
+export const GAME_VIEW_SERVICE = new ServiceToken<any>('GAME_VIEW_SERVICE');

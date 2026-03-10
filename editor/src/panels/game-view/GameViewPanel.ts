@@ -8,6 +8,8 @@ import { getPlayModeService } from '../../services/PlayModeService';
 import { Audio } from 'esengine';
 import { Physics } from 'esengine/physics';
 import { DisposableStore } from '../../utils/Disposable';
+import { getEditorContainer } from '../../container';
+import { GAME_VIEW_SERVICE } from '../../container/tokens';
 
 export interface GameViewPanelOptions {
     projectPath?: string;
@@ -58,6 +60,8 @@ export class GameViewPanel implements PanelInstance {
 
         this.buildUI();
         this.initGameRenderer();
+
+        getEditorContainer().provide(GAME_VIEW_SERVICE, 'default', this);
     }
 
     resize(): void {
@@ -134,7 +138,11 @@ export class GameViewPanel implements PanelInstance {
         }
     }
 
-    private async play(): Promise<void> {
+    get gameState(): GameState {
+        return this.gameManager_.state;
+    }
+
+    async play(): Promise<void> {
         const service = getPlayModeService();
         await service.enter();
         this.gameManager_.setState('playing');
@@ -145,12 +153,12 @@ export class GameViewPanel implements PanelInstance {
         this.setupInput();
     }
 
-    private pause(): void {
+    pause(): void {
         getSharedRenderContext().pausePlay();
         this.gameManager_.pause();
     }
 
-    private resume(): void {
+    resume(): void {
         getSharedRenderContext().resumePlay();
         this.gameManager_.resume();
     }
@@ -164,7 +172,7 @@ export class GameViewPanel implements PanelInstance {
         }
     }
 
-    private async stop(): Promise<void> {
+    async stop(): Promise<void> {
         this.cleanupInput();
         if (this.gameRenderer_) {
             this.gameRenderer_.setVisible(false);
