@@ -200,10 +200,13 @@ export class AssetServer {
         const rm = this.module_.getResourceManager();
         for (const flip of [true, false]) {
             const key = this.textureCacheKey(source, flip);
+            const refCount = this.textureRefCounts_.get(key);
+            if (refCount === undefined) continue;
+
             const info = this.textureCache_.get(key);
             if (!info) continue;
 
-            const count = (this.textureRefCounts_.get(key) ?? 1) - 1;
+            const count = refCount - 1;
             if (count <= 0) {
                 rm.releaseTexture(info.handle);
                 this.textureCache_.delete(key);
