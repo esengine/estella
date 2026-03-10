@@ -40,9 +40,36 @@ import { Aside } from '@astrojs/starlight/components';
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `fps` | number | `12` | 每秒帧数 |
+| `fps` | number | `12` | 每秒帧数（作为所有帧的默认值） |
 | `loop` | boolean | `true` | 循环播放 |
-| `frames` | array | — | 纹理引用列表 |
+| `frames` | array | — | 帧对象列表 |
+| `frames[].texture` | string | — | 纹理路径或 UUID |
+| `frames[].duration` | number | — | 可选的逐帧时长（秒）。设置后覆盖该帧的 `fps`。 |
+
+### 逐帧时长
+
+默认情况下，每帧使用由 `fps` 得出的统一时长。要让个别帧更长或更短，添加 `duration` 字段（单位：秒）：
+
+```json
+{
+    "version": "1.0",
+    "type": "animation-clip",
+    "fps": 12,
+    "loop": true,
+    "frames": [
+        { "texture": "assets/attack_01.png" },
+        { "texture": "assets/attack_02.png", "duration": 0.5 },
+        { "texture": "assets/attack_03.png" },
+        { "texture": "assets/attack_04.png", "duration": 0.05 }
+    ]
+}
+```
+
+未设置 `duration` 的帧回退到 `1 / (fps * speed)`。`SpriteAnimator.speed` 倍率仍然适用于逐帧时长。
+
+<Aside type="note">
+在编辑器中，AnimClip 检查器的每帧都有一个时长输入框。留空则使用全局 FPS。
+</Aside>
 
 ## 编辑器工作流
 

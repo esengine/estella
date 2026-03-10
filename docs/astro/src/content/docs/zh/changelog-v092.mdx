@@ -1,0 +1,53 @@
+---
+title: v0.9.2
+description: ESEngine v0.9.2 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.9.2 专注于物理、渲染和编辑器子系统的稳定性与正确性修复，并新增精灵动画逐帧时长功能。
+</Aside>
+
+## 精灵动画逐帧时长
+
+精灵动画片段现在支持为每帧设置可选的 `duration`（秒）。设置后会覆盖该帧的全局 `fps`，实现变速动画 — 定格帧、快速打击、戏剧性停顿 — 无需拆分成多个片段。
+
+- 向后兼容：未设置逐帧时长的片段行为不变
+- 编辑器：AnimClip 检查器中每帧现在有一个时长输入框
+- `animator.speed` 仍然作为乘数应用于任何时长
+
+## 物理：碰撞事件缓冲区修复
+
+碰撞事件缓冲区（`collisionEnter`、`collisionExit`、`sensorEnter`、`sensorExit`）现在在 `physics_step()` 开始时清除，而不是在 `physics_collectEvents()` 中清除。这防止了物理步进产生多个子步时，旧碰撞事件泄漏到下一帧。
+
+## WASM 绑定输入校验
+
+EHT 生成的所有组件 getter/setter 绑定现在在访问组件前会校验实体是否存在。此前，从 JavaScript 传入无效或已销毁的实体 ID 会导致 WASM 模块崩溃。修复涵盖：
+
+- 所有 C++ 组件的生成绑定（get/add/remove）
+- Tilemap 绑定（setTile、getTile、fillRect 等）
+- `uiTree_markDirty` 和 `physics_createBody`
+- EHT 代码生成器（`eht.py`）已更新，后续重新生成自动包含校验
+
+## 资源地址唯一性
+
+`AssetDatabase.updateMeta()` 现在在分配已被其他资源使用的地址时会抛出错误。AddressablePanel 和 AssetInspector 捕获此错误并向用户显示反馈，防止静默的地址冲突导致运行时资源查找错误。
+
+## 预览服务器错误提示
+
+当预览服务器启动失败时（如端口冲突、权限不足），错误现在会以错误 Toast 形式传递到 UI，而不是被静默吞掉。此前 `PreviewManager` 捕获错误后返回 `null`，用户无法知道预览为何失败。
+
+## 场景切换错误传播
+
+渐变式场景切换现在在加载失败时会正确地 reject Promise，而不是静默 resolve 并仅输出 `console.error`。`TransitionState` 接口新增了 `reject` 回调，确保 `transitionTo()` 的调用者能捕获并处理切换失败。
+
+## 循环预制体检测
+
+`AssetDependencyAnalyzer` 现在使用基于 UUID 的循环追踪（而非基于路径），防止路径别名绕过循环依赖检测。此外，`PrefabDependencyTracker.registerDependency()` 现在在添加边之前检查循环，发现循环预制体引用时记录警告并拒绝。
+
+## Bug 修复
+
+- 修复精灵翻转参数变更时纹理引用计数泄漏 — `releaseTexture()` 不再对未曾加载的翻转变体进行错误的引用计数递减
+- 修复 SpineModuleLoader 的 Vite `dynamic import cannot be analyzed` 警告，通过在 terser 压缩中保留 `@vite-ignore` 注释
+- 修复独立物理 WASM 模块中 `INVALID_ENTITY` 未定义导致的 CI 构建失败
