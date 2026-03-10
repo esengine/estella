@@ -51,6 +51,7 @@ jobs:
           cp docs/landing/editor-screenshot.png docs/dist/editor-screenshot.png
           cp docs/landing/robots.txt docs/dist/robots.txt
           cp docs/landing/og-image.png docs/dist/og-image.png
+          cp docs/landing/google2e8afd225a55d3bb.html docs/dist/google2e8afd225a55d3bb.html
           echo 'estellaengine.com' > docs/dist/CNAME
           touch docs/dist/.nojekyll
 
