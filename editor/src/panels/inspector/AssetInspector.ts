@@ -134,7 +134,12 @@ export function renderAddressableSection(container: HTMLElement, assetPath: stri
 
     const addressInput = section.querySelector('.es-addr-inspector-address') as HTMLInputElement;
     addressInput?.addEventListener('change', async () => {
-        await db.updateMeta(entry.uuid, { address: addressInput.value || null });
+        try {
+            await db.updateMeta(entry.uuid, { address: addressInput.value || null });
+        } catch (err) {
+            addressInput.value = entry.address ?? '';
+            console.warn(err instanceof Error ? err.message : String(err));
+        }
     });
 
     section.querySelectorAll('.es-addr-inspector-labels input[type="checkbox"]').forEach(cb => {

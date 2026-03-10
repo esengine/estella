@@ -226,6 +226,12 @@ export class AssetDatabase {
         if (!entry || !this.fs_) return;
 
         if (updates.address !== undefined) {
+            if (updates.address && updates.address !== entry.address) {
+                const existing = this.addressToUuid_.get(updates.address);
+                if (existing && existing !== uuid) {
+                    throw new Error(`Address "${updates.address}" is already assigned to another asset (${existing}).`);
+                }
+            }
             if (entry.address) {
                 this.addressToUuid_.delete(entry.address);
             }

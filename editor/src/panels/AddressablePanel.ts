@@ -827,8 +827,12 @@ export class AddressablePanel implements PanelInstance {
                             defaultValue: entry.address ?? '',
                         });
                         if (addr === null) return;
-                        await db.updateMeta(uuid, { address: addr || null });
-                        this.renderAssetTable();
+                        try {
+                            await db.updateMeta(uuid, { address: addr || null });
+                            this.renderAssetTable();
+                        } catch (err) {
+                            showErrorToast(err instanceof Error ? err.message : String(err));
+                        }
                     },
                 },
                 {
