@@ -119,6 +119,7 @@ void physics_createBody(uint32_t entityId, int bodyType, float x, float y, float
                         float gravityScale, float linearDamping, float angularDamping,
                         int fixedRotation, int bullet) {
     if (!b2World_IsValid(g_worldId)) return;
+    if (entityId == static_cast<uint32_t>(INVALID_ENTITY)) return;
     if (g_entityToBody.contains(entityId)) return;
 
     b2BodyDef bodyDef = b2DefaultBodyDef();
@@ -355,6 +356,11 @@ EMSCRIPTEN_KEEPALIVE
 void physics_step(float dt) {
     if (!b2World_IsValid(g_worldId)) return;
 
+    g_collisionEnterBuffer.clear();
+    g_collisionExitBuffer.clear();
+    g_sensorEnterBuffer.clear();
+    g_sensorExitBuffer.clear();
+
     g_accumulator += dt;
 
     int steps = 0;
@@ -409,11 +415,6 @@ uintptr_t physics_getDynamicBodyTransforms() {
 
 EMSCRIPTEN_KEEPALIVE
 void physics_collectEvents() {
-    g_collisionEnterBuffer.clear();
-    g_collisionExitBuffer.clear();
-    g_sensorEnterBuffer.clear();
-    g_sensorExitBuffer.clear();
-
     if (!b2World_IsValid(g_worldId)) return;
 
     b2ContactEvents contactEvents = b2World_GetContactEvents(g_worldId);
