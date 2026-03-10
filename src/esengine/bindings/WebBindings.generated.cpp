@@ -873,13 +873,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::UIRect>(static_cast<Entity>(e));
         }))
         .function("getUIRect", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIRect& {
-            return r.get<esengine::ecs::UIRect>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::UIRect s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return s_dummy;
+            return r.get<esengine::ecs::UIRect>(entity);
         }), allow_raw_pointers())
         .function("addUIRect", optional_override([](Registry& r, u32 e, const esengine::ecs::UIRect& c) {
-            r.emplaceOrReplace<esengine::ecs::UIRect>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIRect>(entity, c);
         }))
         .function("removeUIRect", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::UIRect>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return;
+            r.remove<esengine::ecs::UIRect>(entity);
         }))
 
         // FlexItem
@@ -887,13 +894,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::FlexItem>(static_cast<Entity>(e));
         }))
         .function("getFlexItem", optional_override([](Registry& r, u32 e) -> esengine::ecs::FlexItem& {
-            return r.get<esengine::ecs::FlexItem>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::FlexItem s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return s_dummy;
+            return r.get<esengine::ecs::FlexItem>(entity);
         }), allow_raw_pointers())
         .function("addFlexItem", optional_override([](Registry& r, u32 e, const esengine::ecs::FlexItem& c) {
-            r.emplaceOrReplace<esengine::ecs::FlexItem>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::FlexItem>(entity, c);
         }))
         .function("removeFlexItem", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::FlexItem>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return;
+            r.remove<esengine::ecs::FlexItem>(entity);
         }))
 
         // BoxCollider
@@ -901,13 +915,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
         }))
         .function("getBoxCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::BoxCollider& {
-            return r.get<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::BoxCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::BoxCollider>(entity);
         }), allow_raw_pointers())
         .function("addBoxCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::BoxCollider& c) {
-            r.emplaceOrReplace<esengine::ecs::BoxCollider>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::BoxCollider>(entity, c);
         }))
         .function("removeBoxCollider", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return;
+            r.remove<esengine::ecs::BoxCollider>(entity);
         }))
 
         // CircleCollider
@@ -915,13 +936,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
         }))
         .function("getCircleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CircleCollider& {
-            return r.get<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::CircleCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::CircleCollider>(entity);
         }), allow_raw_pointers())
         .function("addCircleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CircleCollider& c) {
-            r.emplaceOrReplace<esengine::ecs::CircleCollider>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::CircleCollider>(entity, c);
         }))
         .function("removeCircleCollider", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return;
+            r.remove<esengine::ecs::CircleCollider>(entity);
         }))
 
         // CapsuleCollider
@@ -929,13 +957,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
         }))
         .function("getCapsuleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CapsuleCollider& {
-            return r.get<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::CapsuleCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::CapsuleCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::CapsuleCollider>(entity);
         }), allow_raw_pointers())
         .function("addCapsuleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CapsuleCollider& c) {
-            r.emplaceOrReplace<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::CapsuleCollider>(entity, c);
         }))
         .function("removeCapsuleCollider", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::CapsuleCollider>(entity)) return;
+            r.remove<esengine::ecs::CapsuleCollider>(entity);
         }))
 
         // SegmentCollider
@@ -943,13 +978,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
         }))
         .function("getSegmentCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::SegmentCollider& {
-            return r.get<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::SegmentCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::SegmentCollider>(entity);
         }), allow_raw_pointers())
         .function("addSegmentCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::SegmentCollider& c) {
-            r.emplaceOrReplace<esengine::ecs::SegmentCollider>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::SegmentCollider>(entity, c);
         }))
         .function("removeSegmentCollider", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return;
+            r.remove<esengine::ecs::SegmentCollider>(entity);
         }))
 
         // ParticleEmitter
@@ -957,13 +999,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
         }))
         .function("getParticleEmitter", optional_override([](Registry& r, u32 e) {
-            return particleemitterToJS(r.get<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleEmitter>(entity)) return ParticleEmitterJS{};
+            return particleemitterToJS(r.get<esengine::ecs::ParticleEmitter>(entity));
         }))
         .function("addParticleEmitter", optional_override([](Registry& r, u32 e, const ParticleEmitterJS& js) {
-            r.emplaceOrReplace<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e), particleemitterFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ParticleEmitter>(entity, particleemitterFromJS(js));
         }))
         .function("removeParticleEmitter", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleEmitter>(entity)) return;
+            r.remove<esengine::ecs::ParticleEmitter>(entity);
         }))
 
         // Transform
@@ -971,15 +1019,22 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Transform>(static_cast<Entity>(e));
         }))
         .function("getTransform", optional_override([](Registry& r, u32 e) -> esengine::ecs::Transform& {
-            auto& t = r.get<esengine::ecs::Transform>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Transform s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return s_dummy;
+            auto& t = r.get<esengine::ecs::Transform>(entity);
             t.ensureDecomposed();
             return t;
         }), allow_raw_pointers())
         .function("addTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::Transform& c) {
-            r.emplaceOrReplace<esengine::ecs::Transform>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Transform>(entity, c);
         }))
         .function("removeTransform", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Transform>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return;
+            r.remove<esengine::ecs::Transform>(entity);
         }))
 
         // UIRenderer
@@ -987,13 +1042,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
         }))
         .function("getUIRenderer", optional_override([](Registry& r, u32 e) {
-            return uirendererToJS(r.get<esengine::ecs::UIRenderer>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return UIRendererJS{};
+            return uirendererToJS(r.get<esengine::ecs::UIRenderer>(entity));
         }))
         .function("addUIRenderer", optional_override([](Registry& r, u32 e, const UIRendererJS& js) {
-            r.emplaceOrReplace<esengine::ecs::UIRenderer>(static_cast<Entity>(e), uirendererFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIRenderer>(entity, uirendererFromJS(js));
         }))
         .function("removeUIRenderer", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return;
+            r.remove<esengine::ecs::UIRenderer>(entity);
         }))
 
         // Velocity
@@ -1001,13 +1062,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Velocity>(static_cast<Entity>(e));
         }))
         .function("getVelocity", optional_override([](Registry& r, u32 e) -> esengine::ecs::Velocity& {
-            return r.get<esengine::ecs::Velocity>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Velocity s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Velocity>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Velocity>(entity);
         }), allow_raw_pointers())
         .function("addVelocity", optional_override([](Registry& r, u32 e, const esengine::ecs::Velocity& c) {
-            r.emplaceOrReplace<esengine::ecs::Velocity>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Velocity>(entity, c);
         }))
         .function("removeVelocity", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Velocity>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Velocity>(entity)) return;
+            r.remove<esengine::ecs::Velocity>(entity);
         }))
 
         // SpineAnimation
@@ -1015,13 +1083,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
         }))
         .function("getSpineAnimation", optional_override([](Registry& r, u32 e) -> esengine::ecs::SpineAnimation& {
-            return r.get<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::SpineAnimation s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::SpineAnimation>(entity)) return s_dummy;
+            return r.get<esengine::ecs::SpineAnimation>(entity);
         }), allow_raw_pointers())
         .function("addSpineAnimation", optional_override([](Registry& r, u32 e, const esengine::ecs::SpineAnimation& c) {
-            r.emplaceOrReplace<esengine::ecs::SpineAnimation>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::SpineAnimation>(entity, c);
         }))
         .function("removeSpineAnimation", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::SpineAnimation>(entity)) return;
+            r.remove<esengine::ecs::SpineAnimation>(entity);
         }))
 
         // Interactable
@@ -1029,13 +1104,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Interactable>(static_cast<Entity>(e));
         }))
         .function("getInteractable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Interactable& {
-            return r.get<esengine::ecs::Interactable>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Interactable s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Interactable>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Interactable>(entity);
         }), allow_raw_pointers())
         .function("addInteractable", optional_override([](Registry& r, u32 e, const esengine::ecs::Interactable& c) {
-            r.emplaceOrReplace<esengine::ecs::Interactable>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Interactable>(entity, c);
         }))
         .function("removeInteractable", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Interactable>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Interactable>(entity)) return;
+            r.remove<esengine::ecs::Interactable>(entity);
         }))
 
         // UIInteraction
@@ -1043,13 +1125,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
         }))
         .function("getUIInteraction", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIInteraction& {
-            return r.get<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::UIInteraction s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIInteraction>(entity)) return s_dummy;
+            return r.get<esengine::ecs::UIInteraction>(entity);
         }), allow_raw_pointers())
         .function("addUIInteraction", optional_override([](Registry& r, u32 e, const esengine::ecs::UIInteraction& c) {
-            r.emplaceOrReplace<esengine::ecs::UIInteraction>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIInteraction>(entity, c);
         }))
         .function("removeUIInteraction", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIInteraction>(entity)) return;
+            r.remove<esengine::ecs::UIInteraction>(entity);
         }))
 
         // RigidBody
@@ -1057,13 +1146,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::RigidBody>(static_cast<Entity>(e));
         }))
         .function("getRigidBody", optional_override([](Registry& r, u32 e) {
-            return rigidbodyToJS(r.get<esengine::ecs::RigidBody>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return RigidBodyJS{};
+            return rigidbodyToJS(r.get<esengine::ecs::RigidBody>(entity));
         }))
         .function("addRigidBody", optional_override([](Registry& r, u32 e, const RigidBodyJS& js) {
-            r.emplaceOrReplace<esengine::ecs::RigidBody>(static_cast<Entity>(e), rigidbodyFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::RigidBody>(entity, rigidbodyFromJS(js));
         }))
         .function("removeRigidBody", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::RigidBody>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return;
+            r.remove<esengine::ecs::RigidBody>(entity);
         }))
 
         // BitmapText
@@ -1071,13 +1166,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::BitmapText>(static_cast<Entity>(e));
         }))
         .function("getBitmapText", optional_override([](Registry& r, u32 e) {
-            return bitmaptextToJS(r.get<esengine::ecs::BitmapText>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::BitmapText>(entity)) return BitmapTextJS{};
+            return bitmaptextToJS(r.get<esengine::ecs::BitmapText>(entity));
         }))
         .function("addBitmapText", optional_override([](Registry& r, u32 e, const BitmapTextJS& js) {
-            r.emplaceOrReplace<esengine::ecs::BitmapText>(static_cast<Entity>(e), bitmaptextFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::BitmapText>(entity, bitmaptextFromJS(js));
         }))
         .function("removeBitmapText", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::BitmapText>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::BitmapText>(entity)) return;
+            r.remove<esengine::ecs::BitmapText>(entity);
         }))
 
         // Sprite
@@ -1085,13 +1186,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Sprite>(static_cast<Entity>(e));
         }))
         .function("getSprite", optional_override([](Registry& r, u32 e) {
-            return spriteToJS(r.get<esengine::ecs::Sprite>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return SpriteJS{};
+            return spriteToJS(r.get<esengine::ecs::Sprite>(entity));
         }))
         .function("addSprite", optional_override([](Registry& r, u32 e, const SpriteJS& js) {
-            r.emplaceOrReplace<esengine::ecs::Sprite>(static_cast<Entity>(e), spriteFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Sprite>(entity, spriteFromJS(js));
         }))
         .function("removeSprite", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Sprite>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return;
+            r.remove<esengine::ecs::Sprite>(entity);
         }))
 
         // UIMask
@@ -1099,13 +1206,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::UIMask>(static_cast<Entity>(e));
         }))
         .function("getUIMask", optional_override([](Registry& r, u32 e) {
-            return uimaskToJS(r.get<esengine::ecs::UIMask>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIMask>(entity)) return UIMaskJS{};
+            return uimaskToJS(r.get<esengine::ecs::UIMask>(entity));
         }))
         .function("addUIMask", optional_override([](Registry& r, u32 e, const UIMaskJS& js) {
-            r.emplaceOrReplace<esengine::ecs::UIMask>(static_cast<Entity>(e), uimaskFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIMask>(entity, uimaskFromJS(js));
         }))
         .function("removeUIMask", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::UIMask>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIMask>(entity)) return;
+            r.remove<esengine::ecs::UIMask>(entity);
         }))
 
         // FlexContainer
@@ -1113,13 +1226,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
         }))
         .function("getFlexContainer", optional_override([](Registry& r, u32 e) {
-            return flexcontainerToJS(r.get<esengine::ecs::FlexContainer>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexContainer>(entity)) return FlexContainerJS{};
+            return flexcontainerToJS(r.get<esengine::ecs::FlexContainer>(entity));
         }))
         .function("addFlexContainer", optional_override([](Registry& r, u32 e, const FlexContainerJS& js) {
-            r.emplaceOrReplace<esengine::ecs::FlexContainer>(static_cast<Entity>(e), flexcontainerFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::FlexContainer>(entity, flexcontainerFromJS(js));
         }))
         .function("removeFlexContainer", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexContainer>(entity)) return;
+            r.remove<esengine::ecs::FlexContainer>(entity);
         }))
 
         // Parent
@@ -1127,13 +1246,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
         }))
         .function("getParent", optional_override([](Registry& r, u32 e) -> esengine::ecs::Parent& {
-            return r.get<esengine::ecs::Parent>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Parent s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Parent>(entity);
         }), allow_raw_pointers())
         .function("addParent", optional_override([](Registry& r, u32 e, const esengine::ecs::Parent& c) {
-            r.emplaceOrReplace<esengine::ecs::Parent>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Parent>(entity, c);
         }))
         .function("removeParent", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Parent>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return;
+            r.remove<esengine::ecs::Parent>(entity);
         }))
 
         // Children
@@ -1141,13 +1267,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Children>(static_cast<Entity>(e));
         }))
         .function("getChildren", optional_override([](Registry& r, u32 e) -> esengine::ecs::Children& {
-            return r.get<esengine::ecs::Children>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Children s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Children>(entity);
         }), allow_raw_pointers())
         .function("addChildren", optional_override([](Registry& r, u32 e, const esengine::ecs::Children& c) {
-            r.emplaceOrReplace<esengine::ecs::Children>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Children>(entity, c);
         }))
         .function("removeChildren", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Children>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return;
+            r.remove<esengine::ecs::Children>(entity);
         }))
 
         // ShapeRenderer
@@ -1155,13 +1288,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
         }))
         .function("getShapeRenderer", optional_override([](Registry& r, u32 e) -> esengine::ecs::ShapeRenderer& {
-            return r.get<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::ShapeRenderer s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::ShapeRenderer>(entity)) return s_dummy;
+            return r.get<esengine::ecs::ShapeRenderer>(entity);
         }), allow_raw_pointers())
         .function("addShapeRenderer", optional_override([](Registry& r, u32 e, const esengine::ecs::ShapeRenderer& c) {
-            r.emplaceOrReplace<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ShapeRenderer>(entity, c);
         }))
         .function("removeShapeRenderer", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ShapeRenderer>(entity)) return;
+            r.remove<esengine::ecs::ShapeRenderer>(entity);
         }))
 
         // LayoutGroup
@@ -1169,13 +1309,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::LayoutGroup>(static_cast<Entity>(e));
         }))
         .function("getLayoutGroup", optional_override([](Registry& r, u32 e) {
-            return layoutgroupToJS(r.get<esengine::ecs::LayoutGroup>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::LayoutGroup>(entity)) return LayoutGroupJS{};
+            return layoutgroupToJS(r.get<esengine::ecs::LayoutGroup>(entity));
         }))
         .function("addLayoutGroup", optional_override([](Registry& r, u32 e, const LayoutGroupJS& js) {
-            r.emplaceOrReplace<esengine::ecs::LayoutGroup>(static_cast<Entity>(e), layoutgroupFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::LayoutGroup>(entity, layoutgroupFromJS(js));
         }))
         .function("removeLayoutGroup", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::LayoutGroup>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::LayoutGroup>(entity)) return;
+            r.remove<esengine::ecs::LayoutGroup>(entity);
         }))
 
         // ScreenSpace
@@ -1183,13 +1329,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
         }))
         .function("getScreenSpace", optional_override([](Registry& r, u32 e) -> esengine::ecs::ScreenSpace& {
-            return r.get<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::ScreenSpace s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::ScreenSpace>(entity)) return s_dummy;
+            return r.get<esengine::ecs::ScreenSpace>(entity);
         }), allow_raw_pointers())
         .function("addScreenSpace", optional_override([](Registry& r, u32 e, const esengine::ecs::ScreenSpace& c) {
-            r.emplaceOrReplace<esengine::ecs::ScreenSpace>(static_cast<Entity>(e), c);
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ScreenSpace>(entity, c);
         }))
         .function("removeScreenSpace", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ScreenSpace>(entity)) return;
+            r.remove<esengine::ecs::ScreenSpace>(entity);
         }))
 
         // Canvas
@@ -1197,13 +1350,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Canvas>(static_cast<Entity>(e));
         }))
         .function("getCanvas", optional_override([](Registry& r, u32 e) {
-            return canvasToJS(r.get<esengine::ecs::Canvas>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Canvas>(entity)) return CanvasJS{};
+            return canvasToJS(r.get<esengine::ecs::Canvas>(entity));
         }))
         .function("addCanvas", optional_override([](Registry& r, u32 e, const CanvasJS& js) {
-            r.emplaceOrReplace<esengine::ecs::Canvas>(static_cast<Entity>(e), canvasFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Canvas>(entity, canvasFromJS(js));
         }))
         .function("removeCanvas", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Canvas>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Canvas>(entity)) return;
+            r.remove<esengine::ecs::Canvas>(entity);
         }))
 
         // Camera
@@ -1211,13 +1370,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.has<esengine::ecs::Camera>(static_cast<Entity>(e));
         }))
         .function("getCamera", optional_override([](Registry& r, u32 e) {
-            return cameraToJS(r.get<esengine::ecs::Camera>(static_cast<Entity>(e)));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Camera>(entity)) return CameraJS{};
+            return cameraToJS(r.get<esengine::ecs::Camera>(entity));
         }))
         .function("addCamera", optional_override([](Registry& r, u32 e, const CameraJS& js) {
-            r.emplaceOrReplace<esengine::ecs::Camera>(static_cast<Entity>(e), cameraFromJS(js));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Camera>(entity, cameraFromJS(js));
         }))
         .function("removeCamera", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Camera>(static_cast<Entity>(e));
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Camera>(entity)) return;
+            r.remove<esengine::ecs::Camera>(entity);
         }))
 
         // Hierarchy Utilities

@@ -720,7 +720,9 @@ void uiTree_markStructureDirty() {
 }
 
 void uiTree_markDirty(u32 entity) {
-    ecs::uiTreeMarkDirty(static_cast<Entity>(entity));
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    ecs::uiTreeMarkDirty(e);
 }
 
 void uiTree_markAllDirty() {

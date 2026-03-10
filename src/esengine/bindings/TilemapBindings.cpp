@@ -31,32 +31,41 @@ static EngineContext& ctx() { return EngineContext::instance(); }
 
 void tilemap_initLayer(u32 entity, u32 width, u32 height,
                        f32 tileWidth, f32 tileHeight) {
-    s_tilemapSystem.initLayer(static_cast<Entity>(entity),
-                              width, height, tileWidth, tileHeight);
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    s_tilemapSystem.initLayer(e, width, height, tileWidth, tileHeight);
 }
 
 void tilemap_destroyLayer(u32 entity) {
-    s_tilemapSystem.destroyLayer(static_cast<Entity>(entity));
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    s_tilemapSystem.destroyLayer(e);
 }
 
 void tilemap_setTile(u32 entity, i32 x, i32 y, u32 tileId) {
-    s_tilemapSystem.setTile(static_cast<Entity>(entity),
-                            x, y, static_cast<u16>(tileId));
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    s_tilemapSystem.setTile(e, x, y, static_cast<u16>(tileId));
 }
 
 u32 tilemap_getTile(u32 entity, i32 x, i32 y) {
-    return s_tilemapSystem.getTile(static_cast<Entity>(entity), x, y);
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return 0;
+    return s_tilemapSystem.getTile(e, x, y);
 }
 
 void tilemap_fillRect(u32 entity, i32 x, i32 y,
                       u32 w, u32 h, u32 tileId) {
-    s_tilemapSystem.fillRect(static_cast<Entity>(entity),
-                             x, y, w, h, static_cast<u16>(tileId));
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    s_tilemapSystem.fillRect(e, x, y, w, h, static_cast<u16>(tileId));
 }
 
 void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
     const auto* tiles = reinterpret_cast<const u16*>(tilesPtr);
-    s_tilemapSystem.setTiles(static_cast<Entity>(entity), tiles, count);
+    s_tilemapSystem.setTiles(e, tiles, count);
 }
 
 bool tilemap_hasLayer(u32 entity) {
