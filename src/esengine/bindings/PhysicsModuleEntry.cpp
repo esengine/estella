@@ -31,7 +31,7 @@ struct PhysicsContext {
     float accumulator = 0.0f;
 
     std::unordered_map<uint32_t, b2BodyId> entityToBody;
-    std::unordered_map<uint32_t, b2ShapeId> entityToShape;
+    std::unordered_map<uint32_t, std::vector<b2ShapeId>> entityToShapes;
     std::unordered_map<uint32_t, b2JointId> entityToJoint;
     std::vector<uint32_t> dynamicBodyEntities;
 
@@ -47,7 +47,7 @@ struct PhysicsContext {
 
     void reset() {
         entityToBody.clear();
-        entityToShape.clear();
+        entityToShapes.clear();
         entityToJoint.clear();
         dynamicBodyEntities.clear();
         dynamicTransformBuffer.clear();
@@ -65,6 +65,13 @@ struct PhysicsContext {
 };
 
 static PhysicsContext g_ctx;
+
+static std::vector<float> g_raycastBuffer;
+static constexpr int RAYCAST_STRIDE = 6;
+static constexpr int MAX_RAYCAST_HITS = 64;
+
+static std::vector<float> g_overlapBuffer;
+static constexpr int MAX_OVERLAP_HITS = 64;
 
 // =============================================================================
 // Helper: Entity ID from body user data
@@ -168,7 +175,7 @@ void physics_destroyBody(uint32_t entityId) {
         b2DestroyBody(it->second);
     }
     g_ctx.entityToBody.erase(it);
-    g_ctx.entityToShape.erase(entityId);
+    g_ctx.entityToShapes.erase(entityId);
     auto dit = std::find(g_ctx.dynamicBodyEntities.begin(), g_ctx.dynamicBodyEntities.end(), entityId);
     if (dit != g_ctx.dynamicBodyEntities.end()) {
         *dit = g_ctx.dynamicBodyEntities.back();
@@ -210,7 +217,7 @@ void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
         polygon = b2MakeOffsetBox(halfW, halfH, {offX, offY}, b2MakeRot(0.0f));
     }
     b2ShapeId shapeId = b2CreatePolygonShape(it->second, &shapeDef, &polygon);
-    g_ctx.entityToShape[entityId] = shapeId;
+    g_ctx.entityToShapes[entityId].push_back(shapeId);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -236,7 +243,7 @@ void physics_addCircleShape(uint32_t entityId, float radius,
     circle.radius = radius;
 
     b2ShapeId shapeId = b2CreateCircleShape(it->second, &shapeDef, &circle);
-    g_ctx.entityToShape[entityId] = shapeId;
+    g_ctx.entityToShapes[entityId].push_back(shapeId);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -263,7 +270,7 @@ void physics_addCapsuleShape(uint32_t entityId, float radius, float halfHeight,
     capsule.radius = radius;
 
     b2ShapeId shapeId = b2CreateCapsuleShape(it->second, &shapeDef, &capsule);
-    g_ctx.entityToShape[entityId] = shapeId;
+    g_ctx.entityToShapes[entityId].push_back(shapeId);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -288,7 +295,7 @@ void physics_addSegmentShape(uint32_t entityId, float x1, float y1, float x2, fl
     segment.point2 = {x2, y2};
 
     b2ShapeId shapeId = b2CreateSegmentShape(it->second, &shapeDef, &segment);
-    g_ctx.entityToShape[entityId] = shapeId;
+    g_ctx.entityToShapes[entityId].push_back(shapeId);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -322,7 +329,7 @@ void physics_addPolygonShape(uint32_t entityId, uintptr_t verticesPtr, int verte
         ? b2MakePolygon(&hull, radius)
         : b2MakePolygon(&hull, 0.0f);
     b2ShapeId shapeId = b2CreatePolygonShape(it->second, &shapeDef, &polygon);
-    g_ctx.entityToShape[entityId] = shapeId;
+    g_ctx.entityToShapes[entityId].push_back(shapeId);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -773,6 +780,264 @@ float physics_getRevoluteMotorTorque(uint32_t entityId) {
 EMSCRIPTEN_KEEPALIVE
 int physics_hasJoint(uint32_t entityId) {
     return g_ctx.entityToJoint.contains(entityId) ? 1 : 0;
+}
+
+// Distance Joint
+
+EMSCRIPTEN_KEEPALIVE
+int physics_createDistanceJoint(uint32_t entityIdA, uint32_t entityIdB,
+                                float anchorAx, float anchorAy,
+                                float anchorBx, float anchorBy,
+                                float length, int enableSpring, float hertz, float dampingRatio,
+                                int enableLimit, float minLength, float maxLength,
+                                int enableMotor, float maxMotorForce, float motorSpeed,
+                                int collideConnected) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    auto itA = g_ctx.entityToBody.find(entityIdA);
+    auto itB = g_ctx.entityToBody.find(entityIdB);
+    if (itA == g_ctx.entityToBody.end() || itB == g_ctx.entityToBody.end()) return 0;
+    if (!b2Body_IsValid(itA->second) || !b2Body_IsValid(itB->second)) return 0;
+
+    b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
+    jointDef.base.bodyIdA = itA->second;
+    jointDef.base.bodyIdB = itB->second;
+    jointDef.base.localFrameA.p = {anchorAx, anchorAy};
+    jointDef.base.localFrameB.p = {anchorBx, anchorBy};
+    jointDef.length = length;
+    jointDef.enableSpring = enableSpring != 0;
+    jointDef.hertz = hertz;
+    jointDef.dampingRatio = dampingRatio;
+    jointDef.enableLimit = enableLimit != 0;
+    jointDef.minLength = minLength;
+    jointDef.maxLength = maxLength;
+    jointDef.enableMotor = enableMotor != 0;
+    jointDef.maxMotorForce = maxMotorForce;
+    jointDef.motorSpeed = motorSpeed;
+    jointDef.base.collideConnected = collideConnected != 0;
+
+    b2JointId jointId = b2CreateDistanceJoint(g_ctx.worldId, &jointDef);
+    g_ctx.entityToJoint[entityIdB] = jointId;
+    return 1;
+}
+
+// Prismatic Joint
+
+EMSCRIPTEN_KEEPALIVE
+int physics_createPrismaticJoint(uint32_t entityIdA, uint32_t entityIdB,
+                                 float anchorAx, float anchorAy,
+                                 float anchorBx, float anchorBy,
+                                 float axisX, float axisY,
+                                 int enableSpring, float hertz, float dampingRatio,
+                                 int enableLimit, float lowerTranslation, float upperTranslation,
+                                 int enableMotor, float maxMotorForce, float motorSpeed,
+                                 int collideConnected) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    auto itA = g_ctx.entityToBody.find(entityIdA);
+    auto itB = g_ctx.entityToBody.find(entityIdB);
+    if (itA == g_ctx.entityToBody.end() || itB == g_ctx.entityToBody.end()) return 0;
+    if (!b2Body_IsValid(itA->second) || !b2Body_IsValid(itB->second)) return 0;
+
+    b2PrismaticJointDef jointDef = b2DefaultPrismaticJointDef();
+    jointDef.base.bodyIdA = itA->second;
+    jointDef.base.bodyIdB = itB->second;
+    jointDef.base.localFrameA.p = {anchorAx, anchorAy};
+    jointDef.base.localFrameB.p = {anchorBx, anchorBy};
+
+    float len = sqrtf(axisX * axisX + axisY * axisY);
+    if (len > 0.0f) {
+        float nx = axisX / len;
+        float ny = axisY / len;
+        jointDef.base.localFrameA.q = {nx, ny};
+    }
+
+    jointDef.enableSpring = enableSpring != 0;
+    jointDef.hertz = hertz;
+    jointDef.dampingRatio = dampingRatio;
+    jointDef.enableLimit = enableLimit != 0;
+    jointDef.lowerTranslation = lowerTranslation;
+    jointDef.upperTranslation = upperTranslation;
+    jointDef.enableMotor = enableMotor != 0;
+    jointDef.maxMotorForce = maxMotorForce;
+    jointDef.motorSpeed = motorSpeed;
+    jointDef.base.collideConnected = collideConnected != 0;
+
+    b2JointId jointId = b2CreatePrismaticJoint(g_ctx.worldId, &jointDef);
+    g_ctx.entityToJoint[entityIdB] = jointId;
+    return 1;
+}
+
+// Weld Joint
+
+EMSCRIPTEN_KEEPALIVE
+int physics_createWeldJoint(uint32_t entityIdA, uint32_t entityIdB,
+                            float anchorAx, float anchorAy,
+                            float anchorBx, float anchorBy,
+                            float linearHertz, float angularHertz,
+                            float linearDampingRatio, float angularDampingRatio,
+                            int collideConnected) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    auto itA = g_ctx.entityToBody.find(entityIdA);
+    auto itB = g_ctx.entityToBody.find(entityIdB);
+    if (itA == g_ctx.entityToBody.end() || itB == g_ctx.entityToBody.end()) return 0;
+    if (!b2Body_IsValid(itA->second) || !b2Body_IsValid(itB->second)) return 0;
+
+    b2WeldJointDef jointDef = b2DefaultWeldJointDef();
+    jointDef.base.bodyIdA = itA->second;
+    jointDef.base.bodyIdB = itB->second;
+    jointDef.base.localFrameA.p = {anchorAx, anchorAy};
+    jointDef.base.localFrameB.p = {anchorBx, anchorBy};
+    jointDef.linearHertz = linearHertz;
+    jointDef.angularHertz = angularHertz;
+    jointDef.linearDampingRatio = linearDampingRatio;
+    jointDef.angularDampingRatio = angularDampingRatio;
+    jointDef.base.collideConnected = collideConnected != 0;
+
+    b2JointId jointId = b2CreateWeldJoint(g_ctx.worldId, &jointDef);
+    g_ctx.entityToJoint[entityIdB] = jointId;
+    return 1;
+}
+
+// Wheel Joint
+
+EMSCRIPTEN_KEEPALIVE
+int physics_createWheelJoint(uint32_t entityIdA, uint32_t entityIdB,
+                             float anchorAx, float anchorAy,
+                             float anchorBx, float anchorBy,
+                             float axisX, float axisY,
+                             int enableSpring, float hertz, float dampingRatio,
+                             int enableLimit, float lowerTranslation, float upperTranslation,
+                             int enableMotor, float maxMotorTorque, float motorSpeed,
+                             int collideConnected) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    auto itA = g_ctx.entityToBody.find(entityIdA);
+    auto itB = g_ctx.entityToBody.find(entityIdB);
+    if (itA == g_ctx.entityToBody.end() || itB == g_ctx.entityToBody.end()) return 0;
+    if (!b2Body_IsValid(itA->second) || !b2Body_IsValid(itB->second)) return 0;
+
+    b2WheelJointDef jointDef = b2DefaultWheelJointDef();
+    jointDef.base.bodyIdA = itA->second;
+    jointDef.base.bodyIdB = itB->second;
+    jointDef.base.localFrameA.p = {anchorAx, anchorAy};
+    jointDef.base.localFrameB.p = {anchorBx, anchorBy};
+
+    float len = sqrtf(axisX * axisX + axisY * axisY);
+    if (len > 0.0f) {
+        float nx = axisX / len;
+        float ny = axisY / len;
+        jointDef.base.localFrameA.q = {nx, ny};
+    }
+
+    jointDef.enableSpring = enableSpring != 0;
+    jointDef.hertz = hertz;
+    jointDef.dampingRatio = dampingRatio;
+    jointDef.enableLimit = enableLimit != 0;
+    jointDef.lowerTranslation = lowerTranslation;
+    jointDef.upperTranslation = upperTranslation;
+    jointDef.enableMotor = enableMotor != 0;
+    jointDef.maxMotorTorque = maxMotorTorque;
+    jointDef.motorSpeed = motorSpeed;
+    jointDef.base.collideConnected = collideConnected != 0;
+
+    b2JointId jointId = b2CreateWheelJoint(g_ctx.worldId, &jointDef);
+    g_ctx.entityToJoint[entityIdB] = jointId;
+    return 1;
+}
+
+// Raycasting
+
+static float raycastCallback(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal, float fraction, void* context) {
+    if (g_raycastBuffer.size() / RAYCAST_STRIDE >= MAX_RAYCAST_HITS) return 0.0f;
+
+    uint32_t entityId = entityFromShape(shapeId);
+    if (entityId == 0xFFFFFFFF) return 1.0f;
+
+    pushEntityBits(g_raycastBuffer, entityId);
+    g_raycastBuffer.push_back(point.x);
+    g_raycastBuffer.push_back(point.y);
+    g_raycastBuffer.push_back(normal.x);
+    g_raycastBuffer.push_back(normal.y);
+    g_raycastBuffer.push_back(fraction);
+
+    return 1.0f;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_raycast(float originX, float originY, float dirX, float dirY,
+                    float maxDistance, uint32_t maskBits) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    g_raycastBuffer.clear();
+
+    b2Vec2 origin = {originX, originY};
+    b2Vec2 translation = {dirX * maxDistance, dirY * maxDistance};
+
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    filter.maskBits = static_cast<uint64_t>(maskBits);
+
+    b2World_CastRay(g_ctx.worldId, origin, translation, filter, raycastCallback, nullptr);
+
+    return static_cast<int>(g_raycastBuffer.size() / RAYCAST_STRIDE);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics_getRaycastBuffer() {
+    return reinterpret_cast<uintptr_t>(g_raycastBuffer.data());
+}
+
+// Overlap Query
+
+static bool overlapCallback(b2ShapeId shapeId, void* context) {
+    if (g_overlapBuffer.size() >= MAX_OVERLAP_HITS) return false;
+
+    uint32_t entityId = entityFromShape(shapeId);
+    if (entityId == 0xFFFFFFFF) return true;
+
+    pushEntityBits(g_overlapBuffer, entityId);
+    return true;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_overlapCircle(float centerX, float centerY, float radius, uint32_t maskBits) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    g_overlapBuffer.clear();
+
+    b2Vec2 center = {centerX, centerY};
+    b2ShapeProxy proxy = b2MakeProxy(&center, 1, radius);
+
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    filter.maskBits = static_cast<uint64_t>(maskBits);
+
+    b2World_OverlapShape(g_ctx.worldId, &proxy, filter, overlapCallback, nullptr);
+
+    return static_cast<int>(g_overlapBuffer.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics_getOverlapBuffer() {
+    return reinterpret_cast<uintptr_t>(g_overlapBuffer.data());
+}
+
+// Sleep / Wake
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setAwake(uint32_t entityId, int awake) {
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
+    if (!b2Body_IsValid(it->second)) return;
+    b2Body_SetAwake(it->second, awake != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_isAwake(uint32_t entityId) {
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return 0;
+    if (!b2Body_IsValid(it->second)) return 0;
+    return b2Body_IsAwake(it->second) ? 1 : 0;
 }
 
 } // extern "C"

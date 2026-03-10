@@ -18,11 +18,12 @@ import {
 import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
     SegmentCollider, PolygonCollider, ChainCollider,
-    RevoluteJoint,
+    RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint,
     BodyType,
     type RigidBodyData, type BoxColliderData, type CircleColliderData,
     type CapsuleColliderData, type SegmentColliderData, type PolygonColliderData,
     type ChainColliderData, type RevoluteJointData,
+    type DistanceJointData, type PrismaticJointData, type WeldJointData, type WheelJointData,
 } from './PhysicsComponents';
 import { setupPhysicsDebugDraw, PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';
 
@@ -71,6 +72,13 @@ export const PhysicsEvents = defineResource<PhysicsEventsData>({
     sensorEnters: [],
     sensorExits: []
 }, 'PhysicsEvents');
+
+export interface RaycastHit {
+    entity: Entity;
+    point: Vec2;
+    normal: Vec2;
+    fraction: number;
+}
 
 export const PhysicsAPI = defineResource<Physics>(null!, 'PhysicsAPI');
 
@@ -309,7 +317,6 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
             box.density, box.friction, box.restitution, box.isSensor ? 1 : 0,
             category, mask
         );
-        return;
     }
 
     if (world.has(entity, CircleCollider)) {
@@ -322,7 +329,6 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
             circle.density, circle.friction, circle.restitution, circle.isSensor ? 1 : 0,
             category, mask
         );
-        return;
     }
 
     if (world.has(entity, CapsuleCollider)) {
@@ -335,7 +341,6 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
             capsule.density, capsule.friction, capsule.restitution, capsule.isSensor ? 1 : 0,
             category, mask
         );
-        return;
     }
 
     if (world.has(entity, SegmentCollider)) {
@@ -347,7 +352,6 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
             seg.density, seg.friction, seg.restitution, seg.isSensor ? 1 : 0,
             category, mask
         );
-        return;
     }
 
     if (world.has(entity, PolygonCollider)) {
@@ -369,7 +373,6 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
             category, mask
         );
         module._free(ptr);
-        return;
     }
 
     if (world.has(entity, ChainCollider)) {
@@ -403,20 +406,95 @@ function createPendingJoints(
     for (const entity of jointEntities) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-
         const joint = world.get(entity, RevoluteJoint) as RevoluteJointData;
         if (!joint.enabled) continue;
-
-        const connectedEntity = joint.connectedEntity as Entity;
-        if (!trackedEntities.has(connectedEntity)) continue;
-
+        const connected = joint.connectedEntity as Entity;
+        if (!trackedEntities.has(connected)) continue;
         module._physics_createRevoluteJoint(
-            connectedEntity, entity,
+            connected, entity,
             joint.anchorA.x * invPpu, joint.anchorA.y * invPpu,
             joint.anchorB.x * invPpu, joint.anchorB.y * invPpu,
             joint.enableMotor ? 1 : 0, joint.motorSpeed, joint.maxMotorTorque,
             joint.enableLimit ? 1 : 0, joint.lowerAngle, joint.upperAngle,
             joint.collideConnected ? 1 : 0,
+        );
+        trackedJoints.add(entity);
+    }
+
+    for (const entity of world.getEntitiesWithComponents([DistanceJoint, RigidBody])) {
+        if (trackedJoints.has(entity)) continue;
+        if (!trackedEntities.has(entity)) continue;
+        const j = world.get(entity, DistanceJoint) as DistanceJointData;
+        if (!j.enabled) continue;
+        const connected = j.connectedEntity as Entity;
+        if (!trackedEntities.has(connected)) continue;
+        module._physics_createDistanceJoint(
+            connected, entity,
+            j.anchorA.x * invPpu, j.anchorA.y * invPpu,
+            j.anchorB.x * invPpu, j.anchorB.y * invPpu,
+            j.length * invPpu,
+            j.enableSpring ? 1 : 0, j.hertz, j.dampingRatio,
+            j.enableLimit ? 1 : 0, j.minLength * invPpu, j.maxLength * invPpu,
+            j.enableMotor ? 1 : 0, j.maxMotorForce, j.motorSpeed,
+            j.collideConnected ? 1 : 0,
+        );
+        trackedJoints.add(entity);
+    }
+
+    for (const entity of world.getEntitiesWithComponents([PrismaticJoint, RigidBody])) {
+        if (trackedJoints.has(entity)) continue;
+        if (!trackedEntities.has(entity)) continue;
+        const j = world.get(entity, PrismaticJoint) as PrismaticJointData;
+        if (!j.enabled) continue;
+        const connected = j.connectedEntity as Entity;
+        if (!trackedEntities.has(connected)) continue;
+        module._physics_createPrismaticJoint(
+            connected, entity,
+            j.anchorA.x * invPpu, j.anchorA.y * invPpu,
+            j.anchorB.x * invPpu, j.anchorB.y * invPpu,
+            j.axis.x, j.axis.y,
+            j.enableSpring ? 1 : 0, j.hertz, j.dampingRatio,
+            j.enableLimit ? 1 : 0, j.lowerTranslation * invPpu, j.upperTranslation * invPpu,
+            j.enableMotor ? 1 : 0, j.maxMotorForce, j.motorSpeed,
+            j.collideConnected ? 1 : 0,
+        );
+        trackedJoints.add(entity);
+    }
+
+    for (const entity of world.getEntitiesWithComponents([WeldJoint, RigidBody])) {
+        if (trackedJoints.has(entity)) continue;
+        if (!trackedEntities.has(entity)) continue;
+        const j = world.get(entity, WeldJoint) as WeldJointData;
+        if (!j.enabled) continue;
+        const connected = j.connectedEntity as Entity;
+        if (!trackedEntities.has(connected)) continue;
+        module._physics_createWeldJoint(
+            connected, entity,
+            j.anchorA.x * invPpu, j.anchorA.y * invPpu,
+            j.anchorB.x * invPpu, j.anchorB.y * invPpu,
+            j.linearHertz, j.angularHertz,
+            j.linearDampingRatio, j.angularDampingRatio,
+            j.collideConnected ? 1 : 0,
+        );
+        trackedJoints.add(entity);
+    }
+
+    for (const entity of world.getEntitiesWithComponents([WheelJoint, RigidBody])) {
+        if (trackedJoints.has(entity)) continue;
+        if (!trackedEntities.has(entity)) continue;
+        const j = world.get(entity, WheelJoint) as WheelJointData;
+        if (!j.enabled) continue;
+        const connected = j.connectedEntity as Entity;
+        if (!trackedEntities.has(connected)) continue;
+        module._physics_createWheelJoint(
+            connected, entity,
+            j.anchorA.x * invPpu, j.anchorA.y * invPpu,
+            j.anchorB.x * invPpu, j.anchorB.y * invPpu,
+            j.axis.x, j.axis.y,
+            j.enableSpring ? 1 : 0, j.hertz, j.dampingRatio,
+            j.enableLimit ? 1 : 0, j.lowerTranslation * invPpu, j.upperTranslation * invPpu,
+            j.enableMotor ? 1 : 0, j.maxMotorTorque, j.motorSpeed,
+            j.collideConnected ? 1 : 0,
         );
         trackedJoints.add(entity);
     }
@@ -733,6 +811,62 @@ export class Physics {
 
     getRevoluteMotorTorque(entity: Entity): number {
         return this.module_._physics_getRevoluteMotorTorque(entity);
+    }
+
+    raycast(
+        origin: Vec2, direction: Vec2, maxDistance: number,
+        maskBits = 0xFFFF, ppu = 100,
+    ): RaycastHit[] {
+        const invPpu = 1 / ppu;
+        const count = this.module_._physics_raycast(
+            origin.x * invPpu, origin.y * invPpu,
+            direction.x, direction.y,
+            maxDistance * invPpu, maskBits,
+        );
+        if (count === 0) return [];
+
+        const ptr = this.module_._physics_getRaycastBuffer() >> 2;
+        const results: RaycastHit[] = [];
+        for (let i = 0; i < count; i++) {
+            const base = ptr + i * 6;
+            results.push({
+                entity: this.module_.HEAPU32[base] as Entity,
+                point: { x: this.module_.HEAPF32[base + 1] * ppu, y: this.module_.HEAPF32[base + 2] * ppu },
+                normal: { x: this.module_.HEAPF32[base + 3], y: this.module_.HEAPF32[base + 4] },
+                fraction: this.module_.HEAPF32[base + 5],
+            });
+        }
+        results.sort((a, b) => a.fraction - b.fraction);
+        return results;
+    }
+
+    overlapCircle(center: Vec2, radius: number, maskBits = 0xFFFF, ppu = 100): Entity[] {
+        const invPpu = 1 / ppu;
+        const count = this.module_._physics_overlapCircle(
+            center.x * invPpu, center.y * invPpu,
+            radius * invPpu, maskBits,
+        );
+        if (count === 0) return [];
+
+        const ptr = this.module_._physics_getOverlapBuffer() >> 2;
+        const results: Entity[] = [];
+        const seen = new Set<number>();
+        for (let i = 0; i < count; i++) {
+            const entityId = this.module_.HEAPU32[ptr + i] as Entity;
+            if (!seen.has(entityId)) {
+                seen.add(entityId);
+                results.push(entityId);
+            }
+        }
+        return results;
+    }
+
+    setAwake(entity: Entity, awake: boolean): void {
+        this.module_._physics_setAwake(entity, awake ? 1 : 0);
+    }
+
+    isAwake(entity: Entity): boolean {
+        return this.module_._physics_isAwake(entity) !== 0;
     }
 
     static setDebugDraw(app: App, enabled: boolean): void {

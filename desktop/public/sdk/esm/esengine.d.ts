@@ -2526,13 +2526,25 @@ declare const TrackType: {
     readonly SpriteAnim: "spriteAnim";
     readonly Audio: "audio";
     readonly Activation: "activation";
+    readonly Marker: "marker";
+    readonly CustomEvent: "customEvent";
 };
 type TrackType = (typeof TrackType)[keyof typeof TrackType];
+declare const InterpType: {
+    readonly Hermite: "hermite";
+    readonly Linear: "linear";
+    readonly Step: "step";
+    readonly EaseIn: "easeIn";
+    readonly EaseOut: "easeOut";
+    readonly EaseInOut: "easeInOut";
+};
+type InterpType = (typeof InterpType)[keyof typeof InterpType];
 interface Keyframe {
     time: number;
     value: number;
     inTangent: number;
     outTangent: number;
+    interpolation?: InterpType;
 }
 interface PropertyChannel {
     property: string;
@@ -2582,7 +2594,24 @@ interface ActivationTrack extends TrackBase {
     type: typeof TrackType.Activation;
     ranges: ActivationRange[];
 }
-type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack;
+interface Marker {
+    time: number;
+    name: string;
+}
+interface MarkerTrack extends TrackBase {
+    type: typeof TrackType.Marker;
+    markers: Marker[];
+}
+interface CustomEvent {
+    time: number;
+    name: string;
+    payload: Record<string, unknown>;
+}
+interface CustomEventTrack extends TrackBase {
+    type: typeof TrackType.CustomEvent;
+    events: CustomEvent[];
+}
+type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack;
 interface TimelineAsset {
     version: string;
     type: 'timeline';

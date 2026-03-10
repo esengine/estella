@@ -6,6 +6,7 @@ import { GameViewRenderer } from '../../renderer/GameViewRenderer';
 import { getSharedRenderContext } from '../../renderer/SharedRenderContext';
 import { getPlayModeService } from '../../services/PlayModeService';
 import { Audio } from 'esengine';
+import { Physics } from 'esengine/physics';
 import { DisposableStore } from '../../utils/Disposable';
 
 export interface GameViewPanelOptions {
@@ -46,6 +47,12 @@ export class GameViewPanel implements PanelInstance {
             },
             onMuteToggle: (muted) => {
                 Audio.setMasterVolume(muted ? 0 : 1);
+            },
+            onPhysicsDebugToggle: (enabled) => {
+                const ctx = getSharedRenderContext();
+                if (ctx.app_) {
+                    Physics.setDebugDraw(ctx.app_, enabled);
+                }
             },
         });
 
