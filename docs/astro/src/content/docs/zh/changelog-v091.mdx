@@ -1,0 +1,59 @@
+---
+title: v0.9.1
+description: ESEngine v0.9.1 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.9.1 带来了一键工具链安装、可配置特性标志的动态引擎编译，以及一系列安全加固和稳定性修复。
+</Aside>
+
+## 一键工具链安装
+
+构建设置对话框新增 **Auto Install** 按钮，一键下载并配置完整的构建工具链（Emscripten 5.0.0、CMake、Python）。无需 git，无需手动配置，无需翻墙。
+
+- 预打包的平台专属压缩包（macOS `.tar.gz`、Windows `.zip`、Linux `.tar.gz`），托管于 GitHub Releases
+- 实时下载进度，Toast 通知中显示已下载/总大小的 MB 计数
+- 启动时自动检测工具链 — 如果 emsdk 已在 PATH 中或之前已安装，会自动识别
+- 保留 **Select emsdk** 按钮，供高级用户手动指定自定义安装路径
+
+## 动态引擎编译
+
+引擎 WASM 现在从内置 C++ 源码按需编译，取代之前预构建二进制的方式。这带来了：
+
+- **特性标志** — 每个构建配置可独立开关 Tilemap、Particles、Timeline、PostProcess、BitmapText、Spine
+- **平台目标** — Web、微信小游戏、Playable（单文件）各自生成优化输出
+- **构建缓存** — 相同配置复用缓存产物；需要时可执行清理构建
+- **Spine 版本选择** — 仅编译项目实际使用的 Spine 运行时版本（3.8、4.1、4.2）
+- **物理模块** — Box2D 编译为独立 WASM 模块，仅在启用时包含
+
+## 内置 CMake
+
+CMake 现已自动内置于编辑器工具链资源中。配合 emsdk 内置的 Python，构建引擎 WASM **无需任何外部依赖** — 只需点击 Auto Install 再点击 Build。
+
+## 示例项目下载进度
+
+从模板创建项目时现在会显示下载进度条和百分比，让你清楚看到下载进展，而不是面对无响应的对话框等待。
+
+## 安全加固
+
+- **安全模块加载** — SpineModuleLoader 中的 `new Function()` 动态代码执行替换为 Blob URL 动态导入，消除代码注入风险
+- **项目名称校验** — 项目名称现在会校验文件系统不安全字符（`<>:"/\|?*`），防止在 Windows 上出现路径问题
+- **异步错误处理** — WASM 实例化、场景加载和插件生命周期中未处理的 Promise 拒绝现在有了正确的 `.catch()` 处理和诊断信息
+
+## Bug 修复
+
+### 运行时
+- 修复 Spine 动画在单文件 Playable 广告导出中不渲染的问题
+- 修复 Spine 和 Physics WASM 模块在特定插件配置下加载失败
+- 修复实体销毁时 tilemap 图层未被正确移除
+
+### SDK
+- 将 SDK 中静默的空 `catch {}` 块替换为 `console.warn` 诊断信息 — 之前被吞掉的错误现在会产生带上下文的可见警告
+- SDK sourcemap 现在自动同步到桌面应用，确保堆栈跟踪准确
+
+### 构建系统
+- 修复工具链构建管线中的 Windows 兼容性问题
+- 修复 CI 中跨平台 `tsc` PATH 解析问题
+- 通过 manifest 驱动的工具链打包，将内置体积从 665 MB 减至 7 MB
