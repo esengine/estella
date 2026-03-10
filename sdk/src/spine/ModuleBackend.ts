@@ -106,30 +106,57 @@ export class ModuleBackend {
         const submitFn = coreModule.renderer_submitSpineBatchByEntity;
         if (!submitFn) return;
 
+        type BatchEntry = {
+            vertices: Float32Array; indices: Uint16Array;
+            textureId: number; blendMode: number;
+            entity: number; info: EntityInfo;
+        };
+
+        let totalVertBytes = 0;
+        let totalIdxBytes = 0;
+        const entries: BatchEntry[] = [];
+
         for (const [entity, info] of this.entities_) {
             const batches = this.controller_.extractMeshBatches(info.instanceId);
             for (const batch of batches) {
-                const vertCount = batch.vertices.length / 8;
-                const idxCount = batch.indices.length;
-                if (vertCount <= 0 || idxCount <= 0) continue;
-
-                const vertPtr = coreModule._malloc(batch.vertices.byteLength);
-                const idxPtr = coreModule._malloc(batch.indices.byteLength);
-
-                coreModule.HEAPF32.set(batch.vertices, vertPtr >> 2);
-                new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, idxCount).set(batch.indices);
-
-                submitFn.call(coreModule, registry,
-                    vertPtr, vertCount,
-                    idxPtr, idxCount,
-                    batch.textureId, batch.blendMode,
-                    entity as number, info.skeletonScale, info.flipX, info.flipY,
-                    info.layer, 0);
-
-                coreModule._free(vertPtr);
-                coreModule._free(idxPtr);
+                if (batch.vertices.length === 0 || batch.indices.length === 0) continue;
+                totalVertBytes += batch.vertices.byteLength;
+                totalIdxBytes += batch.indices.byteLength;
+                entries.push({
+                    vertices: batch.vertices, indices: batch.indices,
+                    textureId: batch.textureId, blendMode: batch.blendMode,
+                    entity: entity as number, info,
+                });
             }
         }
+
+        if (entries.length === 0) return;
+
+        const vertBase = coreModule._malloc(totalVertBytes);
+        const idxBase = coreModule._malloc(totalIdxBytes);
+
+        let vOff = 0;
+        let iOff = 0;
+        for (const e of entries) {
+            const vertPtr = vertBase + vOff;
+            const idxPtr = idxBase + iOff;
+
+            coreModule.HEAPF32.set(e.vertices, vertPtr >> 2);
+            new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, e.indices.length).set(e.indices);
+
+            submitFn.call(coreModule, registry,
+                vertPtr, e.vertices.length / 8,
+                idxPtr, e.indices.length,
+                e.textureId, e.blendMode,
+                e.entity, e.info.skeletonScale, e.info.flipX, e.info.flipY,
+                e.info.layer, 0);
+
+            vOff += e.vertices.byteLength;
+            iOff += e.indices.byteLength;
+        }
+
+        coreModule._free(vertBase);
+        coreModule._free(idxBase);
     }
 
     removeEntity(entity: Entity): void {
