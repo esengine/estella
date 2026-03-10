@@ -4,6 +4,8 @@ import { a as SpineModuleController, b as SpineModuleFactory } from './app.js';
 declare class ModuleBackend {
     private controller_;
     private entities_;
+    private cachedFrame_;
+    private cachedEntries_;
     constructor(controller: SpineModuleController);
     get controller(): SpineModuleController;
     get entityCount(): number;
@@ -29,7 +31,7 @@ declare class ModuleBackend {
     getAnimations(entity: Entity): string[];
     getSkins(entity: Entity): string[];
     updateAll(dt: number): void;
-    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry): void;
+    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry, frameCount?: number): void;
     removeEntity(entity: Entity): void;
     shutdown(): void;
 }
@@ -50,7 +52,7 @@ declare class SpineManager {
         h: number;
     }>, registry: CppRegistry): Promise<SpineVersion | null>;
     updateAnimations(dt: number): void;
-    submitMeshes(registry: CppRegistry): void;
+    submitMeshes(registry: CppRegistry, frameCount?: number): void;
     removeEntity(entity: Entity): void;
     getEntityVersion(entity: Entity): SpineVersion | undefined;
     hasModuleBackend(version: SpineVersion): boolean;
