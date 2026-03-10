@@ -94,16 +94,46 @@ struct MeshBatch {
     int blendMode = 0;
 };
 
-static std::unordered_map<int, SkeletonHandle> g_skeletons;
-static std::unordered_map<int, SpineInstance> g_instances;
-static int g_nextSkeletonId = 1;
-static int g_nextInstanceId = 1;
+// =============================================================================
+// Spine Context
+// =============================================================================
 
-static std::vector<MeshBatch> g_meshBatches;
-static std::vector<float> g_worldVertices;
+struct SpineContext {
+    std::unordered_map<int, SkeletonHandle> skeletons;
+    std::unordered_map<int, SpineInstance> instances;
+    int nextSkeletonId = 1;
+    int nextInstanceId = 1;
 
-static std::string g_stringBuffer;
-static std::string g_lastError;
+    std::vector<MeshBatch> meshBatches;
+    std::vector<float> worldVertices;
+
+    std::string stringBuffer;
+    std::string lastError;
+
+    void reset() {
+        for (auto& [id, inst] : instances) {
+            if (inst.state) spAnimationState_dispose(inst.state);
+            if (inst.skeleton) spSkeleton_dispose(inst.skeleton);
+        }
+        instances.clear();
+
+        for (auto& [id, h] : skeletons) {
+            if (h.stateData) spAnimationStateData_dispose(h.stateData);
+            if (h.skeletonData) spSkeletonData_dispose(h.skeletonData);
+            if (h.atlas) spAtlas_dispose(h.atlas);
+        }
+        skeletons.clear();
+
+        nextSkeletonId = 1;
+        nextInstanceId = 1;
+        meshBatches.clear();
+        worldVertices.clear();
+        stringBuffer.clear();
+        lastError.clear();
+    }
+};
+
+static SpineContext g_ctx;
 
 static void destroyInstance(SpineInstance& inst) {
     if (inst.state) spAnimationState_dispose(inst.state);
@@ -125,15 +155,15 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
                        const char* atlasText, int atlasLen, int isBinary) {
-    g_lastError.clear();
+    g_ctx.lastError.clear();
 
-    int id = g_nextSkeletonId;
-    auto& handle = g_skeletons[id];
+    int id = g_ctx.nextSkeletonId;
+    auto& handle = g_ctx.skeletons[id];
 
     handle.atlas = spAtlas_create(atlasText, atlasLen, "", nullptr);
     if (!handle.atlas || !handle.atlas->pages) {
-        g_lastError = "Failed to create atlas (invalid atlas text or no pages)";
-        g_skeletons.erase(id);
+        g_ctx.lastError = "Failed to create atlas (invalid atlas text or no pages)";
+        g_ctx.skeletons.erase(id);
         return -1;
     }
 
@@ -143,7 +173,7 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
         handle.skeletonData = spSkeletonBinary_readSkeletonData(
             binary, reinterpret_cast<const unsigned char*>(skelDataPtr), skelDataLen);
         if (!handle.skeletonData && binary->error) {
-            g_lastError = binary->error;
+            g_ctx.lastError = binary->error;
         }
         spSkeletonBinary_dispose(binary);
     } else {
@@ -152,53 +182,53 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
         handle.skeletonData = spSkeletonJson_readSkeletonData(
             json, reinterpret_cast<const char*>(skelDataPtr));
         if (!handle.skeletonData && json->error) {
-            g_lastError = json->error;
+            g_ctx.lastError = json->error;
         }
         spSkeletonJson_dispose(json);
     }
 
     if (!handle.skeletonData) {
         destroySkeleton(handle);
-        g_skeletons.erase(id);
+        g_ctx.skeletons.erase(id);
         return -1;
     }
 
     handle.stateData = spAnimationStateData_create(handle.skeletonData);
     handle.stateData->defaultMix = 0.2f;
 
-    g_nextSkeletonId++;
+    g_ctx.nextSkeletonId++;
     return id;
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getLastError() {
-    return g_lastError.c_str();
+    return g_ctx.lastError.c_str();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_unloadSkeleton(int handle) {
-    auto it = g_skeletons.find(handle);
-    if (it == g_skeletons.end()) return;
+    auto it = g_ctx.skeletons.find(handle);
+    if (it == g_ctx.skeletons.end()) return;
 
     std::vector<int> toRemove;
-    for (auto& [id, inst] : g_instances) {
+    for (auto& [id, inst] : g_ctx.instances) {
         if (inst.skeletonHandle == handle) {
             toRemove.push_back(id);
         }
     }
     for (int id : toRemove) {
-        destroyInstance(g_instances[id]);
-        g_instances.erase(id);
+        destroyInstance(g_ctx.instances[id]);
+        g_ctx.instances.erase(id);
     }
 
     destroySkeleton(it->second);
-    g_skeletons.erase(it);
+    g_ctx.skeletons.erase(it);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_getAtlasPageCount(int handle) {
-    auto it = g_skeletons.find(handle);
-    if (it == g_skeletons.end()) return 0;
+    auto it = g_ctx.skeletons.find(handle);
+    if (it == g_ctx.skeletons.end()) return 0;
     int count = 0;
     spAtlasPage* page = it->second.atlas->pages;
     while (page) {
@@ -210,22 +240,22 @@ int spine_getAtlasPageCount(int handle) {
 
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getAtlasPageTextureName(int handle, int pageIndex) {
-    auto it = g_skeletons.find(handle);
-    if (it == g_skeletons.end()) return "";
+    auto it = g_ctx.skeletons.find(handle);
+    if (it == g_ctx.skeletons.end()) return "";
     spAtlasPage* page = it->second.atlas->pages;
     for (int i = 0; i < pageIndex && page; i++) {
         page = page->next;
     }
     if (!page) return "";
-    g_stringBuffer = page->name;
-    return g_stringBuffer.c_str();
+    g_ctx.stringBuffer = page->name;
+    return g_ctx.stringBuffer.c_str();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_setAtlasPageTexture(int handle, int pageIndex,
                                 uint32_t textureId, int width, int height) {
-    auto it = g_skeletons.find(handle);
-    if (it == g_skeletons.end()) return;
+    auto it = g_ctx.skeletons.find(handle);
+    if (it == g_ctx.skeletons.end()) return;
     spAtlasPage* page = it->second.atlas->pages;
     for (int i = 0; i < pageIndex && page; i++) {
         page = page->next;
@@ -254,11 +284,11 @@ void spine_setAtlasPageTexture(int handle, int pageIndex,
 
 EMSCRIPTEN_KEEPALIVE
 int spine_createInstance(int skeletonHandle) {
-    auto it = g_skeletons.find(skeletonHandle);
-    if (it == g_skeletons.end()) return -1;
+    auto it = g_ctx.skeletons.find(skeletonHandle);
+    if (it == g_ctx.skeletons.end()) return -1;
 
-    int id = g_nextInstanceId;
-    auto& inst = g_instances[id];
+    int id = g_ctx.nextInstanceId;
+    auto& inst = g_ctx.instances[id];
     inst.skeletonHandle = skeletonHandle;
     inst.skeleton = spSkeleton_create(it->second.skeletonData);
     inst.state = spAnimationState_create(it->second.stateData);
@@ -269,16 +299,16 @@ int spine_createInstance(int skeletonHandle) {
     spSkeleton_updateWorldTransform(inst.skeleton, SP_PHYSICS_UPDATE);
 #endif
 
-    g_nextInstanceId++;
+    g_ctx.nextInstanceId++;
     return id;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_destroyInstance(int instanceId) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return;
     destroyInstance(it->second);
-    g_instances.erase(it);
+    g_ctx.instances.erase(it);
 }
 
 // =============================================================================
@@ -287,8 +317,8 @@ void spine_destroyInstance(int instanceId) {
 
 EMSCRIPTEN_KEEPALIVE
 int spine_playAnimation(int instanceId, const char* name, int loop, int track) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return 0;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
     spTrackEntry* entry = spAnimationState_setAnimationByName(
         it->second.state, track, name, loop);
     return entry ? 1 : 0;
@@ -297,8 +327,8 @@ int spine_playAnimation(int instanceId, const char* name, int loop, int track) {
 EMSCRIPTEN_KEEPALIVE
 int spine_addAnimation(int instanceId, const char* name,
                        int loop, float delay, int track) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return 0;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
     spTrackEntry* entry = spAnimationState_addAnimationByName(
         it->second.state, track, name, loop, delay);
     return entry ? 1 : 0;
@@ -306,8 +336,8 @@ int spine_addAnimation(int instanceId, const char* name,
 
 EMSCRIPTEN_KEEPALIVE
 void spine_setSkin(int instanceId, const char* name) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return;
 
     if (!name || name[0] == '\0') {
         spSkeleton_setSkin(it->second.skeleton, nullptr);
@@ -319,8 +349,8 @@ void spine_setSkin(int instanceId, const char* name) {
 
 EMSCRIPTEN_KEEPALIVE
 void spine_update(int instanceId, float dt) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return;
 
     spAnimationState_update(it->second.state, dt);
     spAnimationState_apply(it->second.state, it->second.skeleton);
@@ -338,49 +368,49 @@ void spine_update(int instanceId, float dt) {
 
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getAnimations(int instanceId) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) {
-        g_stringBuffer = "[]";
-        return g_stringBuffer.c_str();
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) {
+        g_ctx.stringBuffer = "[]";
+        return g_ctx.stringBuffer.c_str();
     }
 
     spSkeletonData* data = it->second.skeleton->data;
-    g_stringBuffer = "[";
+    g_ctx.stringBuffer = "[";
     for (int i = 0; i < data->animationsCount; ++i) {
-        if (i > 0) g_stringBuffer += ",";
-        g_stringBuffer += "\"";
-        g_stringBuffer += data->animations[i]->name;
-        g_stringBuffer += "\"";
+        if (i > 0) g_ctx.stringBuffer += ",";
+        g_ctx.stringBuffer += "\"";
+        g_ctx.stringBuffer += data->animations[i]->name;
+        g_ctx.stringBuffer += "\"";
     }
-    g_stringBuffer += "]";
-    return g_stringBuffer.c_str();
+    g_ctx.stringBuffer += "]";
+    return g_ctx.stringBuffer.c_str();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getSkins(int instanceId) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) {
-        g_stringBuffer = "[]";
-        return g_stringBuffer.c_str();
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) {
+        g_ctx.stringBuffer = "[]";
+        return g_ctx.stringBuffer.c_str();
     }
 
     spSkeletonData* data = it->second.skeleton->data;
-    g_stringBuffer = "[";
+    g_ctx.stringBuffer = "[";
     for (int i = 0; i < data->skinsCount; ++i) {
-        if (i > 0) g_stringBuffer += ",";
-        g_stringBuffer += "\"";
-        g_stringBuffer += data->skins[i]->name;
-        g_stringBuffer += "\"";
+        if (i > 0) g_ctx.stringBuffer += ",";
+        g_ctx.stringBuffer += "\"";
+        g_ctx.stringBuffer += data->skins[i]->name;
+        g_ctx.stringBuffer += "\"";
     }
-    g_stringBuffer += "]";
-    return g_stringBuffer.c_str();
+    g_ctx.stringBuffer += "]";
+    return g_ctx.stringBuffer.c_str();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_getBonePosition(int instanceId, const char* bone,
                           uintptr_t outXPtr, uintptr_t outYPtr) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return 0;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
 
     spBone* b = spSkeleton_findBone(it->second.skeleton, bone);
     if (!b) return 0;
@@ -392,8 +422,8 @@ int spine_getBonePosition(int instanceId, const char* bone,
 
 EMSCRIPTEN_KEEPALIVE
 float spine_getBoneRotation(int instanceId, const char* bone) {
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return 0.0f;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0.0f;
 
     spBone* b = spSkeleton_findBone(it->second.skeleton, bone);
     if (!b) return 0.0f;
@@ -409,8 +439,8 @@ void spine_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr,
     auto* outW = reinterpret_cast<float*>(outWPtr);
     auto* outH = reinterpret_cast<float*>(outHPtr);
 
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) {
         *outX = *outY = *outW = *outH = 0;
         return;
     }
@@ -428,21 +458,21 @@ void spine_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr,
 
         if (slot->attachment->type == SP_ATTACHMENT_REGION) {
             auto* region = reinterpret_cast<spRegionAttachment*>(slot->attachment);
-            g_worldVertices.resize(8);
+            g_ctx.worldVertices.resize(8);
 #ifdef ES_SPINE_38
-            spRegionAttachment_computeWorldVertices(region, slot->bone, g_worldVertices.data(), 0, 2);
+            spRegionAttachment_computeWorldVertices(region, slot->bone, g_ctx.worldVertices.data(), 0, 2);
 #else
-            spRegionAttachment_computeWorldVertices(region, slot, g_worldVertices.data(), 0, 2);
+            spRegionAttachment_computeWorldVertices(region, slot, g_ctx.worldVertices.data(), 0, 2);
 #endif
-            verts = g_worldVertices.data();
+            verts = g_ctx.worldVertices.data();
             vertCount = 4;
         } else if (slot->attachment->type == SP_ATTACHMENT_MESH) {
             auto* mesh = reinterpret_cast<spMeshAttachment*>(slot->attachment);
             vertCount = SUPER(mesh)->worldVerticesLength / 2;
-            g_worldVertices.resize(SUPER(mesh)->worldVerticesLength);
+            g_ctx.worldVertices.resize(SUPER(mesh)->worldVerticesLength);
             spVertexAttachment_computeWorldVertices(SUPER(mesh), slot, 0,
-                SUPER(mesh)->worldVerticesLength, g_worldVertices.data(), 0, 2);
-            verts = g_worldVertices.data();
+                SUPER(mesh)->worldVerticesLength, g_ctx.worldVertices.data(), 0, 2);
+            verts = g_ctx.worldVertices.data();
         }
 
         if (verts && vertCount > 0) {
@@ -473,10 +503,10 @@ void spine_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr,
 // =============================================================================
 
 static void extractMeshBatches(int instanceId) {
-    g_meshBatches.clear();
+    g_ctx.meshBatches.clear();
 
-    auto it = g_instances.find(instanceId);
-    if (it == g_instances.end()) return;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return;
 
     spSkeleton* skeleton = it->second.skeleton;
     spColor& skelColor = skeleton->color;
@@ -512,11 +542,11 @@ static void extractMeshBatches(int instanceId) {
         if (attachment->type == SP_ATTACHMENT_REGION) {
             auto* region = reinterpret_cast<spRegionAttachment*>(attachment);
 
-            g_worldVertices.resize(8);
+            g_ctx.worldVertices.resize(8);
 #ifdef ES_SPINE_38
-            spRegionAttachment_computeWorldVertices(region, slot->bone, g_worldVertices.data(), 0, 2);
+            spRegionAttachment_computeWorldVertices(region, slot->bone, g_ctx.worldVertices.data(), 0, 2);
 #else
-            spRegionAttachment_computeWorldVertices(region, slot, g_worldVertices.data(), 0, 2);
+            spRegionAttachment_computeWorldVertices(region, slot, g_ctx.worldVertices.data(), 0, 2);
 #endif
 
             uint32_t texId = getRegionTextureId(region);
@@ -539,8 +569,8 @@ static void extractMeshBatches(int instanceId) {
             }
 
             if (needNewBatch) {
-                g_meshBatches.emplace_back();
-                currentBatch = &g_meshBatches.back();
+                g_ctx.meshBatches.emplace_back();
+                currentBatch = &g_ctx.meshBatches.back();
                 currentBatch->textureId = texId;
                 currentBatch->blendMode = effectiveBlend;
                 currentTexture = texId;
@@ -565,8 +595,8 @@ static void extractMeshBatches(int instanceId) {
                 currentBatch->vertices.size() / 8);
 
             for (int j = 0; j < 4; ++j) {
-                currentBatch->vertices.push_back(g_worldVertices[j * 2]);
-                currentBatch->vertices.push_back(g_worldVertices[j * 2 + 1]);
+                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2]);
+                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2 + 1]);
                 currentBatch->vertices.push_back(uvs[j * 2]);
                 currentBatch->vertices.push_back(uvs[j * 2 + 1]);
                 currentBatch->vertices.push_back(r);
@@ -588,9 +618,9 @@ static void extractMeshBatches(int instanceId) {
             int worldVerticesLength = SUPER(mesh)->worldVerticesLength;
             int vertexCount = worldVerticesLength / 2;
 
-            g_worldVertices.resize(worldVerticesLength);
+            g_ctx.worldVertices.resize(worldVerticesLength);
             spVertexAttachment_computeWorldVertices(SUPER(mesh), slot, 0,
-                worldVerticesLength, g_worldVertices.data(), 0, 2);
+                worldVerticesLength, g_ctx.worldVertices.data(), 0, 2);
 
             uint32_t texId = getMeshTextureId(mesh);
             if (!texId) continue;
@@ -612,8 +642,8 @@ static void extractMeshBatches(int instanceId) {
             }
 
             if (needNewBatch) {
-                g_meshBatches.emplace_back();
-                currentBatch = &g_meshBatches.back();
+                g_ctx.meshBatches.emplace_back();
+                currentBatch = &g_ctx.meshBatches.back();
                 currentBatch->textureId = texId;
                 currentBatch->blendMode = effectiveBlend;
                 currentTexture = texId;
@@ -638,8 +668,8 @@ static void extractMeshBatches(int instanceId) {
                 currentBatch->vertices.size() / 8);
 
             for (int j = 0; j < vertexCount; ++j) {
-                currentBatch->vertices.push_back(g_worldVertices[j * 2]);
-                currentBatch->vertices.push_back(g_worldVertices[j * 2 + 1]);
+                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2]);
+                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2 + 1]);
                 currentBatch->vertices.push_back(uvs[j * 2]);
                 currentBatch->vertices.push_back(uvs[j * 2 + 1]);
                 currentBatch->vertices.push_back(r);
@@ -659,21 +689,21 @@ static void extractMeshBatches(int instanceId) {
 EMSCRIPTEN_KEEPALIVE
 int spine_getMeshBatchCount(int instanceId) {
     extractMeshBatches(instanceId);
-    return static_cast<int>(g_meshBatches.size());
+    return static_cast<int>(g_ctx.meshBatches.size());
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_getMeshBatchVertexCount(int instanceId, int batchIndex) {
     (void)instanceId;
-    if (batchIndex < 0 || batchIndex >= static_cast<int>(g_meshBatches.size())) return 0;
-    return static_cast<int>(g_meshBatches[batchIndex].vertices.size() / 8);
+    if (batchIndex < 0 || batchIndex >= static_cast<int>(g_ctx.meshBatches.size())) return 0;
+    return static_cast<int>(g_ctx.meshBatches[batchIndex].vertices.size() / 8);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_getMeshBatchIndexCount(int instanceId, int batchIndex) {
     (void)instanceId;
-    if (batchIndex < 0 || batchIndex >= static_cast<int>(g_meshBatches.size())) return 0;
-    return static_cast<int>(g_meshBatches[batchIndex].indices.size());
+    if (batchIndex < 0 || batchIndex >= static_cast<int>(g_ctx.meshBatches.size())) return 0;
+    return static_cast<int>(g_ctx.meshBatches[batchIndex].indices.size());
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -681,9 +711,9 @@ void spine_getMeshBatchData(int instanceId, int batchIndex,
                              uintptr_t outVerticesPtr, uintptr_t outIndicesPtr,
                              uintptr_t outTextureIdPtr, uintptr_t outBlendModePtr) {
     (void)instanceId;
-    if (batchIndex < 0 || batchIndex >= static_cast<int>(g_meshBatches.size())) return;
+    if (batchIndex < 0 || batchIndex >= static_cast<int>(g_ctx.meshBatches.size())) return;
 
-    auto& batch = g_meshBatches[batchIndex];
+    auto& batch = g_ctx.meshBatches[batchIndex];
 
     auto* outVertices = reinterpret_cast<float*>(outVerticesPtr);
     auto* outIndices = reinterpret_cast<uint16_t*>(outIndicesPtr);
