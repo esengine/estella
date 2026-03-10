@@ -44,9 +44,9 @@ jobs:
 
       - name: Merge Documentation
         run: |
-          mkdir -p docs/dist/api
-          cp -r docs/astro/dist/* docs/dist/
-          cp -r docs/api/html docs/dist/api/
+          mkdir -p docs/dist/docs/api
+          cp -r docs/astro/dist/* docs/dist/docs/
+          cp -r docs/api/html docs/dist/docs/api/
           cp docs/landing/index.html docs/dist/index.html
           cp docs/landing/editor-screenshot.png docs/dist/editor-screenshot.png
           cp docs/landing/robots.txt docs/dist/robots.txt
