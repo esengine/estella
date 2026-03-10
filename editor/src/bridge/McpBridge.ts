@@ -35,9 +35,11 @@ export class McpBridge {
         private outputService_: OutputService,
         private scriptService_: ScriptService,
         private buildHistory_: BuildHistory | null,
+        private projectPath_: string | null = null,
     ) {
         this.setupLogCapture_();
         this.setupEventListener_();
+        this.startBridgeServer_();
     }
 
     dispose(): void {
@@ -55,6 +57,18 @@ export class McpBridge {
                 });
             },
         );
+    }
+
+    private startBridgeServer_(): void {
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+            invoke('start_bridge_server', {
+                projectPath: this.projectPath_,
+            }).then((port) => {
+                console.log(`[McpBridge] Bridge server started on port ${port}`);
+            }).catch((e) => {
+                console.warn('[McpBridge] Failed to start bridge server:', e);
+            });
+        }).catch(() => {});
     }
 
     private setupEventListener_(): void {

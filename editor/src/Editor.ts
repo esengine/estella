@@ -249,7 +249,7 @@ export class Editor {
         iocContainer.provide(LAYOUT_SERVICE, sk, this.navigationService_);
         iocContainer.provide(PLUGIN_MANAGER, sk, this.pluginManager_);
 
-        this.mcpBridge_ = new McpBridge(this.outputService_, this.scriptService_, null);
+        this.mcpBridge_ = new McpBridge(this.outputService_, this.scriptService_, null, this.projectPath_);
     }
 
     private async initializeAllScripts_(): Promise<void> {
