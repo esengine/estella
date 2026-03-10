@@ -11,9 +11,17 @@ interface EntityInfo {
     layer: number;
 }
 
+type BatchEntry = {
+    vertices: Float32Array; indices: Uint16Array;
+    textureId: number; blendMode: number;
+    entity: number; info: EntityInfo;
+};
+
 export class ModuleBackend {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
+    private cachedFrame_: number = -1;
+    private cachedEntries_: BatchEntry[] = [];
 
     constructor(controller: SpineModuleController) {
         this.controller_ = controller;
@@ -102,42 +110,41 @@ export class ModuleBackend {
         }
     }
 
-    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry): void {
+    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry, frameCount: number = -1): void {
         const submitFn = coreModule.renderer_submitSpineBatchByEntity;
         if (!submitFn) return;
 
-        type BatchEntry = {
-            vertices: Float32Array; indices: Uint16Array;
-            textureId: number; blendMode: number;
-            entity: number; info: EntityInfo;
-        };
+        if (this.cachedFrame_ !== frameCount) {
+            this.cachedEntries_.length = 0;
+            for (const [entity, info] of this.entities_) {
+                const batches = this.controller_.extractMeshBatches(info.instanceId);
+                for (const batch of batches) {
+                    if (batch.vertices.length === 0 || batch.indices.length === 0) continue;
+                    this.cachedEntries_.push({
+                        vertices: batch.vertices, indices: batch.indices,
+                        textureId: batch.textureId, blendMode: batch.blendMode,
+                        entity: entity as number, info,
+                    });
+                }
+            }
+            this.cachedFrame_ = frameCount;
+        }
+
+        if (this.cachedEntries_.length === 0) return;
 
         let totalVertBytes = 0;
         let totalIdxBytes = 0;
-        const entries: BatchEntry[] = [];
-
-        for (const [entity, info] of this.entities_) {
-            const batches = this.controller_.extractMeshBatches(info.instanceId);
-            for (const batch of batches) {
-                if (batch.vertices.length === 0 || batch.indices.length === 0) continue;
-                totalVertBytes += batch.vertices.byteLength;
-                totalIdxBytes += batch.indices.byteLength;
-                entries.push({
-                    vertices: batch.vertices, indices: batch.indices,
-                    textureId: batch.textureId, blendMode: batch.blendMode,
-                    entity: entity as number, info,
-                });
-            }
+        for (const e of this.cachedEntries_) {
+            totalVertBytes += e.vertices.byteLength;
+            totalIdxBytes += e.indices.byteLength;
         }
-
-        if (entries.length === 0) return;
 
         const vertBase = coreModule._malloc(totalVertBytes);
         const idxBase = coreModule._malloc(totalIdxBytes);
 
         let vOff = 0;
         let iOff = 0;
-        for (const e of entries) {
+        for (const e of this.cachedEntries_) {
             const vertPtr = vertBase + vOff;
             const idxPtr = idxBase + iOff;
 
