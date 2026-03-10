@@ -27,6 +27,10 @@ open = "5"
 urlencoding = "2"
 zip = "2"
 url = "2"
+reqwest = { version = "0.12", features = ["stream"] }
+futures-util = "0.3"
+flate2 = "1"
+tar = "0.4"
 
 [profile.release]
 panic = "abort"

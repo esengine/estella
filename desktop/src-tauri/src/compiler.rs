@@ -1,5 +1,6 @@
 //! Toolchain management and WASM compilation.
 
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -104,11 +105,25 @@ pub struct CompileResult {
 }
 
 const EMSDK_VERSION: &str = "5.0.0";
-const EMSDK_GIT_URL: &str = "https://github.com/emscripten-core/emsdk.git";
+const EMSDK_DOWNLOAD_BASE: &str = "https://github.com/esengine/emsdk-releases/releases/download";
 
 const MIN_EMSCRIPTEN_VERSION: &str = "5.0.0";
 const MIN_CMAKE_VERSION: &str = "3.16";
 const MIN_PYTHON_VERSION: &str = "3.0";
+
+fn toolchain_archive_url() -> String {
+    let (os, ext) = if cfg!(target_os = "windows") {
+        ("win", "zip")
+    } else if cfg!(target_os = "macos") {
+        ("mac", "tar.gz")
+    } else {
+        ("linux", "tar.gz")
+    };
+    format!(
+        "{}/v{}/emsdk-{}-{}.{}",
+        EMSDK_DOWNLOAD_BASE, EMSDK_VERSION, EMSDK_VERSION, os, ext
+    )
+}
 
 fn version_ge(actual: &str, required: &str) -> bool {
     let parse = |s: &str| -> Vec<u32> {
@@ -287,8 +302,12 @@ fn find_emsdk_python(emsdk_path: &Path) -> Option<(PathBuf, String)> {
     }
     let entries = std::fs::read_dir(&python_dir).ok()?;
     for entry in entries.flatten() {
-        let bin_name = if cfg!(windows) { "python.exe" } else { "python3" };
-        let python_bin = entry.path().join("bin").join(bin_name);
+        let python_bin = if cfg!(windows) {
+            // Windows: <emsdk>/python/<version>/python.exe (no bin subdirectory)
+            entry.path().join("python.exe")
+        } else {
+            entry.path().join("bin").join("python3")
+        };
         if python_bin.exists() {
             let output = std::process::Command::new(&python_bin)
                 .arg("--version")
@@ -473,60 +492,35 @@ pub fn set_emsdk_path(app: AppHandle, path: String) -> Result<ToolchainStatus, S
 pub async fn install_emsdk(app: AppHandle) -> Result<ToolchainStatus, String> {
     let install_dir = default_emsdk_install_path(&app);
     let install_dir_str = install_dir.to_string_lossy().to_string();
+    let url = toolchain_archive_url();
+    let is_zip = url.ends_with(".zip");
 
-    emit_progress(&app, "download", "Cloning emsdk...", 0.1);
+    emit_progress(&app, "download", "Downloading toolchain...", 0.05);
 
-    // Clone emsdk
+    // Download archive with progress
+    let archive_data = download_with_progress(&app, &url).await?;
+
+    // Clean previous install
     if install_dir.exists() {
         std::fs::remove_dir_all(&install_dir).map_err(|e| e.to_string())?;
     }
+    std::fs::create_dir_all(&install_dir).map_err(|e| e.to_string())?;
 
-    run_command_streamed(
-        &app,
-        "git",
-        &[
-            "clone".to_string(),
-            "--depth".to_string(),
-            "1".to_string(),
-            EMSDK_GIT_URL.to_string(),
-            install_dir_str.clone(),
-        ],
-        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-        &HashMap::new(),
-    )
-    .await?;
+    emit_progress(&app, "extract", "Extracting toolchain...", 0.7);
 
-    // Install + activate
-    emit_progress(&app, "install", "Installing Emscripten...", 0.3);
+    // Extract archive
+    let target = install_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        if is_zip {
+            extract_zip(&archive_data, &target)
+        } else {
+            extract_tar_gz(&archive_data, &target)
+        }
+    })
+    .await
+    .map_err(|e| format!("Extract task failed: {}", e))??;
 
-    let emsdk_bin = if cfg!(windows) {
-        install_dir.join("emsdk.bat")
-    } else {
-        install_dir.join("emsdk")
-    };
-    let emsdk_str = emsdk_bin.to_string_lossy().to_string();
-
-    run_command_streamed(
-        &app,
-        &emsdk_str,
-        &["install".to_string(), EMSDK_VERSION.to_string()],
-        &install_dir,
-        &HashMap::new(),
-    )
-    .await?;
-
-    emit_progress(&app, "activate", "Activating Emscripten...", 0.7);
-
-    run_command_streamed(
-        &app,
-        &emsdk_str,
-        &["activate".to_string(), EMSDK_VERSION.to_string()],
-        &install_dir,
-        &HashMap::new(),
-    )
-    .await?;
-
-    emit_progress(&app, "complete", "emsdk installed!", 1.0);
+    emit_progress(&app, "complete", "Toolchain installed!", 1.0);
 
     // Save path
     let mut config = load_config(&app);
@@ -534,6 +528,130 @@ pub async fn install_emsdk(app: AppHandle) -> Result<ToolchainStatus, String> {
     save_config(&app, &config)?;
 
     Ok(get_toolchain_status(app))
+}
+
+async fn download_with_progress(app: &AppHandle, url: &str) -> Result<Vec<u8>, String> {
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Download failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", response.status()));
+    }
+
+    let total_size = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+    let mut data = Vec::with_capacity(total_size as usize);
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Download interrupted: {}", e))?;
+        data.extend_from_slice(&chunk);
+        downloaded += chunk.len() as u64;
+
+        if total_size > 0 {
+            let pct = (downloaded as f32 / total_size as f32).min(0.65);
+            let size_mb = downloaded as f32 / 1_048_576.0;
+            let total_mb = total_size as f32 / 1_048_576.0;
+            emit_progress(
+                app,
+                "download",
+                &format!("Downloading toolchain... {:.0}/{:.0} MB", size_mb, total_mb),
+                0.05 + pct,
+            );
+        }
+    }
+
+    Ok(data)
+}
+
+fn extract_zip(data: &[u8], target: &Path) -> Result<(), String> {
+    let cursor = std::io::Cursor::new(data);
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| format!("Invalid zip: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = file.name().to_string();
+
+        // Strip the top-level directory (e.g., "emsdk-5.0.0-win/")
+        let relative = strip_top_dir(&name);
+        if relative.is_empty() {
+            continue;
+        }
+
+        let out_path = target.join(relative);
+
+        if file.is_dir() {
+            std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut out = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+            std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Some(mode) = file.unix_mode() {
+                    std::fs::set_permissions(&out_path, std::fs::Permissions::from_mode(mode))
+                        .ok();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn extract_tar_gz(data: &[u8], target: &Path) -> Result<(), String> {
+    let cursor = std::io::Cursor::new(data);
+    let gz = flate2::read::GzDecoder::new(cursor);
+    let mut archive = tar::Archive::new(gz);
+
+    // Unpack stripping the top-level directory
+    for entry in archive.entries().map_err(|e| e.to_string())? {
+        let mut entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path().map_err(|e| e.to_string())?.into_owned();
+        let path_str = path.to_string_lossy().to_string();
+
+        let relative = strip_top_dir(&path_str);
+        if relative.is_empty() {
+            continue;
+        }
+
+        let out_path = target.join(relative);
+
+        if entry.header().entry_type().is_dir() {
+            std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut out = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+            std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Some(mode) = entry.header().mode().ok() {
+                    std::fs::set_permissions(
+                        &out_path,
+                        std::fs::Permissions::from_mode(mode),
+                    )
+                    .ok();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn strip_top_dir(path: &str) -> &str {
+    // "emsdk-5.0.0-mac/upstream/emscripten/emcc" → "upstream/emscripten/emcc"
+    match path.find('/') {
+        Some(idx) => &path[idx + 1..],
+        None => "",
+    }
 }
 
 #[tauri::command]

@@ -669,7 +669,7 @@ export class BuildSettingsDialog {
                             ${icons.folder(12)} Select emsdk
                         </button>
                         <button class="es-btn" data-action="install-emsdk">
-                            ${icons.download(12)} Install emsdk
+                            ${icons.download(12)} Auto Install
                         </button>
                     </div>
                 </div>
@@ -1154,16 +1154,26 @@ export class BuildSettingsDialog {
     }
 
     private async handleInstallEmsdk(): Promise<void> {
-        const toastId = showProgressToast('Installing emsdk...');
+        const toastId = showProgressToast('Downloading toolchain...');
+        let unlisten: (() => void) | undefined;
         try {
             const { invoke } = await import('@tauri-apps/api/core');
+            const { listen } = await import('@tauri-apps/api/event');
+            unlisten = await listen<{ stage: string; message: string; progress: number }>('compile-progress', (event) => {
+                updateToast(toastId, {
+                    message: event.payload.message,
+                    progress: event.payload.progress,
+                });
+            });
             await invoke('install_emsdk');
             dismissToast(toastId);
-            showSuccessToast('emsdk installed');
+            showSuccessToast('Toolchain installed');
             await this.checkToolchainStatus();
         } catch (err: any) {
             dismissToast(toastId);
             showErrorToast(`Install failed: ${err}`);
+        } finally {
+            unlisten?.();
         }
     }
 
