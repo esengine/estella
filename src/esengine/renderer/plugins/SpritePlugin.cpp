@@ -35,8 +35,12 @@ void SpritePlugin::collect(
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 
-        glm::vec3 halfExtents = glm::vec3(sprite.size.x * scale.x, sprite.size.y * scale.y, 0.0f) * 0.5f;
-        if (!frustum.intersectsAABB(position, halfExtents)) {
+        glm::vec2 finalSize = sprite.size * glm::vec2(scale);
+        glm::vec2 pivotOffset((0.5f - sprite.pivot.x) * finalSize.x,
+                              (0.5f - sprite.pivot.y) * finalSize.y);
+        glm::vec3 aabbCenter = position + glm::vec3(pivotOffset, 0.0f);
+        glm::vec3 halfExtents = glm::vec3(std::abs(finalSize.x), std::abs(finalSize.y), 0.0f) * 0.5f;
+        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) {
             continue;
         }
 
@@ -74,20 +78,21 @@ void SpritePlugin::collect(
             uvSc.y = -uvSc.y;
         }
 
-        glm::vec2 finalSize = sprite.size * glm::vec2(scale);
         u32 shaderId = batch_shader_id_;
         BlendMode blend = BlendMode::Normal;
 
         if (useNineSlice) {
             emitNineSlice(buffers, draw_list,
-                glm::vec2(position), finalSize, angle, position.z,
+                glm::vec2(position), finalSize, sprite.pivot,
+                angle, position.z,
                 textureId, texSize, sliceBorder,
                 sprite.color, uvOff, uvSc,
                 entity, ctx.current_stage, sprite.layer,
                 blend, shaderId, clips);
         } else {
             emitQuad(buffers, draw_list,
-                glm::vec2(position), finalSize, angle, position.z,
+                glm::vec2(position), finalSize, sprite.pivot,
+                angle, position.z,
                 textureId, sprite.color, uvOff, uvSc,
                 entity, ctx.current_stage, sprite.layer,
                 blend, shaderId, clips);
@@ -98,6 +103,7 @@ void SpritePlugin::collect(
 void SpritePlugin::emitQuad(
     TransientBufferPool& buffers, DrawList& draw_list,
     const glm::vec2& position, const glm::vec2& size,
+    const glm::vec2& pivot,
     f32 angle, f32 depth, u32 textureId,
     const glm::vec4& color,
     const glm::vec2& uvOffset, const glm::vec2& uvScale,
@@ -106,13 +112,15 @@ void SpritePlugin::emitQuad(
     const ClipState& clips
 ) {
     BatchVertex verts[4];
+    f32 ox = 0.5f - pivot.x;
+    f32 oy = 0.5f - pivot.y;
 
     if (std::abs(angle) > 0.001f) {
         f32 cosA = std::cos(angle);
         f32 sinA = std::sin(angle);
         for (u32 i = 0; i < 4; ++i) {
-            f32 lx = QUAD_POSITIONS[i].x * size.x;
-            f32 ly = QUAD_POSITIONS[i].y * size.y;
+            f32 lx = (QUAD_POSITIONS[i].x + ox) * size.x;
+            f32 ly = (QUAD_POSITIONS[i].y + oy) * size.y;
             verts[i].position = glm::vec2(
                 position.x + lx * cosA - ly * sinA,
                 position.y + lx * sinA + ly * cosA
@@ -123,8 +131,8 @@ void SpritePlugin::emitQuad(
     } else {
         for (u32 i = 0; i < 4; ++i) {
             verts[i].position = glm::vec2(
-                position.x + QUAD_POSITIONS[i].x * size.x,
-                position.y + QUAD_POSITIONS[i].y * size.y
+                position.x + (QUAD_POSITIONS[i].x + ox) * size.x,
+                position.y + (QUAD_POSITIONS[i].y + oy) * size.y
             );
             verts[i].color = packColor(color);
             verts[i].texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
@@ -162,6 +170,7 @@ void SpritePlugin::emitQuad(
 void SpritePlugin::emitNineSlice(
     TransientBufferPool& buffers, DrawList& draw_list,
     const glm::vec2& position, const glm::vec2& size,
+    const glm::vec2& pivot,
     f32 angle, f32 depth, u32 textureId,
     const glm::vec2& texSize, const resource::SliceBorder& border,
     const glm::vec4& color,
@@ -175,8 +184,8 @@ void SpritePlugin::emitNineSlice(
     f32 T = border.top;
     f32 B = border.bottom;
 
-    f32 baseX = position.x - size.x * 0.5f;
-    f32 baseY = position.y - size.y * 0.5f;
+    f32 baseX = position.x - size.x * pivot.x;
+    f32 baseY = position.y - size.y * pivot.y;
 
     f32 x[4] = { baseX, baseX + L, baseX + size.x - R, baseX + size.x };
     f32 y[4] = { baseY, baseY + B, baseY + size.y - T, baseY + size.y };

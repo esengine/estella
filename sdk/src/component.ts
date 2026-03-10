@@ -268,6 +268,7 @@ export interface SpriteData {
     texture: number;
     color: Color;
     size: Vec2;
+    pivot: Vec2;
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;
@@ -389,6 +390,7 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite', {
     texture: INVALID_TEXTURE,
     color: { r: 1, g: 1, b: 1, a: 1 },
     size: { x: DEFAULT_SPRITE_SIZE.x, y: DEFAULT_SPRITE_SIZE.y },
+    pivot: { x: 0.5, y: 0.5 },
     uvOffset: { x: 0, y: 0 },
     uvScale: { x: 1, y: 1 },
     layer: 0,
