@@ -43,14 +43,10 @@ void SpineSystem::update(ecs::Registry& registry, f32 deltaTime) {
         }
     }
 
-    pending_remove_.clear();
-    for (auto& [entity, instance] : instances_) {
-        if (!registry.valid(entity) || !registry.has<ecs::SpineAnimation>(entity)) {
-            pending_remove_.push_back(entity);
-        }
-    }
-    for (Entity e : pending_remove_) {
-        instances_.erase(e);
+    if (destroy_callback_id_ == 0) {
+        destroy_callback_id_ = registry.onDestroy([this](Entity entity) {
+            instances_.erase(entity);
+        });
     }
 }
 

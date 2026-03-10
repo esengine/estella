@@ -49,8 +49,6 @@ private:
                        EmitterState& state, u32 count);
 
     void updateParticles(const ecs::ParticleEmitter& emitter, EmitterState& state, f32 dt);
-    void cleanupDeadEntities(ecs::Registry& registry);
-
     f32 randomRange(f32 min, f32 max);
     glm::vec2 randomDirection(f32 angleMin, f32 angleMax);
     glm::vec2 randomShapeOffset(const ecs::ParticleEmitter& emitter);
@@ -58,7 +56,7 @@ private:
     std::unordered_map<Entity, EmitterState> states_;
     std::mt19937 rng_;
     std::vector<Particle*> dead_particles_;
-    std::vector<Entity> dead_entities_;
+    u32 destroy_callback_id_ = 0;
 };
 
 }  // namespace esengine::particle
