@@ -4,7 +4,8 @@ import type { ScriptService } from '../services/ScriptService';
 import type { BuildHistory } from '../builder/BuildHistory';
 import { getEditorStore } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
-import { getPlayModeService } from '../services/PlayModeService';
+import { getEditorContainer } from '../container';
+import { GAME_VIEW_SERVICE } from '../container/tokens';
 import { getAllMenus, getMenuItems } from '../menus/MenuRegistry';
 import { getAllPanels } from '../panels/PanelRegistry';
 import { exportSettings, getSettingsValue } from '../settings/SettingsRegistry';
@@ -350,6 +351,7 @@ export class McpBridge {
             : entity as number;
         if (id == null) throw new Error(`Entity not found: ${entity}`);
         store.selectEntity(id);
+        getSharedRenderContext().requestRender();
         return { ok: true, resolvedId: id };
     }
 
@@ -378,6 +380,7 @@ export class McpBridge {
             scene, entityMap, id, componentType, field, oldValue, newValue,
         );
         store.executeCommand(cmd);
+        getSharedRenderContext().requestRender();
         return { ok: true };
     }
 
@@ -391,6 +394,7 @@ export class McpBridge {
                     throw new Error(`Menu item disabled: ${id}`);
                 }
                 found.action();
+                getSharedRenderContext().requestRender();
                 return { ok: true };
             }
         }
@@ -398,12 +402,13 @@ export class McpBridge {
     }
 
     private async togglePlayMode_(): Promise<unknown> {
-        const playService = getPlayModeService();
-        if (playService.state === 'stopped') {
-            await playService.enter();
+        const gameView = getEditorContainer().get(GAME_VIEW_SERVICE, 'default');
+        if (!gameView) throw new Error('Game view not available');
+        if (gameView.gameState === 'stopped') {
+            await gameView.play();
             return { mode: 'play' };
         } else {
-            await playService.exit();
+            await gameView.stop();
             return { mode: 'edit' };
         }
     }
@@ -424,6 +429,7 @@ export class McpBridge {
 
     private async reloadScripts_(): Promise<unknown> {
         const success = await this.scriptService_.reload();
+        getSharedRenderContext().requestRender();
         return { ok: true, success };
     }
 
