@@ -1,6 +1,6 @@
 import type { TimelineState } from './TimelineState';
 import type { TimelineAssetData, TimelinePanelHost } from './TimelineKeyframeArea';
-import { ChangeTangentCommand } from './TimelineCommands';
+import { ChangeTangentCommand, ChangeInterpolationCommand } from './TimelineCommands';
 
 const CURVE_BG = '#1a1a1a';
 const CURVE_GRID = '#2a2a2a';
@@ -11,8 +11,6 @@ const PADDING = 20;
 const KF_RADIUS = 4;
 const HANDLE_RADIUS = 3;
 const TANGENT_LENGTH_PX = 40;
-const STEP_TANGENT_VALUE = 1e6;
-
 const CHANNEL_COLORS = ['#e06c75', '#98c379', '#61afef', '#d19a66', '#c678dd', '#56b6c2'];
 
 interface CurveKeyframe {
@@ -20,6 +18,7 @@ interface CurveKeyframe {
     value: number;
     inTangent?: number;
     outTangent?: number;
+    interpolation?: string;
 }
 
 interface TangentHit {
@@ -312,15 +311,35 @@ export class TimelineCurveEditor {
                 if (dt <= 0) return k0.value;
 
                 const t = (time - k0.time) / dt;
-                const m0 = (k0.outTangent ?? 0) * dt;
-                const m1 = (k1.inTangent ?? 0) * dt;
+                const interp = k0.interpolation ?? 'hermite';
 
-                const t2 = t * t;
-                const t3 = t2 * t;
-                return (2 * t3 - 3 * t2 + 1) * k0.value
-                    + (t3 - 2 * t2 + t) * m0
-                    + (-2 * t3 + 3 * t2) * k1.value
-                    + (t3 - t2) * m1;
+                switch (interp) {
+                    case 'linear':
+                        return k0.value + (k1.value - k0.value) * t;
+                    case 'step':
+                        return k0.value;
+                    case 'easeIn':
+                        return k0.value + (k1.value - k0.value) * (t * t);
+                    case 'easeOut': {
+                        const inv = 1 - t;
+                        return k0.value + (k1.value - k0.value) * (1 - inv * inv);
+                    }
+                    case 'easeInOut': {
+                        const e = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+                        return k0.value + (k1.value - k0.value) * e;
+                    }
+                    case 'hermite':
+                    default: {
+                        const m0 = (k0.outTangent ?? 0) * dt;
+                        const m1 = (k1.inTangent ?? 0) * dt;
+                        const t2 = t * t;
+                        const t3 = t2 * t;
+                        return (2 * t3 - 3 * t2 + 1) * k0.value
+                            + (t3 - 2 * t2 + t) * m0
+                            + (-2 * t3 + 3 * t2) * k1.value
+                            + (t3 - t2) * m1;
+                    }
+                }
             }
         }
 
@@ -348,6 +367,9 @@ export class TimelineCurveEditor {
     }
 
     private drawTangentHandles(ctx: CanvasRenderingContext2D, kf: CurveKeyframe, x: number, y: number): void {
+        const interp = kf.interpolation ?? 'hermite';
+        if (interp !== 'hermite') return;
+
         const inTan = kf.inTangent ?? 0;
         const outTan = kf.outTangent ?? 0;
 
@@ -387,6 +409,8 @@ export class TimelineCurveEditor {
         if (this.selectedKfIndex_ < 0 || this.selectedKfIndex_ >= kfs.length) return null;
 
         const kf = kfs[this.selectedKfIndex_];
+        const interp = kf.interpolation ?? 'hermite';
+        if (interp !== 'hermite') return null;
         const kx = this.timeToX(kf.time);
         const ky = this.valueToY(kf.value);
 
@@ -492,25 +516,26 @@ export class TimelineCurveEditor {
         menu.style.left = `${e.clientX}px`;
         menu.style.top = `${e.clientY}px`;
 
-        const linearIn = this.calcLinearTangent(kfs, kfIdx, 'in');
-        const linearOut = this.calcLinearTangent(kfs, kfIdx, 'out');
-
-        const presets: { label: string; inT: number; outT: number }[] = [
-            { label: 'Flat (Smooth)', inT: 0, outT: 0 },
-            { label: 'Linear', inT: linearIn, outT: linearOut },
-            { label: 'Ease In', inT: 0, outT: 2 },
-            { label: 'Ease Out', inT: 2, outT: 0 },
-            { label: 'Ease In-Out', inT: linearIn * 0.5, outT: linearOut * 0.5 },
-            { label: 'Step (Constant)', inT: 0, outT: STEP_TANGENT_VALUE },
+        const presets: { label: string; interp: string; inT: number; outT: number }[] = [
+            { label: 'Hermite (Smooth)', interp: 'hermite', inT: 0, outT: 0 },
+            { label: 'Linear', interp: 'linear', inT: 0, outT: 0 },
+            { label: 'Step (Constant)', interp: 'step', inT: 0, outT: 0 },
+            { label: 'Ease In', interp: 'easeIn', inT: 0, outT: 0 },
+            { label: 'Ease Out', interp: 'easeOut', inT: 0, outT: 0 },
+            { label: 'Ease In-Out', interp: 'easeInOut', inT: 0, outT: 0 },
         ];
 
         for (const preset of presets) {
             const item = document.createElement('div');
             item.className = 'es-timeline-dropdown-item';
+            const current = kf.interpolation ?? 'hermite';
+            if (current === preset.interp) {
+                item.style.fontWeight = 'bold';
+            }
             item.textContent = preset.label;
             item.addEventListener('click', () => {
                 menu.remove();
-                this.applyTangentPreset(kfIdx, kf, preset.inT, preset.outT);
+                this.applyInterpolationPreset(kfIdx, kf, preset.interp, preset.inT, preset.outT);
             });
             menu.appendChild(item);
         }
@@ -525,50 +550,25 @@ export class TimelineCurveEditor {
         setTimeout(() => document.addEventListener('mousedown', dismiss, true), 0);
     }
 
-    private applyTangentPreset(kfIdx: number, kf: CurveKeyframe, newIn: number, newOut: number): void {
-        const oldIn = kf.inTangent ?? 0;
-        const oldOut = kf.outTangent ?? 0;
-
+    private applyInterpolationPreset(
+        kfIdx: number, kf: CurveKeyframe,
+        interp: string, newIn: number, newOut: number,
+    ): void {
         if (this.host_ && this.assetData_) {
-            if (newIn !== oldIn) {
-                const cmdIn = new ChangeTangentCommand(
-                    this.assetData_, this.trackIndex_, this.channelIndex_,
-                    kfIdx, 'in', oldIn, newIn,
-                    () => this.host_!.onAssetDataChanged(),
-                );
-                this.host_.executeCommand(cmdIn);
-            }
-            if (newOut !== oldOut) {
-                const cmdOut = new ChangeTangentCommand(
-                    this.assetData_, this.trackIndex_, this.channelIndex_,
-                    kfIdx, 'out', oldOut, newOut,
-                    () => this.host_!.onAssetDataChanged(),
-                );
-                this.host_.executeCommand(cmdOut);
-            }
+            const cmd = new ChangeInterpolationCommand(
+                this.assetData_, this.trackIndex_, this.channelIndex_,
+                kfIdx, kf.interpolation, interp,
+                kf.inTangent ?? 0, kf.outTangent ?? 0,
+                newIn, newOut,
+                () => this.host_!.onAssetDataChanged(),
+            );
+            this.host_.executeCommand(cmd);
         } else {
+            (kf as any).interpolation = interp;
             (kf as any).inTangent = newIn;
             (kf as any).outTangent = newOut;
             this.draw();
         }
-    }
-
-    private calcLinearTangent(
-        kfs: CurveKeyframe[], index: number, direction: 'in' | 'out',
-    ): number {
-        if (direction === 'in' && index > 0) {
-            const prev = kfs[index - 1];
-            const curr = kfs[index];
-            const dt = curr.time - prev.time;
-            return dt > 0 ? (curr.value - prev.value) / dt : 0;
-        }
-        if (direction === 'out' && index < kfs.length - 1) {
-            const curr = kfs[index];
-            const next = kfs[index + 1];
-            const dt = next.time - curr.time;
-            return dt > 0 ? (next.value - curr.value) / dt : 0;
-        }
-        return 0;
     }
 
     private startTangentDrag(_e: MouseEvent, rect: DOMRect, hit: TangentHit): void {

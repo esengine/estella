@@ -23,6 +23,7 @@ export class TimelineToolbar {
     private recordBtn_: HTMLElement | null = null;
     private wrapBtn_: HTMLElement | null = null;
     private speedBtn_: HTMLElement | null = null;
+    private snapBtn_: HTMLElement | null = null;
     private valueGroup_: HTMLElement | null = null;
     private valueInput_: HTMLInputElement | null = null;
     private unsub_: (() => void) | null = null;
@@ -97,6 +98,7 @@ export class TimelineToolbar {
                 <div class="es-timeline-toolbar-right">
                     <button class="es-btn es-btn-sm es-timeline-speed-btn" data-action="speed" title="Playback Speed">1x</button>
                     <button class="es-btn es-btn-icon es-timeline-wrap-btn" data-action="wrap" title="Wrap Mode: Once">${icons.repeat(12)}</button>
+                    <button class="es-btn es-btn-icon es-timeline-snap-btn es-active" data-action="snap" title="Snap to Grid">${icons.grid(12)}</button>
                     <button class="es-btn es-btn-icon" data-action="add-track" title="Add Track">${icons.plus(12)}</button>
                 </div>
             </div>
@@ -107,6 +109,7 @@ export class TimelineToolbar {
         this.recordBtn_ = this.el_.querySelector('[data-action="record"]');
         this.wrapBtn_ = this.el_.querySelector('[data-action="wrap"]');
         this.speedBtn_ = this.el_.querySelector('[data-action="speed"]');
+        this.snapBtn_ = this.el_.querySelector('[data-action="snap"]');
         this.valueGroup_ = this.el_.querySelector('.es-timeline-value-group');
         this.valueInput_ = this.el_.querySelector('.es-timeline-value-input');
 
@@ -146,6 +149,11 @@ export class TimelineToolbar {
 
         this.el_.querySelector('[data-action="wrap"]')?.addEventListener('click', () => {
             this.cycleWrapMode();
+        });
+
+        this.el_.querySelector('[data-action="snap"]')?.addEventListener('click', () => {
+            this.state_.snapEnabled = !this.state_.snapEnabled;
+            this.snapBtn_?.classList.toggle('es-active', this.state_.snapEnabled);
         });
 
         this.el_.querySelector('[data-action="add-track"]')?.addEventListener('click', (e) => {

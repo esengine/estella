@@ -1,6 +1,6 @@
 import type { ESEngineModule } from '../wasm';
 import type { TimelineAsset, PropertyTrack, Track } from './TimelineTypes';
-import { TrackType } from './TimelineTypes';
+import { TrackType, InterpType } from './TimelineTypes';
 
 export enum AnimTargetField {
     PositionX = 0, PositionY, PositionZ,
@@ -68,6 +68,20 @@ const COMPONENT_MAP: Record<string, AnimTargetComponent> = {
     UIRect: AnimTargetComponent.UIRect,
     Camera: AnimTargetComponent.Camera,
 };
+
+const INTERP_TYPE_MAP: Record<string, number> = {
+    [InterpType.Hermite]: 0,
+    [InterpType.Linear]: 1,
+    [InterpType.Step]: 2,
+    [InterpType.EaseIn]: 3,
+    [InterpType.EaseOut]: 4,
+    [InterpType.EaseInOut]: 5,
+};
+
+function interpTypeToNum(interp?: InterpType): number {
+    if (!interp) return 0;
+    return INTERP_TYPE_MAP[interp] ?? 0;
+}
 
 function resolveField(component: string, property: string): AnimTargetField {
     return FIELD_MAP[component]?.[property] ?? AnimTargetField.CustomField;
@@ -168,8 +182,8 @@ function uploadPropertyTrack(module: ESEngineModule, handle: number, track: Prop
     const countsPtr = mod._malloc(channelCount * 4);
     new Int32Array(mod.HEAPU8.buffer, countsPtr, channelCount).set(counts);
 
-    const dataPtr = mod._malloc(totalKeyframes * 4 * 4);
-    const dataArr = new Float32Array(mod.HEAPU8.buffer, dataPtr, totalKeyframes * 4);
+    const dataPtr = mod._malloc(totalKeyframes * 5 * 4);
+    const dataArr = new Float32Array(mod.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
     let offset = 0;
     for (const ch of track.channels) {
         for (const kf of ch.keyframes) {
@@ -177,6 +191,7 @@ function uploadPropertyTrack(module: ESEngineModule, handle: number, track: Prop
             dataArr[offset++] = kf.value;
             dataArr[offset++] = kf.inTangent;
             dataArr[offset++] = kf.outTangent;
+            dataArr[offset++] = interpTypeToNum(kf.interpolation);
         }
     }
 
@@ -220,8 +235,8 @@ function uploadCustomPropertyTrack(module: ESEngineModule, handle: number, track
     const countsPtr = mod._malloc(channelCount * 4);
     new Int32Array(mod.HEAPU8.buffer, countsPtr, channelCount).set(counts);
 
-    const dataPtr = mod._malloc(totalKeyframes * 4 * 4);
-    const dataArr = new Float32Array(mod.HEAPU8.buffer, dataPtr, totalKeyframes * 4);
+    const dataPtr = mod._malloc(totalKeyframes * 5 * 4);
+    const dataArr = new Float32Array(mod.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
     let dOffset = 0;
     for (const ch of track.channels) {
         for (const kf of ch.keyframes) {
@@ -229,6 +244,7 @@ function uploadCustomPropertyTrack(module: ESEngineModule, handle: number, track
             dataArr[dOffset++] = kf.value;
             dataArr[dOffset++] = kf.inTangent;
             dataArr[dOffset++] = kf.outTangent;
+            dataArr[dOffset++] = interpTypeToNum(kf.interpolation);
         }
     }
 
