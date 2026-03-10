@@ -116,7 +116,7 @@ export function createSpineFactories(provider: SpineWasmProvider): Map<SpineVers
             ]);
             const blob = new Blob([`${jsSource};\nself.__ESSpineModule__ = ESSpineModule;`], { type: 'application/javascript' });
             const url = URL.createObjectURL(blob);
-            await import(/* webpackIgnore: true */ url);
+            await import(/* @vite-ignore */ /* webpackIgnore: true */ url);
             URL.revokeObjectURL(url);
             const moduleFactory = (globalThis as any).__ESSpineModule__ as
                 (opts: Record<string, unknown>) => Promise<SpineWasmModule>;

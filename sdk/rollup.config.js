@@ -23,26 +23,26 @@ const esmBuilds = [
         },
         plugins: [
             typescript({ tsconfig: './tsconfig.json', declaration: false }),
-            terser(),
+            terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } }),
         ],
         treeshake,
     },
     {
         input: 'src/index.ts',
         output: { file: 'dist/index.bundled.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
         treeshake,
     },
     {
         input: 'src/index.wechat.ts',
         output: { file: 'dist/index.wechat.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
         treeshake,
     },
     {
         input: 'src/index.wechat.ts',
         output: { file: 'dist/index.wechat.cjs.js', format: 'cjs', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
         treeshake,
     },
 ];
