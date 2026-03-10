@@ -110,6 +110,9 @@ struct SpineContext {
     std::string stringBuffer;
     std::string lastError;
 
+    std::vector<float> eventBuffer;
+    int eventCount = 0;
+
     void reset() {
         for (auto& [id, inst] : instances) {
             if (inst.state) spAnimationState_dispose(inst.state);
@@ -351,6 +354,9 @@ EMSCRIPTEN_KEEPALIVE
 void spine_update(int instanceId, float dt) {
     auto it = g_ctx.instances.find(instanceId);
     if (it == g_ctx.instances.end()) return;
+
+    g_ctx.eventBuffer.clear();
+    g_ctx.eventCount = 0;
 
     spAnimationState_update(it->second.state, dt);
     spAnimationState_apply(it->second.state, it->second.skeleton);
@@ -726,6 +732,156 @@ void spine_getMeshBatchData(int instanceId, int batchIndex,
                 batch.indices.size() * sizeof(uint16_t));
     *outTextureId = batch.textureId;
     *outBlendMode = batch.blendMode;
+}
+
+// =============================================================================
+// Mix Duration / Track Alpha
+// =============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void spine_setDefaultMix(int skeletonHandle, float duration) {
+    auto it = g_ctx.skeletons.find(skeletonHandle);
+    if (it == g_ctx.skeletons.end() || !it->second.stateData) return;
+    it->second.stateData->defaultMix = duration;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void spine_setMixDuration(int skeletonHandle, const char* fromAnim,
+                           const char* toAnim, float duration) {
+    auto it = g_ctx.skeletons.find(skeletonHandle);
+    if (it == g_ctx.skeletons.end() || !it->second.stateData) return;
+
+    spAnimation* from = spSkeletonData_findAnimation(it->second.skeletonData, fromAnim);
+    spAnimation* to = spSkeletonData_findAnimation(it->second.skeletonData, toAnim);
+    if (!from || !to) return;
+
+    spAnimationStateData_setMix(it->second.stateData, from, to, duration);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void spine_setTrackAlpha(int instanceId, int track, float alpha) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return;
+
+    spTrackEntry* entry = spAnimationState_getCurrent(it->second.state, track);
+    if (entry) {
+        entry->alpha = alpha;
+    }
+}
+
+// =============================================================================
+// Event Collection
+// =============================================================================
+
+static constexpr int EVENT_STRIDE = 4;
+static constexpr int MAX_EVENTS_PER_UPDATE = 64;
+
+static void spineEventListener(spAnimationState* state, spEventType type,
+                                spTrackEntry* entry, spEvent* event) {
+    (void)state;
+    if (g_ctx.eventCount >= MAX_EVENTS_PER_UPDATE) return;
+
+    float typeF;
+    int typeInt = static_cast<int>(type);
+    std::memcpy(&typeF, &typeInt, sizeof(float));
+    g_ctx.eventBuffer.push_back(typeF);
+
+    float trackF;
+    int trackInt = entry ? entry->trackIndex : 0;
+    std::memcpy(&trackF, &trackInt, sizeof(float));
+    g_ctx.eventBuffer.push_back(trackF);
+
+    if (type == SP_ANIMATION_EVENT && event) {
+        g_ctx.eventBuffer.push_back(event->floatValue);
+        float intValF;
+        int intVal = event->intValue;
+        std::memcpy(&intValF, &intVal, sizeof(float));
+        g_ctx.eventBuffer.push_back(intValF);
+    } else {
+        g_ctx.eventBuffer.push_back(0.0f);
+        g_ctx.eventBuffer.push_back(0.0f);
+    }
+    g_ctx.eventCount++;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void spine_enableEvents(int instanceId) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return;
+    it->second.state->listener = spineEventListener;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int spine_getEventCount(int instanceId) {
+    (void)instanceId;
+    return g_ctx.eventCount;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t spine_getEventBuffer() {
+    return reinterpret_cast<uintptr_t>(g_ctx.eventBuffer.data());
+}
+
+EMSCRIPTEN_KEEPALIVE
+void spine_clearEvents() {
+    g_ctx.eventBuffer.clear();
+    g_ctx.eventCount = 0;
+}
+
+// =============================================================================
+// Attachment Manipulation
+// =============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+int spine_setAttachment(int instanceId, const char* slotName,
+                         const char* attachmentName) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
+
+    int result = spSkeleton_setAttachment(
+        it->second.skeleton, slotName,
+        (attachmentName && attachmentName[0] != '\0') ? attachmentName : nullptr);
+    return result;
+}
+
+// =============================================================================
+// IK Constraint Control
+// =============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+int spine_setIKTarget(int instanceId, const char* constraintName,
+                       float targetX, float targetY, float mix) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
+
+    spIkConstraint* constraint = spSkeleton_findIkConstraint(
+        it->second.skeleton, constraintName);
+    if (!constraint) return 0;
+
+    constraint->target->x = targetX;
+    constraint->target->y = targetY;
+    constraint->mix = mix;
+    return 1;
+}
+
+// =============================================================================
+// Slot Color Control
+// =============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+int spine_setSlotColor(int instanceId, const char* slotName,
+                        float r, float g, float b, float a) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
+
+    spSlot* slot = spSkeleton_findSlot(it->second.skeleton, slotName);
+    if (!slot) return 0;
+
+    slot->color.r = r;
+    slot->color.g = g;
+    slot->color.b = b;
+    slot->color.a = a;
+    return 1;
 }
 
 } // extern "C"

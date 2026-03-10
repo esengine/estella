@@ -104,6 +104,44 @@ export class ModuleBackend {
         return this.controller_.getSkins(info.instanceId);
     }
 
+    setDefaultMix(entity: Entity, duration: number): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.setDefaultMix(info.skelHandle, duration);
+    }
+
+    setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.setMixDuration(info.skelHandle, fromAnim, toAnim, duration);
+    }
+
+    setTrackAlpha(entity: Entity, track: number, alpha: number): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.setTrackAlpha(info.instanceId, track, alpha);
+    }
+
+    setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setAttachment(info.instanceId, slotName, attachmentName);
+    }
+
+    setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setIKTarget(info.instanceId, constraintName, targetX, targetY, mix);
+    }
+
+    setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setSlotColor(info.instanceId, slotName, r, g, b, a);
+    }
+
+    enableEvents(entity: Entity): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.enableEvents(info.instanceId);
+    }
+
     updateAll(dt: number): void {
         for (const info of this.entities_.values()) {
             this.controller_.update(info.instanceId, dt);

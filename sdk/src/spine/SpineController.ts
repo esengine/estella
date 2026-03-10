@@ -234,8 +234,75 @@ export class SpineModuleController {
     }
 
     // =========================================================================
+    // Mix / Crossfade
+    // =========================================================================
+
+    setDefaultMix(skeletonHandle: number, duration: number): void {
+        this.api_.setDefaultMix(skeletonHandle, duration);
+    }
+
+    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void {
+        this.api_.setMixDuration(skeletonHandle, fromAnim, toAnim, duration);
+    }
+
+    setTrackAlpha(instanceId: number, track: number, alpha: number): void {
+        this.api_.setTrackAlpha(instanceId, track, alpha);
+    }
+
+    // =========================================================================
+    // Attachments
+    // =========================================================================
+
+    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean {
+        return !!this.api_.setAttachment(instanceId, slotName, attachmentName);
+    }
+
+    // =========================================================================
+    // IK Constraints
+    // =========================================================================
+
+    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean {
+        return !!this.api_.setIKTarget(instanceId, constraintName, targetX, targetY, mix);
+    }
+
+    // =========================================================================
+    // Slot Color
+    // =========================================================================
+
+    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean {
+        return !!this.api_.setSlotColor(instanceId, slotName, r, g, b, a);
+    }
+
+    // =========================================================================
     // Events
     // =========================================================================
+
+    enableEvents(instanceId: number): void {
+        this.api_.enableEvents(instanceId);
+    }
+
+    collectEvents(instanceId: number): { type: number; track: number; floatValue: number; intValue: number }[] {
+        const count = this.api_.getEventCount(instanceId);
+        if (count === 0) return [];
+
+        const EVENT_STRIDE = 4;
+        const bufferPtr = this.api_.getEventBuffer();
+        const f32 = this.raw_.HEAPF32;
+        const base = bufferPtr >> 2;
+
+        const events: { type: number; track: number; floatValue: number; intValue: number }[] = [];
+        for (let i = 0; i < count; i++) {
+            const offset = base + i * EVENT_STRIDE;
+            events.push({
+                type: f32[offset],
+                track: f32[offset + 1],
+                floatValue: f32[offset + 2],
+                intValue: f32[offset + 3],
+            });
+        }
+        this.api_.clearEvents();
+        return events;
+    }
 
     on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void {
         if (!this.listeners_.has(entity)) {
