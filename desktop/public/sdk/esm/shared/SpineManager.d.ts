@@ -1,5 +1,5 @@
 import { E as Entity, a as ESEngineModule, C as CppRegistry } from './wasm.js';
-import { a as SpineModuleController, b as SpineModuleFactory } from './app.js';
+import { d as SpineModuleController, e as SpineModuleFactory } from './app.js';
 
 declare class ModuleBackend {
     private controller_;
@@ -30,6 +30,13 @@ declare class ModuleBackend {
     } | null;
     getAnimations(entity: Entity): string[];
     getSkins(entity: Entity): string[];
+    setDefaultMix(entity: Entity, duration: number): void;
+    setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(entity: Entity, track: number, alpha: number): void;
+    setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean;
+    setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    enableEvents(entity: Entity): void;
     updateAll(dt: number): void;
     extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry, frameCount?: number): void;
     removeEntity(entity: Entity): void;
@@ -73,8 +80,16 @@ declare class SpineManager {
     } | null;
     getAnimations(entity: Entity): string[];
     getSkins(entity: Entity): string[];
+    setDefaultMix(entity: Entity, duration: number): void;
+    setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(entity: Entity, track: number, alpha: number): void;
+    setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean;
+    setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    enableEvents(entity: Entity): void;
     hasInstance(entity: Entity): boolean;
     shutdown(): void;
+    private getEntityBackend_;
     private ensureBackend;
 }
 
