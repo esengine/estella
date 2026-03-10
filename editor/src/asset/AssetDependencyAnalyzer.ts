@@ -181,8 +181,9 @@ export class AssetDependencyAnalyzer {
         dependents: Map<string, Set<string>>,
         visited: Set<string>
     ): Promise<void> {
-        if (visited.has(resolvedPath)) return;
-        visited.add(resolvedPath);
+        const key = uuid || resolvedPath;
+        if (visited.has(key)) return;
+        visited.add(key);
 
         const entry = getAssetTypeEntry(resolvedPath);
         if (!entry?.hasTransitiveDeps) return;

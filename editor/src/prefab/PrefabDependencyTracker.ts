@@ -31,12 +31,32 @@ export class PrefabDependencyTracker {
     registerDependency(dependentPrefab: string, dependsOn: string): void {
         const normalized = this.normalizePath(dependsOn);
         const normalizedDependent = this.normalizePath(dependentPrefab);
+        if (this.wouldCreateCycle(normalized, normalizedDependent)) {
+            console.warn(`Circular prefab dependency detected: ${normalizedDependent} -> ${normalized}`);
+            return;
+        }
         let set = this.dependents_.get(normalized);
         if (!set) {
             set = new Set();
             this.dependents_.set(normalized, set);
         }
         set.add(normalizedDependent);
+    }
+
+    private wouldCreateCycle(dependsOn: string, dependent: string): boolean {
+        const visited = new Set<string>();
+        const check = (from: string): boolean => {
+            if (from === dependent) return true;
+            if (visited.has(from)) return false;
+            visited.add(from);
+            const upstreams = this.dependents_.get(from);
+            if (!upstreams) return false;
+            for (const u of upstreams) {
+                if (check(u)) return true;
+            }
+            return false;
+        };
+        return check(dependsOn);
     }
 
     onPrefabFileChanged(changedPaths: string[]): void {
