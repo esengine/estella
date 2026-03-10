@@ -119,7 +119,7 @@ void physics_createBody(uint32_t entityId, int bodyType, float x, float y, float
                         float gravityScale, float linearDamping, float angularDamping,
                         int fixedRotation, int bullet) {
     if (!b2World_IsValid(g_worldId)) return;
-    if (entityId == static_cast<uint32_t>(INVALID_ENTITY)) return;
+    if (entityId == 0xFFFFFFFF) return;
     if (g_entityToBody.contains(entityId)) return;
 
     b2BodyDef bodyDef = b2DefaultBodyDef();
