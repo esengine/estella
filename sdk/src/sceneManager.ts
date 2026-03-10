@@ -66,6 +66,7 @@ interface TransitionState {
     targetScene: string;
     options: TransitionOptions;
     resolve: () => void;
+    reject: (reason?: unknown) => void;
 }
 
 const TRANSITION_CALLBACK_ID = '__scene_transition_overlay__';
@@ -241,7 +242,7 @@ export class SceneManagerState {
     }
 
     private startFadeTransition(targetScene: string, options: TransitionOptions): Promise<void> {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             const duration = options.duration ?? RuntimeConfig.sceneTransitionDuration;
             const color = options.color ?? { ...RuntimeConfig.sceneTransitionColor };
 
@@ -255,6 +256,7 @@ export class SceneManagerState {
                 targetScene,
                 options,
                 resolve,
+                reject,
             };
 
             registerDrawCallback(TRANSITION_CALLBACK_ID, () => {
@@ -294,13 +296,13 @@ export class SceneManagerState {
                     await this.load(targetScene);
                 } catch (err) {
                     console.error('Scene transition failed:', err);
-                    const { resolve: resolveTransition } = this.transition_!;
+                    const { reject: rejectTransition } = this.transition_!;
                     this.transition_ = null;
                     unregisterDrawCallback(TRANSITION_CALLBACK_ID);
-                    resolveTransition();
+                    rejectTransition(err);
                 }
             };
-            doSwitch();
+            doSwitch().catch(() => {});
         }
 
         if (this.transition_.phase === 'fade-in' && this.transition_.elapsed >= halfDuration) {
