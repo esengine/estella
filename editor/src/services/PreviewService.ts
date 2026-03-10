@@ -1,5 +1,5 @@
 import { PreviewManager } from '../PreviewManager';
-import { showToast } from '../ui/Toast';
+import { showToast, showErrorToast } from '../ui/Toast';
 import { hasFileHandle } from '../io/SceneSerializer';
 import type { EditorStore } from '../store/EditorStore';
 import type { ScriptService } from './ScriptService';
@@ -39,12 +39,16 @@ export class PreviewService {
             await this.saveScene_();
             showToast({ type: 'info', title: 'Scene saved before preview' });
         }
-        const port = await this.previewManager_.startPreview(
-            this.store_.scene, this.scriptService_.scriptLoader, this.spineService_.spineVersion,
-        );
-        if (port !== null) {
-            this.previewUrl_ = `http://localhost:${port}`;
-            this.updatePreviewUrl_();
+        try {
+            const port = await this.previewManager_.startPreview(
+                this.store_.scene, this.scriptService_.scriptLoader, this.spineService_.spineVersion,
+            );
+            if (port !== null) {
+                this.previewUrl_ = `http://localhost:${port}`;
+                this.updatePreviewUrl_();
+            }
+        } catch (err) {
+            showErrorToast(`Preview failed: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 
@@ -52,13 +56,18 @@ export class PreviewService {
         if (this.store_.isDirty && this.store_.filePath && hasFileHandle()) {
             await this.saveScene_();
         }
-        const port = await this.previewManager_.startServer(
-            this.store_.scene, this.scriptService_.scriptLoader, this.spineService_.spineVersion,
-        );
-        if (port === null) return null;
-        this.previewUrl_ = `http://localhost:${port}`;
-        this.updatePreviewUrl_();
-        return this.previewUrl_;
+        try {
+            const port = await this.previewManager_.startServer(
+                this.store_.scene, this.scriptService_.scriptLoader, this.spineService_.spineVersion,
+            );
+            if (port === null) return null;
+            this.previewUrl_ = `http://localhost:${port}`;
+            this.updatePreviewUrl_();
+            return this.previewUrl_;
+        } catch (err) {
+            showErrorToast(`Preview server failed: ${err instanceof Error ? err.message : String(err)}`);
+            return null;
+        }
     }
 
     async stopPreviewServer(): Promise<void> {

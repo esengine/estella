@@ -31,7 +31,7 @@ export class PreviewManager {
             return await this.previewService_.startPreview(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
         } catch (err) {
             console.error('Failed to start preview:', err);
-            return null;
+            throw err;
         }
     }
 
@@ -54,7 +54,7 @@ export class PreviewManager {
             return await this.previewService_.startServer(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
         } catch (err) {
             console.error('Failed to start preview server:', err);
-            return null;
+            throw err;
         }
     }
 
