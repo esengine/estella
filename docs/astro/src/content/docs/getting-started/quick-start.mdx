@@ -1,11 +1,11 @@
 ---
 title: Quick Start
-description: Create your first ESEngine game in minutes
+description: Create your first Estella game in minutes
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Let's create a simple game that animates a sprite. This will introduce you to the core concepts of ESEngine.
+Let's create a simple game that animates a sprite. This will introduce you to the core concepts of Estella.
 
 ## Create a Project
 
@@ -56,7 +56,7 @@ Let's create a simple game that animates a sprite. This will introduce you to th
 
 ### Components Live in the Scene
 
-In ESEngine, entities and their components are created in the **scene editor**. Your code doesn't create them — it defines **systems** that query and operate on scene entities.
+In Estella, entities and their components are created in the **scene editor**. Your code doesn't create them — it defines **systems** that query and operate on scene entities.
 
 The sprite you placed in step 3 already has `Transform` and `Sprite` components. The system in step 4 finds it via `Query(Mut(Transform), Sprite)` and animates it.
 
@@ -131,6 +131,6 @@ addStartupSystem(defineSystem(
 
 ## Next Steps
 
-- [Understand the ECS pattern](/microes/core-concepts/ecs/)
-- [Learn about components](/microes/core-concepts/components/)
-- [Write systems](/microes/core-concepts/systems/)
+- [Understand the ECS pattern](/docs/core-concepts/ecs/)
+- [Learn about components](/docs/core-concepts/components/)
+- [Write systems](/docs/core-concepts/systems/)

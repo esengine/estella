@@ -1,8 +1,8 @@
 [package]
 name = "esengine-editor"
 version = "0.1.0"
-description = "ESEngine Editor Desktop Application"
-authors = ["ESEngine Team"]
+description = "Estella Editor Desktop Application"
+authors = ["Estella Team"]
 edition = "2021"
 
 [lib]

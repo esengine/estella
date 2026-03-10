@@ -1,11 +1,11 @@
 ---
 title: 数据存储
-description: 在 ESEngine 中保存和读取本地持久化数据
+description: 在 Estella 中保存和读取本地持久化数据
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine 提供了 `Storage` API 用于本地数据持久化，在 Web（localStorage）和微信小游戏（wx storage）平台上使用统一的接口。
+Estella 提供了 `Storage` API 用于本地数据持久化，在 Web（localStorage）和微信小游戏（wx storage）平台上使用统一的接口。
 
 ## 基本用法
 
@@ -48,7 +48,7 @@ if (Storage.has('highScore')) {
 
 Storage.remove('highScore');
 
-// 清除所有 ESEngine 存储的数据
+// 清除所有 Estella 存储的数据
 Storage.clear();
 ```
 
@@ -112,7 +112,7 @@ function saveMusicVolume(volume: number) {
 | `setJSON<T>(key, value)` | 存储可序列化为 JSON 的值 |
 | `has(key)` | 检查 key 是否存在 |
 | `remove(key)` | 删除指定 key |
-| `clear()` | 清除所有 ESEngine 存储的数据 |
+| `clear()` | 清除所有 Estella 存储的数据 |
 
 <Aside type="note">
   所有 key 会自动添加 `esengine:` 前缀，避免与其他库冲突。使用时无需手动添加此前缀。
@@ -131,6 +131,6 @@ function saveMusicVolume(volume: number) {
 
 ## 下一步
 
-- [场景](/microes/zh/guides/scenes/) — 场景加载与管理
-- [资源](/microes/zh/core-concepts/resources/) — Resource 系统的运行时全局状态
-- [微信小游戏](/microes/zh/guides/wechat/) — 微信平台相关
+- [场景](/docs/zh/guides/scenes/) — 场景加载与管理
+- [资源](/docs/zh/core-concepts/resources/) — Resource 系统的运行时全局状态
+- [微信小游戏](/docs/zh/guides/wechat/) — 微信平台相关

@@ -1,11 +1,11 @@
 ---
 title: Components
-description: Builtin and custom components in ESEngine
+description: Builtin and custom components in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Components are data attached to entities. In ESEngine, you **define** components in code and **attach** them to entities in the scene editor.
+Components are data attached to entities. In Estella, you **define** components in code and **attach** them to entities in the scene editor.
 
 ## Builtin Components
 
@@ -30,7 +30,7 @@ Position, rotation, and scale of an entity.
 
 ### Sprite
 
-2D sprite rendering. Requires `Transform` to be visible. See [Sprite guide](/microes/guides/sprite/) for full details.
+2D sprite rendering. Requires `Transform` to be visible. See [Sprite guide](/docs/guides/sprite/) for full details.
 
 ### Camera
 
@@ -85,11 +85,11 @@ Entity hierarchy for scene graphs.
 
 ### SpineAnimation
 
-Spine skeletal animation playback. Requires `Transform`. See [Spine Animation guide](/microes/guides/spine/) for full details.
+Spine skeletal animation playback. Requires `Transform`. See [Spine Animation guide](/docs/guides/spine/) for full details.
 
 ### BitmapText
 
-GPU-rendered text using pre-baked bitmap font atlases (BMFont format). Requires `Transform`. See [Bitmap Text guide](/microes/guides/bitmap-text/) for full details.
+GPU-rendered text using pre-baked bitmap font atlases (BMFont format). Requires `Transform`. See [Bitmap Text guide](/docs/guides/bitmap-text/) for full details.
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -104,7 +104,7 @@ GPU-rendered text using pre-baked bitmap font atlases (BMFont format). Requires 
 
 ### Text
 
-UI text rendering. Works with `UIRect` and `Sprite` to display text. See [Text & Image](/microes/guides/ui-text/) for full details.
+UI text rendering. Works with `UIRect` and `Sprite` to display text. See [Text & Image](/docs/guides/ui-text/) for full details.
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -133,7 +133,7 @@ UI layout rectangle. Defines anchored layout for UI elements.
 
 ### UIMask
 
-Clips child entities to the parent's `UIRect` bounds. Requires `UIRect` and `Transform` on the same entity. See [Masking & SafeArea](/microes/guides/ui-masking/) for details.
+Clips child entities to the parent's `UIRect` bounds. Requires `UIRect` and `Transform` on the same entity. See [Masking & SafeArea](/docs/guides/ui-masking/) for details.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -169,7 +169,7 @@ A string identifier for the entity. Useful for finding entities by name at runti
 
 ### Physics
 
-Physics components require the `PhysicsPlugin`. See [Physics guide](/microes/guides/physics/) for setup and usage.
+Physics components require the `PhysicsPlugin`. See [Physics guide](/docs/guides/physics/) for setup and usage.
 
 #### RigidBody
 
@@ -326,6 +326,6 @@ cmds.entity(entity).remove(Velocity);
 
 ## Next Steps
 
-- [Systems](/microes/core-concepts/systems/) — logic that operates on components
-- [Queries](/microes/core-concepts/queries/) — finding entities by component
-- [Change Detection](/microes/core-concepts/change-detection/) — reacting to component changes
+- [Systems](/docs/core-concepts/systems/) — logic that operates on components
+- [Queries](/docs/core-concepts/queries/) — finding entities by component
+- [Change Detection](/docs/core-concepts/change-detection/) — reacting to component changes

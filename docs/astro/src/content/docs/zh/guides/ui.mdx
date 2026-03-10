@@ -1,11 +1,11 @@
 ---
 title: UI 布局
-description: ESEngine 中的 UI 布局系统——锚点、Flex 和网格布局
+description: Estella 中的 UI 布局系统——锚点、Flex 和网格布局
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine 提供了完整的 UI 框架，包含布局、交互、文本渲染和一系列预制控件。布局计算在 C++/WASM 中运行以确保性能，所有组件通过 TypeScript 配置。
+Estella 提供了完整的 UI 框架，包含布局、交互、文本渲染和一系列预制控件。布局计算在 C++/WASM 中运行以确保性能，所有组件通过 TypeScript 配置。
 
 <Aside type="note">
   所有 UI 插件由引擎自动注册，无需手动设置。
@@ -88,7 +88,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 
 ## 下一步
 
-- [文本与图片](/microes/zh/guides/ui-text/) — 文本渲染和图片显示
-- [交互](/microes/zh/guides/ui-interaction/) — 指针事件、焦点和拖拽
-- [控件](/microes/zh/guides/ui-widgets/) — 按钮、滑块、开关等
-- [遮罩与安全区](/microes/zh/guides/ui-masking/) — 裁剪和设备安全区域
+- [文本与图片](/docs/zh/guides/ui-text/) — 文本渲染和图片显示
+- [交互](/docs/zh/guides/ui-interaction/) — 指针事件、焦点和拖拽
+- [控件](/docs/zh/guides/ui-widgets/) — 按钮、滑块、开关等
+- [遮罩与安全区](/docs/zh/guides/ui-masking/) — 裁剪和设备安全区域

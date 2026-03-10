@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estella - A Fast 2D Game Engine</title>
+  <meta name="description" content="Estella is a fast 2D game engine powered by WebAssembly and ECS, with a TypeScript SDK and visual editor.">
+  <meta property="og:title" content="Estella - A Fast 2D Game Engine">
+  <meta property="og:description" content="Build 2D games with a C++/WebAssembly backend, TypeScript SDK, and visual editor. Deploy to web and WeChat MiniGames.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://estellaengine.com">
+  <meta property="og:image" content="https://estellaengine.com/og-image.png">
+  <meta property="og:site_name" content="Estella">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Estella - A Fast 2D Game Engine">
+  <meta name="twitter:description" content="Build 2D games with a C++/WebAssembly backend, TypeScript SDK, and visual editor.">
+  <meta name="twitter:image" content="https://estellaengine.com/og-image.png">
+  <link rel="canonical" href="https://estellaengine.com">
+  <meta name="keywords" content="game engine, 2D game engine, WebAssembly, WASM, TypeScript, ECS, Entity Component System, WebGL, game development, Spine animation, WeChat MiniGame">
+  <meta name="author" content="Estella Team">
+  <link rel="icon" type="image/svg+xml" href="/docs/favicon.svg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Estella",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web, Windows, macOS, Linux",
+    "description": "A fast 2D game engine powered by WebAssembly and ECS, with a TypeScript SDK and visual editor.",
+    "url": "https://estellaengine.com",
+    "license": "https://opensource.org/licenses/MIT",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold: #e5c07b;
+      --gold-dark: #d19a66;
+      --bg: #0f0f0f;
+      --bg-card: #1a1a1a;
+      --bg-card-hover: #222;
+      --text: #e0e0e0;
+      --text-muted: #888;
+      --border: #2a2a2a;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--gold); text-decoration: none; }
+    a:hover { color: var(--gold-dark); }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      z-index: 100;
+      background: rgba(15, 15, 15, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--gold);
+    }
+    .nav-logo svg { width: 32px; height: 32px; }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--text-muted); font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero {
+      padding: 160px 24px 100px;
+      text-align: center;
+      background: radial-gradient(ellipse at 50% 0%, rgba(229, 192, 123, 0.06) 0%, transparent 60%);
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 40px;
+    }
+    .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+      color: #1a1a1a;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); color: #1a1a1a; }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--bg-card-hover); border-color: #444; color: var(--text); }
+
+    /* Features */
+    .features {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 80px 24px;
+    }
+    .features h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 48px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: border-color 0.2s;
+    }
+    .feature-card:hover { border-color: #444; }
+    .feature-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      color: var(--gold);
+    }
+    .feature-card p { font-size: 0.95rem; color: var(--text-muted); }
+
+    /* Code */
+    .code-section {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+    .code-section h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+    .code-section > p {
+      text-align: center;
+      color: var(--text-muted);
+      margin-bottom: 36px;
+    }
+    pre {
+      background: #161616;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    code { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
+    .kw { color: #c678dd; }
+    .fn { color: #61afef; }
+    .str { color: #98c379; }
+    .num { color: #d19a66; }
+    .cm { color: #5c6370; font-style: italic; }
+    .type { color: #e5c07b; }
+    .punct { color: #abb2bf; }
+
+    /* Screenshot */
+    .screenshot {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+      text-align: center;
+    }
+    .screenshot img {
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    /* CTA */
+    .cta {
+      text-align: center;
+      padding: 80px 24px;
+      border-top: 1px solid var(--border);
+    }
+    .cta h2 { font-size: 2rem; margin-bottom: 16px; }
+    .cta p { color: var(--text-muted); margin-bottom: 32px; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 40px 24px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    footer .footer-links { display: flex; gap: 24px; justify-content: center; margin-bottom: 16px; }
+
+    @media (max-width: 640px) {
+      .nav-links { gap: 16px; }
+      .features-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+        <defs>
+          <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#2d2d2d"/>
+            <stop offset="100%" style="stop-color:#1a1a1a"/>
+          </linearGradient>
+          <linearGradient id="tg" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#e5c07b"/>
+            <stop offset="100%" style="stop-color:#d19a66"/>
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="64" fill="url(#bg)"/>
+        <polygon points="72,120 72,392 240,392 240,340 140,340 140,282 220,282 220,230 140,230 140,172 240,172 240,120" fill="url(#tg)"/>
+        <path d="M280 172Q280 120 340 120L420 120Q450 120 450 160L450 186 398 186 398 168Q398 158 384 158L350 158Q320 158 320 188 320 218 350 218L400 218Q450 218 450 274L450 332Q450 392 390 392L310 392Q270 392 270 340L270 314 322 314 322 340Q322 354 340 354L384 354Q404 354 404 324L404 290Q404 260 380 260L330 260Q280 260 280 208Z" fill="url(#tg)"/>
+        <rect x="72" y="424" width="368" height="4" fill="#d19a66" opacity="0.6"/>
+      </svg>
+      Estella
+    </a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/esengine/estella">GitHub</a>
+      <a href="https://discord.gg/sAX6PXZ9">Discord</a>
+      <a href="https://github.com/esengine/estella/releases" class="btn btn-primary" style="padding:8px 20px;font-size:0.85rem;">Download</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>Build 2D Games. Fast.</h1>
+  <p>Estella is a 2D game engine with a TypeScript SDK, powered by a C++/WebAssembly backend. Visual editor included.</p>
+  <div class="hero-buttons">
+    <a href="https://github.com/esengine/estella/releases" class="btn btn-primary">Download Editor</a>
+    <a href="/docs/getting-started/quick-start/" class="btn btn-secondary">Get Started</a>
+  </div>
+</section>
+
+<section class="screenshot">
+  <img src="editor-screenshot.png" alt="Estella Editor">
+</section>
+
+<section class="features">
+  <h2>Why Estella?</h2>
+  <div class="features-grid">
+    <div class="feature-card">
+      <h3>WebAssembly Performance</h3>
+      <p>C++ rendering pipeline compiled to WebAssembly. Near-native speed in the browser, not interpreted JavaScript.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Entity-Component-System</h3>
+      <p>Data-oriented ECS architecture. Compose entities from reusable components, drive behavior with systems.</p>
+    </div>
+    <div class="feature-card">
+      <h3>TypeScript SDK</h3>
+      <p>Type-safe API with defineSystem, defineComponent, and Query. Full IntelliSense and compile-time checks.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Visual Editor</h3>
+      <p>Scene hierarchy, inspector, asset browser, and live preview. Build games visually, not in config files.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Cross-Platform</h3>
+      <p>One codebase targeting web browsers and WeChat MiniGames. Build once, deploy everywhere.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Spine & Physics</h3>
+      <p>Built-in Spine animation runtime and Box2D physics. No extra plugins needed.</p>
+    </div>
+  </div>
+</section>
+
+<section class="code-section">
+  <h2>Simple, Expressive API</h2>
+  <p>Define components and systems in TypeScript. The engine handles the rest.</p>
+  <pre><code><span class="kw">import</span> {
+    <span class="type">defineComponent</span>, <span class="type">defineSystem</span>, <span class="type">addSystem</span>,
+    <span class="type">Query</span>, <span class="type">Mut</span>, <span class="type">Res</span>, <span class="type">Time</span>, <span class="type">LocalTransform</span>
+} <span class="kw">from</span> <span class="str">'esengine'</span>;
+
+<span class="kw">const</span> <span class="type">Speed</span> = <span class="fn">defineComponent</span>(<span class="str">'Speed'</span>, { value: <span class="num">200</span> });
+
+<span class="fn">addSystem</span>(<span class="fn">defineSystem</span>(
+    [<span class="fn">Res</span>(<span class="type">Time</span>), <span class="fn">Query</span>(<span class="fn">Mut</span>(<span class="type">LocalTransform</span>), <span class="type">Speed</span>)],
+    (time, query) <span class="kw">=&gt;</span> {
+        <span class="kw">for</span> (<span class="kw">const</span> [entity, transform, speed] <span class="kw">of</span> query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));</code></pre>
+</section>
+
+<section class="cta">
+  <h2>Ready to get started?</h2>
+  <p>Download the editor and build your first game in minutes.</p>
+  <div class="hero-buttons">
+    <a href="https://github.com/esengine/estella/releases" class="btn btn-primary">Download Editor</a>
+    <a href="/docs" class="btn btn-secondary">Read the Docs</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-links">
+    <a href="/docs">Documentation</a>
+    <a href="https://github.com/esengine/estella">GitHub</a>
+    <a href="https://discord.gg/sAX6PXZ9">Discord</a>
+    <a href="https://qm.qq.com/q/BONa5LXQ0U">QQ Group</a>
+  </div>
+  <p>MIT Licensed. Made by the Estella Team.</p>
+</footer>
+
+</body>
+</html>

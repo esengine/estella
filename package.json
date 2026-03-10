@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "ESEngine - Entity System Game Engine",
+  "description": "Estella - A fast 2D game engine powered by WebAssembly and ECS",
   "scripts": {
     "build": "node build-tools/cli.js build",
     "build:web": "node build-tools/cli.js build -t web",

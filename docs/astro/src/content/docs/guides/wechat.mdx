@@ -1,11 +1,11 @@
 ---
 title: WeChat MiniGame
-description: Building and deploying ESEngine games to WeChat MiniGame platform
+description: Building and deploying Estella games to WeChat MiniGame platform
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine supports building games for the WeChat MiniGame platform. The editor handles the entire build process, producing a project directory that you can open directly in WeChat DevTools.
+Estella supports building games for the WeChat MiniGame platform. The editor handles the entire build process, producing a project directory that you can open directly in WeChat DevTools.
 
 ## Prerequisites
 
@@ -74,7 +74,7 @@ build/wechat/
   game.js               # entry point (engine init + user scripts)
   esengine.js           # WASM engine loader
   esengine.wasm         # engine WASM binary
-  sdk.js                # ESEngine SDK runtime
+  sdk.js                # Estella SDK runtime
   spine.js / spine.wasm # Spine runtime (if Spine is enabled)
   physics.js / physics.wasm # physics engine (if physics is enabled)
   asset-manifest.json   # addressable asset manifest
@@ -108,7 +108,7 @@ These differences are handled transparently by the build output. Your game scrip
 
 ## Custom Extension Files
 
-WeChat blocks access to files with unrecognized extensions by default. The build automatically generates the correct `packOptions.include` in `project.config.json` for all ESEngine file types (`.esmaterial`, `.esprefab`, `.atlas`, `.skel`, `.fnt`, `.bmfont`).
+WeChat blocks access to files with unrecognized extensions by default. The build automatically generates the correct `packOptions.include` in `project.config.json` for all Estella file types (`.esmaterial`, `.esprefab`, `.atlas`, `.skel`, `.fnt`, `.bmfont`).
 
 <Aside type="caution">
   If you add custom asset types with non-standard extensions, you may need to manually add them to `packOptions.include` in the generated `project.config.json`.
@@ -147,7 +147,7 @@ registerAssetBuildTransform('my-type', (content, context) => {
 });
 ```
 
-See [Build Pipeline > Asset Build Transforms](/microes/guides/building/#5-asset-build-transforms) for details.
+See [Build Pipeline > Asset Build Transforms](/docs/guides/building/#5-asset-build-transforms) for details.
 
 ### WebGL Context Errors
 
@@ -172,6 +172,6 @@ For advanced use cases (e.g., adding WeChat-specific APIs, analytics, or ad SDKs
 
 ## Next Steps
 
-- [Building & Exporting](/microes/guides/building/) -- build pipeline overview
-- [Playable Ads](/microes/guides/playable-ads/) -- single-file HTML builds for ad networks
-- [Asset Loading](/microes/guides/assets/) -- asset loading API
+- [Building & Exporting](/docs/guides/building/) -- build pipeline overview
+- [Playable Ads](/docs/guides/playable-ads/) -- single-file HTML builds for ad networks
+- [Asset Loading](/docs/guides/assets/) -- asset loading API

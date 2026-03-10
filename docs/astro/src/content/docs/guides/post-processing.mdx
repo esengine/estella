@@ -1,6 +1,6 @@
 ---
 title: Post-Processing
-description: Per-camera post-processing effects pipeline in ESEngine
+description: Per-camera post-processing effects pipeline in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -274,7 +274,7 @@ fx.setUniform('invert', 'u_intensity', 1.0);
 PostProcess.bind(cameraEntity, fx);
 ```
 
-See [Materials & Shaders](/microes/guides/materials/) for more on writing shaders.
+See [Materials & Shaders](/docs/guides/materials/) for more on writing shaders.
 
 ## Example: Pause Menu Blur
 
@@ -345,6 +345,6 @@ PostProcess.bind(minimapCamera, minimapFx);
 
 ## Next Steps
 
-- [Custom Draw](/microes/guides/custom-draw/) — immediate-mode drawing primitives
-- [Materials & Shaders](/microes/guides/materials/) — shader creation and uniforms
-- [Rendering Overview](/microes/guides/rendering/) — camera, transform, render order
+- [Custom Draw](/docs/guides/custom-draw/) — immediate-mode drawing primitives
+- [Materials & Shaders](/docs/guides/materials/) — shader creation and uniforms
+- [Rendering Overview](/docs/guides/rendering/) — camera, transform, render order

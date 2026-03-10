@@ -2,7 +2,7 @@
   "name": "@esengine/editor",
   "version": "0.1.0",
   "type": "module",
-  "description": "Web-based scene editor for ESEngine",
+  "description": "Web-based scene editor for Estella",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -45,6 +45,6 @@
     "typescript": "^5.3.0",
     "vitest": "^2.1.8"
   },
-  "author": "ESEngine Team",
+  "author": "Estella Team",
   "license": "MIT"
 }

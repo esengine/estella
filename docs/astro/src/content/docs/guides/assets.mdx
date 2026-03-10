@@ -1,11 +1,11 @@
 ---
 title: Asset Loading
-description: Loading textures, Spine data, and other assets in ESEngine
+description: Loading textures, Spine data, and other assets in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine provides the `Assets` resource (an `AssetServer` instance) for loading textures, Spine animations, materials, and generic files. Access it in any system via `Res(Assets)`.
+Estella provides the `Assets` resource (an `AssetServer` instance) for loading textures, Spine animations, materials, and generic files. Access it in any system via `Res(Assets)`.
 
 ## Accessing Assets
 
@@ -114,7 +114,7 @@ Loads and parses a `.esprefab` file. The result is a `PrefabData` object that ca
 |--------|---------|-------------|
 | `loadPrefab(path, baseUrl?)` | `Promise<PrefabData>` | Load and cache a prefab file |
 
-See [Prefabs](/microes/guides/prefabs/) for the full prefab API.
+See [Prefabs](/docs/guides/prefabs/) for the full prefab API.
 
 ## Generic File Loading
 
@@ -187,7 +187,7 @@ sprite.material = loaded.handle;
 | `getMaterial(path, baseUrl?)` | `LoadedMaterial \| undefined` | Get cached material if already loaded |
 | `hasMaterial(path, baseUrl?)` | `boolean` | Check if a material is cached |
 
-See [Materials & Shaders](/microes/guides/materials/) for the full material API and `.esmaterial` file format.
+See [Materials & Shaders](/docs/guides/materials/) for the full material API and `.esmaterial` file format.
 
 ## Caching
 
@@ -320,7 +320,7 @@ Each group contains assets with their paths, optional addresses, labels, and typ
 
 ## Next Steps
 
-- [Materials & Shaders](/microes/guides/materials/) — custom shaders and blend modes
-- [Sprite](/microes/guides/sprite/) — using textures with sprites
-- [Bitmap Text](/microes/guides/bitmap-text/) — rendering text with bitmap fonts
-- [Spine Animation](/microes/guides/spine/) — Spine skeletal animation
+- [Materials & Shaders](/docs/guides/materials/) — custom shaders and blend modes
+- [Sprite](/docs/guides/sprite/) — using textures with sprites
+- [Bitmap Text](/docs/guides/bitmap-text/) — rendering text with bitmap fonts
+- [Spine Animation](/docs/guides/spine/) — Spine skeletal animation

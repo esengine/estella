@@ -1,9 +1,10 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  site: 'https://esengine.github.io',
-  base: '/microes',
+  site: 'https://estellaengine.com',
+  base: '/docs',
   vite: {
     server: {
       fs: {
@@ -12,9 +13,10 @@ export default defineConfig({
     },
   },
   integrations: [
+    sitemap(),
     starlight({
-      title: 'ESEngine',
-      description: 'A lightweight 2D game engine for web and WeChat MiniGames',
+      title: 'Estella',
+      description: 'A fast 2D game engine powered by WebAssembly and ECS',
       favicon: '/favicon.svg',
       logo: {
         light: './src/assets/logo-light.svg',
@@ -22,11 +24,11 @@ export default defineConfig({
         replacesTitle: false,
       },
       social: {
-        github: 'https://github.com/esengine/microes',
+        github: 'https://github.com/esengine/estella',
         discord: 'https://discord.gg/sAX6PXZ9',
       },
       editLink: {
-        baseUrl: 'https://github.com/esengine/microes/edit/master/docs/astro/',
+        baseUrl: 'https://github.com/esengine/estella/edit/master/docs/astro/',
       },
       customCss: [
         './src/styles/custom.css',
@@ -176,8 +178,29 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'og:image',
-            content: '/esengine/og-image.png',
+            property: 'og:image',
+            content: 'https://estellaengine.com/og-image.png',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:site_name',
+            content: 'Estella',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:card',
+            content: 'summary_large_image',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'keywords',
+            content: 'game engine, 2D game engine, WebAssembly, WASM, TypeScript, ECS, WebGL, game development, Spine, WeChat MiniGame',
           },
         },
       ],

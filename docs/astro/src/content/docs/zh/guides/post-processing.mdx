@@ -1,6 +1,6 @@
 ---
 title: 后处理效果
-description: ESEngine 逐相机后处理效果管线
+description: Estella 逐相机后处理效果管线
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -274,7 +274,7 @@ fx.setUniform('invert', 'u_intensity', 1.0);
 PostProcess.bind(cameraEntity, fx);
 ```
 
-参见[材质与着色器](/microes/zh/guides/materials/)了解更多着色器编写方法。
+参见[材质与着色器](/docs/zh/guides/materials/)了解更多着色器编写方法。
 
 ## 示例：暂停菜单模糊
 
@@ -345,6 +345,6 @@ PostProcess.bind(minimapCamera, minimapFx);
 
 ## 下一步
 
-- [自定义绘制](/microes/zh/guides/custom-draw/) — 即时模式绘图图元
-- [材质与着色器](/microes/zh/guides/materials/) — 着色器创建和 uniform
-- [渲染概览](/microes/zh/guides/rendering/) — 相机、变换、渲染顺序
+- [自定义绘制](/docs/zh/guides/custom-draw/) — 即时模式绘图图元
+- [材质与着色器](/docs/zh/guides/materials/) — 着色器创建和 uniform
+- [渲染概览](/docs/zh/guides/rendering/) — 相机、变换、渲染顺序

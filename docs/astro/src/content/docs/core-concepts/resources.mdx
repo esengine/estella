@@ -1,6 +1,6 @@
 ---
 title: Resources
-description: Global singleton data in ESEngine
+description: Global singleton data in Estella
 ---
 
 Resources are global singletons — they exist once in the entire app, not attached to any entity. Use them for shared state like time, input, and game configuration.
@@ -119,7 +119,7 @@ defineSystem([Res(UIEvents)], (events) => {
 });
 ```
 
-See [UI Interaction](/microes/guides/ui-interaction/) for the full list of event types and the callback API.
+See [UI Interaction](/docs/guides/ui-interaction/) for the full list of event types and the callback API.
 
 ## Custom Resources
 
@@ -199,6 +199,6 @@ addSystem(defineSystem(
 
 ## Next Steps
 
-- [Systems](/microes/core-concepts/systems/) — how systems use resources and queries
-- [Components](/microes/core-concepts/components/) — data attached to entities
-- [Events](/microes/core-concepts/events/) — decoupled inter-system communication
+- [Systems](/docs/core-concepts/systems/) — how systems use resources and queries
+- [Components](/docs/core-concepts/components/) — data attached to entities
+- [Events](/docs/core-concepts/events/) — decoupled inter-system communication
