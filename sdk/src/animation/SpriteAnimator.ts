@@ -86,7 +86,8 @@ export function spriteAnimatorSystemUpdate(world: World, deltaTime: number): voi
         const clip = clipRegistry.get(animator.clip);
         if (!clip || clip.frames.length === 0) continue;
 
-        const frameDuration = 1.0 / (clip.fps * animator.speed);
+        const currentFrame = clip.frames[animator.currentFrame];
+        const frameDuration = currentFrame?.duration ?? 1.0 / (clip.fps * animator.speed);
 
         const needsInitialApply = animator.frameTimer === 0 && animator.currentFrame === 0;
 

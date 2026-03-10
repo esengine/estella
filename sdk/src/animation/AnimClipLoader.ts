@@ -11,6 +11,7 @@ import type { SpriteAnimClip, SpriteAnimFrame } from './SpriteAnimator';
 
 export interface AnimClipFrameData {
     texture: string;
+    duration?: number;
     atlasFrame?: {
         x: number;
         y: number;
@@ -57,6 +58,7 @@ export function parseAnimClipData(
         frames: data.frames.map(f => {
             const frame: SpriteAnimFrame = {
                 texture: textureHandles.get(f.texture) ?? 0,
+                duration: f.duration,
             };
             if (f.atlasFrame) {
                 const af = f.atlasFrame;

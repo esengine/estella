@@ -10,7 +10,7 @@ interface AnimClipAssetData {
     type: 'animation-clip';
     fps?: number;
     loop?: boolean;
-    frames: { texture: string }[];
+    frames: { texture: string; duration?: number }[];
 }
 
 const MIN_FPS = 1;
@@ -20,6 +20,7 @@ interface FrameInfo {
     texture: string;
     displayPath: string;
     thumbnailUrl: string | null;
+    duration?: number;
 }
 
 function resolveTexturePath(ref: string): string {
@@ -49,6 +50,7 @@ export async function renderAnimClipInspector(container: HTMLElement, path: stri
         texture: f.texture,
         displayPath: resolveTexturePath(f.texture),
         thumbnailUrl: null,
+        duration: f.duration,
     }));
 
     const state = {
@@ -159,6 +161,8 @@ function renderFrameList(frames: FrameInfo[]): string {
                 }
             </div>
             <span class="es-animclip-frame-name" title="${frame.displayPath}">${getFileName(frame.displayPath)}</span>
+            <input type="number" class="es-animclip-frame-duration" data-index="${i}" min="0" step="0.01"
+                placeholder="auto" value="${frame.duration ?? ''}" title="Duration (seconds). Leave empty to use global FPS.">
             <button class="es-btn es-btn-icon es-animclip-delete-btn" data-index="${i}" title="Remove frame">
                 ${icons.x(12)}
             </button>
@@ -184,6 +188,17 @@ function setupDeleteButtons(
             await save(state, filePath);
             renderSection(section, state, filePath);
             loadThumbnails(section, state, filePath);
+        });
+    });
+
+    const durationInputs = section.querySelectorAll('.es-animclip-frame-duration');
+    durationInputs.forEach(input => {
+        input.addEventListener('change', async () => {
+            const el = input as HTMLInputElement;
+            const index = parseInt(el.dataset.index!, 10);
+            const val = el.value.trim();
+            state.frames[index].duration = val ? parseFloat(val) || undefined : undefined;
+            await save(state, filePath);
         });
     });
 }
@@ -287,7 +302,11 @@ async function save(
         type: 'animation-clip',
         fps: state.fps,
         loop: state.loop,
-        frames: state.frames.map(f => ({ texture: f.texture })),
+        frames: state.frames.map(f => {
+            const entry: { texture: string; duration?: number } = { texture: f.texture };
+            if (f.duration !== undefined) entry.duration = f.duration;
+            return entry;
+        }),
     };
 
     const platform = getPlatformAdapter();
