@@ -62,9 +62,10 @@ void tl_addPropertyTrack(u32 handle, uintptr_t childPathPtr, i32 childPathLen,
         for (i32 ki = 0; ki < count; ki++) {
             channel.keyframes[ki] = {
                 kfData[dataOffset], kfData[dataOffset + 1],
-                kfData[dataOffset + 2], kfData[dataOffset + 3]
+                kfData[dataOffset + 2], kfData[dataOffset + 3],
+                static_cast<animation::InterpType>(static_cast<u8>(kfData[dataOffset + 4]))
             };
-            dataOffset += 4;
+            dataOffset += 5;
         }
         track.channels.push_back(std::move(channel));
     }
@@ -112,9 +113,10 @@ void tl_addCustomPropertyTrack(u32 handle, uintptr_t childPathPtr, i32 childPath
         for (i32 ki = 0; ki < count; ki++) {
             channel.keyframes[ki] = {
                 kfData[dataOffset], kfData[dataOffset + 1],
-                kfData[dataOffset + 2], kfData[dataOffset + 3]
+                kfData[dataOffset + 2], kfData[dataOffset + 3],
+                static_cast<animation::InterpType>(static_cast<u8>(kfData[dataOffset + 4]))
             };
-            dataOffset += 4;
+            dataOffset += 5;
         }
         track.channels.push_back(std::move(channel));
     }

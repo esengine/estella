@@ -105,6 +105,18 @@ f32 TimelineSystem::hermiteInterpolate(f32 p0, f32 p1, f32 m0, f32 m1, f32 t) {
     return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
 }
 
+f32 TimelineSystem::easeIn(f32 t) {
+    return t * t;
+}
+
+f32 TimelineSystem::easeOut(f32 t) {
+    return 1.0f - (1.0f - t) * (1.0f - t);
+}
+
+f32 TimelineSystem::easeInOut(f32 t) {
+    return t < 0.5f ? 2.0f * t * t : 1.0f - 2.0f * (1.0f - t) * (1.0f - t);
+}
+
 f32 TimelineSystem::evaluateChannel(const TimelineChannel& channel, f32 time) {
     const auto& kfs = channel.keyframes;
     if (kfs.empty()) return 0.0f;
@@ -124,7 +136,22 @@ f32 TimelineSystem::evaluateChannel(const TimelineChannel& channel, f32 time) {
     if (dt <= 0.0f) return k0.value;
 
     f32 t = (time - k0.time) / dt;
-    return hermiteInterpolate(k0.value, k1.value, k0.outTangent * dt, k1.inTangent * dt, t);
+
+    switch (k0.interpolation) {
+        case InterpType::Linear:
+            return k0.value + (k1.value - k0.value) * t;
+        case InterpType::Step:
+            return k0.value;
+        case InterpType::EaseIn:
+            return k0.value + (k1.value - k0.value) * easeIn(t);
+        case InterpType::EaseOut:
+            return k0.value + (k1.value - k0.value) * easeOut(t);
+        case InterpType::EaseInOut:
+            return k0.value + (k1.value - k0.value) * easeInOut(t);
+        case InterpType::Hermite:
+        default:
+            return hermiteInterpolate(k0.value, k1.value, k0.outTangent * dt, k1.inTangent * dt, t);
+    }
 }
 
 f32 TimelineSystem::applyWrapMode(f32 time, f32 duration, TimelineWrapMode mode, bool& stopped) {

@@ -1,6 +1,7 @@
 export {
     WrapMode,
     TrackType,
+    InterpType,
     type Keyframe,
     type PropertyChannel,
     type PropertyTrack,
@@ -11,6 +12,10 @@ export {
     type AudioTrack,
     type ActivationRange,
     type ActivationTrack,
+    type Marker,
+    type MarkerTrack,
+    type CustomEvent,
+    type CustomEventTrack,
     type Track,
     type TimelineAsset,
 } from './TimelineTypes';

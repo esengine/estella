@@ -431,7 +431,7 @@ export class TimelinePanel implements PanelInstance {
     }
 
     private evaluateChannelAtTime(
-        keyframes: { time: number; value: number; inTangent?: number; outTangent?: number }[],
+        keyframes: { time: number; value: number; inTangent?: number; outTangent?: number; interpolation?: string }[],
         time: number,
     ): number | null {
         if (keyframes.length === 0) return null;
@@ -448,15 +448,35 @@ export class TimelinePanel implements PanelInstance {
         if (dt <= 0) return k0.value;
 
         const t = (time - k0.time) / dt;
-        const m0 = (k0.outTangent ?? 0) * dt;
-        const m1 = (k1.inTangent ?? 0) * dt;
-        const t2 = t * t;
-        const t3 = t2 * t;
+        const interp = k0.interpolation ?? 'hermite';
 
-        return (2 * t3 - 3 * t2 + 1) * k0.value
-            + (t3 - 2 * t2 + t) * m0
-            + (-2 * t3 + 3 * t2) * k1.value
-            + (t3 - t2) * m1;
+        switch (interp) {
+            case 'linear':
+                return k0.value + (k1.value - k0.value) * t;
+            case 'step':
+                return k0.value;
+            case 'easeIn':
+                return k0.value + (k1.value - k0.value) * (t * t);
+            case 'easeOut': {
+                const inv = 1 - t;
+                return k0.value + (k1.value - k0.value) * (1 - inv * inv);
+            }
+            case 'easeInOut': {
+                const e = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+                return k0.value + (k1.value - k0.value) * e;
+            }
+            case 'hermite':
+            default: {
+                const m0 = (k0.outTangent ?? 0) * dt;
+                const m1 = (k1.inTangent ?? 0) * dt;
+                const t2 = t * t;
+                const t3 = t2 * t;
+                return (2 * t3 - 3 * t2 + 1) * k0.value
+                    + (t3 - 2 * t2 + t) * m0
+                    + (-2 * t3 + 3 * t2) * k1.value
+                    + (t3 - t2) * m1;
+            }
+        }
     }
 
     private setNestedValue(obj: Record<string, unknown>, path: string, value: number): void {
