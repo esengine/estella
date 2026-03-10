@@ -2309,11 +2309,30 @@ declare const TilemapAPI: {
     setVisible(entity: number, visible: boolean): void;
     setOriginEntity(layerKey: number, originEntity: number): void;
     submitLayer(entity: number, textureId: number, sortLayer: number, depth: number, tilesetColumns: number, uvTileWidth: number, uvTileHeight: number, originX: number, originY: number, camLeft: number, camBottom: number, camRight: number, camTop: number, tintR: number, tintG: number, tintB: number, tintA: number, opacity: number, parallaxX: number, parallaxY: number): void;
+    setTileAnimation(entity: number, tileId: number, frames: {
+        tileId: number;
+        duration: number;
+    }[]): void;
+    advanceAnimations(entity: number, dtMs: number): void;
+    setTileProperty(entity: number, tileId: number, key: string, value: string): void;
+    getTileProperty(entity: number, x: number, y: number, key: string): string;
+    flipTile(entity: number, x: number, y: number, flipH: boolean, flipV: boolean, flipD: boolean): void;
+    rotateTile(entity: number, x: number, y: number, degrees: number): void;
+    setGridType(entity: number, type: number): void;
+    tileToWorld(entity: number, tx: number, ty: number, originX: number, originY: number): {
+        x: number;
+        y: number;
+    };
+    worldToTile(entity: number, wx: number, wy: number, originX: number, originY: number): {
+        x: number;
+        y: number;
+    };
 };
 
 declare class TilemapPlugin implements Plugin {
     name: string;
     private initializedLayers_;
+    private animatedLayers_;
     private sourceEntityKeys_;
     private layerState_;
     build(app: App): void;
@@ -2360,15 +2379,22 @@ interface TiledObjectGroupData {
     name: string;
     objects: TiledObjectData[];
 }
+interface TiledAnimFrame {
+    tileId: number;
+    duration: number;
+}
 interface TiledMapData {
     width: number;
     height: number;
     tileWidth: number;
     tileHeight: number;
+    orientation: string;
     layers: TiledLayerData[];
     tilesets: TiledTilesetData[];
     objectGroups: TiledObjectGroupData[];
     collisionTileIds: number[];
+    tileAnimations: Map<number, TiledAnimFrame[]>;
+    tileProperties: Map<number, Map<string, string>>;
 }
 declare function parseTmjJson(json: Record<string, unknown>): TiledMapData | null;
 declare function resolveRelativePath(basePath: string, relativePath: string): string;
@@ -2396,8 +2422,14 @@ interface LoadedTilemapTileset {
 interface LoadedTilemapSource {
     tileWidth: number;
     tileHeight: number;
+    orientation?: string;
     layers: LoadedTilemapLayer[];
     tilesets: LoadedTilemapTileset[];
+    tileAnimations?: Map<number, {
+        tileId: number;
+        duration: number;
+    }[]>;
+    tileProperties?: Map<number, Map<string, string>>;
 }
 declare function registerTextureDimensions(handle: number, width: number, height: number): void;
 declare function getTextureDimensions(handle: number): TextureDimensions | undefined;

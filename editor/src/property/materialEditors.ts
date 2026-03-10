@@ -17,9 +17,9 @@ import {
     getMimeType,
     navigateToAsset,
     handleAssetDrop,
-    browseForAsset,
     BROWSE_ICON,
 } from './editors';
+import { showAssetPicker } from '../ui/asset-picker';
 import { AssetType } from '../constants/AssetTypes';
 
 // =============================================================================
@@ -96,7 +96,7 @@ function createShaderFileEditor(
     });
 
     browseBtn.addEventListener('click', async () => {
-        const result = await browseForAsset('Select Shader', 'Shader Files', ['esshader']);
+        const result = await showAssetPicker({ title: 'Select Shader', extensions: ['esshader'] });
         if (result) {
             input.value = result.relativePath;
             onChange(result.relativePath);
@@ -207,7 +207,7 @@ function createMaterialTextureEditor(
     });
 
     browseBtn.addEventListener('click', async () => {
-        const result = await browseForAsset('Select Texture', 'Images', ['png', 'jpg', 'jpeg', 'webp']);
+        const result = await showAssetPicker({ title: 'Select Texture', allowedTypes: ['image'], extensions: ['png', 'jpg', 'jpeg', 'webp'] });
         if (result) {
             input.value = result.relativePath;
             currentRef = result.relativePath;

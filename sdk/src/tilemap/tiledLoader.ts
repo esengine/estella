@@ -45,15 +45,23 @@ export interface TiledObjectGroupData {
     objects: TiledObjectData[];
 }
 
+export interface TiledAnimFrame {
+    tileId: number;
+    duration: number;
+}
+
 export interface TiledMapData {
     width: number;
     height: number;
     tileWidth: number;
     tileHeight: number;
+    orientation: string;
     layers: TiledLayerData[];
     tilesets: TiledTilesetData[];
     objectGroups: TiledObjectGroupData[];
     collisionTileIds: number[];
+    tileAnimations: Map<number, TiledAnimFrame[]>;
+    tileProperties: Map<number, Map<string, string>>;
 }
 
 const TILED_FLIP_H = 0x80000000;
@@ -223,18 +231,39 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
         }
     }
 
+    const tileAnimations = new Map<number, TiledAnimFrame[]>();
+    const tileProperties = new Map<number, Map<string, string>>();
+
     if (rawTilesets) {
         for (const ts of rawTilesets) {
             const firstGid = (ts.firstgid as number) ?? 1;
             const rawTiles = ts.tiles as Array<Record<string, unknown>> | undefined;
             if (rawTiles) {
                 for (const tile of rawTiles) {
+                    const localId = (tile.id as number);
+                    const engineId = localId + 1;
+
+                    const rawAnim = tile.animation as Array<Record<string, unknown>> | undefined;
+                    if (rawAnim && rawAnim.length > 0) {
+                        const frames: TiledAnimFrame[] = rawAnim.map(f => ({
+                            tileId: ((f.tileid as number) ?? 0) + 1,
+                            duration: (f.duration as number) ?? 100,
+                        }));
+                        tileAnimations.set(engineId, frames);
+                    }
+
                     const tileProps = tile.properties as Array<Record<string, unknown>> | undefined;
                     if (tileProps) {
+                        const propMap = new Map<string, string>();
                         for (const p of tileProps) {
-                            if (p.name === 'collision' && p.value === true) {
-                                collisionTileIds.push((tile.id as number) + firstGid);
+                            const name = p.name as string;
+                            if (name === 'collision' && p.value === true) {
+                                collisionTileIds.push(localId + firstGid);
                             }
+                            propMap.set(name, String(p.value));
+                        }
+                        if (propMap.size > 0) {
+                            tileProperties.set(engineId, propMap);
                         }
                     }
                 }
@@ -242,7 +271,13 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
         }
     }
 
-    return { width, height, tileWidth, tileHeight, layers, tilesets, objectGroups, collisionTileIds };
+    const orientation = (json.orientation as string) ?? 'orthogonal';
+
+    return {
+        width, height, tileWidth, tileHeight, orientation,
+        layers, tilesets, objectGroups, collisionTileIds,
+        tileAnimations, tileProperties,
+    };
 }
 
 export function resolveRelativePath(basePath: string, relativePath: string): string {
@@ -307,10 +342,13 @@ export async function parseTiledMap(
             height: api.tiled_getMapHeight(handle),
             tileWidth: api.tiled_getMapTileWidth(handle),
             tileHeight: api.tiled_getMapTileHeight(handle),
+            orientation: 'orthogonal',
             layers: [],
             tilesets: [],
             objectGroups: [],
             collisionTileIds: [],
+            tileAnimations: new Map(),
+            tileProperties: new Map(),
         };
 
         const layerCount = api.tiled_getLayerCount(handle);

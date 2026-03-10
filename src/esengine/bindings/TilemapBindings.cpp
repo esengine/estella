@@ -17,6 +17,8 @@
 #endif
 
 #include <emscripten/bind.h>
+#include <string>
+#include <vector>
 
 namespace esengine {
 
@@ -422,6 +424,83 @@ f32 tiled_getLayerParallaxY(u32 handle, u32 index) {
     return map->layers[index].parallax_y;
 }
 
+void tilemap_setTileAnimation(u32 entity, u32 tileId,
+                               uintptr_t framesPtr, u32 frameCount) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    const auto* data = reinterpret_cast<const u32*>(framesPtr);
+    std::vector<tilemap::AnimFrame> frames(frameCount);
+    for (u32 i = 0; i < frameCount; i++) {
+        frames[i].tile_id = static_cast<u16>(data[i * 2]);
+        frames[i].duration_ms = static_cast<u16>(data[i * 2 + 1]);
+    }
+    s_tilemapSystem.setTileAnimation(e, static_cast<u16>(tileId),
+                                     frames.data(), frameCount);
+}
+
+void tilemap_advanceAnimations(u32 entity, f32 dtMs) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    s_tilemapSystem.advanceAnimations(e, dtMs);
+}
+
+void tilemap_setTileProperty(u32 entity, u32 tileId,
+                              const std::string& key, const std::string& value) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    s_tilemapSystem.setTileProperty(e, static_cast<u16>(tileId), key, value);
+}
+
+std::string tilemap_getTileProperty(u32 entity, i32 x, i32 y,
+                                     const std::string& key) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return "";
+    u16 raw = s_tilemapSystem.getTile(e, x, y);
+    u16 tileId = raw & tilemap::TILE_ID_MASK;
+    if (tileId == tilemap::EMPTY_TILE) return "";
+    const char* val = s_tilemapSystem.getTileProperty(e, tileId, key);
+    return val ? std::string(val) : "";
+}
+
+void tilemap_flipTile(u32 entity, i32 x, i32 y,
+                       bool flipH, bool flipV, bool flipD) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    s_tilemapSystem.flipTile(e, x, y, flipH, flipV, flipD);
+}
+
+void tilemap_rotateTile(u32 entity, i32 x, i32 y, i32 degrees) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    s_tilemapSystem.rotateTile(e, x, y, degrees);
+}
+
+void tilemap_setGridType(u32 entity, u32 type) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    s_tilemapSystem.setGridType(e, static_cast<tilemap::GridType>(type));
+}
+
+static f32 s_coordBuffer[2] = {};
+
+uintptr_t tilemap_tileToWorld(u32 entity, i32 tx, i32 ty,
+                               f32 originX, f32 originY) {
+    auto e = static_cast<Entity>(entity);
+    s_tilemapSystem.tileToWorld(e, tx, ty, originX, originY,
+                                s_coordBuffer[0], s_coordBuffer[1]);
+    return reinterpret_cast<uintptr_t>(s_coordBuffer);
+}
+
+uintptr_t tilemap_worldToTile(u32 entity, f32 wx, f32 wy,
+                               f32 originX, f32 originY) {
+    auto e = static_cast<Entity>(entity);
+    i32 tx, ty;
+    s_tilemapSystem.worldToTile(e, wx, wy, originX, originY, tx, ty);
+    s_coordBuffer[0] = static_cast<f32>(tx);
+    s_coordBuffer[1] = static_cast<f32>(ty);
+    return reinterpret_cast<uintptr_t>(s_coordBuffer);
+}
+
 }  // namespace esengine
 
 EMSCRIPTEN_BINDINGS(esengine_tilemap) {
@@ -477,6 +556,16 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tiled_getLayerTintColor", &esengine::tiled_getLayerTintColor);
     emscripten::function("tiled_getLayerParallaxX", &esengine::tiled_getLayerParallaxX);
     emscripten::function("tiled_getLayerParallaxY", &esengine::tiled_getLayerParallaxY);
+
+    emscripten::function("tilemap_setTileAnimation", &esengine::tilemap_setTileAnimation);
+    emscripten::function("tilemap_advanceAnimations", &esengine::tilemap_advanceAnimations);
+    emscripten::function("tilemap_setTileProperty", &esengine::tilemap_setTileProperty);
+    emscripten::function("tilemap_getTileProperty", &esengine::tilemap_getTileProperty);
+    emscripten::function("tilemap_flipTile", &esengine::tilemap_flipTile);
+    emscripten::function("tilemap_rotateTile", &esengine::tilemap_rotateTile);
+    emscripten::function("tilemap_setGridType", &esengine::tilemap_setGridType);
+    emscripten::function("tilemap_tileToWorld", &esengine::tilemap_tileToWorld);
+    emscripten::function("tilemap_worldToTile", &esengine::tilemap_worldToTile);
 }
 
 #endif  // ES_ENABLE_TILEMAP

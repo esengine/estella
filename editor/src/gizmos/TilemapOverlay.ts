@@ -6,6 +6,9 @@ import { isUUID, getAssetLibrary } from '../asset/AssetLibrary';
 
 const GRID_COLOR = 'rgba(100, 200, 255, 0.5)';
 const FALLBACK_TILE_COLOR = 'rgba(100, 200, 255, 0.15)';
+const HIGHLIGHT_COLOR = 'rgba(255, 200, 50, 0.6)';
+const ORIGIN_COLOR = 'rgba(255, 80, 80, 0.8)';
+const TILE_ID_COLOR = 'rgba(255, 255, 255, 0.7)';
 
 const TILED_FLIP_H = 0x80000000;
 const TILED_FLIP_V = 0x40000000;
@@ -21,6 +24,7 @@ interface ParsedTilemapLayer {
 interface CachedTilemap {
     tileWidth: number;
     tileHeight: number;
+    orientation: string;
     layers: ParsedTilemapLayer[];
     tilesetImage: HTMLImageElement | null;
     tilesetColumns: number;
@@ -63,9 +67,16 @@ export class TilemapOverlay {
 
         if (cached.layers.length > 0) {
             const firstLayer = cached.layers[0];
-            this.drawGrid_(ctx, firstLayer.width, firstLayer.height,
-                cached.tileWidth, cached.tileHeight, ox, oy, zoom);
+            if (cached.orientation === 'isometric') {
+                this.drawIsometricGrid_(ctx, firstLayer.width, firstLayer.height,
+                    cached.tileWidth, cached.tileHeight, ox, oy, zoom);
+            } else {
+                this.drawGrid_(ctx, firstLayer.width, firstLayer.height,
+                    cached.tileWidth, cached.tileHeight, ox, oy, zoom);
+            }
         }
+
+        this.drawOriginMarker_(ctx, ox, oy, zoom);
 
         ctx.restore();
     }
@@ -133,6 +144,51 @@ export class TilemapOverlay {
             ctx.lineTo(ox + mapWidth * tileWidth, wy);
             ctx.stroke();
         }
+    }
+
+    private drawIsometricGrid_(
+        ctx: CanvasRenderingContext2D,
+        mapWidth: number, mapHeight: number,
+        tileWidth: number, tileHeight: number,
+        ox: number, oy: number, zoom: number,
+    ): void {
+        ctx.strokeStyle = GRID_COLOR;
+        ctx.lineWidth = 1 / zoom;
+
+        const hw = tileWidth * 0.5;
+        const hh = tileHeight * 0.5;
+
+        for (let x = 0; x <= mapWidth; x++) {
+            const sx = ox + x * hw;
+            const sy = oy + x * hh;
+            const ex = sx - mapHeight * hw;
+            const ey = sy + mapHeight * hh;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(ex, ey);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= mapHeight; y++) {
+            const sx = ox - y * hw;
+            const sy = oy + y * hh;
+            const ex = sx + mapWidth * hw;
+            const ey = sy + mapWidth * hh;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(ex, ey);
+            ctx.stroke();
+        }
+    }
+
+    private drawOriginMarker_(
+        ctx: CanvasRenderingContext2D,
+        ox: number, oy: number, zoom: number,
+    ): void {
+        const size = 6 / zoom;
+        ctx.fillStyle = ORIGIN_COLOR;
+        ctx.beginPath();
+        ctx.arc(ox, oy, size, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     private loadTilemap_(source: string): CachedTilemap | null {
@@ -224,9 +280,12 @@ export class TilemapOverlay {
                 loadedImage = img;
             }
 
+            const orientation = (json.orientation as string) ?? 'orthogonal';
+
             return {
                 tileWidth,
                 tileHeight,
+                orientation,
                 layers,
                 tilesetImage: loadedImage,
                 tilesetColumns,
