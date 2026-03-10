@@ -62,6 +62,14 @@ void renderer_submitSpineBatch(
     uintptr_t transformPtr,
     Entity entity, i32 layer, f32 depth
 );
+void renderer_submitSpineBatchByEntity(
+    ecs::Registry& registry,
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, i32 blendMode,
+    Entity entity, f32 skelScale, bool flipX, bool flipY,
+    i32 layer, f32 depth
+);
 void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value);
 #endif
 #ifdef ES_ENABLE_PARTICLES

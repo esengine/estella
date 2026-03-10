@@ -4,7 +4,6 @@ import { a as SpineModuleController, b as SpineModuleFactory } from './app.js';
 declare class ModuleBackend {
     private controller_;
     private entities_;
-    private transform16_;
     constructor(controller: SpineModuleController);
     get controller(): SpineModuleController;
     get entityCount(): number;
@@ -33,7 +32,6 @@ declare class ModuleBackend {
     extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry): void;
     removeEntity(entity: Entity): void;
     shutdown(): void;
-    private buildTransformMatrix_;
 }
 
 type SpineVersion = '3.8' | '4.1' | '4.2';

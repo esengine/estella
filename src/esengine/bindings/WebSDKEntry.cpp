@@ -541,6 +541,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("spine_getAnimations", &esengine::spine_getAnimations);
     emscripten::function("spine_getSkins", &esengine::spine_getSkins);
     emscripten::function("renderer_submitSpineBatch", &esengine::renderer_submitSpineBatch);
+    emscripten::function("renderer_submitSpineBatchByEntity", &esengine::renderer_submitSpineBatchByEntity);
     emscripten::function("spine_setNeedsReload", &esengine::spine_setNeedsReload);
 #endif
 

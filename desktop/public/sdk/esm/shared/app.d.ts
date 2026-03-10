@@ -1514,6 +1514,8 @@ declare class App {
     set physicsInitPromise(p: Promise<unknown> | undefined);
     get physicsModule(): unknown;
     set physicsModule(m: unknown);
+    waitForPhysics(): Promise<void>;
+    get isPhysicsReady(): boolean;
     get world(): World;
     setFixedTimestep(timestep: number): this;
     setMaxDeltaTime(v: number): this;
