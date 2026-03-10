@@ -2116,6 +2116,7 @@ declare const animationPlugin: AnimationPlugin;
 
 interface AnimClipFrameData {
     texture: string;
+    duration?: number;
     atlasFrame?: {
         x: number;
         y: number;
