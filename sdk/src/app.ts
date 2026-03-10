@@ -236,6 +236,18 @@ export class App {
         this.physicsModule_ = m;
     }
 
+    async waitForPhysics(): Promise<void> {
+        if (!this.physicsInitPromise_) {
+            console.warn('[ESEngine] No PhysicsPlugin installed, waitForPhysics() is a no-op');
+            return;
+        }
+        await this.physicsInitPromise_;
+    }
+
+    get isPhysicsReady(): boolean {
+        return this.physicsModule_ != null;
+    }
+
     // =========================================================================
     // World Access
     // =========================================================================
