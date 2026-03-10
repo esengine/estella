@@ -11,10 +11,10 @@ import {
     resolveDisplayName,
     resolveToPath,
     checkAssetMissing,
-    browseForAsset,
     BROWSE_ICON,
     CLEAR_ICON,
 } from './assetEditors';
+import { showAssetPicker } from '../../ui/asset-picker';
 
 interface SpineSkeletonData {
     animations?: Record<string, unknown>;
@@ -107,10 +107,10 @@ export function createSpineFileEditor(
 
     browseBtn.addEventListener('click', async () => {
         const extensions = fileFilter.map((f: string) => f.replace('.', ''));
-        const result = await browseForAsset('Select File', 'Spine Files', extensions);
+        const result = await showAssetPicker({ title: 'Select Spine File', extensions });
         if (result) {
             input.value = result.relativePath;
-            onChange(result.ref);
+            onChange(result.uuid ?? result.relativePath);
         }
     });
 

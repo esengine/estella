@@ -6,14 +6,22 @@ import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { Tilemap, TilemapLayer, type TilemapLayerData } from './components';
 import { getTextureDimensions, clearTextureDimensionsCache, getTilemapSource } from './tilesetCache';
+import { Time } from '../resource';
 
 const SYNTHETIC_KEY_BASE = 0x40000000;
 const MAX_LAYERS_PER_ENTITY = 256;
+
+const GRID_TYPE_MAP: Record<string, number> = {
+    orthogonal: 0,
+    isometric: 1,
+    staggered: 2,
+};
 
 export class TilemapPlugin implements Plugin {
     name = 'TilemapPlugin';
 
     private initializedLayers_ = new Set<number>();
+    private animatedLayers_ = new Set<number>();
     private sourceEntityKeys_ = new Map<number, number[]>();
     private layerState_ = new Map<number, {
         texture: number;
@@ -31,6 +39,7 @@ export class TilemapPlugin implements Plugin {
 
         const world = app.world;
         const initializedLayers = this.initializedLayers_;
+        const animatedLayers = this.animatedLayers_;
         const sourceEntityKeys = this.sourceEntityKeys_;
         const layerState = this.layerState_;
 
@@ -131,6 +140,8 @@ export class TilemapPlugin implements Plugin {
 
                     if (!sourceEntityKeys.has(entity)) {
                         const keys: number[] = [];
+                        const gridType = GRID_TYPE_MAP[cached.orientation ?? 'orthogonal'] ?? 0;
+
                         for (let i = 0; i < cached.layers.length; i++) {
                             const key = SYNTHETIC_KEY_BASE + entity * MAX_LAYERS_PER_ENTITY + i;
                             const layer = cached.layers[i];
@@ -141,6 +152,26 @@ export class TilemapPlugin implements Plugin {
                             TilemapAPI.setOriginEntity(key, entity);
                             if (layer.tiles.length > 0) {
                                 TilemapAPI.setTiles(key, layer.tiles);
+                            }
+                            if (gridType !== 0) {
+                                TilemapAPI.setGridType(key, gridType);
+                            }
+
+                            if (cached.tileAnimations) {
+                                for (const [tileId, frames] of cached.tileAnimations) {
+                                    TilemapAPI.setTileAnimation(key, tileId, frames);
+                                }
+                                if (cached.tileAnimations.size > 0) {
+                                    animatedLayers.add(key);
+                                }
+                            }
+
+                            if (cached.tileProperties) {
+                                for (const [tileId, props] of cached.tileProperties) {
+                                    for (const [k, v] of props) {
+                                        TilemapAPI.setTileProperty(key, tileId, k, v);
+                                    }
+                                }
                             }
 
                             const tileset = cached.tilesets[0];
@@ -171,9 +202,17 @@ export class TilemapPlugin implements Plugin {
                         for (const key of keys) {
                             TilemapAPI.destroyLayer(key);
                             initializedLayers.delete(key);
+                            animatedLayers.delete(key);
                             layerState.delete(key);
                         }
                         sourceEntityKeys.delete(entity);
+                    }
+                }
+
+                if (animatedLayers.size > 0) {
+                    const dtMs = app.getResource(Time).delta * 1000;
+                    for (const key of animatedLayers) {
+                        TilemapAPI.advanceAnimations(key, dtMs);
                     }
                 }
             },

@@ -149,4 +149,175 @@ void TilemapSystem::setOriginEntity(Entity layerKey, Entity originEntity) {
     layer->origin_entity = originEntity;
 }
 
+void TilemapSystem::setTileAnimation(Entity entity, u16 tileId,
+                                      const AnimFrame* frames, u32 frameCount) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer || frameCount == 0) return;
+
+    TileAnimation anim;
+    anim.frames.assign(frames, frames + frameCount);
+    anim.total_duration_ms = 0;
+    for (u32 i = 0; i < frameCount; i++) {
+        anim.total_duration_ms += frames[i].duration_ms;
+    }
+    if (anim.total_duration_ms == 0) return;
+    layer->tile_animations[tileId] = std::move(anim);
+}
+
+void TilemapSystem::advanceAnimations(Entity entity, f32 dtMs) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer || layer->tile_animations.empty()) return;
+    layer->elapsed_ms += dtMs;
+}
+
+u16 TilemapSystem::resolveAnimatedTile(Entity entity, u16 tileId) const {
+    const auto* layer = getLayerData(entity);
+    if (!layer) return tileId;
+
+    auto it = layer->tile_animations.find(tileId);
+    if (it == layer->tile_animations.end()) return tileId;
+
+    const auto& anim = it->second;
+    u32 t = static_cast<u32>(std::fmod(layer->elapsed_ms, static_cast<f32>(anim.total_duration_ms)));
+    u32 acc = 0;
+    for (const auto& frame : anim.frames) {
+        acc += frame.duration_ms;
+        if (t < acc) return frame.tile_id;
+    }
+    return anim.frames.back().tile_id;
+}
+
+void TilemapSystem::setTileProperty(Entity entity, u16 tileId,
+                                     const std::string& key, const std::string& value) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    layer->tile_properties[tileId][key] = value;
+}
+
+static std::string s_propertyResult;
+
+const char* TilemapSystem::getTileProperty(Entity entity, u16 tileId,
+                                            const std::string& key) const {
+    const auto* layer = getLayerData(entity);
+    if (!layer) return "";
+
+    auto tileIt = layer->tile_properties.find(tileId);
+    if (tileIt == layer->tile_properties.end()) return "";
+
+    auto propIt = tileIt->second.find(key);
+    if (propIt == tileIt->second.end()) return "";
+
+    s_propertyResult = propIt->second;
+    return s_propertyResult.c_str();
+}
+
+void TilemapSystem::flipTile(Entity entity, i32 x, i32 y,
+                              bool flipH, bool flipV, bool flipD) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    if (x < 0 || y < 0 ||
+        static_cast<u32>(x) >= layer->width ||
+        static_cast<u32>(y) >= layer->height) return;
+
+    auto idx = static_cast<usize>(y) * layer->width + static_cast<usize>(x);
+    u16 raw = layer->tiles[idx];
+    u16 id = raw & TILE_ID_MASK;
+    if (id == EMPTY_TILE) return;
+
+    u16 flags = 0;
+    if (flipH) flags |= TILE_FLIP_H;
+    if (flipV) flags |= TILE_FLIP_V;
+    if (flipD) flags |= TILE_FLIP_D;
+    layer->tiles[idx] = id | flags;
+}
+
+void TilemapSystem::rotateTile(Entity entity, i32 x, i32 y, i32 degrees) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    if (x < 0 || y < 0 ||
+        static_cast<u32>(x) >= layer->width ||
+        static_cast<u32>(y) >= layer->height) return;
+
+    auto idx = static_cast<usize>(y) * layer->width + static_cast<usize>(x);
+    u16 raw = layer->tiles[idx];
+    u16 id = raw & TILE_ID_MASK;
+    if (id == EMPTY_TILE) return;
+
+    i32 rot = ((degrees % 360) + 360) % 360;
+    u16 flags = 0;
+    switch (rot) {
+        case 90:  flags = TILE_FLIP_H | TILE_FLIP_D; break;
+        case 180: flags = TILE_FLIP_H | TILE_FLIP_V; break;
+        case 270: flags = TILE_FLIP_V | TILE_FLIP_D; break;
+        default: break;
+    }
+    layer->tiles[idx] = id | flags;
+}
+
+void TilemapSystem::setGridType(Entity entity, GridType type) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    layer->grid_type = type;
+}
+
+void TilemapSystem::tileToWorld(Entity entity, i32 tx, i32 ty,
+                                 f32 originX, f32 originY,
+                                 f32& outX, f32& outY) const {
+    const auto* layer = getLayerData(entity);
+    if (!layer) { outX = 0; outY = 0; return; }
+
+    f32 tw = layer->tile_width;
+    f32 th = layer->tile_height;
+
+    switch (layer->grid_type) {
+        case GridType::Isometric:
+            outX = originX + static_cast<f32>(tx - ty) * tw * 0.5f;
+            outY = originY - static_cast<f32>(tx + ty) * th * 0.5f;
+            break;
+        case GridType::StaggeredIsometric: {
+            f32 offsetX = (ty & 1) ? tw * 0.5f : 0.0f;
+            outX = originX + static_cast<f32>(tx) * tw + offsetX;
+            outY = originY - static_cast<f32>(ty) * th * 0.5f;
+            break;
+        }
+        default:
+            outX = originX + static_cast<f32>(tx) * tw;
+            outY = originY - static_cast<f32>(ty) * th;
+            break;
+    }
+}
+
+void TilemapSystem::worldToTile(Entity entity, f32 wx, f32 wy,
+                                 f32 originX, f32 originY,
+                                 i32& outTx, i32& outTy) const {
+    const auto* layer = getLayerData(entity);
+    if (!layer) { outTx = 0; outTy = 0; return; }
+
+    f32 tw = layer->tile_width;
+    f32 th = layer->tile_height;
+    f32 lx = wx - originX;
+    f32 ly = originY - wy;
+
+    switch (layer->grid_type) {
+        case GridType::Isometric: {
+            f32 ftx = lx / tw + ly / th;
+            f32 fty = ly / th - lx / tw;
+            outTx = static_cast<i32>(std::floor(ftx));
+            outTy = static_cast<i32>(std::floor(fty));
+            break;
+        }
+        case GridType::StaggeredIsometric: {
+            i32 roughY = static_cast<i32>(std::floor(ly / (th * 0.5f)));
+            f32 offsetX = (roughY & 1) ? tw * 0.5f : 0.0f;
+            outTx = static_cast<i32>(std::floor((lx - offsetX) / tw));
+            outTy = roughY;
+            break;
+        }
+        default:
+            outTx = static_cast<i32>(std::floor(lx / tw));
+            outTy = static_cast<i32>(std::floor(ly / th));
+            break;
+    }
+}
+
 }  // namespace esengine::tilemap

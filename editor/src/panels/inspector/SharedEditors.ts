@@ -7,7 +7,8 @@ import type { ShaderProperty } from '../../shader/ShaderPropertyParser';
 import { ShaderPropertyType, getDefaultPropertyValue } from '../../shader/ShaderPropertyParser';
 import { openAssetInBrowser } from './InspectorHelpers';
 import { setupDragLabel } from '../../property/editorUtils';
-import { handleAssetDrop, browseForAsset, BROWSE_ICON } from '../../property/editors';
+import { handleAssetDrop, BROWSE_ICON } from '../../property/editors';
+import { showAssetPicker } from '../../ui/asset-picker';
 import { AssetType } from '../../constants/AssetTypes';
 
 // =============================================================================
@@ -315,7 +316,7 @@ export function createTextureEditor(container: HTMLElement, value: string, onCha
     });
 
     browseBtn.addEventListener('click', async () => {
-        const result = await browseForAsset('Select Texture', 'Images', ['png', 'jpg', 'jpeg', 'webp']);
+        const result = await showAssetPicker({ title: 'Select Texture', allowedTypes: ['image'], extensions: ['png', 'jpg', 'jpeg', 'webp'] });
         if (result) {
             input.value = result.relativePath;
             onChange(result.relativePath);
@@ -398,7 +399,7 @@ export function createShaderFileInput(
     });
 
     browseBtn.addEventListener('click', async () => {
-        const result = await browseForAsset('Select Shader', 'Shader Files', ['esshader']);
+        const result = await showAssetPicker({ title: 'Select Shader', extensions: ['esshader'] });
         if (result) {
             input.value = result.relativePath;
             onChange(result.relativePath);

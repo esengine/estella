@@ -13,10 +13,10 @@ import {
     resolveToPath,
     checkAssetMissing,
     handleAssetDrop,
-    browseForAsset,
     BROWSE_ICON,
     CLEAR_ICON,
 } from './assetEditors';
+import { showAssetPicker } from '../../ui/asset-picker';
 
 export function createTextureEditor(
     container: HTMLElement,
@@ -117,12 +117,13 @@ export function createTextureEditor(
     });
 
     browseBtn.addEventListener('click', async () => {
-        const result = await browseForAsset('Select Texture', 'Images', ['png', 'jpg', 'jpeg', 'webp']);
+        const result = await showAssetPicker({ title: 'Select Texture', allowedTypes: ['image'], extensions: ['png', 'jpg', 'jpeg', 'webp'] });
         if (result) {
+            const ref = result.uuid ?? result.relativePath;
             input.value = result.relativePath;
-            currentRef = result.ref;
-            onChange(result.ref);
-            updatePreview(result.ref);
+            currentRef = ref;
+            onChange(ref);
+            updatePreview(ref);
         }
     });
 

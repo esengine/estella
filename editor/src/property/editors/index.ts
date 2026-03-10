@@ -19,7 +19,7 @@ import { createEntityEditor } from './entityEditor';
 import { createVec2ArrayEditor, createStringArrayEditor } from './arrayEditors';
 import { createCollisionLayerEditor } from './collisionLayerEditor';
 
-export { getNativeFS, getProjectDir, getMimeType, navigateToAsset, handleAssetDrop, browseForAsset, BROWSE_ICON, CLEAR_ICON } from './assetEditors';
+export { getNativeFS, getProjectDir, getMimeType, navigateToAsset, handleAssetDrop, BROWSE_ICON, CLEAR_ICON } from './assetEditors';
 
 export function registerBuiltinEditors(registrar: PluginRegistrar): void {
     const registerPropertyEditor = (type: string, factory: PropertyEditorFactory) => registrar.provide(PROPERTY_EDITOR, type, factory);

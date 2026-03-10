@@ -6,7 +6,7 @@ export {
     generateTileCollision, resolveRelativePath,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
     type TiledObjectData, type TiledObjectGroupData, type TiledObjectShape,
-    type TilemapLoadOptions,
+    type TiledAnimFrame, type TilemapLoadOptions,
 } from './tiledLoader';
 export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
 export {
