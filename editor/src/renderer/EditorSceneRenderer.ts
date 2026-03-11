@@ -389,6 +389,7 @@ export class EditorSceneRenderer {
             Renderer.resize(width, height);
             Renderer.beginFrame();
             Renderer.setViewport(0, 0, width, height);
+            Renderer.setScissor(0, 0, 0, 0, false);
             Renderer.clearBuffers(3);
             Renderer.begin(matrix);
             this.pipeline_.submitScene(registry, matrix, { x: 0, y: 0, w: width, h: height }, elapsed);

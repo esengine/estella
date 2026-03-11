@@ -3,16 +3,20 @@
   "loop": true,
   "frames": [
     {
-      "texture": "e43a0ed9-50e9-46d8-b1db-da1c549590a8"
+      "texture": "e43a0ed9-50e9-46d8-b1db-da1c549590a8",
+      "duration": 0.4
     },
     {
-      "texture": "e9785b6d-6f6e-4dfb-aeed-66d39e5671e4"
+      "texture": "e9785b6d-6f6e-4dfb-aeed-66d39e5671e4",
+      "duration": 0.2
     },
     {
-      "texture": "36bf91fa-66a4-449b-8a7c-7bc261a04732"
+      "texture": "36bf91fa-66a4-449b-8a7c-7bc261a04732",
+      "duration": 0.2
     },
     {
-      "texture": "92b3d54a-dd57-40f8-87b7-43e93d6b6a26"
+      "texture": "92b3d54a-dd57-40f8-87b7-43e93d6b6a26",
+      "duration": 0.35
     }
   ]
 }

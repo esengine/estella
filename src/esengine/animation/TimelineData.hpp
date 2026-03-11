@@ -13,11 +13,21 @@ enum class TimelineWrapMode : u8 {
     PingPong,
 };
 
+enum class InterpType : u8 {
+    Hermite = 0,
+    Linear,
+    Step,
+    EaseIn,
+    EaseOut,
+    EaseInOut,
+};
+
 struct TimelineKeyframe {
     f32 time;
     f32 value;
     f32 inTangent;
     f32 outTangent;
+    InterpType interpolation{InterpType::Hermite};
 };
 
 struct TimelineChannel {

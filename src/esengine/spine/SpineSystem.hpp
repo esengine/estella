@@ -176,7 +176,7 @@ private:
 
     SpineResourceManager& resource_manager_;
     std::unordered_map<Entity, SpineInstance> instances_;
-    std::vector<Entity> pending_remove_;
+    u32 destroy_callback_id_ = 0;
 };
 
 }  // namespace esengine::spine

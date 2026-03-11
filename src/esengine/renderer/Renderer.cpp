@@ -37,7 +37,7 @@ namespace esengine {
 // RenderCommand Implementation
 // ========================================
 
-static BlendMode s_current_blend_ = BlendMode::Normal;
+BlendMode RenderCommand::currentBlend_ = BlendMode::Normal;
 
 void RenderCommand::init() {
     // Enable depth testing by default
@@ -103,12 +103,12 @@ void RenderCommand::setBlendFunc() {
 }
 
 void RenderCommand::resetBlendState() {
-    s_current_blend_ = BlendMode::Normal;
+    currentBlend_ = BlendMode::Normal;
 }
 
 void RenderCommand::setBlendMode(BlendMode mode) {
-    if (mode == s_current_blend_) return;
-    s_current_blend_ = mode;
+    if (mode == currentBlend_) return;
+    currentBlend_ = mode;
     switch (mode) {
         case BlendMode::Normal:
             glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);

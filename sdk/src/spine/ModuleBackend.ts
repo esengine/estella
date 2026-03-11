@@ -11,14 +11,17 @@ interface EntityInfo {
     layer: number;
 }
 
-const TRANSFORM_WORLD_POS_OFFSET = 40;
-const TRANSFORM_WORLD_ROT_OFFSET = 52;
-const TRANSFORM_WORLD_SCALE_OFFSET = 68;
+type BatchEntry = {
+    vertices: Float32Array; indices: Uint16Array;
+    textureId: number; blendMode: number;
+    entity: number; info: EntityInfo;
+};
 
 export class ModuleBackend {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
-    private transform16_: Float32Array = new Float32Array(16);
+    private cachedFrame_: number = -1;
+    private cachedEntries_: BatchEntry[] = [];
 
     constructor(controller: SpineModuleController) {
         this.controller_ = controller;
@@ -101,54 +104,104 @@ export class ModuleBackend {
         return this.controller_.getSkins(info.instanceId);
     }
 
+    setDefaultMix(entity: Entity, duration: number): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.setDefaultMix(info.skelHandle, duration);
+    }
+
+    setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.setMixDuration(info.skelHandle, fromAnim, toAnim, duration);
+    }
+
+    setTrackAlpha(entity: Entity, track: number, alpha: number): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.setTrackAlpha(info.instanceId, track, alpha);
+    }
+
+    setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setAttachment(info.instanceId, slotName, attachmentName);
+    }
+
+    setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setIKTarget(info.instanceId, constraintName, targetX, targetY, mix);
+    }
+
+    setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setSlotColor(info.instanceId, slotName, r, g, b, a);
+    }
+
+    enableEvents(entity: Entity): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.enableEvents(info.instanceId);
+    }
+
     updateAll(dt: number): void {
         for (const info of this.entities_.values()) {
             this.controller_.update(info.instanceId, dt);
         }
     }
 
-    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry): void {
-        const submitFn = coreModule.renderer_submitSpineBatch;
+    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry, frameCount: number = -1): void {
+        const submitFn = coreModule.renderer_submitSpineBatchByEntity;
         if (!submitFn) return;
 
-        const f32 = coreModule.HEAPF32;
-
-        for (const [entity, info] of this.entities_) {
-            const tPtr = coreModule.getTransformPtr?.(registry, entity as number);
-            if (!tPtr) continue;
-
-            this.buildTransformMatrix_(f32, tPtr, info.skeletonScale, info.flipX, info.flipY);
-
-            const batches = this.controller_.extractMeshBatches(info.instanceId);
-            for (const batch of batches) {
-                const vertCount = batch.vertices.length / 8;
-                const idxCount = batch.indices.length;
-                if (vertCount <= 0 || idxCount <= 0) continue;
-
-                const vertBytes = batch.vertices.byteLength;
-                const idxBytes = batch.indices.byteLength;
-                const matBytes = 16 * 4;
-
-                const vertPtr = coreModule._malloc(vertBytes);
-                const idxPtr = coreModule._malloc(idxBytes);
-                const matPtr = coreModule._malloc(matBytes);
-
-                coreModule.HEAPF32.set(batch.vertices, vertPtr >> 2);
-                new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, idxCount).set(batch.indices);
-                coreModule.HEAPF32.set(this.transform16_, matPtr >> 2);
-
-                submitFn.call(coreModule,
-                    vertPtr, vertCount,
-                    idxPtr, idxCount,
-                    batch.textureId, batch.blendMode,
-                    matPtr,
-                    entity as number, info.layer, 0);
-
-                coreModule._free(vertPtr);
-                coreModule._free(idxPtr);
-                coreModule._free(matPtr);
+        if (this.cachedFrame_ !== frameCount) {
+            this.cachedEntries_.length = 0;
+            for (const [entity, info] of this.entities_) {
+                const batches = this.controller_.extractMeshBatches(info.instanceId);
+                for (const batch of batches) {
+                    if (batch.vertices.length === 0 || batch.indices.length === 0) continue;
+                    this.cachedEntries_.push({
+                        vertices: batch.vertices, indices: batch.indices,
+                        textureId: batch.textureId, blendMode: batch.blendMode,
+                        entity: entity as number, info,
+                    });
+                }
             }
+            this.cachedFrame_ = frameCount;
         }
+
+        if (this.cachedEntries_.length === 0) return;
+
+        let totalVertBytes = 0;
+        let totalIdxBytes = 0;
+        for (const e of this.cachedEntries_) {
+            totalVertBytes += e.vertices.byteLength;
+            totalIdxBytes += e.indices.byteLength;
+        }
+
+        const vertBase = coreModule._malloc(totalVertBytes);
+        const idxBase = coreModule._malloc(totalIdxBytes);
+
+        let vOff = 0;
+        let iOff = 0;
+        for (const e of this.cachedEntries_) {
+            const vertPtr = vertBase + vOff;
+            const idxPtr = idxBase + iOff;
+
+            coreModule.HEAPF32.set(e.vertices, vertPtr >> 2);
+            new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, e.indices.length).set(e.indices);
+
+            submitFn.call(coreModule, registry,
+                vertPtr, e.vertices.length / 8,
+                idxPtr, e.indices.length,
+                e.textureId, e.blendMode,
+                e.entity, e.info.skeletonScale, e.info.flipX, e.info.flipY,
+                e.info.layer, 0);
+
+            vOff += e.vertices.byteLength;
+            iOff += e.indices.byteLength;
+        }
+
+        coreModule._free(vertBase);
+        coreModule._free(idxBase);
     }
 
     removeEntity(entity: Entity): void {
@@ -165,46 +218,5 @@ export class ModuleBackend {
             this.controller_.unloadSkeleton(info.skelHandle);
         }
         this.entities_.clear();
-    }
-
-    private buildTransformMatrix_(
-        f32: Float32Array, tPtr: number,
-        skelScale: number, flipX: boolean, flipY: boolean,
-    ): void {
-        const base = tPtr >> 2;
-        const posBase = base + TRANSFORM_WORLD_POS_OFFSET / 4;
-        const rotBase = base + TRANSFORM_WORLD_ROT_OFFSET / 4;
-        const scaleBase = base + TRANSFORM_WORLD_SCALE_OFFSET / 4;
-
-        const px = f32[posBase], py = f32[posBase + 1], pz = f32[posBase + 2];
-        const qx = f32[rotBase], qy = f32[rotBase + 1], qz = f32[rotBase + 2], qw = f32[rotBase + 3];
-        const rawSx = f32[scaleBase], rawSy = f32[scaleBase + 1], rawSz = f32[scaleBase + 2];
-
-        const sx = rawSx * skelScale * (flipX ? -1 : 1);
-        const sy = rawSy * skelScale * (flipY ? -1 : 1);
-        const sz = rawSz;
-
-        const x2 = qx + qx, y2 = qy + qy, z2 = qz + qz;
-        const xx = qx * x2, xy = qx * y2, xz = qx * z2;
-        const yy = qy * y2, yz = qy * z2, zz = qz * z2;
-        const wx = qw * x2, wy = qw * y2, wz = qw * z2;
-
-        const m = this.transform16_;
-        m[0] = (1 - (yy + zz)) * sx;
-        m[1] = (xy + wz) * sx;
-        m[2] = (xz - wy) * sx;
-        m[3] = 0;
-        m[4] = (xy - wz) * sy;
-        m[5] = (1 - (xx + zz)) * sy;
-        m[6] = (yz + wx) * sy;
-        m[7] = 0;
-        m[8] = (xz + wy) * sz;
-        m[9] = (yz - wx) * sz;
-        m[10] = (1 - (xx + yy)) * sz;
-        m[11] = 0;
-        m[12] = px;
-        m[13] = py;
-        m[14] = pz;
-        m[15] = 1;
     }
 }

@@ -4,11 +4,11 @@ import {
 } from '../PropertyEditor';
 import { getEditorContext } from '../../context/EditorContext';
 import { getNavigationService, getProjectService } from '../../services';
-import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../../asset/AssetLibrary';
 import type { NativeFS } from '../../types/NativeFS';
 import { getAssetMimeType } from 'esengine';
 import { AssetType } from '../../constants/AssetTypes';
+import { showAssetPicker } from '../../ui/asset-picker';
 
 export function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;
@@ -62,7 +62,6 @@ export function navigateToAsset(assetPath: string): void {
 export const BROWSE_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
 export const CLEAR_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
 const ASSET_DRAG_MIME = 'application/esengine-asset';
-const ASSETS_DIR_NAME = 'assets';
 
 export function handleAssetDrop(
     wrapper: HTMLElement,
@@ -102,37 +101,6 @@ export function handleAssetDrop(
             console.error('Failed to parse drop data:', err);
         }
     });
-}
-
-export async function browseForAsset(
-    dialogTitle: string,
-    filterName: string,
-    extensions: string[]
-): Promise<{ relativePath: string; ref: string } | null> {
-    const projectDir = getProjectDir();
-    if (!projectDir) return null;
-
-    const assetsDir = `${projectDir}/${ASSETS_DIR_NAME}`;
-    try {
-        const platform = getPlatformAdapter();
-        const result = await platform.openFileDialog({
-            title: dialogTitle,
-            defaultPath: assetsDir,
-            filters: [{ name: filterName, extensions }],
-        });
-        if (result) {
-            const normalizedPath = result.replace(/\\/g, '/');
-            const assetsIndex = normalizedPath.indexOf(`/${ASSETS_DIR_NAME}/`);
-            if (assetsIndex !== -1) {
-                const relativePath = normalizedPath.substring(assetsIndex + 1);
-                const uuid = getAssetLibrary().getUuid(relativePath);
-                return { relativePath, ref: uuid ?? relativePath };
-            }
-        }
-    } catch (err) {
-        console.error('Failed to open file dialog:', err);
-    }
-    return null;
 }
 
 interface AssetFileEditorConfig {
@@ -180,10 +148,14 @@ export function createAssetFileEditor(
     });
 
     browseBtn.addEventListener('click', async () => {
-        const result = await browseForAsset(config.dialogTitle, config.filterName, config.extensions);
+        const result = await showAssetPicker({
+            title: config.dialogTitle,
+            allowedTypes: config.acceptTypes,
+            extensions: config.extensions,
+        });
         if (result) {
             input.value = result.relativePath;
-            onChange(result.ref);
+            onChange(result.uuid ?? result.relativePath);
         }
     });
 

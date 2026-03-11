@@ -147,6 +147,7 @@
     flex-shrink: 0;
     border-right: 1px solid var(--es-border);
     overflow-y: auto;
+    padding-top: 24px;
     background: var(--es-bg-primary);
 }
 
@@ -333,6 +334,12 @@
     pointer-events: none;
 }
 
+.es-timeline-dropdown-separator {
+    height: 1px;
+    background: var(--es-border);
+    margin: 4px 0;
+}
+
 .es-timeline-dropdown-back {
     color: var(--es-text-secondary);
     font-size: 11px;
@@ -362,4 +369,9 @@
     font-size: 10px;
     color: var(--es-warning, #e8a735);
     line-height: 1.3;
+}
+
+@keyframes es-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
 }

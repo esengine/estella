@@ -31,6 +31,7 @@ import { PreviewService } from './services/PreviewService';
 import { SceneService } from './services/SceneService';
 import { ProjectService } from './services/ProjectService';
 import { MultiWindowService } from './services/MultiWindowService';
+import { McpBridge } from './bridge/McpBridge';
 import {
     OUTPUT_SERVICE,
     CLIPBOARD_SERVICE,
@@ -82,6 +83,7 @@ export class Editor {
     private sceneService_!: SceneService;
     private projectService_!: ProjectService;
     private multiWindowService_!: MultiWindowService;
+    private mcpBridge_: McpBridge | null = null;
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -183,6 +185,8 @@ export class Editor {
     // =========================================================================
 
     dispose(): void {
+        this.mcpBridge_?.dispose();
+        this.mcpBridge_ = null;
         if (this.contextMenuHandler_) {
             this.container_.removeEventListener('contextmenu', this.contextMenuHandler_);
             this.contextMenuHandler_ = null;
@@ -244,6 +248,8 @@ export class Editor {
         iocContainer.provide(MULTI_WINDOW_SERVICE, sk, this.multiWindowService_);
         iocContainer.provide(LAYOUT_SERVICE, sk, this.navigationService_);
         iocContainer.provide(PLUGIN_MANAGER, sk, this.pluginManager_);
+
+        this.mcpBridge_ = new McpBridge(this.outputService_, this.scriptService_, null, this.projectPath_);
     }
 
     private async initializeAllScripts_(): Promise<void> {

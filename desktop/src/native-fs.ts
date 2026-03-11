@@ -15,6 +15,7 @@ import {
     stat,
     copyFile,
     remove,
+    rename,
     watch as tauriWatch,
 } from '@tauri-apps/plugin-fs';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
@@ -69,6 +70,8 @@ export interface NativeFS {
     readFile(path: string): Promise<string | null>;
     readBinaryFile(path: string): Promise<Uint8Array | null>;
     copyFile(src: string, dest: string): Promise<boolean>;
+    removeFile(path: string): Promise<boolean>;
+    renameFile(oldPath: string, newPath: string): Promise<boolean>;
     getFileStats(path: string): Promise<FileStats | null>;
     openProject(): Promise<string | null>;
     listDirectory(path: string): Promise<string[]>;
@@ -227,6 +230,26 @@ export const nativeFS: NativeFS = {
             return true;
         } catch (err) {
             console.error('Failed to copy file:', err);
+            return false;
+        }
+    },
+
+    async removeFile(path: string) {
+        try {
+            await remove(path);
+            return true;
+        } catch (err) {
+            console.error('Failed to remove file:', err);
+            return false;
+        }
+    },
+
+    async renameFile(oldPath: string, newPath: string) {
+        try {
+            await rename(oldPath, newPath);
+            return true;
+        } catch (err) {
+            console.error('Failed to rename file:', err);
             return false;
         }
     },

@@ -62,9 +62,10 @@ void tl_addPropertyTrack(u32 handle, uintptr_t childPathPtr, i32 childPathLen,
         for (i32 ki = 0; ki < count; ki++) {
             channel.keyframes[ki] = {
                 kfData[dataOffset], kfData[dataOffset + 1],
-                kfData[dataOffset + 2], kfData[dataOffset + 3]
+                kfData[dataOffset + 2], kfData[dataOffset + 3],
+                static_cast<animation::InterpType>(static_cast<u8>(kfData[dataOffset + 4]))
             };
-            dataOffset += 4;
+            dataOffset += 5;
         }
         track.channels.push_back(std::move(channel));
     }
@@ -112,9 +113,10 @@ void tl_addCustomPropertyTrack(u32 handle, uintptr_t childPathPtr, i32 childPath
         for (i32 ki = 0; ki < count; ki++) {
             channel.keyframes[ki] = {
                 kfData[dataOffset], kfData[dataOffset + 1],
-                kfData[dataOffset + 2], kfData[dataOffset + 3]
+                kfData[dataOffset + 2], kfData[dataOffset + 3],
+                static_cast<animation::InterpType>(static_cast<u8>(kfData[dataOffset + 4]))
             };
-            dataOffset += 4;
+            dataOffset += 5;
         }
         track.channels.push_back(std::move(channel));
     }
@@ -237,6 +239,7 @@ void tl_pause(u32 handle) { if (auto* s = tlSys()) s->pause(handle); }
 void tl_stop(u32 handle) { if (auto* s = tlSys()) s->stop(handle); }
 void tl_setTime(u32 handle, f32 time) { if (auto* s = tlSys()) s->setTime(handle, time); }
 void tl_setSpeed(u32 handle, f32 speed) { if (auto* s = tlSys()) s->setSpeed(handle, speed); }
+void tl_setWrapMode(u32 handle, i32 mode) { if (auto* s = tlSys()) s->setWrapMode(handle, static_cast<animation::TimelineWrapMode>(mode)); }
 f32 tl_getTime(u32 handle) { auto* s = tlSys(); return s ? s->getTime(handle) : 0.0f; }
 i32 tl_isPlaying(u32 handle) { auto* s = tlSys(); return s && s->isPlaying(handle) ? 1 : 0; }
 
@@ -366,6 +369,7 @@ EMSCRIPTEN_BINDINGS(esengine_timeline) {
     emscripten::function("_tl_stop", &esengine::tl_stop);
     emscripten::function("_tl_setTime", &esengine::tl_setTime);
     emscripten::function("_tl_setSpeed", &esengine::tl_setSpeed);
+    emscripten::function("_tl_setWrapMode", &esengine::tl_setWrapMode);
     emscripten::function("_tl_getTime", &esengine::tl_getTime);
     emscripten::function("_tl_isPlaying", &esengine::tl_isPlaying);
     emscripten::function("_tl_advance", &esengine::tl_advance);

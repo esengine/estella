@@ -54,6 +54,7 @@ private:
     void emitQuad(
         TransientBufferPool& buffers, DrawList& draw_list,
         const glm::vec2& position, const glm::vec2& size,
+        const glm::vec2& pivot,
         f32 angle, f32 depth, u32 textureId,
         const glm::vec4& color,
         const glm::vec2& uvOffset, const glm::vec2& uvScale,
@@ -65,6 +66,7 @@ private:
     void emitNineSlice(
         TransientBufferPool& buffers, DrawList& draw_list,
         const glm::vec2& position, const glm::vec2& size,
+        const glm::vec2& pivot,
         f32 angle, f32 depth, u32 textureId,
         const glm::vec2& texSize, const resource::SliceBorder& border,
         const glm::vec4& color,

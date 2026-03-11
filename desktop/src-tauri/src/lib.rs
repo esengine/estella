@@ -1,9 +1,11 @@
 //! ESEngine Editor Library
 
+mod bridge_server;
 mod compiler;
 mod embedded_assets;
 mod preview_server;
 
+use bridge_server::BridgeServer;
 use preview_server::PreviewServer;
 use std::io::Read as _;
 use std::path::PathBuf;
@@ -20,6 +22,7 @@ use tokio::process::Command;
 
 struct AppState {
     preview_server: Mutex<Option<PreviewServer>>,
+    bridge_server: Mutex<BridgeServer>,
 }
 
 // =============================================================================
@@ -76,6 +79,22 @@ fn notify_preview_reload(state: State<AppState>) {
     if let Some(ref server) = *server_lock {
         server.notify_reload();
     }
+}
+
+#[tauri::command]
+fn start_bridge_server(
+    state: State<AppState>,
+    app: AppHandle,
+    project_path: Option<String>,
+) -> Result<u16, String> {
+    let mut bridge = state.bridge_server.lock().unwrap();
+    bridge.start(app, project_path)
+}
+
+#[tauri::command]
+fn update_bridge_project(state: State<AppState>, project_path: String) {
+    let mut bridge = state.bridge_server.lock().unwrap();
+    bridge.update_project_path(&project_path);
 }
 
 #[tauri::command]
@@ -285,6 +304,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             preview_server: Mutex::new(None),
+            bridge_server: Mutex::new(BridgeServer::new()),
         })
         .invoke_handler(tauri::generate_handler![
             toggle_devtools,
@@ -292,6 +312,8 @@ pub fn run() {
             stop_preview_server,
             notify_preview_reload,
             open_preview_in_browser,
+            start_bridge_server,
+            update_bridge_project,
             open_folder,
             unzip_to_directory,
             execute_command,
@@ -313,6 +335,9 @@ pub fn run() {
                             server.stop();
                         }
                         *server_lock = None;
+                    }
+                    if let Ok(mut bridge) = state.bridge_server.lock() {
+                        bridge.stop();
                     }
                 }
             }

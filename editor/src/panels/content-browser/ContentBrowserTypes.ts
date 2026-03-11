@@ -2,7 +2,7 @@ import type { EditorStore } from '../../store/EditorStore';
 import type { NativeFS, DirectoryEntry } from '../../types/NativeFS';
 import { getEditorContext } from '../../context/EditorContext';
 import { getEditorType } from 'esengine';
-import { getDisplayType, getAssetTypeIcon } from '../../asset/AssetTypeRegistry';
+import { getDisplayType, getAssetTypeIcon } from '../../asset/AssetTypeLookup';
 
 export interface NativeShell {
     openFile(path: string): Promise<void>;

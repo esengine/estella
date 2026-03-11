@@ -3,6 +3,7 @@
 #include "../core/Types.hpp"
 
 #include <glm/glm.hpp>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -16,6 +17,22 @@ static constexpr u16 TILE_ID_MASK = 0x1FFF;
 static constexpr u16 TILE_FLIP_H  = 0x2000;
 static constexpr u16 TILE_FLIP_V  = 0x4000;
 static constexpr u16 TILE_FLIP_D  = 0x8000;
+
+enum class GridType : u8 {
+    Orthogonal = 0,
+    Isometric = 1,
+    StaggeredIsometric = 2,
+};
+
+struct AnimFrame {
+    u16 tile_id;
+    u16 duration_ms;
+};
+
+struct TileAnimation {
+    std::vector<AnimFrame> frames;
+    u32 total_duration_ms = 0;
+};
 
 struct TileRange {
     i32 min_x = 0;
@@ -42,6 +59,21 @@ public:
     void fillRect(Entity entity, i32 x, i32 y, u32 w, u32 h, u16 tileId);
     void setTiles(Entity entity, const u16* tiles, u32 count);
 
+    void setTileAnimation(Entity entity, u16 tileId,
+                          const AnimFrame* frames, u32 frameCount);
+    void advanceAnimations(Entity entity, f32 dtMs);
+    u16 resolveAnimatedTile(Entity entity, u16 tileId) const;
+
+    void setTileProperty(Entity entity, u16 tileId,
+                         const std::string& key, const std::string& value);
+    const char* getTileProperty(Entity entity, u16 tileId,
+                                const std::string& key) const;
+
+    void flipTile(Entity entity, i32 x, i32 y, bool flipH, bool flipV, bool flipD);
+    void rotateTile(Entity entity, i32 x, i32 y, i32 degrees);
+
+    void setGridType(Entity entity, GridType type);
+
     struct LayerData {
         u32 width = 0;
         u32 height = 0;
@@ -60,6 +92,12 @@ public:
         glm::vec2 parallax_factor{1.0f, 1.0f};
         bool visible = true;
         Entity origin_entity = INVALID_ENTITY;
+        GridType grid_type = GridType::Orthogonal;
+
+        std::unordered_map<u16, TileAnimation> tile_animations;
+        f32 elapsed_ms = 0;
+
+        std::unordered_map<u16, std::unordered_map<std::string, std::string>> tile_properties;
     };
 
     const LayerData* getLayerData(Entity entity) const;
@@ -72,6 +110,11 @@ public:
     void setTint(Entity entity, f32 r, f32 g, f32 b, f32 a, f32 opacity);
     void setVisible(Entity entity, bool visible);
     void setOriginEntity(Entity layerKey, Entity originEntity);
+
+    void tileToWorld(Entity entity, i32 tx, i32 ty,
+                     f32 originX, f32 originY, f32& outX, f32& outY) const;
+    void worldToTile(Entity entity, f32 wx, f32 wy,
+                     f32 originX, f32 originY, i32& outTx, i32& outTy) const;
 
     using LayerMap = std::unordered_map<Entity, LayerData>;
     const LayerMap& allLayers() const { return layers_; }

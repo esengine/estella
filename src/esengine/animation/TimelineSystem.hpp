@@ -46,6 +46,7 @@ public:
     void stop(TimelineHandle handle);
     void setTime(TimelineHandle handle, f32 time);
     void setSpeed(TimelineHandle handle, f32 speed);
+    void setWrapMode(TimelineHandle handle, TimelineWrapMode mode);
     f32 getTime(TimelineHandle handle) const;
     bool isPlaying(TimelineHandle handle) const;
     bool isStopped(TimelineHandle handle) const;
@@ -76,6 +77,9 @@ private:
     };
 
     static f32 hermiteInterpolate(f32 p0, f32 p1, f32 m0, f32 m1, f32 t);
+    static f32 easeIn(f32 t);
+    static f32 easeOut(f32 t);
+    static f32 easeInOut(f32 t);
     static f32 evaluateChannel(const TimelineChannel& channel, f32 time);
     static f32 applyWrapMode(f32 time, f32 duration, TimelineWrapMode mode, bool& stopped);
 

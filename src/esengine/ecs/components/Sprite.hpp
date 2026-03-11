@@ -55,6 +55,10 @@ struct Sprite {
     ES_PROPERTY()
     glm::vec2 size{1.0f, 1.0f};
 
+    /** @brief Pivot point (0,0 = bottom-left, 0.5,0.5 = center, 1,1 = top-right) */
+    ES_PROPERTY()
+    glm::vec2 pivot{0.5f, 0.5f};
+
     /** @brief UV coordinate offset for sprite sheets */
     ES_PROPERTY()
     glm::vec2 uvOffset{0.0f, 0.0f};

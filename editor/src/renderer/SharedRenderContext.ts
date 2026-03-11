@@ -71,6 +71,7 @@ export class SharedRenderContext {
     private renderCallback_: (() => void) | null = null;
     private onInitCallbacks_: (() => void)[] = [];
     private postTickCallback_: (() => void) | null = null;
+    private postRenderCallback_: (() => void) | null = null;
 
     constructor() {
         this.pathResolver_ = new AssetPathResolver();
@@ -82,6 +83,20 @@ export class SharedRenderContext {
 
     get isPlayMode(): boolean {
         return this.playMode_;
+    }
+
+    getRuntimeTimelineTime(runtimeEntity: number): number | null {
+        if (!this.playMode_ || !this.module_) return null;
+        const mod = this.module_ as any;
+        if (!mod._tl_getTime) return null;
+
+        const handles = (timelinePlugin as any).handles_ as Map<number, { handle: number }> | undefined;
+        if (!handles) return null;
+
+        const result = handles.get(runtimeEntity);
+        if (!result?.handle) return null;
+
+        return mod._tl_getTime(result.handle);
     }
 
     async init(module: ESEngineModule): Promise<boolean> {
@@ -283,6 +298,18 @@ export class SharedRenderContext {
 
     setPostTickCallback(cb: (() => void) | null): void {
         this.postTickCallback_ = cb;
+    }
+
+    setPostRenderCallback(cb: (() => void) | null): void {
+        this.postRenderCallback_ = cb;
+    }
+
+    firePostRenderCallback(): void {
+        const cb = this.postRenderCallback_;
+        if (cb) {
+            this.postRenderCallback_ = null;
+            cb();
+        }
     }
 
     tickApp(): void {

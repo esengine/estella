@@ -1366,3 +1366,68 @@
     cursor: pointer;
     accent-color: var(--es-accent-gold);
 }
+
+.es-object-editor {
+    min-width: 360px;
+}
+
+.es-object-editor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.es-object-editor-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.es-object-editor-key {
+    flex: 2;
+    min-width: 0;
+}
+
+.es-object-editor-value {
+    flex: 3;
+    min-width: 0;
+}
+
+.es-object-editor-remove {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--es-text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-object-editor-remove:hover {
+    background: var(--es-bg-tertiary);
+    color: var(--es-danger, #e06c75);
+}
+
+.es-object-editor-add {
+    border: 1px dashed var(--es-border);
+    background: transparent;
+    color: var(--es-text-secondary);
+    padding: 4px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12px;
+    width: 100%;
+}
+
+.es-object-editor-add:hover {
+    border-color: var(--es-accent);
+    color: var(--es-accent);
+}

@@ -23,8 +23,12 @@ export class TimelineToolbar {
     private recordBtn_: HTMLElement | null = null;
     private wrapBtn_: HTMLElement | null = null;
     private speedBtn_: HTMLElement | null = null;
+    private snapBtn_: HTMLElement | null = null;
     private valueGroup_: HTMLElement | null = null;
     private valueInput_: HTMLInputElement | null = null;
+    private animClipGroup_: HTMLElement | null = null;
+    private fpsInput_: HTMLInputElement | null = null;
+    private loopBtn_: HTMLElement | null = null;
     private unsub_: (() => void) | null = null;
     private onAddTrack_: AddTrackCallback | null = null;
     private onValueChange_: KeyframeValueChangeCallback | null = null;
@@ -89,14 +93,21 @@ export class TimelineToolbar {
                     <button class="es-btn es-btn-icon" data-action="step-forward" title="Next Frame (.)">${icons.stepForward(12)}</button>
                     <button class="es-btn es-btn-icon" data-action="skip-forward" title="Go to End">${icons.skipForward(12)}</button>
                 </div>
+                <span class="es-timeline-live-indicator" style="display:none;align-items:center;gap:4px;color:#ff4444;font-size:11px;font-weight:600;margin-left:8px"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff4444;animation:es-blink 1s infinite"></span>LIVE</span>
                 <div class="es-timeline-time-display" title="Double-click to edit duration">0:00.00 / 0:00.00</div>
                 <div class="es-timeline-value-group" style="display:none">
                     <span class="es-timeline-value-label">Value</span>
                     <input type="number" class="es-input es-timeline-value-input" step="any" />
                 </div>
+                <div class="es-timeline-animclip-group" style="display:none">
+                    <span class="es-timeline-value-label">FPS</span>
+                    <input type="number" class="es-input es-timeline-fps-input" min="1" max="120" step="1" style="width:48px" />
+                    <button class="es-btn es-btn-sm es-timeline-loop-btn" data-action="loop" title="Loop">Loop</button>
+                </div>
                 <div class="es-timeline-toolbar-right">
                     <button class="es-btn es-btn-sm es-timeline-speed-btn" data-action="speed" title="Playback Speed">1x</button>
                     <button class="es-btn es-btn-icon es-timeline-wrap-btn" data-action="wrap" title="Wrap Mode: Once">${icons.repeat(12)}</button>
+                    <button class="es-btn es-btn-icon es-timeline-snap-btn es-active" data-action="snap" title="Snap to Grid">${icons.grid(12)}</button>
                     <button class="es-btn es-btn-icon" data-action="add-track" title="Add Track">${icons.plus(12)}</button>
                 </div>
             </div>
@@ -107,8 +118,12 @@ export class TimelineToolbar {
         this.recordBtn_ = this.el_.querySelector('[data-action="record"]');
         this.wrapBtn_ = this.el_.querySelector('[data-action="wrap"]');
         this.speedBtn_ = this.el_.querySelector('[data-action="speed"]');
+        this.snapBtn_ = this.el_.querySelector('[data-action="snap"]');
         this.valueGroup_ = this.el_.querySelector('.es-timeline-value-group');
         this.valueInput_ = this.el_.querySelector('.es-timeline-value-input');
+        this.animClipGroup_ = this.el_.querySelector('.es-timeline-animclip-group');
+        this.fpsInput_ = this.el_.querySelector('.es-timeline-fps-input');
+        this.loopBtn_ = this.el_.querySelector('.es-timeline-loop-btn');
 
         this.el_.querySelector('[data-action="record"]')?.addEventListener('click', () => {
             this.state_.recording = !this.state_.recording;
@@ -148,6 +163,11 @@ export class TimelineToolbar {
             this.cycleWrapMode();
         });
 
+        this.el_.querySelector('[data-action="snap"]')?.addEventListener('click', () => {
+            this.state_.snapEnabled = !this.state_.snapEnabled;
+            this.snapBtn_?.classList.toggle('es-active', this.state_.snapEnabled);
+        });
+
         this.el_.querySelector('[data-action="add-track"]')?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.showWizard(e.target as HTMLElement);
@@ -174,6 +194,25 @@ export class TimelineToolbar {
                 this.valueInput_?.blur();
             }
             e.stopPropagation();
+        });
+
+        this.fpsInput_?.addEventListener('change', () => {
+            if (!this.fpsInput_) return;
+            const fps = Math.max(1, Math.min(120, parseInt(this.fpsInput_.value, 10)));
+            if (isNaN(fps)) return;
+            this.state_.animClipFps = fps;
+            this.state_.notify();
+        });
+
+        this.fpsInput_?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.fpsInput_?.blur();
+            e.stopPropagation();
+        });
+
+        this.loopBtn_?.addEventListener('click', () => {
+            this.state_.animClipLoop = !this.state_.animClipLoop;
+            this.updateLoopButton();
+            this.state_.notify();
         });
     }
 
@@ -269,6 +308,34 @@ export class TimelineToolbar {
         }
     }
 
+    private updateLoopButton(): void {
+        if (this.loopBtn_) {
+            this.loopBtn_.classList.toggle('es-active', this.state_.animClipLoop);
+            this.loopBtn_.textContent = this.state_.animClipLoop ? 'Loop' : 'Once';
+        }
+    }
+
+    setLiveMode(live: boolean): void {
+        const indicator = this.el_.querySelector('.es-timeline-live-indicator') as HTMLElement | null;
+        if (indicator) {
+            indicator.style.display = live ? 'inline-flex' : 'none';
+        }
+        if (this.playBtn_) {
+            (this.playBtn_ as HTMLButtonElement).disabled = live;
+            this.playBtn_.style.opacity = live ? '0.4' : '';
+        }
+    }
+
+    private updateAnimClipControls(): void {
+        if (this.animClipGroup_) {
+            this.animClipGroup_.style.display = this.state_.animClipMode ? 'flex' : 'none';
+        }
+        if (this.fpsInput_ && this.state_.animClipMode) {
+            this.fpsInput_.value = String(this.state_.animClipFps);
+        }
+        this.updateLoopButton();
+    }
+
     private updateWrapButton(): void {
         if (this.wrapBtn_) {
             this.wrapBtn_.title = `Wrap Mode: ${WRAP_LABELS[this.state_.wrapMode]}`;
@@ -289,5 +356,6 @@ export class TimelineToolbar {
         if (this.recordBtn_) {
             this.recordBtn_.classList.toggle('es-active', this.state_.recording);
         }
+        this.updateAnimClipControls();
     }
 }

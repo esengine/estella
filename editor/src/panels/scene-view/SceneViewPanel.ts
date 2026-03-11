@@ -12,6 +12,7 @@ import { GizmoManager } from '../../gizmos';
 import type { GizmoContext } from '../../gizmos';
 import { ColliderOverlay } from '../../gizmos/ColliderOverlay';
 import { ParticleOverlay } from '../../gizmos/ParticleOverlay';
+import { PivotOverlay } from '../../gizmos/PivotOverlay';
 import { getSettingsValue, onSettingsChange } from '../../settings/SettingsRegistry';
 import type { EntityData } from '../../types/SceneTypes';
 
@@ -61,6 +62,7 @@ export class SceneViewPanel {
     private gizmoManager_: GizmoManager;
     private colliderOverlay_: ColliderOverlay;
     private particleOverlay_: ParticleOverlay;
+    private pivotOverlay_: PivotOverlay;
 
     private camera_: CameraController;
     private toolbar_: GizmoToolbar;
@@ -89,6 +91,7 @@ export class SceneViewPanel {
         this.gizmoManager_ = new GizmoManager();
         this.colliderOverlay_ = new ColliderOverlay();
         this.particleOverlay_ = new ParticleOverlay();
+        this.pivotOverlay_ = new PivotOverlay();
         this.tilemapOverlay_ = new TilemapOverlay();
         this.tilemapOverlay_.setRenderCallback(() => this.requestRender());
 
@@ -135,6 +138,7 @@ export class SceneViewPanel {
             marquee: this.marquee_,
             gizmoManager: this.gizmoManager_,
             colliderOverlay: this.colliderOverlay_,
+            pivotOverlay: this.pivotOverlay_,
             getBounds: (entityData) => this.getEntityBoundsWithSpine(entityData),
             createGizmoContext: (ctx) => this.createGizmoContext(ctx),
             createOverlayContext: () => this.createOverlayContext(),
@@ -601,6 +605,7 @@ export class SceneViewPanel {
             this.renderPreview();
         }
 
+        getSharedRenderContext().firePostRenderCallback();
     }
 
     // =========================================================================
@@ -645,6 +650,7 @@ export class SceneViewPanel {
             });
         }
         this.particleOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
+        this.pivotOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
 
         const hasSelection = this.store_.selectedEntities.size > 0;
 
@@ -674,7 +680,7 @@ export class SceneViewPanel {
         this.drawStats(ctx, w, h);
         this.drawViewportPreview(ctx, w, h);
 
-        if (!this.store_.scene.entities.some(
+        if (!this.store_.isEditingPrefab && !this.store_.scene.entities.some(
             e => e.components.some(c => c.type === 'Camera'))) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.font = '14px system-ui, sans-serif';
@@ -725,6 +731,7 @@ export class SceneViewPanel {
             });
         }
         this.particleOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
+        this.pivotOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
 
         if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             if (this.gizmoManager_.getActiveId() !== 'select' && getSettingsValue<boolean>('scene.showGizmos')) {

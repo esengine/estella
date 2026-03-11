@@ -105,6 +105,14 @@ export interface ESEngineModule {
         transformPtr: number,
         entity: number, layer: number, depth: number
     ): void;
+    renderer_submitSpineBatchByEntity?(
+        registry: CppRegistry,
+        verticesPtr: number, vertexCount: number,
+        indicesPtr: number, indexCount: number,
+        textureId: number, blendMode: number,
+        entity: number, skelScale: number, flipX: boolean, flipY: boolean,
+        layer: number, depth: number
+    ): void;
 
     // Material cache
     invalidateMaterialCache(materialId: number): void;
@@ -329,6 +337,7 @@ export interface ESEngineModule {
     _tl_stop(handle: number): void;
     _tl_setTime(handle: number, time: number): void;
     _tl_setSpeed(handle: number, speed: number): void;
+    _tl_setWrapMode(handle: number, mode: number): void;
     _tl_getTime(handle: number): number;
     _tl_isPlaying(handle: number): number;
     _tl_advance(registry: CppRegistry, handle: number, rootEntity: number,

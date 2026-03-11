@@ -41,6 +41,31 @@ function getActivationRanges(data: TimelineAssetData, trackIndex: number): Activ
     return track.ranges;
 }
 
+interface MarkerData {
+    time: number;
+    name: string;
+}
+
+function getMarkers(data: TimelineAssetData, trackIndex: number): MarkerData[] | null {
+    const track = data.tracks[trackIndex];
+    if (!track || track.type !== 'marker') return null;
+    if (!track.markers) track.markers = [];
+    return track.markers as MarkerData[];
+}
+
+interface CustomEventData {
+    time: number;
+    name: string;
+    payload: Record<string, unknown>;
+}
+
+function getCustomEvents(data: TimelineAssetData, trackIndex: number): CustomEventData[] | null {
+    const track = data.tracks[trackIndex];
+    if (!track || track.type !== 'customEvent') return null;
+    if (!track.events) track.events = [];
+    return track.events as CustomEventData[];
+}
+
 // =============================================================================
 // Spine Clip Commands
 // =============================================================================
@@ -329,6 +354,38 @@ export class DeleteAudioEventCommand extends BaseCommand {
     }
 }
 
+export class ChangeAudioClipCommand extends BaseCommand {
+    readonly type = 'timeline_change_audio_clip';
+    readonly description = 'Change audio clip';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private eventIndex_: number,
+        private oldClip_: string,
+        private newClip_: string,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const events = getAudioEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.clip = this.newClip_;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getAudioEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.clip = this.oldClip_;
+        this.onChanged_();
+    }
+}
+
 // =============================================================================
 // Activation Range Commands
 // =============================================================================
@@ -514,5 +571,548 @@ export class DeleteActivationRangeCommand extends BaseCommand {
         ranges.splice(this.rangeIndex_, 0, this.deleted_);
         this.deleted_ = null;
         this.onChanged_();
+    }
+}
+
+// =============================================================================
+// Marker Commands
+// =============================================================================
+
+export class AddMarkerCommand extends BaseCommand {
+    readonly type = 'timeline_add_marker';
+    readonly description = 'Add marker';
+    private insertedIndex_ = -1;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private marker_: MarkerData,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers) return;
+        let idx = markers.findIndex(m => m.time > this.marker_.time);
+        if (idx === -1) idx = markers.length;
+        markers.splice(idx, 0, { ...this.marker_ });
+        this.insertedIndex_ = idx;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers || this.insertedIndex_ < 0) return;
+        markers.splice(this.insertedIndex_, 1);
+        this.insertedIndex_ = -1;
+        this.onChanged_();
+    }
+}
+
+export class MoveMarkerCommand extends BaseCommand {
+    readonly type = 'timeline_move_marker';
+    readonly description = 'Move marker';
+    readonly newTime: number;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private markerIndex_: number,
+        private oldTime_: number,
+        newTime: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+        this.newTime = newTime;
+    }
+
+    execute(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers) return;
+        const m = markers[this.markerIndex_];
+        if (m) {
+            m.time = this.newTime;
+            markers.sort((a, b) => a.time - b.time);
+        }
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers) return;
+        const m = markers.find(mk => mk.time === this.newTime);
+        if (m) {
+            m.time = this.oldTime_;
+            markers.sort((a, b) => a.time - b.time);
+        }
+        this.onChanged_();
+    }
+
+    override canMerge(other: Command): boolean {
+        if (!(other instanceof MoveMarkerCommand)) return false;
+        if (other.trackIndex_ !== this.trackIndex_) return false;
+        if (other.markerIndex_ !== this.markerIndex_) return false;
+        return other.timestamp - this.timestamp < MERGE_THRESHOLD_MS;
+    }
+
+    override merge(other: Command): Command {
+        if (!(other instanceof MoveMarkerCommand)) return this;
+        return new MoveMarkerCommand(
+            this.data_, this.trackIndex_, this.markerIndex_,
+            this.oldTime_, other.newTime, this.onChanged_,
+        );
+    }
+}
+
+export class DeleteMarkerCommand extends BaseCommand {
+    readonly type = 'timeline_delete_marker';
+    readonly description = 'Delete marker';
+    private deleted_: MarkerData | null = null;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private markerIndex_: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers) return;
+        this.deleted_ = markers.splice(this.markerIndex_, 1)[0] ?? null;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers || !this.deleted_) return;
+        markers.splice(this.markerIndex_, 0, this.deleted_);
+        this.deleted_ = null;
+        this.onChanged_();
+    }
+}
+
+// =============================================================================
+// Custom Event Commands
+// =============================================================================
+
+export class AddCustomEventCommand extends BaseCommand {
+    readonly type = 'timeline_add_custom_event';
+    readonly description = 'Add custom event';
+    private insertedIndex_ = -1;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private event_: CustomEventData,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        let idx = events.findIndex(e => e.time > this.event_.time);
+        if (idx === -1) idx = events.length;
+        events.splice(idx, 0, { ...this.event_ });
+        this.insertedIndex_ = idx;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events || this.insertedIndex_ < 0) return;
+        events.splice(this.insertedIndex_, 1);
+        this.insertedIndex_ = -1;
+        this.onChanged_();
+    }
+}
+
+export class MoveCustomEventCommand extends BaseCommand {
+    readonly type = 'timeline_move_custom_event';
+    readonly description = 'Move custom event';
+    readonly newTime: number;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private eventIndex_: number,
+        private oldTime_: number,
+        newTime: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+        this.newTime = newTime;
+    }
+
+    execute(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) {
+            ev.time = this.newTime;
+            events.sort((a, b) => a.time - b.time);
+        }
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events.find(e => e.time === this.newTime);
+        if (ev) {
+            ev.time = this.oldTime_;
+            events.sort((a, b) => a.time - b.time);
+        }
+        this.onChanged_();
+    }
+
+    override canMerge(other: Command): boolean {
+        if (!(other instanceof MoveCustomEventCommand)) return false;
+        if (other.trackIndex_ !== this.trackIndex_) return false;
+        if (other.eventIndex_ !== this.eventIndex_) return false;
+        return other.timestamp - this.timestamp < MERGE_THRESHOLD_MS;
+    }
+
+    override merge(other: Command): Command {
+        if (!(other instanceof MoveCustomEventCommand)) return this;
+        return new MoveCustomEventCommand(
+            this.data_, this.trackIndex_, this.eventIndex_,
+            this.oldTime_, other.newTime, this.onChanged_,
+        );
+    }
+}
+
+export class DeleteCustomEventCommand extends BaseCommand {
+    readonly type = 'timeline_delete_custom_event';
+    readonly description = 'Delete custom event';
+    private deleted_: CustomEventData | null = null;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private eventIndex_: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        this.deleted_ = events.splice(this.eventIndex_, 1)[0] ?? null;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events || !this.deleted_) return;
+        events.splice(this.eventIndex_, 0, this.deleted_);
+        this.deleted_ = null;
+        this.onChanged_();
+    }
+}
+
+export class RenameCustomEventCommand extends BaseCommand {
+    readonly type = 'timeline_rename_custom_event';
+    readonly description = 'Rename custom event';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private eventIndex_: number,
+        private oldName_: string,
+        private newName_: string,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.name = this.newName_;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.name = this.oldName_;
+        this.onChanged_();
+    }
+}
+
+export class EditCustomEventPayloadCommand extends BaseCommand {
+    readonly type = 'timeline_edit_custom_event_payload';
+    readonly description = 'Edit custom event payload';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private eventIndex_: number,
+        private oldPayload_: Record<string, unknown>,
+        private newPayload_: Record<string, unknown>,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.payload = { ...this.newPayload_ };
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.payload = { ...this.oldPayload_ };
+        this.onChanged_();
+    }
+}
+
+// =============================================================================
+// SpriteAnim Commands
+// =============================================================================
+
+export class MoveSpriteAnimStartCommand extends BaseCommand {
+    readonly type = 'timeline_move_sprite_anim_start';
+    readonly description = 'Move sprite anim start';
+    readonly newTime: number;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private oldTime_: number,
+        newTime: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+        this.newTime = newTime;
+    }
+
+    execute(): void {
+        const track = this.data_.tracks[this.trackIndex_];
+        if (!track || track.type !== 'spriteAnim') return;
+        track.startTime = this.newTime;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const track = this.data_.tracks[this.trackIndex_];
+        if (!track || track.type !== 'spriteAnim') return;
+        track.startTime = this.oldTime_;
+        this.onChanged_();
+    }
+
+    override canMerge(other: Command): boolean {
+        if (!(other instanceof MoveSpriteAnimStartCommand)) return false;
+        if (other.trackIndex_ !== this.trackIndex_) return false;
+        return other.timestamp - this.timestamp < MERGE_THRESHOLD_MS;
+    }
+
+    override merge(other: Command): Command {
+        if (!(other instanceof MoveSpriteAnimStartCommand)) return this;
+        return new MoveSpriteAnimStartCommand(
+            this.data_, this.trackIndex_,
+            this.oldTime_, other.newTime, this.onChanged_,
+        );
+    }
+}
+
+export class RenameMarkerCommand extends BaseCommand {
+    readonly type = 'timeline_rename_marker';
+    readonly description = 'Rename marker';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private markerIndex_: number,
+        private oldName_: string,
+        private newName_: string,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers) return;
+        const m = markers[this.markerIndex_];
+        if (m) m.name = this.newName_;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const markers = getMarkers(this.data_, this.trackIndex_);
+        if (!markers) return;
+        const m = markers[this.markerIndex_];
+        if (m) m.name = this.oldName_;
+        this.onChanged_();
+    }
+}
+
+export class ChangeSpriteAnimClipCommand extends BaseCommand {
+    readonly type = 'timeline_change_sprite_anim_clip';
+    readonly description = 'Change sprite anim clip';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private oldClip_: string,
+        private newClip_: string,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const track = this.data_.tracks[this.trackIndex_];
+        if (!track || track.type !== 'spriteAnim') return;
+        track.clip = this.newClip_;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const track = this.data_.tracks[this.trackIndex_];
+        if (!track || track.type !== 'spriteAnim') return;
+        track.clip = this.oldClip_;
+        this.onChanged_();
+    }
+}
+
+// =============================================================================
+// AnimFrame Commands
+// =============================================================================
+
+interface AnimFrame {
+    texture: string;
+    duration?: number;
+    thumbnailUrl?: string;
+}
+
+function getAnimFrames(data: TimelineAssetData, trackIndex: number): AnimFrame[] | null {
+    const track = data.tracks[trackIndex];
+    if (!track || track.type !== 'animFrames') return null;
+    if (!track.animFrames) track.animFrames = [];
+    return track.animFrames as AnimFrame[];
+}
+
+export class DeleteAnimFrameCommand extends BaseCommand {
+    readonly type = 'timeline_delete_anim_frame';
+    readonly description = 'Delete animation frame';
+    private removed_: AnimFrame | null = null;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private frameIndex_: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const frames = getAnimFrames(this.data_, this.trackIndex_);
+        if (!frames || this.frameIndex_ < 0 || this.frameIndex_ >= frames.length) return;
+        this.removed_ = { ...frames[this.frameIndex_] };
+        frames.splice(this.frameIndex_, 1);
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const frames = getAnimFrames(this.data_, this.trackIndex_);
+        if (!frames || !this.removed_) return;
+        frames.splice(this.frameIndex_, 0, this.removed_);
+        this.onChanged_();
+    }
+}
+
+export class ReorderAnimFrameCommand extends BaseCommand {
+    readonly type = 'timeline_reorder_anim_frame';
+    readonly description = 'Reorder animation frame';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private fromIndex_: number,
+        private toIndex_: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const frames = getAnimFrames(this.data_, this.trackIndex_);
+        if (!frames) return;
+        const [frame] = frames.splice(this.fromIndex_, 1);
+        frames.splice(this.toIndex_, 0, frame);
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const frames = getAnimFrames(this.data_, this.trackIndex_);
+        if (!frames) return;
+        const [frame] = frames.splice(this.toIndex_, 1);
+        frames.splice(this.fromIndex_, 0, frame);
+        this.onChanged_();
+    }
+}
+
+export class ResizeAnimFrameCommand extends BaseCommand {
+    readonly type = 'timeline_resize_anim_frame';
+    readonly description = 'Resize animation frame';
+    readonly newDuration: number;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private frameIndex_: number,
+        private oldDuration_: number,
+        newDuration: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+        this.newDuration = newDuration;
+    }
+
+    execute(): void {
+        const frames = getAnimFrames(this.data_, this.trackIndex_);
+        if (!frames || this.frameIndex_ >= frames.length) return;
+        frames[this.frameIndex_].duration = this.newDuration;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const frames = getAnimFrames(this.data_, this.trackIndex_);
+        if (!frames || this.frameIndex_ >= frames.length) return;
+        frames[this.frameIndex_].duration = this.oldDuration_;
+        this.onChanged_();
+    }
+
+    override canMerge(other: Command): boolean {
+        if (!(other instanceof ResizeAnimFrameCommand)) return false;
+        if (other.trackIndex_ !== this.trackIndex_) return false;
+        if (other.frameIndex_ !== this.frameIndex_) return false;
+        return other.timestamp - this.timestamp < MERGE_THRESHOLD_MS;
+    }
+
+    override merge(other: Command): Command {
+        if (!(other instanceof ResizeAnimFrameCommand)) return this;
+        return new ResizeAnimFrameCommand(
+            this.data_, this.trackIndex_, this.frameIndex_,
+            this.oldDuration_, other.newDuration, this.onChanged_,
+        );
     }
 }

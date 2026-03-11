@@ -21,6 +21,7 @@ const SpriteSchema: ComponentSchema = {
         { name: 'material', type: 'material-file' },
         { name: 'color', type: 'color' },
         { name: 'size', type: 'vec2', hiddenWhen: { hasComponent: 'UIRect' } },
+        { name: 'pivot', type: 'vec2' },
         { name: 'uvOffset', type: 'vec2' },
         { name: 'uvScale', type: 'vec2' },
         { name: 'layer', type: 'number', min: LAYER_MIN, max: LAYER_MAX },

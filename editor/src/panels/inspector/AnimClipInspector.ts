@@ -4,6 +4,7 @@ import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { getGlobalPathResolver } from '../../asset';
 import { getAssetDatabase, isUUID } from '../../asset/AssetDatabase';
 import { AssetType } from '../../constants/AssetTypes';
+import { showAssetPicker } from '../../ui/asset-picker';
 
 interface AnimClipAssetData {
     version: string;
@@ -123,24 +124,20 @@ function renderSection(
     });
 
     const addBtn = section.querySelector('.es-animclip-add-btn')!;
-    addBtn.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/png,image/jpeg,image/webp';
-        input.multiple = true;
-        input.addEventListener('change', async () => {
-            if (!input.files || input.files.length === 0) return;
-            for (const file of Array.from(input.files)) {
-                const resolver = getGlobalPathResolver();
-                const projectDir = resolver.getProjectDir();
-                if (!projectDir) continue;
-                state.frames.push({ texture: file.name, displayPath: file.name, thumbnailUrl: null });
-            }
-            await save(state, filePath);
-            renderSection(section, state, filePath);
-            loadThumbnails(section, state, filePath);
+    addBtn.addEventListener('click', async () => {
+        const results = await showAssetPicker({
+            title: 'Add Frames',
+            allowedTypes: [AssetType.IMAGE],
+            extensions: ['png', 'jpg', 'jpeg', 'webp'],
+            multiSelect: true,
         });
-        input.click();
+        if (!results || results.length === 0) return;
+        for (const result of results) {
+            state.frames.push({ texture: result.relativePath, displayPath: result.relativePath, thumbnailUrl: null });
+        }
+        await save(state, filePath);
+        renderSection(section, state, filePath);
+        loadThumbnails(section, state, filePath);
     });
 
     setupDeleteButtons(section, state, filePath);

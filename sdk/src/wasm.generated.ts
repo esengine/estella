@@ -301,6 +301,7 @@ export interface Sprite {
     texture: number;
     color: Vec4;
     size: Vec2;
+    pivot: Vec2;
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;

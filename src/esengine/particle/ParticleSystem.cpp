@@ -10,7 +10,11 @@ ParticleSystem::ParticleSystem()
 }
 
 void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
-    cleanupDeadEntities(registry);
+    if (destroy_callback_id_ == 0) {
+        destroy_callback_id_ = registry.onDestroy([this](Entity entity) {
+            states_.erase(entity);
+        });
+    }
 
     auto view = registry.view<ecs::Transform, ecs::ParticleEmitter>();
     for (auto entity : view) {
@@ -259,17 +263,6 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
     }
 }
 
-void ParticleSystem::cleanupDeadEntities(ecs::Registry& registry) {
-    dead_entities_.clear();
-    for (const auto& [entity, _] : states_) {
-        if (!registry.valid(entity)) {
-            dead_entities_.push_back(entity);
-        }
-    }
-    for (auto entity : dead_entities_) {
-        states_.erase(entity);
-    }
-}
 
 f32 ParticleSystem::randomRange(f32 min, f32 max) {
     if (min >= max) {
