@@ -1,5 +1,5 @@
 import { P as Plugin, S as SpineWasmProvider, A as App } from '../shared/app.js';
-export { a as SpineModuleController, b as SpineModuleFactory, c as createSpineFactories, l as loadSpineModule, w as wrapSpineModule } from '../shared/app.js';
+export { a as SpineEvent, b as SpineEventCallback, c as SpineEventType, d as SpineModuleController, e as SpineModuleFactory, f as createSpineFactories, l as loadSpineModule, w as wrapSpineModule } from '../shared/app.js';
 import { S as SpineManager } from '../shared/SpineManager.js';
 export { M as ModuleBackend, a as SpineVersion } from '../shared/SpineManager.js';
 import { C as CppRegistry, E as Entity, a as ESEngineModule } from '../shared/wasm.js';

@@ -1,10 +1,11 @@
 import { E as Entity, a as ESEngineModule, C as CppRegistry } from './wasm.js';
-import { a as SpineModuleController, b as SpineModuleFactory } from './app.js';
+import { d as SpineModuleController, e as SpineModuleFactory } from './app.js';
 
 declare class ModuleBackend {
     private controller_;
     private entities_;
-    private transform16_;
+    private cachedFrame_;
+    private cachedEntries_;
     constructor(controller: SpineModuleController);
     get controller(): SpineModuleController;
     get entityCount(): number;
@@ -29,11 +30,17 @@ declare class ModuleBackend {
     } | null;
     getAnimations(entity: Entity): string[];
     getSkins(entity: Entity): string[];
+    setDefaultMix(entity: Entity, duration: number): void;
+    setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(entity: Entity, track: number, alpha: number): void;
+    setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean;
+    setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    enableEvents(entity: Entity): void;
     updateAll(dt: number): void;
-    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry): void;
+    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry, frameCount?: number): void;
     removeEntity(entity: Entity): void;
     shutdown(): void;
-    private buildTransformMatrix_;
 }
 
 type SpineVersion = '3.8' | '4.1' | '4.2';
@@ -52,7 +59,7 @@ declare class SpineManager {
         h: number;
     }>, registry: CppRegistry): Promise<SpineVersion | null>;
     updateAnimations(dt: number): void;
-    submitMeshes(registry: CppRegistry): void;
+    submitMeshes(registry: CppRegistry, frameCount?: number): void;
     removeEntity(entity: Entity): void;
     getEntityVersion(entity: Entity): SpineVersion | undefined;
     hasModuleBackend(version: SpineVersion): boolean;
@@ -73,8 +80,16 @@ declare class SpineManager {
     } | null;
     getAnimations(entity: Entity): string[];
     getSkins(entity: Entity): string[];
+    setDefaultMix(entity: Entity, duration: number): void;
+    setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(entity: Entity, track: number, alpha: number): void;
+    setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean;
+    setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    enableEvents(entity: Entity): void;
     hasInstance(entity: Entity): boolean;
     shutdown(): void;
+    private getEntityBackend_;
     private ensureBackend;
 }
 

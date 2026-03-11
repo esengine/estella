@@ -12,8 +12,8 @@ import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
 import { registerTextureDimensions, registerTilemapSource } from './tilemap/tilesetCache';
 import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
-import { parseTimelineAsset } from './timeline/TimelineLoader';
-import { registerTimelineAsset } from './timeline/TimelinePlugin';
+import { parseTimelineAsset, extractTimelineAssetPaths } from './timeline/TimelineLoader';
+import { registerTimelineAsset, registerTimelineTextureHandles } from './timeline/TimelinePlugin';
 
 // =============================================================================
 // Types
@@ -457,12 +457,30 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
         },
     }],
     ['timeline', {
-        async load(paths, assetServer) {
+        async load(paths, assetServer, baseUrl, texturePathToUrl) {
             const promises = [...paths].map(async (tlPath) => {
                 try {
                     const raw = await assetServer.loadJson<Record<string, unknown>>(tlPath);
                     const asset = parseTimelineAsset(raw);
                     registerTimelineAsset(tlPath, asset);
+
+                    const assetPaths = extractTimelineAssetPaths(asset);
+                    if (assetPaths.textures.length > 0) {
+                        const handles = new Map<string, number>();
+                        const texPromises = assetPaths.textures.map(async (texPath) => {
+                            try {
+                                const url = baseUrl ? `${baseUrl}/${texPath}` : `/${texPath}`;
+                                const info = await assetServer.loadTexture(url);
+                                handles.set(texPath, info.handle);
+                                texturePathToUrl.set(texPath, url);
+                            } catch (err) {
+                                console.warn(`Failed to load animFrames texture: ${texPath}`, err);
+                                handles.set(texPath, 0);
+                            }
+                        });
+                        await Promise.all(texPromises);
+                        registerTimelineTextureHandles(tlPath, handles);
+                    }
                 } catch (err) {
                     console.warn(`Failed to load timeline: ${tlPath}`, err);
                 }

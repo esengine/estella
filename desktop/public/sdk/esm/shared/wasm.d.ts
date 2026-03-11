@@ -239,6 +239,7 @@ interface Sprite {
     texture: number;
     color: Vec4;
     size: Vec2;
+    pivot: Vec2;
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;
@@ -502,6 +503,7 @@ interface ESEngineModule {
     spine_getSkins?(entity: number): string[];
     spine_setNeedsReload?(registry: CppRegistry, entity: number, value: boolean): void;
     renderer_submitSpineBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number): void;
+    renderer_submitSpineBatchByEntity?(registry: CppRegistry, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number): void;
     invalidateMaterialCache(materialId: number): void;
     clearMaterialCache(): void;
     draw_begin(matrixPtr: number): void;
@@ -664,6 +666,7 @@ interface ESEngineModule {
     _tl_stop(handle: number): void;
     _tl_setTime(handle: number, time: number): void;
     _tl_setSpeed(handle: number, speed: number): void;
+    _tl_setWrapMode(handle: number, mode: number): void;
     _tl_getTime(handle: number): number;
     _tl_isPlaying(handle: number): number;
     _tl_advance(registry: CppRegistry, handle: number, rootEntity: number, deltaTime: number, speed: number): void;

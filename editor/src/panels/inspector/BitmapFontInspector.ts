@@ -15,6 +15,9 @@ import {
     renderError,
     escapeHtml,
 } from './InspectorHelpers';
+import { showAssetPicker } from '../../ui/asset-picker';
+import { AssetType } from '../../constants/AssetTypes';
+import { getGlobalPathResolver } from '../../asset';
 
 export async function renderBitmapFontInspector(
     container: HTMLElement,
@@ -482,23 +485,21 @@ function renderGlyphList(
             });
 
             browseBtn.addEventListener('click', async () => {
-                try {
-                    const result = await getPlatformAdapter().openFileDialog({
-                        title: 'Select Glyph Image',
-                        defaultPath: fontDir,
-                        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
-                    });
-                    if (result) {
-                        const relativePath = toRelativeFromDir(result, fontDir);
-                        if (relativePath) {
-                            (fontData.glyphs as Record<string, string>)[char] = relativePath;
-                            fileInput.value = relativePath;
-                            await save();
-                            loadGlyphThumb(relativePath, fontDir, thumb);
-                        }
+                const picked = await showAssetPicker({
+                    title: 'Select Glyph Image',
+                    allowedTypes: [AssetType.IMAGE],
+                    extensions: ['png', 'jpg', 'jpeg', 'webp'],
+                });
+                if (picked) {
+                    const resolver = getGlobalPathResolver();
+                    const absPath = resolver.toAbsolutePath(picked.relativePath);
+                    const relativePath = toRelativeFromDir(absPath, fontDir);
+                    if (relativePath) {
+                        (fontData.glyphs as Record<string, string>)[char] = relativePath;
+                        fileInput.value = relativePath;
+                        await save();
+                        loadGlyphThumb(relativePath, fontDir, thumb);
                     }
-                } catch (err) {
-                    console.error('Failed to open file dialog:', err);
                 }
             });
 
@@ -636,25 +637,14 @@ function createBmfontFileInput(
     browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
 
     browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-        try {
-            const result = await getPlatformAdapter().openFileDialog({
-                title: `Select ${label}`,
-                defaultPath: `${projectDir}/assets`,
-                filters: [{ name: filterName, extensions: extensions.map(e => e.replace('.', '')) }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + '/assets/'.length);
-                    input.value = relativePath;
-                    onChange(relativePath);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
+        const picked = await showAssetPicker({
+            title: `Select ${label}`,
+            extensions: extensions.map(e => e.replace('.', '')),
+        });
+        if (picked) {
+            const relativePath = picked.relativePath.replace(/^assets\//, '');
+            input.value = relativePath;
+            onChange(relativePath);
         }
     });
 

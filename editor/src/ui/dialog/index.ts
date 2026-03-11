@@ -4,7 +4,8 @@
  */
 
 export { Dialog } from './Dialog';
-export { showDialog, showInputDialog, showConfirmDialog, showAlertDialog } from './presets';
+export { showDialog, showInputDialog, showObjectDialog, showConfirmDialog, showAlertDialog } from './presets';
+export type { ObjectDialogOptions } from './presets';
 export type {
     DialogRole,
     DialogButton,

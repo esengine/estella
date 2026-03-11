@@ -12,15 +12,30 @@ export const TrackType = {
     SpriteAnim: 'spriteAnim',
     Audio: 'audio',
     Activation: 'activation',
+    Marker: 'marker',
+    CustomEvent: 'customEvent',
+    AnimFrames: 'animFrames',
 } as const;
 
 export type TrackType = (typeof TrackType)[keyof typeof TrackType];
+
+export const InterpType = {
+    Hermite: 'hermite',
+    Linear: 'linear',
+    Step: 'step',
+    EaseIn: 'easeIn',
+    EaseOut: 'easeOut',
+    EaseInOut: 'easeInOut',
+} as const;
+
+export type InterpType = (typeof InterpType)[keyof typeof InterpType];
 
 export interface Keyframe {
     time: number;
     value: number;
     inTangent: number;
     outTangent: number;
+    interpolation?: InterpType;
 }
 
 export interface PropertyChannel {
@@ -81,7 +96,38 @@ export interface ActivationTrack extends TrackBase {
     ranges: ActivationRange[];
 }
 
-export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack;
+export interface Marker {
+    time: number;
+    name: string;
+}
+
+export interface MarkerTrack extends TrackBase {
+    type: typeof TrackType.Marker;
+    markers: Marker[];
+}
+
+export interface CustomEvent {
+    time: number;
+    name: string;
+    payload: Record<string, unknown>;
+}
+
+export interface CustomEventTrack extends TrackBase {
+    type: typeof TrackType.CustomEvent;
+    events: CustomEvent[];
+}
+
+export interface AnimFrame {
+    texture: string;
+    duration?: number;
+}
+
+export interface AnimFramesTrack extends TrackBase {
+    type: typeof TrackType.AnimFrames;
+    frames: AnimFrame[];
+}
+
+export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack;
 
 export interface TimelineAsset {
     version: string;

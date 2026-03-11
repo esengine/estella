@@ -185,6 +185,9 @@ public:
      * @note May not be supported on WebGL/OpenGL ES.
      */
     static void setWireframe(bool enabled);
+
+private:
+    static BlendMode currentBlend_;
 };
 
 }  // namespace esengine

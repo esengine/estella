@@ -25,6 +25,7 @@ export interface GameViewToolbarCallbacks {
     onResolutionChange(preset: ResolutionPreset): void;
     onScaleChange(scale: number): void;
     onMuteToggle(muted: boolean): void;
+    onPhysicsDebugToggle(enabled: boolean): void;
 }
 
 export class GameViewToolbar {
@@ -45,6 +46,8 @@ export class GameViewToolbar {
     private currentPreset_: ResolutionPreset = RESOLUTION_PRESETS[0];
     private muteBtn_: HTMLButtonElement | null = null;
     private muted_ = false;
+    private physicsDebugBtn_: HTMLButtonElement | null = null;
+    private physicsDebug_ = false;
     private previewUrlEl_: HTMLElement | null = null;
 
     constructor(container: HTMLElement, callbacks: GameViewToolbarCallbacks) {
@@ -75,6 +78,7 @@ export class GameViewToolbar {
                     <option value="4">4x</option>
                 </select>
                 <button class="es-btn es-btn-icon es-gameview-mute" title="Mute Audio">${icons.volume(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-physics-debug" title="Physics Debug Draw">${icons.bug(14)}</button>
                 <div class="es-toolbar-divider"></div>
                 <select class="es-gameview-resolution">${options}<option value="custom">Custom</option></select>
                 <div class="es-gameview-custom-size" style="display:none">
@@ -113,6 +117,7 @@ export class GameViewToolbar {
         this.scaleSelect_ = this.container_.querySelector('.es-gameview-scale');
 
         this.muteBtn_ = this.container_.querySelector('.es-gameview-mute');
+        this.physicsDebugBtn_ = this.container_.querySelector('.es-gameview-physics-debug');
 
         this.playBtn_?.addEventListener('click', () => this.callbacks_.onPlay());
         this.pauseBtn_?.addEventListener('click', () => this.callbacks_.onPause());
@@ -126,6 +131,12 @@ export class GameViewToolbar {
             this.muteBtn_!.title = this.muted_ ? 'Unmute Audio' : 'Mute Audio';
             this.muteBtn_!.classList.toggle('es-active', this.muted_);
             this.callbacks_.onMuteToggle(this.muted_);
+        });
+
+        this.physicsDebugBtn_?.addEventListener('click', () => {
+            this.physicsDebug_ = !this.physicsDebug_;
+            this.physicsDebugBtn_!.classList.toggle('es-active', this.physicsDebug_);
+            this.callbacks_.onPhysicsDebugToggle(this.physicsDebug_);
         });
 
         this.speedSelect_?.addEventListener('change', () => {
@@ -222,6 +233,7 @@ export class GameViewToolbar {
         this.stepBtn_ = null;
         this.stopBtn_ = null;
         this.muteBtn_ = null;
+        this.physicsDebugBtn_ = null;
         this.speedSelect_ = null;
         this.fpsDisplay_ = null;
         this.resolutionSelect_ = null;

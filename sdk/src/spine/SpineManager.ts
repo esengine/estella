@@ -79,9 +79,9 @@ export class SpineManager {
         }
     }
 
-    submitMeshes(registry: CppRegistry): void {
+    submitMeshes(registry: CppRegistry, frameCount: number = -1): void {
         for (const backend of this.backends_.values()) {
-            backend.extractAndSubmitMeshes(this.coreModule_, registry);
+            backend.extractAndSubmitMeshes(this.coreModule_, registry, frameCount);
         }
     }
 
@@ -157,6 +157,44 @@ export class SpineManager {
         return backend.getSkins(entity);
     }
 
+    setDefaultMix(entity: Entity, duration: number): void {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) backend.setDefaultMix(entity, duration);
+    }
+
+    setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) backend.setMixDuration(entity, fromAnim, toAnim, duration);
+    }
+
+    setTrackAlpha(entity: Entity, track: number, alpha: number): void {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) backend.setTrackAlpha(entity, track, alpha);
+    }
+
+    setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean {
+        const backend = this.getEntityBackend_(entity);
+        if (!backend) return false;
+        return backend.setAttachment(entity, slotName, attachmentName);
+    }
+
+    setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean {
+        const backend = this.getEntityBackend_(entity);
+        if (!backend) return false;
+        return backend.setIKTarget(entity, constraintName, targetX, targetY, mix);
+    }
+
+    setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean {
+        const backend = this.getEntityBackend_(entity);
+        if (!backend) return false;
+        return backend.setSlotColor(entity, slotName, r, g, b, a);
+    }
+
+    enableEvents(entity: Entity): void {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) backend.enableEvents(entity);
+    }
+
     hasInstance(entity: Entity): boolean {
         return this.entityVersions_.has(entity);
     }
@@ -168,6 +206,12 @@ export class SpineManager {
         this.backends_.clear();
         this.loadingBackends_.clear();
         this.entityVersions_.clear();
+    }
+
+    private getEntityBackend_(entity: Entity): ModuleBackend | undefined {
+        const version = this.entityVersions_.get(entity);
+        if (!version) return undefined;
+        return this.backends_.get(version);
     }
 
     private async ensureBackend(version: SpineVersion): Promise<ModuleBackend | null> {

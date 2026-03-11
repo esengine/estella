@@ -158,6 +158,10 @@ public:
     void destroy(Entity entity) {
         if (!valid(entity)) return;
 
+        for (auto& callback : on_destroy_callbacks_) {
+            callback(entity);
+        }
+
         u64 mask = component_masks_[entity];
         while (mask != 0) {
             u32 bit = static_cast<u32>(__builtin_ctzll(mask));
@@ -180,6 +184,26 @@ public:
         recycled_.push(entity);
 
         ES_LOG_TRACE("Destroyed entity {}", entity);
+    }
+
+    using DestroyCallback = std::function<void(Entity)>;
+
+    u32 onDestroy(DestroyCallback callback) {
+        u32 id = next_callback_id_++;
+        on_destroy_callbacks_.emplace_back(std::move(callback));
+        on_destroy_callback_ids_.push_back(id);
+        return id;
+    }
+
+    void removeOnDestroy(u32 callbackId) {
+        for (usize i = 0; i < on_destroy_callback_ids_.size(); ++i) {
+            if (on_destroy_callback_ids_[i] == callbackId) {
+                auto pos = static_cast<std::ptrdiff_t>(i);
+                on_destroy_callbacks_.erase(on_destroy_callbacks_.begin() + pos);
+                on_destroy_callback_ids_.erase(on_destroy_callback_ids_.begin() + pos);
+                return;
+            }
+        }
     }
 
     /**
@@ -629,6 +653,11 @@ private:
 
     /** @brief Schema component registry for script-defined components */
     SchemaRegistry schemaRegistry_;
+
+    /** @brief Entity destruction callbacks */
+    std::vector<DestroyCallback> on_destroy_callbacks_;
+    std::vector<u32> on_destroy_callback_ids_;
+    u32 next_callback_id_ = 0;
 };
 
 }  // namespace esengine::ecs

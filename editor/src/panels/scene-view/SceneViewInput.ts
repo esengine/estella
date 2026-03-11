@@ -3,6 +3,7 @@ import type { EditorStore } from '../../store/EditorStore';
 import type { GizmoContext } from '../../gizmos';
 import { GizmoManager } from '../../gizmos';
 import { ColliderOverlay } from '../../gizmos/ColliderOverlay';
+import { PivotOverlay } from '../../gizmos/PivotOverlay';
 import { getSettingsValue } from '../../settings/SettingsRegistry';
 import { getClipboardService } from '../../services';
 import type { CameraController } from './CameraController';
@@ -19,6 +20,7 @@ export interface InputDeps {
     marquee: MarqueeSelection;
     gizmoManager: GizmoManager;
     colliderOverlay: ColliderOverlay;
+    pivotOverlay: PivotOverlay;
     getBounds: BoundsProvider;
     createGizmoContext: (ctx: CanvasRenderingContext2D) => GizmoContext;
     createOverlayContext: () => { ctx: CanvasRenderingContext2D; zoom: number; store: EditorStore } | null;
@@ -182,6 +184,14 @@ export class SceneViewInput {
             }
         }
 
+        if (hasSelection) {
+            const octx = this.deps_.createOverlayContext();
+            if (octx && this.deps_.pivotOverlay.onDragStart(worldX, worldY, octx)) {
+                this.startDocumentDrag();
+                return;
+            }
+        }
+
         if (gizmoManager.getActiveId() === 'select') {
             const hits = this.findEntitiesAtPosition(worldX, worldY);
             if (hits.length === 0) {
@@ -219,6 +229,15 @@ export class SceneViewInput {
             return;
         }
 
+        if (this.deps_.pivotOverlay.isDragging()) {
+            const octx = this.deps_.createOverlayContext();
+            if (octx) {
+                this.deps_.pivotOverlay.onDrag(worldX, worldY, octx);
+                this.deps_.requestRender();
+            }
+            return;
+        }
+
         const hasSelection = store.selectedEntities.size > 0;
 
         if (gizmoManager.getActiveId() !== 'select' && hasSelection) {
@@ -234,6 +253,17 @@ export class SceneViewInput {
                 const colliderCursor = colliderOverlay.getCursor();
                 if (colliderCursor) {
                     this.deps_.canvas.style.cursor = colliderCursor;
+                }
+            }
+        }
+
+        if (hasSelection) {
+            const octx = this.deps_.createOverlayContext();
+            if (octx) {
+                this.deps_.pivotOverlay.hitTest(worldX, worldY, octx);
+                const pivotCursor = this.deps_.pivotOverlay.getCursor();
+                if (pivotCursor) {
+                    this.deps_.canvas.style.cursor = pivotCursor;
                 }
             }
         }
@@ -273,11 +303,19 @@ export class SceneViewInput {
             }
             this.skipNextClick_ = didMove;
         }
+
+        if (this.deps_.pivotOverlay.isDragging()) {
+            const octx = this.deps_.createOverlayContext();
+            if (octx) {
+                this.deps_.pivotOverlay.onDragEnd(octx);
+            }
+            this.skipNextClick_ = didMove;
+        }
     }
 
     private onMouseLeave(_e: MouseEvent): void {
         const { camera, gizmoManager, colliderOverlay, marquee } = this.deps_;
-        if (camera.isDragging || gizmoManager.isDragging() || colliderOverlay.isDragging() || marquee.active) {
+        if (camera.isDragging || gizmoManager.isDragging() || colliderOverlay.isDragging() || this.deps_.pivotOverlay.isDragging() || marquee.active) {
             return;
         }
         gizmoManager.resetHover();

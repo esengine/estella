@@ -9,7 +9,7 @@ export const KEYFRAME_SIZE = 8;
 export const SNAP_THRESHOLD = 5;
 export const DEFAULT_DURATION = 5;
 
-export type TrackType = 'property' | 'spine' | 'spriteAnim' | 'audio' | 'activation';
+export type TrackType = 'property' | 'spine' | 'spriteAnim' | 'audio' | 'activation' | 'marker' | 'customEvent' | 'animFrames';
 
 export interface TimelineTrackState {
     index: number;
@@ -21,6 +21,8 @@ export interface TimelineTrackState {
 
 export type WrapMode = 'once' | 'loop' | 'pingPong';
 
+export const FRAME_RATE = 60;
+
 export class TimelineState {
     pixelsPerSecond = DEFAULT_PIXELS_PER_SECOND;
     scrollX = 0;
@@ -31,6 +33,10 @@ export class TimelineState {
     recording = false;
     playbackSpeed = 1;
     wrapMode: WrapMode = 'once';
+    snapEnabled = true;
+    animClipMode = false;
+    animClipFps = 12;
+    animClipLoop = true;
     selectedTrackIndex = -1;
     selectedKeyframes: Set<string> = new Set();
     tracks: TimelineTrackState[] = [];
@@ -86,6 +92,12 @@ export class TimelineState {
             }
         }
         return y - this.scrollY;
+    }
+
+    snapTime(time: number): number {
+        if (!this.snapEnabled) return time;
+        const step = 1 / FRAME_RATE;
+        return Math.round(time / step) * step;
     }
 
     getTotalTracksHeight(): number {

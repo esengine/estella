@@ -106,7 +106,10 @@ export function registerSettingsGroup(descriptor: SettingsGroupDescriptor): void
 
 export function registerSettingsItem(descriptor: SettingsItemDescriptor): void {
     getEditorContainer().provide(SETTINGS_ITEM, descriptor.id, descriptor);
-    if (!values_.has(descriptor.id)) {
+    if (values_.has(descriptor.id)) {
+        const validated = validateValue(descriptor, values_.get(descriptor.id));
+        values_.set(descriptor.id, validated);
+    } else {
         values_.set(descriptor.id, descriptor.defaultValue);
     }
 }
@@ -117,14 +120,43 @@ export function getSettingsValue<T = unknown>(id: string): T {
     return (item?.defaultValue ?? undefined) as T;
 }
 
+function validateValue(descriptor: SettingsItemDescriptor, value: unknown): unknown {
+    switch (descriptor.type) {
+        case 'boolean':
+            if (typeof value !== 'boolean') return descriptor.defaultValue;
+            break;
+        case 'number':
+        case 'range': {
+            if (typeof value !== 'number' || isNaN(value)) return descriptor.defaultValue;
+            if (descriptor.min !== undefined && value < descriptor.min) return descriptor.min;
+            if (descriptor.max !== undefined && value > descriptor.max) return descriptor.max;
+            break;
+        }
+        case 'string':
+        case 'color':
+            if (typeof value !== 'string') return descriptor.defaultValue;
+            break;
+        case 'select':
+            if (descriptor.options && !descriptor.options.some(o => o.value === value)) {
+                return descriptor.defaultValue;
+            }
+            break;
+    }
+    return value;
+}
+
 export function setSettingsValue(id: string, value: unknown): void {
+    const item = getEditorContainer().get(SETTINGS_ITEM, id);
+    if (item) {
+        value = validateValue(item, value);
+    }
+
     const prev = values_.get(id);
     if (prev === value) return;
 
     values_.set(id, value);
     saveToStorage();
 
-    const item = getEditorContainer().get(SETTINGS_ITEM, id);
     item?.onChange?.(value);
 
     for (const listener of listeners_) {

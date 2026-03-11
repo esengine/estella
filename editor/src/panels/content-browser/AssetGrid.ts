@@ -1,11 +1,62 @@
 import { icons } from '../../utils/icons';
 import { joinPath } from '../../utils/path';
-import type { AssetItem, ContentBrowserState } from './ContentBrowserTypes';
+import type { AssetItem, ContentBrowserState, ViewMode } from './ContentBrowserTypes';
 import { getNativeFS, getAssetType, getAssetIcon, isImageFile, SEARCH_RESULTS_LIMIT } from './ContentBrowserTypes';
 import { AssetType } from '../../constants/AssetTypes';
 import type { ThumbnailCache } from './ThumbnailCache';
 import { searchRecursive } from './AssetSearch';
 import { findFolder } from './FolderTree';
+
+export interface RenderItemsOptions {
+    items: AssetItem[];
+    viewMode: ViewMode;
+    selectedPaths: Set<string>;
+    thumbnailCache: ThumbnailCache;
+    draggable?: boolean;
+}
+
+export function renderItemsHtml(options: RenderItemsOptions): string {
+    const { items, viewMode, selectedPaths, thumbnailCache, draggable = true } = options;
+    const isDraggable = (type: string) => draggable && type !== 'folder';
+
+    if (viewMode === 'list') {
+        return items
+            .map((item) => {
+                const iconHtml = getItemIconHtml(item, 24, thumbnailCache);
+                const subtext = item.relativePath
+                    ? `<span class="es-cb-list-subpath">${item.relativePath}</span>`
+                    : '';
+                return `
+                    <div class="es-cb-list-row${selectedPaths.has(item.path) ? ' es-selected' : ''}"
+                         data-path="${item.path}"
+                         data-type="${item.type}"
+                         ${isDraggable(item.type) ? 'draggable="true"' : ''}>
+                        <span class="es-cb-list-icon">${iconHtml}</span>
+                        <span class="es-cb-list-name">${item.name}${subtext}</span>
+                        <span class="es-cb-list-type">${item.type}</span>
+                    </div>`;
+            })
+            .join('');
+    }
+
+    return items
+        .map((item) => {
+            const iconHtml = getItemIconHtml(item, 32, thumbnailCache);
+            const subtext = item.relativePath
+                ? `<div class="es-asset-subpath">${item.relativePath}</div>`
+                : '';
+            return `
+                    <div class="es-asset-item${selectedPaths.has(item.path) ? ' es-selected' : ''}"
+                         data-path="${item.path}"
+                         data-type="${item.type}"
+                         ${isDraggable(item.type) ? 'draggable="true"' : ''}>
+                        <div class="es-asset-icon">${iconHtml}</div>
+                        <div class="es-asset-name">${item.name}</div>
+                        ${subtext}
+                    </div>`;
+        })
+        .join('');
+}
 
 export async function renderGrid(state: ContentBrowserState, thumbnailCache: ThumbnailCache): Promise<void> {
     if (!state.gridContainer) return;
@@ -33,47 +84,18 @@ export async function renderGrid(state: ContentBrowserState, thumbnailCache: Thu
         return;
     }
 
-    const isDraggable = (type: AssetItem['type']) => type !== 'folder';
-
     if (state.viewMode === 'list') {
         state.gridContainer.classList.add('es-cb-list-view');
-        state.gridContainer.innerHTML = filteredItems
-            .map((item) => {
-                const iconHtml = getItemIconHtml(item, 24, thumbnailCache);
-                const subtext = item.relativePath
-                    ? `<span class="es-cb-list-subpath">${item.relativePath}</span>`
-                    : '';
-                return `
-                    <div class="es-cb-list-row${state.selectedPaths.has(item.path) ? ' es-selected' : ''}"
-                         data-path="${item.path}"
-                         data-type="${item.type}"
-                         ${isDraggable(item.type) ? 'draggable="true"' : ''}>
-                        <span class="es-cb-list-icon">${iconHtml}</span>
-                        <span class="es-cb-list-name">${item.name}${subtext}</span>
-                        <span class="es-cb-list-type">${item.type}</span>
-                    </div>`;
-            })
-            .join('');
     } else {
         state.gridContainer.classList.remove('es-cb-list-view');
-        state.gridContainer.innerHTML = filteredItems
-            .map((item) => {
-                const iconHtml = getItemIconHtml(item, 32, thumbnailCache);
-                const subtext = item.relativePath
-                    ? `<div class="es-asset-subpath">${item.relativePath}</div>`
-                    : '';
-                return `
-                    <div class="es-asset-item${state.selectedPaths.has(item.path) ? ' es-selected' : ''}"
-                         data-path="${item.path}"
-                         data-type="${item.type}"
-                         ${isDraggable(item.type) ? 'draggable="true"' : ''}>
-                        <div class="es-asset-icon">${iconHtml}</div>
-                        <div class="es-asset-name">${item.name}</div>
-                        ${subtext}
-                    </div>`;
-            })
-            .join('');
     }
+
+    state.gridContainer.innerHTML = renderItemsHtml({
+        items: filteredItems,
+        viewMode: state.viewMode,
+        selectedPaths: state.selectedPaths,
+        thumbnailCache,
+    });
 
     for (const item of filteredItems) {
         if (item.type === AssetType.IMAGE && isImageFile(item.name)) {

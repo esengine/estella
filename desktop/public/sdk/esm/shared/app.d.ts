@@ -66,6 +66,7 @@ interface SpriteData {
     texture: number;
     color: Color;
     size: Vec2;
+    pivot: Vec2;
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;
@@ -950,6 +951,16 @@ interface SpineWasmModule {
     _spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
     _spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
     _spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    _spine_setDefaultMix(skeletonHandle: number, duration: number): void;
+    _spine_setMixDuration(skeletonHandle: number, fromAnim: number, toAnim: number, duration: number): void;
+    _spine_setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+    _spine_enableEvents(instanceId: number): void;
+    _spine_getEventCount(instanceId: number): number;
+    _spine_getEventBuffer(): number;
+    _spine_clearEvents(): void;
+    _spine_setAttachment(instanceId: number, slotName: number, attachmentName: number): number;
+    _spine_setIKTarget(instanceId: number, constraintName: number, targetX: number, targetY: number, mix: number): number;
+    _spine_setSlotColor(instanceId: number, slotName: number, r: number, g: number, b: number, a: number): number;
     cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
     UTF8ToString(ptr: number): string;
     stringToNewUTF8(str: string): number;
@@ -981,6 +992,16 @@ interface SpineWrappedAPI {
     getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
     getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
     getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    setDefaultMix(skeletonHandle: number, duration: number): void;
+    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+    enableEvents(instanceId: number): void;
+    getEventCount(instanceId: number): number;
+    getEventBuffer(): number;
+    clearEvents(): void;
+    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
+    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
 }
 declare function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI;
 type SpineModuleFactory = (config?: Record<string, unknown>) => Promise<SpineWasmModule>;
@@ -1045,6 +1066,19 @@ declare class SpineModuleController {
         indices: Uint16Array;
         textureId: number;
         blendMode: number;
+    }[];
+    setDefaultMix(skeletonHandle: number, duration: number): void;
+    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
+    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    enableEvents(instanceId: number): void;
+    collectEvents(instanceId: number): {
+        type: number;
+        track: number;
+        floatValue: number;
+        intValue: number;
     }[];
     on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
     off(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
@@ -1514,6 +1548,8 @@ declare class App {
     set physicsInitPromise(p: Promise<unknown> | undefined);
     get physicsModule(): unknown;
     set physicsModule(m: unknown);
+    waitForPhysics(): Promise<void>;
+    get isPhysicsReady(): boolean;
     get world(): World;
     setFixedTimestep(timestep: number): this;
     setMaxDeltaTime(v: number): this;
@@ -1555,5 +1591,5 @@ interface WebAppOptions {
 }
 declare function flushPendingSystems(app: App): void;
 
-export { Commands as $, App as A, BitmapText as J, Camera as L, Canvas as Q, Changed as V, World as W, Children as Y, ClearFlags as _, SpineModuleController as a, SceneManagerState as a$, CommandsInstance as a1, EmitterShape as a5, EntityCommands as a6, EventReader as a8, PostProcessVolume as aC, ProjectionType as aF, Query as aG, QueryInstance as aJ, Removed as aL, RemovedQueryInstance as aN, RenderPipeline as aP, Res as aQ, ResMut as aS, ResMutInstance as aU, ScaleMode as aV, SceneManager as a_, EventReaderInstance as aa, EventRegistry as ab, EventWriter as ac, EventWriterInstance as ae, GetWorld as ag, LocalTransform as al, Material as an, MaterialLoader as ap, Mut as ar, Name as at, Parent as aw, ParticleEasing as ay, ParticleEmitter as az, isKnownAssetExtension as b$, SceneOwner as b0, Schedule as b3, ShaderSources as b5, ShapeRenderer as b6, ShapeType as b8, SimulationSpace as b9, clearDrawCallbacks as bA, clearUserComponents as bB, defineComponent as bC, defineEvent as bD, defineResource as bE, defineSystem as bF, defineTag as bG, findEntityByName as bH, flushPendingSystems as bI, getAddressableType as bJ, getAddressableTypeByEditorType as bK, getAllAssetExtensions as bL, getAssetBuildTransform as bM, getAssetMimeType as bN, getAssetTypeEntry as bO, getComponent as bP, getComponentAssetFieldDescriptors as bQ, getComponentAssetFields as bR, getComponentDefaults as bS, getComponentSpineFieldDescriptor as bT, getCustomExtensions as bU, getEditorType as bV, getUserComponent as bW, getWeChatPackOptions as bX, initMaterialAPI as bY, isBuiltinComponent as bZ, isCustomExtension as b_, SpineAnimation as bb, Sprite as bf, SystemRunner as bk, Time as bn, Transform as bp, Velocity as bs, WorldTransform as bv, addStartupSystem as bx, addSystem as by, addSystemToSchedule as bz, createSpineFactories as c, isTextureRef as c0, loadComponent as c1, loadSceneData as c2, loadSceneWithAssets as c3, looksLikeAssetPath as c4, registerAssetBuildTransform as c5, registerComponent as c6, registerComponentAssetFields as c7, registerDrawCallback as c8, registerMaterialCallback as c9, remapEntityFields as ca, shutdownMaterialAPI as cb, toBuildPath as cc, unregisterComponent as cd, unregisterDrawCallback as ce, updateCameraAspectRatio as cf, wrapSceneSystem as cg, AssetServer as h, PostProcessStack as i, loadSpineModule as l, BlendMode as r, Added as t, wrapSpineModule as w };
-export type { BuiltinComponentDef as B, ComponentData as C, AssetBuildTransform as D, AssetBundle as E, FlattenContext as F, AssetContentType as G, AssetFieldType as H, AssetTypeEntry as I, BitmapTextData as K, MaterialHandle as M, CameraData as N, CameraRenderParams as O, Plugin as P, ResourceDef as R, SpineWasmProvider as S, TransformData as T, CanvasData as U, ChangedWrapper as X, ChildrenData as Z, CommandsDescriptor as a0, ComponentData$1 as a2, DrawCallback as a3, EditorAssetType as a4, EventDef as a7, EventReaderDescriptor as a9, ParticleEmitterData as aA, PluginDependency as aB, PostProcessVolumeData as aD, PrefabEntityData as aE, QueryBuilder as aH, QueryDescriptor as aI, QueryResult as aK, RemovedQueryDescriptor as aM, RenderParams as aO, ResDescriptor as aR, ResMutDescriptor as aT, SceneComponentData as aW, SceneContext as aX, SceneEntityData as aY, SceneLoadOptions as aZ, EventWriterDescriptor as ad, FileLoadOptions as af, GetWorldDescriptor as ah, InferParam as ai, InferParams as aj, LoadedMaterial as ak, LocalTransformData as am, MaterialAssetData as ao, MaterialOptions as aq, MutWrapper as as, NameData as au, NestedPrefabRef as av, ParentData as ax, SpineModuleFactory as b, SceneOwnerData as b1, SceneStatus as b2, ShaderLoader as b4, ShapeRendererData as b7, SliceBorder$1 as ba, SpineAnimationData as bc, SpineDescriptor as bd, SpineLoadResult as be, SpriteData as bg, SystemDef as bh, SystemOptions as bi, SystemParam as bj, TextureInfo as bl, TextureRef as bm, TimeData as bo, TransitionOptions as bq, UniformValue as br, VelocityData as bt, Viewport as bu, WorldTransformData as bw, PrefabData as d, PrefabOverride as e, FlattenResult as f, ProcessedEntity as g, ShaderHandle as j, ComponentDef as k, AnyComponentDef as m, SceneData as n, SpineWasmModule as o, AddressableManifest as p, SceneConfig as q, WebAppOptions as s, AddedWrapper as u, AddressableAssetType as v, AddressableManifestAsset as x, AddressableManifestGroup as y, AddressableResultMap as z };
+export { Children as $, App as A, BitmapText as N, Camera as Q, World as W, Canvas as X, Changed as Z, ClearFlags as a1, Commands as a2, CommandsInstance as a4, EmitterShape as a8, EntityCommands as a9, ParticleEasing as aB, ParticleEmitter as aC, PostProcessVolume as aF, ProjectionType as aI, Query as aJ, QueryInstance as aM, Removed as aO, RemovedQueryInstance as aQ, RenderPipeline as aS, Res as aT, ResMut as aV, ResMutInstance as aX, ScaleMode as aY, EventReader as ab, EventReaderInstance as ad, EventRegistry as ae, EventWriter as af, EventWriterInstance as ah, GetWorld as aj, LocalTransform as ao, Material as aq, MaterialLoader as as, Mut as au, Name as aw, Parent as az, initMaterialAPI as b$, SceneManager as b1, SceneManagerState as b2, SceneOwner as b3, Schedule as b6, ShaderSources as b8, ShapeRenderer as b9, addStartupSystem as bA, addSystem as bB, addSystemToSchedule as bC, clearDrawCallbacks as bD, clearUserComponents as bE, defineComponent as bF, defineEvent as bG, defineResource as bH, defineSystem as bI, defineTag as bJ, findEntityByName as bK, flushPendingSystems as bL, getAddressableType as bM, getAddressableTypeByEditorType as bN, getAllAssetExtensions as bO, getAssetBuildTransform as bP, getAssetMimeType as bQ, getAssetTypeEntry as bR, getComponent as bS, getComponentAssetFieldDescriptors as bT, getComponentAssetFields as bU, getComponentDefaults as bV, getComponentSpineFieldDescriptor as bW, getCustomExtensions as bX, getEditorType as bY, getUserComponent as bZ, getWeChatPackOptions as b_, ShapeType as bb, SimulationSpace as bc, SpineAnimation as be, Sprite as bi, SystemRunner as bn, Time as bq, Transform as bs, Velocity as bv, WorldTransform as by, isBuiltinComponent as c0, isCustomExtension as c1, isKnownAssetExtension as c2, isTextureRef as c3, loadComponent as c4, loadSceneData as c5, loadSceneWithAssets as c6, looksLikeAssetPath as c7, registerAssetBuildTransform as c8, registerComponent as c9, registerComponentAssetFields as ca, registerDrawCallback as cb, registerMaterialCallback as cc, remapEntityFields as cd, shutdownMaterialAPI as ce, toBuildPath as cf, unregisterComponent as cg, unregisterDrawCallback as ch, updateCameraAspectRatio as ci, wrapSceneSystem as cj, SpineModuleController as d, createSpineFactories as f, AssetServer as k, loadSpineModule as l, PostProcessStack as m, BlendMode as u, wrapSpineModule as w, Added as x };
+export type { BuiltinComponentDef as B, ComponentData as C, AddressableManifestAsset as D, AddressableManifestGroup as E, FlattenContext as F, AddressableResultMap as G, AssetBuildTransform as H, AssetBundle as I, AssetContentType as J, AssetFieldType as K, AssetTypeEntry as L, MaterialHandle as M, BitmapTextData as O, Plugin as P, ResourceDef as R, SpineWasmProvider as S, TransformData as T, CameraData as U, CameraRenderParams as V, CanvasData as Y, ChangedWrapper as _, SpineEvent as a, SceneEntityData as a$, ChildrenData as a0, CommandsDescriptor as a3, ComponentData$1 as a5, DrawCallback as a6, EditorAssetType as a7, ParentData as aA, ParticleEmitterData as aD, PluginDependency as aE, PostProcessVolumeData as aG, PrefabEntityData as aH, QueryBuilder as aK, QueryDescriptor as aL, QueryResult as aN, RemovedQueryDescriptor as aP, RenderParams as aR, ResDescriptor as aU, ResMutDescriptor as aW, SceneComponentData as aZ, SceneContext as a_, EventDef as aa, EventReaderDescriptor as ac, EventWriterDescriptor as ag, FileLoadOptions as ai, GetWorldDescriptor as ak, InferParam as al, InferParams as am, LoadedMaterial as an, LocalTransformData as ap, MaterialAssetData as ar, MaterialOptions as at, MutWrapper as av, NameData as ax, NestedPrefabRef as ay, SpineEventCallback as b, SceneLoadOptions as b0, SceneOwnerData as b4, SceneStatus as b5, ShaderLoader as b7, ShapeRendererData as ba, SliceBorder$1 as bd, SpineAnimationData as bf, SpineDescriptor as bg, SpineLoadResult as bh, SpriteData as bj, SystemDef as bk, SystemOptions as bl, SystemParam as bm, TextureInfo as bo, TextureRef as bp, TimeData as br, TransitionOptions as bt, UniformValue as bu, VelocityData as bw, Viewport as bx, WorldTransformData as bz, SpineEventType as c, SpineModuleFactory as e, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ShaderHandle as n, ComponentDef as o, AnyComponentDef as p, SceneData as q, SpineWasmModule as r, AddressableManifest as s, SceneConfig as t, WebAppOptions as v, AddedWrapper as y, AddressableAssetType as z };

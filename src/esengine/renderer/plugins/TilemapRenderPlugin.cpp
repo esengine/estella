@@ -92,6 +92,11 @@ void TilemapRenderPlugin::collect(
                 u16 tileId = rawTile & tilemap::TILE_ID_MASK;
                 if (tileId == tilemap::EMPTY_TILE) continue;
 
+                if (!layer.tile_animations.empty()) {
+                    u16 resolved = tilemap_system_->resolveAnimatedTile(entity, tileId);
+                    if (resolved != tileId) tileId = resolved;
+                }
+
                 bool flipH = (rawTile & tilemap::TILE_FLIP_H) != 0;
                 bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
 
@@ -99,10 +104,22 @@ void TilemapRenderPlugin::collect(
                 u32 tileCol = tileIndex % layer.tileset_columns;
                 u32 tileRow = tileIndex / layer.tileset_columns;
 
-                f32 worldX = adjOriginX + static_cast<f32>(tx) * layer.tile_width
+                f32 worldX, worldY;
+                if (layer.grid_type == tilemap::GridType::Isometric) {
+                    worldX = adjOriginX + static_cast<f32>(tx - ty) * layer.tile_width * 0.5f;
+                    worldY = adjOriginY - static_cast<f32>(tx + ty) * layer.tile_height * 0.5f;
+                } else if (layer.grid_type == tilemap::GridType::StaggeredIsometric) {
+                    f32 offsetX = (ty & 1) ? layer.tile_width * 0.5f : 0.0f;
+                    worldX = adjOriginX + static_cast<f32>(tx) * layer.tile_width + offsetX
                              + layer.tile_width * 0.5f;
-                f32 worldY = adjOriginY - static_cast<f32>(ty) * layer.tile_height
+                    worldY = adjOriginY - static_cast<f32>(ty) * layer.tile_height * 0.5f
                              - layer.tile_height * 0.5f;
+                } else {
+                    worldX = adjOriginX + static_cast<f32>(tx) * layer.tile_width
+                             + layer.tile_width * 0.5f;
+                    worldY = adjOriginY - static_cast<f32>(ty) * layer.tile_height
+                             - layer.tile_height * 0.5f;
+                }
 
                 f32 u0 = static_cast<f32>(tileCol) * layer.uv_tile_width;
                 f32 v0 = static_cast<f32>(tileRow) * layer.uv_tile_height;

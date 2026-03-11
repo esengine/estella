@@ -9,6 +9,7 @@ interface KeyframeData {
     value: number;
     inTangent?: number;
     outTangent?: number;
+    interpolation?: string;
 }
 
 interface ChannelData {
@@ -459,6 +460,49 @@ export class RenameTrackCommand extends BaseCommand {
     undo(): void {
         const track = this.data_.tracks[this.trackIndex_];
         if (track) track.name = this.oldName_;
+        this.onChanged_();
+    }
+}
+
+export class ChangeInterpolationCommand extends BaseCommand {
+    readonly type = 'timeline_change_interpolation';
+    readonly description = 'Change interpolation';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private channelIndex_: number,
+        private keyframeIndex_: number,
+        private oldInterp_: string | undefined,
+        private newInterp_: string,
+        private oldInTangent_: number,
+        private oldOutTangent_: number,
+        private newInTangent_: number,
+        private newOutTangent_: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const channel = getPropertyChannel(this.data_, this.trackIndex_, this.channelIndex_);
+        if (!channel) return;
+        const kf = channel.keyframes[this.keyframeIndex_];
+        if (!kf) return;
+        kf.interpolation = this.newInterp_;
+        kf.inTangent = this.newInTangent_;
+        kf.outTangent = this.newOutTangent_;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const channel = getPropertyChannel(this.data_, this.trackIndex_, this.channelIndex_);
+        if (!channel) return;
+        const kf = channel.keyframes[this.keyframeIndex_];
+        if (!kf) return;
+        kf.interpolation = this.oldInterp_;
+        kf.inTangent = this.oldInTangent_;
+        kf.outTangent = this.oldOutTangent_;
         this.onChanged_();
     }
 }

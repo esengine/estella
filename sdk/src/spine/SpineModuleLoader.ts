@@ -31,6 +31,19 @@ export interface SpineWasmModule {
         outVerticesPtr: number, outIndicesPtr: number,
         outTextureIdPtr: number, outBlendModePtr: number): void;
 
+    _spine_setDefaultMix(skeletonHandle: number, duration: number): void;
+    _spine_setMixDuration(skeletonHandle: number, fromAnim: number, toAnim: number, duration: number): void;
+    _spine_setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+
+    _spine_enableEvents(instanceId: number): void;
+    _spine_getEventCount(instanceId: number): number;
+    _spine_getEventBuffer(): number;
+    _spine_clearEvents(): void;
+
+    _spine_setAttachment(instanceId: number, slotName: number, attachmentName: number): number;
+    _spine_setIKTarget(instanceId: number, constraintName: number, targetX: number, targetY: number, mix: number): number;
+    _spine_setSlotColor(instanceId: number, slotName: number, r: number, g: number, b: number, a: number): number;
+
     cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
     UTF8ToString(ptr: number): string;
     stringToNewUTF8(str: string): number;
@@ -66,6 +79,19 @@ export interface SpineWrappedAPI {
     getMeshBatchData(instanceId: number, batchIndex: number,
         outVerticesPtr: number, outIndicesPtr: number,
         outTextureIdPtr: number, outBlendModePtr: number): void;
+
+    setDefaultMix(skeletonHandle: number, duration: number): void;
+    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+
+    enableEvents(instanceId: number): void;
+    getEventCount(instanceId: number): number;
+    getEventBuffer(): number;
+    clearEvents(): void;
+
+    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
+    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
 }
 
 export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
@@ -92,6 +118,19 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         getMeshBatchVertexCount: cw('spine_getMeshBatchVertexCount', 'number', ['number', 'number']) as SpineWrappedAPI['getMeshBatchVertexCount'],
         getMeshBatchIndexCount: cw('spine_getMeshBatchIndexCount', 'number', ['number', 'number']) as SpineWrappedAPI['getMeshBatchIndexCount'],
         getMeshBatchData: cw('spine_getMeshBatchData', null, ['number', 'number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['getMeshBatchData'],
+
+        setDefaultMix: cw('spine_setDefaultMix', null, ['number', 'number']) as SpineWrappedAPI['setDefaultMix'],
+        setMixDuration: cw('spine_setMixDuration', null, ['number', 'string', 'string', 'number']) as SpineWrappedAPI['setMixDuration'],
+        setTrackAlpha: cw('spine_setTrackAlpha', null, ['number', 'number', 'number']) as SpineWrappedAPI['setTrackAlpha'],
+
+        enableEvents: cw('spine_enableEvents', null, ['number']) as SpineWrappedAPI['enableEvents'],
+        getEventCount: cw('spine_getEventCount', 'number', ['number']) as SpineWrappedAPI['getEventCount'],
+        getEventBuffer: cw('spine_getEventBuffer', 'number', []) as SpineWrappedAPI['getEventBuffer'],
+        clearEvents: cw('spine_clearEvents', null, []) as SpineWrappedAPI['clearEvents'],
+
+        setAttachment: cw('spine_setAttachment', 'number', ['number', 'string', 'string']) as SpineWrappedAPI['setAttachment'],
+        setIKTarget: cw('spine_setIKTarget', 'number', ['number', 'string', 'number', 'number', 'number']) as SpineWrappedAPI['setIKTarget'],
+        setSlotColor: cw('spine_setSlotColor', 'number', ['number', 'string', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setSlotColor'],
     };
 }
 

@@ -409,6 +409,7 @@ struct SpriteJS {
     u32 texture;
     glm::vec4 color;
     glm::vec2 size;
+    glm::vec2 pivot;
     glm::vec2 uvOffset;
     glm::vec2 uvScale;
     i32 layer;
@@ -423,6 +424,7 @@ esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
     c.texture = resource::TextureHandle(js.texture);
     c.color = js.color;
     c.size = js.size;
+    c.pivot = js.pivot;
     c.uvOffset = js.uvOffset;
     c.uvScale = js.uvScale;
     c.layer = js.layer;
@@ -438,6 +440,7 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     js.texture = c.texture.id();
     js.color = c.color;
     js.size = c.size;
+    js.pivot = c.pivot;
     js.uvOffset = c.uvOffset;
     js.uvScale = c.uvScale;
     js.layer = c.layer;
@@ -783,6 +786,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("texture", &SpriteJS::texture)
         .field("color", &SpriteJS::color)
         .field("size", &SpriteJS::size)
+        .field("pivot", &SpriteJS::pivot)
         .field("uvOffset", &SpriteJS::uvOffset)
         .field("uvScale", &SpriteJS::uvScale)
         .field("layer", &SpriteJS::layer)

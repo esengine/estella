@@ -29,6 +29,24 @@ interface TilemapModule {
                         opacity: number,
                         parallaxX: number, parallaxY: number): void;
 
+    tilemap_setTileAnimation(entity: number, tileId: number,
+                              framesPtr: number, frameCount: number): void;
+    tilemap_advanceAnimations(entity: number, dtMs: number): void;
+    tilemap_setTileProperty(entity: number, tileId: number,
+                             key: string, value: string): void;
+    tilemap_getTileProperty(entity: number, x: number, y: number,
+                             key: string): string;
+    tilemap_flipTile(entity: number, x: number, y: number,
+                      flipH: boolean, flipV: boolean, flipD: boolean): void;
+    tilemap_rotateTile(entity: number, x: number, y: number, degrees: number): void;
+    tilemap_setGridType(entity: number, type: number): void;
+    tilemap_tileToWorld(entity: number, tx: number, ty: number,
+                         originX: number, originY: number): number;
+    tilemap_worldToTile(entity: number, wx: number, wy: number,
+                         originX: number, originY: number): number;
+
+    HEAPF32: Float32Array;
+
     tiled_loadMap(dataPtr: number, dataSize: number): number;
     tiled_freeMap(handle: number): void;
     tiled_getExternalTilesetCount(handle: number): number;
@@ -154,5 +172,63 @@ export const TilemapAPI = {
             originX, originY, camLeft, camBottom, camRight, camTop,
             tintR, tintG, tintB, tintA, opacity, parallaxX, parallaxY
         );
+    },
+
+    setTileAnimation(entity: number, tileId: number,
+                     frames: { tileId: number; duration: number }[]): void {
+        if (!module_ || frames.length === 0) return;
+        const buf = new Uint32Array(frames.length * 2);
+        for (let i = 0; i < frames.length; i++) {
+            buf[i * 2] = frames[i].tileId;
+            buf[i * 2 + 1] = frames[i].duration;
+        }
+        const bytes = buf.byteLength;
+        const ptr = module_._malloc(bytes);
+        new Uint32Array(module_.HEAPU8.buffer, ptr, buf.length).set(buf);
+        module_.tilemap_setTileAnimation(entity, tileId, ptr, frames.length);
+        module_._free(ptr);
+    },
+
+    advanceAnimations(entity: number, dtMs: number): void {
+        module_?.tilemap_advanceAnimations(entity, dtMs);
+    },
+
+    setTileProperty(entity: number, tileId: number,
+                    key: string, value: string): void {
+        module_?.tilemap_setTileProperty(entity, tileId, key, value);
+    },
+
+    getTileProperty(entity: number, x: number, y: number, key: string): string {
+        if (!module_) return '';
+        return module_.tilemap_getTileProperty(entity, x, y, key);
+    },
+
+    flipTile(entity: number, x: number, y: number,
+             flipH: boolean, flipV: boolean, flipD: boolean): void {
+        module_?.tilemap_flipTile(entity, x, y, flipH, flipV, flipD);
+    },
+
+    rotateTile(entity: number, x: number, y: number, degrees: number): void {
+        module_?.tilemap_rotateTile(entity, x, y, degrees);
+    },
+
+    setGridType(entity: number, type: number): void {
+        module_?.tilemap_setGridType(entity, type);
+    },
+
+    tileToWorld(entity: number, tx: number, ty: number,
+                originX: number, originY: number): { x: number; y: number } {
+        if (!module_) return { x: 0, y: 0 };
+        const ptr = module_.tilemap_tileToWorld(entity, tx, ty, originX, originY);
+        const floats = new Float32Array(module_.HEAPU8.buffer, ptr, 2);
+        return { x: floats[0], y: floats[1] };
+    },
+
+    worldToTile(entity: number, wx: number, wy: number,
+                originX: number, originY: number): { x: number; y: number } {
+        if (!module_) return { x: 0, y: 0 };
+        const ptr = module_.tilemap_worldToTile(entity, wx, wy, originX, originY);
+        const floats = new Float32Array(module_.HEAPU8.buffer, ptr, 2);
+        return { x: floats[0], y: floats[1] };
     },
 };

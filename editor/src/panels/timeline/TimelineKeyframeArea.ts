@@ -13,6 +13,8 @@ import {
     BatchDeleteKeyframesCommand,
     PasteKeyframesCommand,
 } from './TimelineCommands';
+import { showInputDialog } from '../../ui/InputDialog';
+import { showObjectDialog } from '../../ui/dialog';
 import {
     AddSpineClipCommand,
     MoveSpineClipCommand,
@@ -21,11 +23,27 @@ import {
     AddAudioEventCommand,
     MoveAudioEventCommand,
     DeleteAudioEventCommand,
+    ChangeAudioClipCommand,
     AddActivationRangeCommand,
     MoveActivationRangeCommand,
     ResizeActivationRangeCommand,
     DeleteActivationRangeCommand,
+    AddMarkerCommand,
+    MoveMarkerCommand,
+    DeleteMarkerCommand,
+    AddCustomEventCommand,
+    MoveCustomEventCommand,
+    DeleteCustomEventCommand,
+    RenameCustomEventCommand,
+    EditCustomEventPayloadCommand,
+    MoveSpriteAnimStartCommand,
+    RenameMarkerCommand,
+    ChangeSpriteAnimClipCommand,
+    DeleteAnimFrameCommand,
+    ReorderAnimFrameCommand,
+    ResizeAnimFrameCommand,
 } from './TimelineTrackCommands';
+import { isUUID, getAssetLibrary } from '../../asset/AssetDatabase';
 
 const RULER_BG = '#1e1e1e';
 const RULER_TEXT = '#888888';
@@ -47,8 +65,14 @@ const EDGE_RESIZE_ZONE = 8;
 const FRAME_STEP = 1 / 60;
 const RUBBERBAND_COLOR = 'rgba(97, 175, 239, 0.2)';
 const RUBBERBAND_BORDER = 'rgba(97, 175, 239, 0.6)';
+const MARKER_COLOR = '#c678dd';
+const CUSTOM_EVENT_COLOR = '#56b6c2';
+const SPRITE_ANIM_COLOR = 'rgba(229, 192, 123, 0.3)';
+const SPRITE_ANIM_BORDER = '#e5c07b';
 const DURATION_LINE_COLOR = '#e5c07b';
 const BEYOND_DURATION_COLOR = 'rgba(0, 0, 0, 0.2)';
+const ANIM_FRAME_COLORS = ['#61afef', '#c678dd', '#e5c07b', '#98c379', '#d19a66', '#56b6c2', '#e06c75'];
+const ANIM_FRAME_BORDER = '#ffffff30';
 
 interface SpineClipHit {
     trackIndex: number;
@@ -67,9 +91,75 @@ interface ActivationRangeHit {
     zone: 'body' | 'left' | 'right';
 }
 
+interface MarkerHit {
+    trackIndex: number;
+    markerIndex: number;
+}
+
+interface CustomEventHit {
+    trackIndex: number;
+    eventIndex: number;
+}
+
+interface SpriteAnimHit {
+    trackIndex: number;
+}
+
+interface AnimFrameHit {
+    trackIndex: number;
+    frameIndex: number;
+    zone: 'body' | 'resize';
+}
+
 export interface TimelineAssetData {
     tracks: TimelineTrackData[];
     duration: number;
+}
+
+export interface TimelineKeyframe {
+    time: number;
+    value: number;
+    inTangent?: number;
+    outTangent?: number;
+    interpolation?: string;
+}
+
+export interface TimelineChannel {
+    property: string;
+    keyframes: TimelineKeyframe[];
+}
+
+export interface TimelineSpineClip {
+    start: number;
+    duration: number;
+    animation: string;
+}
+
+export interface TimelineAudioEvent {
+    time: number;
+    clip: string;
+}
+
+export interface TimelineCustomEvent {
+    time: number;
+    name: string;
+    payload: Record<string, unknown>;
+}
+
+export interface TimelineActivationRange {
+    start: number;
+    end: number;
+}
+
+export interface TimelineMarker {
+    time: number;
+    name: string;
+}
+
+export interface AnimFrameData {
+    texture: string;
+    duration?: number;
+    thumbnailUrl?: string;
 }
 
 export interface TimelineTrackData {
@@ -77,12 +167,14 @@ export interface TimelineTrackData {
     name: string;
     childPath?: string;
     component?: string;
-    channels?: { property: string; keyframes: { time: number; value: number; inTangent?: number; outTangent?: number }[] }[];
-    clips?: { start: number; duration: number; animation: string }[];
-    events?: { time: number; clip: string }[];
-    ranges?: { start: number; end: number }[];
+    channels?: TimelineChannel[];
+    clips?: TimelineSpineClip[];
+    events?: (TimelineAudioEvent | TimelineCustomEvent)[];
+    ranges?: TimelineActivationRange[];
+    markers?: TimelineMarker[];
     clip?: string;
     startTime?: number;
+    animFrames?: AnimFrameData[];
 }
 
 interface KeyframeHit {
@@ -127,9 +219,11 @@ export class TimelineKeyframeArea {
     private unsub_: (() => void) | null = null;
     private resizeObserver_: ResizeObserver | null = null;
     private selectedKeyframes_: Map<string, KeyframeHit> = new Map();
+    private selectedNpItem_: { type: string; trackIndex: number; itemIndex: number } | null = null;
     private onSelectionChange_: KeyframeSelectionCallback | null = null;
     private rubberBand_: { startX: number; startY: number; endX: number; endY: number } | null = null;
     private clipboard_: { channelIndex: number; relativeTime: number; value: number; inTangent: number; outTangent: number }[] = [];
+    private frameImageCache_: Map<string, HTMLImageElement> | null = null;
 
     constructor(container: HTMLElement, state: TimelineState, host?: TimelinePanelHost) {
         this.state_ = state;
@@ -151,6 +245,7 @@ export class TimelineKeyframeArea {
         this.canvas_.addEventListener('contextmenu', (e) => this.onContextMenu(e));
         this.canvas_.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
         this.canvas_.addEventListener('keydown', (e) => this.onKeyDown(e));
+        this.canvas_.addEventListener('mousemove', (e) => this.onMouseMove(e));
 
         this.resizeCanvas();
     }
@@ -172,7 +267,22 @@ export class TimelineKeyframeArea {
 
     private clearSelection(): void {
         this.selectedKeyframes_.clear();
+        this.selectedNpItem_ = null;
         this.notifySelectionChange();
+    }
+
+    private selectNpItem(npHit: { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit | MarkerHit | CustomEventHit | SpriteAnimHit | AnimFrameHit }): void {
+        this.selectedKeyframes_.clear();
+        const hit = npHit.hit;
+        let itemIndex = -1;
+        if ('clipIndex' in hit) itemIndex = hit.clipIndex;
+        else if ('eventIndex' in hit) itemIndex = hit.eventIndex;
+        else if ('rangeIndex' in hit) itemIndex = hit.rangeIndex;
+        else if ('markerIndex' in hit) itemIndex = hit.markerIndex;
+        else if ('frameIndex' in hit) itemIndex = hit.frameIndex;
+        const trackIndex = hit.trackIndex;
+        this.selectedNpItem_ = { type: npHit.type, trackIndex, itemIndex };
+        this.draw();
     }
 
     private selectOnly(hit: KeyframeHit): void {
@@ -418,7 +528,7 @@ export class TimelineKeyframeArea {
 
             case 'spriteAnim':
                 if (assetTrack.startTime != null) {
-                    this.drawSpriteAnimMarker(ctx, assetTrack.startTime, y);
+                    this.drawSpriteAnimClip(ctx, assetTrack.startTime, assetTrack.clip ?? '', y, width);
                 }
                 break;
 
@@ -429,6 +539,166 @@ export class TimelineKeyframeArea {
             case 'activation':
                 this.drawActivationRanges(ctx, assetTrack.ranges ?? [], y, width);
                 break;
+
+            case 'marker':
+                this.drawMarkers(ctx, assetTrack.markers ?? [], y, track.index);
+                break;
+
+            case 'customEvent':
+                this.drawCustomEvents(ctx, (assetTrack.events ?? []) as TimelineCustomEvent[], y, track.index);
+                break;
+
+            case 'animFrames':
+                this.drawAnimFrames(ctx, assetTrack.animFrames ?? [], y, width, track.index);
+                break;
+        }
+    }
+
+    private isNpItemSelected(type: string, trackIndex: number, itemIndex: number): boolean {
+        const sel = this.selectedNpItem_;
+        return sel != null && sel.type === type && sel.trackIndex === trackIndex && sel.itemIndex === itemIndex;
+    }
+
+    private drawCustomEvents(
+        ctx: CanvasRenderingContext2D,
+        events: TimelineCustomEvent[],
+        y: number,
+        trackIndex: number,
+    ): void {
+        for (let i = 0; i < events.length; i++) {
+            const event = events[i];
+            const x = this.state_.timeToX(event.time);
+            const selected = this.isNpItemSelected('customEvent', trackIndex, i);
+
+            ctx.fillStyle = selected ? KEYFRAME_SELECTED : CUSTOM_EVENT_COLOR;
+            ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
+
+            ctx.beginPath();
+            ctx.arc(x, y + 6, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (selected) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(x, y + 6, 5.5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(event.name, x + 6, y + TRACK_HEIGHT / 2 + 3);
+        }
+    }
+
+    private drawMarkers(
+        ctx: CanvasRenderingContext2D,
+        markers: { time: number; name: string }[],
+        y: number,
+        trackIndex: number,
+    ): void {
+        for (let i = 0; i < markers.length; i++) {
+            const marker = markers[i];
+            const x = this.state_.timeToX(marker.time);
+            const selected = this.isNpItemSelected('marker', trackIndex, i);
+
+            ctx.fillStyle = selected ? KEYFRAME_SELECTED : MARKER_COLOR;
+            ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
+
+            ctx.beginPath();
+            ctx.moveTo(x - 5, y + 2);
+            ctx.lineTo(x + 5, y + 2);
+            ctx.lineTo(x, y + 8);
+            ctx.closePath();
+            ctx.fill();
+
+            if (selected) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x - 6.5, y + 1);
+                ctx.lineTo(x + 6.5, y + 1);
+                ctx.lineTo(x, y + 9.5);
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(marker.name, x + 6, y + TRACK_HEIGHT / 2 + 3);
+        }
+    }
+
+    private drawAnimFrames(
+        ctx: CanvasRenderingContext2D,
+        frames: AnimFrameData[],
+        y: number,
+        width: number,
+        trackIndex: number,
+    ): void {
+        if (frames.length === 0) return;
+        const fps = this.state_.animClipFps;
+        const defaultDur = 1 / fps;
+        let time = 0;
+
+        for (let i = 0; i < frames.length; i++) {
+            const frame = frames[i];
+            const dur = frame.duration ?? defaultDur;
+            const x1 = this.state_.timeToX(time);
+            const x2 = this.state_.timeToX(time + dur);
+            const fw = x2 - x1;
+
+            if (x2 >= 0 && x1 <= width) {
+                const color = ANIM_FRAME_COLORS[i % ANIM_FRAME_COLORS.length];
+                const selected = this.isNpItemSelected('animFrames', trackIndex, i);
+
+                ctx.fillStyle = selected ? color : color + '60';
+                ctx.fillRect(x1, y + 1, fw, TRACK_HEIGHT - 2);
+
+                ctx.strokeStyle = selected ? '#ffffff' : ANIM_FRAME_BORDER;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x1 + 0.5, y + 1.5, fw - 1, TRACK_HEIGHT - 3);
+
+                if (frame.thumbnailUrl && fw > 20) {
+                    let img = this.frameImageCache_?.get(frame.thumbnailUrl);
+                    if (!img) {
+                        img = new Image();
+                        img.src = frame.thumbnailUrl;
+                        if (!this.frameImageCache_) this.frameImageCache_ = new Map();
+                        this.frameImageCache_.set(frame.thumbnailUrl, img);
+                        img.onload = () => this.draw();
+                    }
+                    if (img.complete && img.naturalWidth > 0) {
+                        const imgH = TRACK_HEIGHT - 4;
+                        const imgW = Math.min(imgH, fw - 2);
+                        ctx.drawImage(img, x1 + 1, y + 2, imgW, imgH);
+                    }
+                }
+
+                if (fw > 30) {
+                    ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
+                    ctx.font = '9px monospace';
+                    ctx.textAlign = 'left';
+                    const label = String(i).padStart(2, '0');
+                    const textX = frame.thumbnailUrl && fw > 20 ? x1 + TRACK_HEIGHT - 2 : x1 + 4;
+                    ctx.fillText(label, textX, y + TRACK_HEIGHT / 2 + 3);
+
+                    const durMs = Math.round(dur * 1000);
+                    const durLabel = durMs + 'ms';
+                    ctx.fillStyle = selected ? 'rgba(255,255,255,0.6)' : 'rgba(200,200,200,0.5)';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(durLabel, x2 - 4, y + TRACK_HEIGHT / 2 + 3);
+                    ctx.textAlign = 'left';
+                }
+
+                if (fw > 4) {
+                    ctx.fillStyle = selected ? 'rgba(255,255,255,0.4)' : 'rgba(200,200,200,0.25)';
+                    ctx.fillRect(x2 - 3, y + 3, 2, TRACK_HEIGHT - 6);
+                }
+            }
+            time += dur;
         }
     }
 
@@ -494,19 +764,54 @@ export class TimelineKeyframeArea {
         }
     }
 
-    private drawSpriteAnimMarker(
+    private drawSpriteAnimClip(
         ctx: CanvasRenderingContext2D,
         startTime: number,
+        clipName: string,
         y: number,
+        width: number,
     ): void {
-        const x = this.state_.timeToX(startTime);
-        ctx.fillStyle = KEYFRAME_COLOR;
-        ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
+        const x1 = this.state_.timeToX(startTime);
+        const x2 = Math.min(this.state_.timeToX(this.state_.duration), width);
+        const clipY = y + 3;
+        const clipH = TRACK_HEIGHT - 6;
+
+        if (x2 > x1) {
+            ctx.fillStyle = SPRITE_ANIM_COLOR;
+            ctx.fillRect(x1, clipY, x2 - x1, clipH);
+            ctx.strokeStyle = SPRITE_ANIM_BORDER;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x1 + 0.5, clipY + 0.5, x2 - x1 - 1, clipH - 1);
+        }
+
+        ctx.fillStyle = SPRITE_ANIM_BORDER;
+        ctx.fillRect(x1 - 1, y + 2, 3, TRACK_HEIGHT - 4);
+
+        if (clipName) {
+            const resolvedPath = isUUID(clipName)
+                ? (getAssetLibrary().getPath(clipName) ?? clipName)
+                : clipName;
+            const displayName = resolvedPath.includes('/')
+                ? resolvedPath.slice(resolvedPath.lastIndexOf('/') + 1)
+                : resolvedPath;
+            ctx.fillStyle = '#cccccc';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'left';
+            const textX = Math.max(x1 + 6, 6);
+            ctx.save();
+            if (x2 > x1) {
+                ctx.beginPath();
+                ctx.rect(x1, clipY, x2 - x1, clipH);
+                ctx.clip();
+            }
+            ctx.fillText(displayName, textX, clipY + clipH / 2 + 3);
+            ctx.restore();
+        }
     }
 
     private drawAudioEvents(
         ctx: CanvasRenderingContext2D,
-        events: { time: number }[],
+        events: { time: number; clip?: string }[],
         y: number,
     ): void {
         for (const event of events) {
@@ -520,6 +825,19 @@ export class TimelineKeyframeArea {
             ctx.lineTo(x, y + 8);
             ctx.closePath();
             ctx.fill();
+
+            if (event.clip) {
+                const clipPath = isUUID(event.clip)
+                    ? (getAssetLibrary().getPath(event.clip) ?? event.clip)
+                    : event.clip;
+                const label = clipPath.includes('/')
+                    ? clipPath.slice(clipPath.lastIndexOf('/') + 1)
+                    : clipPath;
+                ctx.fillStyle = '#aaaaaa';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(label, x + 6, y + TRACK_HEIGHT / 2 + 3);
+            }
         }
     }
 
@@ -726,7 +1044,70 @@ export class TimelineKeyframeArea {
         return null;
     }
 
-    private hitTestNonPropertyTrack(x: number, y: number): { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit } | null {
+    private hitTestMarker(x: number, trackIndex: number): MarkerHit | null {
+        if (!this.assetData_) return null;
+        const track = this.assetData_.tracks[trackIndex];
+        if (!track || track.type !== 'marker' || !track.markers) return null;
+
+        for (let i = 0; i < track.markers.length; i++) {
+            const mx = this.state_.timeToX(track.markers[i].time);
+            if (Math.abs(x - mx) <= KEYFRAME_HIT_RADIUS) {
+                return { trackIndex, markerIndex: i };
+            }
+        }
+        return null;
+    }
+
+    private hitTestCustomEvent(x: number, trackIndex: number): CustomEventHit | null {
+        if (!this.assetData_) return null;
+        const track = this.assetData_.tracks[trackIndex];
+        if (!track || track.type !== 'customEvent' || !track.events) return null;
+
+        for (let i = 0; i < track.events.length; i++) {
+            const ex = this.state_.timeToX(track.events[i].time);
+            if (Math.abs(x - ex) <= KEYFRAME_HIT_RADIUS) {
+                return { trackIndex, eventIndex: i };
+            }
+        }
+        return null;
+    }
+
+    private hitTestSpriteAnim(x: number, trackIndex: number): SpriteAnimHit | null {
+        if (!this.assetData_) return null;
+        const track = this.assetData_.tracks[trackIndex];
+        if (!track || track.type !== 'spriteAnim' || track.startTime == null) return null;
+
+        const sx = this.state_.timeToX(track.startTime);
+        if (Math.abs(x - sx) <= KEYFRAME_HIT_RADIUS) {
+            return { trackIndex };
+        }
+        return null;
+    }
+
+    private hitTestAnimFrame(x: number, trackIndex: number): AnimFrameHit | null {
+        if (!this.assetData_) return null;
+        const track = this.assetData_.tracks[trackIndex];
+        if (!track || track.type !== 'animFrames' || !track.animFrames) return null;
+
+        const fps = this.state_.animClipFps;
+        const defaultDur = 1 / fps;
+        let time = 0;
+
+        for (let i = 0; i < track.animFrames.length; i++) {
+            const dur = (track.animFrames[i] as AnimFrameData).duration ?? defaultDur;
+            const x1 = this.state_.timeToX(time);
+            const x2 = this.state_.timeToX(time + dur);
+
+            if (x >= x1 && x <= x2) {
+                const zone = (x2 - x) <= EDGE_RESIZE_ZONE ? 'resize' : 'body';
+                return { trackIndex, frameIndex: i, zone };
+            }
+            time += dur;
+        }
+        return null;
+    }
+
+    private hitTestNonPropertyTrack(x: number, y: number): { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit | MarkerHit | CustomEventHit | SpriteAnimHit | AnimFrameHit } | null {
         if (!this.assetData_) return null;
 
         const tracks = this.state_.tracks;
@@ -746,6 +1127,18 @@ export class TimelineKeyframeArea {
                 } else if (assetTrack.type === 'activation') {
                     const hit = this.hitTestActivationRange(x, y, track.index, rowY);
                     if (hit) return { type: 'activation', hit };
+                } else if (assetTrack.type === 'marker') {
+                    const hit = this.hitTestMarker(x, track.index);
+                    if (hit) return { type: 'marker', hit };
+                } else if (assetTrack.type === 'customEvent') {
+                    const hit = this.hitTestCustomEvent(x, track.index);
+                    if (hit) return { type: 'customEvent', hit };
+                } else if (assetTrack.type === 'spriteAnim') {
+                    const hit = this.hitTestSpriteAnim(x, track.index);
+                    if (hit) return { type: 'spriteAnim', hit };
+                } else if (assetTrack.type === 'animFrames') {
+                    const hit = this.hitTestAnimFrame(x, track.index);
+                    if (hit) return { type: 'animFrames', hit };
                 }
             }
             rowY += TRACK_HEIGHT;
@@ -884,6 +1277,7 @@ export class TimelineKeyframeArea {
         const npHit = this.hitTestNonPropertyTrack(x, y);
         if (npHit) {
             this.clearSelection();
+            this.selectNpItem(npHit);
             this.canvas_.focus();
             if (npHit.type === 'spine') {
                 this.startSpineClipDrag(e, rect, npHit.hit as SpineClipHit);
@@ -891,6 +1285,14 @@ export class TimelineKeyframeArea {
                 this.startAudioEventDrag(e, rect, npHit.hit as AudioEventHit);
             } else if (npHit.type === 'activation') {
                 this.startActivationRangeDrag(e, rect, npHit.hit as ActivationRangeHit);
+            } else if (npHit.type === 'marker') {
+                this.startMarkerDrag(e, rect, npHit.hit as MarkerHit);
+            } else if (npHit.type === 'customEvent') {
+                this.startCustomEventDrag(e, rect, npHit.hit as CustomEventHit);
+            } else if (npHit.type === 'spriteAnim') {
+                this.startSpriteAnimDrag(e, rect, npHit.hit as SpriteAnimHit);
+            } else if (npHit.type === 'animFrames') {
+                this.startAnimFrameDrag(e, rect, npHit.hit as AnimFrameHit);
             }
             return;
         }
@@ -920,7 +1322,7 @@ export class TimelineKeyframeArea {
             const oldDuration = clip.duration;
             const onMove = (ev: MouseEvent) => {
                 const mx = ev.clientX - rect.left;
-                const endTime = Math.max(clip.start + 0.05, this.state_.xToTime(mx));
+                const endTime = Math.max(clip.start + 0.05, this.state_.snapTime(this.state_.xToTime(mx)));
                 const newDuration = endTime - clip.start;
                 const cmd = new ResizeSpineClipCommand(
                     this.assetData_!, hit.trackIndex, hit.clipIndex,
@@ -940,7 +1342,7 @@ export class TimelineKeyframeArea {
             const offsetX = _e.clientX - rect.left - this.state_.timeToX(clip.start);
             const onMove = (ev: MouseEvent) => {
                 const mx = ev.clientX - rect.left - offsetX;
-                const newStart = Math.max(0, this.state_.xToTime(mx));
+                const newStart = this.state_.snapTime(Math.max(0, this.state_.xToTime(mx)));
                 const cmd = new MoveSpineClipCommand(
                     this.assetData_!, hit.trackIndex, hit.clipIndex,
                     oldStart, newStart,
@@ -967,7 +1369,7 @@ export class TimelineKeyframeArea {
         const oldTime = event.time;
         const onMove = (ev: MouseEvent) => {
             const mx = ev.clientX - rect.left;
-            const newTime = Math.max(0, this.state_.xToTime(mx));
+            const newTime = this.state_.snapTime(Math.max(0, this.state_.xToTime(mx)));
             const cmd = new MoveAudioEventCommand(
                 this.assetData_!, hit.trackIndex, hit.eventIndex,
                 oldTime, newTime,
@@ -996,7 +1398,7 @@ export class TimelineKeyframeArea {
         if (hit.zone === 'left') {
             const onMove = (ev: MouseEvent) => {
                 const mx = ev.clientX - rect.left;
-                const newStart = Math.max(0, Math.min(this.state_.xToTime(mx), oldEnd - 0.05));
+                const newStart = Math.max(0, Math.min(this.state_.snapTime(this.state_.xToTime(mx)), oldEnd - 0.05));
                 const cmd = new ResizeActivationRangeCommand(
                     this.assetData_!, hit.trackIndex, hit.rangeIndex,
                     oldStart, oldEnd, newStart, oldEnd,
@@ -1013,7 +1415,7 @@ export class TimelineKeyframeArea {
         } else if (hit.zone === 'right') {
             const onMove = (ev: MouseEvent) => {
                 const mx = ev.clientX - rect.left;
-                const newEnd = Math.max(oldStart + 0.05, this.state_.xToTime(mx));
+                const newEnd = Math.max(oldStart + 0.05, this.state_.snapTime(this.state_.xToTime(mx)));
                 const cmd = new ResizeActivationRangeCommand(
                     this.assetData_!, hit.trackIndex, hit.rangeIndex,
                     oldStart, oldEnd, oldStart, newEnd,
@@ -1032,7 +1434,7 @@ export class TimelineKeyframeArea {
             const offsetX = _e.clientX - rect.left - this.state_.timeToX(oldStart);
             const onMove = (ev: MouseEvent) => {
                 const mx = ev.clientX - rect.left - offsetX;
-                const newStart = Math.max(0, this.state_.xToTime(mx));
+                const newStart = this.state_.snapTime(Math.max(0, this.state_.xToTime(mx)));
                 const newEnd = newStart + duration;
                 const cmd = new MoveActivationRangeCommand(
                     this.assetData_!, hit.trackIndex, hit.rangeIndex,
@@ -1048,6 +1450,169 @@ export class TimelineKeyframeArea {
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
         }
+    }
+
+    private startSpriteAnimDrag(_e: MouseEvent, rect: DOMRect, hit: SpriteAnimHit): void {
+        if (!this.assetData_ || !this.host_) return;
+        const track = this.assetData_.tracks[hit.trackIndex];
+        if (!track || track.startTime == null) return;
+
+        const oldTime = track.startTime;
+        const onMove = (ev: MouseEvent) => {
+            const mx = ev.clientX - rect.left;
+            const newTime = this.state_.snapTime(Math.max(0, this.state_.xToTime(mx)));
+            const cmd = new MoveSpriteAnimStartCommand(
+                this.assetData_!, hit.trackIndex,
+                oldTime, newTime,
+                () => this.host_!.onAssetDataChanged(),
+            );
+            this.host_!.executeCommand(cmd);
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
+    private startAnimFrameDrag(_e: MouseEvent, rect: DOMRect, hit: AnimFrameHit): void {
+        if (!this.assetData_ || !this.host_) return;
+        const track = this.assetData_.tracks[hit.trackIndex];
+        if (!track?.animFrames) return;
+        const frames = track.animFrames as AnimFrameData[];
+        const frame = frames[hit.frameIndex];
+        if (!frame) return;
+
+        const fps = this.state_.animClipFps;
+        const defaultDur = 1 / fps;
+
+        if (hit.zone === 'resize') {
+            const oldDuration = frame.duration ?? defaultDur;
+            const onMove = (ev: MouseEvent) => {
+                const mx = ev.clientX - rect.left;
+                let startTime = 0;
+                for (let i = 0; i < hit.frameIndex; i++) {
+                    startTime += frames[i].duration ?? defaultDur;
+                }
+                const endTime = Math.max(startTime + 0.01, this.state_.xToTime(mx));
+                const newDuration = endTime - startTime;
+                const cmd = new ResizeAnimFrameCommand(
+                    this.assetData_!, hit.trackIndex, hit.frameIndex,
+                    oldDuration, newDuration,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                this.updateAnimClipDuration();
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        } else {
+            const startX = _e.clientX;
+            let dragged = false;
+            const onMove = (ev: MouseEvent) => {
+                if (Math.abs(ev.clientX - startX) > 5) dragged = true;
+                if (!dragged) return;
+                const mx = ev.clientX - rect.left;
+                const targetTime = this.state_.xToTime(mx);
+                let time = 0;
+                let targetIndex = frames.length - 1;
+                for (let i = 0; i < frames.length; i++) {
+                    const dur = frames[i].duration ?? defaultDur;
+                    if (targetTime < time + dur / 2) {
+                        targetIndex = i;
+                        break;
+                    }
+                    time += dur;
+                }
+                if (targetIndex !== hit.frameIndex) {
+                    const cmd = new ReorderAnimFrameCommand(
+                        this.assetData_!, hit.trackIndex,
+                        hit.frameIndex, targetIndex,
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                    hit.frameIndex = targetIndex;
+                }
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }
+    }
+
+    private updateAnimClipDuration(): void {
+        if (!this.assetData_) return;
+        const track = this.assetData_.tracks[0];
+        if (!track?.animFrames) return;
+        const fps = this.state_.animClipFps;
+        const defaultDur = 1 / fps;
+        let total = 0;
+        for (const f of track.animFrames as AnimFrameData[]) {
+            total += f.duration ?? defaultDur;
+        }
+        this.state_.duration = total;
+        this.assetData_.duration = total;
+        this.state_.notify();
+    }
+
+    private startCustomEventDrag(_e: MouseEvent, rect: DOMRect, hit: CustomEventHit): void {
+        if (!this.assetData_ || !this.host_) return;
+        const track = this.assetData_.tracks[hit.trackIndex];
+        if (!track?.events) return;
+        const event = track.events[hit.eventIndex];
+        if (!event) return;
+
+        const oldTime = event.time;
+        const onMove = (ev: MouseEvent) => {
+            const mx = ev.clientX - rect.left;
+            const newTime = this.state_.snapTime(Math.max(0, this.state_.xToTime(mx)));
+            const cmd = new MoveCustomEventCommand(
+                this.assetData_!, hit.trackIndex, hit.eventIndex,
+                oldTime, newTime,
+                () => this.host_!.onAssetDataChanged(),
+            );
+            this.host_!.executeCommand(cmd);
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
+    private startMarkerDrag(_e: MouseEvent, rect: DOMRect, hit: MarkerHit): void {
+        if (!this.assetData_ || !this.host_) return;
+        const track = this.assetData_.tracks[hit.trackIndex];
+        if (!track?.markers) return;
+        const marker = track.markers[hit.markerIndex];
+        if (!marker) return;
+
+        const oldTime = marker.time;
+        const onMove = (ev: MouseEvent) => {
+            const mx = ev.clientX - rect.left;
+            const newTime = this.state_.snapTime(Math.max(0, this.state_.xToTime(mx)));
+            const cmd = new MoveMarkerCommand(
+                this.assetData_!, hit.trackIndex, hit.markerIndex,
+                oldTime, newTime,
+                () => this.host_!.onAssetDataChanged(),
+            );
+            this.host_!.executeCommand(cmd);
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
     }
 
     private startRubberBand(e: MouseEvent, rect: DOMRect): void {
@@ -1112,7 +1677,7 @@ export class TimelineKeyframeArea {
         const assetTrack = this.assetData_.tracks[trackInfo.trackIndex];
         if (!assetTrack) return;
 
-        const time = Math.max(0, this.state_.xToTime(x));
+        const time = this.state_.snapTime(Math.max(0, this.state_.xToTime(x)));
 
         switch (assetTrack.type) {
             case 'property': {
@@ -1154,6 +1719,24 @@ export class TimelineKeyframeArea {
                 this.host_.executeCommand(cmd);
                 break;
             }
+            case 'marker': {
+                const cmd = new AddMarkerCommand(
+                    this.assetData_, trackInfo.trackIndex,
+                    { time, name: 'marker' },
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmd);
+                break;
+            }
+            case 'customEvent': {
+                const cmd = new AddCustomEventCommand(
+                    this.assetData_, trackInfo.trackIndex,
+                    { time, name: 'event', payload: {} },
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmd);
+                break;
+            }
         }
     }
 
@@ -1179,7 +1762,9 @@ export class TimelineKeyframeArea {
         const onMove = (ev: MouseEvent) => {
             const currentX = ev.clientX - rect.left;
             const currentTime = this.state_.xToTime(currentX);
-            const timeDelta = currentTime - startTime;
+            const rawDelta = currentTime - startTime;
+            const snappedFirst = this.state_.snapTime(oldTimes[0] + rawDelta);
+            const timeDelta = snappedFirst - oldTimes[0];
 
             if (timeDelta === lastDelta) return;
             lastDelta = timeDelta;
@@ -1424,6 +2009,7 @@ export class TimelineKeyframeArea {
             });
             menu.appendChild(deleteItem);
         } else if (npHit) {
+            this.selectNpItem(npHit);
             this.buildNonPropertyContextMenu(menu, npHit);
         } else if (trackInfo) {
             const assetTrack = this.assetData_.tracks[trackInfo.trackIndex];
@@ -1493,7 +2079,7 @@ export class TimelineKeyframeArea {
 
     private buildNonPropertyContextMenu(
         menu: HTMLElement,
-        npHit: { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit },
+        npHit: { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit | MarkerHit | CustomEventHit | SpriteAnimHit | AnimFrameHit },
     ): void {
         if (!this.assetData_ || !this.host_) return;
 
@@ -1513,10 +2099,40 @@ export class TimelineKeyframeArea {
             menu.appendChild(item);
         } else if (npHit.type === 'audio') {
             const hit = npHit.hit as AudioEventHit;
-            const item = document.createElement('div');
-            item.className = 'es-timeline-dropdown-item';
-            item.textContent = 'Delete Event';
-            item.addEventListener('click', () => {
+            const track = this.assetData_!.tracks[hit.trackIndex];
+            const events = (track?.events ?? []) as { time: number; clip: string }[];
+            const audioEv = events[hit.eventIndex];
+
+            const changeClipItem = document.createElement('div');
+            changeClipItem.className = 'es-timeline-dropdown-item';
+            changeClipItem.textContent = 'Change Clip';
+            changeClipItem.addEventListener('click', async () => {
+                menu.remove();
+                if (!audioEv) return;
+                const newClip = await showInputDialog({
+                    title: 'Audio Clip',
+                    defaultValue: audioEv.clip ?? '',
+                    placeholder: 'Audio asset path or UUID',
+                });
+                if (newClip != null && newClip !== audioEv.clip) {
+                    const cmd = new ChangeAudioClipCommand(
+                        this.assetData_!, hit.trackIndex, hit.eventIndex,
+                        audioEv.clip ?? '', newClip,
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                }
+            });
+            menu.appendChild(changeClipItem);
+
+            const sep = document.createElement('div');
+            sep.className = 'es-timeline-dropdown-separator';
+            menu.appendChild(sep);
+
+            const deleteItem = document.createElement('div');
+            deleteItem.className = 'es-timeline-dropdown-item';
+            deleteItem.textContent = 'Delete Event';
+            deleteItem.addEventListener('click', () => {
                 menu.remove();
                 const cmd = new DeleteAudioEventCommand(
                     this.assetData_!, hit.trackIndex, hit.eventIndex,
@@ -1524,7 +2140,7 @@ export class TimelineKeyframeArea {
                 );
                 this.host_!.executeCommand(cmd);
             });
-            menu.appendChild(item);
+            menu.appendChild(deleteItem);
         } else if (npHit.type === 'activation') {
             const hit = npHit.hit as ActivationRangeHit;
             const item = document.createElement('div');
@@ -1539,6 +2155,208 @@ export class TimelineKeyframeArea {
                 this.host_!.executeCommand(cmd);
             });
             menu.appendChild(item);
+        } else if (npHit.type === 'marker') {
+            const hit = npHit.hit as MarkerHit;
+            const track = this.assetData_!.tracks[hit.trackIndex];
+            const markers = (track?.markers ?? []) as { time: number; name: string }[];
+            const marker = markers[hit.markerIndex];
+
+            const renameItem = document.createElement('div');
+            renameItem.className = 'es-timeline-dropdown-item';
+            renameItem.textContent = 'Rename';
+            renameItem.addEventListener('click', async () => {
+                menu.remove();
+                if (!marker) return;
+                const newName = await showInputDialog({
+                    title: 'Rename Marker',
+                    defaultValue: marker.name,
+                    placeholder: 'Marker name',
+                });
+                if (newName != null && newName !== marker.name) {
+                    const cmd = new RenameMarkerCommand(
+                        this.assetData_!, hit.trackIndex, hit.markerIndex,
+                        marker.name, newName,
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                }
+            });
+            menu.appendChild(renameItem);
+
+            const sep = document.createElement('div');
+            sep.className = 'es-timeline-dropdown-separator';
+            menu.appendChild(sep);
+
+            const deleteItem = document.createElement('div');
+            deleteItem.className = 'es-timeline-dropdown-item';
+            deleteItem.textContent = 'Delete Marker';
+            deleteItem.addEventListener('click', () => {
+                menu.remove();
+                const cmd = new DeleteMarkerCommand(
+                    this.assetData_!, hit.trackIndex, hit.markerIndex,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            });
+            menu.appendChild(deleteItem);
+        } else if (npHit.type === 'customEvent') {
+            const hit = npHit.hit as CustomEventHit;
+            const track = this.assetData_!.tracks[hit.trackIndex];
+            const events = (track?.events ?? []) as TimelineCustomEvent[];
+            const ev = events[hit.eventIndex];
+
+            const renameItem = document.createElement('div');
+            renameItem.className = 'es-timeline-dropdown-item';
+            renameItem.textContent = 'Rename';
+            renameItem.addEventListener('click', async () => {
+                menu.remove();
+                if (!ev) return;
+                const newName = await showInputDialog({
+                    title: 'Rename Event',
+                    defaultValue: ev.name,
+                    placeholder: 'Event name',
+                });
+                if (newName != null && newName !== ev.name) {
+                    const cmd = new RenameCustomEventCommand(
+                        this.assetData_!, hit.trackIndex, hit.eventIndex,
+                        ev.name, newName,
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                }
+            });
+            menu.appendChild(renameItem);
+
+            const payloadItem = document.createElement('div');
+            payloadItem.className = 'es-timeline-dropdown-item';
+            payloadItem.textContent = 'Edit Payload';
+            payloadItem.addEventListener('click', async () => {
+                menu.remove();
+                if (!ev) return;
+                const newPayload = await showObjectDialog({
+                    title: `Edit Payload — ${ev.name}`,
+                    value: ev.payload ?? {},
+                });
+                if (newPayload == null) return;
+                const cmd = new EditCustomEventPayloadCommand(
+                    this.assetData_!, hit.trackIndex, hit.eventIndex,
+                    { ...ev.payload }, newPayload,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            });
+            menu.appendChild(payloadItem);
+
+            const sep = document.createElement('div');
+            sep.className = 'es-timeline-dropdown-separator';
+            menu.appendChild(sep);
+
+            const deleteItem = document.createElement('div');
+            deleteItem.className = 'es-timeline-dropdown-item';
+            deleteItem.textContent = 'Delete Event';
+            deleteItem.addEventListener('click', () => {
+                menu.remove();
+                const cmd = new DeleteCustomEventCommand(
+                    this.assetData_!, hit.trackIndex, hit.eventIndex,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            });
+            menu.appendChild(deleteItem);
+        } else if (npHit.type === 'spriteAnim') {
+            const hit = npHit.hit as SpriteAnimHit;
+            const track = this.assetData_!.tracks[hit.trackIndex];
+            const currentClip = track?.clip as string ?? '';
+
+            const changeItem = document.createElement('div');
+            changeItem.className = 'es-timeline-dropdown-item';
+            changeItem.textContent = 'Change Clip';
+            changeItem.addEventListener('click', async () => {
+                menu.remove();
+                const newClip = await showInputDialog({
+                    title: 'Sprite Anim Clip',
+                    defaultValue: currentClip,
+                    placeholder: 'Asset path or UUID',
+                });
+                if (newClip != null && newClip !== currentClip) {
+                    const cmd = new ChangeSpriteAnimClipCommand(
+                        this.assetData_!, hit.trackIndex,
+                        currentClip, newClip,
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                }
+            });
+            menu.appendChild(changeItem);
+
+            if (currentClip) {
+                const clearItem = document.createElement('div');
+                clearItem.className = 'es-timeline-dropdown-item';
+                clearItem.textContent = 'Clear Clip';
+                clearItem.addEventListener('click', () => {
+                    menu.remove();
+                    const cmd = new ChangeSpriteAnimClipCommand(
+                        this.assetData_!, hit.trackIndex,
+                        currentClip, '',
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                });
+                menu.appendChild(clearItem);
+            }
+        } else if (npHit.type === 'animFrames') {
+            const hit = npHit.hit as AnimFrameHit;
+            const track = this.assetData_!.tracks[hit.trackIndex];
+            const frames = (track?.animFrames ?? []) as AnimFrameData[];
+            const frame = frames[hit.frameIndex];
+
+            const durationItem = document.createElement('div');
+            durationItem.className = 'es-timeline-dropdown-item';
+            durationItem.textContent = 'Set Duration';
+            durationItem.addEventListener('click', async () => {
+                menu.remove();
+                if (!frame) return;
+                const fps = this.state_.animClipFps;
+                const currentMs = Math.round((frame.duration ?? (1 / fps)) * 1000);
+                const result = await showInputDialog({
+                    title: 'Frame Duration (ms)',
+                    defaultValue: String(currentMs),
+                    placeholder: 'Duration in milliseconds',
+                });
+                if (result == null) return;
+                const ms = parseInt(result, 10);
+                if (isNaN(ms) || ms <= 0) return;
+                const newDur = ms / 1000;
+                const oldDur = frame.duration ?? (1 / fps);
+                if (newDur !== oldDur) {
+                    const cmd = new ResizeAnimFrameCommand(
+                        this.assetData_!, hit.trackIndex, hit.frameIndex,
+                        oldDur, newDur,
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                    this.updateAnimClipDuration();
+                }
+            });
+            menu.appendChild(durationItem);
+
+            const sep = document.createElement('div');
+            sep.className = 'es-timeline-dropdown-separator';
+            menu.appendChild(sep);
+
+            const deleteItem = document.createElement('div');
+            deleteItem.className = 'es-timeline-dropdown-item';
+            deleteItem.textContent = 'Delete Frame';
+            deleteItem.addEventListener('click', () => {
+                menu.remove();
+                const cmd = new DeleteAnimFrameCommand(
+                    this.assetData_!, hit.trackIndex, hit.frameIndex,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+                this.updateAnimClipDuration();
+            });
+            menu.appendChild(deleteItem);
         }
     }
 
@@ -1577,17 +2395,48 @@ export class TimelineKeyframeArea {
         document.addEventListener('mouseup', onUp);
     }
 
+    private onMouseMove(e: MouseEvent): void {
+        const rect = this.canvas_.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (y < RULER_HEIGHT) {
+            this.canvas_.style.cursor = 'col-resize';
+            return;
+        }
+
+        const npHit = this.hitTestNonPropertyTrack(x, y);
+        if (npHit) {
+            if (npHit.type === 'animFrames' && (npHit.hit as AnimFrameHit).zone === 'resize') {
+                this.canvas_.style.cursor = 'ew-resize';
+                return;
+            }
+            if (npHit.type === 'spine' && (npHit.hit as SpineClipHit).zone === 'resize') {
+                this.canvas_.style.cursor = 'ew-resize';
+                return;
+            }
+            if (npHit.type === 'activation') {
+                const zone = (npHit.hit as ActivationRangeHit).zone;
+                if (zone !== 'body') {
+                    this.canvas_.style.cursor = 'ew-resize';
+                    return;
+                }
+            }
+        }
+
+        this.canvas_.style.cursor = 'default';
+    }
+
     private onWheel(e: WheelEvent): void {
         e.preventDefault();
-        if (e.ctrlKey || e.metaKey) {
+        if (e.shiftKey) {
+            const scrollDelta = e.deltaY;
+            this.state_.scrollX = Math.max(0, this.state_.scrollX + scrollDelta);
+            this.state_.notify();
+        } else {
             const rect = this.canvas_.getBoundingClientRect();
             const pivotX = e.clientX - rect.left;
             this.state_.zoom(-e.deltaY, pivotX);
-        } else {
-            const dx = e.shiftKey ? e.deltaY : e.deltaX;
-            const scrollDelta = dx !== 0 ? dx : e.deltaY;
-            this.state_.scrollX = Math.max(0, this.state_.scrollX + scrollDelta);
-            this.state_.notify();
         }
     }
 }

@@ -18,8 +18,11 @@ export interface LoadedTilemapTileset {
 export interface LoadedTilemapSource {
     tileWidth: number;
     tileHeight: number;
+    orientation?: string;
     layers: LoadedTilemapLayer[];
     tilesets: LoadedTilemapTileset[];
+    tileAnimations?: Map<number, { tileId: number; duration: number }[]>;
+    tileProperties?: Map<number, Map<string, string>>;
 }
 
 const texDimsCache_ = new Map<number, TextureDimensions>();

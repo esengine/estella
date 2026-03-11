@@ -6,6 +6,8 @@
 export interface Bounds {
     width: number;
     height: number;
+    offsetX?: number;
+    offsetY?: number;
 }
 
 export interface BoundsProvider {

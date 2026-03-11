@@ -1,4 +1,4 @@
-import { B as BuiltinComponentDef, k as ComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
+import { B as BuiltinComponentDef, o as ComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
 import { V as Vec2, E as Entity } from '../shared/wasm.js';
 
 interface RigidBodyData {
@@ -97,6 +97,72 @@ interface RevoluteJointData {
     enabled: boolean;
 }
 declare const RevoluteJoint: ComponentDef<RevoluteJointData>;
+interface DistanceJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    length: number;
+    enableSpring: boolean;
+    hertz: number;
+    dampingRatio: number;
+    enableLimit: boolean;
+    minLength: number;
+    maxLength: number;
+    enableMotor: boolean;
+    maxMotorForce: number;
+    motorSpeed: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+declare const DistanceJoint: ComponentDef<DistanceJointData>;
+interface PrismaticJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    axis: Vec2;
+    enableSpring: boolean;
+    hertz: number;
+    dampingRatio: number;
+    enableLimit: boolean;
+    lowerTranslation: number;
+    upperTranslation: number;
+    enableMotor: boolean;
+    maxMotorForce: number;
+    motorSpeed: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+declare const PrismaticJoint: ComponentDef<PrismaticJointData>;
+interface WeldJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    linearHertz: number;
+    angularHertz: number;
+    linearDampingRatio: number;
+    angularDampingRatio: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+declare const WeldJoint: ComponentDef<WeldJointData>;
+interface WheelJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    axis: Vec2;
+    enableSpring: boolean;
+    hertz: number;
+    dampingRatio: number;
+    enableLimit: boolean;
+    lowerTranslation: number;
+    upperTranslation: number;
+    enableMotor: boolean;
+    maxMotorTorque: number;
+    motorSpeed: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+declare const WheelJoint: ComponentDef<WheelJointData>;
 declare const BodyType: {
     readonly Static: 0;
     readonly Kinematic: 1;
@@ -154,6 +220,16 @@ interface PhysicsWasmModule {
     _physics_setRevoluteLimits(entityId: number, lower: number, upper: number): void;
     _physics_getRevoluteAngle(entityId: number): number;
     _physics_getRevoluteMotorTorque(entityId: number): number;
+    _physics_createDistanceJoint(entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, length: number, enableSpring: number, hertz: number, dampingRatio: number, enableLimit: number, minLength: number, maxLength: number, enableMotor: number, maxMotorForce: number, motorSpeed: number, collideConnected: number): number;
+    _physics_createPrismaticJoint(entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, axisX: number, axisY: number, enableSpring: number, hertz: number, dampingRatio: number, enableLimit: number, lowerTranslation: number, upperTranslation: number, enableMotor: number, maxMotorForce: number, motorSpeed: number, collideConnected: number): number;
+    _physics_createWeldJoint(entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, linearHertz: number, angularHertz: number, linearDampingRatio: number, angularDampingRatio: number, collideConnected: number): number;
+    _physics_createWheelJoint(entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, axisX: number, axisY: number, enableSpring: number, hertz: number, dampingRatio: number, enableLimit: number, lowerTranslation: number, upperTranslation: number, enableMotor: number, maxMotorTorque: number, motorSpeed: number, collideConnected: number): number;
+    _physics_raycast(originX: number, originY: number, dirX: number, dirY: number, maxDistance: number, maskBits: number): number;
+    _physics_getRaycastBuffer(): number;
+    _physics_overlapCircle(centerX: number, centerY: number, radius: number, maskBits: number): number;
+    _physics_getOverlapBuffer(): number;
+    _physics_setAwake(entityId: number, awake: number): void;
+    _physics_isAwake(entityId: number): number;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -223,6 +299,12 @@ interface PhysicsEventsData {
     sensorExits: SensorEvent[];
 }
 declare const PhysicsEvents: ResourceDef<PhysicsEventsData>;
+interface RaycastHit {
+    entity: Entity;
+    point: Vec2;
+    normal: Vec2;
+    fraction: number;
+}
 declare const PhysicsAPI: ResourceDef<Physics>;
 declare class PhysicsPlugin implements Plugin {
     private config_;
@@ -263,9 +345,13 @@ declare class Physics {
     setRevoluteLimits(entity: Entity, lower: number, upper: number): void;
     getRevoluteAngle(entity: Entity): number;
     getRevoluteMotorTorque(entity: Entity): number;
+    raycast(origin: Vec2, direction: Vec2, maxDistance: number, maskBits?: number, ppu?: number): RaycastHit[];
+    overlapCircle(center: Vec2, radius: number, maskBits?: number, ppu?: number): Entity[];
+    setAwake(entity: Entity, awake: boolean): void;
+    isAwake(entity: Entity): boolean;
     static setDebugDraw(app: App, enabled: boolean): void;
     static setDebugDrawConfig(app: App, config: Partial<PhysicsDebugDrawConfig>): void;
 }
 
-export { BodyType, BoxCollider, CapsuleCollider, ChainCollider, CircleCollider, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, PolygonCollider, RevoluteJoint, RigidBody, SegmentCollider, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
-export type { BoxColliderData, CapsuleColliderData, ChainColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PolygonColliderData, RevoluteJointData, RigidBodyData, SegmentColliderData, SensorEvent };
+export { BodyType, BoxCollider, CapsuleCollider, ChainCollider, CircleCollider, DistanceJoint, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, PolygonCollider, PrismaticJoint, RevoluteJoint, RigidBody, SegmentCollider, WeldJoint, WheelJoint, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
+export type { BoxColliderData, CapsuleColliderData, ChainColliderData, CircleColliderData, CollisionEnterEvent, DistanceJointData, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PolygonColliderData, PrismaticJointData, RaycastHit, RevoluteJointData, RigidBodyData, SegmentColliderData, SensorEvent, WeldJointData, WheelJointData };
