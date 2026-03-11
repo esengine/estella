@@ -144,4 +144,65 @@ export function registerSceneTools(
             return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
         },
     );
+
+    server.tool(
+        'duplicate_entity',
+        'Duplicate an entity with all its components',
+        {
+            entity: z.union([z.number(), z.string()]).describe('Entity ID or name to duplicate'),
+        },
+        async (args: { entity: number | string }) => {
+            const body = typeof args.entity === 'number' ? { id: args.entity } : { name: args.entity };
+            const result = await bridge.post('/scene/duplicate-entity', body);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'instantiate_prefab',
+        'Instantiate a prefab into the scene',
+        {
+            path: z.string().describe('Prefab asset path (relative or UUID)'),
+            parent: z.union([z.number(), z.string()]).optional().describe('Parent entity ID or name'),
+        },
+        async (args: { path: string; parent?: number | string }) => {
+            const result = await bridge.post('/scene/instantiate-prefab', args);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'new_scene',
+        'Create a new empty scene (discards current scene)',
+        {},
+        async () => {
+            const result = await bridge.post('/scene/new', {});
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'open_scene',
+        'Open a scene file by path',
+        {
+            path: z.string().describe('Scene file path (e.g., "assets/scenes/main.esscene")'),
+        },
+        async (args: { path: string }) => {
+            const result = await bridge.post('/scene/open', { path: args.path });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'toggle_entity_visibility',
+        'Toggle an entity\'s visibility in the editor',
+        {
+            entity: z.union([z.number(), z.string()]).describe('Entity ID or name'),
+        },
+        async (args: { entity: number | string }) => {
+            const body = typeof args.entity === 'number' ? { id: args.entity } : { name: args.entity };
+            const result = await bridge.post('/scene/toggle-visibility', body);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
 }

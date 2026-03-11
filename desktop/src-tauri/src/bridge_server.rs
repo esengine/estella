@@ -240,6 +240,56 @@ fn parse_request(
             let body = read_json_body(reader)?;
             Ok(("removeComponent".into(), body))
         }
+        ("POST", "/scene/duplicate-entity") => {
+            let body = read_json_body(reader)?;
+            Ok(("duplicateEntity".into(), body))
+        }
+        ("POST", "/scene/instantiate-prefab") => {
+            let body = read_json_body(reader)?;
+            Ok(("instantiatePrefab".into(), body))
+        }
+        ("GET", "/assets/list") => {
+            let asset_type = query_params.get("type").cloned();
+            let mut p = json!({});
+            if let Some(t) = asset_type { p["type"] = json!(t); }
+            Ok(("listAssets".into(), p))
+        }
+        ("GET", "/assets/info") => {
+            let uuid = query_params.get("uuid").cloned();
+            let path = query_params.get("path").cloned();
+            let mut p = json!({});
+            if let Some(u) = uuid { p["uuid"] = json!(u); }
+            if let Some(pa) = path { p["path"] = json!(pa); }
+            Ok(("getAssetInfo".into(), p))
+        }
+        ("GET", "/components/list") => {
+            Ok(("listComponents".into(), json!({})))
+        }
+        ("GET", "/components/schema") => {
+            let name = query_params.get("name").cloned().unwrap_or_default();
+            Ok(("getComponentSchema".into(), json!({ "name": name })))
+        }
+        ("GET", "/menus/list") => {
+            Ok(("listMenus".into(), json!({})))
+        }
+        ("GET", "/scene/metadata") => {
+            Ok(("getSceneMetadata".into(), json!({})))
+        }
+        ("POST", "/scene/toggle-visibility") => {
+            let body = read_json_body(reader)?;
+            Ok(("toggleVisibility".into(), body))
+        }
+        ("POST", "/scene/new") => {
+            Ok(("newScene".into(), json!({})))
+        }
+        ("POST", "/scene/open") => {
+            let body = read_json_body(reader)?;
+            Ok(("openScene".into(), body))
+        }
+        ("POST", "/scripts/create") => {
+            let body = read_json_body(reader)?;
+            Ok(("createScript".into(), body))
+        }
         ("POST", "/action/select") => {
             let body = read_json_body(reader)?;
             Ok(("selectEntity".into(), body))
@@ -260,6 +310,40 @@ fn parse_request(
         }
         ("POST", "/action/reload-scripts") => {
             Ok(("reloadScripts".into(), json!({})))
+        }
+        ("POST", "/action/undo") => {
+            Ok(("undo".into(), json!({})))
+        }
+        ("POST", "/action/redo") => {
+            Ok(("redo".into(), json!({})))
+        }
+        ("GET", "/assets/meta") => {
+            let uuid = query_params.get("uuid").cloned();
+            let path = query_params.get("path").cloned();
+            let mut p = json!({});
+            if let Some(u) = uuid { p["uuid"] = json!(u); }
+            if let Some(pa) = path { p["path"] = json!(pa); }
+            Ok(("getAssetMeta".into(), p))
+        }
+        ("POST", "/assets/meta/update") => {
+            let body = read_json_body(reader)?;
+            Ok(("updateAssetMeta".into(), body))
+        }
+        ("POST", "/assets/meta/ensure") => {
+            let body = read_json_body(reader)?;
+            Ok(("ensureAssetMeta".into(), body))
+        }
+        ("POST", "/assets/create") => {
+            let body = read_json_body(reader)?;
+            Ok(("createAsset".into(), body))
+        }
+        ("POST", "/assets/delete") => {
+            let body = read_json_body(reader)?;
+            Ok(("deleteAsset".into(), body))
+        }
+        ("POST", "/assets/rename") => {
+            let body = read_json_body(reader)?;
+            Ok(("renameAsset".into(), body))
         }
         _ => Err(format!("Unknown route: {} {}", method, path)),
     }

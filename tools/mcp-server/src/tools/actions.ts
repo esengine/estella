@@ -73,4 +73,38 @@ export function registerActionTools(
             return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
         },
     );
+
+    server.tool(
+        'undo',
+        'Undo the last editor action',
+        {},
+        async () => {
+            const result = await bridge.post('/action/undo', {});
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'redo',
+        'Redo the last undone editor action',
+        {},
+        async () => {
+            const result = await bridge.post('/action/redo', {});
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
+        'create_script',
+        'Create a new TypeScript script file in the project. Read editor://sdk-api resource first to understand the API.',
+        {
+            name: z.string().describe('Script name (e.g., "PlayerController")'),
+            content: z.string().optional().describe('Script content (default: component template)'),
+            dir: z.string().optional().describe('Directory relative to project root (default: "src")'),
+        },
+        async (args: { name: string; content?: string; dir?: string }) => {
+            const result = await bridge.post('/scripts/create', args);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
 }

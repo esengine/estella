@@ -22,6 +22,8 @@ export interface NativeFS {
     readFile(path: string): Promise<string | null>;
     readBinaryFile(path: string): Promise<Uint8Array | null>;
     copyFile(src: string, dest: string): Promise<boolean>;
+    removeFile(path: string): Promise<boolean>;
+    renameFile(oldPath: string, newPath: string): Promise<boolean>;
     getFileStats(path: string): Promise<FileStats | null>;
     openProject(): Promise<string | null>;
     listDirectory(path: string): Promise<string[]>;
