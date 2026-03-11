@@ -1,0 +1,176 @@
+---
+title: MCP Server
+description: 通过 Model Context Protocol 实现 AI 辅助编辑
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Estella 编辑器内置 **MCP（Model Context Protocol）** 桥接器，允许 Claude 等 AI 助手实时读取和修改你的场景。MCP 服务器将 MCP 工具调用转换为对运行中编辑器的 HTTP 请求。
+
+<Aside type="note">
+  MCP 桥接器在编辑器启动时自动运行，编辑器侧无需任何配置。
+</Aside>
+
+## 前提条件
+
+- Estella 编辑器 v0.10.0 或更高版本
+- Node.js 18+
+- MCP 兼容的 AI 客户端（如 Claude Desktop、Claude Code、Cursor）
+
+## 安装
+
+配置你的 AI 客户端使用 MCP 服务器。无需额外安装步骤——`npx` 直接从 GitHub 获取。
+
+<Tabs>
+  <TabItem label="Claude Code">
+
+在项目根目录的 `.mcp.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "estella-editor": {
+      "command": "npx",
+      "args": ["-y", "github:esengine/estella-mcp-server"]
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="Claude Desktop">
+
+添加到 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）或 `%APPDATA%\Claude\claude_desktop_config.json`（Windows）：
+
+```json
+{
+  "mcpServers": {
+    "estella-editor": {
+      "command": "npx",
+      "args": ["-y", "github:esengine/estella-mcp-server"]
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="Cursor">
+
+在项目根目录的 `.cursor/mcp.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "estella-editor": {
+      "command": "npx",
+      "args": ["-y", "github:esengine/estella-mcp-server"]
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### 3. 启动编辑器
+
+在 Estella 编辑器中打开项目。MCP 桥接器会自动在 `~/.esengine/bridge-<port>.json` 注册，MCP 服务器启动时通过此文件发现编辑器。
+
+## 工作原理
+
+```
+AI 客户端 ←→ MCP Server (stdio) ←→ HTTP Bridge ←→ Estella 编辑器
+```
+
+1. 编辑器在随机可用端口启动 HTTP 桥接服务器
+2. 写入发现文件到 `~/.esengine/bridge-<port>.json`
+3. MCP 服务器读取发现文件找到运行中的编辑器
+4. AI 工具调用被转换为 HTTP GET/POST 请求
+
+## 可用工具
+
+### 场景检查
+
+| 工具 | 说明 |
+|------|------|
+| `get_hierarchy` | 列出场景树中的所有实体 |
+| `get_entity` | 获取实体数据（所有组件和属性） |
+| `get_component` | 获取指定组件的属性 |
+| `get_children` | 列出子实体 |
+| `list_assets` | 按类型列出项目资源 |
+| `read_asset` | 读取资源文件内容 |
+
+### 实体操作
+
+| 工具 | 说明 |
+|------|------|
+| `create_entity` | 创建新实体（可指定父实体） |
+| `delete_entity` | 删除实体 |
+| `rename_entity` | 重命名实体 |
+| `reparent_entity` | 将实体移动到新的父级 |
+| `add_component` | 为实体添加组件 |
+| `remove_component` | 移除实体的组件 |
+
+### 属性编辑
+
+| 工具 | 说明 |
+|------|------|
+| `set_property` | 设置组件属性值（支持撤销） |
+| `get_selection` | 获取当前选中的实体 |
+| `select_entity` | 在编辑器中选中实体 |
+
+### 时间轴
+
+| 工具 | 说明 |
+|------|------|
+| `get_timeline` | 读取实体的时间轴数据 |
+| `update_timeline` | 修改时间轴轨道、关键帧或属性 |
+| `write_asset` | 将修改后的资源数据写回磁盘 |
+
+### Play 模式
+
+| 工具 | 说明 |
+|------|------|
+| `play` | 进入 Play 模式 |
+| `stop` | 退出 Play 模式 |
+| `pause` | 暂停/恢复 |
+| `set_play_speed` | 调整播放速度 |
+
+### 视觉
+
+| 工具 | 说明 |
+|------|------|
+| `screenshot` | 截取当前视口的截图 |
+| `screenshot_diff` | 逐像素比较两张截图 |
+
+## 示例提示
+
+配置完成后，你可以这样向 AI 助手提问：
+
+- "显示场景中的所有实体"
+- "把玩家的位置改成 (100, 200)"
+- "给 Background 实体添加一个 Sprite 组件"
+- "把 idle 动画速度设为 0.5 倍"
+- "截个图告诉我屏幕上有什么"
+
+## 故障排除
+
+### MCP 服务器提示 "No running ESEngine editor found"
+
+- 确保 Estella 编辑器正在运行且已打开项目
+- 检查 `~/.esengine/` 目录下是否有 `bridge-*.json` 文件
+- 如果文件存在但编辑器已关闭，删除过期的 bridge 文件
+
+### 连接被拒绝
+
+桥接服务器绑定在 `127.0.0.1`。如果使用了代理，确保 localhost 流量不经过代理：
+
+```bash
+curl --noproxy '*' http://127.0.0.1:<port>/health
+```
+
+### 工具返回错误
+
+- 确保编辑器已加载场景
+- 实体 ID 是数字——先用 `get_hierarchy` 查找有效的 ID
+- 组件名称区分大小写（如 `Transform`、`Sprite`、`SpineAnimation`）

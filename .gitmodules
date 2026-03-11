@@ -28,3 +28,6 @@
 	path = third_party/spine-runtimes-4.2
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	branch = 4.2
+[submodule "tools/mcp-server"]
+	path = tools/mcp-server
+	url = https://github.com/esengine/estella-mcp-server.git

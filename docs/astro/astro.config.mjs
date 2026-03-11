@@ -134,6 +134,7 @@ export default defineConfig({
                 { label: 'Game View', translations: { 'zh-CN': 'Game View' }, slug: 'guides/game-view' },
                 { label: 'Project Settings', translations: { 'zh-CN': '项目设置' }, slug: 'guides/project-settings' },
                 { label: 'Editor Extensions', translations: { 'zh-CN': '编辑器扩展' }, slug: 'guides/editor-extensions' },
+                { label: 'MCP Server', translations: { 'zh-CN': 'MCP Server' }, slug: 'guides/mcp' },
                 { label: 'Profiler', translations: { 'zh-CN': '性能分析' }, slug: 'guides/profiler' },
                 { label: 'Debugging', translations: { 'zh-CN': '调试' }, slug: 'guides/debugging' },
               ],
