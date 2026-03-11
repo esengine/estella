@@ -6,6 +6,9 @@ build_*/
 out/
 dist/
 
+# MCP config (user-specific)
+.mcp.json
+
 # Node.js
 node_modules/
 package-lock.json

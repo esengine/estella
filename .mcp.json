@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "esengine-editor": {
-      "command": "node",
-      "args": ["tools/mcp-server/dist/index.js"]
-    }
-  }
-}
