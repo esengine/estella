@@ -10,7 +10,10 @@ import { getAllMenus, getMenuItems } from '../menus/MenuRegistry';
 import { getAllPanels } from '../panels/PanelRegistry';
 import { exportSettings, getSettingsValue } from '../settings/SettingsRegistry';
 import { PropertyCommand } from '../commands/PropertyCommand';
-import { getInitialComponentData } from '../schemas/ComponentSchemas';
+import { getInitialComponentData, getAllComponentSchemas, getComponentsByCategory, getComponentSchema } from '../schemas/ComponentSchemas';
+import { getAssetDatabase, type AssetEntry } from '../asset/AssetDatabase';
+import { getSceneService, getClipboardService } from '../services';
+import { getEditorContext } from '../context/EditorContext';
 import type { SceneData, EntityData } from '../types/SceneTypes';
 import { RingBuffer } from './RingBuffer';
 
@@ -111,12 +114,32 @@ export class McpBridge {
             case 'reparentEntity': return this.reparentEntity_(params);
             case 'addComponent': return this.addComponent_(params);
             case 'removeComponent': return this.removeComponent_(params);
+            case 'duplicateEntity': return this.duplicateEntity_(params);
             case 'selectEntity': return this.selectEntity_(params);
             case 'setProperty': return this.setProperty_(params);
             case 'executeMenu': return this.executeMenu_(params.id as string);
             case 'togglePlayMode': return this.togglePlayMode_();
             case 'saveScene': return this.saveScene_();
             case 'reloadScripts': return this.reloadScripts_();
+            case 'undo': return this.undo_();
+            case 'redo': return this.redo_();
+            case 'listAssets': return this.listAssets_(params);
+            case 'getAssetInfo': return this.getAssetInfo_(params);
+            case 'listComponents': return this.listComponents_();
+            case 'getComponentSchema': return this.getComponentSchema_(params.name as string);
+            case 'listMenus': return this.listMenus_();
+            case 'getSceneMetadata': return this.getSceneMetadata_();
+            case 'toggleVisibility': return this.toggleVisibility_(params);
+            case 'newScene': return this.newScene_();
+            case 'openScene': return this.openScene_(params.path as string);
+            case 'instantiatePrefab': return this.instantiatePrefab_(params);
+            case 'createScript': return this.createScript_(params);
+            case 'getAssetMeta': return this.getAssetMeta_(params);
+            case 'updateAssetMeta': return this.updateAssetMeta_(params);
+            case 'ensureAssetMeta': return this.ensureAssetMeta_(params);
+            case 'createAsset': return this.createAsset_(params);
+            case 'deleteAsset': return this.deleteAsset_(params);
+            case 'renameAsset': return this.renameAsset_(params);
             default: throw new Error(`Unknown method: ${method}`);
         }
     }
@@ -520,6 +543,380 @@ export class McpBridge {
         const success = await this.scriptService_.reload();
         getSharedRenderContext().requestRender();
         return { ok: true, success };
+    }
+
+    private duplicateEntity_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const id = this.resolveEntity_(params.id as number | undefined, params.name as string | undefined);
+        if (id == null) throw new Error('Entity not found');
+        store.selectEntity(id);
+        getClipboardService().duplicateSelected();
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private undo_(): unknown {
+        const store = getEditorStore();
+        if (!store.canUndo) throw new Error('Nothing to undo');
+        store.undo();
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private redo_(): unknown {
+        const store = getEditorStore();
+        if (!store.canRedo) throw new Error('Nothing to redo');
+        store.redo();
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    // =========================================================================
+    // Assets & Components
+    // =========================================================================
+
+    private listAssets_(params: Record<string, unknown>): unknown {
+        const db = getAssetDatabase();
+        const typeFilter = params.type as string | undefined;
+        const results: Array<{ uuid: string; path: string; type: string }> = [];
+        for (const entry of db.getAllEntries()) {
+            if (typeFilter && entry.type !== typeFilter) continue;
+            results.push({ uuid: entry.uuid, path: entry.path, type: entry.type });
+        }
+        return results;
+    }
+
+    private getAssetInfo_(params: Record<string, unknown>): unknown {
+        const db = getAssetDatabase();
+        const uuid = params.uuid as string | undefined;
+        const path = params.path as string | undefined;
+        const entry = uuid ? db.getEntry(uuid) : path ? db.getEntryByPath(path) : undefined;
+        if (!entry) throw new Error('Asset not found');
+        return {
+            uuid: entry.uuid,
+            path: entry.path,
+            type: entry.type,
+            address: entry.address,
+            group: entry.group,
+            labels: [...entry.labels],
+            fileSize: entry.fileSize,
+        };
+    }
+
+    private listComponents_(): unknown {
+        const byCategory = getComponentsByCategory();
+        const result: Record<string, string[]> = {};
+        for (const [category, schemas] of Object.entries(byCategory)) {
+            result[category] = schemas.map((s: { name: string }) => s.name);
+        }
+        return result;
+    }
+
+    private getComponentSchema_(name: string): unknown {
+        if (!name) throw new Error('name is required');
+        const schema = getComponentSchema(name);
+        if (!schema) throw new Error(`Component not found: ${name}`);
+        const defaults = getInitialComponentData(name);
+        return {
+            name: schema.name,
+            category: schema.category,
+            displayName: schema.displayName ?? schema.name,
+            description: schema.description ?? null,
+            removable: schema.removable !== false,
+            requires: schema.requires ?? [],
+            conflicts: schema.conflicts ?? [],
+            defaults,
+            properties: schema.properties.map(p => ({
+                name: p.name,
+                type: p.type,
+                displayName: p.displayName ?? p.name,
+                tooltip: p.tooltip ?? null,
+                readOnly: p.readOnly ?? false,
+                min: p.min ?? null,
+                max: p.max ?? null,
+                step: p.step ?? null,
+                options: p.options ?? null,
+            })),
+        };
+    }
+
+    private listMenus_(): unknown {
+        const menus = getAllMenus();
+        return menus.map(menu => ({
+            id: menu.id,
+            label: menu.label,
+            items: getMenuItems(menu.id)
+                .filter(i => !i.hidden)
+                .map(i => ({
+                    id: i.id,
+                    label: i.label,
+                    shortcut: i.shortcut ?? null,
+                    separator: i.separator ?? false,
+                    enabled: i.enabled ? i.enabled() : true,
+                })),
+        }));
+    }
+
+    private getSceneMetadata_(): unknown {
+        const store = getEditorStore();
+        const scene = store.scene;
+        const designWidth = getSettingsValue<number>('project.designWidth') ?? 1080;
+        const designHeight = getSettingsValue<number>('project.designHeight') ?? 1920;
+        return {
+            name: scene.name,
+            filePath: store.filePath,
+            isDirty: store.isDirty,
+            entityCount: scene.entities.length,
+            designResolution: { width: designWidth, height: designHeight },
+            canUndo: store.canUndo,
+            canRedo: store.canRedo,
+            undoDescription: store.undoDescription ?? null,
+            redoDescription: store.redoDescription ?? null,
+        };
+    }
+
+    private toggleVisibility_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const id = this.resolveEntity_(params.id as number | undefined, params.name as string | undefined);
+        if (id == null) throw new Error('Entity not found');
+        store.toggleVisibility(id);
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    // =========================================================================
+    // Scene
+    // =========================================================================
+
+    private async newScene_(): Promise<unknown> {
+        const sceneService = getSceneService();
+        await sceneService.newScene();
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private async openScene_(path: string): Promise<unknown> {
+        if (!path) throw new Error('path is required');
+        const sceneService = getSceneService();
+        await sceneService.openSceneFromPath(path);
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private async instantiatePrefab_(params: Record<string, unknown>): Promise<unknown> {
+        const store = getEditorStore();
+        const prefabPath = params.path as string;
+        if (!prefabPath) throw new Error('path is required');
+        const parentRef = params.parent;
+        const parent = parentRef == null ? null
+            : typeof parentRef === 'string' ? this.resolveEntityByName_(parentRef)
+            : parentRef as number;
+        const entity = await store.instantiatePrefab(prefabPath, parent);
+        if (entity == null) throw new Error('Failed to instantiate prefab');
+        getSharedRenderContext().requestRender();
+        return { ok: true, entityId: entity };
+    }
+
+    private async createScript_(params: Record<string, unknown>): Promise<unknown> {
+        const name = params.name as string;
+        if (!name) throw new Error('name is required');
+        const content = params.content as string | undefined;
+        const dir = params.dir as string | undefined;
+
+        const fs = getEditorContext().fs;
+        if (!fs) throw new Error('File system not available');
+        if (!this.projectPath_) throw new Error('No project path');
+
+        const projectDir = this.projectPath_.replace(/\/[^/]+$/, '');
+        const scriptsDir = dir ? `${projectDir}/${dir}` : `${projectDir}/src`;
+        const fileName = name.endsWith('.ts') ? name : `${name}.ts`;
+        const filePath = `${scriptsDir}/${fileName}`;
+
+        const scriptContent = content ?? [
+            `import { defineComponent, defineSystem, PreUpdate, type World, type Entity } from 'esengine';`,
+            ``,
+            `export const ${name.replace(/\.ts$/, '')} = defineComponent('${name.replace(/\.ts$/, '')}', {`,
+            `});`,
+            ``,
+        ].join('\n');
+
+        await fs.writeFile(filePath, scriptContent);
+        return { ok: true, path: filePath };
+    }
+
+    // =========================================================================
+    // Asset Meta
+    // =========================================================================
+
+    private getAssetMeta_(params: Record<string, unknown>): unknown {
+        const db = getAssetDatabase();
+        const uuid = params.uuid as string | undefined;
+        const path = params.path as string | undefined;
+        const entry = uuid ? db.getEntry(uuid) : path ? db.getEntryByPath(path) : undefined;
+        if (!entry) throw new Error('Asset not found');
+        return {
+            uuid: entry.uuid,
+            path: entry.path,
+            type: entry.type,
+            labels: [...entry.labels],
+            address: entry.address,
+            group: entry.group,
+            importer: entry.importer,
+            platformOverrides: entry.platformOverrides,
+            fileSize: entry.fileSize,
+            lastModified: entry.lastModified,
+        };
+    }
+
+    private async updateAssetMeta_(params: Record<string, unknown>): Promise<unknown> {
+        const db = getAssetDatabase();
+        const uuid = params.uuid as string;
+        if (!uuid) throw new Error('uuid is required');
+        const entry = db.getEntry(uuid);
+        if (!entry) throw new Error(`Asset not found: ${uuid}`);
+
+        const updates: Partial<Pick<AssetEntry, 'labels' | 'address' | 'group' | 'importer' | 'platformOverrides'>> = {};
+        if (params.labels !== undefined) updates.labels = new Set(params.labels as string[]);
+        if (params.address !== undefined) updates.address = params.address as string | null;
+        if (params.group !== undefined) updates.group = params.group as string;
+        if (params.importer !== undefined) updates.importer = params.importer as Record<string, unknown>;
+        if (params.platformOverrides !== undefined) updates.platformOverrides = params.platformOverrides as Record<string, Record<string, unknown>>;
+
+        await db.updateMeta(uuid, updates);
+        return { ok: true };
+    }
+
+    private async ensureAssetMeta_(params: Record<string, unknown>): Promise<unknown> {
+        const db = getAssetDatabase();
+        const path = params.path as string;
+        if (!path) throw new Error('path is required');
+        const uuid = await db.ensureMeta(path);
+        const entry = db.getEntry(uuid);
+        return {
+            uuid,
+            path: entry?.path ?? path,
+            type: entry?.type ?? 'unknown',
+            created: !params.path || !db.getEntryByPath(path),
+        };
+    }
+
+    private async createAsset_(params: Record<string, unknown>): Promise<unknown> {
+        const fs = getEditorContext().fs;
+        if (!fs) throw new Error('File system not available');
+        if (!this.projectPath_) throw new Error('No project path');
+
+        const projectDir = this.projectPath_.replace(/\/[^/]+$/, '');
+        const assetType = params.type as string;
+        const name = params.name as string;
+        const dir = params.dir as string | undefined;
+        if (!assetType || !name) throw new Error('type and name are required');
+
+        const parentDir = dir ? `${projectDir}/${dir}` : `${projectDir}/assets`;
+        let fileName: string;
+        let content: string;
+
+        switch (assetType) {
+            case 'material':
+                fileName = name.endsWith('.esmaterial') ? name : `${name}.esmaterial`;
+                content = JSON.stringify({ shader: 'standard', properties: {} }, null, 2);
+                break;
+            case 'scene':
+                fileName = name.endsWith('.esscene') ? name : `${name}.esscene`;
+                content = JSON.stringify({
+                    version: '2.0', name: name.replace(/\.esscene$/, ''),
+                    entities: [],
+                }, null, 2);
+                break;
+            case 'shader':
+                fileName = name.endsWith('.esshader') ? name : `${name}.esshader`;
+                content = [
+                    'precision mediump float;',
+                    'varying vec2 v_uv;',
+                    'uniform sampler2D u_texture;',
+                    '',
+                    'void main() {',
+                    '    gl_FragColor = texture2D(u_texture, v_uv);',
+                    '}',
+                ].join('\n');
+                break;
+            case 'anim-clip':
+                fileName = name.endsWith('.esanim') ? name : `${name}.esanim`;
+                content = JSON.stringify({ version: '1.0', frames: [], fps: 12 }, null, 2);
+                break;
+            case 'timeline':
+                fileName = name.endsWith('.estimeline') ? name : `${name}.estimeline`;
+                content = JSON.stringify({ version: '1.0', duration: 1, tracks: [] }, null, 2);
+                break;
+            case 'bitmap-font':
+                fileName = name.endsWith('.bmfont') ? name : `${name}.bmfont`;
+                content = JSON.stringify({ chars: {}, kernings: {}, common: { lineHeight: 32 } }, null, 2);
+                break;
+            default:
+                throw new Error(`Unknown asset type: ${assetType}. Supported: material, scene, shader, anim-clip, timeline, bitmap-font`);
+        }
+
+        const filePath = `${parentDir}/${fileName}`;
+        await fs.writeFile(filePath, content);
+
+        const relativePath = filePath.replace(`${projectDir}/`, '');
+        const db = getAssetDatabase();
+        const uuid = await db.ensureMeta(relativePath);
+
+        return { ok: true, path: filePath, relativePath, uuid };
+    }
+
+    private async deleteAsset_(params: Record<string, unknown>): Promise<unknown> {
+        const fs = getEditorContext().fs;
+        if (!fs) throw new Error('File system not available');
+        if (!this.projectPath_) throw new Error('No project path');
+
+        const projectDir = this.projectPath_.replace(/\/[^/]+$/, '');
+        const db = getAssetDatabase();
+
+        const uuid = params.uuid as string | undefined;
+        const path = params.path as string | undefined;
+        const entry = uuid ? db.getEntry(uuid) : path ? db.getEntryByPath(path) : undefined;
+        if (!entry) throw new Error('Asset not found');
+
+        const fullPath = `${projectDir}/${entry.path}`;
+        const metaPath = `${fullPath}.meta`;
+
+        await fs.removeFile(fullPath);
+        try { await fs.removeFile(metaPath); } catch { /* meta may not exist */ }
+        db.unregister(entry.path);
+        return { ok: true, deleted: entry.path };
+    }
+
+    private async renameAsset_(params: Record<string, unknown>): Promise<unknown> {
+        const fs = getEditorContext().fs;
+        if (!fs) throw new Error('File system not available');
+        if (!this.projectPath_) throw new Error('No project path');
+
+        const projectDir = this.projectPath_.replace(/\/[^/]+$/, '');
+        const db = getAssetDatabase();
+
+        const uuid = params.uuid as string | undefined;
+        const path = params.path as string | undefined;
+        const newName = params.newName as string;
+        if (!newName) throw new Error('newName is required');
+
+        const entry = uuid ? db.getEntry(uuid) : path ? db.getEntryByPath(path) : undefined;
+        if (!entry) throw new Error('Asset not found');
+
+        const oldFullPath = `${projectDir}/${entry.path}`;
+        const dirPart = entry.path.replace(/\/[^/]+$/, '');
+        const newRelativePath = `${dirPart}/${newName}`;
+        const newFullPath = `${projectDir}/${newRelativePath}`;
+
+        await fs.renameFile(oldFullPath, newFullPath);
+        const oldMetaPath = `${oldFullPath}.meta`;
+        const newMetaPath = `${newFullPath}.meta`;
+        if (await fs.exists(oldMetaPath)) {
+            await fs.renameFile(oldMetaPath, newMetaPath);
+        }
+
+        db.updatePath(entry.path, newRelativePath);
+        return { ok: true, oldPath: entry.path, newPath: newRelativePath };
     }
 
     // =========================================================================
