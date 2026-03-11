@@ -93,6 +93,36 @@ export function registerStateTools(
     );
 
     server.tool(
+        'get_timeline_data',
+        'Get timeline asset data (tracks, duration, wrapMode)',
+        {
+            uuid: z.string().optional().describe('Timeline asset UUID'),
+            path: z.string().optional().describe('Timeline asset relative path'),
+        },
+        async (args: { uuid?: string; path?: string }) => {
+            const params = args.uuid ? `uuid=${args.uuid}` : `path=${encodeURIComponent(args.path!)}`;
+            const result = await bridge.get(`/timeline/data?${params}`);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'update_timeline_data',
+        'Update timeline asset: add/modify tracks, keyframes, markers, events, duration',
+        {
+            uuid: z.string().optional().describe('Timeline asset UUID'),
+            path: z.string().optional().describe('Timeline asset relative path'),
+            tracks: z.array(z.record(z.unknown())).optional().describe('Full tracks array to replace'),
+            duration: z.number().optional().describe('Timeline duration in seconds'),
+            wrapMode: z.string().optional().describe('Wrap mode: once, loop, pingPong'),
+        },
+        async (args: { uuid?: string; path?: string; tracks?: Record<string, unknown>[]; duration?: number; wrapMode?: string }) => {
+            const result = await bridge.post('/timeline/update', args);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        },
+    );
+
+    server.tool(
         'get_asset_meta',
         'Get full asset meta: UUID, importer settings, labels, address, group, platform overrides',
         {

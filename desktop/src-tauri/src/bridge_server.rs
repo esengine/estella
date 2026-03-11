@@ -317,6 +317,18 @@ fn parse_request(
         ("POST", "/action/redo") => {
             Ok(("redo".into(), json!({})))
         }
+        ("GET", "/timeline/data") => {
+            let uuid = query_params.get("uuid").cloned();
+            let path = query_params.get("path").cloned();
+            let mut p = json!({});
+            if let Some(u) = uuid { p["uuid"] = json!(u); }
+            if let Some(pa) = path { p["path"] = json!(pa); }
+            Ok(("getTimelineData".into(), p))
+        }
+        ("POST", "/timeline/update") => {
+            let body = read_json_body(reader)?;
+            Ok(("updateTimelineData".into(), body))
+        }
         ("GET", "/assets/meta") => {
             let uuid = query_params.get("uuid").cloned();
             let path = query_params.get("path").cloned();

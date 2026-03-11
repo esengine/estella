@@ -147,6 +147,7 @@
     flex-shrink: 0;
     border-right: 1px solid var(--es-border);
     overflow-y: auto;
+    padding-top: 24px;
     background: var(--es-bg-primary);
 }
 
@@ -331,6 +332,12 @@
     opacity: 0.4;
     cursor: default;
     pointer-events: none;
+}
+
+.es-timeline-dropdown-separator {
+    height: 1px;
+    background: var(--es-border);
+    margin: 4px 0;
 }
 
 .es-timeline-dropdown-back {
