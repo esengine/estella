@@ -104,6 +104,31 @@ if (input.isMouseButtonReleased(0)) {
 }
 ```
 
+<Aside type="caution">
+  `getMousePosition()` returns **screen coordinates** (CSS pixels relative to the canvas element), not world coordinates. If you need to interact with entities in the scene, use `UICameraInfo` to get world coordinates — see [Screen to World Coordinates](#screen-to-world-coordinates) below.
+</Aside>
+
+### Screen to World Coordinates
+
+When using UI plugins (included by default via `createWebApp`), `UICameraInfo` automatically converts mouse position to world coordinates each frame:
+
+```typescript
+import { defineSystem, addSystem, Res, Input, UICameraInfo } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Input), Res(UICameraInfo)],
+    (input, camera) => {
+        if (input.isMouseButtonPressed(0)) {
+            // World coordinates, ready to use for scene interaction
+            const wx = camera.worldMouseX;
+            const wy = camera.worldMouseY;
+            spawnBullet(wx, wy);
+        }
+    }
+));
+```
+
+
 ## Scroll Input
 
 ```typescript

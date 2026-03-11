@@ -26,8 +26,34 @@ The **Timeline** system drives multi-track animations that coordinate property c
 | Property | Animate any numeric component property (position, scale, color, etc.) with keyframe interpolation |
 | Spine | Trigger Spine animation clips on a SpineAnimation component |
 | Sprite Animation | Play sprite animation clips |
+| AnimFrames | Visual frame track — each sprite frame is a colored, resizable block with its own duration |
 | Audio | Trigger audio events at specific times |
 | Activation | Enable/disable entities over time ranges |
+| Marker | Place named markers at specific times |
+| Custom Event | Trigger custom events at specific times |
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Space` | Play / Pause |
+| `,` / `.` | Step backward / forward one frame |
+| `K` | Add keyframe at playhead |
+| `Delete` | Delete selected keyframes |
+| `Ctrl+Click` | Toggle keyframe selection |
+| `Shift+Click` | Range select keyframes |
+
+### Toolbar Controls
+
+- **Record**: Toggle auto-keyframe mode — changes to properties are automatically recorded as keyframes
+- **Speed**: Cycle playback speed (0.25x, 0.5x, 1x, 2x, 4x)
+- **Wrap Mode**: Cycle between Once, Loop, and PingPong
+- **Snap**: Toggle grid snapping during keyframe drag
+- **Duration**: Double-click the time display to edit total timeline duration
+
+### Live Playhead Sync
+
+When entering Play Mode, the timeline automatically switches to **LIVE** mode. The playhead tracks the runtime animation position in real-time, and a red "LIVE" indicator appears in the toolbar. Editor playback controls are disabled during live mode and restore when exiting Play Mode.
 
 ## TimelinePlayer Component
 

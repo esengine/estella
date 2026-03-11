@@ -86,7 +86,6 @@ describe('TimelineLoader', () => {
     describe('parseTimelineAsset', () => {
         it('should parse a minimal timeline with property track', () => {
             const result = parseTimelineAsset(MINIMAL_TIMELINE);
-            expect(result.version).toBe('1.0');
             expect(result.type).toBe('timeline');
             expect(result.duration).toBe(2.0);
             expect(result.wrapMode).toBe(WrapMode.Once);

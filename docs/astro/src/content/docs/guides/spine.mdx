@@ -138,6 +138,58 @@ addSystem(defineSystem(
 ));
 ```
 
+## Animation Mixing
+
+Crossfade between animations with configurable mix duration via `SpineManager`:
+
+```typescript
+import { SpineManager } from 'esengine';
+
+const manager = app.getResource(SpineManager);
+
+// Set default mix duration for all transitions
+manager.setDefaultMix(entity, 0.2);
+
+// Set mix duration for a specific transition pair
+manager.setMixDuration(entity, 'idle', 'run', 0.15);
+manager.setMixDuration(entity, 'run', 'idle', 0.3);
+```
+
+## Attachment Control
+
+Show/hide slots and swap attachments at runtime:
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+// Hide a slot
+manager.setAttachment(entity, 'weapon', '');
+
+// Swap to a different attachment
+manager.setAttachment(entity, 'weapon', 'sword');
+```
+
+## IK Constraints
+
+Configure inverse kinematics constraints on Spine skeletons. IK targets can be positioned programmatically:
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+// mix: 0.0 = no effect, 1.0 = full IK
+manager.setIKTarget(entity, 'aim-ik', targetX, targetY, 1.0);
+```
+
+## Slot Color
+
+Tint individual Spine slots:
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+manager.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);
+```
+
 ## Multi-Version Architecture
 
 Estella supports Spine versions **3.8**, **4.1**, and **4.2** simultaneously. The engine automatically detects the Spine version from the skeleton data and selects the appropriate runtime backend.

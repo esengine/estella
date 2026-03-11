@@ -138,6 +138,58 @@ addSystem(defineSystem(
 ));
 ```
 
+## 动画混合
+
+通过 `SpineManager` 配置动画之间的交叉淡入淡出：
+
+```typescript
+import { SpineManager } from 'esengine';
+
+const manager = app.getResource(SpineManager);
+
+// 设置所有过渡的默认混合时长
+manager.setDefaultMix(entity, 0.2);
+
+// 设置特定过渡对的混合时长
+manager.setMixDuration(entity, 'idle', 'run', 0.15);
+manager.setMixDuration(entity, 'run', 'idle', 0.3);
+```
+
+## 附件控制
+
+在运行时显示/隐藏插槽和替换附件：
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+// 隐藏插槽
+manager.setAttachment(entity, 'weapon', '');
+
+// 替换为其他附件
+manager.setAttachment(entity, 'weapon', 'sword');
+```
+
+## IK 约束
+
+配置 Spine 骨架上的反向动力学约束，可通过代码设置 IK 目标位置：
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+// mix: 0.0 = 无效果, 1.0 = 完全 IK
+manager.setIKTarget(entity, 'aim-ik', targetX, targetY, 1.0);
+```
+
+## 插槽颜色
+
+为单个 Spine 插槽着色：
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+manager.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);
+```
+
 ## 多版本架构
 
 Estella 同时支持 Spine **3.8**、**4.1** 和 **4.2** 版本。引擎会自动从骨骼数据中检测 Spine 版本并选择对应的运行时后端。

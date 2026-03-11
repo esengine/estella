@@ -104,6 +104,31 @@ if (input.isMouseButtonReleased(0)) {
 }
 ```
 
+<Aside type="caution">
+  `getMousePosition()` 返回的是**屏幕坐标**（相对于 Canvas 元素的 CSS 像素），不是世界坐标。如果需要与场景中的实体交互，请使用 `UICameraInfo` 获取世界坐标——参见下方[屏幕坐标转世界坐标](#屏幕坐标转世界坐标)。
+</Aside>
+
+### 屏幕坐标转世界坐标
+
+使用 UI 插件时（`createWebApp` 默认包含），`UICameraInfo` 每帧自动将鼠标位置转换为世界坐标：
+
+```typescript
+import { defineSystem, addSystem, Res, Input, UICameraInfo } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Input), Res(UICameraInfo)],
+    (input, camera) => {
+        if (input.isMouseButtonPressed(0)) {
+            // 世界坐标，可直接用于场景交互
+            const wx = camera.worldMouseX;
+            const wy = camera.worldMouseY;
+            spawnBullet(wx, wy);
+        }
+    }
+));
+```
+
+
 ## 滚轮输入
 
 ```typescript
