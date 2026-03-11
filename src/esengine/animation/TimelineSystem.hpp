@@ -46,6 +46,7 @@ public:
     void stop(TimelineHandle handle);
     void setTime(TimelineHandle handle, f32 time);
     void setSpeed(TimelineHandle handle, f32 speed);
+    void setWrapMode(TimelineHandle handle, TimelineWrapMode mode);
     f32 getTime(TimelineHandle handle) const;
     bool isPlaying(TimelineHandle handle) const;
     bool isStopped(TimelineHandle handle) const;

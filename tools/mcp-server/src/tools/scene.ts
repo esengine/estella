@@ -113,7 +113,11 @@ export function registerSceneTools(
 
     server.tool(
         'add_component',
-        'Add a component to an entity (defaults are auto-filled)',
+        `Add a component to an entity (defaults are auto-filled). Use list_components to see available types.
+Key components for animation:
+- TimelinePlayer: { timeline: "<.estimeline UUID>", playing: false, speed: 1, wrapMode: "once" }
+- SpriteAnimator: { clip: "<.esanim UUID>", playing: false }
+To play esanim via timeline: entity needs both TimelinePlayer and SpriteAnimator, and the timeline must have a spriteAnim track referencing the esanim asset.`,
         {
             entity: z.union([z.number(), z.string()]).describe('Entity ID or name'),
             component: z.string().describe('Component type (e.g., "Transform", "Sprite", "RigidBody")'),

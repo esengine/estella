@@ -94,7 +94,8 @@ export function registerStateTools(
 
     server.tool(
         'get_timeline_data',
-        'Get timeline asset data (tracks, duration, wrapMode)',
+        `Get timeline asset data. Returns { duration, wrapMode, tracks[] }.
+Use list_assets with type="timeline" to find timeline UUIDs, or get_entity_data to read TimelinePlayer.timeline field.`,
         {
             uuid: z.string().optional().describe('Timeline asset UUID'),
             path: z.string().optional().describe('Timeline asset relative path'),
@@ -108,11 +109,57 @@ export function registerStateTools(
 
     server.tool(
         'update_timeline_data',
-        'Update timeline asset: add/modify tracks, keyframes, markers, events, duration',
+        `Update a .estimeline asset file. Provide uuid/path plus any top-level fields to patch (tracks, duration, wrapMode).
+
+IMPORTANT: "tracks" replaces the full array — always read first with get_timeline_data, modify, then write back.
+
+## How timeline works
+- An entity needs a TimelinePlayer component with "timeline" field set to the .estimeline asset UUID.
+- The entity also needs the target components (Transform, Sprite, SpriteAnimator, etc.) that the tracks animate.
+- To control esanim: add a spriteAnim track referencing the .esanim asset UUID. The entity must also have a SpriteAnimator component.
+- Use set_property to change TimelinePlayer fields (wrapMode, playing, speed) on the entity.
+
+## Track type schemas
+
+### property — animate component fields with keyframes
+{ type: "property", name: string, component: "Transform"|"Sprite"|"UIRect"|..., childPath: "" (or "ChildName/GrandChild"),
+  channels: [{ property: "position.x"|"scale.y"|"color.r"|...,
+    keyframes: [{ time: number, value: number, inTangent: 0, outTangent: 0, interpolation: "linear"|"easeIn"|"easeOut"|"easeInOut"|"step"|"hermite" }] }] }
+
+### spine — play spine animations on SpineAnimation component
+{ type: "spine", name: string, childPath: "",
+  clips: [{ start: number, duration: number, animation: "idle"|..., speed: 1, loop: true }], blendIn: 0 }
+
+### spriteAnim — trigger a SpriteAnimator clip (esanim). Entity must have SpriteAnimator component.
+{ type: "spriteAnim", name: string, childPath: "",
+  clip: "<esanim-asset-UUID-or-path>", startTime: 0 }
+
+### audio — play audio clips
+{ type: "audio", name: string, childPath: "",
+  events: [{ time: number, clip: "<audio-asset-UUID>", volume: 1 }] }
+
+### activation — show/hide entity in time ranges
+{ type: "activation", name: string, childPath: "",
+  ranges: [{ start: number, end: number }] }
+
+### marker — named time markers (no runtime effect, for editor use)
+{ type: "marker", name: string, childPath: "",
+  markers: [{ time: number, name: string }] }
+
+### customEvent — custom events with payload
+{ type: "customEvent", name: string, childPath: "",
+  events: [{ time: number, name: string, payload: {} }] }
+
+## Example: add a spriteAnim track to play idle.esanim at t=0
+1. get_timeline_data({ uuid: "..." })  →  read existing tracks
+2. Append: { type: "spriteAnim", name: "Idle", childPath: "", clip: "<idle.esanim-uuid>", startTime: 0 }
+3. update_timeline_data({ uuid: "...", tracks: [...existing, newTrack] })
+4. Ensure the entity has SpriteAnimator component: add_component({ entity: id, component: "SpriteAnimator", data: { clip: "<idle.esanim-uuid>" } })
+5. Set loop playback: set_property({ entity: id, component: "TimelinePlayer", field: "wrapMode", value: "loop" })`,
         {
             uuid: z.string().optional().describe('Timeline asset UUID'),
             path: z.string().optional().describe('Timeline asset relative path'),
-            tracks: z.array(z.record(z.unknown())).optional().describe('Full tracks array to replace'),
+            tracks: z.array(z.record(z.unknown())).optional().describe('Full tracks array to replace (read first, modify, write back)'),
             duration: z.number().optional().describe('Timeline duration in seconds'),
             wrapMode: z.string().optional().describe('Wrap mode: once, loop, pingPong'),
         },

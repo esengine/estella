@@ -70,6 +70,12 @@ void TimelineSystem::setSpeed(TimelineHandle handle, f32 speed) {
     }
 }
 
+void TimelineSystem::setWrapMode(TimelineHandle handle, TimelineWrapMode mode) {
+    if (auto* inst = getInstance(handle)) {
+        inst->data.wrapMode = mode;
+    }
+}
+
 f32 TimelineSystem::getTime(TimelineHandle handle) const {
     if (auto* inst = getInstance(handle)) {
         return inst->currentTime;

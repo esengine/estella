@@ -19,7 +19,14 @@ export function registerActionTools(
 
     server.tool(
         'set_property',
-        'Set a component property on an entity (supports undo)',
+        `Set a component property on an entity (supports undo).
+Common component fields:
+- Transform: position {x,y,z}, rotation {x,y,z,w}, scale {x,y,z}
+- Sprite: texture (UUID), color {r,g,b,a}, size {x,y}, enabled, flipX, flipY
+- TimelinePlayer: timeline (asset UUID), playing (bool), speed (number), wrapMode ("once"|"loop"|"pingPong")
+- SpriteAnimator: clip (esanim asset UUID or registered name), playing (bool)
+- Camera: orthoSize (number)
+Use get_component_schema for full field list of any component.`,
         {
             entity: z.union([z.number(), z.string()]).describe('Entity ID or name'),
             component: z.string().describe('Component type (e.g., "Transform", "Sprite")'),
