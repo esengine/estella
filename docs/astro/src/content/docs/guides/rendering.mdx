@@ -1,13 +1,13 @@
 ---
 title: Rendering
-description: Camera, transform, and render order in ESEngine
+description: Camera, transform, and render order in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine uses a component-based rendering system. Add rendering components to entities in the scene editor and the C++ backend handles drawing automatically.
+Estella uses a component-based rendering system. Add rendering components to entities in the scene editor and the C++ backend handles drawing automatically.
 
-For detailed guides on specific rendering components, see [Sprite](/microes/guides/sprite/) and [Spine Animation](/microes/guides/spine/).
+For detailed guides on specific rendering components, see [Sprite](/docs/guides/sprite/) and [Spine Animation](/docs/guides/spine/).
 
 ## Camera
 
@@ -38,7 +38,7 @@ Best for 2D games. The `orthoSize` determines how much of the world is visible (
 
 ### Canvas Integration
 
-For screen adaptation and resolution scaling, attach a `Canvas` component to the camera entity. See [Canvas & Resolution](/microes/guides/canvas/) for setup and scale modes.
+For screen adaptation and resolution scaling, attach a `Canvas` component to the camera entity. See [Canvas & Resolution](/docs/guides/canvas/) for setup and scale modes.
 
 ### Moving the Camera
 
@@ -180,11 +180,11 @@ Renderer.setStage(RenderStage.Overlay);
 
 ## Next Steps
 
-- [Canvas & Resolution](/microes/guides/canvas/) — screen adaptation and scale modes
-- [Sprite](/microes/guides/sprite/) — sprite rendering and animation
-- [Spine Animation](/microes/guides/spine/) — skeletal animation
-- [Bitmap Text](/microes/guides/bitmap-text/) — GPU-rendered bitmap font text
-- [Custom Draw](/microes/guides/custom-draw/) — immediate-mode drawing for debug visualization and dynamic graphics
-- [Post-Processing](/microes/guides/post-processing/) — full-screen effects (blur, vignette, grayscale)
-- [Render Texture](/microes/guides/render-texture/) — off-screen rendering for minimaps, mirrors, and effects
-- [Geometry & Meshes](/microes/guides/geometry/) — custom mesh creation for advanced rendering
+- [Canvas & Resolution](/docs/guides/canvas/) — screen adaptation and scale modes
+- [Sprite](/docs/guides/sprite/) — sprite rendering and animation
+- [Spine Animation](/docs/guides/spine/) — skeletal animation
+- [Bitmap Text](/docs/guides/bitmap-text/) — GPU-rendered bitmap font text
+- [Custom Draw](/docs/guides/custom-draw/) — immediate-mode drawing for debug visualization and dynamic graphics
+- [Post-Processing](/docs/guides/post-processing/) — full-screen effects (blur, vignette, grayscale)
+- [Render Texture](/docs/guides/render-texture/) — off-screen rendering for minimaps, mirrors, and effects
+- [Geometry & Meshes](/docs/guides/geometry/) — custom mesh creation for advanced rendering

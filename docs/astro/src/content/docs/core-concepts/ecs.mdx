@@ -1,11 +1,11 @@
 ---
 title: ECS Architecture
-description: Understanding the Entity-Component-System pattern in ESEngine
+description: Understanding the Entity-Component-System pattern in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine uses an Entity-Component-System (ECS) architecture for game object management. ECS separates **identity** (Entity), **data** (Component), and **behavior** (System).
+Estella uses an Entity-Component-System (ECS) architecture for game object management. ECS separates **identity** (Entity), **data** (Component), and **behavior** (System).
 
 ## What is ECS?
 
@@ -80,7 +80,7 @@ const Player = defineTag('Player');
 
 After defining these, open the editor, select an entity, and add `Health` or `Player` from the "Add Component" menu.
 
-See [Components](/microes/core-concepts/components/) for the full API.
+See [Components](/docs/core-concepts/components/) for the full API.
 
 ## Systems
 
@@ -102,7 +102,7 @@ addSystem(defineSystem(
 ));
 ```
 
-See [Systems](/microes/core-concepts/systems/) for the full API.
+See [Systems](/docs/core-concepts/systems/) for the full API.
 
 ## ECS Flow
 
@@ -157,13 +157,13 @@ The `World` stores all entities and components. In your scripts, you interact wi
 | Set parent-child hierarchy | `GetWorld()` → `world.setParent(child, parent)` |
 | Remove parent | `GetWorld()` → `world.removeParent(entity)` |
 
-See [Systems](/microes/core-concepts/systems/) and [Queries](/microes/core-concepts/queries/) for detailed usage.
+See [Systems](/docs/core-concepts/systems/) and [Queries](/docs/core-concepts/queries/) for detailed usage.
 
 ## Next Steps
 
-- [Components](/microes/core-concepts/components/) — builtin and custom components
-- [Systems](/microes/core-concepts/systems/) — defining and scheduling systems
-- [Queries](/microes/core-concepts/queries/) — querying entities
-- [Resources](/microes/core-concepts/resources/) — global singleton data
-- [Change Detection](/microes/core-concepts/change-detection/) — reacting to component changes
-- [Events](/microes/core-concepts/events/) — decoupled inter-system communication
+- [Components](/docs/core-concepts/components/) — builtin and custom components
+- [Systems](/docs/core-concepts/systems/) — defining and scheduling systems
+- [Queries](/docs/core-concepts/queries/) — querying entities
+- [Resources](/docs/core-concepts/resources/) — global singleton data
+- [Change Detection](/docs/core-concepts/change-detection/) — reacting to component changes
+- [Events](/docs/core-concepts/events/) — decoupled inter-system communication

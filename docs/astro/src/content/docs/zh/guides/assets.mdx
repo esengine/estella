@@ -1,11 +1,11 @@
 ---
 title: 资源加载
-description: 在 ESEngine 中加载纹理、Spine 数据和其他资源
+description: 在 Estella 中加载纹理、Spine 数据和其他资源
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine 提供 `Assets` 资源（`AssetServer` 实例）来加载纹理、Spine 动画、材质和通用文件。在任何系统中通过 `Res(Assets)` 访问。
+Estella 提供 `Assets` 资源（`AssetServer` 实例）来加载纹理、Spine 动画、材质和通用文件。在任何系统中通过 `Res(Assets)` 访问。
 
 ## 访问 Assets
 
@@ -114,7 +114,7 @@ const prefab = await assets.loadPrefab('prefabs/Enemy.esprefab');
 |------|--------|------|
 | `loadPrefab(path, baseUrl?)` | `Promise<PrefabData>` | 加载并缓存预制体文件 |
 
-详见[预制体](/microes/zh/guides/prefabs/)了解完整的预制体 API。
+详见[预制体](/docs/zh/guides/prefabs/)了解完整的预制体 API。
 
 ## 通用文件加载
 
@@ -187,7 +187,7 @@ sprite.material = loaded.handle;
 | `getMaterial(path, baseUrl?)` | `LoadedMaterial \| undefined` | 获取已缓存的材质 |
 | `hasMaterial(path, baseUrl?)` | `boolean` | 检查材质是否已缓存 |
 
-详见[材质与着色器](/microes/zh/guides/materials/)了解完整的材质 API 和 `.esmaterial` 文件格式。
+详见[材质与着色器](/docs/zh/guides/materials/)了解完整的材质 API 和 `.esmaterial` 文件格式。
 
 ## 缓存机制
 
@@ -320,7 +320,7 @@ interface AddressableManifestAsset {
 
 ## 下一步
 
-- [材质与着色器](/microes/zh/guides/materials/) — 自定义着色器和混合模式
-- [精灵](/microes/zh/guides/sprite/) — 纹理与精灵的使用
-- [位图文本](/microes/zh/guides/bitmap-text/) — 使用位图字体渲染文本
-- [Spine 动画](/microes/zh/guides/spine/) — Spine 骨骼动画
+- [材质与着色器](/docs/zh/guides/materials/) — 自定义着色器和混合模式
+- [精灵](/docs/zh/guides/sprite/) — 纹理与精灵的使用
+- [位图文本](/docs/zh/guides/bitmap-text/) — 使用位图字体渲染文本
+- [Spine 动画](/docs/zh/guides/spine/) — Spine 骨骼动画

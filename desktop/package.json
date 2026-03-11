@@ -2,7 +2,7 @@
   "name": "@esengine/desktop",
   "version": "0.1.0",
   "type": "module",
-  "description": "ESEngine Editor Desktop Application",
+  "description": "Estella Editor Desktop Application",
   "scripts": {
     "postinstall": "node scripts/copy-esbuild-wasm.js",
     "predev": "node scripts/kill-port.js",

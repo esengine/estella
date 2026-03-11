@@ -1,20 +1,18 @@
-/* ESEngine Documentation Custom Styles */
+/* Estella Documentation Custom Styles */
 
 :root {
-  /* Brand colors */
-  --sl-color-accent-low: #1a365d;
-  --sl-color-accent: #3182ce;
-  --sl-color-accent-high: #63b3ed;
+  --sl-color-accent-low: #3d2e1a;
+  --sl-color-accent: #d19a66;
+  --sl-color-accent-high: #e5c07b;
 
-  /* Typography */
   --sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --sl-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 :root[data-theme='dark'] {
-  --sl-color-accent-low: #1e3a5f;
-  --sl-color-accent: #4299e1;
-  --sl-color-accent-high: #90cdf4;
+  --sl-color-accent-low: #2e2214;
+  --sl-color-accent: #d19a66;
+  --sl-color-accent-high: #e5c07b;
 }
 
 /* Code blocks */
@@ -51,8 +49,8 @@
 }
 
 .api-badge.class {
-  background-color: #3182ce20;
-  color: #3182ce;
+  background-color: #d19a6620;
+  color: #e5c07b;
 }
 
 .api-badge.function {

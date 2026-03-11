@@ -1,6 +1,6 @@
 ---
 title: v0.8.2
-description: ESEngine v0.8.2 release notes
+description: Estella v0.8.2 release notes
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -11,7 +11,7 @@ v0.8.2 adds the ShapeRenderer component, collision layer system, new collider ty
 
 ## ShapeRenderer Component
 
-New builtin component for drawing GPU-accelerated 2D shapes using signed distance fields. See the [Shape Renderer guide](/microes/guides/shape-renderer/) for details.
+New builtin component for drawing GPU-accelerated 2D shapes using signed distance fields. See the [Shape Renderer guide](/docs/guides/shape-renderer/) for details.
 
 - **Three shape types** — Circle, Capsule, and RoundedRect with configurable size, color, corner radius, and render layer
 - **SDF rendering** — antialiased edges at any scale via fragment shader distance functions
@@ -21,15 +21,15 @@ New builtin component for drawing GPU-accelerated 2D shapes using signed distanc
 
 Three new collider shapes for the physics system, each with dedicated documentation:
 
-- [**SegmentCollider**](/microes/guides/physics/segment-collider/) — line segment for thin walls and one-way platforms
-- [**PolygonCollider**](/microes/guides/physics/polygon-collider/) — convex polygon with up to 8 vertices
-- [**ChainCollider**](/microes/guides/physics/chain-collider/) — chain of line segments for terrain and complex static boundaries
+- [**SegmentCollider**](/docs/guides/physics/segment-collider/) — line segment for thin walls and one-way platforms
+- [**PolygonCollider**](/docs/guides/physics/polygon-collider/) — convex polygon with up to 8 vertices
+- [**ChainCollider**](/docs/guides/physics/chain-collider/) — chain of line segments for terrain and complex static boundaries
 
 All colliders support the full property set including density, friction, restitution, sensor mode, and collision layer assignment. Editor inspector schemas and debug draw are included.
 
 ## Collision Layer System
 
-A 16-layer bitmask collision filtering system with editor integration. See [Colliders — Collision Filtering](/microes/guides/physics/colliders/#collision-filtering).
+A 16-layer bitmask collision filtering system with editor integration. See [Colliders — Collision Filtering](/docs/guides/physics/colliders/#collision-filtering).
 
 - **Named layers** — define up to 16 collision layers (e.g., "Player", "Enemy", "Ground") in project settings
 - **Collision matrix** — visual matrix widget in Settings → Physics to configure which layers interact

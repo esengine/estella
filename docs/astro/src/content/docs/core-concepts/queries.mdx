@@ -1,6 +1,6 @@
 ---
 title: Queries
-description: Querying entities by component in ESEngine
+description: Querying entities by component in Estella
 ---
 
 Queries let you iterate over entities that have specific components. They are the primary way systems access entity data from the scene.
@@ -162,7 +162,7 @@ defineSystem([Removed(Health)], (removed) => {
 });
 ```
 
-See [Change Detection](/microes/core-concepts/change-detection/) for details on how tick-based tracking works.
+See [Change Detection](/docs/core-concepts/change-detection/) for details on how tick-based tracking works.
 
 ## Multiple Queries
 
@@ -261,7 +261,7 @@ const despawnDead = defineSystem(
 
 ## Next Steps
 
-- [Change Detection](/microes/core-concepts/change-detection/) — tick-based tracking for Added, Changed, Removed
-- [Events](/microes/core-concepts/events/) — decoupled inter-system communication
-- [Resources](/microes/core-concepts/resources/) — global singleton data like Time and Input
-- [Components](/microes/core-concepts/components/) — all builtin and custom component types
+- [Change Detection](/docs/core-concepts/change-detection/) — tick-based tracking for Added, Changed, Removed
+- [Events](/docs/core-concepts/events/) — decoupled inter-system communication
+- [Resources](/docs/core-concepts/resources/) — global singleton data like Time and Input
+- [Components](/docs/core-concepts/components/) — all builtin and custom component types

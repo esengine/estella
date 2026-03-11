@@ -1,11 +1,11 @@
 ---
 title: 系统
-description: 在 ESEngine 中定义和调度系统
+description: 在 Estella 中定义和调度系统
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-系统包含游戏逻辑。它们通过参数声明需要的数据，ESEngine 自动注入。系统自动操作**场景中所有匹配的实体**。
+系统包含游戏逻辑。它们通过参数声明需要的数据，Estella 自动注入。系统自动操作**场景中所有匹配的实体**。
 
 ## 定义系统
 
@@ -163,7 +163,7 @@ defineSystem([Query(Mut(Transform), Sprite)], (query) => {
 });
 ```
 
-详见[查询](/microes/zh/core-concepts/queries/)。
+详见[查询](/docs/zh/core-concepts/queries/)。
 
 ### Res（只读资源）
 
@@ -185,7 +185,7 @@ defineSystem([ResMut(GameState)], (state) => {
 });
 ```
 
-详见[资源](/microes/zh/core-concepts/resources/)。
+详见[资源](/docs/zh/core-concepts/resources/)。
 
 ### EventWriter
 
@@ -215,7 +215,7 @@ defineSystem([EventReader(DamageEvent)], (reader) => {
 });
 ```
 
-详见[事件](/microes/zh/core-concepts/events/)。
+详见[事件](/docs/zh/core-concepts/events/)。
 
 ### GetWorld
 
@@ -344,7 +344,7 @@ addStartupSystem(defineSystem(
 
 ## 下一步
 
-- [查询](/microes/zh/core-concepts/queries/) — 查询过滤器和迭代方法
-- [资源](/microes/zh/core-concepts/resources/) — 全局单例数据
-- [变更检测](/microes/zh/core-concepts/change-detection/) — 响应组件变更
-- [事件](/microes/zh/core-concepts/events/) — 解耦的系统间通信
+- [查询](/docs/zh/core-concepts/queries/) — 查询过滤器和迭代方法
+- [资源](/docs/zh/core-concepts/resources/) — 全局单例数据
+- [变更检测](/docs/zh/core-concepts/change-detection/) — 响应组件变更
+- [事件](/docs/zh/core-concepts/events/) — 解耦的系统间通信

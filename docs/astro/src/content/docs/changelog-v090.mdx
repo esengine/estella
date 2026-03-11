@@ -1,6 +1,6 @@
 ---
 title: v0.9.0
-description: ESEngine v0.9.0 release notes
+description: Estella v0.9.0 release notes
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -18,7 +18,7 @@ A new multi-track animation system for coordinating property animations, Spine p
 - **5 track types** — Property (keyframe interpolation), Spine (animation clips), Sprite Animation, Audio (timed events), Activation (enable/disable entities)
 - **Editor Timeline panel** — visual track editor with keyframe editing, right-click context menu, and horizontal scroll
 
-See the [Timeline guide](/microes/guides/timeline/) for the full API.
+See the [Timeline guide](/docs/guides/timeline/) for the full API.
 
 ## Async Systems
 
@@ -33,7 +33,7 @@ addStartupSystem(defineSystem(
 ));
 ```
 
-See [Systems](/microes/core-concepts/systems/#async-systems) for details.
+See [Systems](/docs/core-concepts/systems/#async-systems) for details.
 
 ## UI Builder
 
@@ -43,7 +43,7 @@ A declarative API for creating UI hierarchies from code. Factory methods (`UI.bu
 - **Event callbacks** — `onClick`, `onChange`, `onSubmit` on widget options
 - **Entity refs** — capture created entities via `ref` callback on any node
 
-See the [UI Builder guide](/microes/guides/ui-builder/) for the full API.
+See the [UI Builder guide](/docs/guides/ui-builder/) for the full API.
 
 ## UIEvents Callback API
 
@@ -71,7 +71,7 @@ A new debugging tool for inspecting the render pipeline draw-by-draw.
 - **SDK API** — `Renderer.captureNextFrame()`, `Renderer.getCapturedData()`, `Renderer.replayToDrawCall()`, `Renderer.getSnapshotImageData()`
 - **Diagnostics** — `FlushReason` (why batches break), `RenderType` (sprite/text/spine/particle), per-draw-call metadata
 
-See [Debugging](/microes/guides/debugging/#frame-debugger) for usage.
+See [Debugging](/docs/guides/debugging/#frame-debugger) for usage.
 
 ## Renderer v2
 

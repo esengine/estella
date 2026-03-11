@@ -1,7 +1,7 @@
 {
   "name": "@esengine/web-loader",
   "version": "0.1.0",
-  "description": "ESEngine modular WASM loader for web platforms",
+  "description": "Estella modular WASM loader for web platforms",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -29,7 +29,7 @@
     "game-engine",
     "emscripten"
   ],
-  "author": "ESEngine Team",
+  "author": "Estella Team",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.0.0",

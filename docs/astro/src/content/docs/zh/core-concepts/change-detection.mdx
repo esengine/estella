@@ -1,6 +1,6 @@
 ---
 title: 变更检测
-description: 在 ESEngine 中响应组件的添加、修改和移除
+description: 在 Estella 中响应组件的添加、修改和移除
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -120,7 +120,7 @@ Query(Added(Sprite)).without(UIRect)   // 新 Sprite 但非 UI 元素
 
 ## 工作原理
 
-ESEngine 使用**基于 tick 的追踪**：
+Estella 使用**基于 tick 的追踪**：
 
 1. World 维护一个全局 tick 计数器，每帧递增一次
 2. 每次组件插入或修改都会记录当前 tick
@@ -175,6 +175,6 @@ const cleanupSystem = defineSystem(
 
 ## 下一步
 
-- [事件](/microes/zh/core-concepts/events/) — 在系统之间发送和接收消息
-- [查询](/microes/zh/core-concepts/queries/) — 基本查询过滤和迭代
-- [系统](/microes/zh/core-concepts/systems/) — 系统定义和调度
+- [事件](/docs/zh/core-concepts/events/) — 在系统之间发送和接收消息
+- [查询](/docs/zh/core-concepts/queries/) — 基本查询过滤和迭代
+- [系统](/docs/zh/core-concepts/systems/) — 系统定义和调度

@@ -1,11 +1,11 @@
 ---
 title: Systems
-description: Defining systems and scheduling them in ESEngine
+description: Defining systems and scheduling them in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Systems contain game logic. They declare what data they need via parameters, and ESEngine injects the data automatically. Systems operate on **all entities in the scene** that match the query.
+Systems contain game logic. They declare what data they need via parameters, and Estella injects the data automatically. Systems operate on **all entities in the scene** that match the query.
 
 ## Defining Systems
 
@@ -163,7 +163,7 @@ defineSystem([Query(Mut(Transform), Sprite)], (query) => {
 });
 ```
 
-See [Queries](/microes/core-concepts/queries/) for the full API.
+See [Queries](/docs/core-concepts/queries/) for the full API.
 
 ### Res (read-only resource)
 
@@ -185,7 +185,7 @@ defineSystem([ResMut(GameState)], (state) => {
 });
 ```
 
-See [Resources](/microes/core-concepts/resources/) for the full API.
+See [Resources](/docs/core-concepts/resources/) for the full API.
 
 ### EventWriter
 
@@ -215,7 +215,7 @@ defineSystem([EventReader(DamageEvent)], (reader) => {
 });
 ```
 
-See [Events](/microes/core-concepts/events/) for the full API.
+See [Events](/docs/core-concepts/events/) for the full API.
 
 ### GetWorld
 
@@ -344,7 +344,7 @@ Each system runs inside its own try/catch boundary. If a system throws an error,
 
 ## Next Steps
 
-- [Queries](/microes/core-concepts/queries/) — query filters and iteration methods
-- [Resources](/microes/core-concepts/resources/) — global singleton data
-- [Change Detection](/microes/core-concepts/change-detection/) — reacting to component changes
-- [Events](/microes/core-concepts/events/) — decoupled inter-system communication
+- [Queries](/docs/core-concepts/queries/) — query filters and iteration methods
+- [Resources](/docs/core-concepts/resources/) — global singleton data
+- [Change Detection](/docs/core-concepts/change-detection/) — reacting to component changes
+- [Events](/docs/core-concepts/events/) — decoupled inter-system communication

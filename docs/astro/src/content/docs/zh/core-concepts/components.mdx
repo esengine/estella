@@ -1,11 +1,11 @@
 ---
 title: 组件
-description: ESEngine 中的内置和自定义组件
+description: Estella 中的内置和自定义组件
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-组件是附加在实体上的数据。在 ESEngine 中，你在代码中**定义**组件，然后在场景编辑器中**挂载**到实体上。
+组件是附加在实体上的数据。在 Estella 中，你在代码中**定义**组件，然后在场景编辑器中**挂载**到实体上。
 
 ## 内置组件
 
@@ -30,7 +30,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ### Sprite
 
-2D 精灵渲染。需要 `Transform` 才能显示。详见[精灵指南](/microes/zh/guides/sprite/)。
+2D 精灵渲染。需要 `Transform` 才能显示。详见[精灵指南](/docs/zh/guides/sprite/)。
 
 ### Camera
 
@@ -85,11 +85,11 @@ import { Aside } from '@astrojs/starlight/components';
 
 ### SpineAnimation
 
-Spine 骨骼动画播放。需要 `Transform`。详见 [Spine 动画指南](/microes/zh/guides/spine/)。
+Spine 骨骼动画播放。需要 `Transform`。详见 [Spine 动画指南](/docs/zh/guides/spine/)。
 
 ### BitmapText
 
-使用预烘焙位图字体图集（BMFont 格式）进行 GPU 渲染的文本。需要 `Transform`。详见[位图文本指南](/microes/zh/guides/bitmap-text/)。
+使用预烘焙位图字体图集（BMFont 格式）进行 GPU 渲染的文本。需要 `Transform`。详见[位图文本指南](/docs/zh/guides/bitmap-text/)。
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
@@ -104,7 +104,7 @@ Spine 骨骼动画播放。需要 `Transform`。详见 [Spine 动画指南](/mic
 
 ### Text
 
-UI 文本渲染。配合 `UIRect` 和 `Sprite` 组件显示文本。详见[文本与图片](/microes/zh/guides/ui-text/)。
+UI 文本渲染。配合 `UIRect` 和 `Sprite` 组件显示文本。详见[文本与图片](/docs/zh/guides/ui-text/)。
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
@@ -133,7 +133,7 @@ UI 布局矩形。定义 UI 元素的锚点布局。
 
 ### UIMask
 
-将子实体裁剪到父级 `UIRect` 边界内。需要在同一实体上同时挂载 `UIRect` 和 `Transform`。详见[遮罩与安全区](/microes/zh/guides/ui-masking/)。
+将子实体裁剪到父级 `UIRect` 边界内。需要在同一实体上同时挂载 `UIRect` 和 `Transform`。详见[遮罩与安全区](/docs/zh/guides/ui-masking/)。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -169,7 +169,7 @@ UI 元素的按钮行为。需要 `Interactable` 和 `UIRect`。
 
 ### 物理
 
-物理组件需要 `PhysicsPlugin`。详见[物理指南](/microes/zh/guides/physics/)。
+物理组件需要 `PhysicsPlugin`。详见[物理指南](/docs/zh/guides/physics/)。
 
 #### RigidBody
 
@@ -326,6 +326,6 @@ cmds.entity(entity).remove(Velocity);
 
 ## 下一步
 
-- [系统](/microes/zh/core-concepts/systems/) — 操作组件的逻辑
-- [查询](/microes/zh/core-concepts/queries/) — 按组件查找实体
-- [变更检测](/microes/zh/core-concepts/change-detection/) — 响应组件变更
+- [系统](/docs/zh/core-concepts/systems/) — 操作组件的逻辑
+- [查询](/docs/zh/core-concepts/queries/) — 按组件查找实体
+- [变更检测](/docs/zh/core-concepts/change-detection/) — 响应组件变更

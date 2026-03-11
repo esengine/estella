@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#141414"/>
+      <stop offset="100%" style="stop-color:#0a0a0a"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e5c07b"/>
+      <stop offset="100%" style="stop-color:#d19a66"/>
+    </linearGradient>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e5c07b"/>
+      <stop offset="100%" style="stop-color:#d19a66"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" style="stop-color:#e5c07b;stop-opacity:0.06"/>
+      <stop offset="100%" style="stop-color:#e5c07b;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- Logo icon (centered, y=140) -->
+  <g transform="translate(556, 120) scale(0.15)">
+    <rect width="512" height="512" rx="64" fill="#1a1a1a" stroke="#333" stroke-width="4"/>
+    <polygon points="72,120 72,392 240,392 240,340 140,340 140,282 220,282 220,230 140,230 140,172 240,172 240,120" fill="url(#logoGrad)"/>
+    <path d="M280 172Q280 120 340 120L420 120Q450 120 450 160L450 186 398 186 398 168Q398 158 384 158L350 158Q320 158 320 188 320 218 350 218L400 218Q450 218 450 274L450 332Q450 392 390 392L310 392Q270 392 270 340L270 314 322 314 322 340Q322 354 340 354L384 354Q404 354 404 324L404 290Q404 260 380 260L330 260Q280 260 280 208Z" fill="url(#logoGrad)"/>
+    <rect x="72" y="424" width="368" height="4" fill="#d19a66" opacity="0.6"/>
+  </g>
+
+  <!-- Engine name -->
+  <text x="600" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="68" font-weight="800" fill="url(#goldGrad)" text-anchor="middle" letter-spacing="-1">Estella</text>
+
+  <!-- Tagline -->
+  <text x="600" y="315" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="24" fill="#888" text-anchor="middle">A fast 2D game engine powered by WebAssembly and ECS</text>
+
+  <!-- Feature pills (centered) -->
+  <g transform="translate(600, 390)" text-anchor="middle">
+    <rect x="-265" y="-18" width="110" height="36" rx="18" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+    <text x="-210" y="7" font-family="-apple-system, sans-serif" font-size="14" fill="#e5c07b" text-anchor="middle">TypeScript</text>
+
+    <rect x="-130" y="-18" width="130" height="36" rx="18" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+    <text x="-65" y="7" font-family="-apple-system, sans-serif" font-size="14" fill="#e5c07b" text-anchor="middle">WebAssembly</text>
+
+    <rect x="25" y="-18" width="65" height="36" rx="18" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+    <text x="57" y="7" font-family="-apple-system, sans-serif" font-size="14" fill="#e5c07b" text-anchor="middle">ECS</text>
+
+    <rect x="115" y="-18" width="130" height="36" rx="18" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+    <text x="180" y="7" font-family="-apple-system, sans-serif" font-size="14" fill="#e5c07b" text-anchor="middle">Visual Editor</text>
+  </g>
+
+  <!-- URL -->
+  <text x="600" y="510" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="18" fill="#555" text-anchor="middle">estellaengine.com</text>
+
+  <!-- Gold accent line -->
+  <rect x="450" y="535" width="300" height="2" fill="url(#goldGrad)" opacity="0.4"/>
+</svg>

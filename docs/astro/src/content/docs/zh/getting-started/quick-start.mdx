@@ -1,11 +1,11 @@
 ---
 title: 快速开始
-description: 几分钟内创建你的第一个 ESEngine 游戏
+description: 几分钟内创建你的第一个 Estella 游戏
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-让我们创建一个显示移动精灵的简单游戏，介绍 ESEngine 的核心概念。
+让我们创建一个显示移动精灵的简单游戏，介绍 Estella 的核心概念。
 
 ## 创建项目
 
@@ -56,7 +56,7 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 ### 组件在场景中挂载
 
-在 ESEngine 中，实体和组件在**场景编辑器**中创建。你的代码不创建它们 — 而是定义**系统**来查询和操作场景中的实体。
+在 Estella 中，实体和组件在**场景编辑器**中创建。你的代码不创建它们 — 而是定义**系统**来查询和操作场景中的实体。
 
 第 3 步放置的精灵已经有 `Transform` 和 `Sprite` 组件。第 4 步的系统通过 `Query(Mut(Transform), Sprite)` 找到它并执行动画。
 
@@ -131,6 +131,6 @@ addStartupSystem(defineSystem(
 
 ## 下一步
 
-- [理解 ECS 模式](/microes/zh/core-concepts/ecs/)
-- [了解组件](/microes/zh/core-concepts/components/)
-- [编写系统](/microes/zh/core-concepts/systems/)
+- [理解 ECS 模式](/docs/zh/core-concepts/ecs/)
+- [了解组件](/docs/zh/core-concepts/components/)
+- [编写系统](/docs/zh/core-concepts/systems/)

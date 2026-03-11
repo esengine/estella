@@ -1,11 +1,11 @@
 ---
 title: Storage
-description: Save and load persistent data in ESEngine
+description: Save and load persistent data in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine provides a `Storage` API for persisting data locally. It works across Web (localStorage) and WeChat MiniGame (wx storage) platforms with a unified interface.
+Estella provides a `Storage` API for persisting data locally. It works across Web (localStorage) and WeChat MiniGame (wx storage) platforms with a unified interface.
 
 ## Basic Usage
 
@@ -48,7 +48,7 @@ if (Storage.has('highScore')) {
 
 Storage.remove('highScore');
 
-// Remove all ESEngine storage data
+// Remove all Estella storage data
 Storage.clear();
 ```
 
@@ -112,7 +112,7 @@ function saveMusicVolume(volume: number) {
 | `setJSON<T>(key, value)` | Store a JSON-serializable value |
 | `has(key)` | Check if a key exists |
 | `remove(key)` | Remove a key |
-| `clear()` | Remove all ESEngine storage data |
+| `clear()` | Remove all Estella storage data |
 
 <Aside type="note">
   All keys are automatically prefixed with `esengine:` to avoid conflicts with other libraries. You don't need to add this prefix yourself.
@@ -131,6 +131,6 @@ function saveMusicVolume(volume: number) {
 
 ## Next Steps
 
-- [Scenes](/microes/guides/scenes/) — scene loading and management
-- [Resources](/microes/core-concepts/resources/) — runtime global state with the Resource system
-- [WeChat MiniGame](/microes/guides/wechat/) — WeChat platform specifics
+- [Scenes](/docs/guides/scenes/) — scene loading and management
+- [Resources](/docs/core-concepts/resources/) — runtime global state with the Resource system
+- [WeChat MiniGame](/docs/guides/wechat/) — WeChat platform specifics

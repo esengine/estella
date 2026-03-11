@@ -1,6 +1,6 @@
 ---
 title: Change Detection
-description: Reacting to component additions, modifications, and removals in ESEngine
+description: Reacting to component additions, modifications, and removals in Estella
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -120,7 +120,7 @@ Query(Added(Sprite)).without(UIRect)   // New sprites that aren't UI elements
 
 ## How It Works
 
-ESEngine uses **tick-based tracking**:
+Estella uses **tick-based tracking**:
 
 1. The world maintains a global tick counter that increments once per frame
 2. Every component insertion or modification records the current tick
@@ -175,6 +175,6 @@ const cleanupSystem = defineSystem(
 
 ## Next Steps
 
-- [Events](/microes/core-concepts/events/) — send and receive messages between systems
-- [Queries](/microes/core-concepts/queries/) — basic query filters and iteration
-- [Systems](/microes/core-concepts/systems/) — system definition and scheduling
+- [Events](/docs/core-concepts/events/) — send and receive messages between systems
+- [Queries](/docs/core-concepts/queries/) — basic query filters and iteration
+- [Systems](/docs/core-concepts/systems/) — system definition and scheduling

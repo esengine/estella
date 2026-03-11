@@ -1,45 +1,54 @@
 <div align="center">
 
-# ESEngine
+# Estella
 
-**A lightweight 2D game engine for web and WeChat MiniGames**
+**A fast 2D game engine powered by WebAssembly and ECS**
 
-[![CI](https://github.com/esengine/microes/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/microes/actions/workflows/build.yml)
+[![CI](https://github.com/esengine/estella/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/estella/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/esengine/microes)](https://github.com/esengine/microes/releases)
+[![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/esengine/microes)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/esengine/estella)
 
-[Getting Started](#getting-started) • [Documentation](#documentation) • [Discord](https://discord.gg/sAX6PXZ9) • [QQ群: 481923584](https://qm.qq.com/q/BONa5LXQ0U)
+[Website](https://estellaengine.com) • [Getting Started](#getting-started) • [Documentation](#documentation) • [Discord](https://discord.gg/sAX6PXZ9) • [QQ群: 481923584](https://qm.qq.com/q/BONa5LXQ0U)
 
 </div>
 
 ---
 
-## Overview
+## What is Estella?
 
-ESEngine is a lightweight 2D game engine with a **TypeScript SDK** powered by a **C++/WebAssembly** backend. It comes with a visual editor for scene editing and project management, and outputs games that run in web browsers and WeChat MiniGames.
+Estella is a **2D game engine** with a TypeScript SDK driven by a high-performance **C++/WebAssembly** backend. It ships with a visual editor for scene editing and project management, and outputs games that run in **web browsers** and **WeChat MiniGames**.
 
 <div align="center">
-  <img src="docs/assets/editor-screenshot.png" alt="ESEngine Editor" width="800" />
+  <img src="docs/assets/editor-screenshot.png" alt="Estella Editor" width="800" />
 </div>
+
+## Why Estella?
+
+- **Fast** — C++ rendering pipeline compiled to WebAssembly, not interpreted JS
+- **Type-safe** — First-class TypeScript SDK with `defineSystem`, `defineComponent`, and `Query`
+- **Data-oriented** — Entity-Component-System architecture for scalable game logic
+- **Visual editor** — Scene hierarchy, inspector, asset browser — no JSON editing
+- **Cross-platform** — One codebase, deploy to web browsers and WeChat MiniGames
+- **Spine & Physics** — Built-in Spine animation and physics support
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
 | **Visual Editor** | Scene editor with hierarchy, inspector, and asset management |
-| **ECS Architecture** | Data-oriented Entity-Component-System — compose entities from reusable components, drive behavior with systems |
-| **WebGL Rendering** | C++ rendering pipeline compiled to WebAssembly — sprites, cameras, Spine animations, custom shaders |
-| **TypeScript SDK** | Type-safe API with `defineSystem`, `defineComponent`, and `Query` |
+| **ECS Architecture** | Compose entities from reusable components, drive behavior with systems |
+| **WebGL Rendering** | Sprites, cameras, Spine animations, custom shaders — all in WebAssembly |
+| **TypeScript SDK** | Type-safe API: `defineSystem`, `defineComponent`, `Query`, `Commands` |
 | **Cross-Platform** | Single codebase targeting web browsers and WeChat MiniGames |
 
 ## Getting Started
 
 ### Install
 
-Download the editor from the [releases page](https://github.com/esengine/microes/releases) and install it.
+Download the editor from the [releases page](https://github.com/esengine/estella/releases) and install it.
 
 ### Create a Project
 
@@ -74,14 +83,14 @@ Press **F5** in the editor to preview.
 
 ## Documentation
 
-Full documentation: [esengine.github.io/microes](https://esengine.github.io/microes/)
+Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
 
-- [Introduction](https://esengine.github.io/microes/getting-started/introduction/)
-- [Installation](https://esengine.github.io/microes/getting-started/installation/)
-- [Quick Start](https://esengine.github.io/microes/getting-started/quick-start/)
-- [ECS Architecture](https://esengine.github.io/microes/core-concepts/ecs/)
-- [Components](https://esengine.github.io/microes/core-concepts/components/)
-- [Systems](https://esengine.github.io/microes/core-concepts/systems/)
+- [Introduction](https://estellaengine.com/docs/getting-started/introduction/)
+- [Installation](https://estellaengine.com/docs/getting-started/installation/)
+- [Quick Start](https://estellaengine.com/docs/getting-started/quick-start/)
+- [ECS Architecture](https://estellaengine.com/docs/core-concepts/ecs/)
+- [Components](https://estellaengine.com/docs/core-concepts/components/)
+- [Systems](https://estellaengine.com/docs/core-concepts/systems/)
 
 ## Contributing
 
@@ -89,4 +98,4 @@ We welcome contributions! Please read the [Contributing Guide](CONTRIBUTING.md) 
 
 ## License
 
-ESEngine is [MIT licensed](LICENSE).
+Estella is [MIT licensed](LICENSE).

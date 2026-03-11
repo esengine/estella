@@ -1,6 +1,6 @@
-# Contributing to ESEngine
+# Contributing to Estella
 
-Thank you for your interest in contributing to ESEngine! This guide will help you get started.
+Thank you for your interest in contributing to Estella! This guide will help you get started.
 
 ## Development Environment
 
@@ -15,7 +15,7 @@ Thank you for your interest in contributing to ESEngine! This guide will help yo
 ### Setup
 
 ```bash
-git clone https://github.com/esengine/microes.git
+git clone https://github.com/esengine/estella.git
 cd microes
 ```
 
@@ -135,7 +135,7 @@ CI tracks WASM and SDK bundle sizes. If your PR exceeds thresholds:
 
 When reporting a bug, please include:
 
-- ESEngine version (editor version or SDK version)
+- Estella version (editor version or SDK version)
 - Operating system and browser
 - Steps to reproduce the issue
 - Expected vs actual behavior

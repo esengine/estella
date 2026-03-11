@@ -1,6 +1,6 @@
 ---
 title: 自定义绘制
-description: ESEngine 即时模式 2D 绘图 API，用于调试可视化和动态图形
+description: Estella 即时模式 2D 绘图 API，用于调试可视化和动态图形
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -34,7 +34,7 @@ clearDrawCallbacks();
 
 ## 场景作用域回调
 
-使用[场景管理器](/microes/zh/guides/scenes/#场景管理器)时，通过 `SceneContext` 注册绘制回调，自动将其作用域限定到场景。回调仅在场景激活时执行，场景卸载时自动清理：
+使用[场景管理器](/docs/zh/guides/scenes/#场景管理器)时，通过 `SceneContext` 注册绘制回调，自动将其作用域限定到场景。回调仅在场景激活时执行，场景卸载时自动清理：
 
 ```typescript
 app.registerScene({
@@ -179,7 +179,7 @@ Draw.drawMeshWithMaterial(quad, materialHandle, transform);
 
 `drawMeshWithMaterial` 会自动应用材质的混合模式、深度测试和 uniform。
 
-参见[几何体与网格](/microes/zh/guides/geometry/)了解自定义网格创建，以及[材质与着色器](/microes/zh/guides/materials/)了解着色器设置。
+参见[几何体与网格](/docs/zh/guides/geometry/)了解自定义网格创建，以及[材质与着色器](/docs/zh/guides/materials/)了解着色器设置。
 
 ## 性能统计
 
@@ -227,6 +227,6 @@ registerDrawCallback('debug-colliders', () => {
 
 ## 下一步
 
-- [后处理效果](/microes/zh/guides/post-processing/) — 全屏效果管线
-- [几何体与网格](/microes/zh/guides/geometry/) — 自定义网格创建
-- [材质与着色器](/microes/zh/guides/materials/) — 着色器和材质管理
+- [后处理效果](/docs/zh/guides/post-processing/) — 全屏效果管线
+- [几何体与网格](/docs/zh/guides/geometry/) — 自定义网格创建
+- [材质与着色器](/docs/zh/guides/materials/) — 着色器和材质管理
