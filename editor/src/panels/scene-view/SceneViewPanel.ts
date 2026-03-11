@@ -605,6 +605,7 @@ export class SceneViewPanel {
             this.renderPreview();
         }
 
+        getSharedRenderContext().firePostRenderCallback();
     }
 
     // =========================================================================

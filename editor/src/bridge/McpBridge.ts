@@ -283,18 +283,15 @@ export class McpBridge {
         const maxWidth = params.maxWidth as number | undefined;
 
         if (panel === 'scene' || panel === 'game' || !panel) {
-            return this.captureWebGL_(maxWidth);
+            return this.captureWebGL_(maxWidth, panel ?? 'scene');
         }
         return this.captureDomPanel_(panel, maxWidth);
     }
 
-    private captureWebGL_(maxWidth?: number): Promise<unknown> {
+    private captureWebGL_(maxWidth?: number, _panel?: string): Promise<unknown> {
         const ctx = getSharedRenderContext();
         return new Promise((resolve, reject) => {
-            const prevCallback = (ctx as any).postTickCallback_ ?? null;
-
-            ctx.setPostTickCallback(() => {
-                ctx.setPostTickCallback(prevCallback);
+            ctx.setPostRenderCallback(() => {
                 try {
                     const gl = (ctx as any).gl_ as WebGL2RenderingContext;
                     const canvas = (ctx as any).webglCanvas_ as HTMLCanvasElement;
@@ -788,6 +785,9 @@ export class McpBridge {
         if (params.tracks !== undefined) data.tracks = params.tracks;
         if (params.duration !== undefined) data.duration = params.duration;
         if (params.wrapMode !== undefined) data.wrapMode = params.wrapMode;
+        if (params.fps !== undefined) data.fps = params.fps;
+        if (params.loop !== undefined) data.loop = params.loop;
+        if (params.frames !== undefined) data.frames = params.frames;
 
         await fs.writeFile(absPath, JSON.stringify(data, null, 2));
 

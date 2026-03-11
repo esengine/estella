@@ -14,6 +14,7 @@ export const TrackType = {
     Activation: 'activation',
     Marker: 'marker',
     CustomEvent: 'customEvent',
+    AnimFrames: 'animFrames',
 } as const;
 
 export type TrackType = (typeof TrackType)[keyof typeof TrackType];
@@ -116,7 +117,17 @@ export interface CustomEventTrack extends TrackBase {
     events: CustomEvent[];
 }
 
-export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack;
+export interface AnimFrame {
+    texture: string;
+    duration?: number;
+}
+
+export interface AnimFramesTrack extends TrackBase {
+    type: typeof TrackType.AnimFrames;
+    frames: AnimFrame[];
+}
+
+export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack;
 
 export interface TimelineAsset {
     version: string;

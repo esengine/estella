@@ -370,3 +370,8 @@
     color: var(--es-warning, #e8a735);
     line-height: 1.3;
 }
+
+@keyframes es-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}

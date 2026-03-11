@@ -12,7 +12,8 @@ import { getEditorContext } from '../../context/EditorContext';
 import { getSharedRenderContext } from '../../renderer';
 import { getComponent as getComponentDef } from 'esengine';
 import { getProjectService, getSceneService } from '../../services';
-import { getAssetDatabase as getAssetLibrary, isUUID } from '../../asset';
+import { getPlayModeService } from '../../services/PlayModeService';
+import { getAssetDatabase as getAssetLibrary, isUUID, getGlobalPathResolver } from '../../asset';
 import { DisposableStore } from '../../utils/Disposable';
 
 const PLAYBACK_INTERVAL_MS = 16;
@@ -38,6 +39,9 @@ export class TimelinePanel implements PanelInstance {
     private dirty_ = false;
     private boundEntityId_: number | null = null;
     private disposeDirtyReg_: (() => void) | null = null;
+    private liveSyncTimer_: number | null = null;
+    private isLiveMode_ = false;
+    private disposePlayModeListener_: (() => void) | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -56,16 +60,27 @@ export class TimelinePanel implements PanelInstance {
         ));
 
         this.disposables_.add(this.state_.onChange(() => {
-            if (this.state_.playing && this.playbackTimer_ === null) {
-                this.startPlayback();
-            } else if (!this.state_.playing && this.playbackTimer_ !== null) {
-                this.stopPlayback();
+            if (!this.isLiveMode_) {
+                if (this.state_.playing && this.playbackTimer_ === null) {
+                    this.startPlayback();
+                } else if (!this.state_.playing && this.playbackTimer_ !== null) {
+                    this.stopPlayback();
+                }
+                this.applyScrubPreview();
             }
-            this.applyScrubPreview();
         }));
 
         this.onSelectionOrSceneChanged();
         this.updateEmptyState();
+
+        this.disposePlayModeListener_ = getPlayModeService().onStateChange((state) => {
+            if (state === 'playing') {
+                this.enterLiveMode();
+            } else {
+                this.exitLiveMode();
+            }
+        });
+
         const sceneService = getSceneService();
         if (sceneService) {
             this.disposeDirtyReg_ = sceneService.registerDirtyChecker(() => ({
@@ -77,6 +92,8 @@ export class TimelinePanel implements PanelInstance {
 
     dispose(): void {
         this.disposeDirtyReg_?.();
+        this.disposePlayModeListener_?.();
+        this.exitLiveMode();
         this.stopPlayback();
         this.toolbar_?.dispose();
         this.trackList_?.dispose();
@@ -504,6 +521,54 @@ export class TimelinePanel implements PanelInstance {
         return `${projectDir}/${relativePath}`;
     }
 
+    private enterLiveMode(): void {
+        if (this.isLiveMode_) return;
+        this.isLiveMode_ = true;
+        this.stopPlayback();
+        this.state_.playing = false;
+        this.toolbar_?.setLiveMode(true);
+        this.liveSyncTimer_ = window.setInterval(() => this.tickLiveSync(), PLAYBACK_INTERVAL_MS);
+    }
+
+    private exitLiveMode(): void {
+        if (!this.isLiveMode_) return;
+        this.isLiveMode_ = false;
+        if (this.liveSyncTimer_ !== null) {
+            clearInterval(this.liveSyncTimer_);
+            this.liveSyncTimer_ = null;
+        }
+        this.toolbar_?.setLiveMode(false);
+    }
+
+    private tickLiveSync(): void {
+        if (this.boundEntityId_ === null) return;
+
+        const ctx = getSharedRenderContext();
+        if (!ctx.isPlayMode) return;
+
+        const sm = ctx.sceneManager_;
+        if (!sm) return;
+
+        const entityMap = sm.getEntityMap();
+        let runtimeEntity: number | null = null;
+        for (const [editorId, ecsEntity] of entityMap) {
+            if (editorId === this.boundEntityId_) {
+                runtimeEntity = ecsEntity as number;
+                break;
+            }
+        }
+        if (runtimeEntity === null) return;
+
+        const currentTime = ctx.getRuntimeTimelineTime(runtimeEntity);
+        if (currentTime === null) return;
+
+        if (currentTime !== this.state_.playheadTime) {
+            this.state_.playheadTime = currentTime;
+            this.autoScrollPlayhead();
+            this.state_.notify();
+        }
+    }
+
     private startPlayback(): void {
         this.lastPlaybackTime_ = performance.now();
         this.playbackTimer_ = window.setInterval(() => this.tickPlayback(), PLAYBACK_INTERVAL_MS);
@@ -690,6 +755,67 @@ export class TimelinePanel implements PanelInstance {
         this.onAssetDataChanged();
     }
 
+    async openAnimClipFile(ref: string): Promise<void> {
+        if (this.dirty_) {
+            await this.saveTimeline();
+        }
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+        const absPath = this.resolveAssetRefToAbsPath(ref);
+        if (!absPath) return;
+        try {
+            const content = await fs.readFile(absPath);
+            if (!content) return;
+            const raw = JSON.parse(content) as { fps?: number; loop?: boolean; frames: { texture: string; duration?: number }[] };
+            const fps = raw.fps ?? 12;
+            const loop = raw.loop ?? true;
+            const defaultDur = 1 / fps;
+            const totalDuration = raw.frames.reduce((sum, f) => sum + (f.duration ?? defaultDur), 0);
+
+            const assetData: TimelineAssetData = {
+                tracks: [{
+                    type: 'animFrames',
+                    name: 'Frames',
+                    animFrames: raw.frames.map(f => ({
+                        texture: f.texture,
+                        duration: f.duration,
+                    })),
+                }],
+                duration: totalDuration,
+            };
+
+            this.state_.animClipMode = true;
+            this.state_.animClipFps = fps;
+            this.state_.animClipLoop = loop;
+            this.loadTimeline(assetData, totalDuration, ref);
+            this.loadAnimFrameThumbnails();
+        } catch (err) {
+            console.error('Failed to open anim clip:', err);
+        }
+    }
+
+    private async loadAnimFrameThumbnails(): Promise<void> {
+        if (!this.assetData_?.tracks[0]?.animFrames) return;
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+        const resolver = getGlobalPathResolver();
+
+        for (const frame of this.assetData_.tracks[0].animFrames) {
+            if (frame.thumbnailUrl) continue;
+            const displayPath = isUUID(frame.texture)
+                ? (getAssetLibrary().getPath(frame.texture) ?? frame.texture)
+                : frame.texture;
+            const absPath = resolver.toAbsolutePath(displayPath);
+            try {
+                const data = await fs.readBinaryFile(absPath);
+                if (!data) continue;
+                const blob = new Blob([new Uint8Array(data).buffer]);
+                frame.thumbnailUrl = URL.createObjectURL(blob);
+            } catch { /* skip */ }
+        }
+        this.keyframeArea_?.draw();
+    }
+
     async openTimelineFile(ref: string): Promise<void> {
         if (this.dirty_) {
             await this.saveTimeline();
@@ -714,16 +840,35 @@ export class TimelinePanel implements PanelInstance {
         const fs = getEditorContext().fs;
         if (!fs) return false;
         try {
-            const saveData = {
-                version: '1.0',
-                type: 'timeline',
-                duration: this.state_.duration,
-                wrapMode: (this.assetData_ as any).wrapMode ?? 'once',
-                tracks: this.assetData_.tracks,
-            };
+            let json: string;
+            if (this.state_.animClipMode) {
+                const track = this.assetData_.tracks[0];
+                const frames = (track?.animFrames ?? []) as { texture: string; duration?: number }[];
+                const saveData = {
+                    version: 1,
+                    type: 'animation-clip',
+                    fps: this.state_.animClipFps,
+                    loop: this.state_.animClipLoop,
+                    frames: frames.map(f => {
+                        const out: { texture: string; duration?: number } = { texture: f.texture };
+                        if (f.duration != null) out.duration = f.duration;
+                        return out;
+                    }),
+                };
+                json = JSON.stringify(saveData, null, 2);
+            } else {
+                const saveData = {
+                    version: '1.0',
+                    type: 'timeline',
+                    duration: this.state_.duration,
+                    wrapMode: (this.assetData_ as any).wrapMode ?? 'once',
+                    tracks: this.assetData_.tracks,
+                };
+                json = JSON.stringify(saveData, null, 2);
+            }
             const absPath = this.resolveAssetRefToAbsPath(this.assetPath_);
             if (!absPath) return false;
-            const success = await fs.writeFile(absPath, JSON.stringify(saveData, null, 2));
+            const success = await fs.writeFile(absPath, json);
             if (success) {
                 this.dirty_ = false;
             }
@@ -739,29 +884,46 @@ export class TimelinePanel implements PanelInstance {
         if (!entityData) return;
 
         const timelineComp = entityData.components.find(c => c.type === 'TimelinePlayer');
-        if (!timelineComp) {
+        const animComp = entityData.components.find(c => c.type === 'SpriteAnimator');
+
+        if (!timelineComp && !animComp) {
             if (this.boundEntityId_ === entityData.id) {
                 this.clearTimeline();
             }
             return;
         }
 
-        const wasUnbound = this.boundEntityId_ === null;
-        this.boundEntityId_ = entityData.id;
-        this.toolbar_?.setBoundEntity(entityData.id);
+        if (timelineComp) {
+            this.state_.animClipMode = false;
+            const wasUnbound = this.boundEntityId_ === null;
+            this.boundEntityId_ = entityData.id;
+            this.toolbar_?.setBoundEntity(entityData.id);
 
-        const timelinePath = timelineComp.data['timeline'] as string | undefined;
-        if (timelinePath && timelinePath !== this.assetPath_) {
-            this.openTimelineFile(timelinePath);
-        } else if (!timelinePath) {
-            if (this.assetPath_ !== null) {
-                this.clearTimeline();
-                this.boundEntityId_ = entityData.id;
-                this.toolbar_?.setBoundEntity(entityData.id);
+            const timelinePath = timelineComp.data['timeline'] as string | undefined;
+            if (timelinePath && timelinePath !== this.assetPath_) {
+                this.openTimelineFile(timelinePath);
+            } else if (!timelinePath) {
+                if (this.assetPath_ !== null) {
+                    this.clearTimeline();
+                    this.boundEntityId_ = entityData.id;
+                    this.toolbar_?.setBoundEntity(entityData.id);
+                }
+                this.updateEmptyState();
+            } else if (wasUnbound) {
+                this.updateEmptyState();
             }
-            this.updateEmptyState();
-        } else if (wasUnbound) {
-            this.updateEmptyState();
+        } else if (animComp) {
+            const clipRef = animComp.data['clip'] as string | undefined;
+            if (clipRef && clipRef !== this.assetPath_) {
+                this.openAnimClipFile(clipRef);
+            } else if (!clipRef) {
+                if (this.assetPath_ !== null) {
+                    this.clearTimeline();
+                }
+                this.updateEmptyState();
+            }
+            this.boundEntityId_ = entityData.id;
+            this.toolbar_?.setBoundEntity(entityData.id);
         }
     }
 }

@@ -9,7 +9,7 @@ export const KEYFRAME_SIZE = 8;
 export const SNAP_THRESHOLD = 5;
 export const DEFAULT_DURATION = 5;
 
-export type TrackType = 'property' | 'spine' | 'spriteAnim' | 'audio' | 'activation' | 'marker' | 'customEvent';
+export type TrackType = 'property' | 'spine' | 'spriteAnim' | 'audio' | 'activation' | 'marker' | 'customEvent' | 'animFrames';
 
 export interface TimelineTrackState {
     index: number;
@@ -34,6 +34,9 @@ export class TimelineState {
     playbackSpeed = 1;
     wrapMode: WrapMode = 'once';
     snapEnabled = true;
+    animClipMode = false;
+    animClipFps = 12;
+    animClipLoop = true;
     selectedTrackIndex = -1;
     selectedKeyframes: Set<string> = new Set();
     tracks: TimelineTrackState[] = [];

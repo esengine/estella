@@ -10,6 +10,7 @@ import {
     type ActivationTrack,
     type MarkerTrack,
     type CustomEventTrack,
+    type AnimFramesTrack,
 } from './TimelineTypes';
 
 const CURRENT_VERSION = '1.1';
@@ -126,6 +127,16 @@ function parseTrack(raw: any): Track {
                 })),
             } as CustomEventTrack;
 
+        case TrackType.AnimFrames:
+            return {
+                ...base,
+                type: TrackType.AnimFrames,
+                frames: (raw.animFrames ?? []).map((f: any) => ({
+                    texture: f.texture ?? '',
+                    duration: f.duration,
+                })),
+            } as AnimFramesTrack;
+
         default:
             console.warn(`[Timeline] Unknown track type: ${raw.type}, skipping`);
             return null as any;
@@ -147,11 +158,13 @@ export function parseTimelineAsset(raw: any): TimelineAsset {
 export interface TimelineAssetPaths {
     audio: string[];
     animClips: string[];
+    textures: string[];
 }
 
 export function extractTimelineAssetPaths(asset: TimelineAsset): TimelineAssetPaths {
     const audio = new Set<string>();
     const animClips = new Set<string>();
+    const textures = new Set<string>();
 
     for (const track of asset.tracks) {
         if (track.type === TrackType.Audio) {
@@ -162,11 +175,18 @@ export function extractTimelineAssetPaths(asset: TimelineAsset): TimelineAssetPa
             if (track.clip) {
                 animClips.add(track.clip);
             }
+        } else if (track.type === TrackType.AnimFrames) {
+            for (const frame of track.frames) {
+                if (frame.texture) {
+                    textures.add(frame.texture);
+                }
+            }
         }
     }
 
     return {
         audio: Array.from(audio),
         animClips: Array.from(animClips),
+        textures: Array.from(textures),
     };
 }

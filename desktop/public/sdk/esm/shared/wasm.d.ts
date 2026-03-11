@@ -666,6 +666,7 @@ interface ESEngineModule {
     _tl_stop(handle: number): void;
     _tl_setTime(handle: number, time: number): void;
     _tl_setSpeed(handle: number, speed: number): void;
+    _tl_setWrapMode(handle: number, mode: number): void;
     _tl_getTime(handle: number): number;
     _tl_isPlaying(handle: number): number;
     _tl_advance(registry: CppRegistry, handle: number, rootEntity: number, deltaTime: number, speed: number): void;

@@ -16,6 +16,8 @@ export {
     type MarkerTrack,
     type CustomEvent,
     type CustomEventTrack,
+    type AnimFrame,
+    type AnimFramesTrack,
     type Track,
     type TimelineAsset,
 } from './TimelineTypes';
@@ -49,4 +51,6 @@ export {
     type TimelinePlayerData,
     registerTimelineAsset,
     getTimelineAsset,
+    registerTimelineTextureHandles,
+    getTimelineTextureHandle,
 } from './TimelinePlugin';

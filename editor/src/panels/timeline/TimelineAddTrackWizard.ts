@@ -38,6 +38,7 @@ const TRACK_TYPE_OPTIONS: { type: TrackType; label: string; icon: (s: number) =>
     { type: 'activation', label: 'Activation', icon: icons.eye, needsEntity: true },
     { type: 'marker', label: 'Marker', icon: icons.tag, needsEntity: false },
     { type: 'customEvent', label: 'Custom Event', icon: icons.zap, needsEntity: false },
+    { type: 'animFrames', label: 'Anim Frames', icon: icons.film, needsEntity: false },
 ];
 
 const SKIP_COMPONENTS = new Set(['Name', 'Parent', 'Children', 'UIInteraction']);
@@ -299,6 +300,8 @@ export class TimelineAddTrackWizard {
                 return { type: 'marker', name: 'Markers', markers: [] };
             case 'customEvent':
                 return { type: 'customEvent', name: 'Custom Events', events: [] };
+            case 'animFrames':
+                return { type: 'animFrames', name: 'Animation Frames', animFrames: [] };
             default:
                 return { type, name: type };
         }
