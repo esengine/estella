@@ -282,7 +282,11 @@ export function createMoveGizmo(): GizmoDescriptor {
         },
 
         getCursor(hitData) {
-            return hitData ? 'pointer' : 'default';
+            const axis = hitData as DragAxis | null;
+            if (axis === 'xy') return 'move';
+            if (axis === 'x') return 'ew-resize';
+            if (axis === 'y') return 'ns-resize';
+            return 'default';
         },
     };
 }
@@ -439,7 +443,7 @@ export function createRotateGizmo(): GizmoDescriptor {
         },
 
         getCursor(hitData) {
-            return hitData ? 'pointer' : 'default';
+            return hitData ? 'grab' : 'default';
         },
     };
 }
@@ -591,7 +595,11 @@ export function createScaleGizmo(): GizmoDescriptor {
         },
 
         getCursor(hitData) {
-            return hitData ? 'pointer' : 'default';
+            const axis = hitData as DragAxis | null;
+            if (axis === 'xy') return 'nwse-resize';
+            if (axis === 'x') return 'ew-resize';
+            if (axis === 'y') return 'ns-resize';
+            return 'default';
         },
     };
 }

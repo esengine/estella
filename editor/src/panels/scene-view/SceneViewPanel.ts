@@ -669,6 +669,8 @@ export class SceneViewPanel {
             this.marquee_.draw(ctx, oScale);
         }
 
+        this.input_.drawOverlayHints(ctx, oScale);
+
         ctx.restore();
 
         const now = performance.now();

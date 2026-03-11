@@ -91,7 +91,8 @@ export class GizmoManager {
     getCursor(): string {
         const gizmo = this.getActive();
         if (!gizmo?.getCursor) return 'default';
-        return gizmo.getCursor(this.hoveredData_);
+        if (this.dragState_ && gizmo.id === 'rotate') return 'grabbing';
+        return gizmo.getCursor(this.dragState_?.data ?? this.hoveredData_);
     }
 
     resetHover(): void {

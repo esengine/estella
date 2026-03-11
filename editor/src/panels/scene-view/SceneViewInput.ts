@@ -38,6 +38,13 @@ export class SceneViewInput {
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
     private boundOnDocumentMouseUp_: ((e: MouseEvent) => void) | null = null;
 
+    private altCycleCandidate_: Entity | null = null;
+    private altCycleHits_: Entity[] = [];
+    private lastMouseWorldX_ = 0;
+    private lastMouseWorldY_ = 0;
+    private hoverOverlapCount_ = 0;
+    private hoverEntityId_: Entity | null = null;
+
     constructor(deps: InputDeps) {
         this.deps_ = deps;
     }
@@ -119,6 +126,37 @@ export class SceneViewInput {
             if (e.key === 'Control' || e.key === 'Meta') {
                 toolbar.updateSnapIndicator(true);
             }
+
+            if (e.key === 'Alt') {
+                e.preventDefault();
+                this.startAltCycle();
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                const selected = store.selectedEntity;
+                if (selected !== null) {
+                    const data = store.getEntityData(selected as number);
+                    if (data && data.children.length > 0) {
+                        store.selectEntity(data.children[0] as Entity);
+                    }
+                }
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                if (this.deps_.gizmoManager.isDragging()) return;
+                const selected = store.selectedEntity;
+                if (selected !== null) {
+                    const data = store.getEntityData(selected as number);
+                    if (data && data.parent !== null) {
+                        store.selectEntity(data.parent as Entity);
+                    } else {
+                        store.selectEntity(null);
+                    }
+                }
+                return;
+            }
         });
 
         this.disposables_.addListener(document, 'keyup', (ev) => {
@@ -131,6 +169,9 @@ export class SceneViewInput {
             }
             if (e.key === 'Control' || e.key === 'Meta') {
                 toolbar.updateSnapIndicator(false);
+            }
+            if (e.key === 'Alt') {
+                this.clearAltCycleOutline();
             }
         });
     }
@@ -205,6 +246,8 @@ export class SceneViewInput {
     private onMouseMove(e: MouseEvent): void {
         const { camera, store, gizmoManager, colliderOverlay, marquee } = this.deps_;
         const { worldX, worldY } = camera.screenToWorld(e.clientX, e.clientY);
+        this.lastMouseWorldX_ = worldX;
+        this.lastMouseWorldY_ = worldY;
 
         if (camera.drag(e.clientX, e.clientY)) return;
 
@@ -265,6 +308,17 @@ export class SceneViewInput {
                 if (pivotCursor) {
                     this.deps_.canvas.style.cursor = pivotCursor;
                 }
+            }
+        }
+
+        const hits = this.findEntitiesAtPosition(worldX, worldY);
+        const newCount = hits.length;
+        const newHover = hits.length > 0 ? hits[0] : null;
+        if (newCount !== this.hoverOverlapCount_ || newHover !== this.hoverEntityId_) {
+            this.hoverOverlapCount_ = newCount;
+            this.hoverEntityId_ = newHover;
+            if (newCount >= 2) {
+                this.deps_.requestRender();
             }
         }
     }
@@ -332,10 +386,20 @@ export class SceneViewInput {
 
         if (camera.isDragging || gizmoManager.isDragging()) return;
 
+        if (this.altCycleCandidate_ !== null) {
+            store.selectEntity(this.altCycleCandidate_);
+            this.altCycleCandidate_ = null;
+            this.altCycleHits_ = [];
+            this.deps_.requestRender();
+            return;
+        }
+
         const { worldX, worldY } = camera.screenToWorld(e.clientX, e.clientY);
         const hasSelection = store.selectedEntities.size > 0;
+        const isAlt = e.altKey;
+        const isDeepSelect = e.metaKey || e.ctrlKey;
 
-        if (gizmoManager.getActiveId() !== 'select' && hasSelection) {
+        if (gizmoManager.getActiveId() !== 'select' && hasSelection && !isAlt && !isDeepSelect) {
             this.updateGizmoContext();
             const result = gizmoManager.hitTest(worldX, worldY);
             if (result.hit) return;
@@ -344,6 +408,20 @@ export class SceneViewInput {
         const hits = this.findEntitiesAtPosition(worldX, worldY);
         if (hits.length === 0) {
             store.selectEntity(null);
+            return;
+        }
+
+        if (isDeepSelect) {
+            let deepest = hits[0];
+            let maxDepth = 0;
+            for (const h of hits) {
+                const d = this.getEntityDepth(h as number);
+                if (d > maxDepth) {
+                    maxDepth = d;
+                    deepest = h;
+                }
+            }
+            store.selectEntity(deepest);
             return;
         }
 
@@ -443,6 +521,117 @@ export class SceneViewInput {
         }
 
         return result;
+    }
+
+    private startAltCycle(): void {
+        const hits = this.findEntitiesAtPosition(this.lastMouseWorldX_, this.lastMouseWorldY_);
+        if (hits.length < 2) {
+            this.altCycleCandidate_ = null;
+            this.altCycleHits_ = [];
+            return;
+        }
+
+        this.altCycleHits_ = hits;
+        const { store } = this.deps_;
+        const current = store.selectedEntity;
+        const idx = current !== null ? hits.indexOf(current as Entity) : -1;
+        this.altCycleCandidate_ = hits[(idx + 1) % hits.length];
+        this.deps_.requestRender();
+    }
+
+    drawOverlayHints(ctx: CanvasRenderingContext2D, overlayScale: number): void {
+        this.drawOverlapBadge(ctx, overlayScale);
+        this.drawAltCycleOutline(ctx, overlayScale);
+    }
+
+    private drawOverlapBadge(ctx: CanvasRenderingContext2D, overlayScale: number): void {
+        if (this.hoverOverlapCount_ < 2 || this.hoverEntityId_ === null) return;
+
+        const { store, getBounds } = this.deps_;
+        const entityData = store.scene.entities.find(e => e.id === (this.hoverEntityId_ as number));
+        if (!entityData) return;
+
+        const worldTransform = store.getWorldTransform(this.hoverEntityId_ as number);
+        const pos = worldTransform.position;
+        const scale = worldTransform.scale;
+        const bounds = getBounds(entityData);
+
+        const w = bounds.width * Math.abs(scale.x);
+        const h = bounds.height * Math.abs(scale.y);
+        const offsetX = (bounds.offsetX ?? 0) * scale.x;
+        const offsetY = (bounds.offsetY ?? 0) * scale.y;
+
+        const badgeX = pos.x + offsetX + w / 2;
+        const badgeY = -(pos.y + offsetY + h / 2);
+
+        const fontSize = 11 / overlayScale;
+        const text = `×${this.hoverOverlapCount_}`;
+        const padX = 4 / overlayScale;
+        const padY = 2 / overlayScale;
+        const offsetPx = 6 / overlayScale;
+
+        ctx.save();
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+        const metrics = ctx.measureText(text);
+        const bgW = metrics.width + padX * 2;
+        const bgH = fontSize + padY * 2;
+        const bx = badgeX + offsetPx;
+        const by = badgeY - offsetPx - bgH;
+
+        ctx.fillStyle = '#0077cc';
+        ctx.beginPath();
+        const r = 3 / overlayScale;
+        ctx.roundRect(bx, by, bgW, bgH, r);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'top';
+        ctx.fillText(text, bx + padX, by + padY);
+        ctx.restore();
+    }
+
+    private drawAltCycleOutline(ctx: CanvasRenderingContext2D, overlayScale: number): void {
+        if (this.altCycleCandidate_ === null) return;
+
+        const { store, getBounds } = this.deps_;
+        const entityData = store.scene.entities.find(e => e.id === (this.altCycleCandidate_ as number));
+        if (!entityData) return;
+
+        const worldTransform = store.getWorldTransform(this.altCycleCandidate_ as number);
+        const pos = worldTransform.position;
+        const scale = worldTransform.scale;
+        const bounds = getBounds(entityData);
+
+        const w = bounds.width * Math.abs(scale.x);
+        const h = bounds.height * Math.abs(scale.y);
+        const offsetX = (bounds.offsetX ?? 0) * scale.x;
+        const offsetY = (bounds.offsetY ?? 0) * scale.y;
+
+        ctx.save();
+        ctx.translate(pos.x + offsetX, -pos.y - offsetY);
+        ctx.setLineDash([4 / overlayScale, 4 / overlayScale]);
+        ctx.strokeStyle = '#00aaff';
+        ctx.lineWidth = 2 / overlayScale;
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+        ctx.restore();
+    }
+
+    private clearAltCycleOutline(): void {
+        if (this.altCycleCandidate_ === null) return;
+        this.deps_.requestRender();
+    }
+
+    private getEntityDepth(entityId: number): number {
+        const { store } = this.deps_;
+        let depth = 0;
+        let current = entityId;
+        while (true) {
+            const data = store.getEntityData(current);
+            if (!data || data.parent === null) break;
+            current = data.parent;
+            depth++;
+        }
+        return depth;
     }
 
     private updateGizmoContext(): void {
