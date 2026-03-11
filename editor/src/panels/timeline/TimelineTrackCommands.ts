@@ -62,8 +62,8 @@ interface CustomEventData {
 function getCustomEvents(data: TimelineAssetData, trackIndex: number): CustomEventData[] | null {
     const track = data.tracks[trackIndex];
     if (!track || track.type !== 'customEvent') return null;
-    if (!track.customEvents) track.customEvents = [];
-    return track.customEvents as CustomEventData[];
+    if (!track.events) track.events = [];
+    return track.events as CustomEventData[];
 }
 
 // =============================================================================
@@ -782,6 +782,70 @@ export class DeleteCustomEventCommand extends BaseCommand {
         if (!events || !this.deleted_) return;
         events.splice(this.eventIndex_, 0, this.deleted_);
         this.deleted_ = null;
+        this.onChanged_();
+    }
+}
+
+export class RenameCustomEventCommand extends BaseCommand {
+    readonly type = 'timeline_rename_custom_event';
+    readonly description = 'Rename custom event';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private eventIndex_: number,
+        private oldName_: string,
+        private newName_: string,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.name = this.newName_;
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.name = this.oldName_;
+        this.onChanged_();
+    }
+}
+
+export class EditCustomEventPayloadCommand extends BaseCommand {
+    readonly type = 'timeline_edit_custom_event_payload';
+    readonly description = 'Edit custom event payload';
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private eventIndex_: number,
+        private oldPayload_: Record<string, unknown>,
+        private newPayload_: Record<string, unknown>,
+        private onChanged_: () => void,
+    ) {
+        super();
+    }
+
+    execute(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.payload = { ...this.newPayload_ };
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const events = getCustomEvents(this.data_, this.trackIndex_);
+        if (!events) return;
+        const ev = events[this.eventIndex_];
+        if (ev) ev.payload = { ...this.oldPayload_ };
         this.onChanged_();
     }
 }

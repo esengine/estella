@@ -13,6 +13,8 @@ import {
     BatchDeleteKeyframesCommand,
     PasteKeyframesCommand,
 } from './TimelineCommands';
+import { showInputDialog } from '../../ui/InputDialog';
+import { showObjectDialog } from '../../ui/dialog';
 import {
     AddSpineClipCommand,
     MoveSpineClipCommand,
@@ -31,6 +33,8 @@ import {
     AddCustomEventCommand,
     MoveCustomEventCommand,
     DeleteCustomEventCommand,
+    RenameCustomEventCommand,
+    EditCustomEventPayloadCommand,
     MoveSpriteAnimStartCommand,
 } from './TimelineTrackCommands';
 
@@ -97,17 +101,56 @@ export interface TimelineAssetData {
     duration: number;
 }
 
+export interface TimelineKeyframe {
+    time: number;
+    value: number;
+    inTangent?: number;
+    outTangent?: number;
+    interpolation?: string;
+}
+
+export interface TimelineChannel {
+    property: string;
+    keyframes: TimelineKeyframe[];
+}
+
+export interface TimelineSpineClip {
+    start: number;
+    duration: number;
+    animation: string;
+}
+
+export interface TimelineAudioEvent {
+    time: number;
+    clip: string;
+}
+
+export interface TimelineCustomEvent {
+    time: number;
+    name: string;
+    payload: Record<string, unknown>;
+}
+
+export interface TimelineActivationRange {
+    start: number;
+    end: number;
+}
+
+export interface TimelineMarker {
+    time: number;
+    name: string;
+}
+
 export interface TimelineTrackData {
     type: string;
     name: string;
     childPath?: string;
     component?: string;
-    channels?: { property: string; keyframes: { time: number; value: number; inTangent?: number; outTangent?: number; interpolation?: string }[] }[];
-    clips?: { start: number; duration: number; animation: string }[];
-    events?: { time: number; clip: string }[];
-    ranges?: { start: number; end: number }[];
-    markers?: { time: number; name: string }[];
-    customEvents?: { time: number; name: string; payload: Record<string, unknown> }[];
+    channels?: TimelineChannel[];
+    clips?: TimelineSpineClip[];
+    events?: (TimelineAudioEvent | TimelineCustomEvent)[];
+    ranges?: TimelineActivationRange[];
+    markers?: TimelineMarker[];
     clip?: string;
     startTime?: number;
 }
@@ -154,6 +197,7 @@ export class TimelineKeyframeArea {
     private unsub_: (() => void) | null = null;
     private resizeObserver_: ResizeObserver | null = null;
     private selectedKeyframes_: Map<string, KeyframeHit> = new Map();
+    private selectedNpItem_: { type: string; trackIndex: number; itemIndex: number } | null = null;
     private onSelectionChange_: KeyframeSelectionCallback | null = null;
     private rubberBand_: { startX: number; startY: number; endX: number; endY: number } | null = null;
     private clipboard_: { channelIndex: number; relativeTime: number; value: number; inTangent: number; outTangent: number }[] = [];
@@ -199,7 +243,21 @@ export class TimelineKeyframeArea {
 
     private clearSelection(): void {
         this.selectedKeyframes_.clear();
+        this.selectedNpItem_ = null;
         this.notifySelectionChange();
+    }
+
+    private selectNpItem(npHit: { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit | MarkerHit | CustomEventHit | SpriteAnimHit }): void {
+        this.selectedKeyframes_.clear();
+        const hit = npHit.hit;
+        let itemIndex = -1;
+        if ('clipIndex' in hit) itemIndex = hit.clipIndex;
+        else if ('eventIndex' in hit) itemIndex = hit.eventIndex;
+        else if ('rangeIndex' in hit) itemIndex = hit.rangeIndex;
+        else if ('markerIndex' in hit) itemIndex = hit.markerIndex;
+        const trackIndex = hit.trackIndex;
+        this.selectedNpItem_ = { type: npHit.type, trackIndex, itemIndex };
+        this.draw();
     }
 
     private selectOnly(hit: KeyframeHit): void {
@@ -458,30 +516,47 @@ export class TimelineKeyframeArea {
                 break;
 
             case 'marker':
-                this.drawMarkers(ctx, assetTrack.markers ?? [], y);
+                this.drawMarkers(ctx, assetTrack.markers ?? [], y, track.index);
                 break;
 
             case 'customEvent':
-                this.drawCustomEvents(ctx, assetTrack.customEvents ?? [], y);
+                this.drawCustomEvents(ctx, (assetTrack.events ?? []) as TimelineCustomEvent[], y, track.index);
                 break;
         }
     }
 
+    private isNpItemSelected(type: string, trackIndex: number, itemIndex: number): boolean {
+        const sel = this.selectedNpItem_;
+        return sel != null && sel.type === type && sel.trackIndex === trackIndex && sel.itemIndex === itemIndex;
+    }
+
     private drawCustomEvents(
         ctx: CanvasRenderingContext2D,
-        events: { time: number; name: string }[],
+        events: TimelineCustomEvent[],
         y: number,
+        trackIndex: number,
     ): void {
-        for (const event of events) {
+        for (let i = 0; i < events.length; i++) {
+            const event = events[i];
             const x = this.state_.timeToX(event.time);
-            ctx.fillStyle = CUSTOM_EVENT_COLOR;
+            const selected = this.isNpItemSelected('customEvent', trackIndex, i);
+
+            ctx.fillStyle = selected ? KEYFRAME_SELECTED : CUSTOM_EVENT_COLOR;
             ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
 
             ctx.beginPath();
             ctx.arc(x, y + 6, 4, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = '#cccccc';
+            if (selected) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(x, y + 6, 5.5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
             ctx.font = '9px monospace';
             ctx.textAlign = 'left';
             ctx.fillText(event.name, x + 6, y + TRACK_HEIGHT / 2 + 3);
@@ -492,10 +567,14 @@ export class TimelineKeyframeArea {
         ctx: CanvasRenderingContext2D,
         markers: { time: number; name: string }[],
         y: number,
+        trackIndex: number,
     ): void {
-        for (const marker of markers) {
+        for (let i = 0; i < markers.length; i++) {
+            const marker = markers[i];
             const x = this.state_.timeToX(marker.time);
-            ctx.fillStyle = MARKER_COLOR;
+            const selected = this.isNpItemSelected('marker', trackIndex, i);
+
+            ctx.fillStyle = selected ? KEYFRAME_SELECTED : MARKER_COLOR;
             ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
 
             ctx.beginPath();
@@ -505,7 +584,18 @@ export class TimelineKeyframeArea {
             ctx.closePath();
             ctx.fill();
 
-            ctx.fillStyle = '#cccccc';
+            if (selected) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x - 6.5, y + 1);
+                ctx.lineTo(x + 6.5, y + 1);
+                ctx.lineTo(x, y + 9.5);
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
             ctx.font = '9px monospace';
             ctx.textAlign = 'left';
             ctx.fillText(marker.name, x + 6, y + TRACK_HEIGHT / 2 + 3);
@@ -852,10 +942,10 @@ export class TimelineKeyframeArea {
     private hitTestCustomEvent(x: number, trackIndex: number): CustomEventHit | null {
         if (!this.assetData_) return null;
         const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'customEvent' || !track.customEvents) return null;
+        if (!track || track.type !== 'customEvent' || !track.events) return null;
 
-        for (let i = 0; i < track.customEvents.length; i++) {
-            const ex = this.state_.timeToX(track.customEvents[i].time);
+        for (let i = 0; i < track.events.length; i++) {
+            const ex = this.state_.timeToX(track.events[i].time);
             if (Math.abs(x - ex) <= KEYFRAME_HIT_RADIUS) {
                 return { trackIndex, eventIndex: i };
             }
@@ -1042,6 +1132,7 @@ export class TimelineKeyframeArea {
         const npHit = this.hitTestNonPropertyTrack(x, y);
         if (npHit) {
             this.clearSelection();
+            this.selectNpItem(npHit);
             this.canvas_.focus();
             if (npHit.type === 'spine') {
                 this.startSpineClipDrag(e, rect, npHit.hit as SpineClipHit);
@@ -1241,8 +1332,8 @@ export class TimelineKeyframeArea {
     private startCustomEventDrag(_e: MouseEvent, rect: DOMRect, hit: CustomEventHit): void {
         if (!this.assetData_ || !this.host_) return;
         const track = this.assetData_.tracks[hit.trackIndex];
-        if (!track?.customEvents) return;
-        const event = track.customEvents[hit.eventIndex];
+        if (!track?.events) return;
+        const event = track.events[hit.eventIndex];
         if (!event) return;
 
         const oldTime = event.time;
@@ -1684,6 +1775,7 @@ export class TimelineKeyframeArea {
             });
             menu.appendChild(deleteItem);
         } else if (npHit) {
+            this.selectNpItem(npHit);
             this.buildNonPropertyContextMenu(menu, npHit);
         } else if (trackInfo) {
             const assetTrack = this.assetData_.tracks[trackInfo.trackIndex];
@@ -1815,10 +1907,60 @@ export class TimelineKeyframeArea {
             menu.appendChild(item);
         } else if (npHit.type === 'customEvent') {
             const hit = npHit.hit as CustomEventHit;
-            const item = document.createElement('div');
-            item.className = 'es-timeline-dropdown-item';
-            item.textContent = 'Delete Event';
-            item.addEventListener('click', () => {
+            const track = this.assetData_!.tracks[hit.trackIndex];
+            const events = (track?.events ?? []) as TimelineCustomEvent[];
+            const ev = events[hit.eventIndex];
+
+            const renameItem = document.createElement('div');
+            renameItem.className = 'es-timeline-dropdown-item';
+            renameItem.textContent = 'Rename';
+            renameItem.addEventListener('click', async () => {
+                menu.remove();
+                if (!ev) return;
+                const newName = await showInputDialog({
+                    title: 'Rename Event',
+                    defaultValue: ev.name,
+                    placeholder: 'Event name',
+                });
+                if (newName != null && newName !== ev.name) {
+                    const cmd = new RenameCustomEventCommand(
+                        this.assetData_!, hit.trackIndex, hit.eventIndex,
+                        ev.name, newName,
+                        () => this.host_!.onAssetDataChanged(),
+                    );
+                    this.host_!.executeCommand(cmd);
+                }
+            });
+            menu.appendChild(renameItem);
+
+            const payloadItem = document.createElement('div');
+            payloadItem.className = 'es-timeline-dropdown-item';
+            payloadItem.textContent = 'Edit Payload';
+            payloadItem.addEventListener('click', async () => {
+                menu.remove();
+                if (!ev) return;
+                const newPayload = await showObjectDialog({
+                    title: `Edit Payload — ${ev.name}`,
+                    value: ev.payload ?? {},
+                });
+                if (newPayload == null) return;
+                const cmd = new EditCustomEventPayloadCommand(
+                    this.assetData_!, hit.trackIndex, hit.eventIndex,
+                    { ...ev.payload }, newPayload,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            });
+            menu.appendChild(payloadItem);
+
+            const sep = document.createElement('div');
+            sep.className = 'es-timeline-dropdown-separator';
+            menu.appendChild(sep);
+
+            const deleteItem = document.createElement('div');
+            deleteItem.className = 'es-timeline-dropdown-item';
+            deleteItem.textContent = 'Delete Event';
+            deleteItem.addEventListener('click', () => {
                 menu.remove();
                 const cmd = new DeleteCustomEventCommand(
                     this.assetData_!, hit.trackIndex, hit.eventIndex,
@@ -1826,7 +1968,7 @@ export class TimelineKeyframeArea {
                 );
                 this.host_!.executeCommand(cmd);
             });
-            menu.appendChild(item);
+            menu.appendChild(deleteItem);
         }
     }
 

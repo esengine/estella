@@ -134,6 +134,8 @@ export class McpBridge {
             case 'openScene': return this.openScene_(params.path as string);
             case 'instantiatePrefab': return this.instantiatePrefab_(params);
             case 'createScript': return this.createScript_(params);
+            case 'getTimelineData': return this.getTimelineData_(params);
+            case 'updateTimelineData': return this.updateTimelineData_(params);
             case 'getAssetMeta': return this.getAssetMeta_(params);
             case 'updateAssetMeta': return this.updateAssetMeta_(params);
             case 'ensureAssetMeta': return this.ensureAssetMeta_(params);
@@ -742,6 +744,68 @@ export class McpBridge {
 
         await fs.writeFile(filePath, scriptContent);
         return { ok: true, path: filePath };
+    }
+
+    // =========================================================================
+    // Timeline
+    // =========================================================================
+
+    private async getTimelineData_(params: Record<string, unknown>): Promise<unknown> {
+        const fs = getEditorContext().fs;
+        if (!fs) throw new Error('File system not available');
+        if (!this.projectPath_) throw new Error('No project path');
+
+        const projectDir = this.projectPath_.replace(/\/[^/]+$/, '');
+        const ref = params.path as string | undefined ?? params.uuid as string | undefined;
+        if (!ref) throw new Error('path or uuid is required');
+
+        const db = getAssetDatabase();
+        const relativePath = this.resolveAssetPath_(ref, db);
+        const absPath = `${projectDir}/${relativePath}`;
+
+        const content = await fs.readFile(absPath);
+        if (!content) throw new Error(`Timeline file not found: ${relativePath}`);
+        return JSON.parse(content);
+    }
+
+    private async updateTimelineData_(params: Record<string, unknown>): Promise<unknown> {
+        const fs = getEditorContext().fs;
+        if (!fs) throw new Error('File system not available');
+        if (!this.projectPath_) throw new Error('No project path');
+
+        const projectDir = this.projectPath_.replace(/\/[^/]+$/, '');
+        const ref = params.path as string | undefined ?? params.uuid as string | undefined;
+        if (!ref) throw new Error('path or uuid is required');
+
+        const db = getAssetDatabase();
+        const relativePath = this.resolveAssetPath_(ref, db);
+        const absPath = `${projectDir}/${relativePath}`;
+
+        const content = await fs.readFile(absPath);
+        if (!content) throw new Error(`Timeline file not found: ${relativePath}`);
+        const data = JSON.parse(content) as Record<string, unknown>;
+
+        if (params.tracks !== undefined) data.tracks = params.tracks;
+        if (params.duration !== undefined) data.duration = params.duration;
+        if (params.wrapMode !== undefined) data.wrapMode = params.wrapMode;
+
+        await fs.writeFile(absPath, JSON.stringify(data, null, 2));
+
+        // Re-select to trigger timeline panel reload
+        const store = getEditorStore();
+        const selectedId = [...store.selectedEntities][0];
+        if (selectedId != null) {
+            store.selectEntity(null);
+            store.selectEntity(selectedId);
+        }
+        getSharedRenderContext().requestRender();
+        return { ok: true };
+    }
+
+    private resolveAssetPath_(ref: string, db: ReturnType<typeof getAssetDatabase>): string {
+        const entry = db.getEntry(ref) ?? db.getEntryByPath(ref);
+        if (entry) return entry.path;
+        return ref;
     }
 
     // =========================================================================

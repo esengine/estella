@@ -64,6 +64,7 @@ export class TimelinePanel implements PanelInstance {
             this.applyScrubPreview();
         }));
 
+        this.onSelectionOrSceneChanged();
         this.updateEmptyState();
         const sceneService = getSceneService();
         if (sceneService) {

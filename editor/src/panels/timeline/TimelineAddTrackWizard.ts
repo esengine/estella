@@ -298,7 +298,7 @@ export class TimelineAddTrackWizard {
             case 'marker':
                 return { type: 'marker', name: 'Markers', markers: [] };
             case 'customEvent':
-                return { type: 'customEvent', name: 'Custom Events', customEvents: [] };
+                return { type: 'customEvent', name: 'Custom Events', events: [] };
             default:
                 return { type, name: type };
         }
