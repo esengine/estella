@@ -3,6 +3,9 @@ const CHEVRON_DOWN_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="
 const CLOSE_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 6 9 12 15 18"></polyline></svg>`;
 const REMOVE_SVG = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
 
+import { showAssetPicker } from '../../ui/asset-picker';
+import { isAssetField, getAssetDisplayPath, IMAGE_EXTENSIONS } from '../../utils/smAssetUtils';
+
 const EASING_OPTIONS = ['linear', 'easeInQuad', 'easeOutQuad', 'easeInOutQuad', 'easeInCubic', 'easeOutCubic', 'easeInOutCubic', 'easeInBack', 'easeOutBack', 'easeInOutBack', 'easeOutBounce'];
 const COMPARATOR_OPTIONS = ['eq', 'neq', 'gt', 'lt', 'gte', 'lte'];
 const COMPARATOR_LABELS: Record<string, string> = { eq: '=', neq: '\u2260', gt: '>', lt: '<', gte: '\u2265', lte: '\u2264' };
@@ -274,21 +277,32 @@ export class GraphDetailPanel {
                 }
             });
 
-            const valInput = document.createElement('input');
-            valInput.className = 'es-input';
-            valInput.style.cssText = 'width:64px;flex-shrink:0;font-size:11px;padding:2px 4px;height:20px;';
-            valInput.value = String(value ?? '');
-            valInput.addEventListener('change', () => {
-                this.callbacks_.onPropertyValueChanged(stateName, key, parsePropertyValue(valInput.value));
-            });
+            if (isAssetField(key)) {
+                const assetEditor = this.createAssetValueEditor(
+                    getAssetDisplayPath(value),
+                    (assetValue) => {
+                        this.callbacks_.onPropertyValueChanged(stateName, key, assetValue);
+                    },
+                );
+                row.appendChild(keyInput);
+                row.appendChild(assetEditor);
+            } else {
+                const valInput = document.createElement('input');
+                valInput.className = 'es-input';
+                valInput.style.cssText = 'width:64px;flex-shrink:0;font-size:11px;padding:2px 4px;height:20px;';
+                valInput.value = String(value ?? '');
+                valInput.addEventListener('change', () => {
+                    this.callbacks_.onPropertyValueChanged(stateName, key, parsePropertyValue(valInput.value));
+                });
+                row.appendChild(keyInput);
+                row.appendChild(valInput);
+            }
 
             const removeBtn = this.createRemoveBtn();
             removeBtn.addEventListener('click', () => {
                 this.callbacks_.onRemoveProperty(stateName, key);
             });
 
-            row.appendChild(keyInput);
-            row.appendChild(valInput);
             row.appendChild(removeBtn);
             container.appendChild(row);
         }
@@ -428,17 +442,29 @@ export class GraphDetailPanel {
             keyEl.style.cssText = 'flex:1;min-width:0;font-size:10px;color:var(--es-text-secondary, #aaa);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
             keyEl.textContent = key;
 
-            const valInput = document.createElement('input');
-            valInput.className = 'es-input';
-            valInput.style.cssText = 'width:50px;flex-shrink:0;font-size:10px;padding:1px 4px;height:18px;';
-            valInput.value = String(value ?? '');
-            valInput.addEventListener('change', () => {
-                const newProps = { ...(entry.properties ?? {}), [key]: parsePropertyValue(valInput.value) };
-                this.callbacks_.onUpdateBlendEntry?.(stateName, entryIndex, 'properties', newProps);
-            });
-
             propRow.appendChild(keyEl);
-            propRow.appendChild(valInput);
+
+            if (isAssetField(key)) {
+                const assetEditor = this.createAssetValueEditor(
+                    getAssetDisplayPath(value),
+                    (assetValue: string) => {
+                        const newProps = { ...(entry.properties ?? {}), [key]: assetValue || undefined };
+                        this.callbacks_.onUpdateBlendEntry?.(stateName, entryIndex, 'properties', newProps);
+                    },
+                );
+                propRow.appendChild(assetEditor);
+            } else {
+                const valInput = document.createElement('input');
+                valInput.className = 'es-input';
+                valInput.style.cssText = 'width:50px;flex-shrink:0;font-size:10px;padding:1px 4px;height:18px;';
+                valInput.value = String(value ?? '');
+                valInput.addEventListener('change', () => {
+                    const newProps = { ...(entry.properties ?? {}), [key]: parsePropertyValue(valInput.value) };
+                    this.callbacks_.onUpdateBlendEntry?.(stateName, entryIndex, 'properties', newProps);
+                });
+                propRow.appendChild(valInput);
+            }
+
             container.appendChild(propRow);
         }
     }
@@ -713,6 +739,52 @@ export class GraphDetailPanel {
         return sel;
     }
 
+    private createAssetValueEditor(currentPath: string, onChange: (value: string) => void): HTMLElement {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;align-items:center;gap:2px;flex-shrink:0;width:100px;';
+
+        const pathEl = document.createElement('input');
+        pathEl.className = 'es-input';
+        pathEl.style.cssText = 'flex:1;min-width:0;font-size:10px;padding:1px 4px;height:20px;';
+        pathEl.readOnly = true;
+        pathEl.value = currentPath;
+        pathEl.title = currentPath || 'No asset selected';
+        wrap.appendChild(pathEl);
+
+        const browseBtn = document.createElement('button');
+        browseBtn.className = 'es-btn es-btn-icon es-btn-clear';
+        browseBtn.style.cssText = 'width:18px;height:18px;padding:0;flex-shrink:0;font-size:10px;';
+        browseBtn.textContent = '...';
+        browseBtn.title = 'Browse asset';
+        browseBtn.addEventListener('click', async () => {
+            const result = await showAssetPicker({
+                title: 'Select Texture',
+                allowedTypes: ['image'],
+                extensions: IMAGE_EXTENSIONS,
+            });
+            if (result) {
+                pathEl.value = result.relativePath;
+                pathEl.title = result.relativePath;
+                onChange(result.relativePath);
+            }
+        });
+        wrap.appendChild(browseBtn);
+
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
+        clearBtn.style.cssText = 'width:18px;height:18px;padding:0;flex-shrink:0;font-size:10px;';
+        clearBtn.textContent = '\u00d7';
+        clearBtn.title = 'Clear';
+        clearBtn.addEventListener('click', () => {
+            pathEl.value = '';
+            pathEl.title = 'No asset selected';
+            onChange('');
+        });
+        wrap.appendChild(clearBtn);
+
+        return wrap;
+    }
+
     private createRemoveBtn(): HTMLButtonElement {
         const btn = document.createElement('button');
         btn.className = 'es-btn es-btn-icon es-btn-clear';
@@ -730,3 +802,5 @@ function parsePropertyValue(raw: string): unknown {
     if (!isNaN(num) && raw.trim() !== '') return num;
     return raw;
 }
+
+

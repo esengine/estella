@@ -1,4 +1,6 @@
 import type { PropertyEditorContext, PropertyEditorInstance } from '../PropertyEditor';
+import { showAssetPicker } from '../../ui/asset-picker';
+import { isAssetField, getAssetDisplayPath, IMAGE_EXTENSIONS } from '../../utils/smAssetUtils';
 
 interface InputDef {
     name: string;
@@ -514,22 +516,74 @@ export function createStateMachineEditor(
                     keyInput.value = pKey;
                     keyInput.placeholder = 'Component.field';
 
-                    const valInput = document.createElement('input');
-                    valInput.type = 'text';
-                    valInput.className = 'es-input es-input-string es-sm-val';
-                    valInput.value = String(pVal);
+                    if (isAssetField(pKey)) {
+                        const assetWrap = document.createElement('div');
+                        assetWrap.style.cssText = 'display:flex;align-items:center;gap:2px;flex:1;min-width:0;';
 
-                    const commitProp = () => {
-                        const newKey = keyInput.value.trim();
-                        if (!newKey) return;
-                        if (!state.properties) state.properties = {};
-                        if (newKey !== pKey) delete state.properties[pKey];
-                        const raw = valInput.value;
-                        state.properties[newKey] = raw === 'true' ? true : raw === 'false' ? false : isNaN(Number(raw)) ? raw : Number(raw);
-                        emit();
-                    };
-                    keyInput.addEventListener('change', commitProp);
-                    valInput.addEventListener('change', commitProp);
+                        const pathInput = document.createElement('input');
+                        pathInput.type = 'text';
+                        pathInput.className = 'es-input es-input-string es-sm-val';
+                        pathInput.readOnly = true;
+                        pathInput.value = getAssetDisplayPath(pVal);
+                        pathInput.title = getAssetDisplayPath(pVal) || 'No asset selected';
+
+                        const browseBtn = document.createElement('button');
+                        browseBtn.className = 'es-btn es-btn-icon es-btn-clear';
+                        browseBtn.style.cssText = 'width:20px;height:20px;padding:0;flex-shrink:0;font-size:10px;';
+                        browseBtn.textContent = '...';
+                        browseBtn.title = 'Browse asset';
+                        browseBtn.addEventListener('click', async () => {
+                            const result = await showAssetPicker({
+                                title: 'Select Texture',
+                                allowedTypes: ['image'],
+                                extensions: IMAGE_EXTENSIONS,
+                            });
+                            if (result) {
+                                if (!state.properties) state.properties = {};
+                                const newKey = keyInput.value.trim() || pKey;
+                                if (newKey !== pKey) delete state.properties[pKey];
+                                state.properties[newKey] = result.relativePath;
+                                pathInput.value = result.relativePath;
+                                pathInput.title = result.relativePath;
+                                emit();
+                            }
+                        });
+
+                        const clearBtn = document.createElement('button');
+                        clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
+                        clearBtn.style.cssText = 'width:20px;height:20px;padding:0;flex-shrink:0;font-size:10px;';
+                        clearBtn.textContent = '\u00d7';
+                        clearBtn.title = 'Clear';
+                        clearBtn.addEventListener('click', () => {
+                            if (state.properties) delete state.properties[pKey];
+                            emit(); rebuild();
+                        });
+
+                        assetWrap.appendChild(pathInput);
+                        assetWrap.appendChild(browseBtn);
+                        assetWrap.appendChild(clearBtn);
+                        pRow.appendChild(keyInput);
+                        pRow.appendChild(assetWrap);
+                    } else {
+                        const valInput = document.createElement('input');
+                        valInput.type = 'text';
+                        valInput.className = 'es-input es-input-string es-sm-val';
+                        valInput.value = String(pVal);
+
+                        const commitProp = () => {
+                            const newKey = keyInput.value.trim();
+                            if (!newKey) return;
+                            if (!state.properties) state.properties = {};
+                            if (newKey !== pKey) delete state.properties[pKey];
+                            const raw = valInput.value;
+                            state.properties[newKey] = raw === 'true' ? true : raw === 'false' ? false : isNaN(Number(raw)) ? raw : Number(raw);
+                            emit();
+                        };
+                        keyInput.addEventListener('change', commitProp);
+                        valInput.addEventListener('change', commitProp);
+                        pRow.appendChild(keyInput);
+                        pRow.appendChild(valInput);
+                    }
 
                     const rmP = createRemoveBtn();
                     rmP.addEventListener('click', () => {
@@ -537,8 +591,6 @@ export function createStateMachineEditor(
                         emit(); rebuild();
                     });
 
-                    pRow.appendChild(keyInput);
-                    pRow.appendChild(valInput);
                     pRow.appendChild(rmP);
                     stateBody.appendChild(pRow);
                 }

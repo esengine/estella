@@ -3,6 +3,7 @@ import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import { registerComponent } from '../component';
+import { isEditor, isPlayMode } from '../env';
 import type { Entity } from '../types';
 import type { World } from '../world';
 import { StateMachine } from './StateMachine';
@@ -27,6 +28,13 @@ import {
 } from '../timeline/TimelineRuntime';
 import type { UploadResult } from '../timeline/TimelineUploader';
 import type { ESEngineModule } from '../wasm';
+import { Assets } from '../asset/AssetPlugin';
+import type { AssetServer } from '../asset/AssetServer';
+import { EntityStateMap } from './uiHelpers';
+import {
+    isAssetPropertyPath, normalizeAssetValue, collectAssetPaths,
+    StateMachineAssetCache,
+} from './StateMachineAssets';
 
 const EASING_MAP: Record<string, EasingType> = {
     linear: EasingType.Linear,
@@ -52,6 +60,12 @@ const WRAP_MODE_MAP: Record<string, number> = {
 
 const EXIT_STATE = '__exit__';
 
+interface PropertyContext {
+    world: World;
+    entity: Entity;
+    assets: StateMachineAssetCache;
+}
+
 interface LayerRuntime {
     currentState: string;
     activeTweens: ValueTweenHandle[];
@@ -60,12 +74,14 @@ interface LayerRuntime {
     timelinePath: string;
     timelineDuration: number;
     isExited: boolean;
+    pendingAssetApply: boolean;
 }
 
 interface EntityRuntime {
     inputs: Map<string, boolean | number>;
     layers: LayerRuntime[];
     prevHovered: boolean;
+    assets: StateMachineAssetCache;
 }
 
 function createInputs(data: StateMachineData): Map<string, boolean | number> {
@@ -91,6 +107,7 @@ function createLayerRuntime(initialState: string): LayerRuntime {
         timelinePath: '',
         timelineDuration: 0,
         isExited: false,
+        pendingAssetApply: true,
     };
 }
 
@@ -101,12 +118,31 @@ function getLayers(data: StateMachineData): LayerData[] {
     return [{ name: 'Base', states: data.states, initialState: data.initialState }];
 }
 
+function gatherAllAssetPaths(data: StateMachineData): string[] {
+    const paths: string[] = [];
+    const scanStates = (states: Record<string, StateNode>) => {
+        for (const state of Object.values(states)) {
+            paths.push(...collectAssetPaths(state.properties));
+            if (state.blendStates) {
+                for (const entry of state.blendStates) {
+                    paths.push(...collectAssetPaths(entry.properties));
+                }
+            }
+        }
+    };
+    for (const layer of getLayers(data)) {
+        scanStates(layer.states);
+    }
+    return paths;
+}
+
 function createEntityRuntime(data: StateMachineData): EntityRuntime {
     const layers = getLayers(data);
     return {
         inputs: createInputs(data),
         layers: layers.map(l => createLayerRuntime(l.initialState)),
         prevHovered: false,
+        assets: new StateMachineAssetCache(gatherAllAssetPaths(data)),
     };
 }
 
@@ -156,9 +192,33 @@ function resolveEasing(name?: string): EasingType {
     return EASING_MAP[name] ?? EasingType.Linear;
 }
 
+function resolveAssetProperty(
+    ctx: PropertyContext,
+    path: string,
+    value: unknown,
+): boolean {
+    const normalized = normalizeAssetValue(value);
+    if (!normalized) return false;
+    const handle = ctx.assets.getHandle(normalized);
+    if (handle !== undefined) {
+        setEntityProperty(ctx.world, ctx.entity, path, handle);
+        return true;
+    }
+    return false;
+}
+
+function stateHasUnresolvedAssets(state: StateNode, assets: StateMachineAssetCache): boolean {
+    if (!state.properties) return false;
+    for (const [key, value] of Object.entries(state.properties)) {
+        if (!isAssetPropertyPath(key)) continue;
+        const normalized = normalizeAssetValue(value);
+        if (normalized && assets.getHandle(normalized) === undefined) return true;
+    }
+    return false;
+}
+
 function applyStateProperties(
-    world: World,
-    entity: Entity,
+    ctx: PropertyContext,
     state: StateNode,
     duration: number,
     easing: EasingType,
@@ -167,45 +227,53 @@ function applyStateProperties(
     if (!state.properties) return;
 
     for (const [path, targetValue] of Object.entries(state.properties)) {
+        if (isAssetPropertyPath(path)) {
+            resolveAssetProperty(ctx, path, targetValue);
+            continue;
+        }
+
         if (duration > 0 && typeof targetValue === 'number') {
-            const currentValue = getEntityProperty(world, entity, path);
+            const currentValue = getEntityProperty(ctx.world, ctx.entity, path);
             if (typeof currentValue !== 'number') {
-                setEntityProperty(world, entity, path, targetValue);
+                setEntityProperty(ctx.world, ctx.entity, path, targetValue);
                 continue;
             }
             const from = currentValue;
             const to = targetValue;
             const handle = Tween.value(from, to, duration, (v) => {
-                setEntityProperty(world, entity, path, v);
+                setEntityProperty(ctx.world, ctx.entity, path, v);
             }, { easing });
             runtime.activeTweens.push(handle);
         } else {
-            setEntityProperty(world, entity, path, targetValue);
+            setEntityProperty(ctx.world, ctx.entity, path, targetValue);
         }
     }
 }
 
 function applyBlendEntryProperties(
-    world: World,
-    entity: Entity,
+    ctx: PropertyContext,
     entry: BlendEntry,
     weight: number,
 ): void {
     if (!entry.properties || weight <= 0) return;
 
     for (const [path, targetValue] of Object.entries(entry.properties)) {
+        if (isAssetPropertyPath(path)) {
+            resolveAssetProperty(ctx, path, targetValue);
+            continue;
+        }
+
         if (typeof targetValue === 'number') {
-            const current = getEntityProperty(world, entity, path);
+            const current = getEntityProperty(ctx.world, ctx.entity, path);
             if (typeof current === 'number') {
-                setEntityProperty(world, entity, path, current + (targetValue - current) * weight);
+                setEntityProperty(ctx.world, ctx.entity, path, current + (targetValue - current) * weight);
             }
         }
     }
 }
 
 function applyBlend1D(
-    world: World,
-    entity: Entity,
+    ctx: PropertyContext,
     state: StateNode,
     inputs: Map<string, boolean | number>,
 ): void {
@@ -215,7 +283,7 @@ function applyBlend1D(
     const entries = state.blendStates.slice().sort((a, b) => (a.threshold ?? 0) - (b.threshold ?? 0));
 
     if (entries.length === 1) {
-        applyBlendEntryProperties(world, entity, entries[0], 1);
+        applyBlendEntryProperties(ctx, entries[0], 1);
         return;
     }
 
@@ -223,11 +291,11 @@ function applyBlend1D(
     const maxThreshold = entries[entries.length - 1].threshold ?? 0;
 
     if (inputValue <= minThreshold) {
-        applyBlendEntryProperties(world, entity, entries[0], 1);
+        applyBlendEntryProperties(ctx, entries[0], 1);
         return;
     }
     if (inputValue >= maxThreshold) {
-        applyBlendEntryProperties(world, entity, entries[entries.length - 1], 1);
+        applyBlendEntryProperties(ctx, entries[entries.length - 1], 1);
         return;
     }
 
@@ -237,12 +305,25 @@ function applyBlend1D(
         if (inputValue >= lo && inputValue <= hi) {
             const range = hi - lo;
             const t = range > 0 ? (inputValue - lo) / range : 0;
+            const nearLo = t <= 0.5;
             if (entries[i].properties && entries[i + 1].properties) {
                 for (const [path, loVal] of Object.entries(entries[i].properties!)) {
                     const hiVal = entries[i + 1].properties![path];
-                    if (typeof loVal === 'number' && typeof hiVal === 'number') {
+                    const isAsset = isAssetPropertyPath(path);
+                    if (isAsset) {
+                        const loNorm = normalizeAssetValue(loVal);
+                        const hiNorm = normalizeAssetValue(hiVal);
+                        const loHandle = loNorm ? ctx.assets.getHandle(loNorm) : undefined;
+                        const hiHandle = hiNorm ? ctx.assets.getHandle(hiNorm) : undefined;
+                        if (loHandle !== undefined || hiHandle !== undefined) {
+                            const snapped = nearLo ? loHandle : hiHandle;
+                            if (snapped !== undefined) {
+                                setEntityProperty(ctx.world, ctx.entity, path, snapped);
+                            }
+                        }
+                    } else if (typeof loVal === 'number' && typeof hiVal === 'number') {
                         const blended = loVal + (hiVal - loVal) * t;
-                        setEntityProperty(world, entity, path, blended);
+                        setEntityProperty(ctx.world, ctx.entity, path, blended);
                     }
                 }
             }
@@ -252,8 +333,7 @@ function applyBlend1D(
 }
 
 function applyBlendDirect(
-    world: World,
-    entity: Entity,
+    ctx: PropertyContext,
     state: StateNode,
     inputs: Map<string, boolean | number>,
 ): void {
@@ -266,7 +346,7 @@ function applyBlendDirect(
         } else {
             mix = entry.mixValue ?? 1;
         }
-        applyBlendEntryProperties(world, entity, entry, mix);
+        applyBlendEntryProperties(ctx, entry, mix);
     }
 }
 
@@ -305,17 +385,19 @@ function cleanupTimelineHandle(module: ESEngineModule | null, runtime: LayerRunt
     runtime.timelineDuration = 0;
 }
 
-function cleanupEntityRuntime(module: ESEngineModule | null, er: EntityRuntime): void {
+function cleanupEntityRuntime(module: ESEngineModule | null, er: EntityRuntime, assetServer?: AssetServer | null): void {
     for (const layer of er.layers) {
         cancelActiveTweens(layer);
         cleanupTimelineHandle(module, layer);
     }
+    if (assetServer) {
+        er.assets.release(assetServer);
+    }
 }
 
 function processLayer(
-    world: World,
+    ctx: PropertyContext,
     module: ESEngineModule,
-    entity: Entity,
     layerData: LayerData,
     layer: LayerRuntime,
     inputs: Map<string, boolean | number>,
@@ -323,18 +405,16 @@ function processLayer(
 ): void {
     if (layer.isExited) return;
 
-    // Advance active timeline
     if (layer.timelineHandle && layer.timelineUpload && module) {
         setTimelineModule(module);
         advanceAndProcess(
-            world, module,
-            layer.timelineHandle, entity,
+            ctx.world, module,
+            layer.timelineHandle, ctx.entity,
             dt, 1.0,
             layer.timelineUpload,
         );
     }
 
-    // Evaluate transitions (current state first, then __any__)
     const currentState = layerData.states[layer.currentState];
     if (!currentState) return;
 
@@ -375,19 +455,19 @@ function processLayer(
 
         if (stateType === 'blend1d') {
             cleanupTimelineHandle(module, layer);
-            applyBlend1D(world, entity, targetState, inputs);
+            applyBlend1D(ctx, targetState, inputs);
         } else if (stateType === 'blendDirect') {
             cleanupTimelineHandle(module, layer);
-            applyBlendDirect(world, entity, targetState, inputs);
+            applyBlendDirect(ctx, targetState, inputs);
         } else if (targetState.timeline) {
             if (module) {
                 setTimelineModule(module);
-                enterTimelineState(world, module, entity, targetState, layer);
+                enterTimelineState(ctx.world, module, ctx.entity, targetState, layer);
             }
         } else {
             cleanupTimelineHandle(module, layer);
             applyStateProperties(
-                world, entity, targetState,
+                ctx, targetState,
                 transition.duration,
                 resolveEasing(transition.easing),
                 layer,
@@ -395,17 +475,20 @@ function processLayer(
         }
 
         layer.currentState = transition.target;
+        layer.pendingAssetApply = stateHasUnresolvedAssets(targetState, ctx.assets);
         break;
     }
 
-    // Apply blend state properties each frame (not just on transition)
     const activeState = layerData.states[layer.currentState];
     if (activeState) {
         const activeType = activeState.type ?? 'standard';
         if (activeType === 'blend1d') {
-            applyBlend1D(world, entity, activeState, inputs);
+            applyBlend1D(ctx, activeState, inputs);
         } else if (activeType === 'blendDirect') {
-            applyBlendDirect(world, entity, activeState, inputs);
+            applyBlendDirect(ctx, activeState, inputs);
+        } else if (layer.pendingAssetApply && !stateHasUnresolvedAssets(activeState, ctx.assets)) {
+            applyStateProperties(ctx, activeState, 0, EasingType.Linear, layer);
+            layer.pendingAssetApply = false;
         }
     }
 }
@@ -415,20 +498,29 @@ export class StateMachinePlugin implements Plugin {
         registerComponent('StateMachine', StateMachine);
 
         const world = app.world;
-        const runtimes = new Map<Entity, EntityRuntime>();
+        const runtimes = new EntityStateMap<EntityRuntime>();
+        let wasPlayMode = false;
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
                 const module = world.getWasmModule() as ESEngineModule;
+                const assetServer = app.getResource(Assets);
 
-                for (const entity of runtimes.keys()) {
-                    if (!world.valid(entity)) {
-                        const er = runtimes.get(entity)!;
-                        cleanupEntityRuntime(module, er);
-                        runtimes.delete(entity);
+                const inPlayMode = !isEditor() || isPlayMode();
+                if (!inPlayMode) {
+                    if (wasPlayMode) {
+                        for (const [, er] of runtimes) {
+                            cleanupEntityRuntime(module, er, assetServer);
+                        }
+                        runtimes.clear();
                     }
+                    wasPlayMode = false;
+                    return;
                 }
+                wasPlayMode = true;
+
+                runtimes.cleanup(world);
 
                 const entities = world.getEntitiesWithComponents([StateMachine]);
 
@@ -453,7 +545,10 @@ export class StateMachinePlugin implements Plugin {
                         }
                     }
 
-                    // Listener processing (shared inputs)
+                    if (assetServer && er.assets.paths.length > 0 && !er.assets.allLoaded) {
+                        er.assets.startLoading(assetServer);
+                    }
+
                     const hasInteraction = world.has(entity, UIInteraction);
                     if (hasInteraction) {
                         const interaction = world.get(entity, UIInteraction) as UIInteractionData;
@@ -475,14 +570,13 @@ export class StateMachinePlugin implements Plugin {
                         }
                     }
 
-                    // Process each layer sequentially (last-write-wins for properties)
+                    const ctx: PropertyContext = { world, entity, assets: er.assets };
                     for (let i = 0; i < layerDefs.length; i++) {
                         if (i < er.layers.length) {
-                            processLayer(world, module, entity, layerDefs[i], er.layers[i], er.inputs, time.delta);
+                            processLayer(ctx, module, layerDefs[i], er.layers[i], er.inputs, time.delta);
                         }
                     }
 
-                    // Clear trigger inputs
                     for (const inputDef of data.inputs) {
                         if (inputDef.type === 'trigger') {
                             er.inputs.set(inputDef.name, false);
