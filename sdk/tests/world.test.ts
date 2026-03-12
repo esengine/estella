@@ -35,6 +35,48 @@ describe('World', () => {
             expect(world.has(entity, Name)).toBe(false);
         });
 
+        it('should find entity by name via index', () => {
+            const e1 = world.spawn('Player');
+            const e2 = world.spawn('Enemy');
+            expect(world.findEntityByName('Player')).toBe(e1);
+            expect(world.findEntityByName('Enemy')).toBe(e2);
+            expect(world.findEntityByName('NonExistent')).toBeNull();
+        });
+
+        it('should remove name from index on despawn', () => {
+            const entity = world.spawn('Player');
+            expect(world.findEntityByName('Player')).toBe(entity);
+            world.despawn(entity);
+            expect(world.findEntityByName('Player')).toBeNull();
+        });
+
+        it('should update name index on rename via set', () => {
+            const entity = world.spawn('OldName');
+            expect(world.findEntityByName('OldName')).toBe(entity);
+            world.set(entity, Name, { value: 'NewName' });
+            expect(world.findEntityByName('OldName')).toBeNull();
+            expect(world.findEntityByName('NewName')).toBe(entity);
+        });
+
+        it('should update name index on re-insert', () => {
+            const entity = world.spawn('First');
+            world.insert(entity, Name, { value: 'Second' });
+            expect(world.findEntityByName('First')).toBeNull();
+            expect(world.findEntityByName('Second')).toBe(entity);
+        });
+
+        it('should remove name from index on component remove', () => {
+            const entity = world.spawn('Player');
+            world.remove(entity, Name);
+            expect(world.findEntityByName('Player')).toBeNull();
+        });
+
+        it('should handle duplicate names (last wins)', () => {
+            world.spawn('Same');
+            const e2 = world.spawn('Same');
+            expect(world.findEntityByName('Same')).toBe(e2);
+        });
+
         it('should spawn multiple entities', () => {
             const e1 = world.spawn();
             const e2 = world.spawn();

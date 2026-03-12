@@ -3,6 +3,7 @@ import type { EntityData } from '../../types/SceneTypes';
 import type { FuzzyMatch } from '../../utils/fuzzy';
 import { icons } from '../../utils/icons';
 import { escapeHtml } from '../../utils/html';
+import { getComponentSchema } from '../../schemas/ComponentSchemas';
 import type { FlattenedRow, HierarchyState } from './HierarchyTypes';
 
 export function buildFlatRows(state: HierarchyState): FlattenedRow[] {
@@ -185,6 +186,7 @@ export function renderSingleRow(state: HierarchyState, row: FlattenedRow, select
     }
 
     const nameHtml = renderEntityName(entity.name, match);
+    const tagBadges = renderTagBadges(entity);
     const ariaExpanded = hasChildren ? ` aria-expanded="${isExpanded}"` : '';
     const draggable = inPlayMode ? 'false' : 'true';
 
@@ -194,9 +196,24 @@ export function renderSingleRow(state: HierarchyState, row: FlattenedRow, select
                 <span class="es-hierarchy-visibility">${visibilityIcon}</span>
                 <span class="es-hierarchy-icon">${icon}</span>
                 <span class="es-hierarchy-name">${nameHtml}</span>
+                ${tagBadges}
                 <span class="es-hierarchy-type" data-type-cat="${category}">${type}</span>
             </div>
         </div>`;
+}
+
+function renderTagBadges(entity: EntityData): string {
+    const tags: string[] = [];
+    for (const comp of entity.components) {
+        const schema = getComponentSchema(comp.type);
+        if (schema?.category === 'tag' && !schema.hidden) {
+            tags.push(comp.type);
+        }
+    }
+    if (tags.length === 0) return '';
+    return tags
+        .map(t => `<span class="es-hierarchy-tag">${escapeHtml(t)}</span>`)
+        .join('');
 }
 
 function renderEntityName(name: string, match: FuzzyMatch | null | undefined): string {

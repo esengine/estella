@@ -17,6 +17,7 @@ const ParentSchema: ComponentSchema = {
     name: 'Parent',
     category: 'builtin',
     removable: false,
+    hidden: true,
     properties: [
         { name: 'entity', type: 'entity' },
     ],
@@ -26,6 +27,7 @@ const ChildrenSchema: ComponentSchema = {
     name: 'Children',
     category: 'tag',
     removable: false,
+    hidden: true,
     properties: [],
 };
 

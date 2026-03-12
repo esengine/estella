@@ -320,6 +320,8 @@ export class World {
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
 
+    private nameIndex_ = new Map<string, Entity>();
+
     private worldTick_ = 0;
     private componentAddedTicks_ = new Map<symbol, Map<Entity, number>>();
     private componentChangedTicks_ = new Map<symbol, Map<Entity, number>>();
@@ -409,6 +411,8 @@ export class World {
         for (const cb of this.despawnCallbacks_) {
             try { cb(entity); } catch (e) { console.warn('[World] Despawn callback error:', e); }
         }
+
+        this.removeNameIndex_(entity);
 
         if (this.cppRegistry_) {
             try {
@@ -550,6 +554,9 @@ export class World {
         }
         this.getStorage(component as ComponentDef<any>).set(entity, data);
         this.recordChangedTick_(component, entity);
+        if ((component as ComponentDef<any>)._id === Name._id) {
+            this.updateNameIndex_(entity, (data as { value: string }).value);
+        }
     }
 
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
@@ -768,6 +775,9 @@ export class World {
             this.recordAddedTick_(component, entity);
         }
         this.recordChangedTick_(component, entity);
+        if (component._id === Name._id) {
+            this.updateNameIndex_(entity, (value as { value: string }).value);
+        }
         return value;
     }
 
@@ -785,6 +795,9 @@ export class World {
     }
 
     private removeScript<T>(entity: Entity, component: ComponentDef<T>): void {
+        if (component._id === Name._id) {
+            this.removeNameIndex_(entity);
+        }
         const storage = this.tsStorage_.get(component._id);
         storage?.delete(entity);
         this.recordRemovedTick_(component, entity);
@@ -793,6 +806,35 @@ export class World {
         if (ids) {
             ids.delete(component._id);
         }
+    }
+
+    // =========================================================================
+    // Name Index
+    // =========================================================================
+
+    private updateNameIndex_(entity: Entity, name: string): void {
+        for (const [n, e] of this.nameIndex_) {
+            if (e === entity) {
+                this.nameIndex_.delete(n);
+                break;
+            }
+        }
+        if (name) {
+            this.nameIndex_.set(name, entity);
+        }
+    }
+
+    private removeNameIndex_(entity: Entity): void {
+        for (const [n, e] of this.nameIndex_) {
+            if (e === entity) {
+                this.nameIndex_.delete(n);
+                break;
+            }
+        }
+    }
+
+    findEntityByName(name: string): Entity | null {
+        return this.nameIndex_.get(name) ?? null;
     }
 
     private getStorage(component: ComponentDef<any>): Map<Entity, unknown> {

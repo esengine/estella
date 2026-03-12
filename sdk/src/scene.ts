@@ -632,13 +632,6 @@ export function updateCameraAspectRatio(world: World, aspectRatio: number): void
 }
 
 export function findEntityByName(world: World, name: string): Entity | null {
-    const entities = world.getEntitiesWithComponents([Name]);
-    for (const entity of entities) {
-        const data = world.get(entity, Name);
-        if (data && data.value === name) {
-            return entity;
-        }
-    }
-    return null;
+    return world.findEntityByName(name);
 }
 
