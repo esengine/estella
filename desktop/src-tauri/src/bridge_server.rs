@@ -364,6 +364,10 @@ fn parse_request(
             let body = read_json_body(reader)?;
             Ok(("renameAsset".into(), body))
         }
+        ("POST", "/ui/create") => {
+            let body = read_json_body(reader)?;
+            Ok(("instantiateTemplate".into(), body))
+        }
         _ => Err(format!("Unknown route: {} {}", method, path)),
     }
 }

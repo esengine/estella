@@ -16,6 +16,9 @@ import { getSceneService, getClipboardService } from '../services';
 import { getEditorContext } from '../context/EditorContext';
 import type { SceneData, EntityData } from '../types/SceneTypes';
 import { RingBuffer } from './RingBuffer';
+import { ENTITY_TEMPLATES } from '../panels/hierarchy/EntityTemplates';
+import { resolveUIParent } from '../panels/hierarchy/uiEntityUtils';
+import type { Entity } from 'esengine';
 
 const LOG_BUFFER_CAPACITY = 500;
 
@@ -144,6 +147,7 @@ export class McpBridge {
             case 'createAsset': return this.createAsset_(params);
             case 'deleteAsset': return this.deleteAsset_(params);
             case 'renameAsset': return this.renameAsset_(params);
+            case 'instantiateTemplate': return this.instantiateTemplate_(params);
             default: throw new Error(`Unknown method: ${method}`);
         }
     }
@@ -393,6 +397,80 @@ export class McpBridge {
 
         getSharedRenderContext().requestRender();
         return { ok: true, entityId: entity };
+    }
+
+    private instantiateTemplate_(params: Record<string, unknown>): unknown {
+        const store = getEditorStore();
+        const templateName = params.template as string;
+        const template = ENTITY_TEMPLATES[templateName];
+        if (!template) {
+            throw new Error(`Unknown template: ${templateName}. Available: ${Object.keys(ENTITY_TEMPLATES).join(', ')}`);
+        }
+
+        const parentRef = params.parent;
+        let parent: Entity | null = parentRef == null ? null
+            : typeof parentRef === 'string' ? this.resolveEntityByName_(parentRef) as Entity
+            : parentRef as Entity;
+
+        if (template.category === 'ui') {
+            parent = resolveUIParent(store, parent);
+        }
+
+        const refMap = new Map<string, Entity>();
+        const rootEntity = this.createTemplateNode_(store, template.root, parent, refMap);
+
+        if (template.bindings) {
+            for (const [binding, ref] of Object.entries(template.bindings)) {
+                const dotIdx = binding.indexOf('.');
+                const compType = binding.substring(0, dotIdx);
+                const fieldName = binding.substring(dotIdx + 1);
+                const targetEntity = refMap.get(ref);
+                if (targetEntity !== undefined) {
+                    store.updateProperty(rootEntity, compType, fieldName, undefined, targetEntity as number);
+                }
+            }
+        }
+
+        const overrides = params.overrides as Record<string, Record<string, unknown>> | undefined;
+        if (overrides) {
+            for (const [compType, fields] of Object.entries(overrides)) {
+                for (const [field, value] of Object.entries(fields)) {
+                    store.updateProperty(rootEntity, compType, field, undefined, value);
+                }
+            }
+        }
+
+        store.selectEntity(rootEntity);
+        getSharedRenderContext().requestRender();
+        return { ok: true, entityId: rootEntity };
+    }
+
+    private createTemplateNode_(
+        store: ReturnType<typeof getEditorStore>,
+        node: { name: string; ref?: string; components: Array<{ type: string; defaults?: Record<string, unknown> }>; children?: Array<{ name: string; ref?: string; components: Array<{ type: string; defaults?: Record<string, unknown> }>; children?: any[] }> },
+        parent: Entity | null,
+        refMap: Map<string, Entity>,
+    ): Entity {
+        const entity = store.createEntity(node.name, parent);
+        for (const comp of node.components) {
+            let data = getInitialComponentData(comp.type);
+            if (comp.defaults) {
+                data = { ...data };
+                for (const [key, val] of Object.entries(comp.defaults)) {
+                    data[key] = val;
+                }
+            }
+            store.addComponent(entity, comp.type, data);
+        }
+        if (node.ref) {
+            refMap.set(node.ref, entity);
+        }
+        if (node.children) {
+            for (const child of node.children) {
+                this.createTemplateNode_(store, child, entity, refMap);
+            }
+        }
+        return entity;
     }
 
     private deleteEntity_(params: Record<string, unknown>): unknown {
