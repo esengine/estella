@@ -73,7 +73,9 @@ export class McpBridge {
             }).catch((e) => {
                 console.warn('[McpBridge] Failed to start bridge server:', e);
             });
-        }).catch(() => {});
+        }).catch((e) => {
+            console.warn('[McpBridge] Failed to load Tauri API:', e);
+        });
     }
 
     private setupEventListener_(): void {

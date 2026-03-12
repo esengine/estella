@@ -45,6 +45,8 @@ impl BridgeServer {
             return Ok(self.port);
         }
 
+        cleanup_stale_bridge_files();
+
         let server = try_bind(DEFAULT_PORT)?;
         let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(DEFAULT_PORT);
         self.port = port;
@@ -62,7 +64,11 @@ impl BridgeServer {
         }));
 
         if let Some(ref path) = project_path {
-            self.bridge_file = Some(write_bridge_file(port, path));
+            let file = write_bridge_file(port, path);
+            eprintln!("[BridgeServer] Bridge file written: {:?}", file);
+            self.bridge_file = Some(file);
+        } else {
+            eprintln!("[BridgeServer] No project path provided, skipping bridge file");
         }
 
         Ok(port)
@@ -496,9 +502,16 @@ fn try_bind(base_port: u16) -> Result<Server, String> {
 // =============================================================================
 
 fn bridge_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_else(|_| ".".to_string());
+
+    #[cfg(not(target_os = "windows"))]
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| ".".to_string());
+
     PathBuf::from(home).join(".esengine")
 }
 
@@ -511,15 +524,85 @@ fn bridge_file_path(project_path: &str) -> PathBuf {
 
 fn write_bridge_file(port: u16, project_path: &str) -> PathBuf {
     let dir = bridge_dir();
-    let _ = std::fs::create_dir_all(&dir);
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        eprintln!("[BridgeServer] Failed to create bridge dir {:?}: {}", dir, e);
+    }
     let path = bridge_file_path(project_path);
     let content = json!({
         "port": port,
         "pid": std::process::id(),
         "projectPath": project_path,
     });
-    if let Ok(mut f) = std::fs::File::create(&path) {
-        let _ = f.write_all(serde_json::to_string_pretty(&content).unwrap_or_default().as_bytes());
+    match std::fs::File::create(&path) {
+        Ok(mut f) => {
+            if let Err(e) = f.write_all(serde_json::to_string_pretty(&content).unwrap_or_default().as_bytes()) {
+                eprintln!("[BridgeServer] Failed to write bridge file {:?}: {}", path, e);
+            }
+        }
+        Err(e) => {
+            eprintln!("[BridgeServer] Failed to create bridge file {:?}: {}", path, e);
+        }
     }
     path
+}
+
+fn cleanup_stale_bridge_files() {
+    let dir = bridge_dir();
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    let my_pid = std::process::id();
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("bridge-") || !name.ends_with(".json") {
+            continue;
+        }
+        let path = entry.path();
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(info) = serde_json::from_str::<Value>(&content) {
+                if let Some(pid) = info.get("pid").and_then(|v| v.as_u64()) {
+                    let pid = pid as u32;
+                    if pid != my_pid && !is_process_alive(pid) {
+                        eprintln!("[BridgeServer] Cleaning stale bridge file: {:?} (pid {})", path, pid);
+                        let _ = std::fs::remove_file(&path);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn is_process_alive(pid: u32) -> bool {
+    use std::ptr::null_mut;
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const STILL_ACTIVE: u32 = 259;
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut std::ffi::c_void;
+        fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+        fn GetExitCodeProcess(handle: *mut std::ffi::c_void, code: *mut u32) -> i32;
+    }
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() || handle == null_mut() {
+            return false;
+        }
+        let mut exit_code: u32 = 0;
+        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        CloseHandle(handle);
+        ok != 0 && exit_code == STILL_ACTIVE
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_process_alive(pid: u32) -> bool {
+    std::process::Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
