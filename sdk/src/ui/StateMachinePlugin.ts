@@ -262,11 +262,16 @@ export class StateMachinePlugin implements Plugin {
                         }
                     }
 
-                    // Evaluate transitions
+                    // Evaluate transitions (current state first, then __any__)
                     const currentState = data.states[runtime.currentState];
                     if (!currentState) continue;
 
-                    for (const transition of currentState.transitions) {
+                    const anyState = data.states['__any__'];
+                    const allTransitions = anyState
+                        ? [...currentState.transitions, ...anyState.transitions]
+                        : currentState.transitions;
+
+                    for (const transition of allTransitions) {
                         // exitTime gating (for timeline states)
                         if (transition.exitTime !== undefined && transition.exitTime > 0) {
                             if (runtime.timelineHandle && module && runtime.timelineDuration > 0) {
