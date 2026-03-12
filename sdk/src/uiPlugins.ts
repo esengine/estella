@@ -15,13 +15,14 @@ import { listViewPlugin } from './ui/ListViewPlugin';
 import { dropdownPlugin } from './ui/DropdownPlugin';
 import { layoutGroupPlugin } from './ui/LayoutGroupPlugin';
 import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
+import { stateMachinePlugin } from './ui/StateMachinePlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
     textPlugin, uiMaskPlugin, uiLayoutPlugin,
     imagePlugin, progressBarPlugin,
     uiInteractionPlugin, dragPlugin, scrollViewPlugin, sliderPlugin,
-    togglePlugin, textInputPlugin,
+    togglePlugin, textInputPlugin, stateMachinePlugin,
     focusPlugin, safeAreaPlugin, listViewPlugin, dropdownPlugin,
     layoutGroupPlugin,
     uiRenderOrderPlugin,

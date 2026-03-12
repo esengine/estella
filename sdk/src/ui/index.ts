@@ -371,6 +371,34 @@ export {
     type UITheme,
 } from './UITheme';
 
+// StateMachine Component
+export {
+    StateMachine,
+    type StateMachineData,
+    type StateNode,
+    type Transition,
+    type Condition,
+    type InputDef,
+    type ListenerDef,
+} from './StateMachine';
+
+// StateMachine Plugin
+export {
+    StateMachinePlugin,
+    stateMachinePlugin,
+    evaluateCondition,
+} from './StateMachinePlugin';
+
+// Property Path Utilities
+export {
+    getNestedProperty,
+    setNestedProperty,
+    parsePropertyPath,
+    getEntityProperty,
+    setEntityProperty,
+    type ParsedPropertyPath,
+} from './propertyPath';
+
 // UI Builder (Factory Functions & Declarative Tree)
 export {
     UI,

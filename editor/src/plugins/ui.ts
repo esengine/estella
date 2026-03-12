@@ -262,6 +262,14 @@ const LayoutGroupSchema: ComponentSchema = {
     ],
 };
 
+const StateMachineSchema: ComponentSchema = {
+    name: 'StateMachine',
+    category: 'ui',
+    properties: [
+        { name: 'initialState', type: 'string', displayName: 'Initial State' },
+    ],
+};
+
 const DragStateSchema: ComponentSchema = {
     name: 'DragState',
     category: 'ui',
@@ -283,6 +291,7 @@ const UI_SCHEMAS: ComponentSchema[] = [
     DraggableSchema, ScrollViewSchema, SliderSchema, FocusableSchema,
     SafeAreaSchema, ListViewSchema, DropdownSchema,
     FlexContainerSchema, FlexItemSchema, LayoutGroupSchema,
+    StateMachineSchema,
     DragStateSchema,
     UIRendererSchema,
 ];
