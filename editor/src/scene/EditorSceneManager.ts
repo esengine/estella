@@ -709,6 +709,22 @@ export class EditorSceneManager {
             }
         }
 
+        if (comp.type === 'StateMachine') {
+            const states = data.states as Record<string, { timeline?: string }> | undefined;
+            if (states) {
+                for (const state of Object.values(states)) {
+                    if (typeof state.timeline === 'string' && state.timeline) {
+                        const resolved = this.resolveAssetRef(state.timeline);
+                        try {
+                            await this.loadAndRegisterTimeline(resolved);
+                        } catch (err) {
+                            console.warn(`[EditorSceneManager] Failed to load StateMachine timeline: ${resolved}`, err);
+                        }
+                    }
+                }
+            }
+        }
+
         const spineDesc = getComponentSpineFieldDescriptor(comp.type);
         if (spineDesc) {
             const skelRef = data[spineDesc.skeletonField] ?? '';
