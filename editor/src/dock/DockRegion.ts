@@ -94,6 +94,7 @@ export class DockRegion {
         this.panels_.splice(idx, 0, entry);
 
         entry.contentEl.classList.add('es-dock-panel');
+        entry.contentEl.dataset.panelContent = entry.id;
         entry.contentEl.style.display = 'none';
         this.contentArea.appendChild(entry.contentEl);
 

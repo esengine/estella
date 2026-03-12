@@ -19,6 +19,7 @@ import { RingBuffer } from './RingBuffer';
 import { ENTITY_TEMPLATES } from '../panels/hierarchy/EntityTemplates';
 import { resolveUIParent } from '../panels/hierarchy/uiEntityUtils';
 import type { Entity } from 'esengine';
+import html2canvas from 'html2canvas';
 
 const LOG_BUFFER_CAPACITY = 500;
 
@@ -296,8 +297,20 @@ export class McpBridge {
 
     private captureWebGL_(maxWidth?: number, _panel?: string): Promise<unknown> {
         const ctx = getSharedRenderContext();
+        const CAPTURE_TIMEOUT_MS = 3000;
         return new Promise((resolve, reject) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                ctx.setPostRenderCallback(null);
+                reject(new Error('WebGL capture timeout: render loop may not be active. Try capturing a DOM panel instead.'));
+            }, CAPTURE_TIMEOUT_MS);
+
             ctx.setPostRenderCallback(() => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
                 try {
                     const gl = (ctx as any).gl_ as WebGL2RenderingContext;
                     const canvas = (ctx as any).webglCanvas_ as HTMLCanvasElement;
@@ -343,16 +356,13 @@ export class McpBridge {
     }
 
     private async captureDomPanel_(panelId: string, maxWidth?: number): Promise<unknown> {
-        const selector = `[data-panel-id="${panelId}"]`;
-        const el = document.querySelector(selector) as HTMLElement | null;
+        const el = document.querySelector(`[data-panel-content="${panelId}"]`) as HTMLElement | null
+            ?? document.querySelector(`[data-panel-id="${panelId}"]`) as HTMLElement | null;
         if (!el) throw new Error(`Panel not found: ${panelId}`);
 
         try {
-            const modName = 'html2' + 'canvas';
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const mod = await (Function('m', 'return import(m)') as (m: string) => Promise<any>)(modName);
-            const html2canvas = mod.default ?? mod;
-            const canvas = await html2canvas(el, {
+            const html2canvasFn = html2canvas;
+            const canvas = await html2canvasFn(el, {
                 scale: 1,
                 useCORS: true,
                 logging: false,
