@@ -6,7 +6,7 @@ import { escapeHtml } from '../../utils/html';
 import { getInitialComponentData } from '../../schemas/ComponentSchemas';
 import type { HierarchyState, FlattenedRow } from './HierarchyTypes';
 import { ROW_HEIGHT, OVERSCAN, SLOW_DOUBLE_CLICK_MIN, SLOW_DOUBLE_CLICK_MAX } from './HierarchyTypes';
-import { buildFlatRows, expandAncestors, renderSingleRow, getEntityTypeCategory } from './HierarchyTree';
+import { buildFlatRows, expandAncestors, renderSingleRow } from './HierarchyTree';
 import { performSearch, selectNextResult, selectPreviousResult, focusSelectedResult, clearSearch } from './HierarchySearch';
 import { setupKeyboard, selectRange } from './HierarchyKeyboard';
 import { setupDragAndDrop } from './HierarchyDragDrop';
@@ -21,7 +21,6 @@ export class HierarchyPanel implements HierarchyState {
     store: EditorStore;
     treeContainer: HTMLElement;
     searchInput: HTMLInputElement | null = null;
-    private footerContainer_: HTMLElement | null = null;
     private prefabEditBar_: HTMLElement | null = null;
     searchFilter: string = '';
     searchResults: HierarchyState['searchResults'] = [];
@@ -68,7 +67,6 @@ export class HierarchyPanel implements HierarchyState {
                 <span class="es-hierarchy-col-type">Type</span>
             </div>
             <div class="es-hierarchy-tree" role="tree"></div>
-            <div class="es-hierarchy-footer">0 entities</div>
         `;
 
         this.treeContainer = this.container_.querySelector('.es-hierarchy-tree')!;
@@ -81,7 +79,6 @@ export class HierarchyPanel implements HierarchyState {
         this.treeContainer.appendChild(this.scrollContent);
         this.disposables_.addListener(this.treeContainer, 'scroll', () => this.onScroll());
         this.searchInput = this.container_.querySelector('.es-hierarchy-search');
-        this.footerContainer_ = this.container_.querySelector('.es-hierarchy-footer');
         this.prefabEditBar_ = this.container_.querySelector('.es-prefab-edit-bar');
 
         const backBtn = this.container_.querySelector('.es-prefab-back-btn');
@@ -178,7 +175,6 @@ export class HierarchyPanel implements HierarchyState {
                 }
             }
             this.renderVisibleRows();
-            this.updateFooter();
             if (dirtyFlags?.has('selection')) {
                 const sel = this.store.selectedEntity;
                 if (sel !== null) {
@@ -271,10 +267,13 @@ export class HierarchyPanel implements HierarchyState {
                 const item = row?.parentElement as HTMLElement;
                 const entityId = parseInt(item?.dataset.entityId ?? '', 10);
                 if (!isNaN(entityId)) {
-                    if (this.expandedIds.has(entityId)) {
-                        this.expandedIds.delete(entityId);
-                    } else {
+                    const shouldExpand = !this.expandedIds.has(entityId);
+                    if (e.altKey) {
+                        this.setExpandedRecursive_(entityId as Entity, shouldExpand);
+                    } else if (shouldExpand) {
                         this.expandedIds.add(entityId);
+                    } else {
+                        this.expandedIds.delete(entityId);
                     }
                     this.render();
                 }
@@ -503,50 +502,9 @@ export class HierarchyPanel implements HierarchyState {
         this.lastVisibleEnd_ = -1;
         this.renderVisibleRows();
 
-        this.updateFooter();
-
         if (selectionChanged) {
             this.scrollToEntity(selectedEntity as number);
         }
-    }
-
-    private updateFooter(): void {
-        if (!this.footerContainer_) return;
-
-        if (this.playMode) {
-            const count = this.runtimeEntities?.length ?? 0;
-            this.footerContainer_.textContent = `${count} entities (Live)`;
-            return;
-        }
-
-        if (this.searchFilter) {
-            const count = this.searchResults.length;
-            this.footerContainer_.textContent = `${count} ${count === 1 ? 'match' : 'matches'}`;
-            return;
-        }
-
-        const entities = this.store.scene.entities;
-        const count = entities.length;
-        const selectedCount = this.store.selectedEntities.size;
-
-        if (selectedCount > 1) {
-            this.footerContainer_.textContent = `${count} entities · ${selectedCount} selected`;
-            return;
-        }
-
-        const typeCounts = new Map<string, number>();
-        for (const entity of entities) {
-            const cat = getEntityTypeCategory(entity);
-            if (cat !== 'default') {
-                typeCounts.set(cat, (typeCounts.get(cat) ?? 0) + 1);
-            }
-        }
-
-        let text = `${count} ${count === 1 ? 'entity' : 'entities'}`;
-        for (const [cat, n] of typeCounts) {
-            text += ` · ${n} ${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
-        }
-        this.footerContainer_.textContent = text;
     }
 
     renderVisibleRows(): void {
@@ -596,6 +554,20 @@ export class HierarchyPanel implements HierarchyState {
             this.treeContainer.scrollTop = targetTop;
         } else if (targetBottom > scrollTop + viewHeight) {
             this.treeContainer.scrollTop = targetBottom - viewHeight;
+        }
+    }
+
+    private setExpandedRecursive_(entityId: Entity, expand: boolean): void {
+        if (expand) {
+            this.expandedIds.add(entityId);
+        } else {
+            this.expandedIds.delete(entityId);
+        }
+        const data = this.store.getEntityData(entityId);
+        if (data?.children) {
+            for (const childId of data.children) {
+                this.setExpandedRecursive_(childId as Entity, expand);
+            }
         }
     }
 

@@ -219,6 +219,9 @@
 }
 
 .es-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 2px 6px;
     min-width: 20px;
     border-radius: var(--es-radius-sm);

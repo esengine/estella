@@ -12,7 +12,8 @@ export function setupDragLabel(
 
     const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
-        const delta = (e.clientX - startX) * step;
+        const modifier = e.shiftKey ? 0.1 : e.altKey ? 10 : 1;
+        const delta = (e.clientX - startX) * step * modifier;
         let newValue = startValue + delta;
         if (min !== undefined && newValue < min) newValue = min;
         if (max !== undefined && newValue > max) newValue = max;

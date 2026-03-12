@@ -28,6 +28,23 @@ import {
 } from './InspectorHelpers';
 import { showContextMenu, type ContextMenuItem } from '../../ui/ContextMenu';
 import { isPropertyOverridden, hasAnyOverrides } from '../../prefab';
+
+const COLLAPSED_STORAGE_KEY = 'inspector-collapsed';
+
+function loadCollapsedSet(): Set<string> {
+    try {
+        const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+        return new Set();
+    }
+}
+
+function saveCollapsedSet(set: Set<string>): void {
+    localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...set]));
+}
+
+const collapsedComponents = loadCollapsedSet();
 import {
     getComponentInspector,
     getInspectorSections,
@@ -195,7 +212,8 @@ export function renderComponent(
     const displayTitle = schema?.displayName ?? component.type;
 
     const section = document.createElement('div');
-    section.className = 'es-component-section es-collapsible es-expanded';
+    const isCollapsed = collapsedComponents.has(component.type);
+    section.className = `es-component-section es-collapsible${isCollapsed ? '' : ' es-expanded'}`;
 
     const icon = getComponentIcon(component.type);
     const removable = isComponentRemovable(component.type);
@@ -239,6 +257,12 @@ export function renderComponent(
         if ((e.target as HTMLElement).closest('.es-btn-remove')) return;
         if ((e.target as HTMLElement).closest('.es-component-enabled-toggle')) return;
         section.classList.toggle('es-expanded');
+        if (section.classList.contains('es-expanded')) {
+            collapsedComponents.delete(component.type);
+        } else {
+            collapsedComponents.add(component.type);
+        }
+        saveCollapsedSet(collapsedComponents);
     });
 
     header.addEventListener('contextmenu', (e) => {

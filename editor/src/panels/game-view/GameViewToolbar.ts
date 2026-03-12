@@ -63,11 +63,11 @@ export class GameViewToolbar {
         return `
             <div class="es-gameview-toolbar">
                 <div class="es-gameview-controls">
-                    <button class="es-btn es-btn-icon es-gameview-play" title="Play">${icons.play(14)}</button>
-                    <button class="es-btn es-btn-icon es-gameview-pause" title="Pause" disabled>${icons.pause(14)}</button>
-                    <button class="es-btn es-btn-icon es-gameview-resume" title="Resume" style="display:none">${icons.play(14)}</button>
-                    <button class="es-btn es-btn-icon es-gameview-step" title="Step Frame" disabled>${icons.stepForward(14)}</button>
-                    <button class="es-btn es-btn-icon es-gameview-stop" title="Stop" disabled>${icons.stop(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-play" data-tooltip="Play">${icons.play(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-pause" data-tooltip="Pause" disabled>${icons.pause(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-resume" data-tooltip="Resume" style="display:none">${icons.play(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-step" data-tooltip="Step Frame" disabled>${icons.stepForward(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-stop" data-tooltip="Stop" disabled>${icons.stop(14)}</button>
                 </div>
                 <div class="es-toolbar-divider"></div>
                 <select class="es-gameview-speed" title="Play Speed">
@@ -77,8 +77,8 @@ export class GameViewToolbar {
                     <option value="2">2x</option>
                     <option value="4">4x</option>
                 </select>
-                <button class="es-btn es-btn-icon es-gameview-mute" title="Mute Audio">${icons.volume(14)}</button>
-                    <button class="es-btn es-btn-icon es-gameview-physics-debug" title="Physics Debug Draw">${icons.bug(14)}</button>
+                <button class="es-btn es-btn-icon es-gameview-mute" data-tooltip="Mute Audio">${icons.volume(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-physics-debug" data-tooltip="Physics Debug Draw">${icons.bug(14)}</button>
                 <div class="es-toolbar-divider"></div>
                 <select class="es-gameview-resolution">${options}<option value="custom">Custom</option></select>
                 <div class="es-gameview-custom-size" style="display:none">

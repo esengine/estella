@@ -1,4 +1,5 @@
 @import './base.css';
+@import './dock.css';
 @import './panels.css';
 @import './menus.css';
 @import './hierarchy.css';

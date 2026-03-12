@@ -21,14 +21,14 @@ export class GizmoToolbar {
         return gizmos.map(g => {
             const isActive = g.id === this.gizmoManager_.getActiveId();
             const shortcutLabel = g.shortcut ? ` (${g.shortcut.toUpperCase()})` : '';
-            return `<button class="es-btn es-btn-icon es-gizmo-btn${isActive ? ' es-active' : ''}" data-mode="${g.id}" title="${g.name}${shortcutLabel}">${g.icon}</button>`;
+            return `<button class="es-btn es-btn-icon es-gizmo-btn${isActive ? ' es-active' : ''}" data-mode="${g.id}" data-tooltip="${g.name}${shortcutLabel}">${g.icon}</button>`;
         }).join('');
     }
 
     buildSettingsHTML(): string {
         return `
             <div class="es-gizmo-settings-wrapper">
-                <button class="es-btn es-btn-icon" data-action="gizmo-settings" title="Gizmo Settings">${icons.settings(14)}</button>
+                <button class="es-btn es-btn-icon" data-action="gizmo-settings" data-tooltip="Gizmo Settings">${icons.settings(14)}</button>
                 <div class="es-gizmo-settings-dropdown" style="display: none;">
                     <div class="es-settings-row">
                         <label class="es-settings-checkbox">

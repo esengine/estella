@@ -6,6 +6,7 @@ import type { ContentBrowserState, ContentBrowserOptions, FolderNode, AssetItem,
 import { getNativeFS, getNativeShell, VIEW_MODE_KEY, SEARCH_RESULTS_LIMIT } from './ContentBrowserTypes';
 import { ThumbnailCache } from './ThumbnailCache';
 import { loadFolderChildren, toggleFolder, expandFolder, selectFolder, findFolder, collectExpandedPaths, renderFolderNode } from './FolderTree';
+import { showContextMenu } from '../../ui/ContextMenu';
 import { renderGrid } from './AssetGrid';
 import {
     showAssetContextMenu, showMultiSelectContextMenu, showFolderContextMenu,
@@ -42,6 +43,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
     private refreshPending_ = false;
     private thumbnailCache_ = new ThumbnailCache();
     private disposeNavReg_: (() => void) | null = null;
+    private treeVisible_ = localStorage.getItem('esengine.cb.treeVisible') !== 'false';
 
     constructor(container: HTMLElement, store: EditorStore, options?: ContentBrowserOptions) {
         this.container = container;
@@ -58,30 +60,32 @@ export class ContentBrowserPanel implements ContentBrowserState {
         this.container.classList.add('es-content-browser');
         this.container.innerHTML = `
             <div class="es-content-browser-header">
-                <div class="es-content-browser-actions">
-                    <button class="es-btn es-btn-icon es-refresh-btn" title="Refresh">${icons.refresh(12)}</button>
-                </div>
+                <button class="es-btn es-btn-icon es-cb-tree-toggle${this.treeVisible_ ? ' es-active' : ''}" title="Toggle folder tree">${icons.panelLeft(14)}</button>
+                <button class="es-btn es-btn-icon es-cb-up-btn" title="Parent folder">${icons.arrowUp(14)}</button>
+                <div class="es-content-breadcrumb"></div>
+            </div>
+            <div class="es-content-browser-toolbar">
+                <input type="text" class="es-input es-content-search" placeholder="Search...">
+                <button class="es-btn es-btn-icon es-refresh-btn" title="Refresh">${icons.refresh(12)}</button>
+                <button class="es-btn es-btn-icon es-cb-view-toggle" title="Toggle view"></button>
             </div>
             <div class="es-content-browser-body">
                 <div class="es-content-browser-tree"></div>
                 <div class="es-content-browser-main">
-                    <div class="es-content-browser-toolbar">
-                        <button class="es-btn es-btn-icon es-cb-up-btn" title="Parent folder">${icons.arrowUp(14)}</button>
-                        <div class="es-content-breadcrumb"></div>
-                        <input type="text" class="es-input es-content-search" placeholder="Search assets...">
-                        <button class="es-btn es-btn-icon es-cb-view-toggle" title="Toggle view"></button>
-                    </div>
                     <div class="es-content-browser-grid" tabindex="0" role="grid"></div>
                 </div>
             </div>
-            <div class="es-content-browser-footer">0 items</div>
         `;
 
         this.treeContainer = this.container.querySelector('.es-content-browser-tree');
         this.gridContainer = this.container.querySelector('.es-content-browser-grid');
-        this.footerContainer = this.container.querySelector('.es-content-browser-footer');
+        this.footerContainer = null;
         this.searchInput = this.container.querySelector('.es-content-search');
         this.breadcrumbContainer = this.container.querySelector('.es-content-breadcrumb');
+
+        if (!this.treeVisible_) {
+            this.container.querySelector('.es-content-browser-body')?.classList.add('es-cb-tree-hidden');
+        }
 
         this.updateViewToggleButton();
         this.setupEvents();
@@ -176,7 +180,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
         this.breadcrumbContainer.innerHTML = crumbs
             .map((crumb, index) => {
                 const isLast = index === crumbs.length - 1;
-                const separator = isLast ? '' : `<span class="es-breadcrumb-separator">${icons.chevronRight(10)}</span>`;
+                const separator = isLast ? '' : `<span class="es-breadcrumb-separator" data-parent-path="${crumb.path}">${icons.chevronRight(10)}</span>`;
                 return `<span class="es-breadcrumb-item${isLast ? ' es-active' : ''}" data-path="${crumb.path}">${crumb.name}</span>${separator}`;
             })
             .join('');
@@ -304,12 +308,32 @@ export class ContentBrowserPanel implements ContentBrowserState {
         if (this.breadcrumbContainer) {
             this.disposables_.addListener(this.breadcrumbContainer, 'click', (e) => {
                 const target = (e as MouseEvent).target as HTMLElement;
+
+                const sep = target.closest('.es-breadcrumb-separator') as HTMLElement;
+                if (sep) {
+                    const parentPath = sep.dataset.parentPath;
+                    if (parentPath) {
+                        this.showBreadcrumbDropdown_(sep, parentPath);
+                    }
+                    return;
+                }
+
                 const item = target.closest('.es-breadcrumb-item') as HTMLElement;
                 if (!item) return;
                 const path = item.dataset.path;
                 if (path) {
                     selectFolder(this, path);
                 }
+            });
+        }
+
+        const treeToggle = this.container.querySelector('.es-cb-tree-toggle');
+        if (treeToggle) {
+            this.disposables_.addListener(treeToggle, 'click', () => {
+                this.treeVisible_ = !this.treeVisible_;
+                localStorage.setItem('esengine.cb.treeVisible', String(this.treeVisible_));
+                this.container.querySelector('.es-content-browser-body')?.classList.toggle('es-cb-tree-hidden', !this.treeVisible_);
+                treeToggle.classList.toggle('es-active', this.treeVisible_);
             });
         }
 
@@ -514,6 +538,26 @@ export class ContentBrowserPanel implements ContentBrowserState {
                 this.refresh();
             });
         }
+    }
+
+    private async showBreadcrumbDropdown_(anchor: HTMLElement, parentPath: string): Promise<void> {
+        const folder = findFolder(this.rootFolder, parentPath);
+        if (!folder) return;
+        if (!folder.loaded) {
+            await loadFolderChildren(folder);
+        }
+        if (folder.children.length === 0) return;
+
+        const rect = anchor.getBoundingClientRect();
+        showContextMenu({
+            x: rect.left,
+            y: rect.bottom + 4,
+            items: folder.children.map(child => ({
+                label: child.name,
+                icon: icons.folder(12),
+                onClick: () => selectFolder(this, child.path),
+            })),
+        });
     }
 
     private navigateToParent(): void {

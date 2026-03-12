@@ -14,7 +14,6 @@ import { builtinPlugins, coreStatusbarPlugin } from './plugins';
 import { PluginManager as PluginManagerService } from './services/PluginManager';
 import { getEditorStore } from './store';
 import { DockLayoutManager } from './DockLayoutManager';
-import { ContentDrawer } from './ui/ContentDrawer';
 import { closeAddressableWindow, hasAddressableWindow } from './dialogs/AddressableWindow';
 
 import { OutputService } from './services/OutputService';
@@ -64,7 +63,6 @@ export class Editor {
     private menuManager_: MenuManager;
 
     private dockLayout_: DockLayoutManager | null = null;
-    private contentDrawer_: ContentDrawer | null = null;
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
     private contextMenuHandler_: ((e: Event) => void) | null = null;
     private pluginManager_!: PluginManagerService;
@@ -198,7 +196,6 @@ export class Editor {
             this.escapeHandler_ = null;
         }
         this.multiWindowService_.dispose();
-        this.contentDrawer_?.dispose();
         this.menuManager_.dispose();
         this.scriptService_.dispose();
         this.extensionService_.dispose();
@@ -229,7 +226,7 @@ export class Editor {
 
         this.shellService_ = new ShellService(
             this.projectPath_, this.outputService_,
-            (id) => this.navigationService_.showPanel(id),
+            (id: string) => this.navigationService_.showPanel(id),
         );
 
         const sk = 'default';
@@ -282,16 +279,8 @@ export class Editor {
         this.dockLayout_ = new DockLayoutManager(this.panelManager_, this.store_);
         this.dockLayout_.initialize(dockContainer);
 
-        this.contentDrawer_ = new ContentDrawer(
-            this.container_, this.dockLayout_, this.store_,
-            {
-                projectPath: this.projectPath_ ?? undefined,
-                onOpenScene: (scenePath) => this.sceneService_.openSceneFromPath(scenePath),
-            },
-        );
-
         this.navigationService_.setDockLayout(this.dockLayout_);
-        this.navigationService_.setContentDrawer(this.contentDrawer_);
+
         this.extensionService_.setDockLayout(this.dockLayout_);
 
         this.previewService_ = new PreviewService(
@@ -358,11 +347,6 @@ export class Editor {
             const openMenu = this.container_.querySelector('.es-menu.es-open');
             if (openMenu) {
                 openMenu.classList.remove('es-open');
-                return;
-            }
-
-            if (this.contentDrawer_?.state === 'open') {
-                this.contentDrawer_.closeDrawer();
                 return;
             }
 

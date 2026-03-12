@@ -111,28 +111,46 @@
 .es-hierarchy-item.es-drop-before > .es-hierarchy-row::before {
     content: '';
     position: absolute;
-    top: 0;
+    top: -1px;
     left: 20px;
     right: 0;
     height: 2px;
-    background: var(--es-drag);
+    background: var(--es-accent);
+    box-shadow: 0 0 4px var(--es-accent);
     pointer-events: none;
+    z-index: 1;
+}
+
+.es-hierarchy-item.es-drop-before > .es-hierarchy-row::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 17px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--es-accent);
+    pointer-events: none;
+    z-index: 1;
 }
 
 .es-hierarchy-item.es-drop-after > .es-hierarchy-row::after {
     content: '';
     position: absolute;
-    bottom: 0;
+    bottom: -1px;
     left: 20px;
     right: 0;
     height: 2px;
-    background: var(--es-drag);
+    background: var(--es-accent);
+    box-shadow: 0 0 4px var(--es-accent);
     pointer-events: none;
+    z-index: 1;
 }
 
 .es-hierarchy-item.es-drop-inside > .es-hierarchy-row {
-    background: hsla(210, 80%, 66%, 0.3);
-    border-left-color: var(--es-drag);
+    background: hsla(210, 80%, 66%, 0.15);
+    outline: 1px solid var(--es-accent);
+    outline-offset: -1px;
 }
 
 .es-hierarchy-item.es-dragging {
@@ -313,10 +331,3 @@
     margin-left: auto;
 }
 
-.es-hierarchy-footer {
-    padding: 6px 12px;
-    font-size: 11px;
-    color: var(--es-text-secondary);
-    background: var(--es-bg-secondary);
-    border-top: 1px solid var(--es-border);
-}

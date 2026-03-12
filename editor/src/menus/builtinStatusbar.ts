@@ -1,10 +1,10 @@
 import type { StatusbarItemDescriptor } from './MenuRegistry';
 import { getPanelsByPosition } from '../panels/PanelRegistry';
-import { icons } from '../utils/icons';
 import type { PluginRegistrar } from '../container';
 import { STATUSBAR_ITEM } from '../container/tokens';
 import { getEditorStore } from '../store';
 import { getNavigationService, getShellService, getProjectService } from '../services';
+import { icons } from '../utils/icons';
 
 let statusMessageTimer_: ReturnType<typeof setTimeout> | null = null;
 let statusMessageEl_: HTMLElement | null = null;
@@ -19,32 +19,75 @@ export function showStatusBarMessage(text: string, durationMs = 2000): void {
     }, durationMs);
 }
 
+function createPanelToggleButton(panelId: string, label: string, icon: string | undefined, isPrimary: boolean): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.className = `es-statusbar-btn${isPrimary ? ' es-statusbar-btn-primary' : ''}`;
+    btn.dataset.panelToggle = panelId;
+    btn.innerHTML = `${icon ?? ''}<span>${label}</span>`;
+    btn.addEventListener('click', () => getNavigationService().togglePanel(panelId));
+    return btn;
+}
+
+function updatePanelButtonState(btn: HTMLElement, panelId: string): void {
+    const nav = getNavigationService();
+    const collapsed = nav.isCollapsed(panelId);
+    btn.classList.toggle('es-active', !collapsed);
+}
+
 export function registerBuiltinStatusbarItems(registrar: PluginRegistrar): void {
     const registerStatusbarItem = (d: StatusbarItemDescriptor) => registrar.provide(STATUSBAR_ITEM, d.id, d);
-    const bottomPanels = getPanelsByPosition('bottom');
 
-    for (const panel of bottomPanels) {
-        const isPrimary = panel.defaultVisible;
+    const leftPanels = getPanelsByPosition('left');
+    const PERMANENT_BOTTOM_PANELS = new Set(['content-browser', 'output']);
+    const bottomPanels = getPanelsByPosition('bottom').filter(p => PERMANENT_BOTTOM_PANELS.has(p.id));
+    const rightPanels = getPanelsByPosition('right');
+
+    let orderCounter = 0;
+
+    for (const panel of leftPanels) {
         registerStatusbarItem({
             id: `toggle-${panel.id}`,
             position: 'left',
-            order: panel.order ?? 0,
+            order: orderCounter++,
             render: (container) => {
-                const btn = document.createElement('button');
-                btn.className = `es-statusbar-btn${isPrimary ? ' es-statusbar-btn-primary' : ''}`;
-                btn.dataset.bottomPanel = panel.id;
-                btn.innerHTML = `${panel.icon ?? ''}<span>${panel.title}</span>`;
-
-                if (isPrimary) {
-                    btn.innerHTML += icons.chevronDown(10);
-                }
-
-                btn.addEventListener('click', () => getNavigationService().showPanel(panel.id));
+                const btn = createPanelToggleButton(panel.id, panel.title, panel.icon, false);
                 container.appendChild(btn);
 
-                return {
-                    dispose() { btn.remove(); },
-                };
+                const unlisten = getNavigationService().onPanelToggle(() => updatePanelButtonState(btn, panel.id));
+                updatePanelButtonState(btn, panel.id);
+
+                return { dispose() { btn.remove(); unlisten(); } };
+            },
+        });
+    }
+
+    if (leftPanels.length > 0 && bottomPanels.length > 0) {
+        registerStatusbarItem({
+            id: 'divider-left-bottom',
+            position: 'left',
+            order: orderCounter++,
+            render: (container) => {
+                const div = document.createElement('div');
+                div.className = 'es-statusbar-divider';
+                container.appendChild(div);
+                return { dispose() { div.remove(); } };
+            },
+        });
+    }
+
+    for (const panel of bottomPanels) {
+        registerStatusbarItem({
+            id: `toggle-${panel.id}`,
+            position: 'left',
+            order: orderCounter++,
+            render: (container) => {
+                const btn = createPanelToggleButton(panel.id, panel.title, panel.icon, true);
+                container.appendChild(btn);
+
+                const unlisten = getNavigationService().onPanelToggle(() => updatePanelButtonState(btn, panel.id));
+                updatePanelButtonState(btn, panel.id);
+
+                return { dispose() { btn.remove(); unlisten(); } };
             },
         });
     }
@@ -52,7 +95,7 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar): void 
     registerStatusbarItem({
         id: 'cmd-input',
         position: 'left',
-        order: 100,
+        order: 200,
         render: (container) => {
             const wrapper = document.createElement('span');
             wrapper.className = 'es-statusbar-cmd-wrapper';
@@ -78,6 +121,23 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar): void 
         },
     });
 
+    for (const panel of rightPanels) {
+        registerStatusbarItem({
+            id: `toggle-${panel.id}`,
+            position: 'right',
+            order: -20 + (panel.order ?? 0),
+            render: (container) => {
+                const btn = createPanelToggleButton(panel.id, panel.title, panel.icon, false);
+                container.appendChild(btn);
+
+                const unlisten = getNavigationService().onPanelToggle(() => updatePanelButtonState(btn, panel.id));
+                updatePanelButtonState(btn, panel.id);
+
+                return { dispose() { btn.remove(); unlisten(); } };
+            },
+        });
+    }
+
     registerStatusbarItem({
         id: 'status-message',
         position: 'right',
@@ -93,75 +153,17 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar): void 
     });
 
     registerStatusbarItem({
-        id: 'undo',
-        position: 'right',
-        order: 0,
-        render: (container) => {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'es-statusbar-icons';
-
-            const undoBtn = document.createElement('button');
-            undoBtn.title = 'Undo';
-            undoBtn.innerHTML = '<span>Undo</span>';
-            undoBtn.addEventListener('click', () => {
-                const store = getEditorStore();
-                const desc = store.undoDescription;
-                store.undo();
-                if (desc) showStatusBarMessage(`Undo: ${desc}`);
-            });
-
-            const redoBtn = document.createElement('button');
-            redoBtn.title = 'Redo';
-            redoBtn.innerHTML = '<span>Redo</span>';
-            redoBtn.addEventListener('click', () => {
-                const store = getEditorStore();
-                const desc = store.redoDescription;
-                store.redo();
-                if (desc) showStatusBarMessage(`Redo: ${desc}`);
-            });
-
-            wrapper.appendChild(undoBtn);
-            wrapper.appendChild(redoBtn);
-            container.appendChild(wrapper);
-
-            return {
-                dispose() { wrapper.remove(); },
-                update() {
-                    const store = getEditorStore();
-                    const undoDesc = store.undoDescription;
-                    const redoDesc = store.redoDescription;
-                    undoBtn.title = undoDesc ? `Undo: ${undoDesc}` : 'Undo';
-                    redoBtn.title = redoDesc ? `Redo: ${redoDesc}` : 'Redo';
-                    undoBtn.disabled = !store.canUndo;
-                    redoBtn.disabled = !store.canRedo;
-                },
-            };
-        },
-    });
-
-    registerStatusbarItem({
-        id: 'notifications',
+        id: 'settings',
         position: 'right',
         order: 10,
         render: (container) => {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'es-statusbar-icons';
-
-            const notifBtn = document.createElement('button');
-            notifBtn.title = 'Notifications';
-            notifBtn.innerHTML = icons.list(12);
-            notifBtn.addEventListener('click', () => getNavigationService().showPanel('output'));
-
-            const settingsBtn = document.createElement('button');
-            settingsBtn.title = 'Settings';
-            settingsBtn.innerHTML = icons.settings(12);
-            settingsBtn.addEventListener('click', () => getProjectService().showSettings());
-
-            wrapper.appendChild(notifBtn);
-            wrapper.appendChild(settingsBtn);
-            container.appendChild(wrapper);
-
-            return { dispose() { wrapper.remove(); } };
+            const btn = document.createElement('button');
+            btn.className = 'es-statusbar-btn';
+            btn.title = 'Settings';
+            btn.innerHTML = icons.settings(12);
+            btn.addEventListener('click', () => getProjectService().showSettings());
+            container.appendChild(btn);
+            return { dispose() { btn.remove(); } };
         },
     });
 
@@ -170,30 +172,19 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar): void 
         position: 'right',
         order: 100,
         render: (container) => {
-            container.innerHTML = `
-                <span class="es-status-indicator es-status-saved">
-                    ${icons.check(12)}
-                    <span>All Saved</span>
-                </span>
-                <span class="es-status-indicator es-status-unsaved" style="display: none;">
-                    <span class="es-unsaved-dot"></span>
-                    <span>Unsaved Changes</span>
-                </span>
-            `;
+            const indicator = document.createElement('span');
+            indicator.className = 'es-status-indicator es-status-saved';
+            indicator.innerHTML = icons.check(12);
+            indicator.title = 'All saved';
+            container.appendChild(indicator);
 
             return {
-                dispose() { container.innerHTML = ''; },
+                dispose() { indicator.remove(); },
                 update() {
-                    const store = getEditorStore();
-                    const saved = container.querySelector('.es-status-saved') as HTMLElement;
-                    const unsaved = container.querySelector('.es-status-unsaved') as HTMLElement;
-                    if (store.isDirty) {
-                        if (saved) saved.style.display = 'none';
-                        if (unsaved) unsaved.style.display = '';
-                    } else {
-                        if (saved) saved.style.display = '';
-                        if (unsaved) unsaved.style.display = 'none';
-                    }
+                    const dirty = getEditorStore().isDirty;
+                    indicator.className = `es-status-indicator ${dirty ? 'es-status-unsaved' : 'es-status-saved'}`;
+                    indicator.innerHTML = dirty ? '<span class="es-unsaved-dot"></span>' : icons.check(12);
+                    indicator.title = dirty ? 'Unsaved changes' : 'All saved';
                 },
             };
         },
