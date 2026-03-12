@@ -18,6 +18,7 @@ import { createAssetFileEditor, ASSET_FILE_EDITORS } from './assetEditors';
 import { createEntityEditor } from './entityEditor';
 import { createVec2ArrayEditor, createStringArrayEditor } from './arrayEditors';
 import { createCollisionLayerEditor } from './collisionLayerEditor';
+import { createStateMachineEditor } from './stateMachineEditor';
 
 export { getNativeFS, getProjectDir, getMimeType, navigateToAsset, handleAssetDrop, BROWSE_ICON, CLEAR_ICON } from './assetEditors';
 
@@ -48,4 +49,5 @@ export function registerBuiltinEditors(registrar: PluginRegistrar): void {
     registerPropertyEditor('string-array', createStringArrayEditor);
     registerPropertyEditor('vec2-array', createVec2ArrayEditor);
     registerPropertyEditor('collision-layer', createCollisionLayerEditor);
+    registerPropertyEditor('state-machine', createStateMachineEditor);
 }

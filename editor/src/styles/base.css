@@ -710,6 +710,224 @@
 }
 
 /* =============================================================================
+ * StateMachine Editor
+ * ============================================================================= */
+
+.es-sm-editor {
+    padding: 0;
+}
+
+.es-sm-initial-row {
+    padding: 6px 8px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-sm-initial-row label {
+    color: var(--es-text-secondary);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+    display: block;
+}
+
+.es-sm-initial-row select {
+    width: 100%;
+}
+
+/* Sections */
+
+.es-sm-section {
+    border-top: 1px solid var(--es-border);
+}
+
+.es-sm-section-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.es-sm-section-header:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-sm-section-title {
+    flex: 1;
+}
+
+.es-sm-section-body {
+    padding: 4px 8px 6px;
+}
+
+/* Section color coding */
+.es-sm-section[data-section="inputs"] .es-sm-section-header {
+    border-left: 3px solid #5b9bd5;
+}
+
+.es-sm-section[data-section="listeners"] .es-sm-section-header {
+    border-left: 3px solid #70ad47;
+}
+
+.es-sm-section[data-section="states"] .es-sm-section-header {
+    border-left: 3px solid #ed7d31;
+}
+
+/* List rows */
+
+.es-sm-list-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 3px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: var(--es-bg-primary);
+}
+
+.es-sm-list-row select {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-sm-name {
+    flex: 2;
+    min-width: 0;
+}
+
+.es-sm-num {
+    width: 52px;
+    flex: 0 0 52px;
+}
+
+.es-sm-val {
+    width: 52px;
+    flex: 1;
+    min-width: 0;
+}
+
+.es-sm-prop-key {
+    flex: 2;
+    min-width: 0;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.es-sm-arrow {
+    font-size: 14px;
+    color: #ed7d31;
+    flex: 0 0 auto;
+    font-weight: bold;
+}
+
+.es-sm-sub-label {
+    display: block;
+    font-size: 10px;
+    margin: 6px 0 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.es-sm-label-props {
+    color: #7eb8e0;
+}
+
+.es-sm-label-trans {
+    color: #ed7d31;
+}
+
+/* State cards */
+
+.es-sm-state {
+    border: 1px solid rgba(237, 125, 49, 0.3);
+    border-radius: 4px;
+    margin-bottom: 6px;
+    overflow: hidden;
+}
+
+.es-sm-state-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: rgba(237, 125, 49, 0.08);
+    cursor: pointer;
+    border-bottom: 1px solid rgba(237, 125, 49, 0.15);
+}
+
+.es-sm-state-header:hover {
+    background: rgba(237, 125, 49, 0.15);
+}
+
+.es-sm-state-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    font-size: 11px;
+    color: #ed7d31;
+    background: transparent;
+    border-color: transparent;
+}
+
+.es-sm-state-name:focus {
+    border-color: #ed7d31;
+    color: var(--es-text-primary);
+}
+
+.es-sm-state-body {
+    padding: 6px 8px;
+}
+
+/* Transitions */
+
+.es-sm-transition {
+    border: 1px solid rgba(91, 155, 213, 0.3);
+    border-radius: 3px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    background: rgba(91, 155, 213, 0.05);
+}
+
+.es-sm-conditions {
+    padding-left: 12px;
+    border-left: 2px solid rgba(112, 173, 71, 0.3);
+    margin-top: 4px;
+}
+
+.es-sm-condition-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 2px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: rgba(112, 173, 71, 0.06);
+}
+
+.es-sm-condition-row select {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Add buttons */
+
+.es-sm-section-body > .es-btn-add-item,
+.es-sm-state-body > .es-btn-add-item {
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+.es-sm-section-body > .es-btn-add-item:hover,
+.es-sm-state-body > .es-btn-add-item:hover {
+    opacity: 1;
+}
+
+/* =============================================================================
  * Container Classes
  * ============================================================================= */
 

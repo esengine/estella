@@ -266,7 +266,7 @@ const StateMachineSchema: ComponentSchema = {
     name: 'StateMachine',
     category: 'ui',
     properties: [
-        { name: 'initialState', type: 'string', displayName: 'Initial State' },
+        { name: '*', type: 'state-machine' },
     ],
 };
 
