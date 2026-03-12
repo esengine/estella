@@ -540,6 +540,28 @@
     background: var(--es-bg-tertiary);
 }
 
+.es-padding-editor {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+}
+
+.es-vec-field.es-pad-l .es-vec-label {
+    background: hsl(200, 50%, 45%);
+}
+
+.es-vec-field.es-pad-t .es-vec-label {
+    background: hsl(140, 40%, 45%);
+}
+
+.es-vec-field.es-pad-r .es-vec-label {
+    background: hsl(30, 60%, 50%);
+}
+
+.es-vec-field.es-pad-b .es-vec-label {
+    background: hsl(340, 50%, 50%);
+}
+
 /* =============================================================================
  * Vec2 Array Editor
  * ============================================================================= */

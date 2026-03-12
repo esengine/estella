@@ -252,10 +252,11 @@ export function createPaddingEditor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const wrapper = document.createElement('div');
-    wrapper.className = 'vec-editor';
+    wrapper.className = 'es-vec-editor es-padding-editor';
 
     const keys: (keyof PaddingValue)[] = ['left', 'top', 'right', 'bottom'];
     const labels = ['L', 'T', 'R', 'B'];
+    const colorClasses = ['es-pad-l', 'es-pad-t', 'es-pad-r', 'es-pad-b'];
     let currentPad: PaddingValue = { left: 0, top: 0, right: 0, bottom: 0 };
     const inputs: HTMLInputElement[] = [];
 
@@ -265,25 +266,29 @@ export function createPaddingEditor(
 
     keys.forEach((key, i) => {
         const group = document.createElement('div');
-        group.className = 'vec-component';
+        group.className = `es-vec-field ${colorClasses[i]}`;
+
         const label = document.createElement('span');
-        label.className = 'vec-label';
+        label.className = 'es-vec-label';
         label.textContent = labels[i];
+
         const input = document.createElement('input');
         input.type = 'number';
-        input.className = 'property-input vec-input';
+        input.className = 'es-input es-input-number';
+        input.step = '1';
         input.value = String(currentPad[key]);
 
-        input.addEventListener('change', () => {
+        const handleChange = () => {
             currentPad = { ...currentPad, [key]: parseFloat(input.value) || 0 };
             onChange(currentPad);
-        });
+        };
+
+        input.addEventListener('change', handleChange);
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 input.blur();
-                currentPad = { ...currentPad, [key]: parseFloat(input.value) || 0 };
-                onChange(currentPad);
+                handleChange();
             }
         });
 
