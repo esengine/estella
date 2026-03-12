@@ -832,11 +832,11 @@ export function renderAddComponentButton(
 
     const btn = document.createElement('button');
     btn.className = 'es-btn es-btn-add-component';
-    btn.textContent = 'Add Component';
+    btn.innerHTML = `${icons.plus(12)} Add Component`;
 
     btn.addEventListener('click', () => {
         const existingTypes = existingComponents.map(c => c.type);
-        showAddComponentPopup(existingTypes, (componentName: string) => {
+        showAddComponentPopup(btn, existingTypes, (componentName: string) => {
             const defaultData = getInitialComponentData(componentName);
             store.addComponent(entity, componentName, defaultData);
         });

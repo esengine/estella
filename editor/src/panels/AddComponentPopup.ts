@@ -6,11 +6,72 @@
 import { icons } from '../utils/icons';
 import {
     getComponentsByCategory,
+    getComponentSchema,
     getInitialComponentData,
     type ComponentSchema,
     type ComponentCategory,
 } from '../schemas/ComponentSchemas';
 import { checkComponentComposition } from '../schemas/CompositionChecker';
+
+// =============================================================================
+// Component Icon Mapping
+// =============================================================================
+
+const COMPONENT_ICONS: Record<string, (size: number) => string> = {
+    Transform:       (s) => icons.move(s),
+    Name:            (s) => icons.type(s),
+    Sprite:          (s) => icons.image(s),
+    Camera:          (s) => icons.camera(s),
+    Canvas:          (s) => icons.scan(s),
+    Velocity:        (s) => icons.zap(s),
+    SceneOwner:      (s) => icons.folder(s),
+    Parent:          (s) => icons.arrowUp(s),
+    Children:        (s) => icons.list(s),
+
+    UIRect:          (s) => icons.template(s),
+    UIMask:          (s) => icons.eye(s),
+    Image:           (s) => icons.image(s),
+    Text:            (s) => icons.type(s),
+    BitmapText:      (s) => icons.type(s),
+    Button:          (s) => icons.pointer(s),
+    Toggle:          (s) => icons.toggle(s),
+    TextInput:       (s) => icons.pencil(s),
+    Interactable:    (s) => icons.pointer(s),
+    UIInteraction:   (s) => icons.pointer(s),
+    FlexContainer:   (s) => icons.layoutGrid(s),
+    FlexItem:        (s) => icons.layoutList(s),
+    ScrollView:      (s) => icons.list(s),
+    ProgressBar:     (s) => icons.sliders(s),
+
+    RigidBody:       (s) => icons.hexagon(s),
+    BoxCollider:     (s) => icons.rect(s),
+    CircleCollider:  (s) => icons.circle(s),
+    PolygonCollider: (s) => icons.shield(s),
+
+    SpriteAnimator:  (s) => icons.film(s),
+    SpineAnimation:  (s) => icons.bone(s),
+    TimelinePlayer:  (s) => icons.play(s),
+    AudioSource:     (s) => icons.volume(s),
+    AudioListener:   (s) => icons.headphones(s),
+    ParticleEmitter: (s) => icons.zap(s),
+    ShapeRenderer:   (s) => icons.circle(s),
+    PostProcessVolume: (s) => icons.palette(s),
+    Tilemap:         (s) => icons.grid(s),
+    TilemapLayer:    (s) => icons.layers(s),
+};
+
+const CATEGORY_FALLBACK_ICONS: Record<string, (size: number) => string> = {
+    builtin:  (s) => icons.box(s),
+    ui:       (s) => icons.pointer(s),
+    physics:  (s) => icons.circle(s),
+    script:   (s) => icons.code(s),
+    tag:      (s) => icons.tag(s),
+};
+
+function getComponentIcon(name: string, category: string, size: number): string {
+    const iconFn = COMPONENT_ICONS[name] ?? CATEGORY_FALLBACK_ICONS[category];
+    return iconFn ? iconFn(size) : icons.box(size);
+}
 
 // =============================================================================
 // Types
@@ -24,6 +85,29 @@ export interface AddComponentPopupOptions {
 
 interface CategoryState {
     expanded: boolean;
+}
+
+// =============================================================================
+// Recent Components
+// =============================================================================
+
+const RECENT_STORAGE_KEY = 'es-recent-components';
+const MAX_RECENT = 5;
+
+function getRecentComponents(): string[] {
+    try {
+        const raw = localStorage.getItem(RECENT_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+}
+
+function addRecentComponent(name: string): void {
+    const recent = getRecentComponents().filter(n => n !== name);
+    recent.unshift(name);
+    if (recent.length > MAX_RECENT) recent.length = MAX_RECENT;
+    localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recent));
 }
 
 // =============================================================================
@@ -73,14 +157,71 @@ export class AddComponentPopup {
         this.renderList();
     }
 
-    private highlightName(name: string, filter: string): string {
-        if (!filter) return name;
-        const idx = name.toLowerCase().indexOf(filter.toLowerCase());
-        if (idx < 0) return name;
-        const before = name.substring(0, idx);
-        const match = name.substring(idx, idx + filter.length);
-        const after = name.substring(idx + filter.length);
-        return `${before}<mark>${match}</mark>${after}`;
+    private fuzzyMatch(text: string, pattern: string): { matched: boolean; score: number; indices: number[] } {
+        const textLower = text.toLowerCase();
+        const patternLower = pattern.toLowerCase();
+
+        const substringIdx = textLower.indexOf(patternLower);
+        if (substringIdx >= 0) {
+            const indices = Array.from({ length: pattern.length }, (_, i) => substringIdx + i);
+            const score = substringIdx === 0 ? 2 : 1;
+            return { matched: true, score, indices };
+        }
+
+        const indices: number[] = [];
+        let pi = 0;
+        for (let ti = 0; ti < text.length && pi < patternLower.length; ti++) {
+            if (textLower[ti] === patternLower[pi]) {
+                indices.push(ti);
+                pi++;
+            }
+        }
+
+        if (pi === patternLower.length) {
+            return { matched: true, score: 0, indices };
+        }
+
+        return { matched: false, score: -1, indices: [] };
+    }
+
+    private highlightByIndices(name: string, indices: number[]): string {
+        if (indices.length === 0) return name;
+        const indexSet = new Set(indices);
+        let result = '';
+        let inMark = false;
+        for (let i = 0; i < name.length; i++) {
+            if (indexSet.has(i) && !inMark) {
+                result += '<mark>';
+                inMark = true;
+            } else if (!indexSet.has(i) && inMark) {
+                result += '</mark>';
+                inMark = false;
+            }
+            result += name[i];
+        }
+        if (inMark) result += '</mark>';
+        return result;
+    }
+
+    private renderComponentItem(
+        schema: ComponentSchema,
+        category: ComponentCategory,
+        highlightIndices: number[]
+    ): string {
+        const label = schema.displayName ?? schema.name;
+        const displayName = this.highlightByIndices(label, highlightIndices);
+        const composition = checkComponentComposition(schema.name, this.options_.existingComponents);
+        const disabledClass = composition.allowed ? '' : 'es-disabled';
+        const title = composition.reason ?? (schema.description ?? '');
+        return `
+            <div class="es-component-item ${disabledClass}" data-component="${schema.name}" title="${title}">
+                <span class="es-component-icon">${getComponentIcon(schema.name, category, 14)}</span>
+                <div class="es-component-text">
+                    <span class="es-component-name">${displayName}</span>
+                    ${schema.description ? `<span class="es-component-desc">${schema.description}</span>` : ''}
+                </div>
+            </div>
+        `;
     }
 
     private renderList(filter: string = ''): void {
@@ -89,70 +230,110 @@ export class AddComponentPopup {
         this.highlightIndex_ = -1;
 
         const components = getComponentsByCategory();
-        const filterLower = filter.toLowerCase();
         const existing = new Set(this.options_.existingComponents);
 
         let html = '';
 
-        const renderCategory = (
-            category: ComponentCategory,
-            label: string,
-            schemas: ComponentSchema[],
-            iconFn: () => string
-        ) => {
-            const filtered = schemas.filter(s =>
-                !s.hidden &&
-                !existing.has(s.name) &&
-                s.name.toLowerCase().includes(filterLower)
-            );
-
-            if (filtered.length === 0 && filter) return '';
-
-            const state = this.categoryStates_.get(category)!;
-            const chevron = state.expanded ? icons.chevronDown(12) : icons.chevronRight(12);
-            const itemsClass = state.expanded ? '' : 'es-hidden';
-
-            let categoryHtml = `
-                <div class="es-component-category" data-category="${category}">
-                    <div class="es-category-header">
-                        <span class="es-category-chevron">${chevron}</span>
-                        <span class="es-category-label">${label}</span>
-                        <span class="es-category-count">${filtered.length}</span>
-                    </div>
-                    <div class="es-category-items ${itemsClass}">
-            `;
-
-            for (const schema of filtered) {
-                const label = schema.displayName ?? schema.name;
-                const displayName = this.highlightName(label, filter);
-                const composition = checkComponentComposition(schema.name, this.options_.existingComponents);
-                const disabledClass = composition.allowed ? '' : 'es-disabled';
-                const title = composition.reason ?? (schema.description ?? '');
-                categoryHtml += `
-                    <div class="es-component-item ${disabledClass}" data-component="${schema.name}" title="${title}">
-                        <span class="es-component-icon">${iconFn()}</span>
-                        <span class="es-component-name">${displayName}</span>
-                        ${schema.description ? `<span class="es-component-desc">${schema.description}</span>` : ''}
-                    </div>
-                `;
+        if (filter) {
+            const allSchemas: { schema: ComponentSchema; category: ComponentCategory }[] = [];
+            const categories: [ComponentCategory, ComponentSchema[]][] = [
+                ['builtin', components.builtin],
+                ['ui', components.ui],
+                ['physics', components.physics],
+                ['script', components.script],
+                ['tag', components.tag],
+            ];
+            for (const [cat, schemas] of categories) {
+                for (const s of schemas) {
+                    if (!s.hidden && !existing.has(s.name)) {
+                        allSchemas.push({ schema: s, category: cat });
+                    }
+                }
             }
 
-            categoryHtml += `
+            const matches: { schema: ComponentSchema; category: ComponentCategory; score: number; indices: number[] }[] = [];
+            for (const { schema, category } of allSchemas) {
+                const label = schema.displayName ?? schema.name;
+                const result = this.fuzzyMatch(label, filter);
+                if (result.matched) {
+                    matches.push({ schema, category, score: result.score, indices: result.indices });
+                }
+            }
+
+            matches.sort((a, b) => b.score - a.score);
+
+            for (const { schema, category, indices } of matches) {
+                html += this.renderComponentItem(schema, category, indices);
+            }
+        } else {
+            const renderCategory = (
+                category: ComponentCategory,
+                label: string,
+                schemas: ComponentSchema[]
+            ) => {
+                const filtered = schemas.filter(s => !s.hidden && !existing.has(s.name));
+                if (filtered.length === 0) return '';
+
+                const state = this.categoryStates_.get(category)!;
+                const chevron = state.expanded ? icons.chevronDown(12) : icons.chevronRight(12);
+                const itemsClass = state.expanded ? '' : 'es-hidden';
+
+                let categoryHtml = `
+                    <div class="es-component-category" data-category="${category}">
+                        <div class="es-category-header">
+                            <span class="es-category-chevron">${chevron}</span>
+                            <span class="es-category-label">${label}</span>
+                            <span class="es-category-count">${filtered.length}</span>
+                        </div>
+                        <div class="es-category-items ${itemsClass}">
+                `;
+
+                for (const schema of filtered) {
+                    categoryHtml += this.renderComponentItem(schema, category, []);
+                }
+
+                categoryHtml += `
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+                return categoryHtml;
+            };
 
-            return categoryHtml;
-        };
+            const recentNames = getRecentComponents().filter(n => !existing.has(n));
+            if (recentNames.length > 0) {
+                let recentHtml = `
+                    <div class="es-component-category es-recent-category">
+                        <div class="es-category-header">
+                            <span class="es-category-chevron">${icons.rotateCw(12)}</span>
+                            <span class="es-category-label">Recent</span>
+                        </div>
+                        <div class="es-category-items">
+                `;
+                for (const name of recentNames) {
+                    const schema = getComponentSchema(name);
+                    if (schema && !schema.hidden) {
+                        recentHtml += this.renderComponentItem(schema, schema.category, []);
+                    }
+                }
+                recentHtml += `
+                        </div>
+                    </div>
+                `;
+                html += recentHtml;
+            }
 
-        html += renderCategory('builtin', 'Built-in', components.builtin, () => icons.box(14));
-        html += renderCategory('ui', 'UI', components.ui, () => icons.pointer(14));
-        html += renderCategory('physics', 'Physics', components.physics, () => icons.circle(14));
-        html += renderCategory('script', 'Scripts', components.script, () => icons.cog(14));
-        html += renderCategory('tag', 'Tags', components.tag, () => icons.tag(14));
+            html += renderCategory('builtin', 'Built-in', components.builtin);
+            html += renderCategory('ui', 'UI', components.ui);
+            html += renderCategory('physics', 'Physics', components.physics);
+            html += renderCategory('script', 'Scripts', components.script);
+            html += renderCategory('tag', 'Tags', components.tag);
+        }
 
         if (!html.trim()) {
-            html = '<div class="es-no-components">No components available</div>';
+            html = `<div class="es-no-components">
+                No matching components
+                ${filter ? '<button class="es-btn es-btn-clear-search">Clear search</button>' : ''}
+            </div>`;
         }
 
         this.listContainer_.innerHTML = html;
@@ -165,6 +346,16 @@ export class AddComponentPopup {
 
         this.container_.querySelector('.es-add-component-close')?.addEventListener('click', () => {
             this.options_.onClose();
+        });
+
+        this.container_.addEventListener('click', (e) => {
+            const clearBtn = (e.target as HTMLElement).closest('.es-btn-clear-search');
+            if (clearBtn && this.searchInput_) {
+                this.searchInput_.value = '';
+                this.renderList();
+                this.searchInput_.focus();
+                return;
+            }
         });
 
         this.listContainer_?.addEventListener('click', (e) => {
@@ -182,17 +373,7 @@ export class AddComponentPopup {
             const componentItem = target.closest('.es-component-item') as HTMLElement;
             if (componentItem) {
                 const name = componentItem.dataset.component;
-                if (name) {
-                    const composition = checkComponentComposition(name, this.options_.existingComponents);
-                    if (!composition.allowed) return;
-                    if (composition.autoAdd) {
-                        for (const dep of composition.autoAdd) {
-                            this.options_.onSelect(dep);
-                        }
-                    }
-                    this.options_.onSelect(name);
-                    this.options_.onClose();
-                }
+                if (name) this.selectComponent(name);
             }
         });
 
@@ -200,10 +381,25 @@ export class AddComponentPopup {
         setTimeout(() => this.searchInput_?.focus(), 0);
     }
 
+    private selectComponent(name: string): void {
+        const composition = checkComponentComposition(name, this.options_.existingComponents);
+        if (!composition.allowed) return;
+        if (composition.autoAdd) {
+            for (const dep of composition.autoAdd) {
+                this.options_.onSelect(dep);
+            }
+        }
+        addRecentComponent(name);
+        this.options_.onSelect(name);
+        this.options_.onClose();
+    }
+
     private getVisibleItems(): HTMLElement[] {
         if (!this.listContainer_) return [];
         return Array.from(
-            this.listContainer_.querySelectorAll('.es-category-items:not(.es-hidden) > .es-component-item')
+            this.listContainer_.querySelectorAll(
+                '.es-category-items:not(.es-hidden) > .es-component-item, .es-add-component-list > .es-component-item'
+            )
         );
     }
 
@@ -243,17 +439,7 @@ export class AddComponentPopup {
             e.preventDefault();
             if (this.highlightIndex_ >= 0 && this.highlightIndex_ < items.length) {
                 const name = items[this.highlightIndex_].dataset.component;
-                if (name) {
-                    const composition = checkComponentComposition(name, this.options_.existingComponents);
-                    if (!composition.allowed) return;
-                    if (composition.autoAdd) {
-                        for (const dep of composition.autoAdd) {
-                            this.options_.onSelect(dep);
-                        }
-                    }
-                    this.options_.onSelect(name);
-                    this.options_.onClose();
-                }
+                if (name) this.selectComponent(name);
             }
         }
     };
@@ -273,29 +459,75 @@ export class AddComponentPopup {
 }
 
 // =============================================================================
-// Overlay Helper
+// Anchored Popup Helper
 // =============================================================================
 
+let activePopupCleanup: (() => void) | null = null;
+
 export function showAddComponentPopup(
+    anchor: HTMLElement,
     existingComponents: string[],
     onSelect: (componentName: string) => void
 ): void {
-    const overlay = document.createElement('div');
-    overlay.className = 'es-popup-overlay';
+    if (activePopupCleanup) {
+        activePopupCleanup();
+        activePopupCleanup = null;
+        return;
+    }
 
     const container = document.createElement('div');
-    container.className = 'es-popup-container';
-    overlay.appendChild(container);
-    document.body.appendChild(overlay);
+    container.className = 'es-popup-container es-popup-anchored';
+    document.body.appendChild(container);
+
+    const positionPanel = () => {
+        const rect = anchor.getBoundingClientRect();
+        const panelHeight = container.offsetHeight;
+        const spaceAbove = rect.top;
+        const spaceBelow = window.innerHeight - rect.bottom;
+
+        container.style.left = `${rect.left}px`;
+        container.style.width = `${Math.max(rect.width, 320)}px`;
+
+        if (spaceBelow >= panelHeight || spaceBelow >= spaceAbove) {
+            container.style.top = `${rect.bottom + 4}px`;
+            container.style.bottom = '';
+            container.classList.remove('es-popup-above');
+        } else {
+            container.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+            container.style.top = '';
+            container.classList.add('es-popup-above');
+        }
+    };
 
     const close = () => {
-        popup.dispose();
-        overlay.remove();
+        container.classList.remove('es-popup-visible');
+        container.addEventListener('transitionend', () => {
+            popup.dispose();
+            container.remove();
+        }, { once: true });
+        setTimeout(() => {
+            popup.dispose();
+            container.remove();
+        }, 200);
+        document.removeEventListener('mousedown', onClickOutside, true);
+        activePopupCleanup = null;
     };
+
+    const onClickOutside = (e: MouseEvent) => {
+        if (!container.contains(e.target as Node) && e.target !== anchor && !anchor.contains(e.target as Node)) {
+            close();
+        }
+    };
+
+    activePopupCleanup = close;
 
     const popup = new AddComponentPopup(container, {
         existingComponents,
         onSelect,
         onClose: close,
     });
+
+    positionPanel();
+    requestAnimationFrame(() => container.classList.add('es-popup-visible'));
+    document.addEventListener('mousedown', onClickOutside, true);
 }
