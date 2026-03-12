@@ -16,6 +16,9 @@ export const CONNECTOR_RADIUS = 5;
 export const CONNECTOR_HOVER_MARGIN = 12;
 export const ARROW_SIZE = 8;
 
+export const BEZIER_CONTROL_X = 0.3;
+export const BEZIER_CONTROL_Y = 0.05;
+
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 3;
 export const ZOOM_SPEED = 0.001;
@@ -39,6 +42,10 @@ export const COLORS = {
     anyFill: '#3a2a5a',
     anyBorder: '#6a4a9a',
     anyText: '#b0a0dd',
+
+    exitFill: '#4a2a2a',
+    exitBorder: '#9a4a4a',
+    exitText: '#dda0a0',
 
     connectionLine: '#777777',
     connectionSelected: '#57a5ff',

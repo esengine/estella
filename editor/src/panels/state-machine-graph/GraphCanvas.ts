@@ -4,6 +4,8 @@ import {
     COLORS,
     GRID_SIZE,
     GRID_DOT_RADIUS,
+    BEZIER_CONTROL_X,
+    BEZIER_CONTROL_Y,
     MIN_ZOOM,
     MAX_ZOOM,
     ZOOM_SPEED,
@@ -25,6 +27,7 @@ export interface GraphCanvasCallbacks {
     onRenameNode?(name: string): void;
     onSetInitialState?(name: string): void;
     onAddAnyState?(worldX: number, worldY: number): void;
+    onAddExitState?(worldX: number, worldY: number): void;
 }
 
 const MULTI_TRANSITION_OFFSET = 8;
@@ -279,8 +282,8 @@ export class GraphCanvas {
         ctx.beginPath();
         ctx.moveTo(sx1, sy1);
         ctx.bezierCurveTo(
-            sx1 + dx * 0.3, sy1 + dy * 0.05,
-            sx2 - dx * 0.3, sy2 - dy * 0.05,
+            sx1 + dx * BEZIER_CONTROL_X, sy1 + dy * BEZIER_CONTROL_Y,
+            sx2 - dx * BEZIER_CONTROL_X, sy2 - dy * BEZIER_CONTROL_Y,
             sx2, sy2,
         );
         ctx.strokeStyle = color;
@@ -314,8 +317,8 @@ export class GraphCanvas {
         ctx.beginPath();
         ctx.moveTo(sx1, sy1);
         ctx.bezierCurveTo(
-            sx1 + dx * 0.3, sy1,
-            sx2 - dx * 0.3, sy2,
+            sx1 + dx * BEZIER_CONTROL_X, sy1,
+            sx2 - dx * BEZIER_CONTROL_X, sy2,
             sx2, sy2,
         );
         ctx.strokeStyle = COLORS.connectionPending;
@@ -388,17 +391,18 @@ export class GraphCanvas {
 
             const isEntry = name === '__entry__';
             const isAny = name === '__any__';
-            const isSpecial = isEntry || isAny;
+            const isExit = name === '__exit__';
+            const isSpecial = isEntry || isAny || isExit;
             const isSelected = this.state_.selectedNodes.has(name);
             const isActive = this.state_.isPlayMode && this.state_.activeStateName === name;
 
-            const fillColor = isEntry ? COLORS.entryFill : isAny ? COLORS.anyFill : COLORS.nodeFill;
+            const fillColor = isEntry ? COLORS.entryFill : isAny ? COLORS.anyFill : isExit ? COLORS.exitFill : COLORS.nodeFill;
             const borderColor = isActive
                 ? COLORS.playModeActive
                 : isSelected
                     ? COLORS.nodeSelectedBorder
-                    : isEntry ? COLORS.entryBorder : isAny ? COLORS.anyBorder : COLORS.nodeBorder;
-            const textColor = isEntry ? COLORS.entryText : isAny ? COLORS.anyText : COLORS.nodeText;
+                    : isEntry ? COLORS.entryBorder : isAny ? COLORS.anyBorder : isExit ? COLORS.exitBorder : COLORS.nodeBorder;
+            const textColor = isEntry ? COLORS.entryText : isAny ? COLORS.anyText : isExit ? COLORS.exitText : COLORS.nodeText;
 
             const r = Math.min(NODE_BORDER_RADIUS * vt.zoom, sh / 2);
 
@@ -427,7 +431,7 @@ export class GraphCanvas {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            const displayName = isEntry ? 'Entry' : isAny ? 'Any' : name;
+            const displayName = isEntry ? 'Entry' : isAny ? 'Any' : isExit ? 'Exit' : name;
             const nameY = hasSubtitle ? sy + sh * 0.38 : sy + sh / 2;
             ctx.fillText(displayName, sx + sw / 2, nameY, sw - 12 * vt.zoom);
 
@@ -517,7 +521,7 @@ export class GraphCanvas {
 
     private isNearNodeEdge(worldX: number, worldY: number): string | null {
         for (const [name, layout] of this.state_.nodeLayouts) {
-            if (name === '__entry__') continue;
+            if (name === '__entry__' || name === '__exit__') continue;
             const cy = layout.y + layout.height / 2;
             const dy = worldY - cy;
             if (Math.abs(dy) > layout.height / 2 + CONNECTOR_HOVER_MARGIN) continue;
@@ -725,7 +729,7 @@ export class GraphCanvas {
         const world = this.screenToWorld(sx, sy);
         const hitNode = this.hitTestNode(world.x, world.y);
 
-        if (hitNode && hitNode !== '__entry__') {
+        if (hitNode && hitNode !== '__entry__' && hitNode !== '__any__' && hitNode !== '__exit__') {
             this.callbacks_.onRenameNode?.(hitNode);
         } else if (!hitNode) {
             this.callbacks_.onAddState?.(world.x, world.y);
@@ -738,7 +742,7 @@ export class GraphCanvas {
         const world = this.screenToWorld(sx, sy);
         const hitNode = this.hitTestNode(world.x, world.y);
 
-        if (hitNode && hitNode !== '__entry__' && hitNode !== '__any__') {
+        if (hitNode && hitNode !== '__entry__' && hitNode !== '__any__' && hitNode !== '__exit__') {
             const isInitial = this.state_.initialStateName === hitNode;
             const items = [
                 { label: 'Rename', onClick: () => this.callbacks_.onRenameNode?.(hitNode) },
@@ -754,11 +758,13 @@ export class GraphCanvas {
                 y: e.clientY,
                 items,
             });
-        } else if (!hitNode || hitNode === '__entry__' || hitNode === '__any__') {
+        } else {
             const hasAny = this.state_.nodeLayouts.has('__any__');
+            const hasExit = this.state_.nodeLayouts.has('__exit__');
             const items = [
                 { label: 'Add State', onClick: () => this.callbacks_.onAddState?.(world.x, world.y) },
                 ...(!hasAny ? [{ label: 'Add Any State', onClick: () => this.callbacks_.onAddAnyState?.(world.x, world.y) }] : []),
+                ...(!hasExit ? [{ label: 'Add Exit State', onClick: () => this.callbacks_.onAddExitState?.(world.x, world.y) }] : []),
             ];
             showContextMenu({
                 x: e.clientX,

@@ -7,6 +7,7 @@ const EASING_OPTIONS = ['linear', 'easeInQuad', 'easeOutQuad', 'easeInOutQuad', 
 const COMPARATOR_OPTIONS = ['eq', 'neq', 'gt', 'lt', 'gte', 'lte'];
 const COMPARATOR_LABELS: Record<string, string> = { eq: '=', neq: '\u2260', gt: '>', lt: '<', gte: '\u2265', lte: '\u2264' };
 const WRAP_MODE_OPTIONS = ['loop', 'once'];
+const STATE_TYPE_OPTIONS = ['standard', 'blend1d', 'blendDirect'];
 
 const DETAIL_WIDTH = 260;
 const COLLAPSED_WIDTH = 24;
@@ -25,11 +26,23 @@ interface Transition {
     easing?: string;
 }
 
+interface BlendEntry {
+    timeline?: string;
+    timelineWrapMode?: 'once' | 'loop';
+    properties?: Record<string, unknown>;
+    threshold?: number;
+    mixValue?: number;
+    mixInput?: string;
+}
+
 interface StateNode {
     timeline?: string;
     timelineWrapMode?: 'once' | 'loop';
     properties?: Record<string, unknown>;
     transitions: Transition[];
+    type?: 'standard' | 'blend1d' | 'blendDirect';
+    blendInput?: string;
+    blendStates?: BlendEntry[];
 }
 
 interface InputDef {
@@ -48,6 +61,9 @@ export interface DetailPanelCallbacks {
     onRemoveProperty(stateName: string, key: string): void;
     onRenameProperty(stateName: string, oldKey: string, newKey: string): void;
     onPropertyValueChanged(stateName: string, key: string, value: unknown): void;
+    onAddBlendEntry?(stateName: string): void;
+    onRemoveBlendEntry?(stateName: string, index: number): void;
+    onUpdateBlendEntry?(stateName: string, index: number, field: string, value: unknown): void;
 }
 
 export class GraphDetailPanel {
@@ -180,29 +196,60 @@ export class GraphDetailPanel {
     // =========================================================================
 
     private renderStateView(container: HTMLElement, name: string, state: StateNode, inputs: InputDef[]): void {
-        this.appendFieldRow(container, 'Timeline', () => {
-            const input = this.createTextInput(state.timeline ?? '', (val) => {
-                this.callbacks_.onStateChanged(name, 'timeline', val || undefined);
-            });
-            input.placeholder = 'path/to/timeline';
-            return input;
-        });
+        const stateType = state.type ?? 'standard';
 
-        this.appendFieldRow(container, 'Wrap Mode', () => {
-            return this.createSelect(WRAP_MODE_OPTIONS, state.timelineWrapMode ?? 'loop', (val) => {
-                this.callbacks_.onStateChanged(name, 'timelineWrapMode', val);
+        this.appendFieldRow(container, 'Type', () => {
+            return this.createSelect(STATE_TYPE_OPTIONS, stateType, (val) => {
+                this.callbacks_.onStateChanged(name, 'type', val === 'standard' ? undefined : val);
             });
         });
 
-        this.renderCollapsibleSection(container, 'properties', 'Properties', state.properties ? Object.keys(state.properties).length : 0, (body) => {
-            this.renderPropertiesContent(body, name, state.properties ?? {});
-        }, () => {
-            const existing = state.properties ?? {};
-            let key = 'newProperty';
-            let i = 1;
-            while (key in existing) { key = `newProperty${i++}`; }
-            this.callbacks_.onAddProperty(name, key);
-        });
+        if (stateType === 'standard') {
+            this.appendFieldRow(container, 'Timeline', () => {
+                const input = this.createTextInput(state.timeline ?? '', (val) => {
+                    this.callbacks_.onStateChanged(name, 'timeline', val || undefined);
+                });
+                input.placeholder = 'path/to/timeline';
+                return input;
+            });
+
+            this.appendFieldRow(container, 'Wrap Mode', () => {
+                return this.createSelect(WRAP_MODE_OPTIONS, state.timelineWrapMode ?? 'loop', (val) => {
+                    this.callbacks_.onStateChanged(name, 'timelineWrapMode', val);
+                });
+            });
+
+            this.renderCollapsibleSection(container, 'properties', 'Properties', state.properties ? Object.keys(state.properties).length : 0, (body) => {
+                this.renderPropertiesContent(body, name, state.properties ?? {});
+            }, () => {
+                const existing = state.properties ?? {};
+                let key = 'newProperty';
+                let i = 1;
+                while (key in existing) { key = `newProperty${i++}`; }
+                this.callbacks_.onAddProperty(name, key);
+            });
+        } else if (stateType === 'blend1d') {
+            const numberInputs = inputs.filter(i => i.type === 'number');
+            this.appendFieldRow(container, 'Blend Input', () => {
+                const options = numberInputs.map(i => i.name);
+                if (options.length === 0) options.push('');
+                return this.createSelect(options, state.blendInput ?? options[0] ?? '', (val) => {
+                    this.callbacks_.onStateChanged(name, 'blendInput', val || undefined);
+                });
+            });
+
+            this.renderCollapsibleSection(container, 'blendStates', 'Blend Entries', state.blendStates?.length ?? 0, (body) => {
+                this.renderBlend1DContent(body, name, state.blendStates ?? []);
+            }, () => {
+                this.callbacks_.onAddBlendEntry?.(name);
+            });
+        } else if (stateType === 'blendDirect') {
+            this.renderCollapsibleSection(container, 'blendStates', 'Blend Entries', state.blendStates?.length ?? 0, (body) => {
+                this.renderBlendDirectContent(body, name, state.blendStates ?? [], inputs);
+            }, () => {
+                this.callbacks_.onAddBlendEntry?.(name);
+            });
+        }
 
         this.renderCollapsibleSection(container, 'transitions', 'Transitions', state.transitions?.length ?? 0, (body) => {
             this.renderTransitionsListContent(body, name, state.transitions ?? []);
@@ -248,6 +295,151 @@ export class GraphDetailPanel {
 
         if (Object.keys(properties).length === 0) {
             this.appendEmptyHint(container, 'No properties');
+        }
+    }
+
+    private renderBlend1DContent(container: HTMLElement, stateName: string, entries: BlendEntry[]): void {
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:4px 0;border-bottom:1px solid var(--es-border, #333);';
+
+            const headerRow = document.createElement('div');
+            headerRow.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px;';
+
+            const threshLabel = document.createElement('span');
+            threshLabel.style.cssText = 'font-size:10px;color:var(--es-text-muted, #888);width:50px;flex-shrink:0;';
+            threshLabel.textContent = 'Threshold';
+
+            const threshInput = document.createElement('input');
+            threshInput.className = 'es-input es-input-number';
+            threshInput.type = 'number';
+            threshInput.step = '0.1';
+            threshInput.style.cssText = 'font-size:11px;padding:2px 4px;height:20px;flex:1;min-width:0;';
+            threshInput.value = String(entry.threshold ?? 0);
+            const idx = i;
+            threshInput.addEventListener('change', () => {
+                this.callbacks_.onUpdateBlendEntry?.(stateName, idx, 'threshold', parseFloat(threshInput.value) || 0);
+            });
+
+            const removeBtn = this.createRemoveBtn();
+            removeBtn.addEventListener('click', () => {
+                this.callbacks_.onRemoveBlendEntry?.(stateName, idx);
+            });
+
+            headerRow.appendChild(threshLabel);
+            headerRow.appendChild(threshInput);
+            headerRow.appendChild(removeBtn);
+            row.appendChild(headerRow);
+
+            this.renderBlendEntryProperties(row, stateName, i, entry);
+            container.appendChild(row);
+        }
+
+        if (entries.length === 0) {
+            this.appendEmptyHint(container, 'No blend entries');
+        }
+    }
+
+    private renderBlendDirectContent(container: HTMLElement, stateName: string, entries: BlendEntry[], inputs: InputDef[]): void {
+        const numberInputs = inputs.filter(inp => inp.type === 'number');
+
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:4px 0;border-bottom:1px solid var(--es-border, #333);';
+
+            const headerRow = document.createElement('div');
+            headerRow.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px;';
+
+            const mixLabel = document.createElement('span');
+            mixLabel.style.cssText = 'font-size:10px;color:var(--es-text-muted, #888);width:24px;flex-shrink:0;';
+            mixLabel.textContent = 'Mix';
+
+            const idx = i;
+
+            if (entry.mixInput) {
+                const options = numberInputs.map(inp => inp.name);
+                if (options.length === 0) options.push('');
+                const sel = this.createMiniSelect(options, entry.mixInput);
+                sel.style.cssText += 'flex:1;min-width:0;';
+                sel.addEventListener('change', () => {
+                    this.callbacks_.onUpdateBlendEntry?.(stateName, idx, 'mixInput', sel.value || undefined);
+                });
+                headerRow.appendChild(mixLabel);
+                headerRow.appendChild(sel);
+            } else {
+                const mixInput = document.createElement('input');
+                mixInput.className = 'es-input es-input-number';
+                mixInput.type = 'number';
+                mixInput.step = '0.1';
+                mixInput.min = '0';
+                mixInput.max = '1';
+                mixInput.style.cssText = 'font-size:11px;padding:2px 4px;height:20px;flex:1;min-width:0;';
+                mixInput.value = String(entry.mixValue ?? 1);
+                mixInput.addEventListener('change', () => {
+                    this.callbacks_.onUpdateBlendEntry?.(stateName, idx, 'mixValue', parseFloat(mixInput.value) || 0);
+                });
+                headerRow.appendChild(mixLabel);
+                headerRow.appendChild(mixInput);
+            }
+
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'es-btn es-btn-icon es-btn-clear';
+            toggleBtn.style.cssText = 'font-size:9px;width:18px;height:18px;padding:0;flex-shrink:0;';
+            toggleBtn.title = entry.mixInput ? 'Switch to static value' : 'Switch to input-driven';
+            toggleBtn.textContent = entry.mixInput ? 'V' : 'I';
+            toggleBtn.addEventListener('click', () => {
+                if (entry.mixInput) {
+                    this.callbacks_.onUpdateBlendEntry?.(stateName, idx, 'mixInput', undefined);
+                    this.callbacks_.onUpdateBlendEntry?.(stateName, idx, 'mixValue', 1);
+                } else {
+                    const firstNum = numberInputs[0]?.name ?? '';
+                    this.callbacks_.onUpdateBlendEntry?.(stateName, idx, 'mixValue', undefined);
+                    this.callbacks_.onUpdateBlendEntry?.(stateName, idx, 'mixInput', firstNum);
+                }
+            });
+
+            const removeBtn = this.createRemoveBtn();
+            removeBtn.addEventListener('click', () => {
+                this.callbacks_.onRemoveBlendEntry?.(stateName, idx);
+            });
+
+            headerRow.appendChild(toggleBtn);
+            headerRow.appendChild(removeBtn);
+            row.appendChild(headerRow);
+
+            this.renderBlendEntryProperties(row, stateName, i, entry);
+            container.appendChild(row);
+        }
+
+        if (entries.length === 0) {
+            this.appendEmptyHint(container, 'No blend entries');
+        }
+    }
+
+    private renderBlendEntryProperties(container: HTMLElement, stateName: string, entryIndex: number, entry: BlendEntry): void {
+        const props = entry.properties ?? {};
+        for (const [key, value] of Object.entries(props)) {
+            const propRow = document.createElement('div');
+            propRow.style.cssText = 'display:flex;align-items:center;gap:4px;padding:1px 0 1px 8px;';
+
+            const keyEl = document.createElement('span');
+            keyEl.style.cssText = 'flex:1;min-width:0;font-size:10px;color:var(--es-text-secondary, #aaa);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+            keyEl.textContent = key;
+
+            const valInput = document.createElement('input');
+            valInput.className = 'es-input';
+            valInput.style.cssText = 'width:50px;flex-shrink:0;font-size:10px;padding:1px 4px;height:18px;';
+            valInput.value = String(value ?? '');
+            valInput.addEventListener('change', () => {
+                const newProps = { ...(entry.properties ?? {}), [key]: parsePropertyValue(valInput.value) };
+                this.callbacks_.onUpdateBlendEntry?.(stateName, entryIndex, 'properties', newProps);
+            });
+
+            propRow.appendChild(keyEl);
+            propRow.appendChild(valInput);
+            container.appendChild(propRow);
         }
     }
 
@@ -441,8 +633,7 @@ export class GraphDetailPanel {
             else this.collapsedSections_.delete(id);
         });
 
-        if (expanded) renderBody(body);
-        else renderBody(body);
+        renderBody(body);
 
         section.appendChild(header);
         section.appendChild(body);

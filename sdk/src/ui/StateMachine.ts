@@ -14,11 +14,25 @@ export interface Transition {
     easing?: string;
 }
 
+export type StateType = 'standard' | 'blend1d' | 'blendDirect';
+
+export interface BlendEntry {
+    timeline?: string;
+    timelineWrapMode?: 'once' | 'loop';
+    properties?: Record<string, unknown>;
+    threshold?: number;
+    mixValue?: number;
+    mixInput?: string;
+}
+
 export interface StateNode {
     timeline?: string;
     timelineWrapMode?: 'once' | 'loop';
     properties?: Record<string, unknown>;
     transitions: Transition[];
+    type?: StateType;
+    blendInput?: string;
+    blendStates?: BlendEntry[];
 }
 
 export interface InputDef {
@@ -34,11 +48,18 @@ export interface ListenerDef {
     value?: boolean | number;
 }
 
+export interface LayerData {
+    name: string;
+    states: Record<string, StateNode>;
+    initialState: string;
+}
+
 export interface StateMachineData {
     states: Record<string, StateNode>;
     inputs: InputDef[];
     listeners: ListenerDef[];
     initialState: string;
+    layers?: LayerData[];
 }
 
 export const StateMachine = defineComponent<StateMachineData>('StateMachine', {

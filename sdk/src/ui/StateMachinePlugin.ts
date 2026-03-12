@@ -6,7 +6,10 @@ import { registerComponent } from '../component';
 import type { Entity } from '../types';
 import type { World } from '../world';
 import { StateMachine } from './StateMachine';
-import type { StateMachineData, StateNode, Condition, ListenerDef } from './StateMachine';
+import type {
+    StateMachineData, StateNode, Condition, ListenerDef,
+    LayerData, BlendEntry,
+} from './StateMachine';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { Tween } from '../animation/Tween';
@@ -47,18 +50,25 @@ const WRAP_MODE_MAP: Record<string, number> = {
     loop: WrapMode.Loop,
 };
 
+const EXIT_STATE = '__exit__';
+
 interface LayerRuntime {
     currentState: string;
-    inputs: Map<string, boolean | number>;
     activeTweens: ValueTweenHandle[];
-    prevHovered: boolean;
     timelineHandle: number;
     timelineUpload: UploadResult | null;
     timelinePath: string;
     timelineDuration: number;
+    isExited: boolean;
 }
 
-function createRuntime(data: StateMachineData): LayerRuntime {
+interface EntityRuntime {
+    inputs: Map<string, boolean | number>;
+    layers: LayerRuntime[];
+    prevHovered: boolean;
+}
+
+function createInputs(data: StateMachineData): Map<string, boolean | number> {
     const inputs = new Map<string, boolean | number>();
     for (const def of data.inputs) {
         if (def.type === 'bool') {
@@ -69,15 +79,34 @@ function createRuntime(data: StateMachineData): LayerRuntime {
             inputs.set(def.name, false);
         }
     }
+    return inputs;
+}
+
+function createLayerRuntime(initialState: string): LayerRuntime {
     return {
-        currentState: data.initialState,
-        inputs,
+        currentState: initialState,
         activeTweens: [],
-        prevHovered: false,
         timelineHandle: 0,
         timelineUpload: null,
         timelinePath: '',
         timelineDuration: 0,
+        isExited: false,
+    };
+}
+
+function getLayers(data: StateMachineData): LayerData[] {
+    if (data.layers && data.layers.length > 0) {
+        return data.layers;
+    }
+    return [{ name: 'Base', states: data.states, initialState: data.initialState }];
+}
+
+function createEntityRuntime(data: StateMachineData): EntityRuntime {
+    const layers = getLayers(data);
+    return {
+        inputs: createInputs(data),
+        layers: layers.map(l => createLayerRuntime(l.initialState)),
+        prevHovered: false,
     };
 }
 
@@ -156,6 +185,91 @@ function applyStateProperties(
     }
 }
 
+function applyBlendEntryProperties(
+    world: World,
+    entity: Entity,
+    entry: BlendEntry,
+    weight: number,
+): void {
+    if (!entry.properties || weight <= 0) return;
+
+    for (const [path, targetValue] of Object.entries(entry.properties)) {
+        if (typeof targetValue === 'number') {
+            const current = getEntityProperty(world, entity, path);
+            if (typeof current === 'number') {
+                setEntityProperty(world, entity, path, current + (targetValue - current) * weight);
+            }
+        }
+    }
+}
+
+function applyBlend1D(
+    world: World,
+    entity: Entity,
+    state: StateNode,
+    inputs: Map<string, boolean | number>,
+): void {
+    if (!state.blendInput || !state.blendStates || state.blendStates.length === 0) return;
+
+    const inputValue = (inputs.get(state.blendInput) as number) ?? 0;
+    const entries = state.blendStates.slice().sort((a, b) => (a.threshold ?? 0) - (b.threshold ?? 0));
+
+    if (entries.length === 1) {
+        applyBlendEntryProperties(world, entity, entries[0], 1);
+        return;
+    }
+
+    const minThreshold = entries[0].threshold ?? 0;
+    const maxThreshold = entries[entries.length - 1].threshold ?? 0;
+
+    if (inputValue <= minThreshold) {
+        applyBlendEntryProperties(world, entity, entries[0], 1);
+        return;
+    }
+    if (inputValue >= maxThreshold) {
+        applyBlendEntryProperties(world, entity, entries[entries.length - 1], 1);
+        return;
+    }
+
+    for (let i = 0; i < entries.length - 1; i++) {
+        const lo = entries[i].threshold ?? 0;
+        const hi = entries[i + 1].threshold ?? 0;
+        if (inputValue >= lo && inputValue <= hi) {
+            const range = hi - lo;
+            const t = range > 0 ? (inputValue - lo) / range : 0;
+            if (entries[i].properties && entries[i + 1].properties) {
+                for (const [path, loVal] of Object.entries(entries[i].properties!)) {
+                    const hiVal = entries[i + 1].properties![path];
+                    if (typeof loVal === 'number' && typeof hiVal === 'number') {
+                        const blended = loVal + (hiVal - loVal) * t;
+                        setEntityProperty(world, entity, path, blended);
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
+
+function applyBlendDirect(
+    world: World,
+    entity: Entity,
+    state: StateNode,
+    inputs: Map<string, boolean | number>,
+): void {
+    if (!state.blendStates) return;
+
+    for (const entry of state.blendStates) {
+        let mix: number;
+        if (entry.mixInput) {
+            mix = (inputs.get(entry.mixInput) as number) ?? 0;
+        } else {
+            mix = entry.mixValue ?? 1;
+        }
+        applyBlendEntryProperties(world, entity, entry, mix);
+    }
+}
+
 function enterTimelineState(
     world: any, module: ESEngineModule,
     entity: Entity, state: StateNode, runtime: LayerRuntime,
@@ -191,12 +305,117 @@ function cleanupTimelineHandle(module: ESEngineModule | null, runtime: LayerRunt
     runtime.timelineDuration = 0;
 }
 
+function cleanupEntityRuntime(module: ESEngineModule | null, er: EntityRuntime): void {
+    for (const layer of er.layers) {
+        cancelActiveTweens(layer);
+        cleanupTimelineHandle(module, layer);
+    }
+}
+
+function processLayer(
+    world: World,
+    module: ESEngineModule,
+    entity: Entity,
+    layerData: LayerData,
+    layer: LayerRuntime,
+    inputs: Map<string, boolean | number>,
+    dt: number,
+): void {
+    if (layer.isExited) return;
+
+    // Advance active timeline
+    if (layer.timelineHandle && layer.timelineUpload && module) {
+        setTimelineModule(module);
+        advanceAndProcess(
+            world, module,
+            layer.timelineHandle, entity,
+            dt, 1.0,
+            layer.timelineUpload,
+        );
+    }
+
+    // Evaluate transitions (current state first, then __any__)
+    const currentState = layerData.states[layer.currentState];
+    if (!currentState) return;
+
+    const anyState = layerData.states['__any__'];
+    const allTransitions = anyState
+        ? [...currentState.transitions, ...anyState.transitions]
+        : currentState.transitions;
+
+    for (const transition of allTransitions) {
+        if (transition.exitTime !== undefined && transition.exitTime > 0) {
+            if (layer.timelineHandle && module && layer.timelineDuration > 0) {
+                const currentTime = module._tl_getTime(layer.timelineHandle);
+                if (currentTime / layer.timelineDuration < transition.exitTime) {
+                    continue;
+                }
+            }
+        }
+
+        const allMet = transition.conditions.every(
+            c => evaluateCondition(c, inputs)
+        );
+        if (!allMet) continue;
+
+        if (transition.target === EXIT_STATE) {
+            cancelActiveTweens(layer);
+            cleanupTimelineHandle(module, layer);
+            layer.currentState = EXIT_STATE;
+            layer.isExited = true;
+            break;
+        }
+
+        const targetState = layerData.states[transition.target];
+        if (!targetState) continue;
+
+        cancelActiveTweens(layer);
+
+        const stateType = targetState.type ?? 'standard';
+
+        if (stateType === 'blend1d') {
+            cleanupTimelineHandle(module, layer);
+            applyBlend1D(world, entity, targetState, inputs);
+        } else if (stateType === 'blendDirect') {
+            cleanupTimelineHandle(module, layer);
+            applyBlendDirect(world, entity, targetState, inputs);
+        } else if (targetState.timeline) {
+            if (module) {
+                setTimelineModule(module);
+                enterTimelineState(world, module, entity, targetState, layer);
+            }
+        } else {
+            cleanupTimelineHandle(module, layer);
+            applyStateProperties(
+                world, entity, targetState,
+                transition.duration,
+                resolveEasing(transition.easing),
+                layer,
+            );
+        }
+
+        layer.currentState = transition.target;
+        break;
+    }
+
+    // Apply blend state properties each frame (not just on transition)
+    const activeState = layerData.states[layer.currentState];
+    if (activeState) {
+        const activeType = activeState.type ?? 'standard';
+        if (activeType === 'blend1d') {
+            applyBlend1D(world, entity, activeState, inputs);
+        } else if (activeType === 'blendDirect') {
+            applyBlendDirect(world, entity, activeState, inputs);
+        }
+    }
+}
+
 export class StateMachinePlugin implements Plugin {
     build(app: App): void {
         registerComponent('StateMachine', StateMachine);
 
         const world = app.world;
-        const runtimes = new Map<Entity, LayerRuntime>();
+        const runtimes = new Map<Entity, EntityRuntime>();
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
@@ -205,8 +424,8 @@ export class StateMachinePlugin implements Plugin {
 
                 for (const entity of runtimes.keys()) {
                     if (!world.valid(entity)) {
-                        const rt = runtimes.get(entity)!;
-                        cleanupTimelineHandle(module, rt);
+                        const er = runtimes.get(entity)!;
+                        cleanupEntityRuntime(module, er);
                         runtimes.delete(entity);
                     }
                 }
@@ -215,38 +434,32 @@ export class StateMachinePlugin implements Plugin {
 
                 for (const entity of entities) {
                     const data = world.get(entity, StateMachine) as StateMachineData;
-                    if (!data.initialState || !data.states[data.initialState]) continue;
+                    const layerDefs = getLayers(data);
 
-                    let runtime = runtimes.get(entity);
-                    if (!runtime) {
-                        runtime = createRuntime(data);
-                        runtimes.set(entity, runtime);
+                    if (layerDefs.length === 0) continue;
+                    if (!layerDefs[0].initialState || !layerDefs[0].states[layerDefs[0].initialState]) continue;
 
-                        const initialState = data.states[runtime.currentState];
-                        if (initialState?.timeline && module) {
-                            setTimelineModule(module);
-                            enterTimelineState(world, module, entity, initialState, runtime);
+                    let er = runtimes.get(entity);
+                    if (!er) {
+                        er = createEntityRuntime(data);
+                        runtimes.set(entity, er);
+
+                        for (let i = 0; i < layerDefs.length; i++) {
+                            const initialState = layerDefs[i].states[er.layers[i].currentState];
+                            if (initialState?.timeline && module) {
+                                setTimelineModule(module);
+                                enterTimelineState(world, module, entity, initialState, er.layers[i]);
+                            }
                         }
                     }
 
-                    // Advance active timeline
-                    if (runtime.timelineHandle && runtime.timelineUpload && module) {
-                        setTimelineModule(module);
-                        advanceAndProcess(
-                            world, module,
-                            runtime.timelineHandle, entity,
-                            time.delta, 1.0,
-                            runtime.timelineUpload,
-                        );
-                    }
-
-                    // Listener processing
+                    // Listener processing (shared inputs)
                     const hasInteraction = world.has(entity, UIInteraction);
                     if (hasInteraction) {
                         const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                        const justEntered = interaction.hovered && !runtime.prevHovered;
-                        const justExited = !interaction.hovered && runtime.prevHovered;
-                        runtime.prevHovered = interaction.hovered;
+                        const justEntered = interaction.hovered && !er.prevHovered;
+                        const justExited = !interaction.hovered && er.prevHovered;
+                        er.prevHovered = interaction.hovered;
 
                         for (const listener of data.listeners) {
                             let matched = false;
@@ -257,64 +470,22 @@ export class StateMachinePlugin implements Plugin {
                                 case 'pointerExit': matched = justExited; break;
                             }
                             if (matched) {
-                                applyListenerAction(runtime.inputs, listener);
+                                applyListenerAction(er.inputs, listener);
                             }
                         }
                     }
 
-                    // Evaluate transitions (current state first, then __any__)
-                    const currentState = data.states[runtime.currentState];
-                    if (!currentState) continue;
-
-                    const anyState = data.states['__any__'];
-                    const allTransitions = anyState
-                        ? [...currentState.transitions, ...anyState.transitions]
-                        : currentState.transitions;
-
-                    for (const transition of allTransitions) {
-                        // exitTime gating (for timeline states)
-                        if (transition.exitTime !== undefined && transition.exitTime > 0) {
-                            if (runtime.timelineHandle && module && runtime.timelineDuration > 0) {
-                                const currentTime = module._tl_getTime(runtime.timelineHandle);
-                                if (currentTime / runtime.timelineDuration < transition.exitTime) {
-                                    continue;
-                                }
-                            }
+                    // Process each layer sequentially (last-write-wins for properties)
+                    for (let i = 0; i < layerDefs.length; i++) {
+                        if (i < er.layers.length) {
+                            processLayer(world, module, entity, layerDefs[i], er.layers[i], er.inputs, time.delta);
                         }
-
-                        const allMet = transition.conditions.every(
-                            c => evaluateCondition(c, runtime!.inputs)
-                        );
-                        if (!allMet) continue;
-
-                        const targetState = data.states[transition.target];
-                        if (!targetState) continue;
-
-                        cancelActiveTweens(runtime);
-
-                        if (targetState.timeline) {
-                            if (module) {
-                                setTimelineModule(module);
-                                enterTimelineState(world, module, entity, targetState, runtime);
-                            }
-                        } else {
-                            cleanupTimelineHandle(module, runtime);
-                            applyStateProperties(
-                                world, entity, targetState,
-                                transition.duration,
-                                resolveEasing(transition.easing),
-                                runtime,
-                            );
-                        }
-
-                        runtime.currentState = transition.target;
-                        break;
                     }
 
                     // Clear trigger inputs
                     for (const inputDef of data.inputs) {
                         if (inputDef.type === 'trigger') {
-                            runtime.inputs.set(inputDef.name, false);
+                            er.inputs.set(inputDef.name, false);
                         }
                     }
                 }

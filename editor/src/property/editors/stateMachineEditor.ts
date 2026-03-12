@@ -27,11 +27,29 @@ interface Transition {
     easing?: string;
 }
 
+interface BlendEntry {
+    timeline?: string;
+    timelineWrapMode?: 'once' | 'loop';
+    properties?: Record<string, unknown>;
+    threshold?: number;
+    mixValue?: number;
+    mixInput?: string;
+}
+
 interface StateNode {
     timeline?: string;
     timelineWrapMode?: 'once' | 'loop';
     properties?: Record<string, unknown>;
     transitions: Transition[];
+    type?: 'standard' | 'blend1d' | 'blendDirect';
+    blendInput?: string;
+    blendStates?: BlendEntry[];
+}
+
+interface LayerData {
+    name: string;
+    states: Record<string, StateNode>;
+    initialState: string;
 }
 
 interface StateMachineData {
@@ -39,6 +57,7 @@ interface StateMachineData {
     inputs: InputDef[];
     listeners: ListenerDef[];
     initialState: string;
+    layers?: LayerData[];
 }
 
 const CHEVRON_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
