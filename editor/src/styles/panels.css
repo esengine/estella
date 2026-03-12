@@ -6,7 +6,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
+    padding: 4px 8px;
     min-height: var(--es-toolbar-height);
     box-sizing: border-box;
     background: var(--es-bg-secondary);
@@ -30,3 +30,4 @@
     display: flex;
     gap: 4px;
 }
+

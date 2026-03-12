@@ -3,9 +3,11 @@ import type { PluginRegistrar } from '../container';
 import { MENU, MENU_ITEM } from '../container/tokens';
 import { getEditorContext } from '../context/EditorContext';
 import { showAboutDialog } from '../dialogs/AboutDialog';
+import { showShortcutHelpDialog } from '../dialogs/ShortcutHelpDialog';
 import { showAddressableWindow } from '../dialogs/AddressableWindow';
 import { showStatusBarMessage } from './builtinStatusbar';
 import { showConfirmDialog } from '../ui/dialog';
+import { showCommandPalette } from '../ui/CommandPalette';
 import { getEditorStore } from '../store';
 import {
     getSceneService,
@@ -25,7 +27,7 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
     registerMenu({ id: 'file', label: 'File', order: 0 });
     registerMenu({ id: 'edit', label: 'Edit', order: 1 });
     registerMenu({ id: 'view', label: 'View', order: 2 });
-    registerMenu({ id: 'help', label: 'Help', order: 3 });
+    registerMenu({ id: 'help', label: '\u22EF', order: 3 });
 
     registerMenuItem({
         id: 'file.new', menu: 'file', label: 'New Scene',
@@ -149,27 +151,39 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
         hidden: true,
     });
     registerMenuItem({
+        id: 'edit.command-palette', menu: 'edit', label: 'Command Palette',
+        shortcut: 'Ctrl+K', order: 9, separator: true,
+        action: () => showCommandPalette(),
+    });
+    registerMenuItem({
         id: 'edit.preferences', menu: 'edit', label: 'Settings...',
-        shortcut: 'Ctrl+,', order: 10, separator: true,
+        shortcut: 'Ctrl+,', order: 10,
         action: () => getProjectService().showSettings(),
     });
 
     registerMenuItem({
         id: 'view.hierarchy', menu: 'view', label: 'Hierarchy', order: 0,
-        action: () => getNavigationService().showPanel('hierarchy'),
+        shortcut: 'Ctrl+Shift+H',
+        action: () => getNavigationService().togglePanel('hierarchy'),
     });
     registerMenuItem({
         id: 'view.inspector', menu: 'view', label: 'Inspector', order: 1,
-        action: () => getNavigationService().showPanel('inspector'),
+        shortcut: 'Ctrl+Shift+I',
+        action: () => getNavigationService().togglePanel('inspector'),
+    });
+    registerMenuItem({
+        id: 'view.toggle-bottom', menu: 'view', label: 'Toggle Bottom Panel',
+        shortcut: 'Ctrl+J', order: 1.5,
+        action: () => getNavigationService().toggleRegion('bottom'),
     });
     registerMenuItem({
         id: 'view.content-browser', menu: 'view', label: 'Content Browser',
         shortcut: 'Ctrl+Space', order: 2,
-        action: () => getNavigationService().showPanel('content-browser'),
+        action: () => getNavigationService().togglePanel('content-browser'),
     });
     registerMenuItem({
         id: 'view.output', menu: 'view', label: 'Output', order: 3,
-        action: () => getNavigationService().showPanel('output'),
+        action: () => getNavigationService().togglePanel('output'),
     });
     registerMenuItem({
         id: 'view.game', menu: 'view', label: 'Game', order: 4,
@@ -183,7 +197,7 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
     registerMenuItem({
         id: 'view.timeline', menu: 'view', label: 'Timeline',
         order: 5.5,
-        action: () => getNavigationService().showPanel('timeline'),
+        action: () => getNavigationService().togglePanel('timeline'),
     });
     registerMenuItem({
         id: 'view.frame-debugger', menu: 'view', label: 'Frame Debugger',
@@ -193,7 +207,7 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
     registerMenuItem({
         id: 'view.extensions', menu: 'view', label: 'Extensions',
         order: 5.7,
-        action: () => getNavigationService().showPanel('extensions'),
+        action: () => getNavigationService().togglePanel('extensions'),
     });
     registerMenuItem({
         id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
@@ -201,8 +215,13 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
         action: () => showAddressableWindow(),
     });
     registerMenuItem({
+        id: 'view.toggle-sidebars', menu: 'view', label: 'Toggle Sidebars',
+        shortcut: 'Ctrl+\\', order: 5.9, separator: true,
+        action: () => getNavigationService().toggleAllSidebars(),
+    });
+    registerMenuItem({
         id: 'view.reset-layout', menu: 'view', label: 'Reset Layout',
-        order: 6, separator: true,
+        order: 6,
         action: () => getNavigationService().resetLayout(),
     });
     registerMenuItem({
@@ -260,6 +279,11 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
                 window.open('https://esengine.github.io/microes/', '_blank');
             }
         },
+    });
+    registerMenuItem({
+        id: 'help.shortcuts', menu: 'help', label: 'Keyboard Shortcuts', order: 0.5,
+        shortcut: '?',
+        action: () => showShortcutHelpDialog(),
     });
     registerMenuItem({
         id: 'help.about', menu: 'help', label: 'About ESEngine', order: 1, separator: true,

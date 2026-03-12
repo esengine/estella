@@ -10,6 +10,7 @@ import { PrefabEditService } from './PrefabEditService';
 import { PropertyWritePipeline } from './PropertyWritePipeline';
 import { registerBuiltinTransformHooks } from './propertyHooks';
 import { getPrefabDependencyTracker } from '../prefab';
+import { showToast } from '../ui/Toast';
 
 // =============================================================================
 // Types
@@ -539,6 +540,9 @@ export class EditorStore {
         if (this.history_.undo()) {
             this.applyCommandSideEffects(cmd, true);
             cmd.emitChangeEvents(this, true);
+            if (cmd.description) {
+                showToast({ type: 'info', title: `Undo: ${cmd.description}`, duration: 1500 });
+            }
         }
     }
 
@@ -548,6 +552,9 @@ export class EditorStore {
         if (this.history_.redo()) {
             this.applyCommandSideEffects(cmd, false);
             cmd.emitChangeEvents(this, false);
+            if (cmd.description) {
+                showToast({ type: 'info', title: `Redo: ${cmd.description}`, duration: 1500 });
+            }
         }
     }
 

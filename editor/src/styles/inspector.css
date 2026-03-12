@@ -457,14 +457,6 @@
     border-style: solid;
 }
 
-.es-inspector-footer {
-    padding: 6px 12px;
-    font-size: 11px;
-    color: var(--es-text-secondary);
-    background: var(--es-bg-secondary);
-    border-top: 1px solid var(--es-border);
-}
-
 /* Asset Inspector */
 
 .es-inspector-asset-header {

@@ -8,7 +8,6 @@ import type { EditorStore, AssetSelection, DirtyFlag } from '../store/EditorStor
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 import type { EditorInfo } from './inspector/InspectorHelpers';
-import { getAssetTypeDisplayName } from '../asset/AssetTypeRegistry';
 import { renderEntityHeader, renderComponent, renderAddComponentButton, renderEntityExtensionSections, renderAssetExtensionSections } from './inspector/EntityInspector';
 import type { InspectorSectionInstance } from './inspector/InspectorRegistry';
 import { type MaterialPreviewState, renderMaterialPreview, hideMaterialPreview } from './inspector/MaterialPreviewSection';
@@ -37,7 +36,6 @@ export class InspectorPanel {
     private currentComponentOrder_: string = '';
     private imageUrlRef_: ImageUrlRef = { current: null };
 
-    private footerContainer_: HTMLElement | null = null;
     private lockBtn_: HTMLElement | null = null;
     private locked_: boolean = false;
     private materialPreviewState_: MaterialPreviewState;
@@ -59,7 +57,6 @@ export class InspectorPanel {
             </div>
             <div class="es-inspector-content"></div>
             <div class="es-material-preview-panel es-expanded"></div>
-            <div class="es-inspector-footer">No selection</div>
         `;
 
         this.contentContainer_ = this.container_.querySelector('.es-inspector-content')!;
@@ -67,7 +64,6 @@ export class InspectorPanel {
             container: this.container_.querySelector('.es-material-preview-panel')!,
             expanded: true,
         };
-        this.footerContainer_ = this.container_.querySelector('.es-inspector-footer');
         this.lockBtn_ = this.container_.querySelector('.es-lock-btn');
 
         this.setupLockButton();
@@ -206,7 +202,6 @@ export class InspectorPanel {
         this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '<div class="es-inspector-empty">No selection</div>';
         hideMaterialPreview(this.materialPreviewState_);
-        this.updateFooter('No selection');
     }
 
     // =========================================================================
@@ -229,7 +224,6 @@ export class InspectorPanel {
 
         if (!entityData) {
             this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity not found</div>';
-            this.updateFooter('Error');
             return;
         }
 
@@ -245,7 +239,6 @@ export class InspectorPanel {
         renderAddComponentButton(this.contentContainer_, entity, entityData.components, this.store_);
         this.extensionSections_ = renderEntityExtensionSections(this.contentContainer_, entity, this.store_);
         renderMaterialPreview(this.materialPreviewState_, entity, entityData.components, this.store_);
-        this.updateFooter(`${entityData.components.length} components`);
     }
 
     private updateVisibilityIcon(): void {
@@ -291,7 +284,6 @@ export class InspectorPanel {
         }
 
         hideMaterialPreview(this.materialPreviewState_);
-        this.updateFooter(`${entities.length} entities selected`);
     }
 
     private getCommonComponents(entities: Entity[]): string[] {
@@ -340,7 +332,6 @@ export class InspectorPanel {
         }
 
         this.extensionSections_ = renderAssetExtensionSections(this.contentContainer_, asset.path, asset.type, this.store_);
-        this.updateFooter(getAssetTypeDisplayName(asset.type));
     }
 
     // =========================================================================
@@ -365,7 +356,6 @@ export class InspectorPanel {
         const entityData = proxy.getEntityData(entity as number);
         if (!entityData) {
             this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity not found</div>';
-            this.updateFooter('Error');
             return;
         }
 
@@ -388,7 +378,6 @@ export class InspectorPanel {
         }
 
         renderAddComponentButton(this.contentContainer_, entity, entityData.components, proxy);
-        this.updateFooter(`${componentCount} components (Live)`);
     }
 
     private updatePlayModeEditors(editorEntityId: number): void {
@@ -423,7 +412,6 @@ export class InspectorPanel {
         this.currentAssetPath_ = null;
         this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Select an entity</div>';
         hideMaterialPreview(this.materialPreviewState_);
-        this.updateFooter('Live mode');
     }
 
     private startSharedRefreshLoop(entityId: number): void {
@@ -433,7 +421,6 @@ export class InspectorPanel {
             const fresh = pms.querySharedEntity(entityId);
             if (!fresh) {
                 this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity despawned</div>';
-                this.updateFooter('Live mode');
                 return;
             }
             if (this.runtimeProxy_) {
@@ -500,12 +487,6 @@ export class InspectorPanel {
     // =========================================================================
     // Helpers
     // =========================================================================
-
-    private updateFooter(text: string): void {
-        if (this.footerContainer_) {
-            this.footerContainer_.textContent = text;
-        }
-    }
 
     private cleanupImageUrl(): void {
         if (this.imageUrlRef_.current) {

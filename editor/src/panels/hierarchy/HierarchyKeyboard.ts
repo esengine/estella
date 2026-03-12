@@ -41,6 +41,25 @@ export function setupKeyboard(state: HierarchyState, scrollToEntity: (id: number
             return;
         }
 
+        if ((e.key === ']' || e.key === '[') && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            const sel = state.store.selectedEntity;
+            if (sel === null) return;
+            const entityData = state.store.getEntityData(sel as number);
+            if (!entityData) return;
+            const parent = entityData.parent;
+            const parentData = parent !== null ? state.store.getEntityData(parent) : null;
+            const siblings = parentData
+                ? parentData.children
+                : state.store.scene.entities.filter(ent => ent.parent === null).map(ent => ent.id);
+            const idx = siblings.indexOf(sel as number);
+            if (idx === -1) return;
+            const newIdx = e.key === ']' ? idx + 1 : idx - 1;
+            if (newIdx < 0 || newIdx >= siblings.length) return;
+            state.store.moveEntity(sel, parent as Entity | null, newIdx);
+            return;
+        }
+
         const selected = state.store.selectedEntity;
         const selectedIndex = selected !== null
             ? state.flatRows.findIndex(r => r.entity.id === (selected as number))

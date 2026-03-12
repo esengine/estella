@@ -1431,3 +1431,162 @@
     border-color: var(--es-accent);
     color: var(--es-accent);
 }
+
+/* =============================================================================
+ * Shortcut Help Dialog
+ * ============================================================================= */
+
+.es-shortcut-group {
+    margin-bottom: 16px;
+}
+
+.es-shortcut-group-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--es-text-secondary);
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-shortcut-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 12px;
+}
+
+.es-shortcut-label {
+    color: var(--es-text-primary);
+}
+
+.es-shortcut-key {
+    font-family: var(--es-font-mono, monospace);
+    font-size: 11px;
+    padding: 2px 6px;
+    background: var(--es-bg-deep);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    color: var(--es-text-secondary);
+    white-space: nowrap;
+}
+
+/* =============================================================================
+ * Command Palette
+ * ============================================================================= */
+
+.es-command-palette-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: center;
+    padding-top: 15vh;
+    z-index: 5000;
+}
+
+.es-command-palette {
+    width: 500px;
+    max-height: 400px;
+    background: var(--es-bg-elevated);
+    border: 1px solid var(--es-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    align-self: flex-start;
+}
+
+.es-command-palette-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-command-palette-icon {
+    flex-shrink: 0;
+    color: var(--es-text-secondary);
+}
+
+.es-command-palette-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--es-text-primary);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.es-command-palette-input::placeholder {
+    color: var(--es-text-muted);
+}
+
+.es-command-palette-list {
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.es-command-palette-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background 0.05s;
+}
+
+.es-command-palette-item:hover,
+.es-command-palette-item.es-highlighted {
+    background: var(--es-bg-hover);
+}
+
+.es-command-palette-item-icon {
+    flex-shrink: 0;
+    color: var(--es-text-secondary);
+}
+
+.es-kind-entity .es-command-palette-item-icon {
+    color: var(--es-accent);
+}
+
+.es-kind-asset .es-command-palette-item-icon {
+    color: var(--es-accent-gold);
+}
+
+.es-command-palette-item-label {
+    flex: 1;
+    font-size: 13px;
+    color: var(--es-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-command-palette-item-label mark {
+    background: none;
+    color: var(--es-accent);
+    font-weight: 600;
+}
+
+.es-command-palette-item-detail {
+    font-size: 11px;
+    color: var(--es-text-muted);
+    flex-shrink: 0;
+}
+
+.es-command-palette-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--es-text-muted);
+    font-size: 13px;
+}

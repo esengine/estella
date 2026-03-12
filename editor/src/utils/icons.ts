@@ -10,6 +10,7 @@ import {
     Settings,
     Eye,
     Star,
+    ChevronLeft,
     ChevronRight,
     ChevronDown,
     Box,
@@ -80,6 +81,7 @@ import {
     GripVertical,
     Info,
     TriangleAlert,
+    PanelLeft,
 } from 'lucide';
 
 // =============================================================================
@@ -144,6 +146,7 @@ export const icons = {
     eye: (size?: number) => renderIcon(Eye as IconNode, size),
     eyeOff: (size?: number) => renderIcon(EyeOff as IconNode, size),
     star: (size?: number) => renderIcon(Star as IconNode, size),
+    chevronLeft: (size?: number) => renderIcon(ChevronLeft as IconNode, size),
     chevronRight: (size?: number) => renderIcon(ChevronRight as IconNode, size),
     chevronDown: (size?: number) => renderIcon(ChevronDown as IconNode, size),
     box: (size?: number) => renderIcon(Box as IconNode, size),
@@ -193,6 +196,7 @@ export const icons = {
     arrowDown: (size?: number) => renderIcon(ArrowDown as IconNode, size),
     layoutGrid: (size?: number) => renderIcon(LayoutGrid as IconNode, size),
     layoutList: (size?: number) => renderIcon(LayoutList as IconNode, size),
+    panelLeft: (size?: number) => renderIcon(PanelLeft as IconNode, size),
     zap: (size?: number) => renderIcon(Zap as IconNode, size),
     film: (size?: number) => renderIcon(Film as IconNode, size),
     scan: (size?: number) => renderIcon(Scan as IconNode, size),

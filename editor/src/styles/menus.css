@@ -195,28 +195,9 @@
 .es-editor-dock {
     flex: 1;
     overflow: hidden;
+    position: relative;
 }
 
-.dockview-theme-dark {
-    --dv-background-color: var(--es-bg-primary);
-    --dv-group-view-background-color: var(--es-bg-primary);
-    --dv-tabs-and-actions-container-background-color: var(--es-bg-secondary);
-    --dv-tabs-and-actions-container-height: 30px;
-    --dv-tabs-and-actions-container-font-size: 12px;
-    --dv-activegroup-visiblepanel-tab-background-color: var(--es-bg-primary);
-    --dv-activegroup-hiddenpanel-tab-background-color: var(--es-bg-secondary);
-    --dv-inactivegroup-visiblepanel-tab-background-color: var(--es-bg-tertiary);
-    --dv-inactivegroup-hiddenpanel-tab-background-color: var(--es-bg-secondary);
-    --dv-activegroup-visiblepanel-tab-color: var(--es-accent-gold);
-    --dv-activegroup-hiddenpanel-tab-color: var(--es-text-secondary);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--es-text-primary);
-    --dv-inactivegroup-hiddenpanel-tab-color: var(--es-text-secondary);
-    --dv-separator-border: var(--es-border);
-    --dv-tab-divider-color: var(--es-border);
-    --dv-active-sash-color: var(--es-accent);
-    --dv-drag-over-background-color: var(--es-accent-subtle);
-    --dv-drag-over-border-color: var(--es-accent);
-}
 
 /* =============================================================================
  * Context Menu

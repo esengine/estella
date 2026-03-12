@@ -1,0 +1,401 @@
+/* =============================================================================
+ * Dock Layout
+ * ============================================================================= */
+
+.es-dock {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.es-dock-center-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    overflow: hidden;
+}
+
+.es-dock-region {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.es-dock-region.es-dock-center {
+    flex: 1;
+    min-height: 0;
+}
+
+.es-dock-region.es-dock-left,
+.es-dock-region.es-dock-right {
+    overflow: hidden;
+}
+
+.es-dock-region.es-dock-bottom {
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.es-dock-region.es-dock-collapsed .es-dock-tabs,
+.es-dock-region.es-dock-collapsed .es-dock-content {
+    display: none;
+}
+
+/* =============================================================================
+ * Tabs
+ * ============================================================================= */
+
+.es-dock-tabs {
+    display: flex;
+    align-items: stretch;
+    height: 28px;
+    min-height: 28px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+    user-select: none;
+    overflow: hidden;
+}
+
+.es-dock-tabs-inner {
+    display: flex;
+    align-items: stretch;
+    flex: 1;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    gap: 0;
+}
+
+.es-dock-tabs-inner::-webkit-scrollbar {
+    display: none;
+}
+
+.es-dock-tab {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    padding: 0 8px 0 10px;
+    font-size: var(--es-font-xs);
+    color: var(--es-text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    border-right: 1px solid var(--es-border-subtle);
+    transition: color var(--es-transition-fast), background var(--es-transition-fast);
+    min-width: 0;
+    flex-shrink: 0;
+}
+
+.es-dock-tab::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: transparent;
+    transition: background var(--es-transition-fast);
+}
+
+.es-dock-tab:hover {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
+.es-dock-tab-active {
+    color: var(--es-text-bright);
+    background: var(--es-bg-primary);
+}
+
+.es-dock-tab-active::after {
+    background: var(--es-accent);
+}
+
+.es-dock-tab-active:hover {
+    color: var(--es-text-bright);
+}
+
+.es-dock-tab-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 28px;
+}
+
+.es-dock-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--es-radius-sm);
+    color: var(--es-text-muted);
+    opacity: 0;
+    transition: opacity var(--es-transition-fast), background var(--es-transition-fast), color var(--es-transition-fast);
+}
+
+.es-dock-tab:hover .es-dock-tab-close {
+    opacity: 0.7;
+}
+
+.es-dock-tab-close:hover {
+    opacity: 1 !important;
+    background: hsla(4, 80%, 60%, 0.2);
+    color: var(--es-danger);
+}
+
+.es-dock-content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--es-bg-primary);
+}
+
+.es-dock-panel {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+/* =============================================================================
+ * Tab scroll buttons
+ * ============================================================================= */
+
+.es-dock-tabs-scroll {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 100%;
+    color: var(--es-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color var(--es-transition-fast), background var(--es-transition-fast);
+}
+
+.es-dock-tabs-scroll:hover {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
+.es-dock-tabs-scroll svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* =============================================================================
+ * Splitter
+ * ============================================================================= */
+
+.es-dock-splitter {
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    transition: background var(--es-transition-fast);
+}
+
+.es-dock-splitter.es-splitter-v {
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    border-left: 1px solid var(--es-border-subtle);
+}
+
+.es-dock-splitter.es-splitter-h {
+    height: 5px;
+    cursor: row-resize;
+    background: transparent;
+    border-top: 1px solid var(--es-border-subtle);
+}
+
+.es-dock-splitter::after {
+    content: '';
+    position: absolute;
+    opacity: 0;
+    transition: opacity var(--es-transition-normal);
+}
+
+.es-dock-splitter.es-splitter-v::after {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 24px;
+    border-radius: 1px;
+    background: var(--es-text-muted);
+}
+
+.es-dock-splitter.es-splitter-h::after {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--es-text-muted);
+}
+
+.es-dock-splitter:hover::after {
+    opacity: 0.5;
+}
+
+.es-dock-splitter:hover {
+    border-color: var(--es-accent);
+}
+
+.es-dock-splitter:active,
+.es-dock-splitter-active {
+    border-color: var(--es-accent);
+}
+
+.es-dock-splitter:active::after,
+.es-dock-splitter-active::after {
+    opacity: 0.8;
+    background: var(--es-accent);
+}
+
+/* =============================================================================
+ * Drag overlay (prevents iframe from stealing mouse events)
+ * ============================================================================= */
+
+.es-dock-drag-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    cursor: inherit;
+}
+
+/* =============================================================================
+ * Tab drag & drop
+ * ============================================================================= */
+
+.es-dock-tab-dragging {
+    opacity: 0.25;
+    pointer-events: none;
+}
+
+.es-dock-tab-ghost {
+    position: fixed;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: var(--es-font-xs);
+    color: var(--es-text-bright);
+    background: var(--es-bg-elevated);
+    border: 1px solid var(--es-accent);
+    border-radius: var(--es-radius-md);
+    box-shadow: var(--es-shadow-lg);
+    pointer-events: none;
+    white-space: nowrap;
+    animation: es-ghost-appear 0.12s ease-out;
+}
+
+@keyframes es-ghost-appear {
+    from {
+        opacity: 0;
+        transform: scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.es-dock-drop-indicator {
+    position: fixed;
+    z-index: 10001;
+    width: 2px;
+    background: var(--es-accent);
+    pointer-events: none;
+    border-radius: 1px;
+    box-shadow: 0 0 6px var(--es-accent), 0 0 2px var(--es-accent);
+}
+
+.es-dock-tabs-drop-target {
+    background: var(--es-accent-subtle);
+}
+
+/* =============================================================================
+ * Edge drop overlay (center pane splitting)
+ * ============================================================================= */
+
+.es-dock-edge-overlay {
+    position: fixed;
+    z-index: 10001;
+    background: var(--es-accent-subtle);
+    border: 2px dashed var(--es-accent);
+    pointer-events: none;
+    border-radius: var(--es-radius-sm);
+    animation: es-edge-fade-in 0.15s ease-out;
+}
+
+.es-dock-edge-overlay::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px;
+    height: 32px;
+    border-radius: var(--es-radius-md);
+    background: var(--es-accent-subtle);
+    border: 2px solid var(--es-accent);
+}
+
+@keyframes es-edge-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* =============================================================================
+ * Area wrappers & pane groups
+ * ============================================================================= */
+
+.es-dock-area {
+    display: flex;
+    overflow: hidden;
+}
+
+.es-dock-area-left,
+.es-dock-area-right {
+    transition: width 150ms ease-out;
+}
+
+.es-dock-area-bottom {
+    transition: height 150ms ease-out;
+    flex-shrink: 0;
+}
+
+.es-dock-area-collapsed {
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden;
+}
+
+.es-dock-pane-group {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+}
+
+.es-dock-pane-group-horizontal {
+    flex-direction: row;
+}
+
+.es-dock-pane-group-vertical {
+    flex-direction: column;
+}

@@ -172,6 +172,8 @@ class ToastManager {
                 return icons.x(18);
             case 'progress':
                 return `<div class="es-toast-spinner"></div>`;
+            case 'info':
+                return icons.info(18);
             default:
                 return icons.cog(18);
         }
