@@ -9,7 +9,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread;
 use tiny_http::{Header, Response, Server};
 
-const MAX_PORT_ATTEMPTS: u16 = 10;
+const MAX_PORT_ATTEMPTS: u16 = 50;
 
 // =============================================================================
 // Preview Server
@@ -179,16 +179,32 @@ impl PreviewServer {
 // =============================================================================
 
 fn try_bind(starting_port: u16) -> Result<(Server, u16), String> {
+    let mut last_err = String::new();
     for offset in 0..MAX_PORT_ATTEMPTS {
         let port = starting_port + offset;
         let addr = format!("127.0.0.1:{}", port);
         match Server::http(&addr) {
             Ok(server) => return Ok((server, port)),
-            Err(_) if offset + 1 < MAX_PORT_ATTEMPTS => continue,
-            Err(e) => return Err(format!("Failed to bind ports {}-{}: {}", starting_port, port, e)),
+            Err(e) => {
+                last_err = e.to_string();
+                continue;
+            }
         }
     }
-    unreachable!()
+
+    match Server::http("127.0.0.1:0") {
+        Ok(server) => {
+            let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(0);
+            Ok((server, port))
+        }
+        Err(e) => Err(format!(
+            "Failed to bind ports {}-{} ({}), and auto-assign also failed: {}",
+            starting_port,
+            starting_port + MAX_PORT_ATTEMPTS - 1,
+            last_err,
+            e
+        )),
+    }
 }
 
 // =============================================================================

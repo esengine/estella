@@ -8,7 +8,8 @@ export class PreviewManager {
 
     constructor(projectPath: string | null) {
         if (projectPath) {
-            this.previewService_ = new PreviewService({ projectPath });
+            const port = getSettingsValue<number>('general.previewPort') ?? 3456;
+            this.previewService_ = new PreviewService({ projectPath, port });
         }
     }
 
