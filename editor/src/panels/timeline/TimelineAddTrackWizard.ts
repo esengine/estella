@@ -76,10 +76,9 @@ export class TimelineAddTrackWizard {
         this.el_ = document.createElement('div');
         this.el_.className = 'es-timeline-dropdown';
 
-        const rect = anchor.getBoundingClientRect();
+        this.anchor_ = anchor;
         this.el_.style.position = 'fixed';
-        this.el_.style.left = `${rect.left}px`;
-        this.el_.style.top = `${rect.bottom + 2}px`;
+        this.el_.style.visibility = 'hidden';
         document.body.appendChild(this.el_);
 
         this.renderStep();
@@ -101,7 +100,10 @@ export class TimelineAddTrackWizard {
             this.el_.remove();
             this.el_ = null;
         }
+        this.anchor_ = null;
     }
+
+    private anchor_: HTMLElement | null = null;
 
     private renderStep(): void {
         if (!this.el_) return;
@@ -112,6 +114,46 @@ export class TimelineAddTrackWizard {
             case 'component': this.renderComponentStep(); break;
             case 'property': this.renderPropertyStep(); break;
         }
+
+        if (this.anchor_) {
+            this.clampToViewport(this.anchor_);
+        }
+    }
+
+    private clampToViewport(anchor: HTMLElement): void {
+        if (!this.el_) return;
+
+        const anchorRect = anchor.getBoundingClientRect();
+        const elRect = this.el_.getBoundingClientRect();
+        const gap = 2;
+        const margin = 5;
+
+        const spaceBelow = window.innerHeight - anchorRect.bottom - gap;
+        const spaceAbove = anchorRect.top - gap;
+
+        let top: number;
+        let maxHeight: number;
+
+        if (spaceBelow >= elRect.height || spaceBelow >= spaceAbove) {
+            top = anchorRect.bottom + gap;
+            maxHeight = window.innerHeight - top - margin;
+        } else {
+            top = anchorRect.top - gap - Math.min(elRect.height, spaceAbove);
+            maxHeight = spaceAbove;
+        }
+
+        let left = anchorRect.left;
+        if (left + elRect.width > window.innerWidth - margin) {
+            left = window.innerWidth - elRect.width - margin;
+        }
+        if (left < margin) {
+            left = margin;
+        }
+
+        this.el_.style.left = `${left}px`;
+        this.el_.style.top = `${top}px`;
+        this.el_.style.maxHeight = `${Math.max(maxHeight, 100)}px`;
+        this.el_.style.visibility = '';
     }
 
     private renderTypeStep(): void {

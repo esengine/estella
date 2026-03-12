@@ -484,17 +484,30 @@ export function showAddComponentPopup(
         const panelHeight = container.offsetHeight;
         const spaceAbove = rect.top;
         const spaceBelow = window.innerHeight - rect.bottom;
+        const gap = 4;
+        const margin = 5;
 
-        container.style.left = `${rect.left}px`;
-        container.style.width = `${Math.max(rect.width, 320)}px`;
+        const width = Math.max(rect.width, 320);
+        let left = rect.left;
+        if (left + width > window.innerWidth - margin) {
+            left = window.innerWidth - width - margin;
+        }
+        if (left < margin) {
+            left = margin;
+        }
+
+        container.style.left = `${left}px`;
+        container.style.width = `${width}px`;
 
         if (spaceBelow >= panelHeight || spaceBelow >= spaceAbove) {
-            container.style.top = `${rect.bottom + 4}px`;
+            container.style.top = `${rect.bottom + gap}px`;
             container.style.bottom = '';
+            container.style.maxHeight = `${spaceBelow - gap - margin}px`;
             container.classList.remove('es-popup-above');
         } else {
-            container.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+            container.style.bottom = `${window.innerHeight - rect.top + gap}px`;
             container.style.top = '';
+            container.style.maxHeight = `${spaceAbove - gap - margin}px`;
             container.classList.add('es-popup-above');
         }
     };
