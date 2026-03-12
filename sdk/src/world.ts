@@ -4,7 +4,7 @@
  */
 
 import { Entity } from './types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getComponentRegistry } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getComponentRegistry, Name } from './component';
 import type { CppRegistry, ESEngineModule } from './wasm';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { handleWasmError } from './wasmError';
@@ -355,7 +355,7 @@ export class World {
     // Entity Management
     // =========================================================================
 
-    spawn(): Entity {
+    spawn(name?: string): Entity {
         if (this.isIterating()) {
             throw new Error(
                 'Cannot spawn entity during query iteration. ' +
@@ -386,6 +386,10 @@ export class World {
         }
         this.entities_.set(entity, generation);
         this.worldVersion_++;
+
+        if (name !== undefined) {
+            this.insert(entity, Name, { value: name });
+        }
 
         for (const cb of this.spawnCallbacks_) {
             try { cb(entity); } catch (e) { console.warn('[World] Spawn callback error:', e); }

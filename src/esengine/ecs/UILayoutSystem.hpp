@@ -10,6 +10,7 @@
 #include "components/FlexItem.hpp"
 #include "components/LayoutGroup.hpp"
 
+#include <yoga/Yoga.h>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -141,15 +142,72 @@ inline void layoutNodeAnchor(
     writePosition(registry, node, result.origin_x, result.origin_y, cameraRect);
 }
 
-struct UnifiedFlexItem {
+inline YGFlexDirection toYGFlexDirection(FlexDirection dir) {
+    switch (dir) {
+        case FlexDirection::Row:            return YGFlexDirectionRow;
+        case FlexDirection::Column:         return YGFlexDirectionColumn;
+        case FlexDirection::RowReverse:     return YGFlexDirectionRowReverse;
+        case FlexDirection::ColumnReverse:  return YGFlexDirectionColumnReverse;
+    }
+    return YGFlexDirectionRow;
+}
+
+inline YGWrap toYGWrap(FlexWrap wrap) {
+    switch (wrap) {
+        case FlexWrap::NoWrap: return YGWrapNoWrap;
+        case FlexWrap::Wrap:   return YGWrapWrap;
+    }
+    return YGWrapNoWrap;
+}
+
+inline YGJustify toYGJustify(JustifyContent jc) {
+    switch (jc) {
+        case JustifyContent::Start:        return YGJustifyFlexStart;
+        case JustifyContent::Center:       return YGJustifyCenter;
+        case JustifyContent::End:          return YGJustifyFlexEnd;
+        case JustifyContent::SpaceBetween: return YGJustifySpaceBetween;
+        case JustifyContent::SpaceAround:  return YGJustifySpaceAround;
+        case JustifyContent::SpaceEvenly:  return YGJustifySpaceEvenly;
+    }
+    return YGJustifyFlexStart;
+}
+
+inline YGAlign toYGAlign(AlignItems ai) {
+    switch (ai) {
+        case AlignItems::Start:   return YGAlignFlexStart;
+        case AlignItems::Center:  return YGAlignCenter;
+        case AlignItems::End:     return YGAlignFlexEnd;
+        case AlignItems::Stretch: return YGAlignStretch;
+    }
+    return YGAlignStretch;
+}
+
+inline YGAlign toYGAlignContent(AlignContent ac) {
+    switch (ac) {
+        case AlignContent::Start:        return YGAlignFlexStart;
+        case AlignContent::Center:       return YGAlignCenter;
+        case AlignContent::End:          return YGAlignFlexEnd;
+        case AlignContent::Stretch:      return YGAlignStretch;
+        case AlignContent::SpaceBetween: return YGAlignSpaceBetween;
+        case AlignContent::SpaceAround:  return YGAlignSpaceAround;
+    }
+    return YGAlignFlexStart;
+}
+
+inline YGAlign toYGAlignSelf(AlignSelf as) {
+    switch (as) {
+        case AlignSelf::Auto:    return YGAlignAuto;
+        case AlignSelf::Start:   return YGAlignFlexStart;
+        case AlignSelf::Center:  return YGAlignCenter;
+        case AlignSelf::End:     return YGAlignFlexEnd;
+        case AlignSelf::Stretch: return YGAlignStretch;
+    }
+    return YGAlignAuto;
+}
+
+struct FlexChildInfo {
     i32 tree_index;
     Entity entity;
-    f32 grow;
-    f32 shrink;
-    f32 basis;
-    i32 order;
-    f32 main_size;
-    f32 cross_size;
 };
 
 inline void resolveFlexChildren(
@@ -167,182 +225,99 @@ inline void resolveFlexChildren(
     f32 pivotX = parentRect.pivot.x;
     f32 pivotY = parentRect.pivot.y;
 
-    f32 padLeft = flex.padding.left;
-    f32 padTop = flex.padding.top;
-    f32 padRight = flex.padding.right;
-    f32 padBottom = flex.padding.bottom;
-
-    bool isRow = (flex.direction == FlexDirection::Row || flex.direction == FlexDirection::RowReverse);
-    bool isReverse = (flex.direction == FlexDirection::RowReverse || flex.direction == FlexDirection::ColumnReverse);
-
-    f32 contentW = parentW - padLeft - padRight;
-    f32 contentH = parentH - padTop - padBottom;
-    f32 mainSpace = isRow ? contentW : contentH;
-    f32 crossSpace = isRow ? contentH : contentW;
-    f32 mainGap = isRow ? flex.gap.x : flex.gap.y;
-
-    std::vector<UnifiedFlexItem> items;
+    std::vector<FlexChildInfo> children;
     for (i32 j = containerIndex + 1; j < static_cast<i32>(tree.nodes_.size()); j++) {
         if (tree.nodes_[j].parent != containerEntity) continue;
         if (tree.nodes_[j].depth != tree.nodes_[containerIndex].depth + 1) continue;
-
         Entity childEntity = tree.nodes_[j].entity;
-        auto* childRect = registry.tryGet<UIRect>(childEntity);
-        if (!childRect) continue;
+        if (!registry.has<UIRect>(childEntity)) continue;
+        children.push_back({j, childEntity});
+    }
 
-        UnifiedFlexItem item;
-        item.tree_index = j;
-        item.entity = childEntity;
+    if (children.empty()) return;
 
-        auto* fi = registry.tryGet<FlexItem>(childEntity);
+    YGNodeRef root = YGNodeNew();
+    YGNodeStyleSetFlexDirection(root, toYGFlexDirection(flex.direction));
+    YGNodeStyleSetFlexWrap(root, toYGWrap(flex.wrap));
+    YGNodeStyleSetJustifyContent(root, toYGJustify(flex.justifyContent));
+    YGNodeStyleSetAlignItems(root, toYGAlign(flex.alignItems));
+    YGNodeStyleSetWidth(root, parentW);
+    YGNodeStyleSetHeight(root, parentH);
+    YGNodeStyleSetPadding(root, YGEdgeLeft, flex.padding.left);
+    YGNodeStyleSetPadding(root, YGEdgeTop, flex.padding.top);
+    YGNodeStyleSetPadding(root, YGEdgeRight, flex.padding.right);
+    YGNodeStyleSetPadding(root, YGEdgeBottom, flex.padding.bottom);
+    YGNodeStyleSetAlignContent(root, toYGAlignContent(flex.alignContent));
+    YGNodeStyleSetGap(root, YGGutterColumn, flex.gap.x);
+    YGNodeStyleSetGap(root, YGGutterRow, flex.gap.y);
+
+    std::vector<YGNodeRef> childNodes;
+    childNodes.reserve(children.size());
+
+    for (usize i = 0; i < children.size(); i++) {
+        auto& childRect = registry.get<UIRect>(children[i].entity);
+        f32 cw = childRect.computed_size_.x > 0.0f ? childRect.computed_size_.x : childRect.size.x;
+        f32 ch = childRect.computed_size_.y > 0.0f ? childRect.computed_size_.y : childRect.size.y;
+
+        YGNodeRef child = YGNodeNew();
+
+        auto* fi = registry.tryGet<FlexItem>(children[i].entity);
         if (fi) {
-            item.grow = fi->flexGrow;
-            item.shrink = fi->flexShrink;
-            item.basis = fi->flexBasis;
-            item.order = fi->order;
+            YGNodeStyleSetFlexGrow(child, fi->flexGrow);
+            YGNodeStyleSetFlexShrink(child, fi->flexShrink);
+            if (fi->flexBasis >= 0.0f) {
+                YGNodeStyleSetFlexBasis(child, fi->flexBasis);
+            } else {
+                YGNodeStyleSetFlexBasisAuto(child);
+            }
+            YGNodeStyleSetAlignSelf(child, toYGAlignSelf(fi->alignSelf));
+            YGNodeStyleSetMargin(child, YGEdgeLeft, fi->margin.left);
+            YGNodeStyleSetMargin(child, YGEdgeTop, fi->margin.top);
+            YGNodeStyleSetMargin(child, YGEdgeRight, fi->margin.right);
+            YGNodeStyleSetMargin(child, YGEdgeBottom, fi->margin.bottom);
+            if (fi->minWidth >= 0.0f) YGNodeStyleSetMinWidth(child, fi->minWidth);
+            if (fi->minHeight >= 0.0f) YGNodeStyleSetMinHeight(child, fi->minHeight);
+            if (fi->maxWidth >= 0.0f) YGNodeStyleSetMaxWidth(child, fi->maxWidth);
+            if (fi->maxHeight >= 0.0f) YGNodeStyleSetMaxHeight(child, fi->maxHeight);
+            if (fi->widthPercent >= 0.0f) {
+                YGNodeStyleSetWidthPercent(child, fi->widthPercent);
+            } else {
+                YGNodeStyleSetWidth(child, cw);
+            }
+            if (fi->heightPercent >= 0.0f) {
+                YGNodeStyleSetHeightPercent(child, fi->heightPercent);
+            } else {
+                YGNodeStyleSetHeight(child, ch);
+            }
         } else {
-            item.grow = 0.0f;
-            item.shrink = 1.0f;
-            item.basis = -1.0f;
-            item.order = 0;
+            YGNodeStyleSetFlexGrow(child, 0.0f);
+            YGNodeStyleSetFlexShrink(child, 1.0f);
+            YGNodeStyleSetFlexBasisAuto(child);
+            YGNodeStyleSetWidth(child, cw);
+            YGNodeStyleSetHeight(child, ch);
         }
 
-        f32 cw = childRect->computed_size_.x > 0.0f ? childRect->computed_size_.x : childRect->size.x;
-        f32 ch = childRect->computed_size_.y > 0.0f ? childRect->computed_size_.y : childRect->size.y;
-
-        if (item.basis >= 0.0f) {
-            item.main_size = item.basis;
-        } else {
-            item.main_size = isRow ? cw : ch;
-        }
-        item.cross_size = isRow ? ch : cw;
-        items.push_back(item);
+        YGNodeInsertChild(root, child, i);
+        childNodes.push_back(child);
     }
 
-    if (items.empty()) return;
+    YGNodeCalculateLayout(root, parentW, parentH, YGDirectionLTR);
 
-    std::stable_sort(items.begin(), items.end(), [](const UnifiedFlexItem& a, const UnifiedFlexItem& b) {
-        return a.order < b.order;
-    });
+    for (usize i = 0; i < children.size(); i++) {
+        auto& info = children[i];
+        auto& childRect = registry.get<UIRect>(info.entity);
 
-    if (isReverse) {
-        std::reverse(items.begin(), items.end());
-    }
+        f32 yogaLeft = YGNodeLayoutGetLeft(childNodes[i]);
+        f32 yogaTop = YGNodeLayoutGetTop(childNodes[i]);
+        f32 finalW = YGNodeLayoutGetWidth(childNodes[i]);
+        f32 finalH = YGNodeLayoutGetHeight(childNodes[i]);
 
-    f32 totalMainSize = 0.0f;
-    for (auto& item : items) {
-        totalMainSize += item.main_size;
-    }
-    totalMainSize += mainGap * static_cast<f32>(items.size() - 1);
+        f32 cpx = childRect.pivot.x;
+        f32 cpy = childRect.pivot.y;
+        f32 localX = -pivotX * parentW + yogaLeft + cpx * finalW;
+        f32 localY = (1.0f - pivotY) * parentH - yogaTop - (1.0f - cpy) * finalH;
 
-    f32 freeSpace = mainSpace - totalMainSize;
-
-    if (freeSpace > 0.0f) {
-        f32 totalGrow = 0.0f;
-        for (auto& item : items) {
-            totalGrow += item.grow;
-        }
-        if (totalGrow > 0.0f) {
-            for (auto& item : items) {
-                item.main_size += freeSpace * (item.grow / totalGrow);
-            }
-            freeSpace = 0.0f;
-        }
-    } else if (freeSpace < 0.0f) {
-        f32 totalShrinkBasis = 0.0f;
-        for (auto& item : items) {
-            totalShrinkBasis += item.shrink * item.main_size;
-        }
-        if (totalShrinkBasis > 0.0f) {
-            for (auto& item : items) {
-                item.main_size += freeSpace * (item.shrink * item.main_size / totalShrinkBasis);
-                item.main_size = std::max(0.0f, item.main_size);
-            }
-            freeSpace = 0.0f;
-        }
-    }
-
-    f32 cursor = 0.0f;
-    f32 gap = mainGap;
-    usize n = items.size();
-
-    switch (flex.justifyContent) {
-        case JustifyContent::Start:
-            cursor = 0.0f;
-            break;
-        case JustifyContent::Center:
-            cursor = freeSpace * 0.5f;
-            break;
-        case JustifyContent::End:
-            cursor = freeSpace;
-            break;
-        case JustifyContent::SpaceBetween:
-            cursor = 0.0f;
-            if (n > 1) gap = mainGap + freeSpace / static_cast<f32>(n - 1);
-            break;
-        case JustifyContent::SpaceAround:
-            if (n > 0) {
-                f32 spacePerItem = freeSpace / static_cast<f32>(n);
-                cursor = spacePerItem * 0.5f;
-                gap = mainGap + spacePerItem;
-            }
-            break;
-        case JustifyContent::SpaceEvenly:
-            if (n > 0) {
-                f32 spaceUnit = freeSpace / static_cast<f32>(n + 1);
-                cursor = spaceUnit;
-                gap = mainGap + spaceUnit;
-            }
-            break;
-    }
-
-    for (usize i = 0; i < n; i++) {
-        auto& item = items[i];
-        auto& childRect = registry.get<UIRect>(item.entity);
-
-        f32 mainPos = cursor;
-        cursor += item.main_size;
-        if (i < n - 1) cursor += gap;
-
-        f32 crossPos = 0.0f;
-        f32 finalCrossSize = item.cross_size;
-
-        switch (flex.alignItems) {
-            case AlignItems::Start:
-                crossPos = 0.0f;
-                break;
-            case AlignItems::Center:
-                crossPos = (crossSpace - finalCrossSize) * 0.5f;
-                break;
-            case AlignItems::End:
-                crossPos = crossSpace - finalCrossSize;
-                break;
-            case AlignItems::Stretch:
-                crossPos = 0.0f;
-                finalCrossSize = crossSpace;
-                break;
-        }
-
-        f32 finalW, finalH;
-        f32 localX, localY;
-
-        if (isRow) {
-            finalW = item.main_size;
-            finalH = finalCrossSize;
-            f32 cpx = childRect.pivot.x;
-            f32 cpy = childRect.pivot.y;
-            localX = -pivotX * parentW + padLeft + mainPos + cpx * finalW;
-            localY = (1.0f - pivotY) * parentH - padTop - crossPos - (1.0f - cpy) * finalH;
-        } else {
-            finalW = finalCrossSize;
-            finalH = item.main_size;
-            f32 cpx = childRect.pivot.x;
-            f32 cpy = childRect.pivot.y;
-            localX = -pivotX * parentW + padLeft + crossPos + cpx * finalW;
-            localY = (1.0f - pivotY) * parentH - padTop - mainPos - (1.0f - cpy) * finalH;
-        }
-
-        auto* transform = registry.tryGet<Transform>(item.entity);
+        auto* transform = registry.tryGet<Transform>(info.entity);
         if (transform) {
             if (childRect.anim_override_) {
                 if (!(childRect.anim_override_ & UIRect::ANIM_POS_X)) {
@@ -360,7 +335,7 @@ inline void resolveFlexChildren(
         childRect.computed_size_.x = finalW;
         childRect.computed_size_.y = finalH;
 
-        auto* sprite = registry.tryGet<Sprite>(item.entity);
+        auto* sprite = registry.tryGet<Sprite>(info.entity);
         if (sprite) {
             if (sprite->size.x != finalW || sprite->size.y != finalH) {
                 sprite->size.x = finalW;
@@ -368,8 +343,14 @@ inline void resolveFlexChildren(
             }
         }
 
-        tree.nodes_[item.tree_index].flags &= ~LAYOUT_DIRTY;
+        if (registry.has<FlexContainer>(info.entity) || registry.has<LayoutGroup>(info.entity)) {
+            tree.nodes_[info.tree_index].flags |= LAYOUT_DIRTY;
+        } else {
+            tree.nodes_[info.tree_index].flags &= ~LAYOUT_DIRTY;
+        }
     }
+
+    YGNodeFreeRecursive(root);
 }
 
 inline void resolveLayoutGroupChildren(

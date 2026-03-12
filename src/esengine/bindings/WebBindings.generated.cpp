@@ -81,6 +81,13 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
 // =============================================================================
 
 EMSCRIPTEN_BINDINGS(esengine_enums) {
+    enum_<esengine::ecs::AlignSelf>("AlignSelf")
+        .value("Auto", esengine::ecs::AlignSelf::Auto)
+        .value("Start", esengine::ecs::AlignSelf::Start)
+        .value("Center", esengine::ecs::AlignSelf::Center)
+        .value("End", esengine::ecs::AlignSelf::End)
+        .value("Stretch", esengine::ecs::AlignSelf::Stretch);
+
     enum_<esengine::ecs::EmitterShape>("EmitterShape")
         .value("Point", esengine::ecs::EmitterShape::Point)
         .value("Circle", esengine::ecs::EmitterShape::Circle)
@@ -135,6 +142,14 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("End", esengine::ecs::AlignItems::End)
         .value("Stretch", esengine::ecs::AlignItems::Stretch);
 
+    enum_<esengine::ecs::AlignContent>("AlignContent")
+        .value("Start", esengine::ecs::AlignContent::Start)
+        .value("Center", esengine::ecs::AlignContent::Center)
+        .value("End", esengine::ecs::AlignContent::End)
+        .value("Stretch", esengine::ecs::AlignContent::Stretch)
+        .value("SpaceBetween", esengine::ecs::AlignContent::SpaceBetween)
+        .value("SpaceAround", esengine::ecs::AlignContent::SpaceAround);
+
     enum_<esengine::ecs::LayoutDirection>("LayoutDirection")
         .value("Horizontal", esengine::ecs::LayoutDirection::Horizontal)
         .value("Vertical", esengine::ecs::LayoutDirection::Vertical);
@@ -160,6 +175,55 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
 // =============================================================================
 // Components
 // =============================================================================
+
+struct FlexItemJS {
+    f32 flexGrow;
+    f32 flexShrink;
+    f32 flexBasis;
+    i32 order;
+    i32 alignSelf;
+    Padding margin;
+    f32 minWidth;
+    f32 minHeight;
+    f32 maxWidth;
+    f32 maxHeight;
+    f32 widthPercent;
+    f32 heightPercent;
+};
+
+esengine::ecs::FlexItem flexitemFromJS(const FlexItemJS& js) {
+    esengine::ecs::FlexItem c;
+    c.flexGrow = js.flexGrow;
+    c.flexShrink = js.flexShrink;
+    c.flexBasis = js.flexBasis;
+    c.order = js.order;
+    c.alignSelf = static_cast<AlignSelf>(js.alignSelf);
+    c.margin = js.margin;
+    c.minWidth = js.minWidth;
+    c.minHeight = js.minHeight;
+    c.maxWidth = js.maxWidth;
+    c.maxHeight = js.maxHeight;
+    c.widthPercent = js.widthPercent;
+    c.heightPercent = js.heightPercent;
+    return c;
+}
+
+FlexItemJS flexitemToJS(const esengine::ecs::FlexItem& c) {
+    FlexItemJS js;
+    js.flexGrow = c.flexGrow;
+    js.flexShrink = c.flexShrink;
+    js.flexBasis = c.flexBasis;
+    js.order = c.order;
+    js.alignSelf = static_cast<i32>(c.alignSelf);
+    js.margin = c.margin;
+    js.minWidth = c.minWidth;
+    js.minHeight = c.minHeight;
+    js.maxWidth = c.maxWidth;
+    js.maxHeight = c.maxHeight;
+    js.widthPercent = c.widthPercent;
+    js.heightPercent = c.heightPercent;
+    return js;
+}
 
 struct ParticleEmitterJS {
     f32 rate;
@@ -475,6 +539,7 @@ struct FlexContainerJS {
     i32 wrap;
     i32 justifyContent;
     i32 alignItems;
+    i32 alignContent;
     glm::vec2 gap;
     Padding padding;
 };
@@ -485,6 +550,7 @@ esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
     c.wrap = static_cast<FlexWrap>(js.wrap);
     c.justifyContent = static_cast<JustifyContent>(js.justifyContent);
     c.alignItems = static_cast<AlignItems>(js.alignItems);
+    c.alignContent = static_cast<AlignContent>(js.alignContent);
     c.gap = js.gap;
     c.padding = js.padding;
     return c;
@@ -496,6 +562,7 @@ FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
     js.wrap = static_cast<i32>(c.wrap);
     js.justifyContent = static_cast<i32>(c.justifyContent);
     js.alignItems = static_cast<i32>(c.alignItems);
+    js.alignContent = static_cast<i32>(c.alignContent);
     js.gap = c.gap;
     js.padding = c.padding;
     return js;
@@ -620,11 +687,19 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("size", &esengine::ecs::UIRect::size)
         .field("pivot", &esengine::ecs::UIRect::pivot);
 
-    value_object<esengine::ecs::FlexItem>("FlexItem")
-        .field("flexGrow", &esengine::ecs::FlexItem::flexGrow)
-        .field("flexShrink", &esengine::ecs::FlexItem::flexShrink)
-        .field("flexBasis", &esengine::ecs::FlexItem::flexBasis)
-        .field("order", &esengine::ecs::FlexItem::order);
+    value_object<FlexItemJS>("FlexItem")
+        .field("flexGrow", &FlexItemJS::flexGrow)
+        .field("flexShrink", &FlexItemJS::flexShrink)
+        .field("flexBasis", &FlexItemJS::flexBasis)
+        .field("order", &FlexItemJS::order)
+        .field("alignSelf", &FlexItemJS::alignSelf)
+        .field("margin", &FlexItemJS::margin)
+        .field("minWidth", &FlexItemJS::minWidth)
+        .field("minHeight", &FlexItemJS::minHeight)
+        .field("maxWidth", &FlexItemJS::maxWidth)
+        .field("maxHeight", &FlexItemJS::maxHeight)
+        .field("widthPercent", &FlexItemJS::widthPercent)
+        .field("heightPercent", &FlexItemJS::heightPercent);
 
     value_object<esengine::ecs::BoxCollider>("BoxCollider")
         .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
@@ -804,6 +879,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("wrap", &FlexContainerJS::wrap)
         .field("justifyContent", &FlexContainerJS::justifyContent)
         .field("alignItems", &FlexContainerJS::alignItems)
+        .field("alignContent", &FlexContainerJS::alignContent)
         .field("gap", &FlexContainerJS::gap)
         .field("padding", &FlexContainerJS::padding);
 
@@ -897,16 +973,15 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("hasFlexItem", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::FlexItem>(static_cast<Entity>(e));
         }))
-        .function("getFlexItem", optional_override([](Registry& r, u32 e) -> esengine::ecs::FlexItem& {
+        .function("getFlexItem", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::FlexItem s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return s_dummy;
-            return r.get<esengine::ecs::FlexItem>(entity);
-        }), allow_raw_pointers())
-        .function("addFlexItem", optional_override([](Registry& r, u32 e, const esengine::ecs::FlexItem& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return FlexItemJS{};
+            return flexitemToJS(r.get<esengine::ecs::FlexItem>(entity));
+        }))
+        .function("addFlexItem", optional_override([](Registry& r, u32 e, const FlexItemJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::FlexItem>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::FlexItem>(entity, flexitemFromJS(js));
         }))
         .function("removeFlexItem", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);

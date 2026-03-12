@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CommandsInstance, EntityCommands, Commands } from '../src/commands';
-import { defineComponent, defineBuiltin } from '../src/component';
+import { defineComponent, defineBuiltin, Name } from '../src/component';
 import { defineResource, ResourceStorage } from '../src/resource';
 import type { World } from '../src/world';
 import type { Entity } from '../src/types';
@@ -99,6 +99,46 @@ describe('CommandsInstance', () => {
             commands.flush();
 
             expect(world.insert).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe('spawn with name', () => {
+        it('should insert Name component when name is provided', () => {
+            commands.spawn('Player');
+            commands.flush();
+
+            expect(world.spawn).toHaveBeenCalledOnce();
+            expect(world.insert).toHaveBeenCalledWith(
+                1,
+                Name,
+                expect.objectContaining({ value: 'Player' }),
+            );
+        });
+
+        it('should not insert Name component when name is omitted', () => {
+            commands.spawn();
+            commands.flush();
+
+            expect(world.spawn).toHaveBeenCalledOnce();
+            expect(world.insert).not.toHaveBeenCalled();
+        });
+
+        it('should insert Name alongside other components', () => {
+            commands.spawn('Enemy')
+                .insert(Position, { x: 5, y: 10 });
+            commands.flush();
+
+            expect(world.insert).toHaveBeenCalledTimes(2);
+            expect(world.insert).toHaveBeenCalledWith(
+                1,
+                Name,
+                expect.objectContaining({ value: 'Enemy' }),
+            );
+            expect(world.insert).toHaveBeenCalledWith(
+                1,
+                Position,
+                expect.objectContaining({ x: 5, y: 10 }),
+            );
         });
     });
 

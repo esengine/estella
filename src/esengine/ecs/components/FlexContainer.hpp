@@ -39,6 +39,16 @@ enum class AlignItems : u8 {
     Stretch
 };
 
+ES_ENUM()
+enum class AlignContent : u8 {
+    Start,
+    Center,
+    End,
+    Stretch,
+    SpaceBetween,
+    SpaceAround
+};
+
 ES_COMPONENT()
 struct FlexContainer {
     ES_PROPERTY()
@@ -49,6 +59,8 @@ struct FlexContainer {
     JustifyContent justifyContent{JustifyContent::Start};
     ES_PROPERTY()
     AlignItems alignItems{AlignItems::Stretch};
+    ES_PROPERTY()
+    AlignContent alignContent{AlignContent::Start};
     ES_PROPERTY()
     glm::vec2 gap{0.0f, 0.0f};
     ES_PROPERTY()

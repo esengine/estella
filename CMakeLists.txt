@@ -284,7 +284,7 @@ target_include_directories(esengine
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
 
-target_link_libraries(esengine PUBLIC glm)
+target_link_libraries(esengine PUBLIC glm yogacore)
 
 if(ES_ENABLE_TILEMAP)
     target_link_libraries(esengine PUBLIC cute_tiled)

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { World, computeQueryCacheKey } from '../src/world';
-import { defineComponent, defineTag, defineBuiltin } from '../src/component';
+import { defineComponent, defineTag, defineBuiltin, Name } from '../src/component';
 import { createMockModule } from './mocks/wasm';
 
 describe('World', () => {
@@ -21,6 +21,18 @@ describe('World', () => {
         it('should spawn a new entity', () => {
             const entity = world.spawn();
             expect(entity).toBeGreaterThan(0);
+        });
+
+        it('should spawn entity with name', () => {
+            const entity = world.spawn('Player');
+            expect(entity).toBeGreaterThan(0);
+            const name = world.get(entity, Name);
+            expect(name.value).toBe('Player');
+        });
+
+        it('should spawn entity without name when omitted', () => {
+            const entity = world.spawn();
+            expect(world.has(entity, Name)).toBe(false);
         });
 
         it('should spawn multiple entities', () => {

@@ -856,20 +856,46 @@ declare const AlignItems: {
     readonly Stretch: 3;
 };
 type AlignItems = (typeof AlignItems)[keyof typeof AlignItems];
+declare const AlignContent: {
+    readonly Start: 0;
+    readonly Center: 1;
+    readonly End: 2;
+    readonly Stretch: 3;
+    readonly SpaceBetween: 4;
+    readonly SpaceAround: 5;
+};
+type AlignContent = (typeof AlignContent)[keyof typeof AlignContent];
 interface FlexContainerData {
     direction: FlexDirection;
     wrap: FlexWrap;
     justifyContent: JustifyContent;
     alignItems: AlignItems;
+    alignContent: AlignContent;
     gap: Vec2;
     padding: Padding;
 }
 
+declare const AlignSelf: {
+    readonly Auto: 0;
+    readonly Start: 1;
+    readonly Center: 2;
+    readonly End: 3;
+    readonly Stretch: 4;
+};
+type AlignSelf = (typeof AlignSelf)[keyof typeof AlignSelf];
 interface FlexItemData {
     flexGrow: number;
     flexShrink: number;
     flexBasis: number;
     order: number;
+    alignSelf: AlignSelf;
+    margin: Padding;
+    minWidth: number;
+    minHeight: number;
+    maxWidth: number;
+    maxHeight: number;
+    widthPercent: number;
+    heightPercent: number;
 }
 
 declare class UIRenderOrderPlugin implements Plugin {

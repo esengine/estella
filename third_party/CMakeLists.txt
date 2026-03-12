@@ -60,6 +60,27 @@ endif()
 # Native Platform Dependencies
 # =============================================================================
 
+# =============================================================================
+# Yoga - Flexbox Layout Engine (Meta)
+# =============================================================================
+
+file(GLOB_RECURSE YOGA_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/yoga/*.cpp"
+)
+add_library(yogacore STATIC ${YOGA_SOURCES})
+target_include_directories(yogacore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(yogacore PUBLIC cxx_std_20)
+if(NOT MSVC)
+    target_compile_options(yogacore PRIVATE -Wno-unused-parameter)
+endif()
+if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+    target_compile_options(yogacore PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+endif()
+
+# =============================================================================
+# Native Platform Dependencies
+# =============================================================================
+
 if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)

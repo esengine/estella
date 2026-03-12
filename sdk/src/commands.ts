@@ -4,7 +4,7 @@
  */
 
 import { Entity } from './types';
-import { AnyComponentDef, ComponentDef, isBuiltinComponent } from './component';
+import { AnyComponentDef, ComponentDef, isBuiltinComponent, Name } from './component';
 import type { World } from './world';
 import { ResourceDef, ResourceStorage } from './resource';
 
@@ -69,12 +69,15 @@ export class EntityCommands {
     private readonly components_: SpawnComponentEntry[] = [];
     private isNew_: boolean;
 
-    constructor(commands: CommandsInstance, entity: Entity | null) {
+    constructor(commands: CommandsInstance, entity: Entity | null, name?: string) {
         this.commands_ = commands;
 
         if (entity === null) {
             this.entityRef_ = { entity: 0 as Entity };
             this.isNew_ = true;
+            if (name !== undefined) {
+                this.insert(Name, { value: name });
+            }
         } else {
             this.entityRef_ = { entity };
             this.isNew_ = false;
@@ -136,8 +139,8 @@ export class CommandsInstance {
         this.resources_ = resources;
     }
 
-    spawn(): EntityCommands {
-        const ec = new EntityCommands(this, null);
+    spawn(name?: string): EntityCommands {
+        const ec = new EntityCommands(this, null, name);
         this.spawned_.push(ec);
         return ec;
     }

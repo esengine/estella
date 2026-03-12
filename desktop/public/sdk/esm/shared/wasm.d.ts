@@ -78,6 +78,14 @@ interface FlexItem {
     flexShrink: number;
     flexBasis: number;
     order: number;
+    alignSelf: number;
+    margin: Padding;
+    minWidth: number;
+    minHeight: number;
+    maxWidth: number;
+    maxHeight: number;
+    widthPercent: number;
+    heightPercent: number;
 }
 interface BoxCollider {
     halfExtents: Vec2;
@@ -257,6 +265,7 @@ interface FlexContainer {
     wrap: number;
     justifyContent: number;
     alignItems: number;
+    alignContent: number;
     gap: Vec2;
     padding: Padding;
 }

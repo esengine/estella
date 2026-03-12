@@ -332,7 +332,7 @@ declare class World {
     getCppRegistry(): CppRegistry | null;
     /** @internal */
     getWasmModule(): ESEngineModule | null;
-    spawn(): Entity;
+    spawn(name?: string): Entity;
     despawn(entity: Entity): void;
     onSpawn(callback: (entity: Entity) => void): () => void;
     onDespawn(callback: (entity: Entity) => void): () => void;
@@ -496,7 +496,7 @@ declare class EntityCommands {
     private readonly entityRef_;
     private readonly components_;
     private isNew_;
-    constructor(commands: CommandsInstance, entity: Entity | null);
+    constructor(commands: CommandsInstance, entity: Entity | null, name?: string);
     insert<T extends object>(component: AnyComponentDef, data?: Partial<T>): this;
     remove(component: AnyComponentDef): this;
     id(): Entity;
@@ -508,7 +508,7 @@ declare class CommandsInstance {
     private pending_;
     private spawned_;
     constructor(world: World, resources: ResourceStorage);
-    spawn(): EntityCommands;
+    spawn(name?: string): EntityCommands;
     entity(entity: Entity): EntityCommands;
     despawn(entity: Entity): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;

@@ -22,6 +22,14 @@ export interface VectorEntity {
 
 // Enums
 
+export enum AlignSelf {
+    Auto = 0,
+    Start = 1,
+    Center = 2,
+    End = 3,
+    Stretch = 4,
+}
+
 export enum EmitterShape {
     Point = 0,
     Circle = 1,
@@ -86,6 +94,15 @@ export enum AlignItems {
     Stretch = 3,
 }
 
+export enum AlignContent {
+    Start = 0,
+    Center = 1,
+    End = 2,
+    Stretch = 3,
+    SpaceBetween = 4,
+    SpaceAround = 5,
+}
+
 export enum LayoutDirection {
     Horizontal = 0,
     Vertical = 1,
@@ -126,6 +143,14 @@ export interface FlexItem {
     flexShrink: number;
     flexBasis: number;
     order: number;
+    alignSelf: number;
+    margin: Padding;
+    minWidth: number;
+    minHeight: number;
+    maxWidth: number;
+    maxHeight: number;
+    widthPercent: number;
+    heightPercent: number;
 }
 
 export interface BoxCollider {
@@ -321,6 +346,7 @@ export interface FlexContainer {
     wrap: number;
     justifyContent: number;
     alignItems: number;
+    alignContent: number;
     gap: Vec2;
     padding: Padding;
 }
