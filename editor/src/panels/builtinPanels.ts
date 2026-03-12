@@ -11,6 +11,7 @@ import { ProfilerPanel } from './profiler/ProfilerPanel';
 import { TimelinePanel } from './timeline/TimelinePanel';
 import { FrameDebuggerPanel } from './frameDebugger/FrameDebuggerPanel';
 import { ExtensionsPanel } from './ExtensionsPanel';
+import { StateMachineGraphPanel } from './state-machine-graph/StateMachineGraphPanel';
 import { icons } from '../utils/icons';
 import { getEditorStore } from '../store';
 import { getSceneService } from '../services';
@@ -115,6 +116,16 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         defaultVisible: false,
         order: 3,
         factory: (c) => ({ instance: new FrameDebuggerPanel(c) }),
+    });
+
+    registerPanel({
+        id: 'state-machine-graph',
+        title: 'State Machine',
+        icon: icons.zap(PANEL_ICON_SIZE),
+        position: 'bottom',
+        order: 5,
+        defaultVisible: false,
+        factory: (c) => ({ instance: new StateMachineGraphPanel(c, getEditorStore()) }),
     });
 
     registerPanel({

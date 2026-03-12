@@ -210,6 +210,11 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
         action: () => getNavigationService().togglePanel('extensions'),
     });
     registerMenuItem({
+        id: 'view.state-machine-graph', menu: 'view', label: 'State Machine',
+        order: 5.8,
+        action: () => getNavigationService().togglePanel('state-machine-graph'),
+    });
+    registerMenuItem({
         id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
         order: 6,
         action: () => showAddressableWindow(),
