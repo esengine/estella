@@ -280,7 +280,8 @@ fn parse_request(
             Ok(("toggleVisibility".into(), body))
         }
         ("POST", "/scene/new") => {
-            Ok(("newScene".into(), json!({})))
+            let body = read_json_body(reader)?;
+            Ok(("newScene".into(), body))
         }
         ("POST", "/scene/open") => {
             let body = read_json_body(reader)?;

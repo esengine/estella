@@ -130,7 +130,7 @@ export class McpBridge {
             case 'listMenus': return this.listMenus_();
             case 'getSceneMetadata': return this.getSceneMetadata_();
             case 'toggleVisibility': return this.toggleVisibility_(params);
-            case 'newScene': return this.newScene_();
+            case 'newScene': return this.newScene_(params.force as boolean ?? true);
             case 'openScene': return this.openScene_(params.path as string);
             case 'instantiatePrefab': return this.instantiatePrefab_(params);
             case 'createScript': return this.createScript_(params);
@@ -687,9 +687,14 @@ export class McpBridge {
     // Scene
     // =========================================================================
 
-    private async newScene_(): Promise<unknown> {
-        const sceneService = getSceneService();
-        await sceneService.newScene();
+    private async newScene_(force: boolean): Promise<unknown> {
+        if (force) {
+            const w = getSettingsValue<number>('project.designWidth') ?? 1920;
+            const h = getSettingsValue<number>('project.designHeight') ?? 1080;
+            getEditorStore().newScene('Untitled', { width: w, height: h });
+        } else {
+            await getSceneService().newScene();
+        }
         getSharedRenderContext().requestRender();
         return { ok: true };
     }
