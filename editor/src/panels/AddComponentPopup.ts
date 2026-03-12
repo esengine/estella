@@ -101,6 +101,7 @@ export class AddComponentPopup {
             iconFn: () => string
         ) => {
             const filtered = schemas.filter(s =>
+                !s.hidden &&
                 !existing.has(s.name) &&
                 s.name.toLowerCase().includes(filterLower)
             );

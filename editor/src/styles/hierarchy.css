@@ -228,6 +228,22 @@
 .es-hierarchy-type[data-type-cat="particle"] { color: var(--es-type-particle); }
 .es-hierarchy-type[data-type-cat="spine"] { color: var(--es-type-spine); }
 
+.es-hierarchy-tag {
+    display: inline-block;
+    padding: 0 4px;
+    margin-left: 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    line-height: 16px;
+    background: var(--es-bg-tertiary);
+    color: var(--es-text-secondary);
+    flex-shrink: 0;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .es-hierarchy-rename-input {
     width: 100%;
     height: 18px;

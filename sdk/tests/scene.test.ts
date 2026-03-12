@@ -1108,14 +1108,14 @@ describe('Scene', () => {
             expect(found).toBeNull();
         });
 
-        it('should return first match when multiple entities have same name', () => {
+        it('should return last match when multiple entities have same name', () => {
             const e1 = world.spawn();
             world.insert(e1, Name, { value: 'Duplicate' });
             const e2 = world.spawn();
             world.insert(e2, Name, { value: 'Duplicate' });
 
             const found = findEntityByName(world, 'Duplicate');
-            expect(found).toBe(e1);
+            expect(found).toBe(e2);
         });
     });
 

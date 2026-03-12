@@ -321,6 +321,7 @@ declare class World {
     private nextGeneration_;
     private spawnCallbacks_;
     private despawnCallbacks_;
+    private nameIndex_;
     private worldTick_;
     private componentAddedTicks_;
     private componentChangedTicks_;
@@ -361,6 +362,9 @@ declare class World {
     private getScript;
     private hasScript;
     private removeScript;
+    private updateNameIndex_;
+    private removeNameIndex_;
+    findEntityByName(name: string): Entity | null;
     private getStorage;
     /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
     resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null;
