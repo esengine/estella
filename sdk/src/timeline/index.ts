@@ -45,6 +45,17 @@ export {
 } from './TimelineControl';
 
 export {
+    resolveChildEntity,
+    resolveTrackTargets,
+    createTimelineHandle,
+    destroyTimelineHandle,
+    processTimelineEvents,
+    processCustomProperties,
+    advanceAndProcess,
+    setNestedProperty,
+} from './TimelineRuntime';
+
+export {
     TimelinePlugin,
     timelinePlugin,
     TimelinePlayer,

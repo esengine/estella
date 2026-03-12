@@ -1,16 +1,29 @@
 import type { App, Plugin } from '../app';
 import { defineSystem, Schedule } from '../system';
+import { Res } from '../resource';
+import { Time, type TimeData } from '../resource';
 import { registerComponent } from '../component';
 import type { Entity } from '../types';
 import type { World } from '../world';
 import { StateMachine } from './StateMachine';
-import type { StateMachineData, StateNode, Condition, ListenerDef, InputDef } from './StateMachine';
+import type { StateMachineData, StateNode, Condition, ListenerDef } from './StateMachine';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { Tween } from '../animation/Tween';
 import { EasingType } from '../animation/ValueTween';
 import type { ValueTweenHandle } from '../animation/ValueTween';
 import { getEntityProperty, setEntityProperty } from './propertyPath';
+import { WrapMode } from '../timeline/TimelineTypes';
+import { getTimelineAsset } from '../timeline/TimelinePlugin';
+import { setTimelineModule } from '../timeline/TimelineControl';
+import {
+    createTimelineHandle,
+    destroyTimelineHandle,
+    resolveTrackTargets,
+    advanceAndProcess,
+} from '../timeline/TimelineRuntime';
+import type { UploadResult } from '../timeline/TimelineUploader';
+import type { ESEngineModule } from '../wasm';
 
 const EASING_MAP: Record<string, EasingType> = {
     linear: EasingType.Linear,
@@ -29,11 +42,20 @@ const EASING_MAP: Record<string, EasingType> = {
     easeOutBounce: EasingType.EaseOutBounce,
 };
 
+const WRAP_MODE_MAP: Record<string, number> = {
+    once: WrapMode.Once,
+    loop: WrapMode.Loop,
+};
+
 interface LayerRuntime {
     currentState: string;
     inputs: Map<string, boolean | number>;
     activeTweens: ValueTweenHandle[];
     prevHovered: boolean;
+    timelineHandle: number;
+    timelineUpload: UploadResult | null;
+    timelinePath: string;
+    timelineDuration: number;
 }
 
 function createRuntime(data: StateMachineData): LayerRuntime {
@@ -52,6 +74,10 @@ function createRuntime(data: StateMachineData): LayerRuntime {
         inputs,
         activeTweens: [],
         prevHovered: false,
+        timelineHandle: 0,
+        timelineUpload: null,
+        timelinePath: '',
+        timelineDuration: 0,
     };
 }
 
@@ -130,6 +156,41 @@ function applyStateProperties(
     }
 }
 
+function enterTimelineState(
+    world: any, module: ESEngineModule,
+    entity: Entity, state: StateNode, runtime: LayerRuntime,
+): void {
+    cleanupTimelineHandle(module, runtime);
+
+    const path = state.timeline!;
+    const asset = getTimelineAsset(path);
+    if (!asset) return;
+
+    const uploadResult = createTimelineHandle(module, asset);
+    if (!uploadResult.handle) return;
+
+    resolveTrackTargets(world, module, uploadResult, entity);
+
+    const wrapMode = WRAP_MODE_MAP[state.timelineWrapMode ?? 'once'] ?? WrapMode.Once;
+    module._tl_setWrapMode(uploadResult.handle, wrapMode);
+    module._tl_play(uploadResult.handle);
+
+    runtime.timelineHandle = uploadResult.handle;
+    runtime.timelineUpload = uploadResult;
+    runtime.timelinePath = path;
+    runtime.timelineDuration = asset.duration;
+}
+
+function cleanupTimelineHandle(module: ESEngineModule | null, runtime: LayerRuntime): void {
+    if (runtime.timelineHandle && module) {
+        destroyTimelineHandle(module, runtime.timelineHandle);
+    }
+    runtime.timelineHandle = 0;
+    runtime.timelineUpload = null;
+    runtime.timelinePath = '';
+    runtime.timelineDuration = 0;
+}
+
 export class StateMachinePlugin implements Plugin {
     build(app: App): void {
         registerComponent('StateMachine', StateMachine);
@@ -138,10 +199,16 @@ export class StateMachinePlugin implements Plugin {
         const runtimes = new Map<Entity, LayerRuntime>();
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [],
-            () => {
+            [Res(Time)],
+            (time: TimeData) => {
+                const module = world.getWasmModule() as ESEngineModule;
+
                 for (const entity of runtimes.keys()) {
-                    if (!world.valid(entity)) runtimes.delete(entity);
+                    if (!world.valid(entity)) {
+                        const rt = runtimes.get(entity)!;
+                        cleanupTimelineHandle(module, rt);
+                        runtimes.delete(entity);
+                    }
                 }
 
                 const entities = world.getEntitiesWithComponents([StateMachine]);
@@ -154,8 +221,26 @@ export class StateMachinePlugin implements Plugin {
                     if (!runtime) {
                         runtime = createRuntime(data);
                         runtimes.set(entity, runtime);
+
+                        const initialState = data.states[runtime.currentState];
+                        if (initialState?.timeline && module) {
+                            setTimelineModule(module);
+                            enterTimelineState(world, module, entity, initialState, runtime);
+                        }
                     }
 
+                    // Advance active timeline
+                    if (runtime.timelineHandle && runtime.timelineUpload && module) {
+                        setTimelineModule(module);
+                        advanceAndProcess(
+                            world, module,
+                            runtime.timelineHandle, entity,
+                            time.delta, 1.0,
+                            runtime.timelineUpload,
+                        );
+                    }
+
+                    // Listener processing
                     const hasInteraction = world.has(entity, UIInteraction);
                     if (hasInteraction) {
                         const interaction = world.get(entity, UIInteraction) as UIInteractionData;
@@ -177,10 +262,21 @@ export class StateMachinePlugin implements Plugin {
                         }
                     }
 
+                    // Evaluate transitions
                     const currentState = data.states[runtime.currentState];
                     if (!currentState) continue;
 
                     for (const transition of currentState.transitions) {
+                        // exitTime gating (for timeline states)
+                        if (transition.exitTime !== undefined && transition.exitTime > 0) {
+                            if (runtime.timelineHandle && module && runtime.timelineDuration > 0) {
+                                const currentTime = module._tl_getTime(runtime.timelineHandle);
+                                if (currentTime / runtime.timelineDuration < transition.exitTime) {
+                                    continue;
+                                }
+                            }
+                        }
+
                         const allMet = transition.conditions.every(
                             c => evaluateCondition(c, runtime!.inputs)
                         );
@@ -192,20 +288,25 @@ export class StateMachinePlugin implements Plugin {
                         cancelActiveTweens(runtime);
 
                         if (targetState.timeline) {
-                            console.warn(`StateMachine: Timeline mode not yet supported (state: ${transition.target})`);
+                            if (module) {
+                                setTimelineModule(module);
+                                enterTimelineState(world, module, entity, targetState, runtime);
+                            }
+                        } else {
+                            cleanupTimelineHandle(module, runtime);
+                            applyStateProperties(
+                                world, entity, targetState,
+                                transition.duration,
+                                resolveEasing(transition.easing),
+                                runtime,
+                            );
                         }
-
-                        applyStateProperties(
-                            world, entity, targetState,
-                            transition.duration,
-                            resolveEasing(transition.easing),
-                            runtime,
-                        );
 
                         runtime.currentState = transition.target;
                         break;
                     }
 
+                    // Clear trigger inputs
                     for (const inputDef of data.inputs) {
                         if (inputDef.type === 'trigger') {
                             runtime.inputs.set(inputDef.name, false);

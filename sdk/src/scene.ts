@@ -509,6 +509,17 @@ async function preloadSceneAssets(
         if (entityData.visible === false) continue;
 
         for (const compData of entityData.components) {
+            if (compData.type === 'StateMachine') {
+                const smData = compData.data as { states?: Record<string, { timeline?: string }> };
+                if (smData.states) {
+                    for (const state of Object.values(smData.states)) {
+                        if (typeof state.timeline === 'string' && state.timeline) {
+                            assetPaths.get('timeline')?.add(state.timeline);
+                        }
+                    }
+                }
+            }
+
             const config = COMPONENT_ASSET_FIELDS.get(compData.type);
             if (!config) continue;
 

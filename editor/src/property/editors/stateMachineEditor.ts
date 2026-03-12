@@ -29,6 +29,7 @@ interface Transition {
 
 interface StateNode {
     timeline?: string;
+    timelineWrapMode?: 'once' | 'loop';
     properties?: Record<string, unknown>;
     transitions: Transition[];
 }
@@ -448,6 +449,34 @@ export function createStateMachineEditor(
 
                 const stateBody = document.createElement('div');
                 stateBody.className = 'es-collapsible-content es-sm-state-body';
+
+                // Timeline
+                const tlRow = document.createElement('div');
+                tlRow.className = 'es-sm-list-row';
+                const tlLabel = document.createElement('span');
+                tlLabel.className = 'es-sm-sub-label';
+                tlLabel.textContent = 'Timeline';
+                tlLabel.style.minWidth = '56px';
+                const tlInput = document.createElement('input');
+                tlInput.type = 'text';
+                tlInput.className = 'es-input es-input-string';
+                tlInput.placeholder = 'path/to/timeline.timeline';
+                tlInput.value = state.timeline ?? '';
+                tlInput.addEventListener('change', () => {
+                    const v = tlInput.value.trim();
+                    if (v) { state.timeline = v; } else { delete state.timeline; }
+                    emit();
+                });
+                const wrapSel = createSelect(['once', 'loop'], state.timelineWrapMode ?? 'once');
+                wrapSel.style.width = '64px';
+                wrapSel.addEventListener('change', () => {
+                    state.timelineWrapMode = wrapSel.value as 'once' | 'loop';
+                    emit();
+                });
+                tlRow.appendChild(tlLabel);
+                tlRow.appendChild(tlInput);
+                tlRow.appendChild(wrapSel);
+                stateBody.appendChild(tlRow);
 
                 // Properties
                 const propLabel = document.createElement('span');

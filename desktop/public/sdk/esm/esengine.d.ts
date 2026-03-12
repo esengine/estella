@@ -2706,10 +2706,6 @@ declare class TimelinePlugin implements Plugin {
     clearHandles(): void;
     cleanup(): void;
     private processAnimFrames;
-    private resolveTrackTargets;
-    private decodeEventString;
-    private processEvents;
-    private processCustomProperties;
 }
 declare const timelinePlugin: TimelinePlugin;
 

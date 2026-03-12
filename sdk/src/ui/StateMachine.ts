@@ -16,6 +16,7 @@ export interface Transition {
 
 export interface StateNode {
     timeline?: string;
+    timelineWrapMode?: 'once' | 'loop';
     properties?: Record<string, unknown>;
     transitions: Transition[];
 }
