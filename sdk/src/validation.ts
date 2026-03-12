@@ -18,6 +18,7 @@ export function validateComponentData(
     const errors: ValidationError[] = [];
 
     for (const [field, value] of Object.entries(data)) {
+        if (field.startsWith('_')) continue;
         if (!(field in defaults)) {
             errors.push({
                 field,
