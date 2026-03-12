@@ -29,7 +29,7 @@ jobs:
           ccache
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2
+      uses: hendrikmuhs/ccache-action@v1.2.20
       with:
         key: ${{ runner.os }}-build-linux
         max-size: 500M
@@ -69,7 +69,7 @@ jobs:
         version: 5.0.0
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2
+      uses: hendrikmuhs/ccache-action@v1.2.20
       with:
         key: ${{ runner.os }}-emscripten
         max-size: 500M

@@ -100,7 +100,7 @@ jobs:
 
       - name: Setup ccache (non-Windows)
         if: matrix.platform != 'windows-latest'
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@v1.2.20
         with:
           key: ${{ matrix.platform }}-cross
           max-size: 1G
