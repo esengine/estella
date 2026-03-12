@@ -5,19 +5,21 @@ export type OutputHandler = (text: string, type: OutputType) => void;
 
 export class OutputService {
     private mainWindowBridge_: MainWindowBridge | null = null;
-    private outputHandler_: OutputHandler | null = null;
+    private handlers_ = new Set<OutputHandler>();
 
     setMainWindowBridge(bridge: MainWindowBridge | null): void {
         this.mainWindowBridge_ = bridge;
     }
 
     registerOutputHandler(handler: OutputHandler): () => void {
-        this.outputHandler_ = handler;
-        return () => { this.outputHandler_ = null; };
+        this.handlers_.add(handler);
+        return () => { this.handlers_.delete(handler); };
     }
 
     appendOutput(text: string, type: OutputType): void {
-        this.outputHandler_?.(text, type);
+        for (const handler of this.handlers_) {
+            handler(text, type);
+        }
         this.mainWindowBridge_?.broadcastOutput(text, type);
     }
 
