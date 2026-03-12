@@ -116,6 +116,12 @@ export function createEmptyScene(
                         },
                     },
                     {
+                        type: 'UIRect',
+                        data: {
+                            size: { x: res.width, y: res.height },
+                        },
+                    },
+                    {
                         type: 'Canvas',
                         data: {
                             designResolution: { x: res.width, y: res.height },
