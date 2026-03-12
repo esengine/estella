@@ -8,7 +8,6 @@ import {
     MAX_ZOOM,
     ZOOM_SPEED,
     NODE_BORDER_RADIUS,
-    NODE_HEADER_HEIGHT,
     NODE_FONT_SIZE,
     NODE_SUBTITLE_FONT_SIZE,
     CONNECTION_HIT_TOLERANCE,
@@ -24,6 +23,8 @@ export interface GraphCanvasCallbacks {
     onDeleteSelection?(): void;
     onAddState?(worldX: number, worldY: number): void;
     onRenameNode?(name: string): void;
+    onSetInitialState?(name: string): void;
+    onAddAnyState?(worldX: number, worldY: number): void;
 }
 
 const MULTI_TRANSITION_OFFSET = 8;
@@ -117,6 +118,7 @@ export class GraphCanvas {
 
     draw(): void {
         if (this.disposed_) return;
+        this.resizeCanvas();
 
         const ctx = this.ctx_;
         const w = this.canvas_.clientWidth;
@@ -331,12 +333,18 @@ export class GraphCanvas {
         const layout = this.state_.nodeLayouts.get(this.hoveredConnector_);
         if (!layout) return;
 
-        const cx = (layout.x + layout.width) * vt.zoom + vt.x;
+        const rightX = (layout.x + layout.width) * vt.zoom + vt.x;
+        const leftX = layout.x * vt.zoom + vt.x;
         const cy = (layout.y + layout.height / 2) * vt.zoom + vt.y;
 
+        this.drawConnectorDot(ctx, rightX, cy, COLORS.connectorFill);
+        this.drawConnectorDot(ctx, leftX, cy, COLORS.connectorFill);
+    }
+
+    private drawConnectorDot(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string): void {
         ctx.beginPath();
         ctx.arc(cx, cy, CONNECTOR_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = COLORS.connectorFill;
+        ctx.fillStyle = color;
         ctx.fill();
         ctx.strokeStyle = COLORS.connectorStroke;
         ctx.lineWidth = 1.5;
@@ -379,62 +387,55 @@ export class GraphCanvas {
             const sh = layout.height * vt.zoom;
 
             const isEntry = name === '__entry__';
+            const isAny = name === '__any__';
+            const isSpecial = isEntry || isAny;
             const isSelected = this.state_.selectedNodes.has(name);
             const isActive = this.state_.isPlayMode && this.state_.activeStateName === name;
 
-            const fillColor = isEntry ? COLORS.entryFill : COLORS.nodeFill;
-            const headerColor = isEntry ? COLORS.entryHeader : COLORS.nodeHeader;
+            const fillColor = isEntry ? COLORS.entryFill : isAny ? COLORS.anyFill : COLORS.nodeFill;
             const borderColor = isActive
                 ? COLORS.playModeActive
                 : isSelected
                     ? COLORS.nodeSelectedBorder
-                    : isEntry ? COLORS.entryBorder : COLORS.nodeBorder;
-            const textColor = isEntry ? COLORS.entryText : COLORS.nodeText;
+                    : isEntry ? COLORS.entryBorder : isAny ? COLORS.anyBorder : COLORS.nodeBorder;
+            const textColor = isEntry ? COLORS.entryText : isAny ? COLORS.anyText : COLORS.nodeText;
 
-            const r = NODE_BORDER_RADIUS * vt.zoom;
+            const r = Math.min(NODE_BORDER_RADIUS * vt.zoom, sh / 2);
 
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 4 * vt.zoom;
+            ctx.shadowOffsetY = 2 * vt.zoom;
             ctx.beginPath();
             this.roundRect(ctx, sx, sy, sw, sh, r);
             ctx.fillStyle = fillColor;
             ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath();
+            this.roundRect(ctx, sx, sy, sw, sh, r);
             ctx.strokeStyle = borderColor;
             ctx.lineWidth = isActive ? 2.5 : isSelected ? 2 : 1;
             ctx.stroke();
 
-            const headerH = isEntry ? sh : NODE_HEADER_HEIGHT * vt.zoom;
-            if (!isEntry) {
-                ctx.beginPath();
-                ctx.moveTo(sx, sy + headerH);
-                ctx.lineTo(sx + sw, sy + headerH);
-                ctx.strokeStyle = COLORS.nodeBorder;
-                ctx.lineWidth = 1;
-                ctx.stroke();
+            const subtitle = isSpecial ? '' : (this.nodeSubtitles_.get(name) ?? '');
+            const hasSubtitle = subtitle.length > 0;
 
-                ctx.save();
-                ctx.beginPath();
-                this.roundRectTop(ctx, sx, sy, sw, headerH, r);
-                ctx.clip();
-                ctx.fillStyle = headerColor;
-                ctx.fillRect(sx, sy, sw, headerH);
-                ctx.restore();
-            }
-
-            const fontSize = (isEntry ? NODE_SUBTITLE_FONT_SIZE : NODE_FONT_SIZE) * vt.zoom;
-            ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+            const fontSize = (isSpecial ? NODE_SUBTITLE_FONT_SIZE : NODE_FONT_SIZE) * vt.zoom;
+            ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
             ctx.fillStyle = textColor;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            const displayName = isEntry ? 'Entry' : name;
-            const textY = isEntry ? sy + sh / 2 : sy + headerH / 2;
-            ctx.fillText(displayName, sx + sw / 2, textY, sw - 8 * vt.zoom);
+            const displayName = isEntry ? 'Entry' : isAny ? 'Any' : name;
+            const nameY = hasSubtitle ? sy + sh * 0.38 : sy + sh / 2;
+            ctx.fillText(displayName, sx + sw / 2, nameY, sw - 12 * vt.zoom);
 
-            if (!isEntry) {
-                const subtitle = this.nodeSubtitles_.get(name) ?? '';
+            if (hasSubtitle) {
                 const subFontSize = NODE_SUBTITLE_FONT_SIZE * vt.zoom;
                 ctx.font = `${subFontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
                 ctx.fillStyle = COLORS.nodeSubtext;
-                ctx.fillText(subtitle, sx + sw / 2, sy + headerH + (sh - headerH) / 2, sw - 8 * vt.zoom);
+                ctx.fillText(subtitle, sx + sw / 2, sy + sh * 0.66, sw - 12 * vt.zoom);
             }
         }
     }
@@ -447,17 +448,6 @@ export class GraphCanvas {
         ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
         ctx.lineTo(x + r, y + h);
         ctx.arcTo(x, y + h, x, y + h - r, r);
-        ctx.lineTo(x, y + r);
-        ctx.arcTo(x, y, x + r, y, r);
-        ctx.closePath();
-    }
-
-    private roundRectTop(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.arcTo(x + w, y, x + w, y + r, r);
-        ctx.lineTo(x + w, y + h);
-        ctx.lineTo(x, y + h);
         ctx.lineTo(x, y + r);
         ctx.arcTo(x, y, x + r, y, r);
         ctx.closePath();
@@ -528,14 +518,17 @@ export class GraphCanvas {
     private isNearNodeEdge(worldX: number, worldY: number): string | null {
         for (const [name, layout] of this.state_.nodeLayouts) {
             if (name === '__entry__') continue;
-            const rightEdge = layout.x + layout.width;
             const cy = layout.y + layout.height / 2;
-            const dx = worldX - rightEdge;
             const dy = worldY - cy;
-            if (Math.abs(dx) < CONNECTOR_HOVER_MARGIN && Math.abs(dy) < layout.height / 2 + CONNECTOR_HOVER_MARGIN) {
-                if (dx >= -CONNECTOR_HOVER_MARGIN && dx <= CONNECTOR_HOVER_MARGIN) {
-                    return name;
-                }
+            if (Math.abs(dy) > layout.height / 2 + CONNECTOR_HOVER_MARGIN) continue;
+
+            const rightEdge = layout.x + layout.width;
+            const leftEdge = layout.x;
+            const dxRight = Math.abs(worldX - rightEdge);
+            const dxLeft = Math.abs(worldX - leftEdge);
+
+            if (dxRight <= CONNECTOR_HOVER_MARGIN || dxLeft <= CONNECTOR_HOVER_MARGIN) {
+                return name;
             }
         }
         return null;
@@ -686,7 +679,7 @@ export class GraphCanvas {
             const world = this.screenToWorld(sx, sy);
             const targetNode = this.hitTestNode(world.x, world.y);
 
-            if (targetNode && targetNode !== this.state_.pendingConnection.from && targetNode !== '__entry__') {
+            if (targetNode && targetNode !== this.state_.pendingConnection.from && targetNode !== '__entry__' && targetNode !== '__any__') {
                 this.callbacks_.onConnectionCreated?.(this.state_.pendingConnection.from, targetNode);
             }
 
@@ -745,26 +738,32 @@ export class GraphCanvas {
         const world = this.screenToWorld(sx, sy);
         const hitNode = this.hitTestNode(world.x, world.y);
 
-        if (hitNode && hitNode !== '__entry__') {
+        if (hitNode && hitNode !== '__entry__' && hitNode !== '__any__') {
+            const isInitial = this.state_.initialStateName === hitNode;
+            const items = [
+                { label: 'Rename', onClick: () => this.callbacks_.onRenameNode?.(hitNode) },
+                ...(!isInitial ? [{ label: 'Set as Initial State', onClick: () => this.callbacks_.onSetInitialState?.(hitNode) }] : []),
+                { label: 'Delete', onClick: () => {
+                    this.state_.selectedNodes.clear();
+                    this.state_.selectedNodes.add(hitNode);
+                    this.callbacks_.onDeleteSelection?.();
+                }},
+            ];
             showContextMenu({
                 x: e.clientX,
                 y: e.clientY,
-                items: [
-                    { label: 'Rename', onClick: () => this.callbacks_.onRenameNode?.(hitNode) },
-                    { label: 'Delete', onClick: () => {
-                        this.state_.selectedNodes.clear();
-                        this.state_.selectedNodes.add(hitNode);
-                        this.callbacks_.onDeleteSelection?.();
-                    }},
-                ],
+                items,
             });
-        } else {
+        } else if (!hitNode || hitNode === '__entry__' || hitNode === '__any__') {
+            const hasAny = this.state_.nodeLayouts.has('__any__');
+            const items = [
+                { label: 'Add State', onClick: () => this.callbacks_.onAddState?.(world.x, world.y) },
+                ...(!hasAny ? [{ label: 'Add Any State', onClick: () => this.callbacks_.onAddAnyState?.(world.x, world.y) }] : []),
+            ];
             showContextMenu({
                 x: e.clientX,
                 y: e.clientY,
-                items: [
-                    { label: 'Add State', onClick: () => this.callbacks_.onAddState?.(world.x, world.y) },
-                ],
+                items,
             });
         }
     }
@@ -781,6 +780,7 @@ export class GraphCanvas {
             if (this.state_.selectedNodes.size > 0 || this.state_.selectedTransition) {
                 this.callbacks_.onDeleteSelection?.();
                 e.preventDefault();
+                e.stopPropagation();
             }
         }
     }

@@ -33,6 +33,7 @@ export class ShortcutManager {
     }
 
     handleKeyDown(e: KeyboardEvent): boolean {
+        if (e.defaultPrevented) return false;
         const ctrl = e.ctrlKey || e.metaKey;
         const shift = e.shiftKey;
         const alt = e.altKey;

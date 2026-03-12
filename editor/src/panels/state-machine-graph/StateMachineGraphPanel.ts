@@ -2,6 +2,8 @@ import type { PanelInstance } from '../PanelRegistry';
 import type { EditorStore } from '../../store/EditorStore';
 import { getPlayModeService } from '../../services/PlayModeService';
 import { GraphCanvas } from './GraphCanvas';
+import { GraphDetailPanel } from './GraphDetailPanel';
+import { GraphSidePanel } from './GraphSidePanel';
 import { createGraphState } from './GraphState';
 import {
     NODE_WIDTH,
@@ -14,16 +16,44 @@ import {
     AUTO_LAYOUT_START_Y,
 } from './graphConstants';
 
-interface StateMachineStates {
-    [name: string]: {
-        timeline?: string;
-        properties?: Record<string, unknown>;
-        transitions: Array<{ target: string; conditions: unknown[]; duration: number }>;
-    };
+interface Condition {
+    inputName: string;
+    comparator: string;
+    value: boolean | number;
+}
+
+interface Transition {
+    target: string;
+    conditions: Condition[];
+    duration: number;
+    exitTime?: number;
+    easing?: string;
+}
+
+interface StateNode {
+    timeline?: string;
+    timelineWrapMode?: 'once' | 'loop';
+    properties?: Record<string, unknown>;
+    transitions: Transition[];
+}
+
+interface InputDef {
+    name: string;
+    type: 'bool' | 'number' | 'trigger';
+    defaultValue?: boolean | number;
+}
+
+interface ListenerDef {
+    event: string;
+    inputName: string;
+    action: string;
+    value?: boolean | number;
 }
 
 interface StateMachineComponentData {
-    states: StateMachineStates;
+    states: Record<string, StateNode>;
+    inputs: InputDef[];
+    listeners: ListenerDef[];
     initialState: string;
     _editorLayout?: Record<string, { x: number; y: number }>;
 }
@@ -34,8 +64,12 @@ export class StateMachineGraphPanel implements PanelInstance {
     private graphCanvas_: GraphCanvas | null = null;
     private graphState_ = createGraphState();
     private wrapper_: HTMLElement;
+    private tabBar_: HTMLElement;
+    private bodyRow_: HTMLElement;
     private canvasContainer_: HTMLElement;
     private emptyEl_: HTMLElement;
+    private sidePanel_: GraphSidePanel;
+    private detailPanel_: GraphDetailPanel;
     private unsubscribe_: (() => void) | null = null;
     private disposePlayMode_: (() => void) | null = null;
     private currentEntityId_: number | null = null;
@@ -49,14 +83,48 @@ export class StateMachineGraphPanel implements PanelInstance {
         this.wrapper_.style.cssText = 'display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden;background:#1e1e1e;';
         container.appendChild(this.wrapper_);
 
+        this.tabBar_ = document.createElement('div');
+        this.tabBar_.style.cssText = 'display:none;align-items:center;height:28px;min-height:28px;padding:0 8px;gap:4px;background:var(--es-bg-tertiary, #2d2d2d);border-bottom:1px solid var(--es-border, #333);';
+        this.wrapper_.appendChild(this.tabBar_);
+
+        this.bodyRow_ = document.createElement('div');
+        this.bodyRow_.style.cssText = 'display:flex;flex:1;min-height:0;overflow:hidden;';
+        this.wrapper_.appendChild(this.bodyRow_);
+
         this.emptyEl_ = document.createElement('div');
-        this.emptyEl_.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:13px;';
+        this.emptyEl_.style.cssText = 'display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:#666;font-size:13px;z-index:1;';
         this.emptyEl_.textContent = 'Select an entity with a StateMachine component';
-        this.wrapper_.appendChild(this.emptyEl_);
+        this.bodyRow_.appendChild(this.emptyEl_);
+
+        this.sidePanel_ = new GraphSidePanel(this.tabBar_, this.bodyRow_, {
+            onAddInput: (type) => this.addInput(type),
+            onRemoveInput: (index) => this.removeInput(index),
+            onUpdateInput: (index, field, value) => this.updateInput(index, field, value),
+            onAddListener: () => this.addListener(),
+            onRemoveListener: (index) => this.removeListener(index),
+            onUpdateListener: (index, field, value) => this.updateListener(index, field, value),
+        });
 
         this.canvasContainer_ = document.createElement('div');
-        this.canvasContainer_.style.cssText = 'flex:1;min-height:0;position:relative;display:none;overflow:hidden;';
-        this.wrapper_.appendChild(this.canvasContainer_);
+        this.canvasContainer_.style.cssText = 'flex:1;min-width:0;min-height:0;position:relative;display:none;overflow:hidden;';
+        this.bodyRow_.appendChild(this.canvasContainer_);
+
+        this.detailPanel_ = new GraphDetailPanel(this.bodyRow_, {
+            onStateChanged: (name, field, value) => this.updateStateField(name, field, value),
+            onTransitionChanged: (from, idx, field, value) => this.updateTransitionField(from, idx, field, value),
+            onSelectTransition: (from, idx) => {
+                this.graphState_.selectedNodes.clear();
+                this.graphState_.selectedTransition = { from, index: idx };
+                this.graphCanvas_?.draw();
+                this.updateDetailPanel();
+            },
+            onAddTransitionCondition: (from, idx) => this.addTransitionCondition(from, idx),
+            onRemoveTransitionCondition: (from, idx, ci) => this.removeTransitionCondition(from, idx, ci),
+            onAddProperty: (name, key) => this.addStateProperty(name, key),
+            onRemoveProperty: (name, key) => this.removeStateProperty(name, key),
+            onRenameProperty: (name, oldKey, newKey) => this.renameStateProperty(name, oldKey, newKey),
+            onPropertyValueChanged: (name, key, value) => this.updateStateProperty(name, key, value),
+        });
 
         this.unsubscribe_ = store.subscribe((_state, dirtyFlags) => {
             if (!dirtyFlags || dirtyFlags.has('selection') || dirtyFlags.has('scene')) {
@@ -79,6 +147,8 @@ export class StateMachineGraphPanel implements PanelInstance {
         this.unsubscribe_?.();
         this.disposePlayMode_?.();
         this.graphCanvas_?.dispose();
+        this.detailPanel_.dispose();
+        this.sidePanel_.dispose();
         this.container_.innerHTML = '';
     }
 
@@ -92,12 +162,16 @@ export class StateMachineGraphPanel implements PanelInstance {
         if (!smData) {
             this.emptyEl_.style.display = 'flex';
             this.canvasContainer_.style.display = 'none';
+            this.tabBar_.style.display = 'none';
+            this.detailPanel_.hide();
             this.currentEntityId_ = null;
             return;
         }
 
         this.emptyEl_.style.display = 'none';
         this.canvasContainer_.style.display = 'block';
+        this.tabBar_.style.display = 'flex';
+        this.sidePanel_.update(smData.inputs ?? [], smData.listeners ?? []);
 
         if (!this.graphCanvas_) {
             this.graphCanvas_ = new GraphCanvas(this.canvasContainer_, this.graphState_, {
@@ -125,12 +199,19 @@ export class StateMachineGraphPanel implements PanelInstance {
                 onRenameNode: (name) => {
                     this.promptRename(name);
                 },
-                onSelectionChanged: () => {},
+                onSetInitialState: (name) => {
+                    this.setInitialState(name);
+                },
+                onAddAnyState: (worldX, worldY) => {
+                    this.addAnyState(worldX, worldY);
+                },
+                onSelectionChanged: () => this.updateDetailPanel(),
             });
         }
 
         this.syncGraphState(smData);
         this.graphCanvas_.draw();
+        this.updateDetailPanel();
     }
 
     private findStateMachineData(): StateMachineComponentData | null {
@@ -180,15 +261,18 @@ export class StateMachineGraphPanel implements PanelInstance {
         this.graphState_.transitions = [];
         let autoIdx = 0;
         for (const name of stateNames) {
+            const isAny = name === '__any__';
             if (!layouts.has(name)) {
                 const saved = editorLayout[name];
+                const w = isAny ? ENTRY_NODE_WIDTH : NODE_WIDTH;
+                const h = isAny ? ENTRY_NODE_HEIGHT : NODE_HEIGHT;
                 layouts.set(name, {
-                    x: saved?.x ?? AUTO_LAYOUT_START_X + autoIdx * AUTO_LAYOUT_SPACING_X,
-                    y: saved?.y ?? AUTO_LAYOUT_START_Y + (autoIdx % 2) * AUTO_LAYOUT_SPACING_Y,
-                    width: NODE_WIDTH,
-                    height: NODE_HEIGHT,
+                    x: saved?.x ?? (isAny ? 20 : AUTO_LAYOUT_START_X + autoIdx * AUTO_LAYOUT_SPACING_X),
+                    y: saved?.y ?? (isAny ? AUTO_LAYOUT_START_Y + ENTRY_NODE_HEIGHT + 20 : AUTO_LAYOUT_START_Y + (autoIdx % 2) * AUTO_LAYOUT_SPACING_Y),
+                    width: w,
+                    height: h,
                 });
-                autoIdx++;
+                if (!isAny) autoIdx++;
             }
 
             const stateData = data.states[name];
@@ -357,6 +441,36 @@ export class StateMachineGraphPanel implements PanelInstance {
         }
     }
 
+    private addAnyState(worldX: number, worldY: number): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || smData.states['__any__']) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        newStates['__any__'] = { transitions: [] };
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+
+        const oldLayout = smData._editorLayout ?? {};
+        const newLayout = { ...oldLayout, __any__: { x: Math.round(worldX), y: Math.round(worldY) } };
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', '_editorLayout', oldLayout, newLayout);
+    }
+
+    private setInitialState(name: string): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[name]) return;
+
+        this.store_.updateProperty(
+            this.currentEntityId_,
+            'StateMachine',
+            'initialState',
+            smData.initialState,
+            name,
+        );
+    }
+
     private promptRename(oldName: string): void {
         const newName = prompt('Rename state:', oldName);
         if (!newName || newName === oldName) return;
@@ -420,6 +534,240 @@ export class StateMachineGraphPanel implements PanelInstance {
             this.graphState_.nodeLayouts.delete(oldName);
             this.graphState_.nodeLayouts.set(newName, layout);
         }
+    }
+
+    // =========================================================================
+    // Detail Panel
+    // =========================================================================
+
+    private updateDetailPanel(): void {
+        const smData = this.findStateMachineData();
+        if (!smData) {
+            this.detailPanel_.hide();
+            return;
+        }
+
+        const sel = this.graphState_;
+
+        if (sel.selectedTransition) {
+            const { from, index } = sel.selectedTransition;
+            const state = smData.states[from];
+            const t = state?.transitions?.[index];
+            if (t) {
+                this.detailPanel_.showTransition(from, t.target, index, t, smData.inputs ?? []);
+                return;
+            }
+        }
+
+        if (sel.selectedNodes.size === 1) {
+            const name = sel.selectedNodes.values().next().value as string;
+            if (name !== '__entry__' && smData.states[name]) {
+                this.detailPanel_.showState(name, smData.states[name], smData.inputs ?? []);
+                return;
+            }
+        }
+
+        this.detailPanel_.hide();
+    }
+
+    private updateStateField(stateName: string, field: string, value: unknown): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[stateName]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        (newStates[stateName] as Record<string, unknown>)[field] = value;
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    private updateTransitionField(fromState: string, transitionIndex: number, field: string, value: unknown): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[fromState]?.transitions?.[transitionIndex]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        const t = newStates[fromState].transitions[transitionIndex];
+
+        if (field.startsWith('conditions.')) {
+            const parts = field.split('.');
+            const ci = parseInt(parts[1], 10);
+            const prop = parts[2];
+            if (t.conditions?.[ci]) {
+                (t.conditions[ci] as Record<string, unknown>)[prop] = value;
+            }
+        } else {
+            (t as Record<string, unknown>)[field] = value;
+        }
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    private addTransitionCondition(fromState: string, transitionIndex: number): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[fromState]?.transitions?.[transitionIndex]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        const t = newStates[fromState].transitions[transitionIndex];
+        if (!t.conditions) t.conditions = [];
+        const inputName = smData.inputs?.[0]?.name ?? '';
+        t.conditions.push({ inputName, comparator: 'eq', value: true });
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    private removeTransitionCondition(fromState: string, transitionIndex: number, conditionIndex: number): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[fromState]?.transitions?.[transitionIndex]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        newStates[fromState].transitions[transitionIndex].conditions.splice(conditionIndex, 1);
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    private addStateProperty(stateName: string, key: string): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[stateName]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        if (!newStates[stateName].properties) newStates[stateName].properties = {};
+        newStates[stateName].properties[key] = 0;
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    private renameStateProperty(stateName: string, oldKey: string, newKey: string): void {
+        if (this.currentEntityId_ === null || oldKey === newKey) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[stateName]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        const props = newStates[stateName].properties;
+        if (!props || !(oldKey in props)) return;
+        props[newKey] = props[oldKey];
+        delete props[oldKey];
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    private removeStateProperty(stateName: string, key: string): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[stateName]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        delete newStates[stateName].properties?.[key];
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    private updateStateProperty(stateName: string, key: string, value: unknown): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData || !smData.states[stateName]) return;
+
+        const oldStates = JSON.parse(JSON.stringify(smData.states));
+        const newStates = JSON.parse(JSON.stringify(smData.states));
+        if (!newStates[stateName].properties) newStates[stateName].properties = {};
+        newStates[stateName].properties[key] = value;
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'states', oldStates, newStates);
+    }
+
+    // =========================================================================
+    // Inputs / Listeners
+    // =========================================================================
+
+    private addInput(type: 'bool' | 'number' | 'trigger'): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData) return;
+
+        const oldInputs = JSON.parse(JSON.stringify(smData.inputs ?? []));
+        const newInputs = JSON.parse(JSON.stringify(smData.inputs ?? [])) as InputDef[];
+        let name = 'newInput';
+        let i = 1;
+        while (newInputs.some(inp => inp.name === name)) { name = `newInput${i++}`; }
+        const defaultValue = type === 'bool' ? false : 0;
+        newInputs.push({ name, type, defaultValue });
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'inputs', oldInputs, newInputs);
+    }
+
+    private removeInput(index: number): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData) return;
+
+        const oldInputs = JSON.parse(JSON.stringify(smData.inputs ?? []));
+        const newInputs = JSON.parse(JSON.stringify(smData.inputs ?? [])) as InputDef[];
+        newInputs.splice(index, 1);
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'inputs', oldInputs, newInputs);
+    }
+
+    private updateInput(index: number, field: 'name' | 'type' | 'defaultValue', value: unknown): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData) return;
+
+        const oldInputs = JSON.parse(JSON.stringify(smData.inputs ?? []));
+        const newInputs = JSON.parse(JSON.stringify(smData.inputs ?? [])) as InputDef[];
+        if (!newInputs[index]) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (newInputs[index] as any)[field] = value;
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'inputs', oldInputs, newInputs);
+    }
+
+    private addListener(): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData) return;
+
+        const oldListeners = JSON.parse(JSON.stringify(smData.listeners ?? []));
+        const newListeners = JSON.parse(JSON.stringify(smData.listeners ?? [])) as ListenerDef[];
+        const firstInput = (smData.inputs ?? [])[0]?.name ?? '';
+        newListeners.push({ event: 'pointerDown', inputName: firstInput, action: 'set' });
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'listeners', oldListeners, newListeners);
+    }
+
+    private removeListener(index: number): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData) return;
+
+        const oldListeners = JSON.parse(JSON.stringify(smData.listeners ?? []));
+        const newListeners = JSON.parse(JSON.stringify(smData.listeners ?? [])) as ListenerDef[];
+        newListeners.splice(index, 1);
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'listeners', oldListeners, newListeners);
+    }
+
+    private updateListener(index: number, field: 'event' | 'inputName' | 'action', value: string): void {
+        if (this.currentEntityId_ === null) return;
+        const smData = this.findStateMachineData();
+        if (!smData) return;
+
+        const oldListeners = JSON.parse(JSON.stringify(smData.listeners ?? []));
+        const newListeners = JSON.parse(JSON.stringify(smData.listeners ?? [])) as ListenerDef[];
+        if (!newListeners[index]) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (newListeners[index] as any)[field] = value;
+
+        this.store_.updateProperty(this.currentEntityId_, 'StateMachine', 'listeners', oldListeners, newListeners);
     }
 
     private saveEditorLayout(updates: Record<string, { x: number; y: number }>): void {
