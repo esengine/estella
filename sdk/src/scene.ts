@@ -138,6 +138,11 @@ const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
             { field: 'source', type: 'tilemap' },
         ],
     }],
+    ['TilemapLayer', {
+        fields: [
+            { field: 'texture', type: 'texture' },
+        ],
+    }],
     ['TimelinePlayer', {
         fields: [
             { field: 'timeline', type: 'timeline' },

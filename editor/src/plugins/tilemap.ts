@@ -14,13 +14,12 @@ const TilemapSchema: ComponentSchema = {
 const TilemapLayerSchema: ComponentSchema = {
     name: 'TilemapLayer',
     category: 'builtin',
-    hidden: true,
     properties: [
         { name: 'width', type: 'number', min: 1, max: 1000 },
         { name: 'height', type: 'number', min: 1, max: 1000 },
         { name: 'tileWidth', type: 'number', min: 1, max: 512 },
         { name: 'tileHeight', type: 'number', min: 1, max: 512 },
-        { name: 'texture', type: 'number' },
+        { name: 'texture', type: 'texture' },
         { name: 'tilesetColumns', type: 'number', min: 1, max: 256 },
         { name: 'layer', type: 'number', min: LAYER_MIN, max: LAYER_MAX },
     ],

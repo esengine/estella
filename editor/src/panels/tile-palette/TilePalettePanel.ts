@@ -1,7 +1,7 @@
 import type { PanelInstance } from '../PanelRegistry';
 import type { EditorStore } from '../../store/EditorStore';
 import { DisposableStore } from '../../utils/Disposable';
-import { getTilesetForSource, addTilesetLoadListener, type TilesetInfo } from '../../gizmos/TilesetLoader';
+import { getTilesetForSource, getTilesetForImage, findParentTilemapSource, addTilesetLoadListener, type TilesetInfo } from '../../gizmos/TilesetLoader';
 import { icons } from '../../utils/icons';
 
 const TILE_RENDER_SIZE = 32;
@@ -159,36 +159,38 @@ export class TilePalettePanel implements PanelInstance {
         const entityData = this.store_.getSelectedEntityData();
         const entityId = entityData?.id ?? -1;
 
-        if (entityId === this.lastSelectedEntityId_ && this.cachedSource_) return;
+        const newSource = this.resolveSource_(entityData);
+
+        if (entityId === this.lastSelectedEntityId_ && newSource === this.cachedSource_) return;
         this.lastSelectedEntityId_ = entityId;
 
         this.isReadOnly_ = false;
-        this.cachedSource_ = null;
+        this.cachedSource_ = newSource;
         this.cachedInfo_ = null;
 
-        if (entityData) {
+        if (entityData && newSource) {
             const tilemapComp = entityData.components.find(c => c.type === 'Tilemap');
             if (tilemapComp) {
                 const source = (tilemapComp.data as Record<string, unknown>).source as string ?? '';
                 if (source) {
-                    this.cachedSource_ = source;
                     this.cachedInfo_ = getTilesetForSource(source);
                     this.isReadOnly_ = true;
                 }
             }
 
             const layerComp = entityData.components.find(c => c.type === 'TilemapLayer');
-            if (layerComp && !this.cachedSource_) {
-                const parentEntity = this.findParentWithTilemap_(entityData.id);
-                if (parentEntity) {
-                    const tmComp = parentEntity.components.find(c => c.type === 'Tilemap');
-                    if (tmComp) {
-                        const source = (tmComp.data as Record<string, unknown>).source as string ?? '';
-                        if (source) {
-                            this.cachedSource_ = source;
-                            this.cachedInfo_ = getTilesetForSource(source);
-                            this.isReadOnly_ = false;
-                        }
+            if (layerComp && !this.cachedInfo_) {
+                const parentSource = findParentTilemapSource(this.store_.scene.entities, entityData.id);
+                if (parentSource) {
+                    this.cachedInfo_ = getTilesetForSource(parentSource);
+                } else {
+                    const layerData = layerComp.data as Record<string, unknown>;
+                    const textureUuid = layerData.texture as string ?? '';
+                    if (textureUuid && typeof textureUuid === 'string') {
+                        const tw = layerData.tileWidth as number ?? 32;
+                        const th = layerData.tileHeight as number ?? 32;
+                        const cols = layerData.tilesetColumns as number ?? 1;
+                        this.cachedInfo_ = getTilesetForImage(textureUuid, tw, th, cols);
                     }
                 }
             }
@@ -197,14 +199,30 @@ export class TilePalettePanel implements PanelInstance {
         this.render_();
     }
 
-    private findParentWithTilemap_(entityId: number): import('../../types/SceneTypes').EntityData | null {
-        for (const entity of this.store_.scene.entities) {
-            if (entity.children?.includes(entityId)) {
-                if (entity.components.some(c => c.type === 'Tilemap')) {
-                    return entity;
-                }
+    private resolveSource_(entityData: { id: number; components: { type: string; data: unknown }[] } | null): string | null {
+        if (!entityData) return null;
+
+        const tilemapComp = entityData.components.find(c => c.type === 'Tilemap');
+        if (tilemapComp) {
+            const source = (tilemapComp.data as Record<string, unknown>).source as string ?? '';
+            if (source) return source;
+        }
+
+        const layerComp = entityData.components.find(c => c.type === 'TilemapLayer');
+        if (layerComp) {
+            const parentSource = findParentTilemapSource(this.store_.scene.entities, entityData.id);
+            if (parentSource) return parentSource;
+
+            const layerData = layerComp.data as Record<string, unknown>;
+            const textureUuid = layerData.texture as string ?? '';
+            const tw = layerData.tileWidth as number ?? 32;
+            const th = layerData.tileHeight as number ?? 32;
+            const cols = layerData.tilesetColumns as number ?? 1;
+            if (textureUuid && typeof textureUuid === 'string') {
+                return `img:${textureUuid}:${tw}:${th}:${cols}`;
             }
         }
+
         return null;
     }
 

@@ -179,6 +179,53 @@ export function loadImageFromUrl(url: string): HTMLImageElement | null {
     return null;
 }
 
+export function getTilesetForImage(
+    imageUuid: string,
+    tileWidth: number,
+    tileHeight: number,
+    tilesetColumns: number,
+): TilesetInfo | null {
+    const cacheKey = `img:${imageUuid}:${tileWidth}:${tileHeight}:${tilesetColumns}`;
+    const entry = cache_.get(cacheKey);
+    if (entry) {
+        return entry.status === 'loaded' ? entry.data : null;
+    }
+
+    const path = resolveSource(imageUuid);
+    if (path === imageUuid && isUUID(imageUuid)) return null;
+
+    cache_.set(cacheKey, { status: 'loading' });
+    loadImageFromPath(path).then(img => {
+        cache_.set(cacheKey, {
+            status: 'loaded',
+            data: img ? {
+                tileWidth,
+                tileHeight,
+                orientation: 'orthogonal',
+                layers: [],
+                tilesetImage: img,
+                tilesetColumns,
+            } : null,
+        });
+        notifyListeners();
+    });
+    return null;
+}
+
+export function findParentTilemapSource(
+    entities: readonly { children: number[]; components: { type: string; data: unknown }[] }[],
+    childId: number,
+): string | null {
+    for (const entity of entities) {
+        if (!entity.children?.includes(childId)) continue;
+        const tmComp = entity.components.find(c => c.type === 'Tilemap');
+        if (!tmComp) continue;
+        const source = (tmComp.data as Record<string, unknown>).source as string ?? '';
+        if (source) return source;
+    }
+    return null;
+}
+
 export function clearTilesetCache(): void {
     cache_.clear();
     imageCache_.clear();
