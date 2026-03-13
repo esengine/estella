@@ -1,4 +1,4 @@
-import { B as BuiltinComponentDef, o as ComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
+import { B as BuiltinComponentDef, p as ComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
 import { V as Vec2, E as Entity } from '../shared/wasm.js';
 
 interface RigidBodyData {
@@ -230,6 +230,40 @@ interface PhysicsWasmModule {
     _physics_getOverlapBuffer(): number;
     _physics_setAwake(entityId: number, awake: number): void;
     _physics_isAwake(entityId: number): number;
+    _physics_shapeCastCircle(centerX: number, centerY: number, radius: number, translationX: number, translationY: number, maskBits: number): number;
+    _physics_shapeCastBox(centerX: number, centerY: number, halfW: number, halfH: number, angle: number, translationX: number, translationY: number, maskBits: number): number;
+    _physics_shapeCastCapsule(center1X: number, center1Y: number, center2X: number, center2Y: number, radius: number, translationX: number, translationY: number, maskBits: number): number;
+    _physics_getShapeCastBuffer(): number;
+    _physics_overlapAABB(minX: number, minY: number, maxX: number, maxY: number, maskBits: number): number;
+    _physics_getBodyMass(entityId: number): number;
+    _physics_getBodyInertia(entityId: number): number;
+    _physics_getBodyCenterOfMass(entityId: number): number;
+    _physics_getDistanceJointLength(entityId: number): number;
+    _physics_getDistanceJointCurrentLength(entityId: number): number;
+    _physics_setDistanceJointLength(entityId: number, length: number): void;
+    _physics_enableDistanceJointSpring(entityId: number, enable: number): void;
+    _physics_enableDistanceJointLimit(entityId: number, enable: number): void;
+    _physics_setDistanceJointLimits(entityId: number, minLength: number, maxLength: number): void;
+    _physics_enableDistanceJointMotor(entityId: number, enable: number): void;
+    _physics_setDistanceJointMotorSpeed(entityId: number, speed: number): void;
+    _physics_setDistanceJointMaxMotorForce(entityId: number, force: number): void;
+    _physics_getDistanceJointMotorForce(entityId: number): number;
+    _physics_getPrismaticJointTranslation(entityId: number): number;
+    _physics_getPrismaticJointSpeed(entityId: number): number;
+    _physics_enablePrismaticJointSpring(entityId: number, enable: number): void;
+    _physics_enablePrismaticJointLimit(entityId: number, enable: number): void;
+    _physics_setPrismaticJointLimits(entityId: number, lower: number, upper: number): void;
+    _physics_enablePrismaticJointMotor(entityId: number, enable: number): void;
+    _physics_setPrismaticJointMotorSpeed(entityId: number, speed: number): void;
+    _physics_setPrismaticJointMaxMotorForce(entityId: number, force: number): void;
+    _physics_getPrismaticJointMotorForce(entityId: number): number;
+    _physics_enableWheelJointSpring(entityId: number, enable: number): void;
+    _physics_enableWheelJointLimit(entityId: number, enable: number): void;
+    _physics_setWheelJointLimits(entityId: number, lower: number, upper: number): void;
+    _physics_enableWheelJointMotor(entityId: number, enable: number): void;
+    _physics_setWheelJointMotorSpeed(entityId: number, speed: number): void;
+    _physics_setWheelJointMaxMotorTorque(entityId: number, torque: number): void;
+    _physics_getWheelJointMotorTorque(entityId: number): number;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -305,6 +339,12 @@ interface RaycastHit {
     normal: Vec2;
     fraction: number;
 }
+type ShapeCastHit = RaycastHit;
+interface MassData {
+    mass: number;
+    inertia: number;
+    centerOfMass: Vec2;
+}
 declare const PhysicsAPI: ResourceDef<Physics>;
 declare class PhysicsPlugin implements Plugin {
     private config_;
@@ -349,9 +389,45 @@ declare class Physics {
     overlapCircle(center: Vec2, radius: number, maskBits?: number, ppu?: number): Entity[];
     setAwake(entity: Entity, awake: boolean): void;
     isAwake(entity: Entity): boolean;
+    shapeCastCircle(center: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number): ShapeCastHit[];
+    shapeCastBox(center: Vec2, halfExtents: Vec2, angle: number, translation: Vec2, maskBits?: number, ppu?: number): ShapeCastHit[];
+    shapeCastCapsule(center1: Vec2, center2: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number): ShapeCastHit[];
+    overlapAABB(min: Vec2, max: Vec2, maskBits?: number, ppu?: number): Entity[];
+    getMass(entity: Entity): number;
+    getInertia(entity: Entity): number;
+    getCenterOfMass(entity: Entity, ppu?: number): Vec2;
+    getMassData(entity: Entity, ppu?: number): MassData;
+    getDistanceJointLength(entity: Entity, ppu?: number): number;
+    getDistanceJointCurrentLength(entity: Entity, ppu?: number): number;
+    setDistanceJointLength(entity: Entity, length: number, ppu?: number): void;
+    enableDistanceJointSpring(entity: Entity, enable: boolean): void;
+    enableDistanceJointLimit(entity: Entity, enable: boolean): void;
+    setDistanceJointLimits(entity: Entity, minLength: number, maxLength: number, ppu?: number): void;
+    enableDistanceJointMotor(entity: Entity, enable: boolean): void;
+    setDistanceJointMotorSpeed(entity: Entity, speed: number): void;
+    setDistanceJointMaxMotorForce(entity: Entity, force: number): void;
+    getDistanceJointMotorForce(entity: Entity): number;
+    getPrismaticJointTranslation(entity: Entity, ppu?: number): number;
+    getPrismaticJointSpeed(entity: Entity, ppu?: number): number;
+    enablePrismaticJointSpring(entity: Entity, enable: boolean): void;
+    enablePrismaticJointLimit(entity: Entity, enable: boolean): void;
+    setPrismaticJointLimits(entity: Entity, lower: number, upper: number, ppu?: number): void;
+    enablePrismaticJointMotor(entity: Entity, enable: boolean): void;
+    setPrismaticJointMotorSpeed(entity: Entity, speed: number): void;
+    setPrismaticJointMaxMotorForce(entity: Entity, force: number): void;
+    getPrismaticJointMotorForce(entity: Entity): number;
+    enableWheelJointSpring(entity: Entity, enable: boolean): void;
+    enableWheelJointLimit(entity: Entity, enable: boolean): void;
+    setWheelJointLimits(entity: Entity, lower: number, upper: number, ppu?: number): void;
+    enableWheelJointMotor(entity: Entity, enable: boolean): void;
+    setWheelJointMotorSpeed(entity: Entity, speed: number): void;
+    setWheelJointMaxMotorTorque(entity: Entity, torque: number): void;
+    getWheelJointMotorTorque(entity: Entity): number;
+    private readUniqueEntityBuffer_;
+    private readShapeCastBuffer_;
     static setDebugDraw(app: App, enabled: boolean): void;
     static setDebugDrawConfig(app: App, config: Partial<PhysicsDebugDrawConfig>): void;
 }
 
 export { BodyType, BoxCollider, CapsuleCollider, ChainCollider, CircleCollider, DistanceJoint, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, PolygonCollider, PrismaticJoint, RevoluteJoint, RigidBody, SegmentCollider, WeldJoint, WheelJoint, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
-export type { BoxColliderData, CapsuleColliderData, ChainColliderData, CircleColliderData, CollisionEnterEvent, DistanceJointData, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PolygonColliderData, PrismaticJointData, RaycastHit, RevoluteJointData, RigidBodyData, SegmentColliderData, SensorEvent, WeldJointData, WheelJointData };
+export type { BoxColliderData, CapsuleColliderData, ChainColliderData, CircleColliderData, CollisionEnterEvent, DistanceJointData, ESEngineMainModule, MassData, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PolygonColliderData, PrismaticJointData, RaycastHit, RevoluteJointData, RigidBodyData, SegmentColliderData, SensorEvent, ShapeCastHit, WeldJointData, WheelJointData };

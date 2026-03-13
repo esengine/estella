@@ -1,9 +1,10 @@
 import { E as Entity, a as ESEngineModule, C as CppRegistry } from './wasm.js';
-import { d as SpineModuleController, e as SpineModuleFactory } from './app.js';
+import { c as SpineModuleController, C as ConstraintList, T as TransformMixData, a as PathMixData, f as RawSpineEvent, d as SpineModuleFactory } from './app.js';
 
 declare class ModuleBackend {
     private controller_;
     private entities_;
+    private disabledEntities_;
     private cachedFrame_;
     private cachedEntries_;
     constructor(controller: SpineModuleController);
@@ -36,7 +37,17 @@ declare class ModuleBackend {
     setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean;
     setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
     setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    listConstraints(entity: Entity): ConstraintList | null;
+    getTransformConstraintMix(entity: Entity, name: string): TransformMixData | null;
+    setTransformConstraintMix(entity: Entity, name: string, mix: TransformMixData): boolean;
+    getPathConstraintMix(entity: Entity, name: string): PathMixData | null;
+    setPathConstraintMix(entity: Entity, name: string, mix: PathMixData): boolean;
+    setEnabled(entity: Entity, enabled: boolean): void;
     enableEvents(entity: Entity): void;
+    collectAllEvents(): {
+        entity: Entity;
+        raw: RawSpineEvent;
+    }[];
     updateAll(dt: number): void;
     extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry, frameCount?: number): void;
     removeEntity(entity: Entity): void;
@@ -86,7 +97,17 @@ declare class SpineManager {
     setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean;
     setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
     setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    listConstraints(entity: Entity): ConstraintList | null;
+    getTransformConstraintMix(entity: Entity, name: string): TransformMixData | null;
+    setTransformConstraintMix(entity: Entity, name: string, mix: TransformMixData): boolean;
+    getPathConstraintMix(entity: Entity, name: string): PathMixData | null;
+    setPathConstraintMix(entity: Entity, name: string, mix: PathMixData): boolean;
+    setEnabled(entity: Entity, enabled: boolean): void;
     enableEvents(entity: Entity): void;
+    collectAllEvents(): {
+        entity: Entity;
+        raw: RawSpineEvent;
+    }[];
     hasInstance(entity: Entity): boolean;
     shutdown(): void;
     private getEntityBackend_;
