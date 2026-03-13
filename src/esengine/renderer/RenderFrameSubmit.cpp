@@ -1,4 +1,5 @@
 #include "RenderFrame.hpp"
+#include "BatchVertex.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -8,23 +9,7 @@
 namespace esengine {
 
 namespace {
-
-struct TileVertex {
-    glm::vec2 position;
-    u32 color;
-    glm::vec2 texCoord;
-};
 static constexpr u16 TILE_QUAD_IDX[6] = { 0, 1, 2, 2, 3, 0 };
-
-static u32 packColor(const glm::vec4& c) {
-    u8 r = static_cast<u8>(c.r * 255.0f + 0.5f);
-    u8 g = static_cast<u8>(c.g * 255.0f + 0.5f);
-    u8 b = static_cast<u8>(c.b * 255.0f + 0.5f);
-    u8 a = static_cast<u8>(c.a * 255.0f + 0.5f);
-    return static_cast<u32>(r) | (static_cast<u32>(g) << 8)
-         | (static_cast<u32>(b) << 16) | (static_cast<u32>(a) << 24);
-}
-
 }  // namespace
 
 void RenderFrame::submitTileQuad(
@@ -37,14 +22,14 @@ void RenderFrame::submitTileQuad(
     f32 hh = size.y * 0.5f;
     u32 pc = packColor(color);
 
-    TileVertex verts[4];
+    BatchVertex verts[4];
     verts[0] = { {position.x - hw, position.y - hh}, pc, uvOffset };
     verts[1] = { {position.x + hw, position.y - hh}, pc, {uvOffset.x + uvScale.x, uvOffset.y} };
     verts[2] = { {position.x + hw, position.y + hh}, pc, {uvOffset.x + uvScale.x, uvOffset.y + uvScale.y} };
     verts[3] = { {position.x - hw, position.y + hh}, pc, {uvOffset.x, uvOffset.y + uvScale.y} };
 
     u32 vOff = pool_.appendVertices(verts, sizeof(verts));
-    u32 baseVertex = vOff / sizeof(TileVertex);
+    u32 baseVertex = vOff / sizeof(BatchVertex);
 
     u16 indices[6];
     for (u32 i = 0; i < 6; ++i) {
@@ -86,9 +71,9 @@ void RenderFrame::submitSpineBatch(
     glm::mat4 model = glm::make_mat4(transform16);
     BlendMode blend = static_cast<BlendMode>(std::clamp(blendMode, 0, 5));
 
-    u32 vBytes = static_cast<u32>(vertexCount) * sizeof(TileVertex);
+    u32 vBytes = static_cast<u32>(vertexCount) * sizeof(BatchVertex);
     u32 vOff = pool_.allocVertices(vBytes);
-    auto* dst = reinterpret_cast<TileVertex*>(pool_.vertexData() + vOff);
+    auto* dst = reinterpret_cast<BatchVertex*>(pool_.vertexData() + vOff);
 
     for (i32 i = 0; i < vertexCount; ++i) {
         const f32* v = vertices + i * FLOATS_PER_VERTEX;
@@ -97,7 +82,7 @@ void RenderFrame::submitSpineBatch(
         dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]} };
     }
 
-    u32 baseVertex = vOff / sizeof(TileVertex);
+    u32 baseVertex = vOff / sizeof(BatchVertex);
     std::vector<u16> offsetIndices(indexCount);
     for (i32 i = 0; i < indexCount; ++i) {
         offsetIndices[i] = static_cast<u16>(baseVertex + indices[i]);

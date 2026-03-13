@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../RenderTypePlugin.hpp"
+#include "../BatchVertex.hpp"
 
 #include <vector>
 
@@ -25,18 +26,10 @@ public:
     ) override;
 
 private:
-    struct TileVertex {
-        glm::vec2 position;
-        u32 color;
-        glm::vec2 texCoord;
-    };
-
-    static u32 packColor(const glm::vec4& c);
-
     tilemap::TilemapSystem* tilemap_system_ = nullptr;
     u32 batch_shader_id_ = 0;
 
-    std::vector<TileVertex> vertices_;
+    std::vector<BatchVertex> vertices_;
     std::vector<u16> indices_;
 };
 
