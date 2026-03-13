@@ -80,6 +80,17 @@ export interface RaycastHit {
     fraction: number;
 }
 
+export type ShapeCastHit = RaycastHit;
+
+export interface MassData {
+    mass: number;
+    inertia: number;
+    centerOfMass: Vec2;
+}
+
+const COLLISION_EVENT_STRIDE = 6;
+const CAST_HIT_STRIDE = 6;
+
 export const PhysicsAPI = defineResource<Physics>(null!, 'PhysicsAPI');
 
 // =============================================================================
@@ -638,7 +649,7 @@ function collectEvents(app: App, module: PhysicsWasmModule, ppu: number): void {
     if (enterCount > 0) {
         const enterPtr = module._physics_getCollisionEnterBuffer() >> 2;
         for (let i = 0; i < enterCount; i++) {
-            const base = enterPtr + i * 6;
+            const base = enterPtr + i * COLLISION_EVENT_STRIDE;
             collisionEnters.push({
                 entityA: module.HEAPU32[base] as Entity,
                 entityB: module.HEAPU32[base + 1] as Entity,
@@ -828,7 +839,7 @@ export class Physics {
         const ptr = this.module_._physics_getRaycastBuffer() >> 2;
         const results: RaycastHit[] = [];
         for (let i = 0; i < count; i++) {
-            const base = ptr + i * 6;
+            const base = ptr + i * CAST_HIT_STRIDE;
             results.push({
                 entity: this.module_.HEAPU32[base] as Entity,
                 point: { x: this.module_.HEAPF32[base + 1] * ppu, y: this.module_.HEAPF32[base + 2] * ppu },
@@ -846,8 +857,196 @@ export class Physics {
             center.x * invPpu, center.y * invPpu,
             radius * invPpu, maskBits,
         );
-        if (count === 0) return [];
+        return this.readUniqueEntityBuffer_(count);
+    }
 
+    setAwake(entity: Entity, awake: boolean): void {
+        this.module_._physics_setAwake(entity, awake ? 1 : 0);
+    }
+
+    isAwake(entity: Entity): boolean {
+        return this.module_._physics_isAwake(entity) !== 0;
+    }
+
+    shapeCastCircle(
+        center: Vec2, radius: number, translation: Vec2,
+        maskBits = 0xFFFF, ppu = 100,
+    ): ShapeCastHit[] {
+        const invPpu = 1 / ppu;
+        const count = this.module_._physics_shapeCastCircle(
+            center.x * invPpu, center.y * invPpu, radius * invPpu,
+            translation.x * invPpu, translation.y * invPpu, maskBits,
+        );
+        return this.readShapeCastBuffer_(count, ppu);
+    }
+
+    shapeCastBox(
+        center: Vec2, halfExtents: Vec2, angle: number, translation: Vec2,
+        maskBits = 0xFFFF, ppu = 100,
+    ): ShapeCastHit[] {
+        const invPpu = 1 / ppu;
+        const count = this.module_._physics_shapeCastBox(
+            center.x * invPpu, center.y * invPpu,
+            halfExtents.x * invPpu, halfExtents.y * invPpu, angle,
+            translation.x * invPpu, translation.y * invPpu, maskBits,
+        );
+        return this.readShapeCastBuffer_(count, ppu);
+    }
+
+    shapeCastCapsule(
+        center1: Vec2, center2: Vec2, radius: number, translation: Vec2,
+        maskBits = 0xFFFF, ppu = 100,
+    ): ShapeCastHit[] {
+        const invPpu = 1 / ppu;
+        const count = this.module_._physics_shapeCastCapsule(
+            center1.x * invPpu, center1.y * invPpu,
+            center2.x * invPpu, center2.y * invPpu,
+            radius * invPpu,
+            translation.x * invPpu, translation.y * invPpu, maskBits,
+        );
+        return this.readShapeCastBuffer_(count, ppu);
+    }
+
+    overlapAABB(min: Vec2, max: Vec2, maskBits = 0xFFFF, ppu = 100): Entity[] {
+        const invPpu = 1 / ppu;
+        const count = this.module_._physics_overlapAABB(
+            min.x * invPpu, min.y * invPpu,
+            max.x * invPpu, max.y * invPpu, maskBits,
+        );
+        return this.readUniqueEntityBuffer_(count);
+    }
+
+    getMass(entity: Entity): number {
+        return this.module_._physics_getBodyMass(entity);
+    }
+
+    getInertia(entity: Entity): number {
+        return this.module_._physics_getBodyInertia(entity);
+    }
+
+    getCenterOfMass(entity: Entity, ppu = 100): Vec2 {
+        const ptr = this.module_._physics_getBodyCenterOfMass(entity);
+        const base = ptr >> 2;
+        return {
+            x: this.module_.HEAPF32[base] * ppu,
+            y: this.module_.HEAPF32[base + 1] * ppu,
+        };
+    }
+
+    getMassData(entity: Entity, ppu = 100): MassData {
+        return {
+            mass: this.getMass(entity),
+            inertia: this.getInertia(entity),
+            centerOfMass: this.getCenterOfMass(entity, ppu),
+        };
+    }
+
+    getDistanceJointLength(entity: Entity, ppu = 100): number {
+        return this.module_._physics_getDistanceJointLength(entity) * ppu;
+    }
+
+    getDistanceJointCurrentLength(entity: Entity, ppu = 100): number {
+        return this.module_._physics_getDistanceJointCurrentLength(entity) * ppu;
+    }
+
+    setDistanceJointLength(entity: Entity, length: number, ppu = 100): void {
+        this.module_._physics_setDistanceJointLength(entity, length / ppu);
+    }
+
+    enableDistanceJointSpring(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableDistanceJointSpring(entity, enable ? 1 : 0);
+    }
+
+    enableDistanceJointLimit(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableDistanceJointLimit(entity, enable ? 1 : 0);
+    }
+
+    setDistanceJointLimits(entity: Entity, minLength: number, maxLength: number, ppu = 100): void {
+        this.module_._physics_setDistanceJointLimits(entity, minLength / ppu, maxLength / ppu);
+    }
+
+    enableDistanceJointMotor(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableDistanceJointMotor(entity, enable ? 1 : 0);
+    }
+
+    setDistanceJointMotorSpeed(entity: Entity, speed: number): void {
+        this.module_._physics_setDistanceJointMotorSpeed(entity, speed);
+    }
+
+    setDistanceJointMaxMotorForce(entity: Entity, force: number): void {
+        this.module_._physics_setDistanceJointMaxMotorForce(entity, force);
+    }
+
+    getDistanceJointMotorForce(entity: Entity): number {
+        return this.module_._physics_getDistanceJointMotorForce(entity);
+    }
+
+    getPrismaticJointTranslation(entity: Entity, ppu = 100): number {
+        return this.module_._physics_getPrismaticJointTranslation(entity) * ppu;
+    }
+
+    getPrismaticJointSpeed(entity: Entity, ppu = 100): number {
+        return this.module_._physics_getPrismaticJointSpeed(entity) * ppu;
+    }
+
+    enablePrismaticJointSpring(entity: Entity, enable: boolean): void {
+        this.module_._physics_enablePrismaticJointSpring(entity, enable ? 1 : 0);
+    }
+
+    enablePrismaticJointLimit(entity: Entity, enable: boolean): void {
+        this.module_._physics_enablePrismaticJointLimit(entity, enable ? 1 : 0);
+    }
+
+    setPrismaticJointLimits(entity: Entity, lower: number, upper: number, ppu = 100): void {
+        this.module_._physics_setPrismaticJointLimits(entity, lower / ppu, upper / ppu);
+    }
+
+    enablePrismaticJointMotor(entity: Entity, enable: boolean): void {
+        this.module_._physics_enablePrismaticJointMotor(entity, enable ? 1 : 0);
+    }
+
+    setPrismaticJointMotorSpeed(entity: Entity, speed: number): void {
+        this.module_._physics_setPrismaticJointMotorSpeed(entity, speed);
+    }
+
+    setPrismaticJointMaxMotorForce(entity: Entity, force: number): void {
+        this.module_._physics_setPrismaticJointMaxMotorForce(entity, force);
+    }
+
+    getPrismaticJointMotorForce(entity: Entity): number {
+        return this.module_._physics_getPrismaticJointMotorForce(entity);
+    }
+
+    enableWheelJointSpring(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableWheelJointSpring(entity, enable ? 1 : 0);
+    }
+
+    enableWheelJointLimit(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableWheelJointLimit(entity, enable ? 1 : 0);
+    }
+
+    setWheelJointLimits(entity: Entity, lower: number, upper: number, ppu = 100): void {
+        this.module_._physics_setWheelJointLimits(entity, lower / ppu, upper / ppu);
+    }
+
+    enableWheelJointMotor(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableWheelJointMotor(entity, enable ? 1 : 0);
+    }
+
+    setWheelJointMotorSpeed(entity: Entity, speed: number): void {
+        this.module_._physics_setWheelJointMotorSpeed(entity, speed);
+    }
+
+    setWheelJointMaxMotorTorque(entity: Entity, torque: number): void {
+        this.module_._physics_setWheelJointMaxMotorTorque(entity, torque);
+    }
+
+    getWheelJointMotorTorque(entity: Entity): number {
+        return this.module_._physics_getWheelJointMotorTorque(entity);
+    }
+
+    private readUniqueEntityBuffer_(count: number): Entity[] {
+        if (count === 0) return [];
         const ptr = this.module_._physics_getOverlapBuffer() >> 2;
         const results: Entity[] = [];
         const seen = new Set<number>();
@@ -861,12 +1060,21 @@ export class Physics {
         return results;
     }
 
-    setAwake(entity: Entity, awake: boolean): void {
-        this.module_._physics_setAwake(entity, awake ? 1 : 0);
-    }
-
-    isAwake(entity: Entity): boolean {
-        return this.module_._physics_isAwake(entity) !== 0;
+    private readShapeCastBuffer_(count: number, ppu: number): ShapeCastHit[] {
+        if (count === 0) return [];
+        const ptr = this.module_._physics_getShapeCastBuffer() >> 2;
+        const results: ShapeCastHit[] = [];
+        for (let i = 0; i < count; i++) {
+            const base = ptr + i * CAST_HIT_STRIDE;
+            results.push({
+                entity: this.module_.HEAPU32[base] as Entity,
+                point: { x: this.module_.HEAPF32[base + 1] * ppu, y: this.module_.HEAPF32[base + 2] * ppu },
+                normal: { x: this.module_.HEAPF32[base + 3], y: this.module_.HEAPF32[base + 4] },
+                fraction: this.module_.HEAPF32[base + 5],
+            });
+        }
+        results.sort((a, b) => a.fraction - b.fraction);
+        return results;
     }
 
     static setDebugDraw(app: App, enabled: boolean): void {

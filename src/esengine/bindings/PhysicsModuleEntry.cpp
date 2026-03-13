@@ -73,6 +73,25 @@ static constexpr int MAX_RAYCAST_HITS = 64;
 static std::vector<float> g_overlapBuffer;
 static constexpr int MAX_OVERLAP_HITS = 64;
 
+static std::vector<float> g_shapeCastBuffer;
+static constexpr int SHAPECAST_STRIDE = 6;
+
+static float g_massDataBuffer[2] = {};
+
+static b2JointId findValidJoint(uint32_t entityId) {
+    auto it = g_ctx.entityToJoint.find(entityId);
+    if (it == g_ctx.entityToJoint.end()) return b2_nullJointId;
+    if (!b2Joint_IsValid(it->second)) return b2_nullJointId;
+    return it->second;
+}
+
+static b2BodyId findValidBody(uint32_t entityId) {
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return b2_nullBodyId;
+    if (!b2Body_IsValid(it->second)) return b2_nullBodyId;
+    return it->second;
+}
+
 // =============================================================================
 // Helper: Entity ID from body user data
 // =============================================================================
@@ -1038,6 +1057,301 @@ int physics_isAwake(uint32_t entityId) {
     if (it == g_ctx.entityToBody.end()) return 0;
     if (!b2Body_IsValid(it->second)) return 0;
     return b2Body_IsAwake(it->second) ? 1 : 0;
+}
+
+// Shape Cast
+
+static float shapeCastCallback(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal, float fraction, void* context) {
+    if (g_shapeCastBuffer.size() / SHAPECAST_STRIDE >= MAX_RAYCAST_HITS) return 0.0f;
+
+    uint32_t entityId = entityFromShape(shapeId);
+    if (entityId == 0xFFFFFFFF) return 1.0f;
+
+    pushEntityBits(g_shapeCastBuffer, entityId);
+    g_shapeCastBuffer.push_back(point.x);
+    g_shapeCastBuffer.push_back(point.y);
+    g_shapeCastBuffer.push_back(normal.x);
+    g_shapeCastBuffer.push_back(normal.y);
+    g_shapeCastBuffer.push_back(fraction);
+
+    return 1.0f;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_shapeCastCircle(float centerX, float centerY, float radius,
+                            float translationX, float translationY, uint32_t maskBits) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    g_shapeCastBuffer.clear();
+
+    b2Vec2 center = {centerX, centerY};
+    b2ShapeProxy proxy = b2MakeProxy(&center, 1, radius);
+    b2Vec2 translation = {translationX, translationY};
+
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    filter.maskBits = static_cast<uint64_t>(maskBits);
+
+    b2World_CastShape(g_ctx.worldId, &proxy, translation, filter, shapeCastCallback, nullptr);
+
+    return static_cast<int>(g_shapeCastBuffer.size() / SHAPECAST_STRIDE);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_shapeCastBox(float centerX, float centerY, float halfW, float halfH, float angle,
+                         float translationX, float translationY, uint32_t maskBits) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    g_shapeCastBuffer.clear();
+
+    b2Polygon box = b2MakeOffsetBox(halfW, halfH, {centerX, centerY}, b2MakeRot(angle));
+    b2ShapeProxy proxy = b2MakeProxy(box.vertices, box.count, box.radius);
+    b2Vec2 translation = {translationX, translationY};
+
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    filter.maskBits = static_cast<uint64_t>(maskBits);
+
+    b2World_CastShape(g_ctx.worldId, &proxy, translation, filter, shapeCastCallback, nullptr);
+
+    return static_cast<int>(g_shapeCastBuffer.size() / SHAPECAST_STRIDE);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_shapeCastCapsule(float center1X, float center1Y, float center2X, float center2Y,
+                             float radius, float translationX, float translationY, uint32_t maskBits) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    g_shapeCastBuffer.clear();
+
+    b2Vec2 centers[2] = {{center1X, center1Y}, {center2X, center2Y}};
+    b2ShapeProxy proxy = b2MakeProxy(centers, 2, radius);
+    b2Vec2 translation = {translationX, translationY};
+
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    filter.maskBits = static_cast<uint64_t>(maskBits);
+
+    b2World_CastShape(g_ctx.worldId, &proxy, translation, filter, shapeCastCallback, nullptr);
+
+    return static_cast<int>(g_shapeCastBuffer.size() / SHAPECAST_STRIDE);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics_getShapeCastBuffer() {
+    return reinterpret_cast<uintptr_t>(g_shapeCastBuffer.data());
+}
+
+// AABB Overlap
+
+EMSCRIPTEN_KEEPALIVE
+int physics_overlapAABB(float minX, float minY, float maxX, float maxY, uint32_t maskBits) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    g_overlapBuffer.clear();
+
+    b2AABB aabb = {{minX, minY}, {maxX, maxY}};
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    filter.maskBits = static_cast<uint64_t>(maskBits);
+
+    b2World_OverlapAABB(g_ctx.worldId, aabb, filter, overlapCallback, nullptr);
+
+    return static_cast<int>(g_overlapBuffer.size());
+}
+
+// Body Mass Queries
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getBodyMass(uint32_t entityId) {
+    auto body = findValidBody(entityId);
+    if (B2_IS_NULL(body)) return 0;
+    return b2Body_GetMass(body);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getBodyInertia(uint32_t entityId) {
+    auto body = findValidBody(entityId);
+    if (B2_IS_NULL(body)) return 0;
+    return b2Body_GetRotationalInertia(body);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics_getBodyCenterOfMass(uint32_t entityId) {
+    g_massDataBuffer[0] = 0;
+    g_massDataBuffer[1] = 0;
+    auto body = findValidBody(entityId);
+    if (!B2_IS_NULL(body)) {
+        b2Vec2 com = b2Body_GetLocalCenterOfMass(body);
+        g_massDataBuffer[0] = com.x;
+        g_massDataBuffer[1] = com.y;
+    }
+    return reinterpret_cast<uintptr_t>(g_massDataBuffer);
+}
+
+// Joint State Queries — Distance Joint
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getDistanceJointLength(uint32_t entityId) {
+    auto jid = findValidJoint(entityId);
+    if (B2_IS_NULL(jid)) return 0;
+    return b2DistanceJoint_GetLength(jid);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getDistanceJointCurrentLength(uint32_t entityId) {
+    auto jid = findValidJoint(entityId);
+    if (B2_IS_NULL(jid)) return 0;
+    return b2DistanceJoint_GetCurrentLength(jid);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setDistanceJointLength(uint32_t entityId, float length) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2DistanceJoint_SetLength(jid, length);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableDistanceJointSpring(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2DistanceJoint_EnableSpring(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableDistanceJointLimit(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2DistanceJoint_EnableLimit(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setDistanceJointLimits(uint32_t entityId, float minLength, float maxLength) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2DistanceJoint_SetLengthRange(jid, minLength, maxLength);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableDistanceJointMotor(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2DistanceJoint_EnableMotor(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setDistanceJointMotorSpeed(uint32_t entityId, float speed) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2DistanceJoint_SetMotorSpeed(jid, speed);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setDistanceJointMaxMotorForce(uint32_t entityId, float force) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2DistanceJoint_SetMaxMotorForce(jid, force);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getDistanceJointMotorForce(uint32_t entityId) {
+    auto jid = findValidJoint(entityId);
+    if (B2_IS_NULL(jid)) return 0;
+    return b2DistanceJoint_GetMotorForce(jid);
+}
+
+// Joint State Queries — Prismatic Joint
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getPrismaticJointTranslation(uint32_t entityId) {
+    auto jid = findValidJoint(entityId);
+    if (B2_IS_NULL(jid)) return 0;
+    return b2PrismaticJoint_GetTranslation(jid);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getPrismaticJointSpeed(uint32_t entityId) {
+    auto jid = findValidJoint(entityId);
+    if (B2_IS_NULL(jid)) return 0;
+    return b2PrismaticJoint_GetSpeed(jid);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enablePrismaticJointSpring(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2PrismaticJoint_EnableSpring(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enablePrismaticJointLimit(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2PrismaticJoint_EnableLimit(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setPrismaticJointLimits(uint32_t entityId, float lower, float upper) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2PrismaticJoint_SetLimits(jid, lower, upper);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enablePrismaticJointMotor(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2PrismaticJoint_EnableMotor(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setPrismaticJointMotorSpeed(uint32_t entityId, float speed) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2PrismaticJoint_SetMotorSpeed(jid, speed);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setPrismaticJointMaxMotorForce(uint32_t entityId, float force) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2PrismaticJoint_SetMaxMotorForce(jid, force);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getPrismaticJointMotorForce(uint32_t entityId) {
+    auto jid = findValidJoint(entityId);
+    if (B2_IS_NULL(jid)) return 0;
+    return b2PrismaticJoint_GetMotorForce(jid);
+}
+
+// Joint State Queries — Wheel Joint
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableWheelJointSpring(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2WheelJoint_EnableSpring(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableWheelJointLimit(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2WheelJoint_EnableLimit(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setWheelJointLimits(uint32_t entityId, float lower, float upper) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2WheelJoint_SetLimits(jid, lower, upper);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableWheelJointMotor(uint32_t entityId, int enable) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2WheelJoint_EnableMotor(jid, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setWheelJointMotorSpeed(uint32_t entityId, float speed) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2WheelJoint_SetMotorSpeed(jid, speed);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setWheelJointMaxMotorTorque(uint32_t entityId, float torque) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2WheelJoint_SetMaxMotorTorque(jid, torque);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getWheelJointMotorTorque(uint32_t entityId) {
+    auto jid = findValidJoint(entityId);
+    if (B2_IS_NULL(jid)) return 0;
+    return b2WheelJoint_GetMotorTorque(jid);
 }
 
 } // extern "C"

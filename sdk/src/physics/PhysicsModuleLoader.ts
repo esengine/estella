@@ -120,6 +120,49 @@ export interface PhysicsWasmModule {
     _physics_setAwake(entityId: number, awake: number): void;
     _physics_isAwake(entityId: number): number;
 
+    _physics_shapeCastCircle(centerX: number, centerY: number, radius: number,
+        translationX: number, translationY: number, maskBits: number): number;
+    _physics_shapeCastBox(centerX: number, centerY: number, halfW: number, halfH: number, angle: number,
+        translationX: number, translationY: number, maskBits: number): number;
+    _physics_shapeCastCapsule(center1X: number, center1Y: number, center2X: number, center2Y: number,
+        radius: number, translationX: number, translationY: number, maskBits: number): number;
+    _physics_getShapeCastBuffer(): number;
+
+    _physics_overlapAABB(minX: number, minY: number, maxX: number, maxY: number, maskBits: number): number;
+
+    _physics_getBodyMass(entityId: number): number;
+    _physics_getBodyInertia(entityId: number): number;
+    _physics_getBodyCenterOfMass(entityId: number): number;
+
+    _physics_getDistanceJointLength(entityId: number): number;
+    _physics_getDistanceJointCurrentLength(entityId: number): number;
+    _physics_setDistanceJointLength(entityId: number, length: number): void;
+    _physics_enableDistanceJointSpring(entityId: number, enable: number): void;
+    _physics_enableDistanceJointLimit(entityId: number, enable: number): void;
+    _physics_setDistanceJointLimits(entityId: number, minLength: number, maxLength: number): void;
+    _physics_enableDistanceJointMotor(entityId: number, enable: number): void;
+    _physics_setDistanceJointMotorSpeed(entityId: number, speed: number): void;
+    _physics_setDistanceJointMaxMotorForce(entityId: number, force: number): void;
+    _physics_getDistanceJointMotorForce(entityId: number): number;
+
+    _physics_getPrismaticJointTranslation(entityId: number): number;
+    _physics_getPrismaticJointSpeed(entityId: number): number;
+    _physics_enablePrismaticJointSpring(entityId: number, enable: number): void;
+    _physics_enablePrismaticJointLimit(entityId: number, enable: number): void;
+    _physics_setPrismaticJointLimits(entityId: number, lower: number, upper: number): void;
+    _physics_enablePrismaticJointMotor(entityId: number, enable: number): void;
+    _physics_setPrismaticJointMotorSpeed(entityId: number, speed: number): void;
+    _physics_setPrismaticJointMaxMotorForce(entityId: number, force: number): void;
+    _physics_getPrismaticJointMotorForce(entityId: number): number;
+
+    _physics_enableWheelJointSpring(entityId: number, enable: number): void;
+    _physics_enableWheelJointLimit(entityId: number, enable: number): void;
+    _physics_setWheelJointLimits(entityId: number, lower: number, upper: number): void;
+    _physics_enableWheelJointMotor(entityId: number, enable: number): void;
+    _physics_setWheelJointMotorSpeed(entityId: number, speed: number): void;
+    _physics_setWheelJointMaxMotorTorque(entityId: number, torque: number): void;
+    _physics_getWheelJointMotorTorque(entityId: number): number;
+
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -232,6 +275,46 @@ export async function loadPhysicsSideModule(
 
         _physics_setAwake: cwrap('physics_setAwake', null, ['number', 'number']) as PhysicsWasmModule['_physics_setAwake'],
         _physics_isAwake: cwrap('physics_isAwake', 'number', ['number']) as PhysicsWasmModule['_physics_isAwake'],
+
+        _physics_shapeCastCircle: cwrap('physics_shapeCastCircle', 'number', ['number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_shapeCastCircle'],
+        _physics_shapeCastBox: cwrap('physics_shapeCastBox', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_shapeCastBox'],
+        _physics_shapeCastCapsule: cwrap('physics_shapeCastCapsule', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_shapeCastCapsule'],
+        _physics_getShapeCastBuffer: cwrap('physics_getShapeCastBuffer', 'number', []) as PhysicsWasmModule['_physics_getShapeCastBuffer'],
+
+        _physics_overlapAABB: cwrap('physics_overlapAABB', 'number', ['number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_overlapAABB'],
+
+        _physics_getBodyMass: cwrap('physics_getBodyMass', 'number', ['number']) as PhysicsWasmModule['_physics_getBodyMass'],
+        _physics_getBodyInertia: cwrap('physics_getBodyInertia', 'number', ['number']) as PhysicsWasmModule['_physics_getBodyInertia'],
+        _physics_getBodyCenterOfMass: cwrap('physics_getBodyCenterOfMass', 'number', ['number']) as PhysicsWasmModule['_physics_getBodyCenterOfMass'],
+
+        _physics_getDistanceJointLength: cwrap('physics_getDistanceJointLength', 'number', ['number']) as PhysicsWasmModule['_physics_getDistanceJointLength'],
+        _physics_getDistanceJointCurrentLength: cwrap('physics_getDistanceJointCurrentLength', 'number', ['number']) as PhysicsWasmModule['_physics_getDistanceJointCurrentLength'],
+        _physics_setDistanceJointLength: cwrap('physics_setDistanceJointLength', null, ['number', 'number']) as PhysicsWasmModule['_physics_setDistanceJointLength'],
+        _physics_enableDistanceJointSpring: cwrap('physics_enableDistanceJointSpring', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableDistanceJointSpring'],
+        _physics_enableDistanceJointLimit: cwrap('physics_enableDistanceJointLimit', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableDistanceJointLimit'],
+        _physics_setDistanceJointLimits: cwrap('physics_setDistanceJointLimits', null, ['number', 'number', 'number']) as PhysicsWasmModule['_physics_setDistanceJointLimits'],
+        _physics_enableDistanceJointMotor: cwrap('physics_enableDistanceJointMotor', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableDistanceJointMotor'],
+        _physics_setDistanceJointMotorSpeed: cwrap('physics_setDistanceJointMotorSpeed', null, ['number', 'number']) as PhysicsWasmModule['_physics_setDistanceJointMotorSpeed'],
+        _physics_setDistanceJointMaxMotorForce: cwrap('physics_setDistanceJointMaxMotorForce', null, ['number', 'number']) as PhysicsWasmModule['_physics_setDistanceJointMaxMotorForce'],
+        _physics_getDistanceJointMotorForce: cwrap('physics_getDistanceJointMotorForce', 'number', ['number']) as PhysicsWasmModule['_physics_getDistanceJointMotorForce'],
+
+        _physics_getPrismaticJointTranslation: cwrap('physics_getPrismaticJointTranslation', 'number', ['number']) as PhysicsWasmModule['_physics_getPrismaticJointTranslation'],
+        _physics_getPrismaticJointSpeed: cwrap('physics_getPrismaticJointSpeed', 'number', ['number']) as PhysicsWasmModule['_physics_getPrismaticJointSpeed'],
+        _physics_enablePrismaticJointSpring: cwrap('physics_enablePrismaticJointSpring', null, ['number', 'number']) as PhysicsWasmModule['_physics_enablePrismaticJointSpring'],
+        _physics_enablePrismaticJointLimit: cwrap('physics_enablePrismaticJointLimit', null, ['number', 'number']) as PhysicsWasmModule['_physics_enablePrismaticJointLimit'],
+        _physics_setPrismaticJointLimits: cwrap('physics_setPrismaticJointLimits', null, ['number', 'number', 'number']) as PhysicsWasmModule['_physics_setPrismaticJointLimits'],
+        _physics_enablePrismaticJointMotor: cwrap('physics_enablePrismaticJointMotor', null, ['number', 'number']) as PhysicsWasmModule['_physics_enablePrismaticJointMotor'],
+        _physics_setPrismaticJointMotorSpeed: cwrap('physics_setPrismaticJointMotorSpeed', null, ['number', 'number']) as PhysicsWasmModule['_physics_setPrismaticJointMotorSpeed'],
+        _physics_setPrismaticJointMaxMotorForce: cwrap('physics_setPrismaticJointMaxMotorForce', null, ['number', 'number']) as PhysicsWasmModule['_physics_setPrismaticJointMaxMotorForce'],
+        _physics_getPrismaticJointMotorForce: cwrap('physics_getPrismaticJointMotorForce', 'number', ['number']) as PhysicsWasmModule['_physics_getPrismaticJointMotorForce'],
+
+        _physics_enableWheelJointSpring: cwrap('physics_enableWheelJointSpring', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableWheelJointSpring'],
+        _physics_enableWheelJointLimit: cwrap('physics_enableWheelJointLimit', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableWheelJointLimit'],
+        _physics_setWheelJointLimits: cwrap('physics_setWheelJointLimits', null, ['number', 'number', 'number']) as PhysicsWasmModule['_physics_setWheelJointLimits'],
+        _physics_enableWheelJointMotor: cwrap('physics_enableWheelJointMotor', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableWheelJointMotor'],
+        _physics_setWheelJointMotorSpeed: cwrap('physics_setWheelJointMotorSpeed', null, ['number', 'number']) as PhysicsWasmModule['_physics_setWheelJointMotorSpeed'],
+        _physics_setWheelJointMaxMotorTorque: cwrap('physics_setWheelJointMaxMotorTorque', null, ['number', 'number']) as PhysicsWasmModule['_physics_setWheelJointMaxMotorTorque'],
+        _physics_getWheelJointMotorTorque: cwrap('physics_getWheelJointMotorTorque', 'number', ['number']) as PhysicsWasmModule['_physics_getWheelJointMotorTorque'],
 
         get HEAPF32() { return mainModule.HEAPF32; },
         get HEAPU8() { return mainModule.HEAPU8; },
