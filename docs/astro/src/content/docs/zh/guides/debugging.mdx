@@ -299,7 +299,7 @@ const narrowSystem = defineSystem(
 **原因**: 访问已被销毁的实体，或使用了过期的实体 ID。
 
 **解决**:
-- 访问前检查实体是否存在：`if (world.isAlive(entity)) { ... }`
+- 访问前检查实体是否存在：`if (world.valid(entity)) { ... }`
 - 避免跨帧存储实体 ID 而不进行验证
 - 记住 `Commands` 是延迟执行的 -- 实体不会在调度阶段结束前被销毁
 

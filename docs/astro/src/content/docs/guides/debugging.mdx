@@ -299,7 +299,7 @@ const narrowSystem = defineSystem(
 **Cause**: Accessing an entity that has been despawned, or using a stale entity ID.
 
 **Fix**:
-- Check entity existence before access: `if (world.isAlive(entity)) { ... }`
+- Check entity existence before access: `if (world.valid(entity)) { ... }`
 - Avoid storing entity IDs across frames without validation
 - Remember that `Commands` are deferred -- entities are not despawned until the end of the schedule stage
 

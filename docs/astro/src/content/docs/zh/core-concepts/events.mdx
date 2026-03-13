@@ -12,7 +12,7 @@ import { Aside } from '@astrojs/starlight/components';
 使用 `defineEvent` 和 TypeScript 接口定义事件：
 
 ```typescript
-import { defineEvent } from 'esengine';
+import { defineEvent, type Entity } from 'esengine';
 
 interface DamageEvent {
     target: Entity;
@@ -98,7 +98,7 @@ events.toArray()   // 将所有事件收集为数组
 一个完整的示例，包含三个解耦的系统：
 
 ```typescript
-import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Sprite, defineComponent, defineTag } from 'esengine';
+import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Sprite, defineComponent, defineTag, type Entity } from 'esengine';
 
 const Health = defineComponent('Health', { current: 100, max: 100 });
 const Projectile = defineComponent('Projectile', { radius: 5, power: 10 });

@@ -237,12 +237,12 @@ addSystem(defineSystem(
 在编辑器外加载时间轴（如自定义资源管线中）时，使用注册 API：
 
 ```typescript
-import { registerTimelineAsset, getTimelineAsset, parseTimelineAsset } from 'esengine';
+import { registerTimelineAsset, getTimelineHandle, parseTimelineAsset } from 'esengine';
 
 const asset = parseTimelineAsset(jsonData);
 registerTimelineAsset('timelines/intro.estl', asset);
 
-const tl = getTimelineAsset('timelines/intro.estl');
+const tl = getTimelineHandle('timelines/intro.estl');
 ```
 
 ## 示例：开场序列

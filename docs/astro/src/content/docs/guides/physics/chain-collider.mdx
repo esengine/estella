@@ -15,11 +15,13 @@ The `ChainCollider` defines a chain of connected line segments. It is designed f
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `points` | Vec2[] | `[]` | Chain vertices in physics units (local space) |
-| `isLoop` | boolean | `false` | Connect the last point back to the first, forming a closed loop |
+| `points` | Vec2[] | Diamond | Chain vertices in physics units (local space). Default: `[{x:-1,y:0}, {x:0,y:0.5}, {x:1,y:0}, {x:0,y:-0.5}]` |
+| `isLoop` | boolean | `true` | Connect the last point back to the first, forming a closed loop |
 | `friction` | number | `0.6` | Surface friction |
 | `restitution` | number | `0.0` | Bounciness |
+| `enabled` | boolean | `true` | Enable/disable the collider |
 | `categoryBits` | number | `1` | Collision filter category bits |
+| `maskBits` | number | `0xFFFF` | Collision filter mask bits |
 
 ## Point Editing in Scene View
 
@@ -36,10 +38,10 @@ When `isLoop` is `false`, the chain is an open path — objects can pass around 
 **Open chain** — useful for terrain surfaces:
 
 ```typescript
-commands.spawn(
-    Transform.default(),
-    RigidBody.with({ bodyType: 0 }),
-    ChainCollider.with({
+commands.spawn()
+    .insert(Transform)
+    .insert(RigidBody, { bodyType: 0 })
+    .insert(ChainCollider, {
         points: [
             { x: -10, y: 0 },
             { x: -5, y: 2 },
@@ -48,17 +50,16 @@ commands.spawn(
             { x: 10, y: 0 },
         ],
         isLoop: false,
-    }),
-);
+    });
 ```
 
 **Closed loop** — useful for enclosed areas:
 
 ```typescript
-commands.spawn(
-    Transform.default(),
-    RigidBody.with({ bodyType: 0 }),
-    ChainCollider.with({
+commands.spawn()
+    .insert(Transform)
+    .insert(RigidBody, { bodyType: 0 })
+    .insert(ChainCollider, {
         points: [
             { x: -5, y: -5 },
             { x: 5, y: -5 },
@@ -66,8 +67,7 @@ commands.spawn(
             { x: -5, y: 5 },
         ],
         isLoop: true,
-    }),
-);
+    });
 ```
 
 ## Tips

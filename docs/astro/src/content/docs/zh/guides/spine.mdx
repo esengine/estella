@@ -143,7 +143,7 @@ addSystem(defineSystem(
 通过 `SpineManager` 配置动画之间的交叉淡入淡出：
 
 ```typescript
-import { SpineManager } from 'esengine';
+import { SpineManager } from 'esengine/spine';
 
 const manager = app.getResource(SpineManager);
 
@@ -195,7 +195,7 @@ manager.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);
 Estella 同时支持 Spine **3.8**、**4.1** 和 **4.2** 版本。引擎会自动从骨骼数据中检测 Spine 版本并选择对应的运行时后端。
 
 ```typescript
-import type { SpineVersion } from 'esengine';
+import type { SpineVersion } from 'esengine/spine';
 // SpineVersion = '3.8' | '4.1' | '4.2'
 ```
 
@@ -210,7 +210,7 @@ import type { SpineVersion } from 'esengine';
 对于高级用例，`SpineManager` 提供运行时查询能力：
 
 ```typescript
-import { SpineManager } from 'esengine';
+import { SpineManager } from 'esengine/spine';
 
 // 从原始数据检测版本（加载前）
 const version = SpineManager.detectVersion(skelBinaryData);

@@ -11,13 +11,15 @@ import { Aside } from '@astrojs/starlight/components';
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `vertices` | Vec2[] | `[]` | 多边形顶点，以物理单位计（局部空间）。最多 8 个顶点 |
+| `vertices` | Vec2[] | 单位正方形 | 多边形顶点，以物理单位计（局部空间）。最多 8 个顶点。默认：`[{x:-0.5,y:-0.5}, {x:0.5,y:-0.5}, {x:0.5,y:0.5}, {x:-0.5,y:0.5}]` |
 | `radius` | number | `0.0` | 多边形外围的蒙皮半径。大于 0 时创建圆角多边形 |
 | `density` | number | `1.0` | 质量密度 |
-| `friction` | number | `0.6` | 表面摩擦力 |
+| `friction` | number | `0.3` | 表面摩擦力 |
 | `restitution` | number | `0.0` | 弹性 |
 | `isSensor` | boolean | `false` | 触发区域，无物理响应 |
+| `enabled` | boolean | `true` | 启用/禁用碰撞体 |
 | `categoryBits` | number | `1` | 碰撞过滤类别位 |
+| `maskBits` | number | `0xFFFF` | 碰撞过滤掩码位 |
 
 <Aside type="caution">
   Box2D 限制每个多边形最多 **8 个顶点**。超过此数量的多边形将被拒绝。如需更复杂的形状，请将其分解为多个凸多边形或使用 [ChainCollider](./chain-collider/) 处理静态边界。
@@ -38,18 +40,17 @@ import { Aside } from '@astrojs/starlight/components';
 ## 用法
 
 ```typescript
-commands.spawn(
-    Transform.default(),
-    RigidBody.with({ bodyType: 2 }),
-    PolygonCollider.with({
+commands.spawn()
+    .insert(Transform)
+    .insert(RigidBody, { bodyType: 2 })
+    .insert(PolygonCollider, {
         vertices: [
             { x: -0.5, y: -0.5 },
             { x: 0.5, y: -0.5 },
             { x: 0.3, y: 0.5 },
             { x: -0.3, y: 0.5 },
         ],
-    }),
-);
+    });
 ```
 
 ## 提示

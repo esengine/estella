@@ -14,10 +14,12 @@ The `SegmentCollider` defines a line segment between two points. It is useful fo
 | `point1` | Vec2 | `{x: -0.5, y: 0}` | Start point in physics units (local space) |
 | `point2` | Vec2 | `{x: 0.5, y: 0}` | End point in physics units (local space) |
 | `density` | number | `1.0` | Mass density |
-| `friction` | number | `0.6` | Surface friction |
+| `friction` | number | `0.3` | Surface friction |
 | `restitution` | number | `0.0` | Bounciness |
 | `isSensor` | boolean | `false` | Trigger zone without physical response |
+| `enabled` | boolean | `true` | Enable/disable the collider |
 | `categoryBits` | number | `1` | Collision filter category bits |
+| `maskBits` | number | `0xFFFF` | Collision filter mask bits |
 
 ## Usage
 
@@ -26,14 +28,13 @@ Add a `SegmentCollider` component to any entity that also has a `RigidBody` and 
 **Thin walls:** Create invisible collision boundaries without using a full box shape.
 
 ```typescript
-commands.spawn(
-    Transform.default(),
-    RigidBody.with({ bodyType: 0 }),
-    SegmentCollider.with({
+commands.spawn()
+    .insert(Transform)
+    .insert(RigidBody, { bodyType: 0 })
+    .insert(SegmentCollider, {
         point1: { x: 0, y: 0 },
         point2: { x: 0, y: 5 },
-    }),
-);
+    });
 ```
 
 **One-way platforms:** Combine with static body type to create edges that objects can land on.

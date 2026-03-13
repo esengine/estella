@@ -237,12 +237,12 @@ addSystem(defineSystem(
 When loading timelines outside the editor (e.g., in a custom asset pipeline), use the registration API:
 
 ```typescript
-import { registerTimelineAsset, getTimelineAsset, parseTimelineAsset } from 'esengine';
+import { registerTimelineAsset, getTimelineHandle, parseTimelineAsset } from 'esengine';
 
 const asset = parseTimelineAsset(jsonData);
 registerTimelineAsset('timelines/intro.estl', asset);
 
-const tl = getTimelineAsset('timelines/intro.estl');
+const tl = getTimelineHandle('timelines/intro.estl');
 ```
 
 ## Example: Intro Sequence

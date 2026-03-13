@@ -14,10 +14,12 @@ import { Aside } from '@astrojs/starlight/components';
 | `point1` | Vec2 | `{x: -0.5, y: 0}` | 起点，以物理单位计（局部空间） |
 | `point2` | Vec2 | `{x: 0.5, y: 0}` | 终点，以物理单位计（局部空间） |
 | `density` | number | `1.0` | 质量密度 |
-| `friction` | number | `0.6` | 表面摩擦力 |
+| `friction` | number | `0.3` | 表面摩擦力 |
 | `restitution` | number | `0.0` | 弹性 |
 | `isSensor` | boolean | `false` | 触发区域，无物理响应 |
+| `enabled` | boolean | `true` | 启用/禁用碰撞体 |
 | `categoryBits` | number | `1` | 碰撞过滤类别位 |
+| `maskBits` | number | `0xFFFF` | 碰撞过滤掩码位 |
 
 ## 用法
 
@@ -26,14 +28,13 @@ import { Aside } from '@astrojs/starlight/components';
 **薄墙：**创建无需完整盒形的隐形碰撞边界。
 
 ```typescript
-commands.spawn(
-    Transform.default(),
-    RigidBody.with({ bodyType: 0 }),
-    SegmentCollider.with({
+commands.spawn()
+    .insert(Transform)
+    .insert(RigidBody, { bodyType: 0 })
+    .insert(SegmentCollider, {
         point1: { x: 0, y: 0 },
         point2: { x: 0, y: 5 },
-    }),
-);
+    });
 ```
 
 **单向平台：**搭配静态刚体创建物体可以落在上面的边缘。

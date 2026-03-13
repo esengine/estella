@@ -240,7 +240,7 @@ Effects are visible in both the Scene View and the Game View. The component data
 
 ## Custom Pass
 
-Write a custom fragment shader. The vertex shader uses a fixed full-screen triangle — you only write the fragment shader:
+Write a custom shader. The example below includes both vertex and fragment shaders:
 
 ```typescript
 import { Material, PostProcess } from 'esengine';
@@ -329,7 +329,7 @@ PostProcess.bind(minimapCamera, minimapFx);
 | `PostProcess.unbind(camera)` | Unbind the stack from a camera |
 | `PostProcess.getStack(camera)` | Get the bound stack (or null) |
 | `PostProcess.setScreenStack(stack)` | Set the screen-level effect stack (pass `null` to clear) |
-| `PostProcess.screenStack` | Get the current screen stack |
+| `PostProcess.screenStack` | The current screen stack (property, not a method) |
 | `PostProcess.init(width, height)` | Initialize the pipeline (called automatically) |
 | `PostProcess.shutdown()` | Shut down the pipeline |
 | `PostProcess.resize(width, height)` | Update framebuffer size (called automatically) |

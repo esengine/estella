@@ -12,7 +12,7 @@ Events let systems communicate without knowing about each other. One system send
 Define an event with `defineEvent` and a TypeScript interface for its payload:
 
 ```typescript
-import { defineEvent } from 'esengine';
+import { defineEvent, type Entity } from 'esengine';
 
 interface DamageEvent {
     target: Entity;
@@ -98,7 +98,7 @@ Events last exactly **1 frame**. If no system reads them, they are silently disc
 A complete example with three decoupled systems:
 
 ```typescript
-import { defineEvent, defineSystem, defineComponent, defineTag, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Transform } from 'esengine';
+import { defineEvent, defineSystem, defineComponent, defineTag, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Transform, type Entity } from 'esengine';
 
 const Health = defineComponent('Health', { current: 100, max: 100 });
 const Enemy = defineTag('Enemy');
