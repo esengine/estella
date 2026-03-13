@@ -97,6 +97,10 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         defaultVisible: false,
         order: 2,
         factory: (c) => ({ instance: new TimelinePanel(c, getEditorStore()) }),
+        contextMatch: (store) => {
+            const data = store.getSelectedEntityData();
+            return !!data?.components.some(c => c.type === 'TimelinePlayer');
+        },
     });
 
     registerPanel({
@@ -127,6 +131,10 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         order: 5,
         defaultVisible: false,
         factory: (c) => ({ instance: new StateMachineGraphPanel(c, getEditorStore()) }),
+        contextMatch: (store) => {
+            const data = store.getSelectedEntityData();
+            return !!data?.components.some(c => c.type === 'StateMachine');
+        },
     });
 
     registerPanel({
@@ -137,6 +145,10 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         defaultVisible: false,
         order: 6,
         factory: (c) => ({ instance: new TilePalettePanel(c, getEditorStore()) }),
+        contextMatch: (store) => {
+            const data = store.getSelectedEntityData();
+            return !!data?.components.some(c => c.type === 'TilemapLayer' || c.type === 'Tilemap');
+        },
     });
 
     registerPanel({

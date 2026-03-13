@@ -1,6 +1,8 @@
 import type { GizmoContext, GizmoDescriptor } from './GizmoRegistry';
 import { getTilesetForSource, getTilesetForImage, findParentTilemapSource } from './TilesetLoader';
 import { TilePaintCommand, type TileChange } from '../commands/TilePaintCommand';
+import { floodFill } from './TileFill';
+import { readChunkTile, writeChunkTile } from './TileChunkUtils';
 import { icons } from '../utils/icons';
 
 interface TileBrushDragState {
@@ -11,8 +13,19 @@ interface TileBrushDragState {
     tileHeight: number;
     originX: number;
     originY: number;
+    infinite: boolean;
     tiles: number[];
-    changes: Map<number, TileChange>;
+    chunks: Record<string, number[]>;
+    changes: Map<string, TileChange>;
+    rightClickErase: boolean;
+}
+
+interface RectDragState {
+    entityId: number;
+    startTx: number;
+    startTy: number;
+    endTx: number;
+    endTy: number;
 }
 
 function findTilemapLayerData(gctx: GizmoContext): {
@@ -50,27 +63,33 @@ function worldToTile(
     };
 }
 
+type LayerInfo = {
+    entityId: number;
+    width: number;
+    height: number;
+    tileWidth: number;
+    tileHeight: number;
+    infinite: boolean;
+    tiles: number[];
+    chunks: Record<string, number[]>;
+    originX: number;
+    originY: number;
+};
+
 export function createTileBrushGizmo(): GizmoDescriptor {
     let hoverTile: { tx: number; ty: number } | null = null;
     let dragState: TileBrushDragState | null = null;
+    let rectDrag: RectDragState | null = null;
 
-    function getLayerInfo(gctx: GizmoContext): {
-        entityId: number;
-        width: number;
-        height: number;
-        tileWidth: number;
-        tileHeight: number;
-        tiles: number[];
-        originX: number;
-        originY: number;
-    } | null {
+    function getLayerInfo(gctx: GizmoContext): LayerInfo | null {
         const layer = findTilemapLayerData(gctx);
         if (!layer) return null;
 
         const d = layer.data;
+        const infinite = d.infinite as boolean ?? false;
         const width = d.width as number ?? 0;
         const height = d.height as number ?? 0;
-        if (width === 0 || height === 0) return null;
+        if (!infinite && (width === 0 || height === 0)) return null;
 
         const worldTransform = gctx.store.getWorldTransform(layer.entityId);
         return {
@@ -79,73 +98,139 @@ export function createTileBrushGizmo(): GizmoDescriptor {
             height,
             tileWidth: d.tileWidth as number ?? 32,
             tileHeight: d.tileHeight as number ?? 32,
+            infinite,
             tiles: d.tiles as number[] ?? [],
+            chunks: d.chunks as Record<string, number[]> ?? {},
             originX: worldTransform.position.x,
             originY: worldTransform.position.y,
         };
     }
 
-    function getTilesetImage(gctx: GizmoContext): {
-        image: HTMLImageElement;
-        columns: number;
-        tileWidth: number;
-        tileHeight: number;
-    } | null {
-        const source = findTilemapSource(gctx);
-        if (source) {
-            const info = getTilesetForSource(source);
-            if (info?.tilesetImage) {
-                return {
-                    image: info.tilesetImage,
-                    columns: info.tilesetColumns,
-                    tileWidth: info.tileWidth,
-                    tileHeight: info.tileHeight,
-                };
-            }
+    function readTile(state: TileBrushDragState, tx: number, ty: number): number {
+        if (state.infinite) {
+            return readChunkTile(state.chunks, tx, ty);
         }
+        return state.tiles[ty * state.mapWidth + tx] ?? 0;
+    }
 
-        const layer = findTilemapLayerData(gctx);
-        if (layer) {
-            const d = layer.data;
-            const textureUuid = d.texture as string ?? '';
-            if (textureUuid && typeof textureUuid === 'string') {
-                const tw = d.tileWidth as number ?? 32;
-                const th = d.tileHeight as number ?? 32;
-                const cols = d.tilesetColumns as number ?? 1;
-                const info = getTilesetForImage(textureUuid, tw, th, cols);
-                if (info?.tilesetImage) {
-                    return {
-                        image: info.tilesetImage,
-                        columns: info.tilesetColumns,
-                        tileWidth: info.tileWidth,
-                        tileHeight: info.tileHeight,
-                    };
-                }
-            }
+    function writeTile(state: TileBrushDragState, tx: number, ty: number, tileId: number): void {
+        if (state.infinite) {
+            writeChunkTile(state.chunks, tx, ty, tileId);
+        } else {
+            state.tiles[ty * state.mapWidth + tx] = tileId;
         }
-
-        return null;
     }
 
     function paintTile(state: TileBrushDragState, tx: number, ty: number, tileId: number): void {
-        if (tx < 0 || tx >= state.mapWidth || ty < 0 || ty >= state.mapHeight) return;
-        const expectedLen = state.mapWidth * state.mapHeight;
-        if (state.tiles.length < expectedLen) {
-            const oldLen = state.tiles.length;
-            state.tiles.length = expectedLen;
-            state.tiles.fill(0, oldLen, expectedLen);
+        if (!state.infinite) {
+            if (tx < 0 || tx >= state.mapWidth || ty < 0 || ty >= state.mapHeight) return;
+            const expectedLen = state.mapWidth * state.mapHeight;
+            if (state.tiles.length < expectedLen) {
+                const oldLen = state.tiles.length;
+                state.tiles.length = expectedLen;
+                state.tiles.fill(0, oldLen, expectedLen);
+            }
         }
-        const index = ty * state.mapWidth + tx;
-        if (!state.changes.has(index)) {
-            state.changes.set(index, {
-                index,
-                oldTile: state.tiles[index] ?? 0,
+        const changeKey = `${tx},${ty}`;
+        if (!state.changes.has(changeKey)) {
+            state.changes.set(changeKey, {
+                x: tx,
+                y: ty,
+                oldTile: readTile(state, tx, ty),
                 newTile: tileId,
             });
         } else {
-            state.changes.get(index)!.newTile = tileId;
+            state.changes.get(changeKey)!.newTile = tileId;
         }
-        state.tiles[index] = tileId;
+        writeTile(state, tx, ty, tileId);
+    }
+
+    function paintStamp(state: TileBrushDragState, tx: number, ty: number, stamp: Readonly<{ width: number; height: number; tiles: number[] }>): void {
+        for (let sy = 0; sy < stamp.height; sy++) {
+            for (let sx = 0; sx < stamp.width; sx++) {
+                const tileId = stamp.tiles[sy * stamp.width + sx] ?? 0;
+                if (tileId > 0) {
+                    paintTile(state, tx + sx, ty + sy, tileId);
+                }
+            }
+        }
+    }
+
+    function createDragState(info: LayerInfo, rightClickErase: boolean): TileBrushDragState {
+        return {
+            entityId: info.entityId,
+            mapWidth: info.width,
+            mapHeight: info.height,
+            tileWidth: info.tileWidth,
+            tileHeight: info.tileHeight,
+            originX: info.originX,
+            originY: info.originY,
+            infinite: info.infinite,
+            tiles: info.tiles,
+            chunks: info.chunks,
+            changes: new Map(),
+            rightClickErase,
+        };
+    }
+
+    function commitChanges(state: TileBrushDragState, gctx: GizmoContext): void {
+        if (state.changes.size === 0) return;
+        const changes = Array.from(state.changes.values());
+        const store = gctx.store;
+        const cmd = new TilePaintCommand(
+            store.scene,
+            store.entityMap_,
+            state.entityId,
+            changes,
+        );
+        store.executeCommand(cmd);
+    }
+
+    function readTileFromInfo(info: LayerInfo, tx: number, ty: number): number {
+        if (info.infinite) {
+            return readChunkTile(info.chunks, tx, ty);
+        }
+        if (tx < 0 || tx >= info.width || ty < 0 || ty >= info.height) return 0;
+        return info.tiles[ty * info.width + tx] ?? 0;
+    }
+
+    function doBucketFill(gctx: GizmoContext, tx: number, ty: number): void {
+        const info = getLayerInfo(gctx);
+        if (!info) return;
+
+        const fillTileId = gctx.store.tileBrushStamp.tiles[0] ?? 1;
+        const result = floodFill({
+            infinite: info.infinite,
+            width: info.width,
+            height: info.height,
+            tiles: info.tiles,
+            chunks: info.chunks,
+        }, tx, ty);
+
+        if (result.positions.length === 0) return;
+
+        const state = createDragState(info, false);
+        for (const pos of result.positions) {
+            paintTile(state, pos.x, pos.y, fillTileId);
+        }
+        commitChanges(state, gctx);
+    }
+
+    function doPicker(gctx: GizmoContext, tx: number, ty: number): void {
+        const info = getLayerInfo(gctx);
+        if (!info) return;
+
+        const tileId = readTileFromInfo(info, tx, ty);
+        if (tileId > 0) {
+            gctx.store.tileBrushStamp = { width: 1, height: 1, tiles: [tileId] };
+            gctx.store.tileBrushTool = 'paint';
+        }
+    }
+
+    function isErasing(gctx: GizmoContext, rightClickErase: boolean, event?: MouseEvent | null): boolean {
+        return rightClickErase
+            || gctx.store.tileBrushTool === 'eraser'
+            || (event?.shiftKey ?? false);
     }
 
     return {
@@ -163,12 +248,31 @@ export function createTileBrushGizmo(): GizmoDescriptor {
             );
         },
 
+        onKeyDown(key: string, gctx: GizmoContext): boolean {
+            const toolMap: Record<string, 'paint' | 'rect-fill' | 'bucket-fill' | 'eraser' | 'picker'> = {
+                u: 'rect-fill',
+                g: 'bucket-fill',
+                d: 'eraser',
+                i: 'picker',
+            };
+            const tool = toolMap[key.toLowerCase()];
+            if (tool) {
+                gctx.store.tileBrushTool = tool;
+                return true;
+            }
+            return false;
+        },
+
         hitTest(worldX, worldY, gctx) {
             const info = getLayerInfo(gctx);
             if (!info) return { hit: false };
 
             const tile = worldToTile(worldX, worldY,
                 info.originX, info.originY, info.tileWidth, info.tileHeight);
+
+            if (info.infinite) {
+                return { hit: true, data: tile };
+            }
 
             if (tile.tx >= 0 && tile.tx < info.width &&
                 tile.ty >= 0 && tile.ty < info.height) {
@@ -185,14 +289,15 @@ export function createTileBrushGizmo(): GizmoDescriptor {
 
             const { ctx, zoom } = gctx;
             const store = gctx.store;
-            const isErase = store.tileBrushMode === 'erase';
+            const tool = store.tileBrushTool;
+            const stamp = store.tileBrushStamp;
 
-            const screenX = info.originX + hoverTile.tx * info.tileWidth;
-            const screenY = -info.originY + hoverTile.ty * info.tileHeight;
+            const drawEraseCursor = tool === 'eraser' || (dragState?.rightClickErase ?? false);
 
-            ctx.save();
-
-            if (isErase) {
+            if (drawEraseCursor) {
+                const screenX = info.originX + hoverTile.tx * info.tileWidth;
+                const screenY = -info.originY + hoverTile.ty * info.tileHeight;
+                ctx.save();
                 ctx.fillStyle = 'rgba(255, 60, 60, 0.3)';
                 ctx.fillRect(screenX, screenY, info.tileWidth, info.tileHeight);
                 ctx.strokeStyle = 'rgba(255, 60, 60, 0.8)';
@@ -203,18 +308,43 @@ export function createTileBrushGizmo(): GizmoDescriptor {
                 ctx.moveTo(screenX + info.tileWidth, screenY);
                 ctx.lineTo(screenX, screenY + info.tileHeight);
                 ctx.stroke();
-            } else {
-                ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
-                ctx.fillRect(screenX, screenY, info.tileWidth, info.tileHeight);
-                ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
-                ctx.lineWidth = 2 / zoom;
-                ctx.strokeRect(screenX, screenY, info.tileWidth, info.tileHeight);
+                ctx.restore();
+                return;
             }
 
+            if (rectDrag) {
+                const minTx = Math.min(rectDrag.startTx, rectDrag.endTx);
+                const minTy = Math.min(rectDrag.startTy, rectDrag.endTy);
+                const maxTx = Math.max(rectDrag.startTx, rectDrag.endTx);
+                const maxTy = Math.max(rectDrag.startTy, rectDrag.endTy);
+                const sx = info.originX + minTx * info.tileWidth;
+                const sy = -info.originY + minTy * info.tileHeight;
+                const w = (maxTx - minTx + 1) * info.tileWidth;
+                const h = (maxTy - minTy + 1) * info.tileHeight;
+                ctx.save();
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.2)';
+                ctx.fillRect(sx, sy, w, h);
+                ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
+                ctx.lineWidth = 2 / zoom;
+                ctx.strokeRect(sx, sy, w, h);
+                ctx.restore();
+                return;
+            }
+
+            ctx.save();
+            const screenX = info.originX + hoverTile.tx * info.tileWidth;
+            const screenY = -info.originY + hoverTile.ty * info.tileHeight;
+            const sw = stamp.width * info.tileWidth;
+            const sh = stamp.height * info.tileHeight;
+            ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
+            ctx.fillRect(screenX, screenY, sw, sh);
+            ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
+            ctx.lineWidth = 2 / zoom;
+            ctx.strokeRect(screenX, screenY, sw, sh);
             ctx.restore();
         },
 
-        onDragStart(worldX, worldY, _hitData, gctx) {
+        onDragStart(worldX, worldY, _hitData, gctx, event) {
             gctx.setGizmoActive(true);
             const info = getLayerInfo(gctx);
             if (!info) return;
@@ -222,38 +352,72 @@ export function createTileBrushGizmo(): GizmoDescriptor {
             const tile = worldToTile(worldX, worldY,
                 info.originX, info.originY, info.tileWidth, info.tileHeight);
 
-            const isErase = gctx.store.tileBrushMode === 'erase';
-            const tileId = isErase ? 0 : gctx.store.tileBrushSelectedTileId;
+            const tool = gctx.store.tileBrushTool;
+            const rightClick = event?.button === 2;
 
-            dragState = {
-                entityId: info.entityId,
-                mapWidth: info.width,
-                mapHeight: info.height,
-                tileWidth: info.tileWidth,
-                tileHeight: info.tileHeight,
-                originX: info.originX,
-                originY: info.originY,
-                tiles: info.tiles,
-                changes: new Map(),
-            };
+            if (!rightClick && tool === 'bucket-fill') {
+                doBucketFill(gctx, tile.tx, tile.ty);
+                gctx.setGizmoActive(false);
+                gctx.requestRender();
+                return;
+            }
 
-            paintTile(dragState, tile.tx, tile.ty, tileId);
+            if (!rightClick && tool === 'picker') {
+                doPicker(gctx, tile.tx, tile.ty);
+                gctx.setGizmoActive(false);
+                gctx.requestRender();
+                return;
+            }
+
+            if (!rightClick && tool === 'rect-fill') {
+                rectDrag = {
+                    entityId: info.entityId,
+                    startTx: tile.tx,
+                    startTy: tile.ty,
+                    endTx: tile.tx,
+                    endTy: tile.ty,
+                };
+                gctx.requestRender();
+                return;
+            }
+
+            const erase = isErasing(gctx, rightClick);
+            dragState = createDragState(info, rightClick);
+
+            if (erase) {
+                paintTile(dragState, tile.tx, tile.ty, 0);
+            } else {
+                paintStamp(dragState, tile.tx, tile.ty, gctx.store.tileBrushStamp);
+            }
             gctx.requestRender();
         },
 
         onDrag(worldX, worldY, _hitData, gctx, event) {
+            if (rectDrag) {
+                const info = getLayerInfo(gctx);
+                if (!info) return;
+                const tile = worldToTile(worldX, worldY,
+                    info.originX, info.originY, info.tileWidth, info.tileHeight);
+                rectDrag.endTx = tile.tx;
+                rectDrag.endTy = tile.ty;
+                hoverTile = tile;
+                gctx.requestRender();
+                return;
+            }
+
             if (!dragState) return;
 
-            const isShiftErase = event?.shiftKey ?? false;
-            const storeErase = gctx.store.tileBrushMode === 'erase';
-            const isErase = isShiftErase || storeErase;
-            const tileId = isErase ? 0 : gctx.store.tileBrushSelectedTileId;
+            const erase = isErasing(gctx, dragState.rightClickErase, event);
 
             const tile = worldToTile(worldX, worldY,
                 dragState.originX, dragState.originY,
                 dragState.tileWidth, dragState.tileHeight);
 
-            paintTile(dragState, tile.tx, tile.ty, tileId);
+            if (erase) {
+                paintTile(dragState, tile.tx, tile.ty, 0);
+            } else {
+                paintStamp(dragState, tile.tx, tile.ty, gctx.store.tileBrushStamp);
+            }
 
             hoverTile = tile;
             gctx.requestRender();
@@ -261,34 +425,51 @@ export function createTileBrushGizmo(): GizmoDescriptor {
 
         onDragEnd(_worldX, _worldY, _hitData, gctx) {
             gctx.setGizmoActive(false);
+
+            if (rectDrag) {
+                const info = getLayerInfo(gctx);
+                if (info) {
+                    const minTx = Math.min(rectDrag.startTx, rectDrag.endTx);
+                    const minTy = Math.min(rectDrag.startTy, rectDrag.endTy);
+                    const maxTx = Math.max(rectDrag.startTx, rectDrag.endTx);
+                    const maxTy = Math.max(rectDrag.startTy, rectDrag.endTy);
+
+                    const state = createDragState(info, false);
+                    const stamp = gctx.store.tileBrushStamp;
+
+                    for (let ty = minTy; ty <= maxTy; ty++) {
+                        for (let tx = minTx; tx <= maxTx; tx++) {
+                            const sx = (tx - minTx) % stamp.width;
+                            const sy = (ty - minTy) % stamp.height;
+                            const tileId = stamp.tiles[sy * stamp.width + sx] ?? 0;
+                            if (tileId > 0) {
+                                paintTile(state, tx, ty, tileId);
+                            }
+                        }
+                    }
+                    commitChanges(state, gctx);
+                }
+                rectDrag = null;
+                gctx.requestRender();
+                return;
+            }
+
             if (!dragState || dragState.changes.size === 0) {
                 dragState = null;
                 return;
             }
 
-            const changes = Array.from(dragState.changes.values());
-            const entityId = dragState.entityId;
+            commitChanges(dragState, gctx);
             dragState = null;
-
-            const store = gctx.store;
-            const cmd = new TilePaintCommand(
-                store.scene,
-                store.entityMap_,
-                entityId,
-                changes,
-            );
-            store.executeCommand(cmd);
             gctx.requestRender();
         },
 
         onHover(worldX, worldY, hitData, gctx) {
             let newTile: { tx: number; ty: number } | null = null;
-            if (hitData) {
-                const info = getLayerInfo(gctx);
-                if (info) {
-                    newTile = worldToTile(worldX, worldY,
-                        info.originX, info.originY, info.tileWidth, info.tileHeight);
-                }
+            const info = getLayerInfo(gctx);
+            if (info && (hitData || info.infinite)) {
+                newTile = worldToTile(worldX, worldY,
+                    info.originX, info.originY, info.tileWidth, info.tileHeight);
             }
             if (newTile?.tx === hoverTile?.tx && newTile?.ty === hoverTile?.ty) return;
             hoverTile = newTile;

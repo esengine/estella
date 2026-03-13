@@ -33,6 +33,7 @@ export class DockLayoutManager {
     private lastActivePanelId_: string | null = null;
     private detachContext_: DetachContext | null = null;
     private panelClosedUnlisten_: (() => void) | null = null;
+    private pinnedPanels_ = new Set<string>();
 
     constructor(panelManager: PanelManager, store: EditorStore) {
         this.panelManager_ = panelManager;
@@ -190,7 +191,20 @@ export class DockLayoutManager {
         this.addPanelToRegion_(desc, areaId);
     }
 
+    isPanelPinned(panelId: string): boolean {
+        return this.pinnedPanels_.has(panelId);
+    }
+
+    setPanelPinned(panelId: string, pinned: boolean): void {
+        if (pinned) {
+            this.pinnedPanels_.add(panelId);
+        } else {
+            this.pinnedPanels_.delete(panelId);
+        }
+    }
+
     resetLayout(): void {
+        this.pinnedPanels_.clear();
         this.dock_?.resetLayout();
     }
 

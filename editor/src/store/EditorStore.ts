@@ -107,8 +107,10 @@ export class EditorStore {
 
     private autoSaveTimer_: ReturnType<typeof setInterval> | null = null;
 
-    private tileBrushSelectedTileId_ = 1;
-    private tileBrushMode_: 'paint' | 'erase' = 'paint';
+    private tileBrushTool_: 'paint' | 'rect-fill' | 'bucket-fill' | 'eraser' | 'picker' = 'paint';
+    private tileBrushStamp_: { width: number; height: number; tiles: number[] } = { width: 1, height: 1, tiles: [1] };
+    private tileBrushFlipH_ = false;
+    private tileBrushFlipV_ = false;
     private requestedGizmoId_: string | null = null;
 
     private readonly selection_: SelectionService;
@@ -193,20 +195,43 @@ export class EditorStore {
         return this.prefabEdit_.isEditingPrefab;
     }
 
-    get tileBrushSelectedTileId(): number {
-        return this.tileBrushSelectedTileId_;
+    get tileBrushTool(): 'paint' | 'rect-fill' | 'bucket-fill' | 'eraser' | 'picker' {
+        return this.tileBrushTool_;
     }
 
-    set tileBrushSelectedTileId(id: number) {
-        this.tileBrushSelectedTileId_ = id;
+    set tileBrushTool(tool: 'paint' | 'rect-fill' | 'bucket-fill' | 'eraser' | 'picker') {
+        if (this.tileBrushTool_ === tool) return;
+        this.tileBrushTool_ = tool;
+        this.notify();
     }
 
-    get tileBrushMode(): 'paint' | 'erase' {
-        return this.tileBrushMode_;
+    get tileBrushStamp(): Readonly<{ width: number; height: number; tiles: number[] }> {
+        return this.tileBrushStamp_;
     }
 
-    set tileBrushMode(mode: 'paint' | 'erase') {
-        this.tileBrushMode_ = mode;
+    set tileBrushStamp(stamp: { width: number; height: number; tiles: number[] }) {
+        this.tileBrushStamp_ = stamp;
+        this.notify();
+    }
+
+    get tileBrushFlipH(): boolean {
+        return this.tileBrushFlipH_;
+    }
+
+    set tileBrushFlipH(v: boolean) {
+        if (this.tileBrushFlipH_ === v) return;
+        this.tileBrushFlipH_ = v;
+        this.notify();
+    }
+
+    get tileBrushFlipV(): boolean {
+        return this.tileBrushFlipV_;
+    }
+
+    set tileBrushFlipV(v: boolean) {
+        if (this.tileBrushFlipV_ === v) return;
+        this.tileBrushFlipV_ = v;
+        this.notify();
     }
 
     consumeRequestedGizmoId(): string | null {

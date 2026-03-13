@@ -280,6 +280,7 @@ export class Editor {
         this.dockLayout_.initialize(dockContainer);
 
         this.navigationService_.setDockLayout(this.dockLayout_);
+        this.navigationService_.initContextPanels(this.store_);
 
         this.extensionService_.setDockLayout(this.dockLayout_);
 

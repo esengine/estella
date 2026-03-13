@@ -1,9 +1,11 @@
 import type { Entity } from 'esengine';
 import type { SceneData, EntityData } from '../types/SceneTypes';
 import { BaseCommand, CommandRegistry, type ChangeEmitter, type SerializedCommand } from './Command';
+import { CHUNK_SIZE, tileToChunk } from '../gizmos/TileChunkUtils';
 
 export interface TileChange {
-    index: number;
+    x: number;
+    y: number;
     oldTile: number;
     newTile: number;
 }
@@ -71,11 +73,45 @@ export class TilePaintCommand extends BaseCommand {
         const component = entityData.components.find(c => c.type === 'TilemapLayer');
         if (!component) return;
 
-        const tiles = component.data.tiles as number[];
+        const data = component.data as Record<string, unknown>;
+        const infinite = data.infinite as boolean ?? false;
+
+        if (infinite) {
+            this.applyChunkTiles_(data, forward);
+        } else {
+            this.applyFlatTiles_(data, forward);
+        }
+    }
+
+    private applyFlatTiles_(data: Record<string, unknown>, forward: boolean): void {
+        const tiles = data.tiles as number[];
         if (!tiles) return;
+        const width = data.width as number ?? 0;
 
         for (const change of this.changes_) {
-            tiles[change.index] = forward ? change.newTile : change.oldTile;
+            const index = change.y * width + change.x;
+            tiles[index] = forward ? change.newTile : change.oldTile;
+        }
+    }
+
+    private applyChunkTiles_(data: Record<string, unknown>, forward: boolean): void {
+        let chunks = data.chunks as Record<string, number[]>;
+        if (!chunks) {
+            chunks = {};
+            data.chunks = chunks;
+        }
+
+        for (const change of this.changes_) {
+            const { cx, cy, lx, ly } = tileToChunk(change.x, change.y);
+            const key = `${cx},${cy}`;
+
+            let chunk = chunks[key];
+            if (!chunk) {
+                chunk = new Array(CHUNK_SIZE * CHUNK_SIZE).fill(0);
+                chunks[key] = chunk;
+            }
+
+            chunk[ly * CHUNK_SIZE + lx] = forward ? change.newTile : change.oldTile;
         }
     }
 }
