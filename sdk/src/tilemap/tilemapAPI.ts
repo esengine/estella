@@ -40,6 +40,9 @@ interface TilemapModule {
                       flipH: boolean, flipV: boolean, flipD: boolean): void;
     tilemap_rotateTile(entity: number, x: number, y: number, degrees: number): void;
     tilemap_setGridType(entity: number, type: number): void;
+    tilemap_initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void;
+    tilemap_setChunkTiles(entity: number, chunkX: number, chunkY: number,
+                           tilesPtr: number, width: number, height: number): void;
     tilemap_tileToWorld(entity: number, tx: number, ty: number,
                          originX: number, originY: number): number;
     tilemap_worldToTile(entity: number, wx: number, wy: number,
@@ -77,6 +80,15 @@ interface TilemapModule {
     tiled_getLayerTintColor(handle: number, index: number): number;
     tiled_getLayerParallaxX(handle: number, index: number): number;
     tiled_getLayerParallaxY(handle: number, index: number): number;
+    tiled_isMapInfinite(handle: number): boolean;
+    tiled_isLayerInfinite(handle: number, index: number): boolean;
+    tiled_getLayerChunkCount(handle: number, index: number): number;
+    tiled_getLayerChunkX(handle: number, layerIndex: number, chunkIndex: number): number;
+    tiled_getLayerChunkY(handle: number, layerIndex: number, chunkIndex: number): number;
+    tiled_getLayerChunkWidth(handle: number, layerIndex: number, chunkIndex: number): number;
+    tiled_getLayerChunkHeight(handle: number, layerIndex: number, chunkIndex: number): number;
+    tiled_getLayerChunkTiles(handle: number, layerIndex: number, chunkIndex: number,
+                              outPtr: number, maxCount: number): number;
 
     HEAPU8: Uint8Array;
     _malloc(size: number): number;
@@ -210,6 +222,20 @@ export const TilemapAPI = {
 
     rotateTile(entity: number, x: number, y: number, degrees: number): void {
         module_?.tilemap_rotateTile(entity, x, y, degrees);
+    },
+
+    initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void {
+        module_?.tilemap_initInfiniteLayer(entity, tileWidth, tileHeight);
+    },
+
+    setChunkTiles(entity: number, chunkX: number, chunkY: number,
+                  tiles: Uint16Array, width: number, height: number): void {
+        if (!module_) return;
+        const bytes = tiles.byteLength;
+        const ptr = module_._malloc(bytes);
+        new Uint16Array(module_.HEAPU8.buffer, ptr, tiles.length).set(tiles);
+        module_.tilemap_setChunkTiles(entity, chunkX, chunkY, ptr, width, height);
+        module_._free(ptr);
     },
 
     setGridType(entity: number, type: number): void {

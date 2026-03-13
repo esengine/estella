@@ -424,6 +424,82 @@ f32 tiled_getLayerParallaxY(u32 handle, u32 index) {
     return map->layers[index].parallax_y;
 }
 
+void tilemap_initInfiniteLayer(u32 entity, f32 tileWidth, f32 tileHeight) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY) return;
+    s_tilemapSystem.initInfiniteLayer(e, tileWidth, tileHeight);
+}
+
+void tilemap_setChunkTiles(u32 entity, i32 chunkX, i32 chunkY,
+                            uintptr_t tilesPtr, u32 width, u32 height) {
+    auto e = static_cast<Entity>(entity);
+    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    const auto* tiles = reinterpret_cast<const u16*>(tilesPtr);
+    s_tilemapSystem.setChunkTiles(e, chunkX, chunkY, tiles, width, height);
+}
+
+bool tiled_isMapInfinite(u32 handle) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    return map ? map->infinite : false;
+}
+
+bool tiled_isLayerInfinite(u32 handle, u32 index) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || index >= map->layers.size()) return false;
+    return map->layers[index].infinite;
+}
+
+u32 tiled_getLayerChunkCount(u32 handle, u32 index) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || index >= map->layers.size()) return 0;
+    return static_cast<u32>(map->layers[index].chunks.size());
+}
+
+i32 tiled_getLayerChunkX(u32 handle, u32 layerIndex, u32 chunkIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || layerIndex >= map->layers.size()) return 0;
+    const auto& chunks = map->layers[layerIndex].chunks;
+    if (chunkIndex >= chunks.size()) return 0;
+    return chunks[chunkIndex].x;
+}
+
+i32 tiled_getLayerChunkY(u32 handle, u32 layerIndex, u32 chunkIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || layerIndex >= map->layers.size()) return 0;
+    const auto& chunks = map->layers[layerIndex].chunks;
+    if (chunkIndex >= chunks.size()) return 0;
+    return chunks[chunkIndex].y;
+}
+
+u32 tiled_getLayerChunkWidth(u32 handle, u32 layerIndex, u32 chunkIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || layerIndex >= map->layers.size()) return 0;
+    const auto& chunks = map->layers[layerIndex].chunks;
+    if (chunkIndex >= chunks.size()) return 0;
+    return chunks[chunkIndex].width;
+}
+
+u32 tiled_getLayerChunkHeight(u32 handle, u32 layerIndex, u32 chunkIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || layerIndex >= map->layers.size()) return 0;
+    const auto& chunks = map->layers[layerIndex].chunks;
+    if (chunkIndex >= chunks.size()) return 0;
+    return chunks[chunkIndex].height;
+}
+
+u32 tiled_getLayerChunkTiles(u32 handle, u32 layerIndex, u32 chunkIndex,
+                              uintptr_t outPtr, u32 maxCount) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || layerIndex >= map->layers.size()) return 0;
+    const auto& chunks = map->layers[layerIndex].chunks;
+    if (chunkIndex >= chunks.size()) return 0;
+    const auto& tiles = chunks[chunkIndex].tiles;
+    u32 count = std::min(static_cast<u32>(tiles.size()), maxCount);
+    auto* out = reinterpret_cast<u16*>(outPtr);
+    std::memcpy(out, tiles.data(), count * sizeof(u16));
+    return count;
+}
+
 void tilemap_setTileAnimation(u32 entity, u32 tileId,
                                uintptr_t framesPtr, u32 frameCount) {
     auto e = static_cast<Entity>(entity);
@@ -556,6 +632,17 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tiled_getLayerTintColor", &esengine::tiled_getLayerTintColor);
     emscripten::function("tiled_getLayerParallaxX", &esengine::tiled_getLayerParallaxX);
     emscripten::function("tiled_getLayerParallaxY", &esengine::tiled_getLayerParallaxY);
+
+    emscripten::function("tilemap_initInfiniteLayer", &esengine::tilemap_initInfiniteLayer);
+    emscripten::function("tilemap_setChunkTiles", &esengine::tilemap_setChunkTiles);
+    emscripten::function("tiled_isMapInfinite", &esengine::tiled_isMapInfinite);
+    emscripten::function("tiled_isLayerInfinite", &esengine::tiled_isLayerInfinite);
+    emscripten::function("tiled_getLayerChunkCount", &esengine::tiled_getLayerChunkCount);
+    emscripten::function("tiled_getLayerChunkX", &esengine::tiled_getLayerChunkX);
+    emscripten::function("tiled_getLayerChunkY", &esengine::tiled_getLayerChunkY);
+    emscripten::function("tiled_getLayerChunkWidth", &esengine::tiled_getLayerChunkWidth);
+    emscripten::function("tiled_getLayerChunkHeight", &esengine::tiled_getLayerChunkHeight);
+    emscripten::function("tiled_getLayerChunkTiles", &esengine::tiled_getLayerChunkTiles);
 
     emscripten::function("tilemap_setTileAnimation", &esengine::tilemap_setTileAnimation);
     emscripten::function("tilemap_advanceAnimations", &esengine::tilemap_advanceAnimations);

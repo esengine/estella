@@ -2349,6 +2349,8 @@ declare const TilemapAPI: {
     getTileProperty(entity: number, x: number, y: number, key: string): string;
     flipTile(entity: number, x: number, y: number, flipH: boolean, flipV: boolean, flipD: boolean): void;
     rotateTile(entity: number, x: number, y: number, degrees: number): void;
+    initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void;
+    setChunkTiles(entity: number, chunkX: number, chunkY: number, tiles: Uint16Array, width: number, height: number): void;
     setGridType(entity: number, type: number): void;
     tileToWorld(entity: number, tx: number, ty: number, originX: number, originY: number): {
         x: number;
@@ -2371,12 +2373,21 @@ declare class TilemapPlugin implements Plugin {
 }
 declare const tilemapPlugin: TilemapPlugin;
 
+interface TiledChunkData {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    tiles: Uint16Array;
+}
 interface TiledLayerData {
     name: string;
     width: number;
     height: number;
     visible: boolean;
     tiles: Uint16Array;
+    chunks: TiledChunkData[];
+    infinite: boolean;
     opacity: number;
     tintColor: {
         r: number;
@@ -2440,11 +2451,20 @@ interface TextureDimensions {
     width: number;
     height: number;
 }
+interface LoadedTilemapChunk {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    tiles: Uint16Array;
+}
 interface LoadedTilemapLayer {
     name: string;
     width: number;
     height: number;
     tiles: Uint16Array;
+    chunks: LoadedTilemapChunk[];
+    infinite: boolean;
 }
 interface LoadedTilemapTileset {
     textureHandle: number;

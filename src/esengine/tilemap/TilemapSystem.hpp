@@ -47,10 +47,30 @@ TileRange computeVisibleRange(f32 camLeft, f32 camBottom, f32 camRight, f32 camT
                               f32 tileWidth, f32 tileHeight,
                               u32 mapWidth, u32 mapHeight);
 
+struct ChunkCoord {
+    i32 x, y;
+    bool operator==(const ChunkCoord& o) const { return x == o.x && y == o.y; }
+};
+
+struct ChunkCoordHash {
+    size_t operator()(const ChunkCoord& c) const {
+        return std::hash<u64>()(static_cast<u64>(static_cast<u32>(c.x))
+             | (static_cast<u64>(static_cast<u32>(c.y)) << 32));
+    }
+};
+
+struct ChunkData {
+    u16 tiles[CHUNK_SIZE * CHUNK_SIZE]{};
+    mutable bool dirty = true;
+};
+
 class TilemapSystem {
 public:
     void initLayer(Entity entity, u32 width, u32 height,
                    f32 tileWidth, f32 tileHeight);
+    void initInfiniteLayer(Entity entity, f32 tileWidth, f32 tileHeight);
+    void setChunkTiles(Entity entity, i32 chunkX, i32 chunkY,
+                       const u16* tiles, u32 width, u32 height);
     void destroyLayer(Entity entity);
     bool hasLayer(Entity entity) const;
 
@@ -94,6 +114,9 @@ public:
         Entity origin_entity = INVALID_ENTITY;
         GridType grid_type = GridType::Orthogonal;
 
+        std::unordered_map<ChunkCoord, ChunkData, ChunkCoordHash> chunks;
+        bool infinite = false;
+
         std::unordered_map<u16, TileAnimation> tile_animations;
         f32 elapsed_ms = 0;
 
@@ -116,10 +139,14 @@ public:
     void worldToTile(Entity entity, f32 wx, f32 wy,
                      f32 originX, f32 originY, i32& outTx, i32& outTy) const;
 
+    void markAllChunksDirty(Entity entity);
+
     using LayerMap = std::unordered_map<Entity, LayerData>;
     const LayerMap& allLayers() const { return layers_; }
 
 private:
+    void buildChunksFromTiles(LayerData& layer);
+    void markChunkDirtyAt(LayerData& layer, i32 tileX, i32 tileY);
     LayerMap layers_;
 };
 

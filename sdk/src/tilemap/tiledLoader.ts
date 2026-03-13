@@ -6,12 +6,22 @@ import { Transform } from '../component';
 import { RigidBody, BoxCollider, CircleCollider, BodyType } from '../physics/PhysicsComponents';
 import { mergeCollisionTiles } from './collisionMerge';
 
+export interface TiledChunkData {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    tiles: Uint16Array;
+}
+
 export interface TiledLayerData {
     name: string;
     width: number;
     height: number;
     visible: boolean;
     tiles: Uint16Array;
+    chunks: TiledChunkData[];
+    infinite: boolean;
     opacity: number;
     tintColor: { r: number; g: number; b: number; a: number };
     parallaxX: number;
@@ -167,6 +177,8 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                 height: lh,
                 visible,
                 tiles,
+                chunks: [],
+                infinite: false,
                 opacity,
                 tintColor,
                 parallaxX,
@@ -355,13 +367,34 @@ export async function parseTiledMap(
         for (let i = 0; i < layerCount; i++) {
             const w = api.tiled_getLayerWidth(handle, i);
             const h = api.tiled_getLayerHeight(handle, i);
-            const tileCount = w * h;
-            const tileBytes = tileCount * 2;
-            const tilePtr = api._malloc(tileBytes);
-            api.tiled_getLayerTiles(handle, i, tilePtr, tileCount);
-            const tiles = new Uint16Array(tileCount);
-            tiles.set(new Uint16Array(api.HEAPU8.buffer, tilePtr, tileCount));
-            api._free(tilePtr);
+            const layerInfinite = api.tiled_isLayerInfinite(handle, i);
+
+            let tiles = new Uint16Array(0);
+            const chunks: TiledChunkData[] = [];
+
+            if (layerInfinite) {
+                const chunkCount = api.tiled_getLayerChunkCount(handle, i);
+                for (let c = 0; c < chunkCount; c++) {
+                    const cx = api.tiled_getLayerChunkX(handle, i, c);
+                    const cy = api.tiled_getLayerChunkY(handle, i, c);
+                    const cw = api.tiled_getLayerChunkWidth(handle, i, c);
+                    const ch = api.tiled_getLayerChunkHeight(handle, i, c);
+                    const count = cw * ch;
+                    const ptr = api._malloc(count * 2);
+                    api.tiled_getLayerChunkTiles(handle, i, c, ptr, count);
+                    const chunkTiles = new Uint16Array(count);
+                    chunkTiles.set(new Uint16Array(api.HEAPU8.buffer, ptr, count));
+                    api._free(ptr);
+                    chunks.push({ x: cx, y: cy, width: cw, height: ch, tiles: chunkTiles });
+                }
+            } else {
+                const tileCount = w * h;
+                const tilePtr = api._malloc(tileCount * 2);
+                api.tiled_getLayerTiles(handle, i, tilePtr, tileCount);
+                tiles = new Uint16Array(tileCount);
+                tiles.set(new Uint16Array(api.HEAPU8.buffer, tilePtr, tileCount));
+                api._free(tilePtr);
+            }
 
             result.layers.push({
                 name: api.tiled_getLayerName(handle, i),
@@ -369,6 +402,8 @@ export async function parseTiledMap(
                 height: h,
                 visible: api.tiled_getLayerVisible(handle, i),
                 tiles,
+                chunks,
+                infinite: layerInfinite,
                 opacity: api.tiled_getLayerOpacity(handle, i),
                 tintColor: api.tiled_getLayerTintColor
                     ? parseTintColorU32(api.tiled_getLayerTintColor(handle, i))

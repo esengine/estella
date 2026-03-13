@@ -3,11 +3,21 @@ export interface TextureDimensions {
     height: number;
 }
 
+export interface LoadedTilemapChunk {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    tiles: Uint16Array;
+}
+
 export interface LoadedTilemapLayer {
     name: string;
     width: number;
     height: number;
     tiles: Uint16Array;
+    chunks: LoadedTilemapChunk[];
+    infinite: boolean;
 }
 
 export interface LoadedTilemapTileset {

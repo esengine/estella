@@ -25,6 +25,7 @@ u32 TiledMapLoader::loadFromMemory(const char* data, u32 size) {
     pending.result.height = static_cast<u32>(map->height);
     pending.result.tile_width = static_cast<u32>(map->tilewidth);
     pending.result.tile_height = static_cast<u32>(map->tileheight);
+    pending.result.infinite = map->infinite != 0;
 
     for (auto* ts = map->tilesets; ts; ts = ts->next) {
         TiledTilesetInfo info;
@@ -175,10 +176,6 @@ void TiledMapLoader::collectLayers(cute_tiled_map_t* map, TiledMapData& result,
                 continue;
             }
 
-            if (!layer->data || layer->data_count <= 0) {
-                continue;
-            }
-
             TiledLayerInfo info;
             info.name = layer->name.ptr ? layer->name.ptr : "";
             info.width = static_cast<u32>(layer->width);
@@ -189,10 +186,29 @@ void TiledMapLoader::collectLayers(cute_tiled_map_t* map, TiledMapData& result,
             info.parallax_x = layer->parallaxx;
             info.parallax_y = layer->parallaxy;
 
-            auto tileCount = static_cast<u32>(layer->data_count);
-            info.tiles.resize(tileCount);
-            for (u32 i = 0; i < tileCount; ++i) {
-                info.tiles[i] = convertGid(layer->data[i], tilesets);
+            if (layer->chunks) {
+                info.infinite = true;
+                for (auto* chunk = layer->chunks; chunk; chunk = chunk->next) {
+                    TiledChunkInfo ci;
+                    ci.x = chunk->x;
+                    ci.y = chunk->y;
+                    ci.width = static_cast<u32>(chunk->width);
+                    ci.height = static_cast<u32>(chunk->height);
+                    auto count = static_cast<u32>(chunk->data_count);
+                    ci.tiles.resize(count);
+                    for (u32 i = 0; i < count; ++i) {
+                        ci.tiles[i] = convertGid(chunk->data[i], tilesets);
+                    }
+                    info.chunks.push_back(std::move(ci));
+                }
+            } else if (layer->data && layer->data_count > 0) {
+                auto tileCount = static_cast<u32>(layer->data_count);
+                info.tiles.resize(tileCount);
+                for (u32 i = 0; i < tileCount; ++i) {
+                    info.tiles[i] = convertGid(layer->data[i], tilesets);
+                }
+            } else {
+                continue;
             }
 
             result.layers.push_back(std::move(info));

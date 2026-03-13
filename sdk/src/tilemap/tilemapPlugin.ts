@@ -145,14 +145,26 @@ export class TilemapPlugin implements Plugin {
                         for (let i = 0; i < cached.layers.length; i++) {
                             const key = SYNTHETIC_KEY_BASE + entity * MAX_LAYERS_PER_ENTITY + i;
                             const layer = cached.layers[i];
-                            TilemapAPI.initLayer(
-                                key, layer.width, layer.height,
-                                cached.tileWidth, cached.tileHeight,
-                            );
-                            TilemapAPI.setOriginEntity(key, entity);
-                            if (layer.tiles.length > 0) {
-                                TilemapAPI.setTiles(key, layer.tiles);
+                            if (layer.infinite) {
+                                TilemapAPI.initInfiniteLayer(
+                                    key, cached.tileWidth, cached.tileHeight,
+                                );
+                                for (const chunk of layer.chunks) {
+                                    TilemapAPI.setChunkTiles(
+                                        key, chunk.x, chunk.y,
+                                        chunk.tiles, chunk.width, chunk.height,
+                                    );
+                                }
+                            } else {
+                                TilemapAPI.initLayer(
+                                    key, layer.width, layer.height,
+                                    cached.tileWidth, cached.tileHeight,
+                                );
+                                if (layer.tiles.length > 0) {
+                                    TilemapAPI.setTiles(key, layer.tiles);
+                                }
                             }
+                            TilemapAPI.setOriginEntity(key, entity);
                             if (gridType !== 0) {
                                 TilemapAPI.setGridType(key, gridType);
                             }

@@ -3,6 +3,9 @@
 #include "../RenderTypePlugin.hpp"
 #include "../BatchVertex.hpp"
 
+#include "../../tilemap/TilemapSystem.hpp"
+
+#include <unordered_map>
 #include <vector>
 
 namespace esengine {
@@ -26,8 +29,23 @@ public:
     ) override;
 
 private:
+    struct ChunkCache {
+        std::vector<BatchVertex> vertices;
+        std::vector<u16> indices;
+        bool has_animated_tiles = false;
+    };
+
+    using ChunkMap = std::unordered_map<tilemap::ChunkCoord, ChunkCache, tilemap::ChunkCoordHash>;
+    using LayerChunkMap = std::unordered_map<Entity, ChunkMap>;
+
+    void rebuildChunk(const tilemap::TilemapSystem::LayerData& layer,
+                      const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
+                      f32 originX, f32 originY, u32 packedColor,
+                      Entity entity, ChunkCache& cache);
+
     tilemap::TilemapSystem* tilemap_system_ = nullptr;
     u32 batch_shader_id_ = 0;
+    LayerChunkMap layer_caches_;
 
     std::vector<BatchVertex> vertices_;
     std::vector<u16> indices_;

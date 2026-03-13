@@ -501,6 +501,8 @@ async function loadTilemaps(
                             width: l.width,
                             height: l.height,
                             tiles: l.tiles,
+                            chunks: l.chunks ?? [],
+                            infinite: l.infinite ?? false,
                         })),
                         tilesets,
                     });

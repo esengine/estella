@@ -4,7 +4,6 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../RenderFrame.hpp"
 
-#include <glm/gtc/matrix_inverse.hpp>
 #include <cmath>
 
 namespace esengine {
@@ -13,6 +12,82 @@ static constexpr u16 QUAD_IDX[6] = { 0, 1, 2, 2, 3, 0 };
 
 void TilemapRenderPlugin::init(RenderFrameContext& ctx) {
     batch_shader_id_ = ctx.batch_shader_id;
+}
+
+void TilemapRenderPlugin::rebuildChunk(
+    const tilemap::TilemapSystem::LayerData& layer,
+    const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
+    f32 originX, f32 originY, u32 packedColor,
+    Entity entity, ChunkCache& cache
+) {
+    cache.vertices.clear();
+    cache.indices.clear();
+    cache.has_animated_tiles = false;
+
+    i32 baseX = coord.x * static_cast<i32>(tilemap::CHUNK_SIZE);
+    i32 baseY = coord.y * static_cast<i32>(tilemap::CHUNK_SIZE);
+
+    bool hasAnimations = !layer.tile_animations.empty();
+    f32 hw = layer.tile_width * 0.5f;
+    f32 hh = layer.tile_height * 0.5f;
+
+    for (u32 ly = 0; ly < tilemap::CHUNK_SIZE; ++ly) {
+        i32 ty = baseY + static_cast<i32>(ly);
+        if (!layer.infinite && static_cast<u32>(ty) >= layer.height) break;
+
+        for (u32 lx = 0; lx < tilemap::CHUNK_SIZE; ++lx) {
+            i32 tx = baseX + static_cast<i32>(lx);
+            if (!layer.infinite && static_cast<u32>(tx) >= layer.width) break;
+
+            u16 rawTile = chunk.tiles[ly * tilemap::CHUNK_SIZE + lx];
+            u16 tileId = rawTile & tilemap::TILE_ID_MASK;
+            if (tileId == tilemap::EMPTY_TILE) continue;
+
+            if (hasAnimations &&
+                layer.tile_animations.find(tileId) != layer.tile_animations.end()) {
+                cache.has_animated_tiles = true;
+                tileId = tilemap_system_->resolveAnimatedTile(entity, tileId);
+            }
+
+            bool flipH = (rawTile & tilemap::TILE_FLIP_H) != 0;
+            bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
+
+            u32 tileIndex = tileId - 1;
+            u32 tileCol = tileIndex % layer.tileset_columns;
+            u32 tileRow = tileIndex / layer.tileset_columns;
+
+            f32 worldX, worldY;
+            if (layer.grid_type == tilemap::GridType::Isometric) {
+                worldX = originX + static_cast<f32>(tx - ty) * hw;
+                worldY = originY - static_cast<f32>(tx + ty) * hh;
+            } else if (layer.grid_type == tilemap::GridType::StaggeredIsometric) {
+                f32 offsetX = (ty & 1) ? hw : 0.0f;
+                worldX = originX + static_cast<f32>(tx) * layer.tile_width + offsetX + hw;
+                worldY = originY - static_cast<f32>(ty) * hh - hh;
+            } else {
+                worldX = originX + static_cast<f32>(tx) * layer.tile_width + hw;
+                worldY = originY - static_cast<f32>(ty) * layer.tile_height - hh;
+            }
+
+            f32 u0 = static_cast<f32>(tileCol) * layer.uv_tile_width;
+            f32 v0 = static_cast<f32>(tileRow) * layer.uv_tile_height;
+            f32 su = layer.uv_tile_width;
+            f32 sv = layer.uv_tile_height;
+
+            if (flipH) { u0 += layer.uv_tile_width; su = -su; }
+            if (flipV) { v0 += layer.uv_tile_height; sv = -sv; }
+
+            u16 baseVertex = static_cast<u16>(cache.vertices.size());
+            cache.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {u0, v0} });
+            cache.vertices.push_back({ {worldX + hw, worldY - hh}, packedColor, {u0 + su, v0} });
+            cache.vertices.push_back({ {worldX + hw, worldY + hh}, packedColor, {u0 + su, v0 + sv} });
+            cache.vertices.push_back({ {worldX - hw, worldY + hh}, packedColor, {u0, v0 + sv} });
+
+            for (u32 i = 0; i < 6; ++i) {
+                cache.indices.push_back(baseVertex + QUAD_IDX[i]);
+            }
+        }
+    }
 }
 
 void TilemapRenderPlugin::collect(
@@ -63,72 +138,53 @@ void TilemapRenderPlugin::collect(
         f32 adjOriginX = originX + parallaxOffsetX;
         f32 adjOriginY = originY + parallaxOffsetY;
 
-        auto range = tilemap::computeVisibleRange(
-            camLeft, -camTop, camRight, -camBottom,
-            adjOriginX, -adjOriginY,
-            layer.tile_width, layer.tile_height,
-            layer.width, layer.height);
-        if (range.empty()) continue;
+        i32 chunkSize = static_cast<i32>(tilemap::CHUNK_SIZE);
+        f32 chunkWorldW = static_cast<f32>(chunkSize) * layer.tile_width;
+        f32 chunkWorldH = static_cast<f32>(chunkSize) * layer.tile_height;
+
+        i32 minCX = static_cast<i32>(std::floor((camLeft - adjOriginX) / chunkWorldW));
+        i32 minCY = static_cast<i32>(std::floor((adjOriginY - camTop) / chunkWorldH));
+        i32 maxCX = static_cast<i32>(std::ceil((camRight - adjOriginX) / chunkWorldW));
+        i32 maxCY = static_cast<i32>(std::ceil((adjOriginY - camBottom) / chunkWorldH));
+
+        if (!layer.infinite) {
+            i32 chunksX = static_cast<i32>((layer.width + tilemap::CHUNK_SIZE - 1) / tilemap::CHUNK_SIZE);
+            i32 chunksY = static_cast<i32>((layer.height + tilemap::CHUNK_SIZE - 1) / tilemap::CHUNK_SIZE);
+            minCX = std::max(minCX, 0);
+            minCY = std::max(minCY, 0);
+            maxCX = std::min(maxCX, chunksX);
+            maxCY = std::min(maxCY, chunksY);
+        }
+
+        if (minCX >= maxCX || minCY >= maxCY) continue;
+
+        auto& chunkCaches = layer_caches_[entity];
 
         vertices_.clear();
         indices_.clear();
 
-        for (i32 ty = range.min_y; ty < range.max_y; ++ty) {
-            for (i32 tx = range.min_x; tx < range.max_x; ++tx) {
-                u16 rawTile = layer.tiles[
-                    static_cast<usize>(ty) * layer.width + static_cast<usize>(tx)];
+        for (i32 cy = minCY; cy < maxCY; ++cy) {
+            for (i32 cx = minCX; cx < maxCX; ++cx) {
+                tilemap::ChunkCoord coord{cx, cy};
+                auto chunkIt = layer.chunks.find(coord);
+                if (chunkIt == layer.chunks.end()) continue;
 
-                u16 tileId = rawTile & tilemap::TILE_ID_MASK;
-                if (tileId == tilemap::EMPTY_TILE) continue;
+                const auto& chunkData = chunkIt->second;
+                auto& cache = chunkCaches[coord];
 
-                if (!layer.tile_animations.empty()) {
-                    u16 resolved = tilemap_system_->resolveAnimatedTile(entity, tileId);
-                    if (resolved != tileId) tileId = resolved;
+                if (chunkData.dirty || cache.has_animated_tiles) {
+                    rebuildChunk(layer, chunkData, coord,
+                                adjOriginX, adjOriginY, packedColor,
+                                entity, cache);
+                    chunkData.dirty = false;
                 }
 
-                bool flipH = (rawTile & tilemap::TILE_FLIP_H) != 0;
-                bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
-
-                u32 tileIndex = tileId - 1;
-                u32 tileCol = tileIndex % layer.tileset_columns;
-                u32 tileRow = tileIndex / layer.tileset_columns;
-
-                f32 worldX, worldY;
-                if (layer.grid_type == tilemap::GridType::Isometric) {
-                    worldX = adjOriginX + static_cast<f32>(tx - ty) * layer.tile_width * 0.5f;
-                    worldY = adjOriginY - static_cast<f32>(tx + ty) * layer.tile_height * 0.5f;
-                } else if (layer.grid_type == tilemap::GridType::StaggeredIsometric) {
-                    f32 offsetX = (ty & 1) ? layer.tile_width * 0.5f : 0.0f;
-                    worldX = adjOriginX + static_cast<f32>(tx) * layer.tile_width + offsetX
-                             + layer.tile_width * 0.5f;
-                    worldY = adjOriginY - static_cast<f32>(ty) * layer.tile_height * 0.5f
-                             - layer.tile_height * 0.5f;
-                } else {
-                    worldX = adjOriginX + static_cast<f32>(tx) * layer.tile_width
-                             + layer.tile_width * 0.5f;
-                    worldY = adjOriginY - static_cast<f32>(ty) * layer.tile_height
-                             - layer.tile_height * 0.5f;
-                }
-
-                f32 u0 = static_cast<f32>(tileCol) * layer.uv_tile_width;
-                f32 v0 = static_cast<f32>(tileRow) * layer.uv_tile_height;
-                f32 su = layer.uv_tile_width;
-                f32 sv = layer.uv_tile_height;
-
-                if (flipH) { u0 += layer.uv_tile_width; su = -su; }
-                if (flipV) { v0 += layer.uv_tile_height; sv = -sv; }
-
-                f32 hw = layer.tile_width * 0.5f;
-                f32 hh = layer.tile_height * 0.5f;
+                if (cache.indices.empty()) continue;
 
                 u16 baseVertex = static_cast<u16>(vertices_.size());
-                vertices_.push_back({ {worldX - hw, worldY - hh}, packedColor, {u0, v0} });
-                vertices_.push_back({ {worldX + hw, worldY - hh}, packedColor, {u0 + su, v0} });
-                vertices_.push_back({ {worldX + hw, worldY + hh}, packedColor, {u0 + su, v0 + sv} });
-                vertices_.push_back({ {worldX - hw, worldY + hh}, packedColor, {u0, v0 + sv} });
-
-                for (u32 i = 0; i < 6; ++i) {
-                    indices_.push_back(baseVertex + QUAD_IDX[i]);
+                vertices_.insert(vertices_.end(), cache.vertices.begin(), cache.vertices.end());
+                for (u16 idx : cache.indices) {
+                    indices_.push_back(baseVertex + idx);
                 }
             }
         }
@@ -163,6 +219,14 @@ void TilemapRenderPlugin::collect(
         clips.applyTo(entity, cmd);
 
         draw_list.push(cmd);
+    }
+
+    for (auto it = layer_caches_.begin(); it != layer_caches_.end(); ) {
+        if (layers.find(it->first) == layers.end()) {
+            it = layer_caches_.erase(it);
+        } else {
+            ++it;
+        }
     }
 }
 

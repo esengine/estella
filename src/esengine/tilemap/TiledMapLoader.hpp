@@ -12,12 +12,22 @@ struct cute_tiled_tileset_t;
 namespace esengine {
 namespace tilemap {
 
+struct TiledChunkInfo {
+    i32 x;
+    i32 y;
+    u32 width;
+    u32 height;
+    std::vector<u16> tiles;
+};
+
 struct TiledLayerInfo {
     std::string name;
     u32 width;
     u32 height;
     bool visible;
     std::vector<u16> tiles;
+    std::vector<TiledChunkInfo> chunks;
+    bool infinite = false;
     f32 opacity = 1.0f;
     u32 tint_color = 0;
     f32 parallax_x = 1.0f;
@@ -56,6 +66,7 @@ struct TiledMapData {
     u32 height;
     u32 tile_width;
     u32 tile_height;
+    bool infinite = false;
     std::vector<TiledLayerInfo> layers;
     std::vector<TiledTilesetInfo> tilesets;
     std::vector<TiledObjectGroupInfo> object_groups;
