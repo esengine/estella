@@ -19,6 +19,8 @@ export {
     type CollisionEnterEvent,
     type SensorEvent,
     type RaycastHit,
+    type ShapeCastHit,
+    type MassData,
 } from './PhysicsPlugin';
 
 export {
