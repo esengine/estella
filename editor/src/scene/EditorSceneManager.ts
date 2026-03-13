@@ -40,6 +40,7 @@ import {
     registerTilemapSource,
     registerTimelineAsset,
     parseTimelineAsset,
+    SpineAnimation,
 } from 'esengine';
 import { SpineCpp, SpineManager } from 'esengine/spine';
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
@@ -444,6 +445,14 @@ export class EditorSceneManager {
             if (bt.enabled !== enabled) {
                 bt.enabled = enabled;
                 this.world_.insert(entity, BitmapText, bt);
+            }
+        }
+        if (this.world_.has(entity, SpineAnimation)) {
+            const sa = this.world_.get(entity, SpineAnimation);
+            if (sa.enabled !== enabled) {
+                sa.enabled = enabled;
+                this.world_.insert(entity, SpineAnimation, sa);
+                this.spineManager_?.setEnabled(entity, enabled);
             }
         }
     }
