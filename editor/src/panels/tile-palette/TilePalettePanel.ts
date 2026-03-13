@@ -150,6 +150,13 @@ export class TilePalettePanel implements PanelInstance {
         this.layerSelect_.addEventListener('change', onChange);
         this.disposables_.add(() => this.layerSelect_?.removeEventListener('change', onChange));
 
+        const onDblClick = (e: Event) => {
+            e.preventDefault();
+            this.renameLayer_();
+        };
+        this.layerSelect_.addEventListener('dblclick', onDblClick);
+        this.disposables_.add(() => this.layerSelect_?.removeEventListener('dblclick', onDblClick));
+
         const addBtn = this.container_.querySelector('.es-tile-layer-add');
         const delBtn = this.container_.querySelector('.es-tile-layer-del');
         const upBtn = this.container_.querySelector('.es-tile-layer-up');
@@ -272,6 +279,20 @@ export class TilePalettePanel implements PanelInstance {
 
         this.store_.updatePropertyDirect(siblings[idx].id, 'TilemapLayer', 'layer', layerB);
         this.store_.updatePropertyDirect(siblings[swapIdx].id, 'TilemapLayer', 'layer', layerA);
+    }
+
+    private renameLayer_(): void {
+        const layerId = this.getSelectedLayerId_();
+        if (layerId < 0) return;
+
+        const entity = this.store_.getEntityData(layerId);
+        if (!entity) return;
+
+        const newName = prompt('Rename layer:', entity.name || '');
+        if (newName !== null && newName !== entity.name) {
+            this.store_.renameEntity(layerId, newName);
+            this.updateLayerDropdown_();
+        }
     }
 
     private toggleLayerVisibility_(): void {

@@ -450,8 +450,26 @@ export class SceneViewPanel {
         const gizmoId = this.store_.consumeRequestedGizmoId();
         if (gizmoId) {
             this.toolbar_.setMode(gizmoId);
+        } else {
+            this.autoSwitchGizmo_();
         }
         this.requestRender();
+    }
+
+    private autoSwitchGizmo_(): void {
+        const entityData = this.store_.getSelectedEntityData();
+        if (!entityData) return;
+
+        const isTilemap = entityData.components.some(
+            c => c.type === 'TilemapLayer' || c.type === 'Tilemap',
+        );
+        const activeId = this.gizmoManager_.getActiveId();
+
+        if (isTilemap && activeId !== 'tile-brush') {
+            this.toolbar_.setMode('tile-brush');
+        } else if (!isTilemap && activeId === 'tile-brush') {
+            this.toolbar_.setMode('move');
+        }
     }
 
 

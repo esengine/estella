@@ -127,8 +127,8 @@ export class TilemapPlugin implements Plugin {
                             layerData.layer, 0,
                             pf.x, pf.y,
                         );
-                        TilemapAPI.setTint(entity, tint.r, tint.g, tint.b, tint.a, layerData.opacity);
-                        TilemapAPI.setVisible(entity, layerData.visible);
+                        TilemapAPI.setTint(entity, tint.r, tint.g, tint.b, tint.a, layerData.opacity ?? 1);
+                        TilemapAPI.setVisible(entity, layerData.visible ?? true);
 
                         layerState.set(entity, {
                             texture: textureHandle,
