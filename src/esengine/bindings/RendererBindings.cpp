@@ -190,6 +190,96 @@ void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value) {
     auto& comp = registry.get<ecs::SpineAnimation>(entity);
     comp.needsReload = value;
 }
+
+i32 spine_native_getEventCount() {
+    if (!g_spineSystem) return 0;
+    return g_spineSystem->getEventCount();
+}
+
+uintptr_t spine_native_getEventBuffer() {
+    if (!g_spineSystem) return 0;
+    return reinterpret_cast<uintptr_t>(g_spineSystem->getEventBuffer());
+}
+
+emscripten::val spine_native_getEventRecord(i32 index) {
+    if (!g_spineSystem || index < 0 || index >= g_spineSystem->getEventCount()) {
+        return emscripten::val::null();
+    }
+    auto& record = g_spineSystem->getEventRecord(index);
+    auto result = emscripten::val::object();
+    result.set("entity", static_cast<i32>(record.entity));
+    result.set("animationName", record.animationName);
+    result.set("eventName", record.eventName);
+    result.set("stringValue", record.stringValue);
+    return result;
+}
+
+void spine_native_clearEvents() {
+    if (!g_spineSystem) return;
+    g_spineSystem->clearEvents();
+}
+
+emscripten::val spine_native_listConstraints(Entity entity) {
+    auto result = emscripten::val::object();
+    if (!g_spineSystem) return result;
+
+    auto names = g_spineSystem->listConstraints(entity);
+
+    auto ikArr = emscripten::val::array();
+    for (size_t i = 0; i < names.ik.size(); ++i) ikArr.call<void>("push", names.ik[i]);
+    auto tfArr = emscripten::val::array();
+    for (size_t i = 0; i < names.transform.size(); ++i) tfArr.call<void>("push", names.transform[i]);
+    auto pathArr = emscripten::val::array();
+    for (size_t i = 0; i < names.path.size(); ++i) pathArr.call<void>("push", names.path[i]);
+
+    result.set("ik", ikArr);
+    result.set("transform", tfArr);
+    result.set("path", pathArr);
+    return result;
+}
+
+emscripten::val spine_native_getTransformConstraintMix(Entity entity, const std::string& name) {
+    if (!g_spineSystem) return emscripten::val::null();
+    f32 rotate = 0, x = 0, y = 0, scaleX = 0, scaleY = 0, shearY = 0;
+    if (!g_spineSystem->getTransformConstraintMix(entity, name, rotate, x, y, scaleX, scaleY, shearY)) {
+        return emscripten::val::null();
+    }
+    auto result = emscripten::val::object();
+    result.set("mixRotate", rotate);
+    result.set("mixX", x);
+    result.set("mixY", y);
+    result.set("mixScaleX", scaleX);
+    result.set("mixScaleY", scaleY);
+    result.set("mixShearY", shearY);
+    return result;
+}
+
+bool spine_native_setTransformConstraintMix(Entity entity, const std::string& name,
+    f32 rotate, f32 x, f32 y, f32 scaleX, f32 scaleY, f32 shearY) {
+    if (!g_spineSystem) return false;
+    return g_spineSystem->setTransformConstraintMix(entity, name, rotate, x, y, scaleX, scaleY, shearY);
+}
+
+emscripten::val spine_native_getPathConstraintMix(Entity entity, const std::string& name) {
+    if (!g_spineSystem) return emscripten::val::null();
+    f32 position = 0, spacing = 0, rotate = 0, x = 0, y = 0;
+    if (!g_spineSystem->getPathConstraintMix(entity, name, position, spacing, rotate, x, y)) {
+        return emscripten::val::null();
+    }
+    auto result = emscripten::val::object();
+    result.set("position", position);
+    result.set("spacing", spacing);
+    result.set("mixRotate", rotate);
+    result.set("mixX", x);
+    result.set("mixY", y);
+    return result;
+}
+
+bool spine_native_setPathConstraintMix(Entity entity, const std::string& name,
+    f32 position, f32 spacing, f32 rotate, f32 x, f32 y) {
+    if (!g_spineSystem) return false;
+    return g_spineSystem->setPathConstraintMix(entity, name, position, spacing, rotate, x, y);
+}
 #endif
 
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {

@@ -1,12 +1,41 @@
 import type { Plugin } from '../app';
 import type { App } from '../app';
-import { Time } from '../resource';
+import { defineResource, Time } from '../resource';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
+import type { Entity } from '../types';
 import { initSpineCppAPI, SpineCpp } from './SpineCppAPI';
 import { SpineManager } from './SpineManager';
 import type { SpineWasmProvider } from './SpineModuleLoader';
 import { createSpineFactories } from './SpineModuleLoader';
+
+export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'event';
+
+export interface SpineEvent {
+    entity: Entity;
+    type: SpineEventType;
+    track: number;
+    animationName: string;
+    eventName?: string;
+    floatValue?: number;
+    intValue?: number;
+    stringValue?: string;
+}
+
+export interface SpineEventsData {
+    readonly events: readonly SpineEvent[];
+}
+
+export const SpineEvents = defineResource<SpineEventsData>({ events: [] }, 'SpineEvents');
+
+const SPINE_TYPE_MAP: Record<number, SpineEventType | null> = {
+    0: 'start',
+    1: 'interrupt',
+    2: 'end',
+    3: 'complete',
+    4: null,
+    5: 'event',
+};
 
 export class SpinePlugin implements Plugin {
     private spineManager_: SpineManager | null;
@@ -49,6 +78,8 @@ export class SpinePlugin implements Plugin {
             this.spineManager_ = new SpineManager(coreModule, factories);
         }
 
+        app.insertResource(SpineEvents, { events: [] });
+
         const self = this;
 
         const spineUpdateSystem: SystemDef = {
@@ -61,6 +92,7 @@ export class SpinePlugin implements Plugin {
                 const time = app.getResource(Time);
                 SpineCpp.update({ _cpp: cppRegistry }, time.delta);
                 self.spineManager_?.updateAnimations(time.delta);
+                self.collectAndPublishEvents_(app);
             },
         };
 
@@ -74,5 +106,74 @@ export class SpinePlugin implements Plugin {
                 manager.submitMeshes(registry._cpp, fc);
             });
         }
+    }
+
+    private collectAndPublishEvents_(app: App): void {
+        const events: SpineEvent[] = [];
+
+        if (this.spineManager_) {
+            for (const { entity, raw } of this.spineManager_.collectAllEvents()) {
+                const type = SPINE_TYPE_MAP[raw.type];
+                if (type === null || type === undefined) continue;
+                const evt: SpineEvent = {
+                    entity,
+                    type,
+                    track: raw.track,
+                    animationName: raw.animationName,
+                };
+                if (type === 'event') {
+                    evt.eventName = raw.eventName;
+                    evt.floatValue = raw.floatValue;
+                    evt.intValue = raw.intValue;
+                    evt.stringValue = raw.stringValue;
+                }
+                events.push(evt);
+            }
+        }
+
+        this.collectNativeEvents_(events);
+        app.insertResource(SpineEvents, { events });
+    }
+
+    private collectNativeEvents_(events: SpineEvent[]): void {
+        const EVENT_STRIDE = 4;
+        const count = SpineCpp.getEventCount();
+        if (count === 0) return;
+
+        const bufferPtr = SpineCpp.getEventBuffer();
+        const coreModule = this.app_?.wasmModule;
+        if (!coreModule || !bufferPtr) {
+            SpineCpp.clearEvents();
+            return;
+        }
+
+        const f32 = coreModule.HEAPF32;
+        const base = bufferPtr >> 2;
+
+        for (let i = 0; i < count; i++) {
+            const offset = base + i * EVENT_STRIDE;
+            const typeNum = f32[offset];
+            const type = SPINE_TYPE_MAP[typeNum];
+            if (type === null || type === undefined) continue;
+
+            const record = SpineCpp.getEventRecord(i);
+            if (!record) continue;
+
+            const evt: SpineEvent = {
+                entity: record.entity as Entity,
+                type,
+                track: f32[offset + 1],
+                animationName: record.animationName,
+            };
+            if (type === 'event') {
+                evt.eventName = record.eventName;
+                evt.floatValue = f32[offset + 2];
+                evt.intValue = f32[offset + 3];
+                evt.stringValue = record.stringValue;
+            }
+            events.push(evt);
+        }
+
+        SpineCpp.clearEvents();
     }
 }

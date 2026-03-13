@@ -544,6 +544,15 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitSpineBatch", &esengine::renderer_submitSpineBatch);
     emscripten::function("renderer_submitSpineBatchByEntity", &esengine::renderer_submitSpineBatchByEntity);
     emscripten::function("spine_setNeedsReload", &esengine::spine_setNeedsReload);
+    emscripten::function("spine_native_getEventCount", &esengine::spine_native_getEventCount);
+    emscripten::function("spine_native_getEventBuffer", &esengine::spine_native_getEventBuffer);
+    emscripten::function("spine_native_getEventRecord", &esengine::spine_native_getEventRecord);
+    emscripten::function("spine_native_clearEvents", &esengine::spine_native_clearEvents);
+    emscripten::function("spine_native_listConstraints", &esengine::spine_native_listConstraints);
+    emscripten::function("spine_native_getTransformConstraintMix", &esengine::spine_native_getTransformConstraintMix);
+    emscripten::function("spine_native_setTransformConstraintMix", &esengine::spine_native_setTransformConstraintMix);
+    emscripten::function("spine_native_getPathConstraintMix", &esengine::spine_native_getPathConstraintMix);
+    emscripten::function("spine_native_setPathConstraintMix", &esengine::spine_native_setPathConstraintMix);
 #endif
 
     emscripten::function("invalidateMaterialCache", &esengine::invalidateMaterialCache);

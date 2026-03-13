@@ -18,7 +18,7 @@ if(ES_ENABLE_SPINE)
     target_include_directories(spine-cpp PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/spine-runtimes-4.2/spine-cpp/spine-cpp/include
     )
-    target_compile_definitions(spine-cpp PUBLIC SPINE_SHORT_NAMES)
+    target_compile_definitions(spine-cpp PUBLIC SPINE_SHORT_NAMES SPINE_USE_STD_FUNCTION)
     if(NOT MSVC)
         target_compile_options(spine-cpp PRIVATE -Wno-unused-parameter -Wno-shadow)
     endif()

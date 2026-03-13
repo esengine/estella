@@ -47,4 +47,40 @@ export const SpineCpp = {
     getSkins(entity: Entity): string[] {
         return module?.spine_getSkins?.(entity) ?? [];
     },
+
+    listConstraints(entity: Entity): { ik: string[]; transform: string[]; path: string[] } | null {
+        return (module as any)?.spine_native_listConstraints?.(entity) ?? null;
+    },
+
+    getTransformConstraintMix(entity: Entity, name: string): { mixRotate: number; mixX: number; mixY: number; mixScaleX: number; mixScaleY: number; mixShearY: number } | null {
+        return (module as any)?.spine_native_getTransformConstraintMix?.(entity, name) ?? null;
+    },
+
+    setTransformConstraintMix(entity: Entity, name: string, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): boolean {
+        return (module as any)?.spine_native_setTransformConstraintMix?.(entity, name, rotate, x, y, scaleX, scaleY, shearY) ?? false;
+    },
+
+    getPathConstraintMix(entity: Entity, name: string): { position: number; spacing: number; mixRotate: number; mixX: number; mixY: number } | null {
+        return (module as any)?.spine_native_getPathConstraintMix?.(entity, name) ?? null;
+    },
+
+    setPathConstraintMix(entity: Entity, name: string, position: number, spacing: number, rotate: number, x: number, y: number): boolean {
+        return (module as any)?.spine_native_setPathConstraintMix?.(entity, name, position, spacing, rotate, x, y) ?? false;
+    },
+
+    getEventCount(): number {
+        return (module as any)?.spine_native_getEventCount?.() ?? 0;
+    },
+
+    getEventRecord(index: number): { entity: number; animationName: string; eventName: string; stringValue: string } | null {
+        return (module as any)?.spine_native_getEventRecord?.(index) ?? null;
+    },
+
+    getEventBuffer(): number {
+        return (module as any)?.spine_native_getEventBuffer?.() ?? 0;
+    },
+
+    clearEvents(): void {
+        (module as any)?.spine_native_clearEvents?.();
+    },
 };

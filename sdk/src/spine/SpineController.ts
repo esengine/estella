@@ -8,6 +8,39 @@ import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
 
+export interface RawSpineEvent {
+    type: number;
+    track: number;
+    floatValue: number;
+    intValue: number;
+    animationName: string;
+    eventName: string;
+    stringValue: string;
+}
+
+export interface ConstraintList {
+    ik: string[];
+    transform: string[];
+    path: string[];
+}
+
+export interface TransformMixData {
+    mixRotate: number;
+    mixX: number;
+    mixY: number;
+    mixScaleX: number;
+    mixScaleY: number;
+    mixShearY: number;
+}
+
+export interface PathMixData {
+    position: number;
+    spacing: number;
+    mixRotate: number;
+    mixX: number;
+    mixY: number;
+}
+
 export type SpineEventCallback = (event: SpineEvent) => void;
 
 export interface SpineEvent {
@@ -281,7 +314,7 @@ export class SpineModuleController {
         this.api_.enableEvents(instanceId);
     }
 
-    collectEvents(instanceId: number): { type: number; track: number; floatValue: number; intValue: number }[] {
+    collectEvents(instanceId: number): RawSpineEvent[] {
         const count = this.api_.getEventCount(instanceId);
         if (count === 0) return [];
 
@@ -290,19 +323,70 @@ export class SpineModuleController {
         const f32 = this.raw_.HEAPF32;
         const base = bufferPtr >> 2;
 
-        const events: { type: number; track: number; floatValue: number; intValue: number }[] = [];
+        const events: RawSpineEvent[] = [];
         for (let i = 0; i < count; i++) {
             const offset = base + i * EVENT_STRIDE;
+            const typeNum = f32[offset];
             events.push({
-                type: f32[offset],
+                type: typeNum,
                 track: f32[offset + 1],
                 floatValue: f32[offset + 2],
                 intValue: f32[offset + 3],
+                animationName: this.api_.getEventAnimationName(i),
+                eventName: typeNum === 5 ? this.api_.getEventName(i) : '',
+                stringValue: typeNum === 5 ? this.api_.getEventStringValue(i) : '',
             });
         }
         this.api_.clearEvents();
         return events;
     }
+
+    // =========================================================================
+    // Constraints
+    // =========================================================================
+
+    listConstraints(instanceId: number): ConstraintList {
+        const json = this.api_.listConstraints(instanceId);
+        try {
+            return JSON.parse(json);
+        } catch {
+            return { ik: [], transform: [], path: [] };
+        }
+    }
+
+    getTransformConstraintMix(instanceId: number, name: string): TransformMixData | null {
+        const json = this.api_.getTransformConstraintMix(instanceId, name);
+        if (!json) return null;
+        try {
+            return JSON.parse(json);
+        } catch {
+            return null;
+        }
+    }
+
+    setTransformConstraintMix(instanceId: number, name: string, mix: TransformMixData): boolean {
+        return !!this.api_.setTransformConstraintMix(instanceId, name,
+            mix.mixRotate, mix.mixX, mix.mixY, mix.mixScaleX, mix.mixScaleY, mix.mixShearY);
+    }
+
+    getPathConstraintMix(instanceId: number, name: string): PathMixData | null {
+        const json = this.api_.getPathConstraintMix(instanceId, name);
+        if (!json) return null;
+        try {
+            return JSON.parse(json);
+        } catch {
+            return null;
+        }
+    }
+
+    setPathConstraintMix(instanceId: number, name: string, mix: PathMixData): boolean {
+        return !!this.api_.setPathConstraintMix(instanceId, name,
+            mix.position, mix.spacing, mix.mixRotate, mix.mixX, mix.mixY);
+    }
+
+    // =========================================================================
+    // Listeners
+    // =========================================================================
 
     on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void {
         if (!this.listeners_.has(entity)) {
