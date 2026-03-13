@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../RenderTypePlugin.hpp"
+#include "../BatchVertex.hpp"
 
 #ifdef ES_ENABLE_SPINE
 
@@ -30,13 +31,6 @@ public:
     ) override;
 
 private:
-    struct BatchVertex {
-        glm::vec2 position;
-        u32 color;
-        glm::vec2 texCoord;
-    };
-
-    static u32 packColor(f32 r, f32 g, f32 b, f32 a);
     u32 getTextureId(void* spineTexture, RenderFrameContext& ctx);
 
     static BlendMode mapBlendMode(::spine::BlendMode mode);

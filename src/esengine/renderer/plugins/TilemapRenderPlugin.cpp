@@ -15,17 +15,6 @@ void TilemapRenderPlugin::init(RenderFrameContext& ctx) {
     batch_shader_id_ = ctx.batch_shader_id;
 }
 
-u32 TilemapRenderPlugin::packColor(const glm::vec4& c) {
-    u8 r = static_cast<u8>(c.r * 255.0f + 0.5f);
-    u8 g = static_cast<u8>(c.g * 255.0f + 0.5f);
-    u8 b = static_cast<u8>(c.b * 255.0f + 0.5f);
-    u8 a = static_cast<u8>(c.a * 255.0f + 0.5f);
-    return (static_cast<u32>(a) << 24) |
-           (static_cast<u32>(b) << 16) |
-           (static_cast<u32>(g) << 8) |
-           static_cast<u32>(r);
-}
-
 void TilemapRenderPlugin::collect(
     ecs::Registry& registry,
     const Frustum& /* frustum */,
@@ -146,9 +135,9 @@ void TilemapRenderPlugin::collect(
 
         if (indices_.empty()) continue;
 
-        u32 vBytes = static_cast<u32>(vertices_.size()) * sizeof(TileVertex);
+        u32 vBytes = static_cast<u32>(vertices_.size()) * sizeof(BatchVertex);
         u32 vOff = buffers.appendVertices(vertices_.data(), vBytes);
-        u32 baseVertex = vOff / sizeof(TileVertex);
+        u32 baseVertex = vOff / sizeof(BatchVertex);
 
         for (auto& idx : indices_) {
             idx = static_cast<u16>(idx + baseVertex);

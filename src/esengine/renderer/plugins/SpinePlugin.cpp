@@ -24,14 +24,6 @@ void SpinePlugin::init(RenderFrameContext& ctx) {
     world_vertices_.reserve(512);
 }
 
-u32 SpinePlugin::packColor(f32 r, f32 g, f32 b, f32 a) {
-    auto clamp = [](f32 v) -> u8 { return static_cast<u8>(std::min(std::max(v, 0.0f), 1.0f) * 255.0f + 0.5f); };
-    return static_cast<u32>(clamp(r))
-         | (static_cast<u32>(clamp(g)) << 8)
-         | (static_cast<u32>(clamp(b)) << 16)
-         | (static_cast<u32>(clamp(a)) << 24);
-}
-
 u32 SpinePlugin::getTextureId(void* spineTexture, RenderFrameContext& ctx) {
     if (!spineTexture) {
         return ctx.white_texture_id;
