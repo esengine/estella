@@ -1,9 +1,11 @@
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { Entity } from '../types';
+import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import type { SpineModuleFactory } from './SpineModuleLoader';
 import { wrapSpineModule } from './SpineModuleLoader';
 import { SpineModuleController } from './SpineController';
 import { ModuleBackend } from './ModuleBackend';
+import { SpineCpp } from './SpineCppAPI';
 
 export type SpineVersion = '3.8' | '4.1' | '4.2';
 
@@ -190,9 +192,57 @@ export class SpineManager {
         return backend.setSlotColor(entity, slotName, r, g, b, a);
     }
 
+    listConstraints(entity: Entity): ConstraintList | null {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) return backend.listConstraints(entity);
+        return SpineCpp.listConstraints(entity);
+    }
+
+    getTransformConstraintMix(entity: Entity, name: string): TransformMixData | null {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) return backend.getTransformConstraintMix(entity, name);
+        return SpineCpp.getTransformConstraintMix(entity, name);
+    }
+
+    setTransformConstraintMix(entity: Entity, name: string, mix: TransformMixData): boolean {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) return backend.setTransformConstraintMix(entity, name, mix);
+        return SpineCpp.setTransformConstraintMix(entity, name,
+            mix.mixRotate, mix.mixX, mix.mixY, mix.mixScaleX, mix.mixScaleY, mix.mixShearY);
+    }
+
+    getPathConstraintMix(entity: Entity, name: string): PathMixData | null {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) return backend.getPathConstraintMix(entity, name);
+        return SpineCpp.getPathConstraintMix(entity, name);
+    }
+
+    setPathConstraintMix(entity: Entity, name: string, mix: PathMixData): boolean {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) return backend.setPathConstraintMix(entity, name, mix);
+        return SpineCpp.setPathConstraintMix(entity, name,
+            mix.position, mix.spacing, mix.mixRotate, mix.mixX, mix.mixY);
+    }
+
+    setEnabled(entity: Entity, enabled: boolean): void {
+        const backend = this.getEntityBackend_(entity);
+        if (backend) backend.setEnabled(entity, enabled);
+    }
+
     enableEvents(entity: Entity): void {
         const backend = this.getEntityBackend_(entity);
         if (backend) backend.enableEvents(entity);
+    }
+
+    collectAllEvents(): { entity: Entity; raw: RawSpineEvent }[] {
+        const result: { entity: Entity; raw: RawSpineEvent }[] = [];
+        for (const backend of this.backends_.values()) {
+            const events = backend.collectAllEvents();
+            for (const evt of events) {
+                result.push(evt);
+            }
+        }
+        return result;
     }
 
     hasInstance(entity: Entity): boolean {

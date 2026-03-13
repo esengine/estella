@@ -71,6 +71,18 @@ void renderer_submitSpineBatchByEntity(
     i32 layer, f32 depth
 );
 void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value);
+i32 spine_native_getEventCount();
+uintptr_t spine_native_getEventBuffer();
+emscripten::val spine_native_getEventRecord(i32 index);
+void spine_native_clearEvents();
+
+emscripten::val spine_native_listConstraints(Entity entity);
+emscripten::val spine_native_getTransformConstraintMix(Entity entity, const std::string& name);
+bool spine_native_setTransformConstraintMix(Entity entity, const std::string& name,
+    f32 rotate, f32 x, f32 y, f32 scaleX, f32 scaleY, f32 shearY);
+emscripten::val spine_native_getPathConstraintMix(Entity entity, const std::string& name);
+bool spine_native_setPathConstraintMix(Entity entity, const std::string& name,
+    f32 position, f32 spacing, f32 rotate, f32 x, f32 y);
 #endif
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);

@@ -1,6 +1,7 @@
 import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { SpineModuleController } from './SpineController';
+import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 
 interface EntityInfo {
     skelHandle: number;
@@ -20,6 +21,7 @@ type BatchEntry = {
 export class ModuleBackend {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
+    private disabledEntities_: Set<Entity> = new Set();
     private cachedFrame_: number = -1;
     private cachedEntries_: BatchEntry[] = [];
 
@@ -137,9 +139,58 @@ export class ModuleBackend {
         return this.controller_.setSlotColor(info.instanceId, slotName, r, g, b, a);
     }
 
+    listConstraints(entity: Entity): ConstraintList | null {
+        const info = this.entities_.get(entity);
+        if (!info) return null;
+        return this.controller_.listConstraints(info.instanceId);
+    }
+
+    getTransformConstraintMix(entity: Entity, name: string): TransformMixData | null {
+        const info = this.entities_.get(entity);
+        if (!info) return null;
+        return this.controller_.getTransformConstraintMix(info.instanceId, name);
+    }
+
+    setTransformConstraintMix(entity: Entity, name: string, mix: TransformMixData): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setTransformConstraintMix(info.instanceId, name, mix);
+    }
+
+    getPathConstraintMix(entity: Entity, name: string): PathMixData | null {
+        const info = this.entities_.get(entity);
+        if (!info) return null;
+        return this.controller_.getPathConstraintMix(info.instanceId, name);
+    }
+
+    setPathConstraintMix(entity: Entity, name: string, mix: PathMixData): boolean {
+        const info = this.entities_.get(entity);
+        if (!info) return false;
+        return this.controller_.setPathConstraintMix(info.instanceId, name, mix);
+    }
+
+    setEnabled(entity: Entity, enabled: boolean): void {
+        if (enabled) {
+            this.disabledEntities_.delete(entity);
+        } else {
+            this.disabledEntities_.add(entity);
+        }
+    }
+
     enableEvents(entity: Entity): void {
         const info = this.entities_.get(entity);
         if (info) this.controller_.enableEvents(info.instanceId);
+    }
+
+    collectAllEvents(): { entity: Entity; raw: RawSpineEvent }[] {
+        const result: { entity: Entity; raw: RawSpineEvent }[] = [];
+        for (const [entity, info] of this.entities_) {
+            const events = this.controller_.collectEvents(info.instanceId);
+            for (const raw of events) {
+                result.push({ entity, raw });
+            }
+        }
+        return result;
     }
 
     updateAll(dt: number): void {
@@ -155,6 +206,7 @@ export class ModuleBackend {
         if (this.cachedFrame_ !== frameCount) {
             this.cachedEntries_.length = 0;
             for (const [entity, info] of this.entities_) {
+                if (this.disabledEntities_.has(entity)) continue;
                 const batches = this.controller_.extractMeshBatches(info.instanceId);
                 for (const batch of batches) {
                     if (batch.vertices.length === 0 || batch.indices.length === 0) continue;
@@ -210,6 +262,7 @@ export class ModuleBackend {
         this.controller_.destroyInstance(info.instanceId);
         this.controller_.unloadSkeleton(info.skelHandle);
         this.entities_.delete(entity);
+        this.disabledEntities_.delete(entity);
     }
 
     shutdown(): void {
@@ -218,5 +271,6 @@ export class ModuleBackend {
             this.controller_.unloadSkeleton(info.skelHandle);
         }
         this.entities_.clear();
+        this.disabledEntities_.clear();
     }
 }

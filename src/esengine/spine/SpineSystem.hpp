@@ -22,6 +22,7 @@
 
 #include <spine/spine.h>
 
+#include <array>
 #include <unordered_map>
 
 namespace esengine::spine {
@@ -169,7 +170,47 @@ public:
     std::vector<std::string> getAnimationNames(Entity entity) const;
     std::vector<std::string> getSkinNames(Entity entity) const;
 
+    // ── Constraints ─────────────────────────────────────────────────────
+
+    struct ConstraintNames {
+        std::vector<std::string> ik;
+        std::vector<std::string> transform;
+        std::vector<std::string> path;
+    };
+
+    ConstraintNames listConstraints(Entity entity) const;
+
+    bool getTransformConstraintMix(Entity entity, const std::string& name,
+        f32& outRotate, f32& outX, f32& outY,
+        f32& outScaleX, f32& outScaleY, f32& outShearY) const;
+    bool setTransformConstraintMix(Entity entity, const std::string& name,
+        f32 rotate, f32 x, f32 y, f32 scaleX, f32 scaleY, f32 shearY);
+
+    bool getPathConstraintMix(Entity entity, const std::string& name,
+        f32& outPosition, f32& outSpacing,
+        f32& outRotate, f32& outX, f32& outY) const;
+    bool setPathConstraintMix(Entity entity, const std::string& name,
+        f32 position, f32 spacing, f32 rotate, f32 x, f32 y);
+
+    // ── Event buffer ────────────────────────────────────────────────────
+    static constexpr i32 MAX_NATIVE_EVENTS = 64;
+    static constexpr i32 EVENT_STRIDE = 4;
+
+    struct NativeEventRecord {
+        Entity entity = 0;
+        std::string animationName;
+        std::string eventName;
+        std::string stringValue;
+    };
+
+    i32 getEventCount() const { return native_event_count_; }
+    const f32* getEventBuffer() const { return native_event_buffer_.data(); }
+    const NativeEventRecord& getEventRecord(i32 index) const { return native_event_records_[index]; }
+    void clearEvents();
+
 private:
+    void recordEvent(Entity entity, ::spine::EventType type,
+                     ::spine::TrackEntry* entry, ::spine::Event* event);
     void loadSkeletonForEntity(Entity entity, ecs::SpineAnimation& comp);
     void updateAnimation(Entity entity, ecs::SpineAnimation& comp, f32 deltaTime);
     void syncComponentToInstance(Entity entity, ecs::SpineAnimation& comp);
@@ -177,6 +218,10 @@ private:
     SpineResourceManager& resource_manager_;
     std::unordered_map<Entity, SpineInstance> instances_;
     u32 destroy_callback_id_ = 0;
+
+    std::array<f32, MAX_NATIVE_EVENTS * EVENT_STRIDE> native_event_buffer_{};
+    std::array<NativeEventRecord, MAX_NATIVE_EVENTS> native_event_records_{};
+    i32 native_event_count_ = 0;
 };
 
 }  // namespace esengine::spine

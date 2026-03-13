@@ -81,6 +81,12 @@ void SpineSystem::loadSkeletonForEntity(Entity entity, ecs::SpineAnimation& comp
     instance.skeleton->setScaleX(comp.flipX ? -1.0f : 1.0f);
     instance.skeleton->setScaleY(comp.flipY ? -1.0f : 1.0f);
 
+    instance.state->setListener(
+        [this, entity](::spine::AnimationState*, ::spine::EventType type,
+                       ::spine::TrackEntry* entry, ::spine::Event* event) {
+            recordEvent(entity, type, entry, event);
+        });
+
     comp.skeletonData = handle;
     comp.needsReload = false;
 
@@ -240,6 +246,136 @@ std::vector<std::string> SpineSystem::getSkinNames(Entity entity) const {
         result.emplace_back(skins[i]->getName().buffer());
     }
     return result;
+}
+
+// =============================================================================
+// Constraints
+// =============================================================================
+
+SpineSystem::ConstraintNames SpineSystem::listConstraints(Entity entity) const {
+    ConstraintNames result;
+    auto it = instances_.find(entity);
+    if (it == instances_.end() || !it->second.skeleton) return result;
+
+    auto* data = it->second.skeleton->getData();
+
+    auto& ikList = data->getIkConstraints();
+    for (size_t i = 0; i < ikList.size(); ++i) {
+        result.ik.emplace_back(ikList[i]->getName().buffer());
+    }
+    auto& transformList = data->getTransformConstraints();
+    for (size_t i = 0; i < transformList.size(); ++i) {
+        result.transform.emplace_back(transformList[i]->getName().buffer());
+    }
+    auto& pathList = data->getPathConstraints();
+    for (size_t i = 0; i < pathList.size(); ++i) {
+        result.path.emplace_back(pathList[i]->getName().buffer());
+    }
+    return result;
+}
+
+bool SpineSystem::getTransformConstraintMix(Entity entity, const std::string& name,
+    f32& outRotate, f32& outX, f32& outY,
+    f32& outScaleX, f32& outScaleY, f32& outShearY) const {
+    auto it = instances_.find(entity);
+    if (it == instances_.end() || !it->second.skeleton) return false;
+
+    auto* constraint = it->second.skeleton->findTransformConstraint(name.c_str());
+    if (!constraint) return false;
+
+    outRotate = constraint->getMixRotate();
+    outX = constraint->getMixX();
+    outY = constraint->getMixY();
+    outScaleX = constraint->getMixScaleX();
+    outScaleY = constraint->getMixScaleY();
+    outShearY = constraint->getMixShearY();
+    return true;
+}
+
+bool SpineSystem::setTransformConstraintMix(Entity entity, const std::string& name,
+    f32 rotate, f32 x, f32 y, f32 scaleX, f32 scaleY, f32 shearY) {
+    auto it = instances_.find(entity);
+    if (it == instances_.end() || !it->second.skeleton) return false;
+
+    auto* constraint = it->second.skeleton->findTransformConstraint(name.c_str());
+    if (!constraint) return false;
+
+    constraint->setMixRotate(rotate);
+    constraint->setMixX(x);
+    constraint->setMixY(y);
+    constraint->setMixScaleX(scaleX);
+    constraint->setMixScaleY(scaleY);
+    constraint->setMixShearY(shearY);
+    return true;
+}
+
+bool SpineSystem::getPathConstraintMix(Entity entity, const std::string& name,
+    f32& outPosition, f32& outSpacing,
+    f32& outRotate, f32& outX, f32& outY) const {
+    auto it = instances_.find(entity);
+    if (it == instances_.end() || !it->second.skeleton) return false;
+
+    auto* constraint = it->second.skeleton->findPathConstraint(name.c_str());
+    if (!constraint) return false;
+
+    outPosition = constraint->getPosition();
+    outSpacing = constraint->getSpacing();
+    outRotate = constraint->getMixRotate();
+    outX = constraint->getMixX();
+    outY = constraint->getMixY();
+    return true;
+}
+
+bool SpineSystem::setPathConstraintMix(Entity entity, const std::string& name,
+    f32 position, f32 spacing, f32 rotate, f32 x, f32 y) {
+    auto it = instances_.find(entity);
+    if (it == instances_.end() || !it->second.skeleton) return false;
+
+    auto* constraint = it->second.skeleton->findPathConstraint(name.c_str());
+    if (!constraint) return false;
+
+    constraint->setPosition(position);
+    constraint->setSpacing(spacing);
+    constraint->setMixRotate(rotate);
+    constraint->setMixX(x);
+    constraint->setMixY(y);
+    return true;
+}
+
+// =============================================================================
+// Events
+// =============================================================================
+
+void SpineSystem::recordEvent(Entity entity, ::spine::EventType type,
+                              ::spine::TrackEntry* entry, ::spine::Event* event) {
+    if (type == ::spine::EventType_Dispose) return;
+    if (native_event_count_ >= MAX_NATIVE_EVENTS) return;
+
+    auto idx = native_event_count_;
+    auto base = idx * EVENT_STRIDE;
+
+    native_event_buffer_[base + 0] = static_cast<f32>(type);
+    native_event_buffer_[base + 1] = entry ? static_cast<f32>(entry->getTrackIndex()) : 0.0f;
+    native_event_buffer_[base + 2] = (type == ::spine::EventType_Event && event) ? event->getFloatValue() : 0.0f;
+    native_event_buffer_[base + 3] = (type == ::spine::EventType_Event && event) ? static_cast<f32>(event->getIntValue()) : 0.0f;
+
+    auto& record = native_event_records_[idx];
+    record.entity = entity;
+    record.animationName = (entry && entry->getAnimation())
+        ? entry->getAnimation()->getName().buffer() : "";
+    if (type == ::spine::EventType_Event && event) {
+        record.eventName = event->getData().getName().buffer();
+        record.stringValue = event->getStringValue().buffer();
+    } else {
+        record.eventName.clear();
+        record.stringValue.clear();
+    }
+
+    ++native_event_count_;
+}
+
+void SpineSystem::clearEvents() {
+    native_event_count_ = 0;
 }
 
 }  // namespace esengine::spine

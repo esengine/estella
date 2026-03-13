@@ -39,10 +39,18 @@ export interface SpineWasmModule {
     _spine_getEventCount(instanceId: number): number;
     _spine_getEventBuffer(): number;
     _spine_clearEvents(): void;
+    _spine_getEventAnimationName(index: number): number;
+    _spine_getEventName(index: number): number;
+    _spine_getEventStringValue(index: number): number;
 
     _spine_setAttachment(instanceId: number, slotName: number, attachmentName: number): number;
     _spine_setIKTarget(instanceId: number, constraintName: number, targetX: number, targetY: number, mix: number): number;
     _spine_setSlotColor(instanceId: number, slotName: number, r: number, g: number, b: number, a: number): number;
+    _spine_listConstraints(instanceId: number): number;
+    _spine_getTransformConstraintMix(instanceId: number, name: number): number;
+    _spine_setTransformConstraintMix(instanceId: number, name: number, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): number;
+    _spine_getPathConstraintMix(instanceId: number, name: number): number;
+    _spine_setPathConstraintMix(instanceId: number, name: number, position: number, spacing: number, rotate: number, x: number, y: number): number;
 
     cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
     UTF8ToString(ptr: number): string;
@@ -88,10 +96,18 @@ export interface SpineWrappedAPI {
     getEventCount(instanceId: number): number;
     getEventBuffer(): number;
     clearEvents(): void;
+    getEventAnimationName(index: number): string;
+    getEventName(index: number): string;
+    getEventStringValue(index: number): string;
 
     setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
     setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
     setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    listConstraints(instanceId: number): string;
+    getTransformConstraintMix(instanceId: number, name: string): string;
+    setTransformConstraintMix(instanceId: number, name: string, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): boolean;
+    getPathConstraintMix(instanceId: number, name: string): string;
+    setPathConstraintMix(instanceId: number, name: string, position: number, spacing: number, rotate: number, x: number, y: number): boolean;
 }
 
 export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
@@ -127,10 +143,18 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         getEventCount: cw('spine_getEventCount', 'number', ['number']) as SpineWrappedAPI['getEventCount'],
         getEventBuffer: cw('spine_getEventBuffer', 'number', []) as SpineWrappedAPI['getEventBuffer'],
         clearEvents: cw('spine_clearEvents', null, []) as SpineWrappedAPI['clearEvents'],
+        getEventAnimationName: cw('spine_getEventAnimationName', 'string', ['number']) as SpineWrappedAPI['getEventAnimationName'],
+        getEventName: cw('spine_getEventName', 'string', ['number']) as SpineWrappedAPI['getEventName'],
+        getEventStringValue: cw('spine_getEventStringValue', 'string', ['number']) as SpineWrappedAPI['getEventStringValue'],
 
         setAttachment: cw('spine_setAttachment', 'number', ['number', 'string', 'string']) as SpineWrappedAPI['setAttachment'],
         setIKTarget: cw('spine_setIKTarget', 'number', ['number', 'string', 'number', 'number', 'number']) as SpineWrappedAPI['setIKTarget'],
         setSlotColor: cw('spine_setSlotColor', 'number', ['number', 'string', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setSlotColor'],
+        listConstraints: cw('spine_listConstraints', 'string', ['number']) as SpineWrappedAPI['listConstraints'],
+        getTransformConstraintMix: cw('spine_getTransformConstraintMix', 'string', ['number', 'string']) as SpineWrappedAPI['getTransformConstraintMix'],
+        setTransformConstraintMix: cw('spine_setTransformConstraintMix', 'number', ['number', 'string', 'number', 'number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setTransformConstraintMix'],
+        getPathConstraintMix: cw('spine_getPathConstraintMix', 'string', ['number', 'string']) as SpineWrappedAPI['getPathConstraintMix'],
+        setPathConstraintMix: cw('spine_setPathConstraintMix', 'number', ['number', 'string', 'number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setPathConstraintMix'],
     };
 }
 

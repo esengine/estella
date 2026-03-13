@@ -110,7 +110,14 @@ struct SpineContext {
     std::string stringBuffer;
     std::string lastError;
 
+    struct EventRecord {
+        const char* animationName = nullptr;
+        const char* eventName = nullptr;
+        const char* stringValue = nullptr;
+    };
+
     std::vector<float> eventBuffer;
+    std::vector<EventRecord> eventRecords;
     int eventCount = 0;
 
     void reset() {
@@ -133,6 +140,9 @@ struct SpineContext {
         worldVertices.clear();
         stringBuffer.clear();
         lastError.clear();
+        eventBuffer.clear();
+        eventRecords.clear();
+        eventCount = 0;
     }
 };
 
@@ -801,6 +811,15 @@ static void spineEventListener(spAnimationState* state, spEventType type,
         g_ctx.eventBuffer.push_back(0.0f);
         g_ctx.eventBuffer.push_back(0.0f);
     }
+
+    SpineContext::EventRecord record{};
+    record.animationName = (entry && entry->animation) ? entry->animation->name : nullptr;
+    if (type == SP_ANIMATION_EVENT && event) {
+        record.eventName = event->data->name;
+        record.stringValue = event->stringValue;
+    }
+    g_ctx.eventRecords.push_back(record);
+
     g_ctx.eventCount++;
 }
 
@@ -825,7 +844,29 @@ uintptr_t spine_getEventBuffer() {
 EMSCRIPTEN_KEEPALIVE
 void spine_clearEvents() {
     g_ctx.eventBuffer.clear();
+    g_ctx.eventRecords.clear();
     g_ctx.eventCount = 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* spine_getEventAnimationName(int index) {
+    if (index < 0 || index >= g_ctx.eventCount) return "";
+    auto name = g_ctx.eventRecords[index].animationName;
+    return name ? name : "";
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* spine_getEventName(int index) {
+    if (index < 0 || index >= g_ctx.eventCount) return "";
+    auto name = g_ctx.eventRecords[index].eventName;
+    return name ? name : "";
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* spine_getEventStringValue(int index) {
+    if (index < 0 || index >= g_ctx.eventCount) return "";
+    auto val = g_ctx.eventRecords[index].stringValue;
+    return val ? val : "";
 }
 
 // =============================================================================
@@ -861,6 +902,143 @@ int spine_setIKTarget(int instanceId, const char* constraintName,
     constraint->target->x = targetX;
     constraint->target->y = targetY;
     constraint->mix = mix;
+    return 1;
+}
+
+// =============================================================================
+// Transform Constraint Control
+// =============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+const char* spine_listConstraints(int instanceId) {
+    static std::string jsonBuf;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return "{}";
+
+    auto* skeleton = it->second.skeleton;
+    jsonBuf = "{\"ik\":[";
+    for (int i = 0; i < skeleton->ikConstraintsCount; ++i) {
+        if (i > 0) jsonBuf += ',';
+        jsonBuf += '"';
+        jsonBuf += skeleton->ikConstraints[i]->data->name;
+        jsonBuf += '"';
+    }
+    jsonBuf += "],\"transform\":[";
+    for (int i = 0; i < skeleton->transformConstraintsCount; ++i) {
+        if (i > 0) jsonBuf += ',';
+        jsonBuf += '"';
+        jsonBuf += skeleton->transformConstraints[i]->data->name;
+        jsonBuf += '"';
+    }
+    jsonBuf += "],\"path\":[";
+    for (int i = 0; i < skeleton->pathConstraintsCount; ++i) {
+        if (i > 0) jsonBuf += ',';
+        jsonBuf += '"';
+        jsonBuf += skeleton->pathConstraints[i]->data->name;
+        jsonBuf += '"';
+    }
+    jsonBuf += "]}";
+    return jsonBuf.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* spine_getTransformConstraintMix(int instanceId, const char* name) {
+    static std::string jsonBuf;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return "";
+
+    auto* constraint = spSkeleton_findTransformConstraint(it->second.skeleton, name);
+    if (!constraint) return "";
+
+    char buf[256];
+#ifdef ES_SPINE_38
+    snprintf(buf, sizeof(buf),
+        "{\"mixRotate\":%.6g,\"mixX\":%.6g,\"mixY\":%.6g,\"mixScaleX\":%.6g,\"mixScaleY\":%.6g,\"mixShearY\":%.6g}",
+        constraint->rotateMix, constraint->translateMix, constraint->translateMix,
+        constraint->scaleMix, constraint->scaleMix, constraint->shearMix);
+#else
+    snprintf(buf, sizeof(buf),
+        "{\"mixRotate\":%.6g,\"mixX\":%.6g,\"mixY\":%.6g,\"mixScaleX\":%.6g,\"mixScaleY\":%.6g,\"mixShearY\":%.6g}",
+        constraint->mixRotate, constraint->mixX, constraint->mixY,
+        constraint->mixScaleX, constraint->mixScaleY, constraint->mixShearY);
+#endif
+    jsonBuf = buf;
+    return jsonBuf.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int spine_setTransformConstraintMix(int instanceId, const char* name,
+    float rotate, float x, float y, float scaleX, float scaleY, float shearY) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
+
+    auto* constraint = spSkeleton_findTransformConstraint(it->second.skeleton, name);
+    if (!constraint) return 0;
+
+#ifdef ES_SPINE_38
+    constraint->rotateMix = rotate;
+    constraint->translateMix = (x + y) * 0.5f;
+    constraint->scaleMix = (scaleX + scaleY) * 0.5f;
+    constraint->shearMix = shearY;
+#else
+    constraint->mixRotate = rotate;
+    constraint->mixX = x;
+    constraint->mixY = y;
+    constraint->mixScaleX = scaleX;
+    constraint->mixScaleY = scaleY;
+    constraint->mixShearY = shearY;
+#endif
+    return 1;
+}
+
+// =============================================================================
+// Path Constraint Control
+// =============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+const char* spine_getPathConstraintMix(int instanceId, const char* name) {
+    static std::string jsonBuf;
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return "";
+
+    auto* constraint = spSkeleton_findPathConstraint(it->second.skeleton, name);
+    if (!constraint) return "";
+
+    char buf[256];
+#ifdef ES_SPINE_38
+    snprintf(buf, sizeof(buf),
+        "{\"position\":%.6g,\"spacing\":%.6g,\"mixRotate\":%.6g,\"mixX\":%.6g,\"mixY\":%.6g}",
+        constraint->position, constraint->spacing,
+        constraint->rotateMix, constraint->translateMix, constraint->translateMix);
+#else
+    snprintf(buf, sizeof(buf),
+        "{\"position\":%.6g,\"spacing\":%.6g,\"mixRotate\":%.6g,\"mixX\":%.6g,\"mixY\":%.6g}",
+        constraint->position, constraint->spacing,
+        constraint->mixRotate, constraint->mixX, constraint->mixY);
+#endif
+    jsonBuf = buf;
+    return jsonBuf.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int spine_setPathConstraintMix(int instanceId, const char* name,
+    float position, float spacing, float rotate, float x, float y) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
+
+    auto* constraint = spSkeleton_findPathConstraint(it->second.skeleton, name);
+    if (!constraint) return 0;
+
+    constraint->position = position;
+    constraint->spacing = spacing;
+#ifdef ES_SPINE_38
+    constraint->rotateMix = rotate;
+    constraint->translateMix = (x + y) * 0.5f;
+#else
+    constraint->mixRotate = rotate;
+    constraint->mixX = x;
+    constraint->mixY = y;
+#endif
     return 1;
 }
 
