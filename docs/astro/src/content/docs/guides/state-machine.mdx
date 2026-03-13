@@ -1,0 +1,505 @@
+---
+title: State Machine
+description: Visual state machine system for animations and interactive UI in Estella
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **StateMachine** component drives animations and interactive behavior through a visual state graph. Define states, connect them with conditional transitions, and let the engine handle the rest — no scripting required for common patterns like button hover effects, character animation controllers, or multi-step UI flows.
+
+<Aside type="note">
+  The StateMachine plugin is included by default — no manual setup is needed.
+</Aside>
+
+## Tutorial: Hover Button
+
+Let's build a button that changes opacity on hover, step by step.
+
+### Step 1: Add the Component
+
+Select a UI entity (e.g., a Button) in the Hierarchy. Click **Add Component** → **StateMachine**.
+
+### Step 2: Define Inputs
+
+In the Inspector, expand the StateMachine component. Click the **+** button next to **Inputs** to add a parameter:
+
+- **Name**: `hovered`
+- **Type**: `bool`
+- **Default**: `false`
+
+This parameter will track whether the pointer is over the button.
+
+### Step 3: Define Listeners
+
+Click **+** next to **Listeners** to add two event bindings:
+
+1. **Event**: `pointerEnter` → **Input**: `hovered` → **Action**: `set` → **Value**: `true`
+2. **Event**: `pointerExit` → **Input**: `hovered` → **Action**: `reset` → **Value**: `false`
+
+Now pointer events automatically update the `hovered` input.
+
+<Aside type="tip">
+  The entity needs a `UIInteraction` component for listeners to work. Buttons and other UI widgets include this automatically.
+</Aside>
+
+### Step 4: Create States in the Graph
+
+Open the **StateMachine** panel (find it in the panel menu if not visible). You'll see an empty canvas with an Entry node.
+
+1. **Right-click** the canvas → **Add State** → name it `idle`
+2. **Right-click** again → **Add State** → name it `hover`
+3. The Entry node automatically connects to the first state. Right-click `idle` → **Set as Default** if needed.
+
+### Step 5: Configure State Properties
+
+Click the `idle` state node. In the detail panel on the right:
+
+1. Click **+ Add Property**
+2. Enter path: `Sprite.color.a`
+3. Set value: `1.0`
+
+Click the `hover` state node and add:
+
+- Path: `Sprite.color.a`, Value: `0.7`
+
+### Step 6: Create Transitions
+
+1. Hover over the `idle` node until you see a connection handle on its edge
+2. **Drag** from `idle` to `hover` — this creates a transition arrow
+3. Click the arrow to configure it in the detail panel:
+   - **Duration**: `0.15` (seconds for the opacity tween)
+   - Click **+ Add Condition**: Input `hovered`, Comparator `eq`, Value `true`
+
+4. Create a second transition from `hover` back to `idle`:
+   - **Duration**: `0.15`
+   - Condition: `hovered` `eq` `false`
+
+### Step 7: Test
+
+Press **F5** or click Play. Hover over the button — its opacity smoothly fades to 0.7 and back.
+
+### The Same Thing from Code
+
+```typescript
+import { Commands, StateMachine, UIInteraction } from 'esengine';
+
+cmds.spawn('my-button')
+    .insert(StateMachine, {
+        inputs: [
+            { name: 'hovered', type: 'bool', defaultValue: false },
+        ],
+        listeners: [
+            { event: 'pointerEnter', inputName: 'hovered', action: 'set', value: true },
+            { event: 'pointerExit', inputName: 'hovered', action: 'reset', value: false },
+        ],
+        initialState: 'idle',
+        states: {
+            idle: {
+                properties: { 'Sprite.color.a': 1.0 },
+                transitions: [
+                    {
+                        target: 'hover',
+                        duration: 0.15,
+                        conditions: [{ inputName: 'hovered', comparator: 'eq', value: true }],
+                    },
+                ],
+            },
+            hover: {
+                properties: { 'Sprite.color.a': 0.7 },
+                transitions: [
+                    {
+                        target: 'idle',
+                        duration: 0.15,
+                        conditions: [{ inputName: 'hovered', comparator: 'eq', value: false }],
+                    },
+                ],
+            },
+        },
+    });
+```
+
+## Controlling Inputs
+
+### Via Listeners (Recommended)
+
+Listeners are the primary way to drive state changes. They map pointer events to input changes without any code:
+
+```typescript
+listeners: [
+    { event: 'pointerEnter', inputName: 'hovered', action: 'set', value: true },
+    { event: 'pointerExit', inputName: 'hovered', action: 'reset', value: false },
+    { event: 'pointerDown', inputName: 'click', action: 'set', value: true },
+    { event: 'pointerDown', inputName: 'selected', action: 'toggle' },
+]
+```
+
+In the editor, add listeners in the Inspector under the StateMachine component's **Listeners** section.
+
+### Via Initial Values
+
+Input `defaultValue` determines the starting value when playback begins. Set these in the Inspector or in code when spawning:
+
+```typescript
+cmds.spawn('character')
+    .insert(StateMachine, {
+        inputs: [
+            { name: 'speed', type: 'number', defaultValue: 5 },
+            { name: 'grounded', type: 'bool', defaultValue: true },
+        ],
+        // ...states and transitions
+    });
+```
+
+<Aside type="caution">
+  Input values are managed by an internal runtime that initializes once when Play Mode starts. The `defaultValue` on each input definition sets the **initial** value only. Changing `defaultValue` after the state machine has started running has no effect — the runtime uses its own internal copy of input values.
+</Aside>
+
+### Design Patterns for Dynamic Control
+
+Since inputs cannot be directly modified from user systems at runtime, use these patterns instead:
+
+**Pattern 1: Listener-driven** — Map game events to pointer events on invisible UI elements. For example, place a hidden `UIInteraction` entity that receives pointer events to toggle states.
+
+**Pattern 2: Component-driven transitions** — Instead of changing inputs, have transitions respond to other component values. For example, a transition can use `exitTime` to auto-advance after a timeline finishes, without needing input changes.
+
+**Pattern 3: Multiple StateMachines** — For complex behavior, use separate StateMachine components on different entities, each driven by its own listeners.
+
+## States in Depth
+
+Each state represents a visual/behavioral configuration. There are three state types:
+
+### Standard State (Properties)
+
+The default type. Assigns values to entity properties when the state is entered:
+
+```typescript
+idle: {
+    properties: {
+        'Sprite.color.a': 1.0,        // set opacity
+        'Transform.scale.x': 1.0,     // set scale
+        'Transform.scale.y': 1.0,
+    },
+    transitions: [/* ... */],
+}
+```
+
+**Property paths** use dot notation: `ComponentName.field.subField`. Examples:
+- `Sprite.color.r` / `.g` / `.b` / `.a` — sprite color channels
+- `Transform.position.x` / `.y` — position
+- `Transform.scale.x` / `.y` — scale
+- `Transform.rotation` — rotation in radians
+- `UIRect.size.x` / `.y` — UI element size
+
+When transitioning, all numeric properties **tween together** over the transition's `duration` with an optional `easing` curve. A single transition shares one duration and one easing for all properties — you cannot set different durations per property within the same transition. Non-numeric values (like asset paths) are applied instantly at the start of the transition.
+
+### Timeline State
+
+References a `.estl` timeline asset. When the state is entered, the timeline plays from the beginning:
+
+```typescript
+attack: {
+    timeline: 'animations/attack.estl',
+    timelineWrapMode: 'once',   // 'once' or 'loop'
+    transitions: [
+        {
+            target: 'idle',
+            conditions: [],     // no conditions — uses exitTime
+            duration: 0.1,
+            exitTime: 0.9,      // transition allowed after 90% of timeline played
+        },
+    ],
+}
+```
+
+`exitTime` is a 0–1 ratio. The transition won't fire until the timeline has played past this point, even if all conditions are met. An empty `conditions` array with `exitTime` means "transition automatically after the animation finishes".
+
+### Blend State
+
+See the [Blend States](#blend-states) section below.
+
+## Transitions
+
+A transition fires when **all** its conditions are true simultaneously:
+
+```typescript
+{
+    target: 'run',          // destination state name
+    duration: 0.2,          // tween duration (seconds, default: 0)
+    easing: 'easeOutQuad',  // easing curve (default: 'linear')
+    exitTime: 0.8,          // optional: wait for timeline progress
+    conditions: [
+        { inputName: 'speed', comparator: 'gt', value: 3 },
+        { inputName: 'grounded', comparator: 'eq', value: true },
+    ],
+}
+```
+
+| Comparator | Meaning |
+|------------|---------|
+| `eq` | Equal |
+| `neq` | Not equal |
+| `gt` | Greater than |
+| `lt` | Less than |
+| `gte` | Greater than or equal |
+| `lte` | Less than or equal |
+
+Available easing values: `linear`, `easeInQuad`, `easeOutQuad`, `easeInOutQuad`, `easeInCubic`, `easeOutCubic`, `easeInOutCubic`, `easeInBack`, `easeOutBack`, `easeInOutBack`, `easeInElastic`, `easeOutElastic`, `easeInOutElastic`, `easeOutBounce`
+
+Transitions are evaluated **in order** — the first one whose conditions are all met fires, and the rest are skipped for that frame.
+
+## Inputs
+
+Three input types to drive transitions:
+
+| Type | Behavior | Use for |
+|------|----------|---------|
+| `bool` | Stays at its value until changed | Toggle states: hovered, selected, grounded |
+| `number` | Continuous, can use `gt`/`lt` comparators | Speed, health, blend parameters |
+| `trigger` | Set to `true`, **auto-resets to `false` next frame** | One-shot events: jump, attack, death |
+
+## Listeners
+
+Map pointer events to input changes without code:
+
+```typescript
+listeners: [
+    // When pointer enters → set hovered to true
+    { event: 'pointerEnter', inputName: 'hovered', action: 'set', value: true },
+    // When pointer exits → set hovered to false
+    { event: 'pointerExit', inputName: 'hovered', action: 'reset', value: false },
+    // When clicked → fire the 'click' trigger
+    { event: 'pointerDown', inputName: 'click', action: 'set', value: true },
+    // Toggle selection on click
+    { event: 'pointerDown', inputName: 'selected', action: 'toggle' },
+]
+```
+
+| Action | Effect |
+|--------|--------|
+| `set` | Set input to `value` (default: `true`) |
+| `reset` | Set input to `value` (default: `false`) |
+| `toggle` | Flip a boolean input |
+
+## Multi-Layer
+
+A single StateMachine can contain multiple **layers**, each running its own state graph independently. All layers share the same inputs but evaluate their own transitions separately.
+
+```typescript
+{
+    inputs: [
+        { name: 'speed', type: 'number', defaultValue: 0 },
+        { name: 'attack', type: 'trigger' },
+    ],
+    listeners: [],
+    initialState: '',  // ignored when layers is set
+    states: {},        // ignored when layers is set
+    layers: [
+        {
+            name: 'Locomotion',
+            initialState: 'idle',
+            states: {
+                idle: {
+                    properties: { 'Transform.position.y': 0 },
+                    transitions: [
+                        { target: 'run', duration: 0.2, conditions: [{ inputName: 'speed', comparator: 'gt', value: 1 }] },
+                    ],
+                },
+                run: {
+                    timeline: 'animations/run.estl',
+                    timelineWrapMode: 'loop',
+                    transitions: [
+                        { target: 'idle', duration: 0.2, conditions: [{ inputName: 'speed', comparator: 'lte', value: 1 }] },
+                    ],
+                },
+            },
+        },
+        {
+            name: 'Action',
+            initialState: 'none',
+            states: {
+                none: {
+                    transitions: [
+                        { target: 'attack', duration: 0, conditions: [{ inputName: 'attack', comparator: 'eq', value: true }] },
+                    ],
+                },
+                attack: {
+                    timeline: 'animations/attack.estl',
+                    timelineWrapMode: 'once',
+                    transitions: [
+                        { target: 'none', duration: 0.1, exitTime: 0.9, conditions: [] },
+                    ],
+                },
+            },
+        },
+    ],
+}
+```
+
+In this example, the Locomotion layer handles movement animation while the Action layer handles attack — both run simultaneously and can affect different properties on the same entity.
+
+### Any State
+
+A state named `__any__` acts as a wildcard: its transitions are evaluated **in addition to** the current state's transitions, regardless of which state the layer is in. Use this for global transitions like "if health reaches 0, go to death state from any state".
+
+### Exit State
+
+A layer can transition to the special `__exit__` state, which stops the layer from processing entirely. Useful for one-shot overlay layers (play an attack animation, then the layer goes dormant).
+
+## Blend States
+
+Blend states continuously interpolate properties based on input values **every frame**, unlike standard states which apply properties once on entry. Use blend states when you need smooth, parameter-driven animation — for example, tinting a character based on speed, or mixing multiple visual effects with independent weights.
+
+<Aside type="tip">
+  **When to use blend vs standard states:** Use standard states for discrete visual configurations (idle, hover, pressed). Use blend states when a property should vary smoothly along a continuous parameter (speed → color, health → size).
+</Aside>
+
+### 1D Blend
+
+Interpolates properties along a single numeric input axis. Define multiple **threshold** entries — the engine blends between the two nearest thresholds based on the input value.
+
+```typescript
+locomotion: {
+    type: 'blend1d',
+    blendInput: 'speed',   // which number input drives the blend
+    blendStates: [
+        { threshold: 0, properties: { 'Sprite.color.g': 0.5 } },
+        { threshold: 5, properties: { 'Sprite.color.g': 0.8 } },
+        { threshold: 10, properties: { 'Sprite.color.g': 1.0 } },
+    ],
+    transitions: [],
+}
+```
+
+When `speed` is 2.5 (halfway between thresholds 0 and 5), `Sprite.color.g` is linearly interpolated to 0.65. Values below the lowest threshold clamp to the first entry; values above the highest clamp to the last.
+
+Asset-type properties (like textures) cannot be interpolated — they snap to the nearest threshold instead.
+
+Blend entries can also reference timelines instead of properties:
+
+```typescript
+blendStates: [
+    { threshold: 0, timeline: 'animations/idle.estl', timelineWrapMode: 'loop' },
+    { threshold: 5, timeline: 'animations/walk.estl', timelineWrapMode: 'loop' },
+    { threshold: 10, timeline: 'animations/run.estl', timelineWrapMode: 'loop' },
+]
+```
+
+### Direct Blend
+
+Each entry contributes independently with its own weight. Unlike 1D blend which uses a single input axis, direct blend lets you control multiple effects separately:
+
+```typescript
+overlay: {
+    type: 'blendDirect',
+    blendStates: [
+        { mixInput: 'damageFlash', properties: { 'Sprite.color.r': 1.0 } },
+        { mixInput: 'freezeEffect', properties: { 'Sprite.color.b': 1.0 } },
+        { mixValue: 0.3, properties: { 'Sprite.color.g': 0.5 } },
+    ],
+    transitions: [],
+}
+```
+
+- **`mixInput`**: weight comes from a named number input (0.0–1.0). Change the input value to control how strongly this entry affects the result.
+- **`mixValue`**: weight is a fixed constant. The entry always contributes this fraction.
+
+Direct blend is ideal for layering independent visual effects — damage flash, freeze tint, poison glow — each controlled by its own input without interfering with the others.
+
+### BlendEntry Reference
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `properties` | `Record<string, unknown>` | Property path → target value map (same as standard states) |
+| `timeline` | `string` | Path to `.estl` timeline asset (alternative to properties) |
+| `timelineWrapMode` | `'once' \| 'loop'` | Timeline playback mode (default: `'once'`) |
+| `threshold` | `number` | Position on the 1D blend axis (required for `blend1d`) |
+| `mixInput` | `string` | Input name whose value is used as the blend weight (for `blendDirect`) |
+| `mixValue` | `number` | Fixed blend weight (for `blendDirect`, alternative to `mixInput`) |
+
+## Node Graph Editor
+
+The **StateMachine** panel provides the visual editing experience. Open it from **View** → **StateMachine** or the panel menu.
+
+### Canvas
+
+- **State nodes** appear as rounded rectangles. The initial state has a green Entry arrow pointing to it.
+- **Transition arrows** connect states. Click an arrow to select and edit it.
+- **Right-click** the canvas background to add a new state or paste.
+- **Right-click** a state node to set it as default, delete it, or add transitions.
+- **Double-click** a state to rename it.
+- **Drag** the canvas to pan, **scroll** to zoom.
+
+### Special Nodes
+
+| Node | Color | Purpose |
+|------|-------|---------|
+| Entry | Green arrow | Marks the initial state |
+| Any State | Purple | Transitions from here apply regardless of current state |
+| Exit | Red | Transitioning here stops the layer |
+
+### Detail Panel
+
+Click a **state** or **transition** in the graph to open the detail panel:
+
+**For states:**
+- Choose between Properties mode or Timeline mode
+- In Properties mode: add property path → value pairs
+- In Timeline mode: select a `.estl` asset and wrap mode
+- For Blend states: configure blend type, input, and threshold entries
+
+**For transitions:**
+- Set duration and easing curve
+- Set exitTime (for timeline states)
+- Add/remove conditions with input, comparator, and value
+
+### Layer Tabs
+
+When using multi-layer, tabs at the top of the panel let you switch between layers. Each layer has its own graph.
+
+## Component Reference
+
+### StateMachine
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `states` | `Record<string, StateNode>` | `{}` | State definitions (single-layer mode) |
+| `inputs` | `InputDef[]` | `[]` | Parameter definitions shared across all layers |
+| `listeners` | `ListenerDef[]` | `[]` | Event-to-input bindings |
+| `initialState` | `string` | `''` | Default state name (single-layer mode) |
+| `layers` | `LayerData[]` | — | Multi-layer definitions (when set, overrides `states` and `initialState`) |
+
+### StateNode
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `properties` | `Record<string, unknown>` | — | Property path → target value map |
+| `timeline` | `string` | — | Path to `.estl` timeline asset |
+| `timelineWrapMode` | `'once' \| 'loop'` | `'once'` | Timeline playback mode |
+| `transitions` | `Transition[]` | `[]` | Outgoing transitions |
+| `type` | `'standard' \| 'blend1d' \| 'blendDirect'` | `'standard'` | State type |
+| `blendInput` | `string` | — | Input name for 1D blending |
+| `blendStates` | `BlendEntry[]` | — | Blend tree entries |
+
+### Transition
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `target` | `string` | — | Destination state name |
+| `conditions` | `Condition[]` | — | All must be true to fire |
+| `duration` | `number` | `0` | Tween duration in seconds |
+| `exitTime` | `number` | — | Timeline progress ratio (0–1) required before checking conditions |
+| `easing` | `string` | `'linear'` | Easing curve for property tweens |
+
+### Condition
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `inputName` | `string` | Name of the input to compare |
+| `comparator` | `'eq' \| 'neq' \| 'gt' \| 'lt' \| 'gte' \| 'lte'` | Comparison operator |
+| `value` | `boolean \| number` | Value to compare against |
+
+## Next Steps
+
+- [Timeline](/docs/guides/timeline/) — multi-track animation system used by timeline states
+- [Tween Animation](/docs/guides/tween/) — code-driven property animation
+- [UI Interaction](/docs/guides/ui-interaction/) — pointer events and focus

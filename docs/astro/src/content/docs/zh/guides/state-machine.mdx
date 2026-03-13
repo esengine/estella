@@ -1,0 +1,505 @@
+---
+title: 状态机
+description: Estella 可视化状态机系统，用于动画和交互式 UI
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**StateMachine** 组件通过可视化状态图驱动动画和交互行为。定义状态，用条件转换连接它们，引擎自动处理剩余逻辑——按钮悬停效果、角色动画控制器、多步 UI 流程等常见模式无需编写脚本。
+
+<Aside type="note">
+  StateMachine 插件默认包含，无需手动配置。
+</Aside>
+
+## 教程：悬停按钮
+
+我们来一步步制作一个悬停时改变透明度的按钮。
+
+### 第 1 步：添加组件
+
+在 Hierarchy 中选择一个 UI 实体（如 Button），点击 **Add Component** → **StateMachine**。
+
+### 第 2 步：定义输入
+
+在 Inspector 中展开 StateMachine 组件，点击 **Inputs** 旁的 **+** 按钮添加参数：
+
+- **Name**: `hovered`
+- **Type**: `bool`
+- **Default**: `false`
+
+这个参数将跟踪指针是否在按钮上方。
+
+### 第 3 步：定义监听器
+
+点击 **Listeners** 旁的 **+** 添加两个事件绑定：
+
+1. **Event**: `pointerEnter` → **Input**: `hovered` → **Action**: `set` → **Value**: `true`
+2. **Event**: `pointerExit` → **Input**: `hovered` → **Action**: `reset` → **Value**: `false`
+
+现在指针事件会自动更新 `hovered` 输入。
+
+<Aside type="tip">
+  实体需要 `UIInteraction` 组件才能使监听器生效。Button 等 UI 控件自动包含此组件。
+</Aside>
+
+### 第 4 步：在图面板中创建状态
+
+打开 **StateMachine** 面板（如果不可见，在面板菜单中找到它）。你会看到一个空画布和一个 Entry 节点。
+
+1. **右键**画布 → **Add State** → 命名为 `idle`
+2. **右键**再次 → **Add State** → 命名为 `hover`
+3. Entry 节点自动连接到第一个状态。如果需要，右键 `idle` → **Set as Default**。
+
+### 第 5 步：配置状态属性
+
+点击 `idle` 状态节点，在右侧详情面板中：
+
+1. 点击 **+ Add Property**
+2. 输入路径：`Sprite.color.a`
+3. 设置值：`1.0`
+
+点击 `hover` 状态节点并添加：
+
+- 路径：`Sprite.color.a`，值：`0.7`
+
+### 第 6 步：创建转换
+
+1. 将鼠标悬停在 `idle` 节点上，直到看到边缘出现连接手柄
+2. 从 `idle` **拖拽**到 `hover` — 创建一条转换箭头
+3. 点击箭头，在详情面板中配置：
+   - **Duration**: `0.15`（透明度补间的秒数）
+   - 点击 **+ Add Condition**：Input `hovered`，Comparator `eq`，Value `true`
+
+4. 创建第二条从 `hover` 回到 `idle` 的转换：
+   - **Duration**: `0.15`
+   - Condition：`hovered` `eq` `false`
+
+### 第 7 步：测试
+
+按 **F5** 或点击 Play。将鼠标悬停在按钮上——透明度平滑地淡入到 0.7 并恢复。
+
+### 同样的效果用代码实现
+
+```typescript
+import { Commands, StateMachine, UIInteraction } from 'esengine';
+
+cmds.spawn('my-button')
+    .insert(StateMachine, {
+        inputs: [
+            { name: 'hovered', type: 'bool', defaultValue: false },
+        ],
+        listeners: [
+            { event: 'pointerEnter', inputName: 'hovered', action: 'set', value: true },
+            { event: 'pointerExit', inputName: 'hovered', action: 'reset', value: false },
+        ],
+        initialState: 'idle',
+        states: {
+            idle: {
+                properties: { 'Sprite.color.a': 1.0 },
+                transitions: [
+                    {
+                        target: 'hover',
+                        duration: 0.15,
+                        conditions: [{ inputName: 'hovered', comparator: 'eq', value: true }],
+                    },
+                ],
+            },
+            hover: {
+                properties: { 'Sprite.color.a': 0.7 },
+                transitions: [
+                    {
+                        target: 'idle',
+                        duration: 0.15,
+                        conditions: [{ inputName: 'hovered', comparator: 'eq', value: false }],
+                    },
+                ],
+            },
+        },
+    });
+```
+
+## 控制输入
+
+### 通过监听器（推荐）
+
+监听器是驱动状态变化的主要方式。它们将指针事件映射为输入变化，无需编写代码：
+
+```typescript
+listeners: [
+    { event: 'pointerEnter', inputName: 'hovered', action: 'set', value: true },
+    { event: 'pointerExit', inputName: 'hovered', action: 'reset', value: false },
+    { event: 'pointerDown', inputName: 'click', action: 'set', value: true },
+    { event: 'pointerDown', inputName: 'selected', action: 'toggle' },
+]
+```
+
+在编辑器中，在 Inspector 的 StateMachine 组件 **Listeners** 部分添加监听器。
+
+### 通过初始值
+
+输入的 `defaultValue` 决定播放开始时的初始值。可以在 Inspector 中设置，也可以在代码中生成时设置：
+
+```typescript
+cmds.spawn('character')
+    .insert(StateMachine, {
+        inputs: [
+            { name: 'speed', type: 'number', defaultValue: 5 },
+            { name: 'grounded', type: 'bool', defaultValue: true },
+        ],
+        // ...states 和 transitions
+    });
+```
+
+<Aside type="caution">
+  输入值由内部运行时管理，在 Play 模式启动时初始化一次。每个输入定义的 `defaultValue` 仅设置**初始**值。状态机开始运行后修改 `defaultValue` 不会生效——运行时使用自己内部的输入值副本。
+</Aside>
+
+### 动态控制的设计模式
+
+由于运行时输入无法从用户系统中直接修改，可以使用以下模式：
+
+**模式 1：监听器驱动** — 将游戏事件映射到不可见 UI 元素上的指针事件。例如，放置一个隐藏的 `UIInteraction` 实体接收指针事件来切换状态。
+
+**模式 2：组件驱动转换** — 不修改输入，而是让转换响应其他组件的值。例如，转换可以使用 `exitTime` 在时间轴完成后自动推进，无需更改输入。
+
+**模式 3：多个 StateMachine** — 对于复杂行为，在不同实体上使用独立的 StateMachine 组件，各自由自己的监听器驱动。
+
+## 状态详解
+
+每个状态代表一种视觉/行为配置。有三种状态类型：
+
+### 标准状态（属性模式）
+
+默认类型。进入状态时将值赋给实体属性：
+
+```typescript
+idle: {
+    properties: {
+        'Sprite.color.a': 1.0,        // 设置透明度
+        'Transform.scale.x': 1.0,     // 设置缩放
+        'Transform.scale.y': 1.0,
+    },
+    transitions: [/* ... */],
+}
+```
+
+**属性路径**使用点号分隔：`组件名.字段.子字段`。示例：
+- `Sprite.color.r` / `.g` / `.b` / `.a` — 精灵颜色通道
+- `Transform.position.x` / `.y` — 位置
+- `Transform.scale.x` / `.y` — 缩放
+- `Transform.rotation` — 旋转角度（弧度）
+- `UIRect.size.x` / `.y` — UI 元素尺寸
+
+转换时，所有数值属性**一起补间**，共享转换的 `duration` 时长和可选的 `easing` 缓动曲线。单个转换中所有属性共用一个时长和一个缓动——无法为同一转换中的不同属性设置不同时长。非数值属性（如资产路径）在转换开始时立即应用。
+
+### 时间轴状态
+
+引用一个 `.estl` 时间轴资产。进入状态时从头播放时间轴：
+
+```typescript
+attack: {
+    timeline: 'animations/attack.estl',
+    timelineWrapMode: 'once',   // 'once' 或 'loop'
+    transitions: [
+        {
+            target: 'idle',
+            conditions: [],     // 无条件——使用 exitTime
+            duration: 0.1,
+            exitTime: 0.9,      // 时间轴播放到 90% 后允许转换
+        },
+    ],
+}
+```
+
+`exitTime` 是 0–1 的比例值。即使所有条件都满足，转换也要等到时间轴播放超过这个进度才会触发。空的 `conditions` 数组配合 `exitTime` 意味着"动画播放完后自动转换"。
+
+### 混合状态
+
+参见下方[混合状态](#混合状态)章节。
+
+## 转换
+
+当**所有**条件同时为真时转换触发：
+
+```typescript
+{
+    target: 'run',          // 目标状态名
+    duration: 0.2,          // 补间时长（秒，默认：0）
+    easing: 'easeOutQuad',  // 缓动曲线（默认：'linear'）
+    exitTime: 0.8,          // 可选：等待时间轴进度
+    conditions: [
+        { inputName: 'speed', comparator: 'gt', value: 3 },
+        { inputName: 'grounded', comparator: 'eq', value: true },
+    ],
+}
+```
+
+| 比较器 | 含义 |
+|--------|------|
+| `eq` | 等于 |
+| `neq` | 不等于 |
+| `gt` | 大于 |
+| `lt` | 小于 |
+| `gte` | 大于等于 |
+| `lte` | 小于等于 |
+
+可用缓动值：`linear`、`easeInQuad`、`easeOutQuad`、`easeInOutQuad`、`easeInCubic`、`easeOutCubic`、`easeInOutCubic`、`easeInBack`、`easeOutBack`、`easeInOutBack`、`easeInElastic`、`easeOutElastic`、`easeInOutElastic`、`easeOutBounce`
+
+转换**按顺序**求值——第一个条件全部满足的转换触发，其余在该帧跳过。
+
+## 输入
+
+三种输入类型驱动转换：
+
+| 类型 | 行为 | 适用于 |
+|------|------|--------|
+| `bool` | 保持当前值直到被更改 | 切换状态：hovered、selected、grounded |
+| `number` | 连续值，可使用 `gt`/`lt` 比较 | speed、health、混合参数 |
+| `trigger` | 设为 `true` 后**下一帧自动重置为 `false`** | 单次事件：jump、attack、death |
+
+## 监听器
+
+无需代码即可将指针事件映射到输入变更：
+
+```typescript
+listeners: [
+    // 指针进入 → 设置 hovered 为 true
+    { event: 'pointerEnter', inputName: 'hovered', action: 'set', value: true },
+    // 指针离开 → 设置 hovered 为 false
+    { event: 'pointerExit', inputName: 'hovered', action: 'reset', value: false },
+    // 点击 → 触发 'click' trigger
+    { event: 'pointerDown', inputName: 'click', action: 'set', value: true },
+    // 点击切换选中状态
+    { event: 'pointerDown', inputName: 'selected', action: 'toggle' },
+]
+```
+
+| 动作 | 效果 |
+|------|------|
+| `set` | 将输入设为 `value`（默认：`true`） |
+| `reset` | 将输入设为 `value`（默认：`false`） |
+| `toggle` | 翻转布尔输入 |
+
+## 多图层
+
+单个 StateMachine 可以包含多个**图层**，每个图层独立运行自己的状态图。所有图层共享相同的输入，但各自独立求值转换。
+
+```typescript
+{
+    inputs: [
+        { name: 'speed', type: 'number', defaultValue: 0 },
+        { name: 'attack', type: 'trigger' },
+    ],
+    listeners: [],
+    initialState: '',  // 设置 layers 时忽略
+    states: {},        // 设置 layers 时忽略
+    layers: [
+        {
+            name: 'Locomotion',
+            initialState: 'idle',
+            states: {
+                idle: {
+                    properties: { 'Transform.position.y': 0 },
+                    transitions: [
+                        { target: 'run', duration: 0.2, conditions: [{ inputName: 'speed', comparator: 'gt', value: 1 }] },
+                    ],
+                },
+                run: {
+                    timeline: 'animations/run.estl',
+                    timelineWrapMode: 'loop',
+                    transitions: [
+                        { target: 'idle', duration: 0.2, conditions: [{ inputName: 'speed', comparator: 'lte', value: 1 }] },
+                    ],
+                },
+            },
+        },
+        {
+            name: 'Action',
+            initialState: 'none',
+            states: {
+                none: {
+                    transitions: [
+                        { target: 'attack', duration: 0, conditions: [{ inputName: 'attack', comparator: 'eq', value: true }] },
+                    ],
+                },
+                attack: {
+                    timeline: 'animations/attack.estl',
+                    timelineWrapMode: 'once',
+                    transitions: [
+                        { target: 'none', duration: 0.1, exitTime: 0.9, conditions: [] },
+                    ],
+                },
+            },
+        },
+    ],
+}
+```
+
+在这个例子中，Locomotion 图层处理移动动画，Action 图层处理攻击——两者同时运行，可以影响同一实体上的不同属性。
+
+### Any State
+
+名为 `__any__` 的状态是通配符：它的转换在当前状态的转换**之外额外**求值，不论图层处于哪个状态。用于全局转换，比如"血量归零时从任何状态进入死亡状态"。
+
+### 退出状态
+
+图层可以转换到特殊的 `__exit__` 状态，完全停止该图层的处理。适用于单次播放的叠加图层（播放攻击动画后图层休眠）。
+
+## 混合状态
+
+混合状态根据输入值**每帧**连续插值属性，不同于标准状态只在进入时应用一次属性。当你需要平滑的、参数驱动的动画时使用混合状态——例如根据速度调整角色颜色，或用独立权重混合多个视觉效果。
+
+<Aside type="tip">
+  **何时使用混合 vs 标准状态：** 标准状态适合离散的视觉配置（空闲、悬停、按下）。混合状态适合属性需要沿连续参数平滑变化的场景（速度 → 颜色，血量 → 大小）。
+</Aside>
+
+### 1D 混合
+
+沿单个数值输入轴插值属性。定义多个**阈值**条目——引擎根据输入值在最近的两个阈值之间混合。
+
+```typescript
+locomotion: {
+    type: 'blend1d',
+    blendInput: 'speed',   // 驱动混合的数值输入
+    blendStates: [
+        { threshold: 0, properties: { 'Sprite.color.g': 0.5 } },
+        { threshold: 5, properties: { 'Sprite.color.g': 0.8 } },
+        { threshold: 10, properties: { 'Sprite.color.g': 1.0 } },
+    ],
+    transitions: [],
+}
+```
+
+当 `speed` 为 2.5（在阈值 0 和 5 的中点）时，`Sprite.color.g` 线性插值到 0.65。低于最低阈值时钳制到第一个条目的值；高于最高阈值时钳制到最后一个条目的值。
+
+资产类型属性（如纹理）无法插值——它们吸附到最近的阈值。
+
+混合条目也可以引用时间轴而非属性：
+
+```typescript
+blendStates: [
+    { threshold: 0, timeline: 'animations/idle.estl', timelineWrapMode: 'loop' },
+    { threshold: 5, timeline: 'animations/walk.estl', timelineWrapMode: 'loop' },
+    { threshold: 10, timeline: 'animations/run.estl', timelineWrapMode: 'loop' },
+]
+```
+
+### 直接混合
+
+每个条目以各自的权重独立贡献。与使用单一输入轴的 1D 混合不同，直接混合让你分别控制多个效果：
+
+```typescript
+overlay: {
+    type: 'blendDirect',
+    blendStates: [
+        { mixInput: 'damageFlash', properties: { 'Sprite.color.r': 1.0 } },
+        { mixInput: 'freezeEffect', properties: { 'Sprite.color.b': 1.0 } },
+        { mixValue: 0.3, properties: { 'Sprite.color.g': 0.5 } },
+    ],
+    transitions: [],
+}
+```
+
+- **`mixInput`**：权重来自命名的数值输入（0.0–1.0）。改变输入值可控制该条目对结果的影响强度。
+- **`mixValue`**：权重是固定常数。该条目始终以此比例贡献。
+
+直接混合非常适合叠加独立的视觉效果——伤害闪光、冰冻染色、中毒发光——每个由各自的输入控制，互不干扰。
+
+### BlendEntry 参考
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `properties` | `Record<string, unknown>` | 属性路径 → 目标值映射（与标准状态相同） |
+| `timeline` | `string` | `.estl` 时间轴资产路径（properties 的替代方案） |
+| `timelineWrapMode` | `'once' \| 'loop'` | 时间轴播放模式（默认：`'once'`） |
+| `threshold` | `number` | 1D 混合轴上的位置（`blend1d` 必需） |
+| `mixInput` | `string` | 输入名称，其值用作混合权重（用于 `blendDirect`） |
+| `mixValue` | `number` | 固定混合权重（用于 `blendDirect`，`mixInput` 的替代方案） |
+
+## 节点图编辑器
+
+**StateMachine** 面板提供可视化编辑体验。通过 **View** → **StateMachine** 或面板菜单打开。
+
+### 画布
+
+- **状态节点**显示为圆角矩形。初始状态有绿色 Entry 箭头指向它。
+- **转换箭头**连接状态。点击箭头可选中并编辑。
+- **右键**画布背景可添加新状态或粘贴。
+- **右键**状态节点可设为默认、删除或添加转换。
+- **双击**状态可重命名。
+- **拖拽**画布平移，**滚轮**缩放。
+
+### 特殊节点
+
+| 节点 | 颜色 | 用途 |
+|------|------|------|
+| Entry | 绿色箭头 | 标记初始状态 |
+| Any State | 紫色 | 从此处出发的转换不论当前状态均可触发 |
+| Exit | 红色 | 转换到此处停止图层 |
+
+### 详情面板
+
+点击图中的**状态**或**转换**打开详情面板：
+
+**对于状态：**
+- 选择属性模式或时间轴模式
+- 属性模式：添加 属性路径 → 值 的键值对
+- 时间轴模式：选择 `.estl` 资产和循环模式
+- 混合状态：配置混合类型、输入和阈值条目
+
+**对于转换：**
+- 设置时长和缓动曲线
+- 设置 exitTime（用于时间轴状态）
+- 添加/删除条件：输入、比较器、值
+
+### 图层标签页
+
+使用多图层时，面板顶部的标签页可切换图层。每个图层有自己的图。
+
+## 组件参考
+
+### StateMachine
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `states` | `Record<string, StateNode>` | `{}` | 状态定义（单图层模式） |
+| `inputs` | `InputDef[]` | `[]` | 参数定义，所有图层共享 |
+| `listeners` | `ListenerDef[]` | `[]` | 事件到输入的绑定 |
+| `initialState` | `string` | `''` | 默认状态名称（单图层模式） |
+| `layers` | `LayerData[]` | — | 多图层定义（设置后覆盖 `states` 和 `initialState`） |
+
+### StateNode
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `properties` | `Record<string, unknown>` | — | 属性路径 → 目标值映射 |
+| `timeline` | `string` | — | `.estl` 时间轴资产路径 |
+| `timelineWrapMode` | `'once' \| 'loop'` | `'once'` | 时间轴播放模式 |
+| `transitions` | `Transition[]` | `[]` | 出向转换 |
+| `type` | `'standard' \| 'blend1d' \| 'blendDirect'` | `'standard'` | 状态类型 |
+| `blendInput` | `string` | — | 用于 1D 混合的输入名称 |
+| `blendStates` | `BlendEntry[]` | — | 混合树条目 |
+
+### Transition
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `target` | `string` | — | 目标状态名 |
+| `conditions` | `Condition[]` | — | 所有条件必须为真才触发 |
+| `duration` | `number` | `0` | 补间时长（秒） |
+| `exitTime` | `number` | — | 检查条件前要求的时间轴进度比例（0–1） |
+| `easing` | `string` | `'linear'` | 属性补间的缓动曲线 |
+
+### Condition
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `inputName` | `string` | 要比较的输入名称 |
+| `comparator` | `'eq' \| 'neq' \| 'gt' \| 'lt' \| 'gte' \| 'lte'` | 比较运算符 |
+| `value` | `boolean \| number` | 比较的目标值 |
+
+## 下一步
+
+- [时间轴](/docs/zh/guides/timeline/) — 时间轴状态使用的多轨道动画系统
+- [补间动画](/docs/zh/guides/tween/) — 代码驱动的属性动画
+- [UI 交互](/docs/zh/guides/ui-interaction/) — 指针事件和焦点

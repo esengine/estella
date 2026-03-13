@@ -130,7 +130,7 @@ defineSystem([Commands()], (cmds) => {
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `cmds.spawn()` | `EntityCommands` | Create a new entity, returns a builder |
+| `cmds.spawn(name?)` | `EntityCommands` | Create a new entity with an optional name, returns a builder |
 | `cmds.entity(entity)` | `EntityCommands` | Get a builder for an existing entity |
 | `cmds.despawn(entity)` | `this` | Queue entity for destruction |
 | `cmds.insertResource(res, value)` | `this` | Insert or overwrite a resource |

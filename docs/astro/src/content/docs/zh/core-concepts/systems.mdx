@@ -130,7 +130,7 @@ defineSystem([Commands()], (cmds) => {
 
 | 方法 | 返回值 | 说明 |
 |------|--------|------|
-| `cmds.spawn()` | `EntityCommands` | 创建新实体，返回构建器 |
+| `cmds.spawn(name?)` | `EntityCommands` | 创建新实体（可指定名称），返回构建器 |
 | `cmds.entity(entity)` | `EntityCommands` | 获取已有实体的构建器 |
 | `cmds.despawn(entity)` | `this` | 将实体加入销毁队列 |
 | `cmds.insertResource(res, value)` | `this` | 插入或覆盖资源 |

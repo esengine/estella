@@ -52,7 +52,7 @@ When `anchorMin` equals `anchorMax`, the element has a fixed `size` at the ancho
 
 ## FlexContainer
 
-CSS Flexbox-like layout for automatic child arrangement.
+CSS Flexbox-like layout for automatic child arrangement, powered by the [Yoga](https://yogalayout.dev/) layout engine.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -60,8 +60,9 @@ CSS Flexbox-like layout for automatic child arrangement.
 | `wrap` | FlexWrap | `NoWrap` | `NoWrap`, `Wrap` |
 | `justifyContent` | JustifyContent | `Start` | `Start`, `Center`, `End`, `SpaceBetween`, `SpaceAround`, `SpaceEvenly` |
 | `alignItems` | AlignItems | `Stretch` | `Start`, `Center`, `End`, `Stretch` |
-| `gap` | Vec2 | `{0, 0}` | Spacing between items |
-| `padding` | Vec4 | `{x:0, y:0, z:0, w:0}` | Padding as `{x: top, y: right, z: bottom, w: left}` |
+| `alignContent` | AlignContent | `Start` | `Start`, `Center`, `End`, `Stretch`, `SpaceBetween`, `SpaceAround` — controls multi-line cross-axis alignment |
+| `gap` | Vec2 | `{0, 0}` | Spacing between items (`x` = column gap, `y` = row gap) |
+| `padding` | Padding | `{left:0, top:0, right:0, bottom:0}` | Inner padding |
 
 ## FlexItem
 
@@ -73,6 +74,11 @@ Child properties for entities inside a `FlexContainer`.
 | `flexShrink` | number | `1` | How much the item shrinks when space is tight |
 | `flexBasis` | number | `-1` | Base size before grow/shrink (-1 = auto) |
 | `order` | number | `0` | Display order override |
+| `alignSelf` | AlignSelf | `Auto` | `Auto`, `Start`, `Center`, `End`, `Stretch` — overrides parent `alignItems` for this item |
+| `margin` | Padding | `{left:0, top:0, right:0, bottom:0}` | Outer margin |
+| `minWidth` / `minHeight` | number | `-1` | Minimum dimensions (-1 = none) |
+| `maxWidth` / `maxHeight` | number | `-1` | Maximum dimensions (-1 = none) |
+| `widthPercent` / `heightPercent` | number | `-1` | Size as percentage of parent (-1 = disabled) |
 
 ## LayoutGroup
 

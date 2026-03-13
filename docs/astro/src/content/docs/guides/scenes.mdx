@@ -48,7 +48,18 @@ After building your project, the engine automatically loads the scene, resolves 
 
 ### By Name
 
-Every entity loaded from a scene receives a built-in `Name` component with the name assigned in the editor. Query `Name` to find entities:
+Use `findEntityByName()` for O(1) name-based lookup:
+
+```typescript
+import { findEntityByName } from 'esengine';
+
+const player = findEntityByName(world, 'Player');
+if (player) {
+    // found the player entity
+}
+```
+
+Alternatively, query the `Name` component to iterate over named entities:
 
 ```typescript
 import { defineSystem, addStartupSystem, Query, Name, Transform } from 'esengine';

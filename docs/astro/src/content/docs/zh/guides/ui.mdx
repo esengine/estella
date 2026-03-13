@@ -52,7 +52,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 
 ## FlexContainer
 
-类似 CSS Flexbox 的自动子元素排列布局。
+类似 CSS Flexbox 的自动子元素排列布局，基于 [Yoga](https://yogalayout.dev/) 布局引擎。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -60,8 +60,9 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 | `wrap` | FlexWrap | `NoWrap` | `NoWrap`、`Wrap` |
 | `justifyContent` | JustifyContent | `Start` | `Start`、`Center`、`End`、`SpaceBetween`、`SpaceAround`、`SpaceEvenly` |
 | `alignItems` | AlignItems | `Stretch` | `Start`、`Center`、`End`、`Stretch` |
-| `gap` | Vec2 | `{0, 0}` | 子元素间距 |
-| `padding` | Vec4 | `{x:0, y:0, z:0, w:0}` | 内边距，格式为 `{x: 上, y: 右, z: 下, w: 左}` |
+| `alignContent` | AlignContent | `Start` | `Start`、`Center`、`End`、`Stretch`、`SpaceBetween`、`SpaceAround` — 控制多行交叉轴对齐 |
+| `gap` | Vec2 | `{0, 0}` | 子元素间距（`x` = 列间距，`y` = 行间距） |
+| `padding` | Padding | `{left:0, top:0, right:0, bottom:0}` | 内边距 |
 
 ## FlexItem
 
@@ -73,6 +74,11 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 | `flexShrink` | number | `1` | 空间不足时收缩的比例 |
 | `flexBasis` | number | `-1` | 扩展/收缩前的基础尺寸（-1 = 自动） |
 | `order` | number | `0` | 显示顺序覆盖 |
+| `alignSelf` | AlignSelf | `Auto` | `Auto`、`Start`、`Center`、`End`、`Stretch` — 覆盖父级 `alignItems` |
+| `margin` | Padding | `{left:0, top:0, right:0, bottom:0}` | 外边距 |
+| `minWidth` / `minHeight` | number | `-1` | 最小尺寸（-1 = 无限制） |
+| `maxWidth` / `maxHeight` | number | `-1` | 最大尺寸（-1 = 无限制） |
+| `widthPercent` / `heightPercent` | number | `-1` | 相对父级的百分比尺寸（-1 = 禁用） |
 
 ## LayoutGroup
 

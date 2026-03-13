@@ -76,6 +76,7 @@ export default defineConfig({
                 { label: 'Tween Animation', translations: { 'zh-CN': '补间动画' }, slug: 'guides/tween' },
                 { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
                 { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'guides/timeline' },
+                { label: 'State Machine', translations: { 'zh-CN': '状态机' }, slug: 'guides/state-machine' },
                 { label: 'Bitmap Text', translations: { 'zh-CN': '位图文本' }, slug: 'guides/bitmap-text' },
                 { label: 'Custom Draw', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/custom-draw' },
                 { label: 'Post-Processing', translations: { 'zh-CN': '后处理效果' }, slug: 'guides/post-processing' },
@@ -154,6 +155,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.11.0', slug: 'changelog-v0110' },
             { label: 'v0.10.0', slug: 'changelog-v0100' },
             { label: 'v0.9.2', slug: 'changelog-v092' },
             { label: 'v0.9.1', slug: 'changelog-v091' },

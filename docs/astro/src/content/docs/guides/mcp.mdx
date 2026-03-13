@@ -13,7 +13,7 @@ The Estella editor includes a built-in **MCP (Model Context Protocol)** bridge t
 
 ## Prerequisites
 
-- Estella editor v0.10.0 or later
+- Estella editor v0.11.0 or later
 - Node.js 18+
 - An MCP-compatible AI client (e.g., Claude Desktop, Claude Code, Cursor)
 
@@ -136,12 +136,40 @@ AI Client ←→ MCP Server (stdio) ←→ HTTP Bridge ←→ Estella Editor
 | `pause` | Pause/resume play mode |
 | `set_play_speed` | Adjust playback speed |
 
+### UI Creation
+
+Create fully configured UI widget hierarchies with a single tool call. Entities are auto-parented under the Canvas.
+
+| Tool | Description |
+|------|-------------|
+| `create_text` | Create a text label with content, fontSize, color, and alignment |
+| `create_image` | Create an image element with tint color and size |
+| `create_panel` | Create a panel with background and mask |
+| `create_button` | Create a button with background and interactable |
+| `create_input_field` | Create a text input field with placeholder and initial value |
+| `create_toggle` | Create a toggle/checkbox |
+| `create_slider` | Create a slider with fill bar and handle |
+| `create_progress_bar` | Create a progress bar with fill |
+| `create_scroll_view` | Create a scrollable container |
+| `create_dropdown` | Create a dropdown/select with options |
+
+### Editor State
+
+| Tool | Description |
+|------|-------------|
+| `get_console_logs` | Get recent console logs, optionally filtered by level |
+| `get_panel_layout` | Get editor panel positions |
+| `get_project_settings` | Get project settings |
+| `get_build_status` | Get recent build history |
+| `get_render_stats` | Get frame timing and performance data |
+| `get_asset_info` | Get detailed info about an asset by UUID or path |
+
 ### Visual
 
 | Tool | Description |
 |------|-------------|
-| `screenshot` | Capture a screenshot of the current viewport |
-| `screenshot_diff` | Compare two screenshots pixel-by-pixel |
+| `capture_editor` | Capture a screenshot of the editor (whole window or specific panel) |
+| `capture_diff` | Compare two screenshots pixel-by-pixel |
 
 ## Example Prompts
 

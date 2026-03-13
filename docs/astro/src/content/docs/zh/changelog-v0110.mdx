@@ -1,0 +1,98 @@
+---
+title: v0.11.0
+description: Estella v0.11.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.11.0 引入完整的可视化状态机系统，使用 Yoga 替换布局引擎，上线自研 Dock 系统，并带来大量编辑器体验改进。
+</Aside>
+
+## 状态机：可视化状态管理
+
+全新的状态机系统，用于驱动动画和游戏逻辑，配备受 Rive 和 Unity Animator 启发的可视化节点图编辑器。
+
+### 组件与资产
+
+新增 `StateMachine` 组件，引用 `.statemachine` 资产文件，支持 `autoPlay`。定义命名状态（Idle、Run、Attack……），每个状态关联一个时间轴片段，通过用户自定义参数（float、int、bool、trigger）设置条件转换。
+
+### 节点图编辑器
+
+专用面板提供完整的节点图编辑体验：
+
+- 在状态节点间拖拽创建转换
+- 点击转换箭头配置条件（参数比较、退出时间）
+- 右键画布添加状态或设置默认状态
+- 多图层标签页切换
+
+### 多图层、混合状态与退出状态
+
+- **多图层**：每个图层独立运行自己的状态图，可配置权重（0.0–1.0）和混合模式（Override / Additive）
+- **混合状态（Blend State）**：通过 1D 混合树在多个时间轴片段之间混合——在阈值处定义动作条目，运行时在最近的两个动作之间插值
+- **退出状态（Exit State）**：特殊节点，表示图层已完成当前状态图，适用于一次性动画
+
+### 时间轴集成
+
+在节点图中选择状态后，时间轴面板自动打开该状态的时间轴片段进行编辑。状态机时间轴 handle 独立于常规时间轴 handle 管理。进入 Play Mode 时自动预加载时间轴资产，避免动画数据缺失。
+
+### Inspector 编辑
+
+可折叠的参数和图层编辑器，折叠状态持久保存。支持在 Inspector 中内联添加、删除、重命名参数，配置图层权重和混合模式。
+
+## Yoga 布局引擎
+
+使用 **Yoga**（Facebook 的跨平台布局引擎，React Native 同款）替换手写的 CSS Flexbox 实现，更准确地处理 flex 布局的边界情况。
+
+- `FlexContainer`：flexDirection、justifyContent、alignItems、alignContent、flexWrap、gap、padding、overflow
+- `FlexItem`：flexGrow、flexShrink、flexBasis、alignSelf、width/height、min/max 尺寸、margin、aspectRatio、position（relative/absolute）、positionInsets
+
+属性在 Inspector 中按组分类显示（布局、对齐、间距、尺寸、位置），使用更易读的显示名称。
+
+## 自研 Dock 系统
+
+使用自研 Dock 系统替换第三方 dockview 库：
+
+- **拖拽标签页**：在 dock 区域内重排序，或在区域间移动面板
+- **分割布局**：将标签页拖到边缘指示器上实现水平或垂直分割
+- **可调分隔条**：拖拽 dock 区域边界调整大小
+- **浮动面板**：任意面板可弹出为浮动窗口
+- **布局持久化**：保存至 localStorage 并在重新加载时恢复，菜单中可重置为默认布局
+
+## Add Component 弹窗
+
+"Add Component" 按钮现在打开重新设计的锚定面板：
+
+- **模糊搜索**：输入即可模糊匹配过滤组件
+- **分类列表**：组件按类别组织（渲染、UI、物理、音频、布局、动画等）
+- **键盘导航**：方向键导航，Enter 选择
+
+## spawn(name) API
+
+- `world.spawn(name?)` 创建实体时可指定名称
+- `world.getEntityByName(name)` 通过内部名称索引实现 O(1) 按名称查找实体
+- Hierarchy 面板在实体名称旁显示标签徽章，便于快速识别
+
+## 增强选择交互与 Gizmo 光标
+
+- **上下文感知光标**：移动箭头显示方向光标、缩放手柄显示缩放光标、旋转环显示旋转光标
+- **悬停高亮**：Gizmo 手柄悬停时高亮并变色
+- **点击优先级**：Gizmo 与实体重叠时优先响应 Gizmo
+
+## 多 Output Handler 支持
+
+`OutputService` 现在支持通过 `addOutputHandler()` / `removeOutputHandler()` 注册多个输出处理器。处理器按顺序调用，支持同时写入文件、发送到预览、输出到控制台等场景。
+
+## MCP 增强
+
+- 新增 UI 模板实例化路由，从模板创建 UI 层级
+- 改进截图功能，支持超时、面板内容选择器、html2canvas 集成
+- MCP 服务器提取为独立仓库，作为 git submodule 管理
+
+## Bug 修复
+
+- 修复 Windows 上预览服务器端口绑定失败
+- 修复 Windows 上 MCP bridge 文件未创建
+- 修复弹窗和下拉菜单超出视口边界——位置现在钳制到视口范围内
+- 修复 padding 编辑器与 vec 编辑器样式不一致
+- 修复新场景中 Canvas 缺少 UIRect

@@ -48,7 +48,18 @@ import { Aside } from '@astrojs/starlight/components';
 
 ### 按名字查找
 
-从场景加载的每个实体都会自动获得内置的 `Name` 组件，包含在编辑器中指定的名字。通过查询 `Name` 来查找实体：
+使用 `findEntityByName()` 进行 O(1) 名称查找：
+
+```typescript
+import { findEntityByName } from 'esengine';
+
+const player = findEntityByName(world, 'Player');
+if (player) {
+    // 找到了玩家实体
+}
+```
+
+也可以通过查询 `Name` 组件来遍历命名实体：
 
 ```typescript
 import { defineSystem, addStartupSystem, Query, Name, Transform } from 'esengine';

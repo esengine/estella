@@ -1,0 +1,98 @@
+---
+title: v0.11.0
+description: Estella v0.11.0 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.11.0 introduces a full visual StateMachine system, replaces the layout engine with Yoga, ships a custom dock system, and delivers numerous editor UX improvements.
+</Aside>
+
+## StateMachine: Visual State Management
+
+A complete state machine system for driving animations and game logic, with a visual node-graph editor inspired by Rive and Unity Animator.
+
+### Component & Asset
+
+The new `StateMachine` component references a `.statemachine` asset and supports `autoPlay`. Define named states (Idle, Run, Attack…), each linked to a timeline clip, and connect them with condition-based transitions using user-defined parameters (float, int, bool, trigger).
+
+### Node Graph Editor
+
+A dedicated panel provides a full node-graph editing experience:
+
+- Drag between state nodes to create transitions
+- Click transitions to configure conditions (parameter comparisons, exit time)
+- Right-click canvas to add states or set the default state
+- Multi-layer tabs for switching between layers
+
+### Multi-Layer, Blend State & Exit State
+
+- **Multiple layers**: each layer runs its own state graph independently with configurable weight (0.0–1.0) and blend mode (Override / Additive)
+- **Blend State**: blends between multiple timeline clips via a 1D blend tree — define motion entries at threshold values and the runtime interpolates between the two nearest motions
+- **Exit State**: a special node that signals a layer has finished, useful for one-shot animations
+
+### Timeline Integration
+
+Selecting a state in the graph opens its timeline clip in the Timeline panel for direct editing. StateMachine timeline handles are managed independently from regular timeline handles. Timeline assets are preloaded when entering Play Mode to prevent missing animation data.
+
+### Inspector
+
+Collapsible parameter and layer editors with persistent collapse state. Add, remove, and rename parameters; configure layer weights and blend modes — all inline in the Inspector.
+
+## Yoga Layout Engine
+
+The hand-written CSS Flexbox implementation has been replaced with **Yoga**, Facebook's battle-tested cross-platform layout engine (used by React Native). This brings more correct handling of edge cases in flex layout.
+
+- `FlexContainer`: flexDirection, justifyContent, alignItems, alignContent, flexWrap, gap, padding, overflow
+- `FlexItem`: flexGrow, flexShrink, flexBasis, alignSelf, width/height, min/max dimensions, margin, aspectRatio, position (relative/absolute), positionInsets
+
+Properties are now organized into groups (Layout, Alignment, Spacing, Sizing, Position) with human-readable display names in the Inspector.
+
+## Custom Dock System
+
+The third-party dockview library has been replaced with a fully custom dock system:
+
+- **Drag-and-drop tabs**: reorder within a dock area or move panels between areas
+- **Split layouts**: drop tabs on edge indicators to split horizontally or vertically
+- **Resizable splitters**: drag borders between dock areas
+- **Floating panels**: pop out any panel as a floating window
+- **Persistent layout**: saved to localStorage and restored on reload, with a menu option to reset to defaults
+
+## Add Component Popup
+
+The "Add Component" button now opens a redesigned anchored panel:
+
+- **Fuzzy search**: type to filter components with fuzzy matching
+- **Categorized list**: components organized by category (Rendering, UI, Physics, Audio, Layout, Animation, etc.)
+- **Keyboard navigation**: arrow keys to navigate, Enter to select
+
+## spawn(name) API
+
+- `world.spawn(name?)` creates a new entity with an optional name
+- `world.getEntityByName(name)` provides O(1) name-based entity lookup via an internal name index
+- The Hierarchy panel displays tag badges next to entity names for quick visual identification
+
+## Enhanced Selection & Gizmo Cursors
+
+- **Context-aware cursors**: move arrows show directional cursor, scale handles show resize cursor, rotate ring shows rotation cursor
+- **Hover highlighting**: gizmo handles highlight on hover with color feedback
+- **Click-through prevention**: gizmos take priority over entity selection when overlapping
+
+## Multiple Output Handlers
+
+`OutputService` now supports registering multiple output handlers via `addOutputHandler()` / `removeOutputHandler()`. Handlers are called in sequence, enabling scenarios like writing to file, sending to preview, and logging to console simultaneously.
+
+## MCP Enhancements
+
+- UI template instantiation route for creating UI hierarchies from templates
+- Improved screenshot capture with timeout, panel content selector, and html2canvas integration
+- MCP server extracted to a standalone repository as a git submodule
+
+## Bug Fixes
+
+- Fixed preview server port binding failure on Windows
+- Fixed MCP bridge file not created on Windows
+- Fixed popup and dropdown menus overflowing viewport bounds — positions are now clamped
+- Fixed padding editor style inconsistency with vec editor
+- Fixed Canvas missing UIRect when creating a new scene
