@@ -447,6 +447,10 @@ export class SceneViewPanel {
     }
 
     private onSceneChanged(): void {
+        const gizmoId = this.store_.consumeRequestedGizmoId();
+        if (gizmoId) {
+            this.toolbar_.setMode(gizmoId);
+        }
         this.requestRender();
     }
 

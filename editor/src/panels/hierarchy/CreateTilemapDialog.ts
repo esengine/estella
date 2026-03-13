@@ -4,6 +4,7 @@ import { showAssetPicker } from '../../ui/asset-picker';
 import { getAssetLibrary } from '../../asset/AssetLibrary';
 import { loadImageFromPath } from '../../gizmos/TilesetLoader';
 import { getInitialComponentData } from '../../schemas/ComponentSchemas';
+import { getNavigationService } from '../../services';
 import type { HierarchyState } from './HierarchyTypes';
 
 const DEFAULT_TILE_SIZE = 32;
@@ -200,5 +201,7 @@ export async function showCreateTilemapDialog(
     });
 
     state.store.selectEntity(entity);
+    state.store.requestGizmo('tile-brush');
+    getNavigationService().showPanel('tile-palette');
     return entity;
 }

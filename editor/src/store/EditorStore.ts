@@ -109,6 +109,7 @@ export class EditorStore {
 
     private tileBrushSelectedTileId_ = 1;
     private tileBrushMode_: 'paint' | 'erase' = 'paint';
+    private requestedGizmoId_: string | null = null;
 
     private readonly selection_: SelectionService;
     private readonly sceneOps_: SceneOperations;
@@ -206,6 +207,16 @@ export class EditorStore {
 
     set tileBrushMode(mode: 'paint' | 'erase') {
         this.tileBrushMode_ = mode;
+    }
+
+    consumeRequestedGizmoId(): string | null {
+        const id = this.requestedGizmoId_;
+        this.requestedGizmoId_ = null;
+        return id;
+    }
+
+    requestGizmo(id: string): void {
+        this.requestedGizmoId_ = id;
     }
 
     get canUndo(): boolean {
