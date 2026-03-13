@@ -107,6 +107,9 @@ export class EditorStore {
 
     private autoSaveTimer_: ReturnType<typeof setInterval> | null = null;
 
+    private tileBrushSelectedTileId_ = 1;
+    private tileBrushMode_: 'paint' | 'erase' = 'paint';
+
     private readonly selection_: SelectionService;
     private readonly sceneOps_: SceneOperations;
     private readonly prefabEdit_: PrefabEditService;
@@ -187,6 +190,22 @@ export class EditorStore {
 
     get isEditingPrefab(): boolean {
         return this.prefabEdit_.isEditingPrefab;
+    }
+
+    get tileBrushSelectedTileId(): number {
+        return this.tileBrushSelectedTileId_;
+    }
+
+    set tileBrushSelectedTileId(id: number) {
+        this.tileBrushSelectedTileId_ = id;
+    }
+
+    get tileBrushMode(): 'paint' | 'erase' {
+        return this.tileBrushMode_;
+    }
+
+    set tileBrushMode(mode: 'paint' | 'erase') {
+        this.tileBrushMode_ = mode;
     }
 
     get canUndo(): boolean {

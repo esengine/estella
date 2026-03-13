@@ -2,6 +2,7 @@ import type { GizmoContext, GizmoDescriptor } from './GizmoRegistry';
 import type { PluginRegistrar } from '../container';
 import { GIZMO } from '../container/tokens';
 import { icons } from '../utils/icons';
+import { createTileBrushGizmo } from './TileBrushGizmo';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
 import { getSettingsValue } from '../settings/SettingsRegistry';
 import { getSizeProvider } from '../utils/sceneQueries';
@@ -890,4 +891,5 @@ export function registerBuiltinGizmos(registrar: PluginRegistrar): void {
     registerGizmo(createRotateGizmo());
     registerGizmo(createScaleGizmo());
     registerGizmo(createRectGizmo());
+    registerGizmo(createTileBrushGizmo());
 }

@@ -29,6 +29,7 @@ export interface GizmoDescriptor {
     onDragEnd?(worldX: number, worldY: number, hitData: unknown, ctx: GizmoContext): void;
     onHover?(worldX: number, worldY: number, hitData: unknown, ctx: GizmoContext): void;
     getCursor?(hitData: unknown): string;
+    isApplicable?(ctx: GizmoContext): boolean;
 }
 
 export function registerGizmo(descriptor: GizmoDescriptor): void {

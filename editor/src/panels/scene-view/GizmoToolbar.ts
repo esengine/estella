@@ -1,4 +1,4 @@
-import { GizmoManager, getAllGizmos } from '../../gizmos';
+import { GizmoManager, getAllGizmos, type GizmoContext } from '../../gizmos';
 import { getSettingsValue, setSettingsValue, onSettingsChange } from '../../settings/SettingsRegistry';
 import { icons } from '../../utils/icons';
 
@@ -122,6 +122,16 @@ export class GizmoToolbar {
         const display = this.container_.querySelector('.es-zoom-display');
         if (display) {
             display.textContent = `${Math.round(zoom * 100)}%`;
+        }
+    }
+
+    updateApplicability(ctx: GizmoContext): void {
+        const gizmos = getAllGizmos();
+        for (const g of gizmos) {
+            const btn = this.container_.querySelector(`.es-gizmo-btn[data-mode="${g.id}"]`) as HTMLElement | null;
+            if (!btn) continue;
+            const applicable = g.isApplicable ? g.isApplicable(ctx) : true;
+            btn.classList.toggle('es-disabled', !applicable);
         }
     }
 

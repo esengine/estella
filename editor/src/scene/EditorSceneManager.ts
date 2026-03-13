@@ -833,6 +833,8 @@ export class EditorSceneManager {
                 width: l.width,
                 height: l.height,
                 tiles: l.tiles,
+                chunks: l.chunks ?? [],
+                infinite: l.infinite ?? false,
             })),
             tilesets,
         });

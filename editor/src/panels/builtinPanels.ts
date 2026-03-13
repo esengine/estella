@@ -12,6 +12,7 @@ import { TimelinePanel } from './timeline/TimelinePanel';
 import { FrameDebuggerPanel } from './frameDebugger/FrameDebuggerPanel';
 import { ExtensionsPanel } from './ExtensionsPanel';
 import { StateMachineGraphPanel } from './state-machine-graph/StateMachineGraphPanel';
+import { TilePalettePanel } from './tile-palette/TilePalettePanel';
 import { icons } from '../utils/icons';
 import { getEditorStore } from '../store';
 import { getSceneService } from '../services';
@@ -126,6 +127,16 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         order: 5,
         defaultVisible: false,
         factory: (c) => ({ instance: new StateMachineGraphPanel(c, getEditorStore()) }),
+    });
+
+    registerPanel({
+        id: 'tile-palette',
+        title: 'Tile Palette',
+        icon: icons.grid(PANEL_ICON_SIZE),
+        position: 'bottom',
+        defaultVisible: false,
+        order: 6,
+        factory: (c) => ({ instance: new TilePalettePanel(c, getEditorStore()) }),
     });
 
     registerPanel({
