@@ -73,18 +73,34 @@ export class TilemapPlugin implements Plugin {
                     if (!dims) continue;
 
                     if (!initializedLayers.has(entity)) {
-                        TilemapAPI.initLayer(
-                            entity, layerData.width, layerData.height,
-                            layerData.tileWidth, layerData.tileHeight,
-                        );
-                        TilemapAPI.setOriginEntity(entity, entity);
-                        if (layerData.tiles.length > 0) {
-                            const u16 = new Uint16Array(layerData.tiles.length);
-                            for (let i = 0; i < layerData.tiles.length; i++) {
-                                u16[i] = layerData.tiles[i];
+                        if (layerData.infinite) {
+                            TilemapAPI.initInfiniteLayer(
+                                entity, layerData.tileWidth, layerData.tileHeight,
+                            );
+                            if (layerData.chunks) {
+                                for (const [key, tiles] of Object.entries(layerData.chunks)) {
+                                    const [cxStr, cyStr] = key.split(',');
+                                    const cx = parseInt(cxStr, 10);
+                                    const cy = parseInt(cyStr, 10);
+                                    const u16 = new Uint16Array(tiles.length);
+                                    for (let i = 0; i < tiles.length; i++) u16[i] = tiles[i];
+                                    TilemapAPI.setChunkTiles(entity, cx, cy, u16, 16, 16);
+                                }
                             }
-                            TilemapAPI.setTiles(entity, u16);
+                        } else {
+                            TilemapAPI.initLayer(
+                                entity, layerData.width, layerData.height,
+                                layerData.tileWidth, layerData.tileHeight,
+                            );
+                            if (layerData.tiles.length > 0) {
+                                const u16 = new Uint16Array(layerData.tiles.length);
+                                for (let i = 0; i < layerData.tiles.length; i++) {
+                                    u16[i] = layerData.tiles[i];
+                                }
+                                TilemapAPI.setTiles(entity, u16);
+                            }
                         }
+                        TilemapAPI.setOriginEntity(entity, entity);
                         initializedLayers.add(entity);
                     }
 

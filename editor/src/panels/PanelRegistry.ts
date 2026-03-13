@@ -1,5 +1,6 @@
 import { getEditorContainer } from '../container';
 import { PANEL } from '../container/tokens';
+import type { EditorStore } from '../store/EditorStore';
 
 export type PanelPosition = 'left' | 'right' | 'center' | 'bottom';
 
@@ -11,6 +12,7 @@ export interface PanelDescriptor {
     defaultVisible?: boolean;
     order?: number;
     factory: PanelFactory;
+    contextMatch?: (store: EditorStore) => boolean;
 }
 
 export interface PanelFactoryResult {

@@ -81,6 +81,7 @@ export class SceneViewInput {
                 return;
             }
 
+            if (this.deps_.gizmoManager.onKeyDown(e.key)) return;
             if (toolbar.handleKeyShortcut(e.key)) return;
 
             if (e.key === 'f' || e.key === 'F') {
@@ -201,6 +202,15 @@ export class SceneViewInput {
             return;
         }
 
+        if (e.button === 2 && gizmoManager.getActiveId() === 'tile-brush') {
+            const { worldX, worldY } = camera.screenToWorld(e.clientX, e.clientY);
+            this.updateGizmoContext();
+            if (gizmoManager.onMouseDown(worldX, worldY, e)) {
+                this.startDocumentDrag();
+            }
+            return;
+        }
+
         if (e.button !== 0) return;
 
         this.mouseDownX_ = e.clientX;
@@ -211,7 +221,7 @@ export class SceneViewInput {
 
         if (gizmoManager.getActiveId() !== 'select' && hasSelection) {
             this.updateGizmoContext();
-            if (gizmoManager.onMouseDown(worldX, worldY)) {
+            if (gizmoManager.onMouseDown(worldX, worldY, e)) {
                 this.startDocumentDrag();
                 return;
             }
@@ -443,6 +453,10 @@ export class SceneViewInput {
     }
 
     private onContextMenu(e: MouseEvent): void {
+        if (this.deps_.gizmoManager.getActiveId() === 'tile-brush') {
+            e.preventDefault();
+            return;
+        }
         if (!getSettingsValue<boolean>('scene.showColliders')) return;
 
         const { camera, colliderOverlay } = this.deps_;

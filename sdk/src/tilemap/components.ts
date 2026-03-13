@@ -13,6 +13,8 @@ export interface TilemapLayerData {
     tilesetColumns: number;
     layer: number;
     tiles: number[];
+    infinite: boolean;
+    chunks: Record<string, number[]>;
     tint: { r: number; g: number; b: number; a: number };
     opacity: number;
     visible: boolean;
@@ -32,6 +34,8 @@ export const TilemapLayer = defineComponent<TilemapLayerData>('TilemapLayer', {
     tilesetColumns: 1,
     layer: 0,
     tiles: [],
+    infinite: false,
+    chunks: {},
     tint: { r: 1, g: 1, b: 1, a: 1 },
     opacity: 1,
     visible: true,

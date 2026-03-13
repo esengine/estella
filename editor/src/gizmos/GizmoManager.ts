@@ -43,7 +43,7 @@ export class GizmoManager {
         gizmo.draw(this.context_);
     }
 
-    onMouseDown(worldX: number, worldY: number): boolean {
+    onMouseDown(worldX: number, worldY: number, event?: MouseEvent): boolean {
         const gizmo = this.getActive();
         if (!gizmo || !this.context_) return false;
 
@@ -57,7 +57,7 @@ export class GizmoManager {
             startWorldY: worldY,
         };
 
-        gizmo.onDragStart?.(worldX, worldY, result.data, this.context_);
+        gizmo.onDragStart?.(worldX, worldY, result.data, this.context_, event);
         return true;
     }
 
@@ -93,6 +93,12 @@ export class GizmoManager {
         if (!gizmo?.getCursor) return 'default';
         if (this.dragState_ && gizmo.id === 'rotate') return 'grabbing';
         return gizmo.getCursor(this.dragState_?.data ?? this.hoveredData_);
+    }
+
+    onKeyDown(key: string): boolean {
+        const gizmo = this.getActive();
+        if (!gizmo?.onKeyDown || !this.context_) return false;
+        return gizmo.onKeyDown(key, this.context_);
     }
 
     resetHover(): void {

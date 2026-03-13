@@ -82,6 +82,12 @@ import {
     Info,
     TriangleAlert,
     PanelLeft,
+    FlipHorizontal2,
+    FlipVertical2,
+    Pipette,
+    PaintBucket,
+    Eraser,
+    RectangleHorizontal,
 } from 'lucide';
 
 // =============================================================================
@@ -220,6 +226,12 @@ export const icons = {
     grip: (size?: number) => renderIcon(GripVertical as IconNode, size),
     info: (size?: number) => renderIcon(Info as IconNode, size),
     alertTriangle: (size?: number) => renderIcon(TriangleAlert as IconNode, size),
+    flipHorizontal: (size?: number) => renderIcon(FlipHorizontal2 as IconNode, size),
+    flipVertical: (size?: number) => renderIcon(FlipVertical2 as IconNode, size),
+    pipette: (size?: number) => renderIcon(Pipette as IconNode, size),
+    paintBucket: (size?: number) => renderIcon(PaintBucket as IconNode, size),
+    eraser: (size?: number) => renderIcon(Eraser as IconNode, size),
+    rectFill: (size?: number) => renderIcon(RectangleHorizontal as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

@@ -1,6 +1,7 @@
 import type { OverlayContext } from './ColliderOverlay';
 import type { EntityData } from '../types/SceneTypes';
-import { getTilesetForSource, addTilesetLoadListener } from './TilesetLoader';
+import { getTilesetForSource, getTilesetForImage, findParentTilemapSource, addTilesetLoadListener } from './TilesetLoader';
+import { CHUNK_SIZE } from './TileChunkUtils';
 
 const GRID_COLOR = 'rgba(100, 200, 255, 0.5)';
 const FALLBACK_TILE_COLOR = 'rgba(100, 200, 255, 0.15)';
@@ -63,14 +64,14 @@ export class TilemapOverlay {
         if (!layerComp) return;
 
         const data = layerComp.data as Record<string, unknown>;
+        const infinite = data.infinite as boolean ?? false;
         const width = data.width as number ?? 0;
         const height = data.height as number ?? 0;
         const tileWidth = data.tileWidth as number ?? 32;
         const tileHeight = data.tileHeight as number ?? 32;
-        const tiles = data.tiles as number[] ?? [];
         const tilesetColumns = data.tilesetColumns as number ?? 1;
 
-        if (width === 0 || height === 0) return;
+        if (!infinite && (width === 0 || height === 0)) return;
 
         const { ctx, zoom, store } = octx;
         const worldTransform = store.getWorldTransform(entity.id);
@@ -79,17 +80,82 @@ export class TilemapOverlay {
 
         ctx.save();
 
-        this.drawGrid_(ctx, width, height, tileWidth, tileHeight, ox, oy, zoom);
+        const image = this.resolveTilesetImage_(octx, entity, data, tileWidth, tileHeight, tilesetColumns);
 
-        if (tiles.length > 0) {
-            this.drawTiles_(ctx, tiles, width, height, tileWidth, tileHeight,
-                tilesetColumns, null, ox, oy);
+        if (infinite) {
+            const chunks = data.chunks as Record<string, number[]> ?? {};
+            this.drawChunks_(ctx, chunks, tileWidth, tileHeight, tilesetColumns, image, ox, oy);
+        } else {
+            this.drawGrid_(ctx, width, height, tileWidth, tileHeight, ox, oy, zoom);
+            const tiles = data.tiles as number[] ?? [];
+            if (tiles.length > 0) {
+                this.drawTiles_(ctx, tiles, width, height, tileWidth, tileHeight,
+                    tilesetColumns, image, ox, oy);
+            }
         }
 
         this.drawOriginMarker_(ctx, ox, oy, zoom);
         ctx.restore();
     }
 
+    private resolveTilesetImage_(
+        octx: OverlayContext, entity: EntityData, data: Record<string, unknown>,
+        tileWidth: number, tileHeight: number, tilesetColumns: number,
+    ): HTMLImageElement | null {
+        const parentSource = findParentTilemapSource(octx.store.scene.entities, entity.id);
+        if (parentSource) {
+            const info = getTilesetForSource(parentSource);
+            if (info?.tilesetImage) return info.tilesetImage;
+        }
+
+        const textureUuid = data.texture as string ?? '';
+        if (textureUuid && typeof textureUuid === 'string') {
+            const info = getTilesetForImage(textureUuid, tileWidth, tileHeight, tilesetColumns);
+            if (info?.tilesetImage) return info.tilesetImage;
+        }
+
+        return null;
+    }
+
+
+    private drawChunks_(
+        ctx: CanvasRenderingContext2D,
+        chunks: Record<string, number[]>,
+        tileWidth: number, tileHeight: number,
+        tilesetColumns: number,
+        image: HTMLImageElement | null,
+        ox: number, oy: number,
+    ): void {
+        const hasImage = image && image.complete && image.naturalWidth > 0;
+
+        for (const [key, tiles] of Object.entries(chunks)) {
+            const [cxStr, cyStr] = key.split(',');
+            const cx = parseInt(cxStr, 10);
+            const cy = parseInt(cyStr, 10);
+            const baseX = ox + cx * CHUNK_SIZE * tileWidth;
+            const baseY = oy + cy * CHUNK_SIZE * tileHeight;
+
+            for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+                for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+                    const tileId = tiles[ly * CHUNK_SIZE + lx] ?? 0;
+                    if (tileId === 0) continue;
+
+                    const dx = baseX + lx * tileWidth;
+                    const dy = baseY + ly * tileHeight;
+
+                    if (hasImage) {
+                        const tileIndex = tileId - 1;
+                        const sx = (tileIndex % tilesetColumns) * tileWidth;
+                        const sy = Math.floor(tileIndex / tilesetColumns) * tileHeight;
+                        ctx.drawImage(image!, sx, sy, tileWidth, tileHeight, dx, dy, tileWidth, tileHeight);
+                    } else {
+                        ctx.fillStyle = FALLBACK_TILE_COLOR;
+                        ctx.fillRect(dx + 1, dy + 1, tileWidth - 2, tileHeight - 2);
+                    }
+                }
+            }
+        }
+    }
 
     private drawTiles_(
         ctx: CanvasRenderingContext2D,

@@ -1,7 +1,8 @@
 import type { PanelManager } from '../PanelManager';
 import type { DockLayoutManager } from '../DockLayoutManager';
 import type { EditorAssetServer } from '../asset/EditorAssetServer';
-import { getPanel, getPanelsByPosition, type PanelPosition } from '../panels/PanelRegistry';
+import type { EditorStore } from '../store/EditorStore';
+import { getPanel, getAllPanels, getPanelsByPosition, type PanelPosition } from '../panels/PanelRegistry';
 import type { RegionId } from '../dock/DockRegion';
 
 export type NavigateToAssetHandler = (path: string) => Promise<void>;
@@ -26,6 +27,9 @@ export class NavigationService {
 
     private lastActiveBottom_: string | null = null;
     private panelToggleListeners_: Array<() => void> = [];
+    private contextDebounceTimer_: ReturnType<typeof setTimeout> | null = null;
+    private storeUnsubscribe_: (() => void) | null = null;
+    private activeContextPanels_ = new Set<string>();
 
     constructor(panelManager: PanelManager) {
         this.panelManager_ = panelManager;
@@ -46,7 +50,47 @@ export class NavigationService {
     }
 
     // =========================================================================
-    // Panel visibility (Godot-style toggle)
+    // Context-sensitive panels
+    // =========================================================================
+
+    initContextPanels(store: EditorStore): void {
+        this.storeUnsubscribe_?.();
+        this.storeUnsubscribe_ = store.subscribe(() => {
+            if (this.contextDebounceTimer_) clearTimeout(this.contextDebounceTimer_);
+            this.contextDebounceTimer_ = setTimeout(() => {
+                this.updateContextPanels_(store);
+            }, 100);
+        });
+    }
+
+    private updateContextPanels_(store: EditorStore): void {
+        if (!this.dockLayout_) return;
+
+        for (const desc of getAllPanels()) {
+            if (!desc.contextMatch) continue;
+
+            const matches = desc.contextMatch(store);
+            const isInDock = !!this.dockLayout_.findPanelRegion(desc.id);
+            const isPinned = this.dockLayout_.isPanelPinned(desc.id);
+
+            if (matches && !isInDock) {
+                this.dockLayout_.showPanel(desc.id);
+                this.activeContextPanels_.add(desc.id);
+                if (!this.dockLayout_.isRegionCollapsed('bottom')) {
+                    this.dockLayout_.dock?.activatePanel(desc.id);
+                } else {
+                    this.expandBottomRegion_(desc.id);
+                }
+            } else if (!matches && isInDock && !isPinned && this.activeContextPanels_.has(desc.id)) {
+                this.dockLayout_.removePanel(desc.id);
+                this.activeContextPanels_.delete(desc.id);
+                this.notifyToggleListeners_();
+            }
+        }
+    }
+
+    // =========================================================================
+    // Panel visibility
     // =========================================================================
 
     showPanel(id: string): void {
@@ -73,6 +117,17 @@ export class NavigationService {
         if (!region) {
             this.dockLayout_?.showPanel(id);
             return;
+        }
+
+        const desc = getPanel(id);
+        if (desc?.contextMatch) {
+            const isInDock = !!this.dockLayout_?.findPanelRegion(id);
+            if (!isInDock) {
+                this.dockLayout_?.setPanelPinned(id, true);
+            } else {
+                this.dockLayout_?.setPanelPinned(id, false);
+                this.activeContextPanels_.delete(id);
+            }
         }
 
         if (region === 'bottom') {

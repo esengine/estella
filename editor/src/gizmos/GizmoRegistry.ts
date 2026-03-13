@@ -24,12 +24,13 @@ export interface GizmoDescriptor {
 
     hitTest(worldX: number, worldY: number, ctx: GizmoContext): { hit: boolean; data?: unknown };
     draw(ctx: GizmoContext): void;
-    onDragStart?(worldX: number, worldY: number, hitData: unknown, ctx: GizmoContext): void;
+    onDragStart?(worldX: number, worldY: number, hitData: unknown, ctx: GizmoContext, event?: MouseEvent): void;
     onDrag?(worldX: number, worldY: number, hitData: unknown, ctx: GizmoContext, event?: MouseEvent): void;
     onDragEnd?(worldX: number, worldY: number, hitData: unknown, ctx: GizmoContext): void;
     onHover?(worldX: number, worldY: number, hitData: unknown, ctx: GizmoContext): void;
     getCursor?(hitData: unknown): string;
     isApplicable?(ctx: GizmoContext): boolean;
+    onKeyDown?(key: string, ctx: GizmoContext): boolean;
 }
 
 export function registerGizmo(descriptor: GizmoDescriptor): void {

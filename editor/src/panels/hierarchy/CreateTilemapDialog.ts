@@ -18,6 +18,7 @@ interface TilemapConfig {
     tilesetColumns: number;
     mapWidth: number;
     mapHeight: number;
+    infinite: boolean;
 }
 
 export async function showCreateTilemapDialog(
@@ -31,6 +32,7 @@ export async function showCreateTilemapDialog(
         tilesetColumns: 1,
         mapWidth: DEFAULT_MAP_WIDTH,
         mapHeight: DEFAULT_MAP_HEIGHT,
+        infinite: false,
     };
 
     let loadedImage: HTMLImageElement | null = null;
@@ -62,7 +64,14 @@ export async function showCreateTilemapDialog(
                 <input type="number" class="es-dialog-input es-tilemap-cols" value="1" min="1" max="256" step="1">
             </div>
         </div>
-        <div class="es-dialog-field" style="display:flex;gap:12px;">
+        <div class="es-dialog-field">
+            <label class="es-dialog-label">Map Type</label>
+            <select class="es-dialog-input es-tilemap-map-type" style="width:100%;">
+                <option value="fixed" selected>Fixed Size</option>
+                <option value="infinite">Infinite</option>
+            </select>
+        </div>
+        <div class="es-dialog-field es-tilemap-size-row" style="display:flex;gap:12px;">
             <div style="flex:1;">
                 <label class="es-dialog-label">Map Width (tiles)</label>
                 <input type="number" class="es-dialog-input es-tilemap-mw" value="${DEFAULT_MAP_WIDTH}" min="1" max="1000" step="1">
@@ -170,6 +179,13 @@ export async function showCreateTilemapDialog(
         config.mapHeight = Math.max(1, parseInt(mhInput.value) || DEFAULT_MAP_HEIGHT);
     });
 
+    const mapTypeSelect = content.querySelector('.es-tilemap-map-type') as HTMLSelectElement;
+    const sizeRow = content.querySelector('.es-tilemap-size-row') as HTMLElement;
+    mapTypeSelect.addEventListener('change', () => {
+        config.infinite = mapTypeSelect.value === 'infinite';
+        sizeRow.style.display = config.infinite ? 'none' : 'flex';
+    });
+
     const dialog = new Dialog({
         title: 'New Tilemap Layer',
         content,
@@ -188,17 +204,32 @@ export async function showCreateTilemapDialog(
     state.store.addComponent(entity, 'Transform', transformData);
 
     const layerData = getInitialComponentData('TilemapLayer');
-    const tiles = new Array(config.mapWidth * config.mapHeight).fill(0);
-    state.store.addComponent(entity, 'TilemapLayer', {
-        ...layerData,
-        texture: config.textureUuid,
-        tileWidth: config.tileWidth,
-        tileHeight: config.tileHeight,
-        tilesetColumns: config.tilesetColumns,
-        width: config.mapWidth,
-        height: config.mapHeight,
-        tiles,
-    });
+    if (config.infinite) {
+        state.store.addComponent(entity, 'TilemapLayer', {
+            ...layerData,
+            texture: config.textureUuid,
+            tileWidth: config.tileWidth,
+            tileHeight: config.tileHeight,
+            tilesetColumns: config.tilesetColumns,
+            infinite: true,
+            width: 0,
+            height: 0,
+            tiles: [],
+            chunks: {},
+        });
+    } else {
+        const tiles = new Array(config.mapWidth * config.mapHeight).fill(0);
+        state.store.addComponent(entity, 'TilemapLayer', {
+            ...layerData,
+            texture: config.textureUuid,
+            tileWidth: config.tileWidth,
+            tileHeight: config.tileHeight,
+            tilesetColumns: config.tilesetColumns,
+            width: config.mapWidth,
+            height: config.mapHeight,
+            tiles,
+        });
+    }
 
     state.store.selectEntity(entity);
     state.store.requestGizmo('tile-brush');

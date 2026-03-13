@@ -15,6 +15,7 @@ const TilemapLayerSchema: ComponentSchema = {
     name: 'TilemapLayer',
     category: 'builtin',
     properties: [
+        { name: 'infinite', type: 'boolean' },
         { name: 'width', type: 'number', min: 1, max: 1000 },
         { name: 'height', type: 'number', min: 1, max: 1000 },
         { name: 'tileWidth', type: 'number', min: 1, max: 512 },

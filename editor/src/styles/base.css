@@ -25,7 +25,7 @@
     --es-text-muted: hsl(220, 5%, 42%);
     --es-text-disabled: hsl(220, 4%, 32%);
 
-    /* Accent (Unity-style blue) */
+    /* Accent */
     --es-accent: hsl(215, 80%, 56%);
     --es-accent-hover: hsl(215, 80%, 64%);
     --es-accent-pressed: hsl(215, 80%, 48%);
