@@ -5,7 +5,7 @@ import { getAssetLibrary } from '../../asset/AssetLibrary';
 import { loadImageFromPath } from '../../gizmos/TilesetLoader';
 import { getInitialComponentData } from '../../schemas/ComponentSchemas';
 import { getNavigationService } from '../../services';
-import type { HierarchyState } from './HierarchyTypes';
+import type { EditorStore } from '../../store/EditorStore';
 
 const DEFAULT_TILE_SIZE = 32;
 const DEFAULT_MAP_WIDTH = 20;
@@ -21,10 +21,16 @@ interface TilemapConfig {
     infinite: boolean;
 }
 
+export interface CreateTilemapOptions {
+    simplified?: boolean;
+}
+
 export async function showCreateTilemapDialog(
-    state: HierarchyState,
+    state: { store: EditorStore },
     parent: Entity | null,
+    options?: CreateTilemapOptions,
 ): Promise<Entity | null> {
+    const simplified = options?.simplified ?? false;
     const config: TilemapConfig = {
         textureUuid: '',
         tileWidth: DEFAULT_TILE_SIZE,
@@ -32,7 +38,7 @@ export async function showCreateTilemapDialog(
         tilesetColumns: 1,
         mapWidth: DEFAULT_MAP_WIDTH,
         mapHeight: DEFAULT_MAP_HEIGHT,
-        infinite: false,
+        infinite: simplified,
     };
 
     let loadedImage: HTMLImageElement | null = null;
@@ -64,14 +70,14 @@ export async function showCreateTilemapDialog(
                 <input type="number" class="es-dialog-input es-tilemap-cols" value="1" min="1" max="256" step="1">
             </div>
         </div>
-        <div class="es-dialog-field">
+        <div class="es-dialog-field" style="${simplified ? 'display:none;' : ''}">
             <label class="es-dialog-label">Map Type</label>
             <select class="es-dialog-input es-tilemap-map-type" style="width:100%;">
-                <option value="fixed" selected>Fixed Size</option>
-                <option value="infinite">Infinite</option>
+                <option value="fixed"${simplified ? '' : ' selected'}>Fixed Size</option>
+                <option value="infinite"${simplified ? ' selected' : ''}>Infinite</option>
             </select>
         </div>
-        <div class="es-dialog-field es-tilemap-size-row" style="display:flex;gap:12px;">
+        <div class="es-dialog-field es-tilemap-size-row" style="display:${simplified ? 'none' : 'flex'};gap:12px;">
             <div style="flex:1;">
                 <label class="es-dialog-label">Map Width (tiles)</label>
                 <input type="number" class="es-dialog-input es-tilemap-mw" value="${DEFAULT_MAP_WIDTH}" min="1" max="1000" step="1">

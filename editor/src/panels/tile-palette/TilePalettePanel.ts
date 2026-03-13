@@ -4,6 +4,7 @@ import type { EntityData } from '../../types/SceneTypes';
 import { DisposableStore } from '../../utils/Disposable';
 import { getTilesetForSource, getTilesetForImage, findParentTilemapSource, addTilesetLoadListener, type TilesetInfo } from '../../gizmos/TilesetLoader';
 import { icons } from '../../utils/icons';
+import { showCreateTilemapDialog } from '../hierarchy/CreateTilemapDialog';
 
 const TILE_RENDER_SIZE = 32;
 const SELECTED_COLOR = 'rgba(100, 200, 255, 0.8)';
@@ -44,22 +45,27 @@ export class TilePalettePanel implements PanelInstance {
         this.store_ = store;
 
         this.container_.innerHTML = `
-            <div class="es-tile-palette" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
-                <div class="es-tile-palette-toolbar" style="display:flex;gap:2px;padding:4px;border-bottom:1px solid var(--border-color, #333);align-items:center;flex-wrap:wrap;">
+            <div class="es-tile-palette">
+                <div class="es-tile-palette-toolbar">
                     ${TOOL_DEFS.map(d =>
-                        `<button class="es-btn es-btn-icon ${d.cls}" data-tooltip="${d.label} (${d.shortcut})" style="min-width:24px;height:24px;">${d.icon(12)}</button>`
+                        `<button class="es-btn es-btn-icon ${d.cls}" data-tooltip="${d.label} (${d.shortcut})">${d.icon(14)}</button>`
                     ).join('')}
-                    <span style="width:1px;height:16px;background:var(--border-color,#444);margin:0 4px;"></span>
-                    <button class="es-btn es-btn-icon es-tile-flip-h" data-tooltip="Flip Horizontal" style="min-width:24px;height:24px;">${icons.flipHorizontal(12)}</button>
-                    <button class="es-btn es-btn-icon es-tile-flip-v" data-tooltip="Flip Vertical" style="min-width:24px;height:24px;">${icons.flipVertical(12)}</button>
+                    <span class="es-tool-separator"></span>
+                    <button class="es-btn es-btn-icon es-tile-flip-h" data-tooltip="Flip Horizontal">${icons.flipHorizontal(14)}</button>
+                    <button class="es-btn es-btn-icon es-tile-flip-v" data-tooltip="Flip Vertical">${icons.flipVertical(14)}</button>
                 </div>
-                <div class="es-tile-palette-info" style="display:flex;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border-color, #333);align-items:center;font-size:11px;">
-                    <label style="color:#aaa;">Layer:</label>
-                    <select class="es-tile-layer-select es-select" style="flex:1;max-width:160px;height:20px;font-size:11px;"></select>
-                    <span class="es-tile-palette-status" style="margin-left:auto;color:#888;"></span>
+                <div class="es-tile-palette-info">
+                    <label>Layer:</label>
+                    <select class="es-tile-layer-select es-select"></select>
+                    <button class="es-btn es-btn-icon es-tile-layer-add" data-tooltip="Add Layer">+</button>
+                    <button class="es-btn es-btn-icon es-tile-layer-del" data-tooltip="Delete Layer">\u2212</button>
+                    <button class="es-btn es-btn-icon es-tile-layer-up" data-tooltip="Move Up">\u2191</button>
+                    <button class="es-btn es-btn-icon es-tile-layer-down" data-tooltip="Move Down">\u2193</button>
+                    <button class="es-btn es-btn-icon es-tile-layer-vis" data-tooltip="Toggle Visibility">${icons.eye(12)}</button>
+                    <span class="es-tile-palette-status"></span>
                 </div>
-                <div class="es-tile-palette-canvas-wrap" style="flex:1;overflow-y:auto;position:relative;">
-                    <canvas class="es-tile-palette-canvas" style="display:block;"></canvas>
+                <div class="es-tile-palette-canvas-wrap">
+                    <canvas class="es-tile-palette-canvas"></canvas>
                 </div>
             </div>`;
 
@@ -143,6 +149,142 @@ export class TilePalettePanel implements PanelInstance {
         };
         this.layerSelect_.addEventListener('change', onChange);
         this.disposables_.add(() => this.layerSelect_?.removeEventListener('change', onChange));
+
+        const addBtn = this.container_.querySelector('.es-tile-layer-add');
+        const delBtn = this.container_.querySelector('.es-tile-layer-del');
+        const upBtn = this.container_.querySelector('.es-tile-layer-up');
+        const downBtn = this.container_.querySelector('.es-tile-layer-down');
+        const visBtn = this.container_.querySelector('.es-tile-layer-vis');
+
+        const onAdd = () => this.addLayer_();
+        const onDel = () => this.deleteLayer_();
+        const onUp = () => this.moveLayer_(-1);
+        const onDown = () => this.moveLayer_(1);
+        const onVis = () => this.toggleLayerVisibility_();
+
+        addBtn?.addEventListener('click', onAdd);
+        delBtn?.addEventListener('click', onDel);
+        upBtn?.addEventListener('click', onUp);
+        downBtn?.addEventListener('click', onDown);
+        visBtn?.addEventListener('click', onVis);
+        this.disposables_.add(() => {
+            addBtn?.removeEventListener('click', onAdd);
+            delBtn?.removeEventListener('click', onDel);
+            upBtn?.removeEventListener('click', onUp);
+            downBtn?.removeEventListener('click', onDown);
+            visBtn?.removeEventListener('click', onVis);
+        });
+    }
+
+    private getLayerSiblings_(): EntityData[] {
+        const entityData = this.store_.getSelectedEntityData();
+        if (!entityData) return [];
+        const parentId = entityData.parent;
+        return this.store_.scene.entities.filter(e =>
+            e.parent === parentId && e.components.some(c => c.type === 'TilemapLayer'),
+        );
+    }
+
+    private getSelectedLayerId_(): number {
+        if (!this.layerSelect_) return -1;
+        const id = parseInt(this.layerSelect_.value, 10);
+        return isNaN(id) ? -1 : id;
+    }
+
+    private addLayer_(): void {
+        const entityData = this.store_.getSelectedEntityData();
+        if (!entityData) return;
+
+        const siblings = this.getLayerSiblings_();
+
+        if (siblings.length === 0) {
+            const parentId = entityData.parent;
+            showCreateTilemapDialog(
+                { store: this.store_ },
+                parentId ?? null,
+                { simplified: true },
+            );
+            return;
+        }
+
+        const parentId = entityData.parent;
+        let maxLayer = 0;
+        let templateData: Record<string, unknown> = {};
+        for (const sib of siblings) {
+            const comp = sib.components.find(c => c.type === 'TilemapLayer');
+            if (comp) {
+                const d = comp.data as Record<string, unknown>;
+                const layer = d.layer as number ?? 0;
+                if (layer > maxLayer) maxLayer = layer;
+                templateData = d;
+            }
+        }
+
+        const newEntity = this.store_.createEntity(`Layer ${siblings.length}`, parentId ?? null);
+        this.store_.addComponent(newEntity, 'TilemapLayer', {
+            infinite: templateData.infinite ?? true,
+            width: templateData.width ?? 0,
+            height: templateData.height ?? 0,
+            tileWidth: templateData.tileWidth ?? 32,
+            tileHeight: templateData.tileHeight ?? 32,
+            texture: templateData.texture ?? '',
+            tilesetColumns: templateData.tilesetColumns ?? 1,
+            layer: maxLayer + 1,
+            visible: true,
+            opacity: 1,
+            tiles: [],
+            chunks: {},
+        });
+        this.store_.selectEntity(newEntity);
+    }
+
+    private deleteLayer_(): void {
+        const layerId = this.getSelectedLayerId_();
+        if (layerId < 0) return;
+
+        if (!confirm('Delete this tilemap layer?')) return;
+
+        this.store_.deleteEntity(layerId);
+    }
+
+    private moveLayer_(direction: number): void {
+        const layerId = this.getSelectedLayerId_();
+        if (layerId < 0) return;
+
+        const siblings = this.getLayerSiblings_();
+        siblings.sort((a, b) => {
+            const la = (a.components.find(c => c.type === 'TilemapLayer')?.data as Record<string, unknown>)?.layer as number ?? 0;
+            const lb = (b.components.find(c => c.type === 'TilemapLayer')?.data as Record<string, unknown>)?.layer as number ?? 0;
+            return la - lb;
+        });
+
+        const idx = siblings.findIndex(e => e.id === layerId);
+        if (idx < 0) return;
+        const swapIdx = idx + direction;
+        if (swapIdx < 0 || swapIdx >= siblings.length) return;
+
+        const compA = siblings[idx].components.find(c => c.type === 'TilemapLayer');
+        const compB = siblings[swapIdx].components.find(c => c.type === 'TilemapLayer');
+        if (!compA || !compB) return;
+
+        const layerA = (compA.data as Record<string, unknown>).layer as number ?? 0;
+        const layerB = (compB.data as Record<string, unknown>).layer as number ?? 0;
+
+        this.store_.updatePropertyDirect(siblings[idx].id, 'TilemapLayer', 'layer', layerB);
+        this.store_.updatePropertyDirect(siblings[swapIdx].id, 'TilemapLayer', 'layer', layerA);
+    }
+
+    private toggleLayerVisibility_(): void {
+        const layerId = this.getSelectedLayerId_();
+        if (layerId < 0) return;
+
+        const entity = this.store_.getEntityData(layerId);
+        if (!entity) return;
+        const comp = entity.components.find(c => c.type === 'TilemapLayer');
+        if (!comp) return;
+
+        const current = (comp.data as Record<string, unknown>).visible as boolean ?? true;
+        this.store_.updatePropertyDirect(layerId, 'TilemapLayer', 'visible', !current);
     }
 
     private updateLayerDropdown_(): void {
@@ -383,11 +525,18 @@ export class TilePalettePanel implements PanelInstance {
             this.statusEl_.textContent = 'Read-only';
         } else if (this.cachedInfo_) {
             const stamp = this.store_.tileBrushStamp;
+            let text: string;
             if (stamp.width === 1 && stamp.height === 1) {
-                this.statusEl_.textContent = `Tile: ${stamp.tiles[0] ?? 0}`;
+                text = `Tile: ${stamp.tiles[0] ?? 0}`;
             } else {
-                this.statusEl_.textContent = `${stamp.width}\u00D7${stamp.height} stamp`;
+                text = `${stamp.width}\u00D7${stamp.height} stamp`;
             }
+            const fh = this.store_.tileBrushFlipH;
+            const fv = this.store_.tileBrushFlipV;
+            if (fh || fv) {
+                text += ` [${fh ? 'H' : ''}${fv ? 'V' : ''}]`;
+            }
+            this.statusEl_.textContent = text;
         } else {
             this.statusEl_.textContent = '';
         }

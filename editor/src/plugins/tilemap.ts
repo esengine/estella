@@ -23,6 +23,10 @@ const TilemapLayerSchema: ComponentSchema = {
         { name: 'texture', type: 'texture' },
         { name: 'tilesetColumns', type: 'number', min: 1, max: 256 },
         { name: 'layer', type: 'number', min: LAYER_MIN, max: LAYER_MAX },
+        { name: 'visible', type: 'boolean' },
+        { name: 'opacity', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'tint', type: 'color' },
+        { name: 'parallaxFactor', type: 'vec2' },
     ],
 };
 

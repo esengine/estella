@@ -2,7 +2,7 @@ import type { GizmoContext, GizmoDescriptor } from './GizmoRegistry';
 import { getTilesetForSource, getTilesetForImage, findParentTilemapSource } from './TilesetLoader';
 import { TilePaintCommand, type TileChange } from '../commands/TilePaintCommand';
 import { floodFill } from './TileFill';
-import { readChunkTile, writeChunkTile } from './TileChunkUtils';
+import { readChunkTile, writeChunkTile, FLIP_H_BIT, FLIP_V_BIT, TILE_ID_MASK, applyFlipBits } from './TileChunkUtils';
 import { icons } from '../utils/icons';
 
 interface TileBrushDragState {
@@ -80,6 +80,8 @@ export function createTileBrushGizmo(): GizmoDescriptor {
     let hoverTile: { tx: number; ty: number } | null = null;
     let dragState: TileBrushDragState | null = null;
     let rectDrag: RectDragState | null = null;
+    let cachedImageEntityId_ = -1;
+    let cachedImageResult_: { image: HTMLImageElement; tilesetColumns: number } | null = null;
 
     function getLayerInfo(gctx: GizmoContext): LayerInfo | null {
         const layer = findTilemapLayerData(gctx);
@@ -145,12 +147,16 @@ export function createTileBrushGizmo(): GizmoDescriptor {
         writeTile(state, tx, ty, tileId);
     }
 
-    function paintStamp(state: TileBrushDragState, tx: number, ty: number, stamp: Readonly<{ width: number; height: number; tiles: number[] }>): void {
+    function paintStamp(
+        state: TileBrushDragState, tx: number, ty: number,
+        stamp: Readonly<{ width: number; height: number; tiles: number[] }>,
+        flipH: boolean, flipV: boolean,
+    ): void {
         for (let sy = 0; sy < stamp.height; sy++) {
             for (let sx = 0; sx < stamp.width; sx++) {
                 const tileId = stamp.tiles[sy * stamp.width + sx] ?? 0;
                 if (tileId > 0) {
-                    paintTile(state, tx + sx, ty + sy, tileId);
+                    paintTile(state, tx + sx, ty + sy, applyFlipBits(tileId, flipH, flipV));
                 }
             }
         }
@@ -186,6 +192,36 @@ export function createTileBrushGizmo(): GizmoDescriptor {
         store.executeCommand(cmd);
     }
 
+    function resolveLayerImage(gctx: GizmoContext): { image: HTMLImageElement; tilesetColumns: number } | null {
+        const entityData = gctx.store.getSelectedEntityData();
+        if (!entityData) { cachedImageEntityId_ = -1; cachedImageResult_ = null; return null; }
+        if (entityData.id === cachedImageEntityId_ && cachedImageResult_) return cachedImageResult_;
+
+        cachedImageEntityId_ = entityData.id;
+        cachedImageResult_ = null;
+
+        const layerComp = entityData.components.find(c => c.type === 'TilemapLayer');
+        if (!layerComp) return null;
+        const d = layerComp.data as Record<string, unknown>;
+
+        const parentSource = findParentTilemapSource(gctx.store.scene.entities, entityData.id);
+        if (parentSource) {
+            const info = getTilesetForSource(parentSource);
+            if (info?.tilesetImage?.complete) { cachedImageResult_ = { image: info.tilesetImage, tilesetColumns: info.tilesetColumns }; return cachedImageResult_; }
+        }
+
+        const textureUuid = d.texture as string ?? '';
+        if (textureUuid && typeof textureUuid === 'string') {
+            const tw = d.tileWidth as number ?? 32;
+            const th = d.tileHeight as number ?? 32;
+            const cols = d.tilesetColumns as number ?? 1;
+            const info = getTilesetForImage(textureUuid, tw, th, cols);
+            if (info?.tilesetImage?.complete) { cachedImageResult_ = { image: info.tilesetImage, tilesetColumns: cols }; return cachedImageResult_; }
+        }
+
+        return null;
+    }
+
     function readTileFromInfo(info: LayerInfo, tx: number, ty: number): number {
         if (info.infinite) {
             return readChunkTile(info.chunks, tx, ty);
@@ -198,7 +234,10 @@ export function createTileBrushGizmo(): GizmoDescriptor {
         const info = getLayerInfo(gctx);
         if (!info) return;
 
-        const fillTileId = gctx.store.tileBrushStamp.tiles[0] ?? 1;
+        const fillTileId = applyFlipBits(
+            gctx.store.tileBrushStamp.tiles[0] ?? 1,
+            gctx.store.tileBrushFlipH, gctx.store.tileBrushFlipV,
+        );
         const result = floodFill({
             infinite: info.infinite,
             width: info.width,
@@ -220,9 +259,12 @@ export function createTileBrushGizmo(): GizmoDescriptor {
         const info = getLayerInfo(gctx);
         if (!info) return;
 
-        const tileId = readTileFromInfo(info, tx, ty);
-        if (tileId > 0) {
-            gctx.store.tileBrushStamp = { width: 1, height: 1, tiles: [tileId] };
+        const raw = readTileFromInfo(info, tx, ty);
+        if (raw > 0) {
+            const baseTile = raw & TILE_ID_MASK;
+            gctx.store.tileBrushStamp = { width: 1, height: 1, tiles: [baseTile] };
+            gctx.store.tileBrushFlipH = (raw & FLIP_H_BIT) !== 0;
+            gctx.store.tileBrushFlipV = (raw & FLIP_V_BIT) !== 0;
             gctx.store.tileBrushTool = 'paint';
         }
     }
@@ -336,8 +378,38 @@ export function createTileBrushGizmo(): GizmoDescriptor {
             const screenY = -info.originY + hoverTile.ty * info.tileHeight;
             const sw = stamp.width * info.tileWidth;
             const sh = stamp.height * info.tileHeight;
-            ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
-            ctx.fillRect(screenX, screenY, sw, sh);
+
+            const resolved = resolveLayerImage(gctx);
+            if (resolved) {
+                const flipH = store.tileBrushFlipH;
+                const flipV = store.tileBrushFlipV;
+                ctx.globalAlpha = 0.5;
+                for (let sy = 0; sy < stamp.height; sy++) {
+                    for (let sx = 0; sx < stamp.width; sx++) {
+                        const tileId = stamp.tiles[sy * stamp.width + sx] ?? 0;
+                        if (tileId <= 0) continue;
+                        const tileIndex = tileId - 1;
+                        const srcX = (tileIndex % resolved.tilesetColumns) * info.tileWidth;
+                        const srcY = Math.floor(tileIndex / resolved.tilesetColumns) * info.tileHeight;
+                        const dx = screenX + sx * info.tileWidth;
+                        const dy = screenY + sy * info.tileHeight;
+                        if (flipH || flipV) {
+                            ctx.save();
+                            ctx.translate(flipH ? dx + info.tileWidth : dx, flipV ? dy + info.tileHeight : dy);
+                            ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+                            ctx.drawImage(resolved.image, srcX, srcY, info.tileWidth, info.tileHeight, 0, 0, info.tileWidth, info.tileHeight);
+                            ctx.restore();
+                        } else {
+                            ctx.drawImage(resolved.image, srcX, srcY, info.tileWidth, info.tileHeight, dx, dy, info.tileWidth, info.tileHeight);
+                        }
+                    }
+                }
+                ctx.globalAlpha = 1;
+            } else {
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
+                ctx.fillRect(screenX, screenY, sw, sh);
+            }
+
             ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
             ctx.lineWidth = 2 / zoom;
             ctx.strokeRect(screenX, screenY, sw, sh);
@@ -387,7 +459,8 @@ export function createTileBrushGizmo(): GizmoDescriptor {
             if (erase) {
                 paintTile(dragState, tile.tx, tile.ty, 0);
             } else {
-                paintStamp(dragState, tile.tx, tile.ty, gctx.store.tileBrushStamp);
+                paintStamp(dragState, tile.tx, tile.ty, gctx.store.tileBrushStamp,
+                    gctx.store.tileBrushFlipH, gctx.store.tileBrushFlipV);
             }
             gctx.requestRender();
         },
@@ -416,7 +489,8 @@ export function createTileBrushGizmo(): GizmoDescriptor {
             if (erase) {
                 paintTile(dragState, tile.tx, tile.ty, 0);
             } else {
-                paintStamp(dragState, tile.tx, tile.ty, gctx.store.tileBrushStamp);
+                paintStamp(dragState, tile.tx, tile.ty, gctx.store.tileBrushStamp,
+                    gctx.store.tileBrushFlipH, gctx.store.tileBrushFlipV);
             }
 
             hoverTile = tile;
@@ -436,6 +510,8 @@ export function createTileBrushGizmo(): GizmoDescriptor {
 
                     const state = createDragState(info, false);
                     const stamp = gctx.store.tileBrushStamp;
+                    const fH = gctx.store.tileBrushFlipH;
+                    const fV = gctx.store.tileBrushFlipV;
 
                     for (let ty = minTy; ty <= maxTy; ty++) {
                         for (let tx = minTx; tx <= maxTx; tx++) {
@@ -443,7 +519,7 @@ export function createTileBrushGizmo(): GizmoDescriptor {
                             const sy = (ty - minTy) % stamp.height;
                             const tileId = stamp.tiles[sy * stamp.width + sx] ?? 0;
                             if (tileId > 0) {
-                                paintTile(state, tx, ty, tileId);
+                                paintTile(state, tx, ty, applyFlipBits(tileId, fH, fV));
                             }
                         }
                     }

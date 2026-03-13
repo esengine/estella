@@ -1,7 +1,7 @@
 import type { OverlayContext } from './ColliderOverlay';
 import type { EntityData } from '../types/SceneTypes';
 import { getTilesetForSource, getTilesetForImage, findParentTilemapSource, addTilesetLoadListener } from './TilesetLoader';
-import { CHUNK_SIZE } from './TileChunkUtils';
+import { CHUNK_SIZE, FLIP_H_BIT, FLIP_V_BIT, TILE_ID_MASK } from './TileChunkUtils';
 
 const GRID_COLOR = 'rgba(100, 200, 255, 0.5)';
 const FALLBACK_TILE_COLOR = 'rgba(100, 200, 255, 0.15)';
@@ -20,10 +20,14 @@ export class TilemapOverlay {
     drawAll(octx: OverlayContext): void {
         const { store } = octx;
 
+        const selectedData = store.getSelectedEntityData();
+        const activeLayerId = selectedData?.components.some(c => c.type === 'TilemapLayer')
+            ? selectedData.id : -1;
+
         for (const entity of store.scene.entities) {
             if (!store.isEntityVisible(entity.id)) continue;
             this.drawTilemapEntity_(octx, entity);
-            this.drawTilemapLayerEntity_(octx, entity);
+            this.drawTilemapLayerEntity_(octx, entity, activeLayerId);
         }
     }
 
@@ -59,11 +63,14 @@ export class TilemapOverlay {
         ctx.restore();
     }
 
-    private drawTilemapLayerEntity_(octx: OverlayContext, entity: EntityData): void {
+    private drawTilemapLayerEntity_(octx: OverlayContext, entity: EntityData, activeLayerId: number): void {
         const layerComp = entity.components.find(c => c.type === 'TilemapLayer');
         if (!layerComp) return;
 
         const data = layerComp.data as Record<string, unknown>;
+        const layerVisible = data.visible as boolean ?? true;
+        if (!layerVisible) return;
+
         const infinite = data.infinite as boolean ?? false;
         const width = data.width as number ?? 0;
         const height = data.height as number ?? 0;
@@ -78,7 +85,11 @@ export class TilemapOverlay {
         const ox = worldTransform.position.x;
         const oy = -worldTransform.position.y;
 
+        const dim = activeLayerId >= 0 && entity.id !== activeLayerId;
+        const layerOpacity = data.opacity as number ?? 1;
+
         ctx.save();
+        ctx.globalAlpha = (dim ? 0.3 : 1) * layerOpacity;
 
         const image = this.resolveTilesetImage_(octx, entity, data, tileWidth, tileHeight, tilesetColumns);
 
@@ -137,17 +148,17 @@ export class TilemapOverlay {
 
             for (let ly = 0; ly < CHUNK_SIZE; ly++) {
                 for (let lx = 0; lx < CHUNK_SIZE; lx++) {
-                    const tileId = tiles[ly * CHUNK_SIZE + lx] ?? 0;
-                    if (tileId === 0) continue;
+                    const raw = tiles[ly * CHUNK_SIZE + lx] ?? 0;
+                    if (raw === 0) continue;
 
                     const dx = baseX + lx * tileWidth;
                     const dy = baseY + ly * tileHeight;
 
                     if (hasImage) {
-                        const tileIndex = tileId - 1;
+                        const tileIndex = (raw & TILE_ID_MASK) - 1;
                         const sx = (tileIndex % tilesetColumns) * tileWidth;
                         const sy = Math.floor(tileIndex / tilesetColumns) * tileHeight;
-                        ctx.drawImage(image!, sx, sy, tileWidth, tileHeight, dx, dy, tileWidth, tileHeight);
+                        this.drawFlippedTile_(ctx, image!, sx, sy, tileWidth, tileHeight, dx, dy, raw);
                     } else {
                         ctx.fillStyle = FALLBACK_TILE_COLOR;
                         ctx.fillRect(dx + 1, dy + 1, tileWidth - 2, tileHeight - 2);
@@ -168,18 +179,15 @@ export class TilemapOverlay {
         if (image && image.complete && image.naturalWidth > 0) {
             for (let ty = 0; ty < mapHeight; ty++) {
                 for (let tx = 0; tx < mapWidth; tx++) {
-                    const tileId = tiles[ty * mapWidth + tx] ?? 0;
-                    if (tileId === 0) continue;
+                    const raw = tiles[ty * mapWidth + tx] ?? 0;
+                    if (raw === 0) continue;
 
-                    const tileIndex = tileId - 1;
+                    const tileIndex = (raw & TILE_ID_MASK) - 1;
                     const sx = (tileIndex % tilesetColumns) * tileWidth;
                     const sy = Math.floor(tileIndex / tilesetColumns) * tileHeight;
-
-                    ctx.drawImage(
-                        image,
-                        sx, sy, tileWidth, tileHeight,
-                        ox + tx * tileWidth, oy + ty * tileHeight, tileWidth, tileHeight,
-                    );
+                    const dx = ox + tx * tileWidth;
+                    const dy = oy + ty * tileHeight;
+                    this.drawFlippedTile_(ctx, image, sx, sy, tileWidth, tileHeight, dx, dy, raw);
                 }
             }
         } else {
@@ -195,6 +203,27 @@ export class TilemapOverlay {
                 }
             }
         }
+    }
+
+    private drawFlippedTile_(
+        ctx: CanvasRenderingContext2D,
+        image: HTMLImageElement,
+        sx: number, sy: number,
+        tw: number, th: number,
+        dx: number, dy: number,
+        raw: number,
+    ): void {
+        const fh = (raw & FLIP_H_BIT) !== 0;
+        const fv = (raw & FLIP_V_BIT) !== 0;
+        if (!fh && !fv) {
+            ctx.drawImage(image, sx, sy, tw, th, dx, dy, tw, th);
+            return;
+        }
+        ctx.save();
+        ctx.translate(fh ? dx + tw : dx, fv ? dy + th : dy);
+        ctx.scale(fh ? -1 : 1, fv ? -1 : 1);
+        ctx.drawImage(image, sx, sy, tw, th, 0, 0, tw, th);
+        ctx.restore();
     }
 
     private drawGrid_(

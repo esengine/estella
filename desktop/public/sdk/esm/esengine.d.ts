@@ -2309,6 +2309,8 @@ interface TilemapLayerData {
     tilesetColumns: number;
     layer: number;
     tiles: number[];
+    infinite: boolean;
+    chunks: Record<string, number[]>;
     tint: {
         r: number;
         g: number;

@@ -1,4 +1,13 @@
 export const CHUNK_SIZE = 16;
+export const FLIP_H_BIT = 0x2000;
+export const FLIP_V_BIT = 0x4000;
+export const TILE_ID_MASK = 0x1FFF;
+
+export function applyFlipBits(tileId: number, flipH: boolean, flipV: boolean): number {
+    if (flipH) tileId |= FLIP_H_BIT;
+    if (flipV) tileId |= FLIP_V_BIT;
+    return tileId;
+}
 
 export function tileToChunk(tx: number, ty: number): { cx: number; cy: number; lx: number; ly: number } {
     return {
