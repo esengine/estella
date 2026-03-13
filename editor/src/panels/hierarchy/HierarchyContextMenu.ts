@@ -12,6 +12,7 @@ import { hasAnyOverrides } from '../../prefab';
 import { getAssetTypeDescriptor } from '../../asset/AssetTypeRegistry';
 import type { HierarchyState } from './HierarchyTypes';
 import { instantiateTemplate } from './EntityTemplates';
+import { showCreateTilemapDialog } from './CreateTilemapDialog';
 
 const create = (state: HierarchyState, template: string, parent: Entity | null) =>
     () => instantiateTemplate(state, template, parent);
@@ -36,6 +37,7 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             { label: 'Shape', icon: icons.hexagon(14), onClick: create(state, 'ShapeRenderer', entity) },
             { label: 'Particle', icon: icons.star(14), onClick: create(state, 'ParticleEmitter', entity) },
             { label: 'Tilemap', icon: icons.grid(14), onClick: create(state, 'Tilemap', entity) },
+            { label: 'Tilemap Layer', icon: icons.layers(14), onClick: () => showCreateTilemapDialog(state, entity) },
         ] },
         { label: 'UI', icon: icons.pointer(14), children: [
             { label: 'Canvas', icon: icons.template(14), onClick: create(state, 'Canvas', entity) },

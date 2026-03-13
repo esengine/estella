@@ -1,5 +1,5 @@
 import type { GizmoContext, GizmoDescriptor } from './GizmoRegistry';
-import { getTilesetForSource } from './TilesetLoader';
+import { getTilesetForSource, getTilesetForImage, findParentTilemapSource } from './TilesetLoader';
 import { TilePaintCommand, type TileChange } from '../commands/TilePaintCommand';
 import { icons } from '../utils/icons';
 
@@ -29,9 +29,14 @@ function findTilemapLayerData(gctx: GizmoContext): {
 function findTilemapSource(gctx: GizmoContext): string | null {
     const entityData = gctx.store.getSelectedEntityData();
     if (!entityData) return null;
-    const comp = entityData.components.find(c => c.type === 'Tilemap');
-    if (comp) return (comp.data as Record<string, unknown>).source as string ?? null;
-    return null;
+
+    const tilemapComp = entityData.components.find(c => c.type === 'Tilemap');
+    if (tilemapComp) {
+        const source = (tilemapComp.data as Record<string, unknown>).source as string ?? '';
+        if (source) return source;
+    }
+
+    return findParentTilemapSource(gctx.store.scene.entities, entityData.id);
 }
 
 function worldToTile(
@@ -87,19 +92,49 @@ export function createTileBrushGizmo(): GizmoDescriptor {
         tileHeight: number;
     } | null {
         const source = findTilemapSource(gctx);
-        if (!source) return null;
-        const info = getTilesetForSource(source);
-        if (!info?.tilesetImage) return null;
-        return {
-            image: info.tilesetImage,
-            columns: info.tilesetColumns,
-            tileWidth: info.tileWidth,
-            tileHeight: info.tileHeight,
-        };
+        if (source) {
+            const info = getTilesetForSource(source);
+            if (info?.tilesetImage) {
+                return {
+                    image: info.tilesetImage,
+                    columns: info.tilesetColumns,
+                    tileWidth: info.tileWidth,
+                    tileHeight: info.tileHeight,
+                };
+            }
+        }
+
+        const layer = findTilemapLayerData(gctx);
+        if (layer) {
+            const d = layer.data;
+            const textureUuid = d.texture as string ?? '';
+            if (textureUuid && typeof textureUuid === 'string') {
+                const tw = d.tileWidth as number ?? 32;
+                const th = d.tileHeight as number ?? 32;
+                const cols = d.tilesetColumns as number ?? 1;
+                const info = getTilesetForImage(textureUuid, tw, th, cols);
+                if (info?.tilesetImage) {
+                    return {
+                        image: info.tilesetImage,
+                        columns: info.tilesetColumns,
+                        tileWidth: info.tileWidth,
+                        tileHeight: info.tileHeight,
+                    };
+                }
+            }
+        }
+
+        return null;
     }
 
     function paintTile(state: TileBrushDragState, tx: number, ty: number, tileId: number): void {
         if (tx < 0 || tx >= state.mapWidth || ty < 0 || ty >= state.mapHeight) return;
+        const expectedLen = state.mapWidth * state.mapHeight;
+        if (state.tiles.length < expectedLen) {
+            const oldLen = state.tiles.length;
+            state.tiles.length = expectedLen;
+            state.tiles.fill(0, oldLen, expectedLen);
+        }
         const index = ty * state.mapWidth + tx;
         if (!state.changes.has(index)) {
             state.changes.set(index, {

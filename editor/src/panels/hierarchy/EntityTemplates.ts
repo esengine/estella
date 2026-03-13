@@ -71,6 +71,11 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         components: [{ type: 'Transform' }, { type: 'Tilemap' }],
     }),
 
+    TilemapLayer: general({
+        name: 'TilemapLayer',
+        components: [{ type: 'Transform' }, { type: 'TilemapLayer' }],
+    }),
+
     Camera: general({
         name: 'Camera',
         components: [{ type: 'Transform' }, { type: 'Camera' }],
