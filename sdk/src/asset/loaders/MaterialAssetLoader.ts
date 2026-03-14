@@ -6,11 +6,11 @@ import { AsyncCache } from '../AsyncCache';
 const ES_SHADER_VERTEX_RE = /#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/;
 const ES_SHADER_FRAGMENT_RE = /#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/;
 
-const shaderCache = new AsyncCache<ShaderHandle>();
-
 export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     readonly type = 'material';
     readonly extensions = ['.esmaterial'];
+
+    private shaderCache_ = new AsyncCache<ShaderHandle>();
 
     async load(path: string, ctx: LoadContext): Promise<MaterialResult> {
         const buildPath = ctx.catalog.getBuildPath(path);
@@ -32,11 +32,15 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         Material.release(asset.handle);
     }
 
+    releaseAll(): void {
+        this.shaderCache_.clearAll();
+    }
+
     private async loadShader(path: string, ctx: LoadContext): Promise<ShaderHandle> {
-        const cached = shaderCache.get(path);
+        const cached = this.shaderCache_.get(path);
         if (cached !== undefined) return cached;
 
-        return shaderCache.getOrLoad(path, async () => {
+        return this.shaderCache_.getOrLoad(path, async () => {
             const buildPath = ctx.catalog.getBuildPath(path);
             const content = await ctx.loadText(buildPath);
             const vertexMatch = content.match(ES_SHADER_VERTEX_RE);

@@ -8,15 +8,20 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     readonly extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'];
 
     private module_: ESEngineModule;
-    private canvas_: HTMLCanvasElement | OffscreenCanvas;
-    private ctx_: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+    private canvas_: HTMLCanvasElement | OffscreenCanvas | null = null;
+    private ctx_: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
+    }
+
+    private ensureCanvas_(): { canvas: HTMLCanvasElement | OffscreenCanvas; ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D } {
+        if (this.canvas_ && this.ctx_) return { canvas: this.canvas_, ctx: this.ctx_ };
         this.canvas_ = platformCreateCanvas(256, 256);
         const ctx = this.canvas_.getContext('2d', { willReadFrequently: true });
         if (!ctx) throw new Error('TextureLoader: failed to create 2D context');
         this.ctx_ = ctx;
+        return { canvas: this.canvas_, ctx: this.ctx_ };
     }
 
     async load(path: string, ctx: LoadContext): Promise<TextureResult> {
@@ -127,13 +132,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         img: HTMLImageElement | ImageBitmap,
         width: number, height: number, flip: boolean,
     ): TextureResult {
-        const canvas = this.canvas_;
+        const { canvas, ctx } = this.ensureCanvas_();
         if (canvas.width < width || canvas.height < height) {
             canvas.width = Math.max(canvas.width, nextPowerOf2(width));
             canvas.height = Math.max(canvas.height, nextPowerOf2(height));
         }
 
-        const ctx = this.ctx_ as CanvasRenderingContext2D;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
 
