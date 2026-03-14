@@ -6,6 +6,7 @@ import { Assets } from './asset/AssetPlugin';
 import { defineResource } from './resource';
 import {
     instantiatePrefab,
+    type PrefabData,
     type PrefabOverride,
     type InstantiatePrefabResult,
 } from './prefab';
@@ -25,9 +26,9 @@ export class PrefabServer {
         overrides?: PrefabOverride[];
     }): Promise<InstantiatePrefabResult> {
         const prefabResult = await this.assets_.loadPrefab(pathOrAddress);
-        const prefab = prefabResult.data as any;
+        const prefab = prefabResult.data as PrefabData;
         return instantiatePrefab(this.world_, prefab, {
-            assetServer: this.assets_ as any,
+            assets: this.assets_,
             assetBaseUrl: options?.baseUrl,
             parent: options?.parent,
             overrides: options?.overrides,

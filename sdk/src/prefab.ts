@@ -1,6 +1,6 @@
 import type { World } from './world';
 import type { Entity } from './types';
-import type { AssetServer } from './asset/AssetServer';
+import type { Assets } from './asset/Assets';
 import { loadSceneWithAssets, type SceneData } from './scene';
 import {
     flattenPrefab,
@@ -13,7 +13,7 @@ import {
 export type { PrefabData, PrefabEntityData, PrefabOverride, NestedPrefabRef } from './prefab/index';
 
 export interface InstantiatePrefabOptions {
-    assetServer?: AssetServer;
+    assets?: Assets;
     assetBaseUrl?: string;
     parent?: Entity;
     overrides?: PrefabOverride[];
@@ -31,10 +31,14 @@ export async function instantiatePrefab(
 ): Promise<InstantiatePrefabResult> {
     const prefabCache = new Map<string, PrefabData>();
 
-    if (options?.assetServer) {
+    if (options?.assets) {
+        const assets = options.assets;
         await preloadNestedPrefabs(
             prefab,
-            (path) => options.assetServer!.loadPrefab(path, options.assetBaseUrl),
+            async (path) => {
+                const result = await assets.loadPrefab(path);
+                return result.data as PrefabData;
+            },
             prefabCache,
         );
     }
@@ -67,7 +71,7 @@ export async function instantiatePrefab(
     };
 
     const entityMap = await loadSceneWithAssets(world, sceneData, {
-        assetServer: options?.assetServer,
+        assets: options?.assets,
         assetBaseUrl: options?.assetBaseUrl,
     });
 

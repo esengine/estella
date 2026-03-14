@@ -296,6 +296,13 @@ export async function loadSceneWithAssets(
     sceneData: SceneData,
     options?: SceneLoadOptions
 ): Promise<Map<number, Entity>> {
+    if (options?.assets) {
+        const assets = options.assets;
+        const result = await assets.preloadSceneAssets(sceneData);
+        assets.resolveSceneAssetPaths(sceneData, result);
+        return spawnAndLoadEntities(world, sceneData);
+    }
+
     const assetServer = options?.assetServer;
     const baseUrl = options?.assetBaseUrl ?? assetServer?.baseUrl;
     const texturePathToUrl = new Map<string, string>();
