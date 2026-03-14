@@ -463,6 +463,101 @@ export function generateAddressableManifest(
     return { version: '2.0', groups };
 }
 
+export interface CatalogEntry {
+    type: string;
+    atlas?: string;
+    frame?: { x: number; y: number; w: number; h: number };
+    uv?: { offset: [number, number]; scale: [number, number] };
+    deps?: string[];
+    buildPath?: string;
+}
+
+export interface CatalogJson {
+    version: number;
+    entries: Record<string, CatalogEntry>;
+    addresses: Record<string, string>;
+    labels: Record<string, string[]>;
+}
+
+export function generateCatalog(artifact: BuildArtifact): CatalogJson {
+    const entries: Record<string, CatalogEntry> = {};
+    const addresses: Record<string, string> = {};
+    const labels: Record<string, string[]> = {};
+
+    const spineAtlasPaths = new Map<string, string>();
+    for (const relativePath of artifact.assetPaths) {
+        if (getAssetType(relativePath) === 'spine-atlas') {
+            const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+            spineAtlasPaths.set(dir, relativePath);
+        }
+    }
+
+    const labelIndex = new Map<string, string[]>();
+
+    for (const relativePath of artifact.assetPaths) {
+        if (relativePath.endsWith('.esshader')) continue;
+
+        const editorType = getAssetType(relativePath);
+        const addressableType = toAddressableType(editorType);
+        if (!addressableType) continue;
+
+        const uuid = artifact.assetLibrary.getUuid(relativePath);
+        const assetEntry = uuid ? artifact.assetLibrary.getEntry(uuid) : null;
+
+        const entry: CatalogEntry = { type: addressableType };
+
+        if (artifact.packedPaths.has(relativePath)) {
+            const frameInfo = artifact.atlasResult.frameMap.get(relativePath);
+            if (frameInfo) {
+                const page = artifact.atlasResult.pages[frameInfo.page];
+                const f = frameInfo.frame;
+                entry.atlas = `atlas_${frameInfo.page}.png`;
+                entry.frame = { x: f.x, y: f.y, w: f.width, h: f.height };
+                entry.uv = {
+                    offset: [f.x / page.width, 1.0 - (f.y + f.height) / page.height],
+                    scale: [f.width / page.width, f.height / page.height],
+                };
+            }
+        }
+
+        if (addressableType === 'spine') {
+            const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+            const atlasPath = spineAtlasPaths.get(dir);
+            if (atlasPath) {
+                entry.deps = [atlasPath];
+            }
+        }
+
+        const buildPath = toBuildPath(relativePath);
+        if (buildPath !== relativePath) {
+            entry.buildPath = buildPath;
+        }
+
+        entries[relativePath] = entry;
+
+        if (assetEntry?.address) {
+            addresses[assetEntry.address] = relativePath;
+        }
+
+        if (assetEntry) {
+            for (const label of assetEntry.labels) {
+                let list = labelIndex.get(label);
+                if (!list) {
+                    list = [];
+                    labelIndex.set(label, list);
+                }
+                list.push(relativePath);
+            }
+        }
+    }
+
+    for (const [label, paths] of labelIndex) {
+        labels[label] = paths;
+    }
+
+    return { version: 1, entries, addresses, labels };
+}
+
 function transformPrefab(content: string, context: unknown): string {
     const artifact = context as BuildArtifact;
     const prefab = deserializePrefab(content);

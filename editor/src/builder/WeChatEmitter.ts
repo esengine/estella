@@ -10,7 +10,7 @@ import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
 import { joinPath, getProjectDir } from '../utils/path';
 import { resolveShaderPath } from '../utils/shader';
-import { generateAddressableManifest } from './ArtifactBuilder';
+import { generateAddressableManifest, generateCatalog } from './ArtifactBuilder';
 import { generateWeChatGameJs } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getWeChatPackOptions, getAssetTypeEntry, toBuildPath } from 'esengine';
@@ -364,6 +364,12 @@ export class WeChatEmitter implements PlatformEmitter {
         await fs.writeFile(
             joinPath(outputDir, 'asset-manifest.json'),
             JSON.stringify(manifest, null, 2)
+        );
+
+        const catalog = generateCatalog(artifact);
+        await fs.writeFile(
+            joinPath(outputDir, 'catalog.json'),
+            JSON.stringify(catalog, null, 2)
         );
     }
 
