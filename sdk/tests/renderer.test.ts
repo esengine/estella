@@ -7,6 +7,7 @@ import {
 } from '../src/renderer';
 import type { RenderStats } from '../src/renderer';
 import type { ESEngineModule } from '../src/wasm';
+import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
 
 // =============================================================================
 // Mock WASM module for Renderer API
@@ -14,6 +15,10 @@ import type { ESEngineModule } from '../src/wasm';
 
 function createRendererMockModule() {
     const heapBuffer = new ArrayBuffer(1024 * 1024);
+
+    const resourceManager = {
+        measureBitmapText: vi.fn(() => ({ width: 120, height: 30 })),
+    };
 
     const mock = {
         _malloc: vi.fn((size: number) => size),
@@ -49,9 +54,8 @@ function createRendererMockModule() {
         renderer_getMeshes: vi.fn(() => 8),
         renderer_getCulled: vi.fn(() => 12),
 
-        getResourceManager: vi.fn(() => ({
-            measureBitmapText: vi.fn(() => ({ width: 120, height: 30 })),
-        })),
+        resourceManager,
+        getResourceManager: vi.fn(() => resourceManager),
     };
 
     return mock;
@@ -68,11 +72,13 @@ describe('Renderer API', () => {
 
     beforeEach(() => {
         mock = createRendererMockModule();
+        initResourceManager(mock.getResourceManager() as any);
         initRendererAPI(mock as unknown as ESEngineModule);
     });
 
     afterEach(() => {
         shutdownRendererAPI();
+        shutdownResourceManager();
     });
 
     // =========================================================================
@@ -391,16 +397,14 @@ describe('Renderer API', () => {
     // =========================================================================
 
     describe('Renderer.measureBitmapText', () => {
-        it('should proxy to getResourceManager().measureBitmapText()', () => {
+        it('should proxy to resourceManager.measureBitmapText()', () => {
             const result = Renderer.measureBitmapText(1, 'hello', 16, 0);
             expect(result).toEqual({ width: 120, height: 30 });
-            expect(mock.getResourceManager).toHaveBeenCalledOnce();
         });
 
         it('should pass all arguments to measureBitmapText', () => {
             Renderer.measureBitmapText(7, 'test', 24, 2);
-            const rm = mock.getResourceManager.mock.results[0].value;
-            expect(rm.measureBitmapText).toHaveBeenCalledWith(7, 'test', 24, 2);
+            expect(mock.resourceManager.measureBitmapText).toHaveBeenCalledWith(7, 'test', 24, 2);
         });
     });
 

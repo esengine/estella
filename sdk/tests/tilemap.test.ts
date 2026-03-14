@@ -7,9 +7,6 @@ import {
     shutdownTilemapAPI,
 } from '../src/tilemap';
 import {
-    registerTextureDimensions,
-    getTextureDimensions,
-    clearTextureDimensionsCache,
     registerTilemapSource,
     getTilemapSource,
     clearTilemapSourceCache,
@@ -70,6 +67,8 @@ describe('Tilemap Components', () => {
                 tilesetColumns: 1,
                 layer: 0,
                 tiles: [],
+                infinite: false,
+                chunks: {},
                 tint: { r: 1, g: 1, b: 1, a: 1 },
                 opacity: 1,
                 visible: true,
@@ -83,36 +82,6 @@ describe('Tilemap Components', () => {
             a.tiles.push(1);
             expect(b.tiles).toEqual([]);
         });
-    });
-});
-
-describe('TextureDimensions cache', () => {
-    beforeEach(() => {
-        clearTextureDimensionsCache();
-    });
-
-    it('should register and retrieve dimensions', () => {
-        registerTextureDimensions(42, 256, 512);
-        const dims = getTextureDimensions(42);
-        expect(dims).toEqual({ width: 256, height: 512 });
-    });
-
-    it('should return undefined for unregistered handle', () => {
-        expect(getTextureDimensions(99)).toBeUndefined();
-    });
-
-    it('should overwrite existing entry', () => {
-        registerTextureDimensions(42, 100, 100);
-        registerTextureDimensions(42, 200, 300);
-        expect(getTextureDimensions(42)).toEqual({ width: 200, height: 300 });
-    });
-
-    it('should clear all entries', () => {
-        registerTextureDimensions(1, 64, 64);
-        registerTextureDimensions(2, 128, 128);
-        clearTextureDimensionsCache();
-        expect(getTextureDimensions(1)).toBeUndefined();
-        expect(getTextureDimensions(2)).toBeUndefined();
     });
 });
 
