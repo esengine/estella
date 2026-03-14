@@ -1,5 +1,6 @@
 import { getComponentAssetFieldDescriptors } from '../scene';
-import type { AssetServer } from '../asset/AssetServer';
+import type { Assets } from '../asset/Assets';
+import type { TextureResult } from '../asset/AssetLoader';
 
 const ASSET_PREFIX = 'asset:';
 const assetPathCache_ = new Map<string, boolean>();
@@ -50,14 +51,14 @@ export class StateMachineAssetCache {
         return this.paths.length === 0 || this.resolved_.size >= this.paths.length;
     }
 
-    startLoading(assetServer: AssetServer): void {
+    startLoading(assets: Assets): void {
         if (this.loading_) return;
         this.loading_ = true;
         let pending = 0;
         for (const path of this.paths) {
             if (this.resolved_.has(path)) continue;
             pending++;
-            assetServer.loadTexture(path).then(info => {
+            assets.loadTexture(path).then((info: TextureResult) => {
                 this.resolved_.set(path, info.handle);
             }).catch(() => {}).finally(() => {
                 pending--;
@@ -71,9 +72,9 @@ export class StateMachineAssetCache {
         return this.resolved_.get(path);
     }
 
-    release(assetServer: AssetServer): void {
+    release(assets: Assets): void {
         for (const path of this.paths) {
-            assetServer.releaseTexture(path);
+            assets.releaseTexture(path);
         }
         this.resolved_.clear();
     }

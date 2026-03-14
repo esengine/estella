@@ -62,6 +62,7 @@ export interface LoadedSceneAssets {
 
 export interface SceneLoadOptions {
     assetServer?: AssetServer;
+    assets?: import('./asset/Assets').Assets;
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
 }

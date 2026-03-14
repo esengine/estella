@@ -1,20 +1,14 @@
 import type { App, Plugin } from '../app';
 import { defineResource } from '../resource';
-import { AssetServer } from './AssetServer';
-import { Assets as AssetsImpl } from './Assets';
+import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { initBuiltinAssetFields } from './AssetFieldRegistry';
 
-export type AssetsData = AssetServer;
+export type AssetsData = AssetsClass;
 
 export const Assets = defineResource<AssetsData>(
     null!,
     'Assets'
-);
-
-export const AssetsV2 = defineResource<AssetsImpl>(
-    null!,
-    'AssetsV2'
 );
 
 export class AssetPlugin implements Plugin {
@@ -27,14 +21,11 @@ export class AssetPlugin implements Plugin {
 
         initBuiltinAssetFields();
 
-        const assetServer = new AssetServer(module);
-        app.insertResource(Assets, assetServer);
-
-        const assets = AssetsImpl.create({
-            backend: new HttpBackend({ baseUrl: assetServer.baseUrl ?? '' }),
+        const assets = AssetsClass.create({
+            backend: new HttpBackend({ baseUrl: '' }),
             module,
         });
-        app.insertResource(AssetsV2, assets);
+        app.insertResource(Assets, assets);
     }
 }
 

@@ -395,7 +395,6 @@ export {
     AssetPlugin,
     assetPlugin,
     MaterialLoader,
-    registerEmbeddedAssets,
     AssetRefCounter,
     type TextureInfo,
     type SliceBorder,

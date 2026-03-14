@@ -608,10 +608,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
 
     if (manifest) {
-        const assetServer = app.getResource(Assets);
-        if (assetServer) {
-            assetServer.setAddressableManifest(manifest);
-        }
+        // Manifest/Catalog is now set at Assets creation time via Catalog.fromJson
     }
 }
 
