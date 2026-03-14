@@ -9,7 +9,7 @@ import type { BuildResult, BuildContext, OutputFileEntry } from './BuildService'
 import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
 import { joinPath, getFileExtension, isAbsolutePath, getParentDir, normalizePath, getProjectDir } from '../utils/path';
-import { arrayBufferToBase64, generateAddressableManifest } from './ArtifactBuilder';
+import { arrayBufferToBase64, generateAddressableManifest, generateCatalog } from './ArtifactBuilder';
 import { PLAYABLE_HTML_TEMPLATE } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
@@ -118,8 +118,10 @@ export class PlayableEmitter implements PlatformEmitter {
             }
             progress.log('info', `Collected ${assets.size} assets`);
 
-            // 6.5 Generate addressable manifest
+            // 6.5 Generate addressable manifest + catalog
             const manifestJson = JSON.stringify(generateAddressableManifest(artifact));
+            const catalogJson = JSON.stringify(generateCatalog(artifact));
+            assets.set('catalog.json', `data:application/json;base64,${btoa(catalogJson)}`);
 
             // 7. Assemble HTML
             progress.setCurrentTask('Assembling HTML...', 50);
