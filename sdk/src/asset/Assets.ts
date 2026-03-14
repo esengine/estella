@@ -21,9 +21,8 @@ import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
 import {
     getAssetFields, getCompoundAssetFields,
-    initBuiltinAssetFields,
 } from './AssetFieldRegistry';
-import type { SceneData, SceneEntityData } from '../scene';
+import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 
 export interface AssetsOptions {
@@ -58,6 +57,7 @@ export class Assets {
     private textureCache_ = new AsyncCache<TextureResult>();
     private textureRefCounts_ = new Map<string, number>();
     private genericCache_ = new Map<string, AsyncCache<unknown>>();
+    private loadContext_: LoadContext | null = null;
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend;
@@ -92,9 +92,9 @@ export class Assets {
 
     async loadTexture(ref: string): Promise<TextureResult> {
         const path = this.catalog.resolve(ref);
-        const cacheKey = `${path}:f`;
+        const cacheKey = this.textureCacheKey_(path, true);
         const result = await this.textureCache_.getOrLoad(cacheKey, () =>
-            this.textureLoader_.load(path, this.createLoadContext()),
+            this.textureLoader_.load(path, this.getLoadContext_()),
         );
         this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
         return result;
@@ -102,9 +102,9 @@ export class Assets {
 
     async loadTextureRaw(ref: string): Promise<TextureResult> {
         const path = this.catalog.resolve(ref);
-        const cacheKey = `${path}:n`;
+        const cacheKey = this.textureCacheKey_(path, false);
         const result = await this.textureCache_.getOrLoad(cacheKey, () =>
-            this.textureLoader_.loadRaw(path, this.createLoadContext()),
+            this.textureLoader_.loadRaw(path, this.getLoadContext_()),
         );
         this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
         return result;
@@ -112,16 +112,17 @@ export class Assets {
 
     getTexture(ref: string): TextureResult | undefined {
         const path = this.catalog.resolve(ref);
-        return this.textureCache_.get(`${path}:f`);
+        return this.textureCache_.get(this.textureCacheKey_(path, true));
     }
 
     async loadSpine(skeletonRef: string, atlasRef?: string): Promise<SpineResult> {
         const skelPath = this.catalog.resolve(skeletonRef);
+        const ctx = this.getLoadContext_();
         if (atlasRef) {
             const atlasPath = this.catalog.resolve(atlasRef);
-            return this.spineLoader_.loadWithAtlas(skelPath, atlasPath, this.createLoadContext());
+            return this.spineLoader_.loadWithAtlas(skelPath, atlasPath, ctx);
         }
-        return this.spineLoader_.load(skelPath, this.createLoadContext());
+        return this.spineLoader_.load(skelPath, ctx);
     }
 
     async loadMaterial(ref: string): Promise<MaterialResult> {
@@ -287,72 +288,40 @@ export class Assets {
         const fontHandles = new Map<string, number>();
         const releaseCallbacks: ReleaseCallback[] = [];
 
-        const promises: Promise<void>[] = [];
-
-        for (const path of texturePaths) {
-            promises.push(
-                this.loadTexture(path).then(r => {
-                    textureHandles.set(path, r.handle);
-                }).catch(e => {
-                    console.warn(`[Assets] Failed to load texture: ${path}`, e);
-                    textureHandles.set(path, 0);
+        const loadHandles = (
+            paths: Set<string>, loader: (p: string) => Promise<{ handle: number }>,
+            handles: Map<string, number>, label: string,
+        ): Promise<void>[] =>
+            [...paths].map(path =>
+                loader(path).then(r => { handles.set(path, r.handle); }).catch(e => {
+                    console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
+                    handles.set(path, 0);
                 }),
             );
-        }
 
-        for (const path of materialPaths) {
-            promises.push(
-                this.loadMaterial(path).then(r => {
-                    materialHandles.set(path, r.handle);
-                }).catch(e => {
-                    console.warn(`[Assets] Failed to load material: ${path}`, e);
-                    materialHandles.set(path, 0);
+        const loadFireAndForget = (
+            paths: Set<string>, loader: (p: string) => Promise<unknown>, label: string,
+        ): Promise<void>[] =>
+            [...paths].map(path =>
+                loader(path).then(() => {}).catch(e => {
+                    console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
                 }),
             );
-        }
 
-        for (const path of fontPaths) {
-            promises.push(
-                this.loadFont(path).then(r => {
-                    fontHandles.set(path, r.handle);
-                }).catch(e => {
-                    console.warn(`[Assets] Failed to load font: ${path}`, e);
-                    fontHandles.set(path, 0);
-                }),
-            );
-        }
-
-        for (const pair of spinePairs) {
-            promises.push(
+        const promises: Promise<void>[] = [
+            ...loadHandles(texturePaths, p => this.loadTexture(p), textureHandles, 'texture'),
+            ...loadHandles(materialPaths, p => this.loadMaterial(p), materialHandles, 'material'),
+            ...loadHandles(fontPaths, p => this.loadFont(p), fontHandles, 'font'),
+            ...spinePairs.map(pair =>
                 this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
                     console.warn(`[Assets] Failed to load spine: ${pair.skeleton}`, e);
                 }),
-            );
-        }
-
-        for (const path of animClipPaths) {
-            promises.push(this.loadAnimClip(path).then(() => {}).catch(e => {
-                console.warn(`[Assets] Failed to load anim clip: ${path}`, e);
-            }));
-        }
-
-        for (const path of tilemapPaths) {
-            promises.push(this.loadTilemap(path).then(() => {}).catch(e => {
-                console.warn(`[Assets] Failed to load tilemap: ${path}`, e);
-            }));
-        }
-
-        for (const path of timelinePaths) {
-            promises.push(this.loadTimeline(path).then(() => {}).catch(e => {
-                console.warn(`[Assets] Failed to load timeline: ${path}`, e);
-            }));
-        }
-
-        for (const path of audioPaths) {
-            promises.push(this.loadAudio(path).then(() => {}).catch(e => {
-                console.warn(`[Assets] Failed to load audio: ${path}`, e);
-            }));
-        }
+            ),
+            ...loadFireAndForget(animClipPaths, p => this.loadAnimClip(p), 'anim-clip'),
+            ...loadFireAndForget(tilemapPaths, p => this.loadTilemap(p), 'tilemap'),
+            ...loadFireAndForget(timelinePaths, p => this.loadTimeline(p), 'timeline'),
+            ...loadFireAndForget(audioPaths, p => this.loadAudio(p), 'audio'),
+        ];
 
         await Promise.all(promises);
 
@@ -397,8 +366,8 @@ export class Assets {
 
     releaseTexture(ref: string): void {
         const path = this.catalog.resolve(ref);
-        for (const suffix of [':f', ':n']) {
-            const key = path + suffix;
+        for (const flip of [true, false]) {
+            const key = this.textureCacheKey_(path, flip);
             const count = this.textureRefCounts_.get(key);
             if (count === undefined) continue;
 
@@ -428,6 +397,7 @@ export class Assets {
         this.textureRefCounts_.clear();
 
         this.spineLoader_.releaseAll();
+        this.materialLoader_?.releaseAll();
 
         for (const cache of this.genericCache_.values()) {
             cache.clearAll();
@@ -455,16 +425,23 @@ export class Assets {
     // Private
     // =========================================================================
 
+    private materialLoader_: MaterialAssetLoader | null = null;
+
     private registerBuiltinLoaders(): void {
         this.register(this.textureLoader_);
         this.register(this.spineLoader_);
-        this.register(new MaterialAssetLoader());
+        this.materialLoader_ = new MaterialAssetLoader();
+        this.register(this.materialLoader_);
         this.register(new FontAssetLoader());
         this.register(new AudioAssetLoader());
         this.register(new AnimClipAssetLoader());
         this.register(new TilemapAssetLoader());
         this.register(new TimelineAssetLoader());
         this.register(new PrefabAssetLoader());
+    }
+
+    private textureCacheKey_(path: string, flip: boolean): string {
+        return `${path}:${flip ? 'f' : 'n'}`;
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
@@ -481,13 +458,14 @@ export class Assets {
         }
 
         return cache.getOrLoad(path, () =>
-            loader.load(path, this.createLoadContext()),
+            loader.load(path, this.getLoadContext_()),
         ) as Promise<T>;
     }
 
-    private createLoadContext(): LoadContext {
+    private getLoadContext_(): LoadContext {
+        if (this.loadContext_) return this.loadContext_;
         const self = this;
-        return {
+        this.loadContext_ = {
             backend: this.backend,
             catalog: this.catalog,
             resourceManager: requireResourceManager() as CppResourceManager,
@@ -504,5 +482,6 @@ export class Assets {
                 return self.backend.fetchBinary(self.backend.resolveUrl(path));
             },
         };
+        return this.loadContext_;
     }
 }

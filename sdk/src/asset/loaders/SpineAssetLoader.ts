@@ -50,22 +50,20 @@ export class SpineAssetLoader implements AssetLoader<SpineResult> {
         const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
         const rm = requireResourceManager();
 
-        const loadedTextures: { name: string; handle: number; width: number; height: number }[] = [];
-        for (const texName of texNames) {
+        const texPromises = texNames.map(async (texName) => {
             const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
             try {
                 const texResult = await ctx.loadTexture(texPath, false);
                 rm.registerTextureWithPath(texResult.handle, texPath);
-                loadedTextures.push({
-                    name: texName,
-                    handle: texResult.handle,
-                    width: texResult.width,
-                    height: texResult.height,
-                });
+                return { name: texName, handle: texResult.handle, width: texResult.width, height: texResult.height };
             } catch (err) {
                 console.warn(`[SpineLoader] Failed to load texture: ${texPath}`, err);
+                return null;
             }
-        }
+        });
+        const loadedTextures = (await Promise.all(texPromises)).filter(
+            (t): t is { name: string; handle: number; width: number; height: number } => t !== null,
+        );
 
         const skelBuildPath = ctx.catalog.getBuildPath(skeletonPath);
         const isBinary = getAssetTypeEntry(skeletonPath)?.contentType === 'binary';
