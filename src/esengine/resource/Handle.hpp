@@ -19,9 +19,6 @@
 // Project includes
 #include "../core/Types.hpp"
 
-// Standard library
-#include <limits>
-
 namespace esengine::resource {
 
 // =============================================================================
@@ -53,7 +50,7 @@ public:
     static constexpr u32 GEN_BITS = 12;
     static constexpr u32 INDEX_MASK = (1u << INDEX_BITS) - 1;
     static constexpr u32 GEN_MASK = (1u << GEN_BITS) - 1;
-    static constexpr IdType INVALID = std::numeric_limits<IdType>::max();
+    static constexpr IdType INVALID = 0;
 
     /** @brief Creates an invalid handle */
     Handle() = default;

@@ -92,7 +92,9 @@ public:
         u32 generation = 0;    ///< Reuse counter for stale handle detection
     };
 
-    ResourcePool() = default;
+    ResourcePool() {
+        entries_.push_back({nullptr, 0, "", 0});
+    }
     ~ResourcePool() override = default;
 
     // Non-copyable, movable
