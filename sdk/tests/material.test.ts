@@ -16,6 +16,7 @@ import type {
 } from '../src/material';
 import type { ESEngineModule } from '../src/wasm';
 import { BlendMode } from '../src/blend';
+import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
 
 // =============================================================================
 // Mock WASM module for Material API
@@ -64,11 +65,13 @@ describe('Material API', () => {
 
     beforeEach(() => {
         mock = createMaterialMockModule();
+        initResourceManager(mock.resourceManager as any);
         initMaterialAPI(mock as unknown as ESEngineModule);
     });
 
     afterEach(() => {
         shutdownMaterialAPI();
+        shutdownResourceManager();
     });
 
     // =========================================================================
@@ -76,10 +79,6 @@ describe('Material API', () => {
     // =========================================================================
 
     describe('initMaterialAPI', () => {
-        it('should store resourceManager from module', () => {
-            expect(mock.getResourceManager).toHaveBeenCalled();
-        });
-
         it('should register material callback', () => {
             expect(mock.materialDataProvider).toBeTypeOf('function');
         });
@@ -859,15 +858,17 @@ describe('Material API', () => {
     describe('uninitialized guard', () => {
         it('should throw when createShader called without init', () => {
             shutdownMaterialAPI();
+            shutdownResourceManager();
             expect(() => Material.createShader('v', 'f')).toThrow(
-                'Material API not initialized',
+                'ResourceManager not initialized',
             );
         });
 
         it('should throw when releaseShader called without init for valid handle', () => {
             shutdownMaterialAPI();
+            shutdownResourceManager();
             expect(() => Material.releaseShader(1 as ShaderHandle)).toThrow(
-                'Material API not initialized',
+                'ResourceManager not initialized',
             );
         });
     });
