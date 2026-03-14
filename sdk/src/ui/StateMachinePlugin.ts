@@ -28,7 +28,7 @@ import {
 } from '../timeline/TimelineRuntime';
 import type { UploadResult } from '../timeline/TimelineUploader';
 import type { ESEngineModule } from '../wasm';
-import { Assets } from '../asset/AssetPlugin';
+import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import type { AssetServer } from '../asset/AssetServer';
 import { EntityStateMap } from './uiHelpers';
 import {
@@ -385,13 +385,13 @@ function cleanupTimelineHandle(module: ESEngineModule | null, runtime: LayerRunt
     runtime.timelineDuration = 0;
 }
 
-function cleanupEntityRuntime(module: ESEngineModule | null, er: EntityRuntime, assetServer?: AssetServer | null): void {
+function cleanupEntityRuntime(module: ESEngineModule | null, er: EntityRuntime, assets?: AssetsData | null): void {
     for (const layer of er.layers) {
         cancelActiveTweens(layer);
         cleanupTimelineHandle(module, layer);
     }
-    if (assetServer) {
-        er.assets.release(assetServer);
+    if (assets) {
+        er.assets.release(assets);
     }
 }
 

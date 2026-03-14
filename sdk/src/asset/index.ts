@@ -13,7 +13,7 @@ export {
     type AddressableManifestAsset,
 } from './AssetServer';
 export { AsyncCache } from './AsyncCache';
-export { Assets, AssetsV2, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
+export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
 export { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
 export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
 
@@ -28,13 +28,3 @@ export {
     initBuiltinAssetFields,
     type AssetFieldType, type AssetFieldDescriptor, type CompoundFieldDescriptor,
 } from './AssetFieldRegistry';
-
-import type { App } from '../app';
-import { Assets } from './AssetPlugin';
-
-export function registerEmbeddedAssets(app: App, assets: Record<string, string>): void {
-    const assetServer = app.getResource(Assets);
-    if (assetServer) {
-        assetServer.registerEmbeddedAssets(assets);
-    }
-}

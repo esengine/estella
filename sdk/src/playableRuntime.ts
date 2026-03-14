@@ -184,11 +184,8 @@ function buildSpineManager(
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
     const { app, module, assets, scenes, firstScene } = config;
 
-    const assetServer = app.getResource(Assets);
-    if (assetServer) {
-        assetServer.registerEmbeddedAssets(assets);
-        assetServer.setEmbeddedOnly(true);
-    }
+    // Embedded assets are handled by EmbeddedBackend in the new Assets architecture
+    // The old registerEmbeddedAssets/setEmbeddedOnly calls are no longer needed
 
     let spineManager: SpineManager | null = null;
     if (config.spineModules && Object.keys(config.spineModules).length > 0) {

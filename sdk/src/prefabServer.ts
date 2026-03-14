@@ -1,8 +1,8 @@
 import type { App, Plugin } from './app';
 import type { World } from './world';
 import type { Entity } from './types';
-import type { AssetServer } from './asset/AssetServer';
-import { Assets } from './asset';
+import type { Assets as AssetsClass } from './asset/Assets';
+import { Assets } from './asset/AssetPlugin';
 import { defineResource } from './resource';
 import {
     instantiatePrefab,
@@ -10,17 +10,13 @@ import {
     type InstantiatePrefabResult,
 } from './prefab';
 
-// =============================================================================
-// PrefabServer
-// =============================================================================
-
 export class PrefabServer {
     private readonly world_: World;
-    private readonly assetServer_: AssetServer;
+    private readonly assets_: AssetsClass;
 
-    constructor(world: World, assetServer: AssetServer) {
+    constructor(world: World, assets: AssetsClass) {
         this.world_ = world;
-        this.assetServer_ = assetServer;
+        this.assets_ = assets;
     }
 
     async instantiate(pathOrAddress: string, options?: {
@@ -28,11 +24,10 @@ export class PrefabServer {
         parent?: Entity;
         overrides?: PrefabOverride[];
     }): Promise<InstantiatePrefabResult> {
-        const resolved = this.assetServer_.resolveAddress(pathOrAddress);
-        const prefabPath = resolved ? resolved.path : pathOrAddress;
-        const prefab = await this.assetServer_.loadPrefab(prefabPath, options?.baseUrl);
+        const prefabResult = await this.assets_.loadPrefab(pathOrAddress);
+        const prefab = prefabResult.data as any;
         return instantiatePrefab(this.world_, prefab, {
-            assetServer: this.assetServer_,
+            assetServer: this.assets_ as any,
             assetBaseUrl: options?.baseUrl,
             parent: options?.parent,
             overrides: options?.overrides,
@@ -40,23 +35,15 @@ export class PrefabServer {
     }
 }
 
-// =============================================================================
-// Prefabs Resource
-// =============================================================================
-
 export const Prefabs = defineResource<PrefabServer>(null!, 'Prefabs');
-
-// =============================================================================
-// PrefabsPlugin
-// =============================================================================
 
 export class PrefabsPlugin implements Plugin {
     name = 'PrefabsPlugin';
     dependencies = [Assets];
 
     build(app: App): void {
-        const assetServer = app.getResource(Assets);
-        app.insertResource(Prefabs, new PrefabServer(app.world, assetServer));
+        const assets = app.getResource(Assets);
+        app.insertResource(Prefabs, new PrefabServer(app.world, assets));
     }
 }
 

@@ -343,7 +343,7 @@ export class SceneManagerState {
                     ? this.app_.getResource(Assets)
                     : null;
                 if (assetServer) {
-                    sceneData = await assetServer.loadJson<SceneData>(config.path);
+                    sceneData = await assetServer.fetchJson<SceneData>(config.path);
                 } else {
                     const response = await fetch(config.path);
                     sceneData = await response.json() as SceneData;
@@ -395,7 +395,7 @@ export class SceneManagerState {
                     ? this.app_.getResource(Assets)
                     : null;
                 if (assetServer) {
-                    sceneData = await assetServer.loadJson<SceneData>(config.path);
+                    sceneData = await assetServer.fetchJson<SceneData>(config.path);
                 } else {
                     const response = await fetch(config.path);
                     sceneData = await response.json() as SceneData;
@@ -485,7 +485,7 @@ export class SceneManagerState {
             };
             const loadOptions: SceneLoadOptions = { collectAssets };
             if (this.app_.hasResource(Assets)) {
-                loadOptions.assetServer = this.app_.getResource(Assets);
+                loadOptions.assets = this.app_.getResource(Assets);
             }
             const entityMap = await loadSceneWithAssets(
                 this.app_.world, sceneData, loadOptions
@@ -525,12 +525,6 @@ export class SceneManagerState {
         if (assetServer) {
             for (const url of assets.textureUrls) {
                 assetServer.releaseTexture(url);
-            }
-            for (const path of assets.fontPaths) {
-                assetServer.releaseFont(path);
-            }
-            for (const key of assets.spineKeys) {
-                assetServer.releaseSpine(key);
             }
         }
 
