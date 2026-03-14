@@ -279,9 +279,9 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
         action: () => {
             const shell = getEditorContext().shell;
             if (shell) {
-                shell.openUrl('https://esengine.github.io/microes/');
+                shell.openUrl('https://estellaengine.com/docs/');
             } else {
-                window.open('https://esengine.github.io/microes/', '_blank');
+                window.open('https://estellaengine.com/docs/', '_blank');
             }
         },
     });
