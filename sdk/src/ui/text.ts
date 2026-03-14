@@ -35,6 +35,12 @@ export interface TextData {
     wordWrap: boolean;
     overflow: TextOverflow;
     lineHeight: number;
+    strokeColor: Color;
+    strokeWidth: number;
+    shadowColor: Color;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
 }
 
 export const Text = defineComponent<TextData>('Text', {
@@ -47,4 +53,10 @@ export const Text = defineComponent<TextData>('Text', {
     wordWrap: true,
     overflow: TextOverflow.Visible,
     lineHeight: 1.2,
+    strokeColor: { r: 0, g: 0, b: 0, a: 1 },
+    strokeWidth: 0,
+    shadowColor: { r: 0, g: 0, b: 0, a: 1 },
+    shadowBlur: 0,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
 });

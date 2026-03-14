@@ -15,7 +15,7 @@ import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';
 import { isEditor, isPlayMode } from '../env';
-import { wrapText, nextPowerOf2, ensureComponent } from './uiHelpers';
+import { wrapText, nextPowerOf2, ensureComponent, colorToRgba } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 
 export class TextInputPlugin implements Plugin {
@@ -310,8 +310,7 @@ export class TextInputPlugin implements Plugin {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const bg = ti.backgroundColor;
-            ctx.fillStyle = `rgba(${Math.round(bg.r * 255)}, ${Math.round(bg.g * 255)}, ${Math.round(bg.b * 255)}, ${bg.a})`;
+            ctx.fillStyle = colorToRgba(ti.backgroundColor);
             ctx.fillRect(0, 0, w, h);
 
             ctx.save();
@@ -330,8 +329,7 @@ export class TextInputPlugin implements Plugin {
                     ? '\u25CF'.repeat(ti.value.length)
                     : ti.value;
 
-            const textColor = isEmpty ? ti.placeholderColor : ti.color;
-            ctx.fillStyle = `rgba(${Math.round(textColor.r * 255)}, ${Math.round(textColor.g * 255)}, ${Math.round(textColor.b * 255)}, ${textColor.a})`;
+            ctx.fillStyle = colorToRgba(isEmpty ? ti.placeholderColor : ti.color);
 
             const lineHeight = Math.ceil(ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO);
             const padding = ti.padding;
@@ -386,7 +384,7 @@ export class TextInputPlugin implements Plugin {
                     cursorH = ti.fontSize;
                 }
 
-                ctx.fillStyle = `rgba(${Math.round(ti.color.r * 255)}, ${Math.round(ti.color.g * 255)}, ${Math.round(ti.color.b * 255)}, ${ti.color.a})`;
+                ctx.fillStyle = colorToRgba(ti.color);
                 ctx.fillRect(cursorX, cursorY, 2, cursorH);
             }
 

@@ -366,6 +366,12 @@ interface TextData {
     wordWrap: boolean;
     overflow: TextOverflow;
     lineHeight: number;
+    strokeColor: Color;
+    strokeWidth: number;
+    shadowColor: Color;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
 }
 declare const Text: ComponentDef<TextData>;
 

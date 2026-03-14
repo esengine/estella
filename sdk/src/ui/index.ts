@@ -31,12 +31,6 @@ export {
     EntityStateMap,
 } from './uiHelpers';
 
-// Snapshot Utilities
-export {
-    createSnapshotUtils,
-    type Snapshot,
-} from './uiSnapshot';
-
 // UI Constants
 export {
     TEXT_PADDING_RATIO,

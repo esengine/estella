@@ -9,31 +9,6 @@ import type { UIRectData } from './UIRect';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
-import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
-
-interface ImageSource {
-    image: ImageData;
-    uiRect: UIRectData | null;
-    entity: Entity;
-}
-
-const imageSnapshot = createSnapshotUtils<ImageSource>({
-    texture: s => s.image.texture,
-    colorR: s => s.image.color.r,
-    colorG: s => s.image.color.g,
-    colorB: s => s.image.color.b,
-    colorA: s => s.image.color.a,
-    material: s => s.image.material,
-    imageType: s => s.image.imageType,
-    fillMethod: s => s.image.fillMethod,
-    fillOrigin: s => s.image.fillOrigin,
-    fillAmount: s => s.image.fillAmount,
-    tileSizeX: s => s.image.tileSize.x,
-    tileSizeY: s => s.image.tileSize.y,
-    rectWidth: s => s.uiRect ? getEffectiveWidth(s.uiRect, s.entity) : 0,
-    rectHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect, s.entity) : 0,
-    enabled: s => s.image.enabled,
-});
 
 function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
     if (!world.has(entity, UIRenderer)) {
@@ -55,14 +30,17 @@ export class ImagePlugin implements Plugin {
         registerComponent('Image', Image);
 
         const world = app.world;
-        const snapshots = new Map<Entity, Snapshot>();
+        const lastRenderedTick = new Map<Entity, number>();
+
+        world.enableChangeTracking(Image);
+        world.enableChangeTracking(UIRect);
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
-                for (const entity of snapshots.keys()) {
+                for (const entity of lastRenderedTick.keys()) {
                     if (!world.valid(entity) || !world.has(entity, Image)) {
-                        snapshots.delete(entity);
+                        lastRenderedTick.delete(entity);
                     }
                 }
 
@@ -73,10 +51,13 @@ export class ImagePlugin implements Plugin {
                     const uiRect = world.has(entity, UIRect)
                         ? world.get(entity, UIRect) as UIRectData
                         : null;
-                    const source: ImageSource = { image, uiRect, entity };
 
-                    const prev = snapshots.get(entity);
-                    if (prev && world.has(entity, UIRenderer) && !imageSnapshot.changed(prev, source)) continue;
+                    const prevTick = lastRenderedTick.get(entity);
+                    if (prevTick !== undefined && world.has(entity, UIRenderer)) {
+                        const imageChanged = world.isChangedSince(entity, Image, prevTick);
+                        const rectChanged = uiRect && world.isChangedSince(entity, UIRect, prevTick);
+                        if (!imageChanged && !rectChanged) continue;
+                    }
 
                     ensureUIRenderer(world, entity);
 
@@ -85,7 +66,7 @@ export class ImagePlugin implements Plugin {
                     if (!image.enabled) {
                         renderer.enabled = false;
                         world.insert(entity, UIRenderer, renderer);
-                        snapshots.set(entity, imageSnapshot.take(source));
+                        lastRenderedTick.set(entity, world.getWorldTick());
                         continue;
                     }
 
@@ -108,8 +89,6 @@ export class ImagePlugin implements Plugin {
 
                     if (image.imageType === ImageType.Filled) {
                         const amount = Math.max(0, Math.min(1, image.fillAmount));
-                        const w = uiRect ? getEffectiveWidth(uiRect, entity) : 0;
-                        const h = uiRect ? getEffectiveHeight(uiRect, entity) : 0;
 
                         if (image.fillMethod === FillMethod.Horizontal) {
                             if (image.fillOrigin === FillOrigin.Left) {
@@ -135,7 +114,7 @@ export class ImagePlugin implements Plugin {
                     }
 
                     world.insert(entity, UIRenderer, renderer);
-                    snapshots.set(entity, imageSnapshot.take(source));
+                    lastRenderedTick.set(entity, world.getWorldTick());
                 }
             },
             { name: 'ImageSystem' }

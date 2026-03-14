@@ -443,6 +443,10 @@ export function colorWithAlpha(c: Color, alpha: number): Color {
     return { r: c.r, g: c.g, b: c.b, a: alpha };
 }
 
+export function colorToRgba(c: Color): string {
+    return `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, ${c.a})`;
+}
+
 export class EntityStateMap<T> {
     private map_ = new Map<Entity, T>();
 

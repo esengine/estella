@@ -42,6 +42,12 @@ const TextSchema: ComponentSchema = {
             ],
         },
         { name: 'lineHeight', type: 'number', min: 0.5, max: 3, step: 0.1 },
+        { name: 'strokeColor', type: 'color' },
+        { name: 'strokeWidth', type: 'number', min: 0, max: 20, step: 0.5 },
+        { name: 'shadowColor', type: 'color' },
+        { name: 'shadowBlur', type: 'number', min: 0, max: 50, step: 1 },
+        { name: 'shadowOffsetX', type: 'number', min: -50, max: 50, step: 1 },
+        { name: 'shadowOffsetY', type: 'number', min: -50, max: 50, step: 1 },
     ],
 };
 

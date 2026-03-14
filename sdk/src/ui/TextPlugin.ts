@@ -8,30 +8,6 @@ import { UIRect, type UIRectData } from './UIRect';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { getEffectiveWidth, getEffectiveHeight, setUIRectSizeNative } from './uiHelpers';
-import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
-
-interface TextSource {
-    text: TextData;
-    uiRect: UIRectData | null;
-    entity: Entity;
-}
-
-const textSnapshot = createSnapshotUtils<TextSource>({
-    content: s => s.text.content,
-    fontFamily: s => s.text.fontFamily,
-    fontSize: s => s.text.fontSize,
-    colorR: s => s.text.color.r,
-    colorG: s => s.text.color.g,
-    colorB: s => s.text.color.b,
-    colorA: s => s.text.color.a,
-    align: s => s.text.align,
-    verticalAlign: s => s.text.verticalAlign,
-    wordWrap: s => s.text.wordWrap,
-    overflow: s => s.text.overflow,
-    lineHeight: s => s.text.lineHeight,
-    containerWidth: s => s.uiRect ? getEffectiveWidth(s.uiRect, s.entity) : 0,
-    containerHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect, s.entity) : 0,
-});
 
 function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
     if (!world.has(entity, UIRenderer)) {
@@ -60,7 +36,11 @@ export class TextPlugin implements Plugin {
 
         const renderer = new TextRenderer(module);
         const world = app.world;
-        const snapshots = new Map<Entity, Snapshot>();
+        const lastRenderedTick = new Map<Entity, number>();
+        const lastContainerSize = new Map<Entity, string>();
+
+        world.enableChangeTracking(Text);
+        world.enableChangeTracking(UIRect);
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
@@ -68,7 +48,7 @@ export class TextPlugin implements Plugin {
                 renderer.beginFrame();
                 renderer.cleanupOrphaned(e => world.valid(e) && world.has(e, Text));
 
-                for (const entity of snapshots.keys()) {
+                for (const entity of lastRenderedTick.keys()) {
                     if (!world.valid(entity) || !world.has(entity, Text)) {
                         if (world.valid(entity) && world.has(entity, UIRenderer)) {
                             const r = world.get(entity, UIRenderer) as UIRendererData;
@@ -76,7 +56,8 @@ export class TextPlugin implements Plugin {
                             r.visualType = UIVisualType.None;
                             world.insert(entity, UIRenderer, r);
                         }
-                        snapshots.delete(entity);
+                        lastRenderedTick.delete(entity);
+                        lastContainerSize.delete(entity);
                     }
                 }
 
@@ -86,13 +67,24 @@ export class TextPlugin implements Plugin {
                     const uiRect = world.has(entity, UIRect)
                         ? world.get(entity, UIRect) as UIRectData
                         : null;
-                    const source: TextSource = { text, uiRect, entity };
-                    const prev = snapshots.get(entity);
 
-                    if (prev && !textSnapshot.changed(prev, source)) {
-                        const hasValidRenderer = world.has(entity, UIRenderer)
-                            && (world.get(entity, UIRenderer) as UIRendererData).texture !== 0;
-                        if (hasValidRenderer) continue;
+                    const prevTick = lastRenderedTick.get(entity);
+                    const hasValidRenderer = world.has(entity, UIRenderer)
+                        && (world.get(entity, UIRenderer) as UIRendererData).texture !== 0;
+
+                    if (prevTick !== undefined && hasValidRenderer) {
+                        const textChanged = world.isChangedSince(entity, Text, prevTick);
+                        if (!textChanged) {
+                            const containerKey = uiRect
+                                ? `${getEffectiveWidth(uiRect, entity)}|${getEffectiveHeight(uiRect, entity)}`
+                                : '';
+                            const prevKey = lastContainerSize.get(entity) ?? '';
+                            if (containerKey === prevKey) continue;
+                            if (!text.wordWrap) {
+                                lastContainerSize.set(entity, containerKey);
+                                continue;
+                            }
+                        }
                     }
 
                     ensureUIRenderer(world, entity);
@@ -116,7 +108,12 @@ export class TextPlugin implements Plugin {
                         setUIRectSizeNative(entity, result.width, result.height);
                     }
 
-                    snapshots.set(entity, textSnapshot.take(source));
+                    const tick = world.getWorldTick();
+                    lastRenderedTick.set(entity, tick);
+                    const containerKey = uiRect
+                        ? `${getEffectiveWidth(uiRect, entity)}|${getEffectiveHeight(uiRect, entity)}`
+                        : '';
+                    lastContainerSize.set(entity, containerKey);
                 }
             },
             { name: 'TextSystem' }

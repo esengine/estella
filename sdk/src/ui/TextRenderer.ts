@@ -9,7 +9,7 @@ import type { ESEngineModule } from '../wasm';
 import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
 import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';
-import { wrapText, nextPowerOf2 } from './uiHelpers';
+import { wrapText, nextPowerOf2, colorToRgba } from './uiHelpers';
 import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RATIO } from './uiConstants';
 
 interface SizedRect {
@@ -88,10 +88,16 @@ export class TextRenderer {
         const containerWidth = hasContainer ? uiRect!.size.x : 0;
         const containerHeight = hasContainer ? uiRect!.size.y : 0;
 
+        const hasStroke = text.strokeWidth > 0;
+        const hasShadow = text.shadowBlur > 0 || text.shadowOffsetX !== 0 || text.shadowOffsetY !== 0;
+        const strokeExpand = hasStroke ? Math.ceil(text.strokeWidth) : 0;
+        const shadowExpand = hasShadow ? Math.ceil(text.shadowBlur + Math.max(Math.abs(text.shadowOffsetX), Math.abs(text.shadowOffsetY))) : 0;
+        const effectPadding = Math.max(strokeExpand, shadowExpand);
+
         const shouldWrap = text.wordWrap && hasContainer;
         let lines = wrapText(ctx, text.content, shouldWrap ? containerWidth : 0);
         const lineHeightPx = Math.ceil(text.fontSize * text.lineHeight);
-        const padding = Math.ceil(text.fontSize * TEXT_PADDING_RATIO);
+        const padding = Math.ceil(text.fontSize * TEXT_PADDING_RATIO) + effectPadding;
 
         const measuredWidth = Math.ceil(this.measureWidth(lines));
         const measuredHeight = Math.ceil(lines.length * lineHeightPx);
@@ -116,16 +122,11 @@ export class TextRenderer {
             canvas.height = Math.max(canvas.height, nextPowerOf2(height));
         }
 
-        const r = Math.round(text.color.r * 255);
-        const g = Math.round(text.color.g * 255);
-        const b = Math.round(text.color.b * 255);
-        const a = text.color.a;
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.font = `${text.fontSize}px ${text.fontFamily}`;
         ctx.textAlign = this.mapAlign(text.align);
         ctx.textBaseline = 'top';
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+        ctx.fillStyle = colorToRgba(text.color);
 
         // Handle overflow clip
         if (hasContainer && text.overflow === TextOverflow.Clip) {
@@ -149,6 +150,19 @@ export class TextRenderer {
             startY = padding;
         }
 
+        if (hasStroke) {
+            ctx.strokeStyle = colorToRgba(text.strokeColor);
+            ctx.lineWidth = text.strokeWidth * 2;
+            ctx.lineJoin = 'round';
+        }
+
+        if (hasShadow) {
+            ctx.shadowColor = colorToRgba(text.shadowColor);
+            ctx.shadowBlur = text.shadowBlur;
+            ctx.shadowOffsetX = text.shadowOffsetX;
+            ctx.shadowOffsetY = text.shadowOffsetY;
+        }
+
         let y = startY;
         for (const line of lines) {
             let x: number;
@@ -165,8 +179,18 @@ export class TextRenderer {
                 default:
                     x = padding;
             }
+            if (hasStroke) {
+                ctx.strokeText(line, x, y);
+            }
             ctx.fillText(line, x, y);
             y += lineHeightPx;
+        }
+
+        if (hasShadow) {
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
         }
 
         if (hasContainer && text.overflow === TextOverflow.Clip) {
@@ -206,13 +230,12 @@ export class TextRenderer {
      * Renders text for an entity and caches the result
      */
     renderForEntity(entity: Entity, text: TextData, uiRect?: SizedRect | null): TextRenderResult {
+        const result = this.renderText(text, uiRect);
         const existing = this.cache.get(entity);
         if (existing) {
             const rm = requireResourceManager();
             rm.releaseTexture(existing.textureHandle);
         }
-
-        const result = this.renderText(text, uiRect);
         this.cache.set(entity, result);
         return result;
     }
