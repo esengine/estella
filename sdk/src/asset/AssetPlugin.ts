@@ -1,15 +1,9 @@
-/**
- * @file    AssetPlugin.ts
- * @brief   Plugin that provides asset loading capabilities
- */
-
 import type { App, Plugin } from '../app';
 import { defineResource } from '../resource';
 import { AssetServer } from './AssetServer';
-
-// =============================================================================
-// Assets Resource
-// =============================================================================
+import { Assets as AssetsImpl } from './Assets';
+import { HttpBackend } from './Backend';
+import { initBuiltinAssetFields } from './AssetFieldRegistry';
 
 export type AssetsData = AssetServer;
 
@@ -18,9 +12,10 @@ export const Assets = defineResource<AssetsData>(
     'Assets'
 );
 
-// =============================================================================
-// Asset Plugin
-// =============================================================================
+export const AssetsV2 = defineResource<AssetsImpl>(
+    null!,
+    'AssetsV2'
+);
 
 export class AssetPlugin implements Plugin {
     build(app: App): void {
@@ -30,7 +25,16 @@ export class AssetPlugin implements Plugin {
             return;
         }
 
-        app.insertResource(Assets, new AssetServer(module));
+        initBuiltinAssetFields();
+
+        const assetServer = new AssetServer(module);
+        app.insertResource(Assets, assetServer);
+
+        const assets = AssetsImpl.create({
+            backend: new HttpBackend({ baseUrl: assetServer.baseUrl ?? '' }),
+            module,
+        });
+        app.insertResource(AssetsV2, assets);
     }
 }
 
