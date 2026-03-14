@@ -1,6 +1,5 @@
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
-import { INVALID_TEXTURE } from '../types';
 import { registerComponent } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Image, ImageType, FillMethod, FillOrigin } from './Image';
@@ -98,7 +97,7 @@ export class ImagePlugin implements Plugin {
                     renderer.uvOffset = { x: 0, y: 0 };
                     renderer.uvScale = { x: 1, y: 1 };
 
-                    const hasTexture = image.texture !== INVALID_TEXTURE && image.texture !== 0;
+                    const hasTexture = !!image.texture;
                     if (!hasTexture) {
                         renderer.visualType = UIVisualType.SolidColor;
                     } else if (image.imageType === ImageType.Sliced) {

@@ -17,16 +17,8 @@ import {
     audioPlugin,
     RenderPipeline,
     Renderer,
-    initDrawAPI,
-    shutdownDrawAPI,
-    initGeometryAPI,
-    shutdownGeometryAPI,
-    initMaterialAPI,
-    shutdownMaterialAPI,
-    initPostProcessAPI,
-    shutdownPostProcessAPI,
-    initRendererAPI,
-    shutdownRendererAPI,
+    corePlugin,
+    DEFAULT_UI_CAMERA_INFO,
     particlePlugin,
     tilemapPlugin,
     sceneManagerPlugin,
@@ -138,28 +130,17 @@ export class SharedRenderContext {
             return false;
         }
 
-        initDrawAPI(module);
-        initGeometryAPI(module);
-        initMaterialAPI(module);
-        initPostProcessAPI(module);
-        initRendererAPI(module);
-
-        this.pipeline_ = new RenderPipeline();
-        this.startTime_ = performance.now();
-
         const app = App.new();
         const cppRegistry = new module.Registry() as unknown as CppRegistry;
         app.connectCpp(cppRegistry, module);
+
+        app.addPlugin(corePlugin);
+
+        this.pipeline_ = new RenderPipeline();
+        this.startTime_ = performance.now();
         app.setPipeline(this.pipeline_);
 
-        app.insertResource(UICameraInfo, {
-            viewProjection: new Float32Array(16),
-            vpX: 0, vpY: 0, vpW: 0, vpH: 0,
-            screenW: 0, screenH: 0,
-            worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
-            worldMouseX: 0, worldMouseY: 0,
-            valid: false,
-        });
+        app.insertResource(UICameraInfo, { ...DEFAULT_UI_CAMERA_INFO });
 
         this.inputState_ = new InputState();
         app.insertResource(Input, this.inputState_);
@@ -367,6 +348,7 @@ export class SharedRenderContext {
 
         clearTimelineHandles();
         timelinePlugin.clearHandles();
+        tilemapPlugin.resetLayers();
         this.playMode_ = true;
         this.paused_ = false;
         this.lastFrameTime_ = performance.now();
@@ -423,19 +405,13 @@ export class SharedRenderContext {
         }
 
         if (this.app_) {
-            const world = this.app_.world;
-            const reg = world.getCppRegistry();
-            world.disconnectCpp();
+            const reg = this.app_.world.getCppRegistry();
+            this.app_.quit();
             if (reg) (reg as any).delete();
             this.app_ = null;
         }
 
         if (this.module_ && this.initialized_) {
-            shutdownDrawAPI();
-            shutdownGeometryAPI();
-            shutdownMaterialAPI();
-            shutdownPostProcessAPI();
-            shutdownRendererAPI();
             this.module_.shutdownRenderer();
         }
 

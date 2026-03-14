@@ -27,6 +27,7 @@ export interface CppResourceManager {
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
     getTextureGLId(handle: number): number;
+    getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;

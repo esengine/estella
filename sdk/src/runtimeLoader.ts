@@ -23,8 +23,9 @@ import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
 import { flushPendingSystems } from './app';
 import { updateCameraAspectRatio } from './scene';
+import { requireResourceManager } from './resourceManager';
 import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
-import { registerTextureDimensions, registerTilemapSource } from './tilemap/tilesetCache';
+import { registerTilemapSource } from './tilemap/tilesetCache';
 
 // =============================================================================
 // Public Interface
@@ -56,7 +57,7 @@ function createTextureFromPixels(
     flipY: boolean = true,
     params?: TextureParams,
 ): number {
-    const rm = module.getResourceManager();
+    const rm = requireResourceManager();
     const ptr = module._malloc(result.pixels.length);
     module.HEAPU8.set(result.pixels, ptr);
 
@@ -68,7 +69,6 @@ function createTextureFromPixels(
     } else {
         handle = rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
     }
-
     module._free(ptr);
     return handle;
 }
@@ -90,7 +90,9 @@ async function loadTextures(
                 if (cache[ref] !== undefined) continue;
                 try {
                     const params = texSettings?.[ref];
-                    cache[ref] = createTextureFromPixels(module, await provider.loadPixels(ref), true, params);
+                    const pixelData = await provider.loadPixels(ref);
+                    const handle = createTextureFromPixels(module, pixelData, true, params);
+                    cache[ref] = handle;
                 } catch (e) {
                     console.warn(`[loadTextures] Failed to load texture: ${ref}`, e);
                     cache[ref] = 0;
@@ -102,15 +104,14 @@ async function loadTextures(
 }
 
 function applyTextureMetadata(
-    module: ESEngineModule,
     sceneData: SceneData,
     textureCache: Record<string, number>,
 ): void {
     if (!sceneData.textureMetadata) return;
-    const rm = module.getResourceManager();
+    const rm = requireResourceManager();
     for (const ref in sceneData.textureMetadata) {
         const handle = textureCache[ref];
-        if (handle && handle > 0) {
+        if (handle) {
             const metadata = sceneData.textureMetadata[ref];
             if (metadata?.sliceBorder) {
                 const b = metadata.sliceBorder;
@@ -131,7 +132,6 @@ function resolveSceneAssetPaths(
         material: materialCache,
         font: fontCache,
     };
-
     for (const entity of sceneData.entities) {
         for (const comp of entity.components) {
             const descriptors = getComponentAssetFieldDescriptors(comp.type);
@@ -236,7 +236,7 @@ async function loadSpineAssetsToVirtualFS(
 
                 const texNames = parseAtlasTextures(atlasContent);
                 const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-                const rm = module.getResourceManager();
+                const rm = requireResourceManager();
                 const textures = new Map<string, { glId: number; w: number; h: number }>();
 
                 for (const texName of texNames) {
@@ -317,7 +317,7 @@ async function loadBitmapFonts(
                     : await provider.loadPixels(texRef);
                 const texHandle = createTextureFromPixels(module, pixels, false);
 
-                const rm = module.getResourceManager();
+                const rm = requireResourceManager();
                 cache[ref] = rm.loadBitmapFont(fntContent, texHandle, pixels.width, pixels.height);
             } catch (e) {
                 console.warn(`[Runtime] Failed to load bitmap font: ${ref}`, e);
@@ -486,7 +486,6 @@ async function loadTilemaps(
                         try {
                             const result = await provider.loadPixels(imagePath);
                             textureHandle = createTextureFromPixels(module, result);
-                            registerTextureDimensions(textureHandle, result.width, result.height);
                         } catch (e) {
                             console.warn(`[Runtime] Failed to load tileset texture: ${imagePath}`, e);
                         }
@@ -535,7 +534,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const { app, module, sceneData, provider, spineManager, physicsModule, physicsConfig, manifest, sceneName } = options;
 
     const textureCache = await loadTextures(module, sceneData, provider);
-    applyTextureMetadata(module, sceneData, textureCache);
+    applyTextureMetadata(sceneData, textureCache);
 
     const spineAssetInfo = await loadSpineAssetsToVirtualFS(module, sceneData, provider, spineManager);
 

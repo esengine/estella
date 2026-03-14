@@ -83,8 +83,7 @@ export class AssetLoader {
         const handleId = rm.createTexture(decoded.width, decoded.height, pixelPtr, decoded.data.length, 1, false);
         this.module_._free(pixelPtr);
 
-        const INVALID_HANDLE = 0xFFFFFFFF;
-        if (handleId === INVALID_HANDLE) {
+        if (!handleId) {
             return { success: false, error: `Failed to create GPU texture: ${relativePath}` };
         }
 

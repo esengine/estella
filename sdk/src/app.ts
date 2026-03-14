@@ -12,14 +12,8 @@ import { UICameraInfo } from './ui/UICameraInfo';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
 import { prefabsPlugin } from './prefabServer';
-import { initDrawAPI, shutdownDrawAPI } from './draw';
-import { clearDrawCallbacks } from './customDraw';
-import { initMaterialAPI, shutdownMaterialAPI } from './material';
-import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
-import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
-import { initRendererAPI, shutdownRendererAPI } from './renderer';
-import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 import { setWasmErrorHandler } from './wasmError';
+import { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
 import { platformNow, platformDevicePixelRatio } from './platform';
 import { ProjectionType, ScaleMode, SceneOwner } from './component';
 import type { Entity } from './types';
@@ -496,7 +490,6 @@ export class App {
 
     quit(): void {
         this.running_ = false;
-        clearDrawCallbacks();
 
         for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
             try { this.installed_plugins_[i].cleanup?.(this); } catch (e) {
@@ -506,20 +499,6 @@ export class App {
         this.installed_plugins_.length = 0;
         this.installedPluginSet_.clear();
         this.installedPluginNames_.clear();
-
-        const shutdowns = [
-            shutdownGLDebugAPI,
-            shutdownRendererAPI,
-            shutdownPostProcessAPI,
-            shutdownGeometryAPI,
-            shutdownMaterialAPI,
-            shutdownDrawAPI,
-        ];
-        for (const fn of shutdowns) {
-            try { fn(); } catch (e) {
-                console.error('[ESEngine] Shutdown error:', e);
-            }
-        }
 
         for (const entity of this.world_.getAllEntities()) {
             try { this.world_.despawn(entity); } catch (e) { console.warn('[App] Shutdown despawn error:', e); }
@@ -692,12 +671,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         module.initRenderer();
     }
 
-    initDrawAPI(module);
-    initMaterialAPI(module);
-    initGeometryAPI(module);
-    initPostProcessAPI(module);
-    initRendererAPI(module);
-    initGLDebugAPI(module);
+    app.addPlugin(corePlugin);
 
     const pipeline = new RenderPipeline();
     app.setPipeline(pipeline);
@@ -711,14 +685,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         };
     });
 
-    app.insertResource(UICameraInfo, {
-        viewProjection: new Float32Array(16),
-        vpX: 0, vpY: 0, vpW: 0, vpH: 0,
-        screenW: 0, screenH: 0,
-        worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
-        worldMouseX: 0, worldMouseY: 0,
-        valid: false,
-    });
+    app.insertResource(UICameraInfo, { ...DEFAULT_UI_CAMERA_INFO });
 
     function syncUICameraInfo(width: number, height: number, cameras?: CameraInfo[]): void {
         if (!cameras) {

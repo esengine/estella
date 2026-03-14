@@ -1,8 +1,3 @@
-export interface TextureDimensions {
-    width: number;
-    height: number;
-}
-
 export interface LoadedTilemapChunk {
     x: number;
     y: number;
@@ -35,20 +30,7 @@ export interface LoadedTilemapSource {
     tileProperties?: Map<number, Map<string, string>>;
 }
 
-const texDimsCache_ = new Map<number, TextureDimensions>();
 const tilemapCache_ = new Map<string, LoadedTilemapSource>();
-
-export function registerTextureDimensions(handle: number, width: number, height: number): void {
-    texDimsCache_.set(handle, { width, height });
-}
-
-export function getTextureDimensions(handle: number): TextureDimensions | undefined {
-    return texDimsCache_.get(handle);
-}
-
-export function clearTextureDimensionsCache(): void {
-    texDimsCache_.clear();
-}
 
 export function registerTilemapSource(path: string, data: LoadedTilemapSource): void {
     tilemapCache_.set(path, data);

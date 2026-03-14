@@ -4,7 +4,8 @@
  * @details Provides shader creation and material management for custom visual effects.
  */
 
-import type { ESEngineModule, CppResourceManager } from './wasm';
+import type { ESEngineModule } from './wasm';
+import { requireResourceManager } from './resourceManager';
 import type { Vec2, Vec3, Vec4 } from './types';
 import { BlendMode } from './blend';
 
@@ -60,7 +61,6 @@ export interface MaterialData {
 // =============================================================================
 
 let module: ESEngineModule | null = null;
-let resourceManager: CppResourceManager | null = null;
 let nextMaterialId = 1;
 const materials = new Map<MaterialHandle, MaterialData>();
 
@@ -70,7 +70,6 @@ const materials = new Map<MaterialHandle, MaterialData>();
 
 export function initMaterialAPI(wasmModule: ESEngineModule): void {
     module = wasmModule;
-    resourceManager = wasmModule.getResourceManager();
     registerMaterialCallback();
 }
 
@@ -84,20 +83,12 @@ export function shutdownMaterialAPI(): void {
     materialCallbackRegistered = false;
     encodedNameCache.clear();
     encoder = null;
-    resourceManager = null;
     module = null;
 }
 
 // =============================================================================
 // Shader API
 // =============================================================================
-
-function getResourceManager(): CppResourceManager {
-    if (!resourceManager) {
-        throw new Error('Material API not initialized. Call initMaterialAPI() first.');
-    }
-    return resourceManager;
-}
 
 export const Material = {
     /**
@@ -107,7 +98,7 @@ export const Material = {
      * @returns Shader handle, or 0 on failure
      */
     createShader(vertexSrc: string, fragmentSrc: string): ShaderHandle {
-        return getResourceManager().createShader(vertexSrc, fragmentSrc);
+        return requireResourceManager().createShader(vertexSrc, fragmentSrc);
     },
 
     /**
@@ -116,7 +107,7 @@ export const Material = {
      */
     releaseShader(shader: ShaderHandle): void {
         if (shader > 0) {
-            getResourceManager().releaseShader(shader);
+            requireResourceManager().releaseShader(shader);
         }
     },
 
