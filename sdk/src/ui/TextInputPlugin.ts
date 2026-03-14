@@ -13,6 +13,7 @@ import { FocusManager, FocusManagerState } from './Focusable';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
+import { requireResourceManager } from '../resourceManager';
 import { isEditor, isPlayMode } from '../env';
 import { wrapText, nextPowerOf2, ensureComponent } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
@@ -147,7 +148,7 @@ export class TextInputPlugin implements Plugin {
             textarea.removeEventListener('keydown', onKeyDown);
             textarea.removeEventListener('blur', onBlur);
             textarea.remove();
-            const rm = module.getResourceManager();
+            const rm = requireResourceManager();
             for (const tex of textureCache.values()) {
                 rm.releaseTexture(tex);
             }
@@ -263,7 +264,7 @@ export class TextInputPlugin implements Plugin {
                     }
                 }
 
-                const rm = module.getResourceManager();
+                const rm = requireResourceManager();
                 for (const [e, tex] of textureCache) {
                     if (!world.valid(e) || !world.has(e, TextInput)) {
                         rm.releaseTexture(tex);
@@ -393,7 +394,7 @@ export class TextInputPlugin implements Plugin {
 
             const imageData = ctx.getImageData(0, 0, w, h);
             const pixels = new Uint8Array(imageData.data.buffer);
-            const rm = module.getResourceManager();
+            const rm = requireResourceManager();
 
             if (pixels.length > wasmPixelSize) {
                 if (wasmPixelPtr !== 0) {

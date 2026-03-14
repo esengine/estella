@@ -1,5 +1,6 @@
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { handleWasmError } from './wasmError';
+import { requireResourceManager } from './resourceManager';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
 
 export enum RenderStage {
@@ -138,7 +139,7 @@ export const Renderer = {
 
     measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number } {
         if (!module) return { width: 0, height: 0 };
-        return module.getResourceManager().measureBitmapText(fontHandle, text, fontSize, spacing);
+        return requireResourceManager().measureBitmapText(fontHandle, text, fontSize, spacing);
     },
 
     getStats(): RenderStats {

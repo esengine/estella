@@ -793,9 +793,7 @@ export {
     parseTmjJson,
     loadTiledMap,
     resolveRelativePath,
-    registerTextureDimensions,
     getTextureDimensions,
-    clearTextureDimensionsCache,
     registerTilemapSource,
     getTilemapSource,
     clearTilemapSourceCache,
@@ -842,3 +840,21 @@ export {
     applyBuildRuntimeConfig,
     type RuntimeBuildConfig,
 } from './defaults';
+
+// =============================================================================
+// Resource Manager
+// =============================================================================
+
+export {
+    initResourceManager,
+    shutdownResourceManager,
+    requireResourceManager,
+    getResourceManager,
+    evictTextureDimensions,
+} from './resourceManager';
+
+// =============================================================================
+// Core Plugin
+// =============================================================================
+
+export { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';

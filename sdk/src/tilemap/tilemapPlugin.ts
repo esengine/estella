@@ -5,7 +5,8 @@ import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { Tilemap, TilemapLayer, type TilemapLayerData } from './components';
-import { getTextureDimensions, clearTextureDimensionsCache, getTilemapSource } from './tilesetCache';
+import { getTilemapSource } from './tilesetCache';
+import { getTextureDimensions } from '../resourceManager';
 import { Time } from '../resource';
 
 const SYNTHETIC_KEY_BASE = 0x40000000;
@@ -249,14 +250,18 @@ export class TilemapPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, tilemapSyncSystem);
     }
 
-    cleanup(): void {
+    resetLayers(): void {
         for (const entity of this.initializedLayers_) {
             TilemapAPI.destroyLayer(entity);
         }
         this.initializedLayers_.clear();
+        this.animatedLayers_.clear();
         this.sourceEntityKeys_.clear();
         this.layerState_.clear();
-        clearTextureDimensionsCache();
+    }
+
+    cleanup(): void {
+        this.resetLayers();
         shutdownTilemapAPI();
     }
 }

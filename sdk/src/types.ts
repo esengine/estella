@@ -11,10 +11,10 @@ export type Entity = number;
 export const INVALID_ENTITY = 0 as Entity;
 
 export type TextureHandle = number;
-export const INVALID_TEXTURE = 0xFFFFFFFF as TextureHandle;
+export const INVALID_TEXTURE = 0 as TextureHandle;
 
 export type FontHandle = number;
-export const INVALID_FONT = 0xFFFFFFFF as FontHandle;
+export const INVALID_FONT = 0 as FontHandle;
 
 export const INVALID_MATERIAL = 0;
 

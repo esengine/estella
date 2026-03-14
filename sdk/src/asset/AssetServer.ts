@@ -13,6 +13,7 @@ import { platformReadTextFile, platformReadFile, platformFileExists, platformFet
 import type { World } from '../world';
 import { loadSceneWithAssets, type SceneData } from '../scene';
 import { AsyncCache } from './AsyncCache';
+import { requireResourceManager, evictTextureDimensions } from '../resourceManager';
 import type { PrefabData } from '../prefab';
 import type { SpineModuleController } from '../spine/SpineController';
 import { type AddressableAssetType, getAssetTypeEntry, toBuildPath } from '../assetTypes';
@@ -197,7 +198,7 @@ export class AssetServer {
     }
 
     releaseTexture(source: string): void {
-        const rm = this.module_.getResourceManager();
+        const rm = requireResourceManager();
         for (const flip of [true, false]) {
             const key = this.textureCacheKey(source, flip);
             const refCount = this.textureRefCounts_.get(key);
@@ -209,6 +210,7 @@ export class AssetServer {
             const count = refCount - 1;
             if (count <= 0) {
                 rm.releaseTexture(info.handle);
+                evictTextureDimensions(info.handle);
                 this.textureCache_.delete(key);
                 this.textureRefCounts_.delete(key);
             } else {
@@ -218,9 +220,10 @@ export class AssetServer {
     }
 
     releaseAll(): void {
-        const rm = this.module_.getResourceManager();
+        const rm = requireResourceManager();
         for (const info of this.textureCache_.values()) {
             rm.releaseTexture(info.handle);
+            evictTextureDimensions(info.handle);
         }
         for (const handle of this.fontCache_.values()) {
             rm.releaseBitmapFont(handle);
@@ -259,7 +262,7 @@ export class AssetServer {
     }
 
     setTextureMetadata(handle: TextureHandle, border: SliceBorder): void {
-        const rm = this.module_.getResourceManager();
+        const rm = requireResourceManager();
         rm.setTextureMetadata(handle, border.left, border.right, border.top, border.bottom);
     }
 
@@ -312,7 +315,7 @@ export class AssetServer {
 
                 try {
                     const info = await this.loadTextureRaw(texUrl);
-                    const rm = this.module_.getResourceManager();
+                    const rm = requireResourceManager();
                     rm.registerTextureWithPath(info.handle, texPath);
                     loadedTextures.push({ name: texName, info });
                 } catch (err) {
@@ -335,7 +338,7 @@ export class AssetServer {
             if (this.spineController_) {
                 const skelHandle = this.spineController_.loadSkeleton(skelData, atlasContent, isBinary);
                 if (skelHandle >= 0) {
-                    const rm = this.module_.getResourceManager();
+                    const rm = requireResourceManager();
                     const pageCount = this.spineController_.getAtlasPageCount(skelHandle);
                     for (let i = 0; i < pageCount; i++) {
                         const pageName = this.spineController_.getAtlasPageTextureName(skelHandle, i);
@@ -393,7 +396,7 @@ export class AssetServer {
     releaseFont(fontPath: string): void {
         const handle = this.fontCache_.get(fontPath);
         if (handle) {
-            const rm = this.module_.getResourceManager();
+            const rm = requireResourceManager();
             rm.releaseBitmapFont(handle);
             this.fontCache_.delete(fontPath);
         }
@@ -428,7 +431,7 @@ export class AssetServer {
         const fntDir = url.substring(0, url.lastIndexOf('/'));
         const texUrl = fntDir ? `${fntDir}/${texName}` : texName;
         const texInfo = await this.loadTextureRaw(texUrl);
-        const rm = this.module_.getResourceManager();
+        const rm = requireResourceManager();
         return rm.loadBitmapFont(fntContent, texInfo.handle, texInfo.width, texInfo.height) as FontHandle;
     }
 
@@ -830,7 +833,7 @@ export class AssetServer {
         const glTextureId = glObj.getNewId(glObj.textures);
         glObj.textures[glTextureId] = texture;
 
-        const rm = this.module_.getResourceManager();
+        const rm = requireResourceManager();
         const handle = rm.registerExternalTexture(glTextureId, width, height);
 
         return { handle, width, height };
@@ -854,7 +857,7 @@ export class AssetServer {
         const pixels = new Uint8Array(imageData.data.buffer);
         this.unpremultiplyAlpha(pixels);
 
-        const rm = this.module_.getResourceManager();
+        const rm = requireResourceManager();
         const ptr = this.module_._malloc(pixels.length);
         this.module_.HEAPU8.set(pixels, ptr);
         const handle = rm.createTexture(width, height, ptr, pixels.length, 1, flip);

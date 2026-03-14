@@ -36,7 +36,6 @@ import {
     ScaleMode,
     parseTmjJson,
     resolveRelativePath,
-    registerTextureDimensions,
     registerTilemapSource,
     registerTimelineAsset,
     parseTimelineAsset,
@@ -818,7 +817,6 @@ export class EditorSceneManager {
             try {
                 const info = await this.assetServer_.loadTexture(imagePath);
                 textureHandle = info.handle;
-                registerTextureDimensions(info.handle, info.width, info.height);
             } catch (err) {
                 console.warn(`[EditorSceneManager] Failed to load tileset texture: ${imagePath}`, err);
             }

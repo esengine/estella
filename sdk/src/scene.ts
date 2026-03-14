@@ -10,7 +10,7 @@ import type { AssetServer } from './asset/AssetServer';
 import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from './animation/AnimClipLoader';
 import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
-import { registerTextureDimensions, registerTilemapSource } from './tilemap/tilesetCache';
+import { registerTilemapSource } from './tilemap/tilesetCache';
 import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
 import { parseTimelineAsset, extractTimelineAssetPaths } from './timeline/TimelineLoader';
 import { registerTimelineAsset, registerTimelineTextureHandles } from './timeline/TimelinePlugin';
@@ -333,7 +333,6 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
                     const info = await assetServer.loadTexture(url);
                     handles.set(texturePath, info.handle);
                     texturePathToUrl.set(texturePath, url);
-                    registerTextureDimensions(info.handle, info.width, info.height);
                 } catch (err) {
                     console.warn(`Failed to load texture: ${texturePath}`, err);
                     handles.set(texturePath, 0);
@@ -435,7 +434,6 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
                             const info = await assetServer.loadTexture(url);
                             textureHandle = info.handle;
                             texturePathToUrl.set(imagePath, url);
-                            registerTextureDimensions(info.handle, info.width, info.height);
                         } catch (err) {
                             console.warn(`Failed to load tileset texture: ${imagePath}`, err);
                         }

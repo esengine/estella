@@ -8,6 +8,7 @@ import { RuntimeConfig } from '../defaults';
 import type { ESEngineModule } from '../wasm';
 import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
 import { platformCreateCanvas } from '../platform';
+import { requireResourceManager } from '../resourceManager';
 import { wrapText, nextPowerOf2 } from './uiHelpers';
 import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RATIO } from './uiConstants';
 
@@ -175,7 +176,7 @@ export class TextRenderer {
         const imageData = ctx.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
 
-        const rm = this.module.getResourceManager();
+        const rm = requireResourceManager();
         const ptr = this.module._malloc(pixels.length);
         this.module.HEAPU8.set(pixels, ptr);
 
@@ -207,7 +208,7 @@ export class TextRenderer {
     renderForEntity(entity: Entity, text: TextData, uiRect?: SizedRect | null): TextRenderResult {
         const existing = this.cache.get(entity);
         if (existing) {
-            const rm = this.module.getResourceManager();
+            const rm = requireResourceManager();
             rm.releaseTexture(existing.textureHandle);
         }
 
@@ -229,14 +230,14 @@ export class TextRenderer {
     release(entity: Entity): void {
         const cached = this.cache.get(entity);
         if (cached) {
-            const rm = this.module.getResourceManager();
+            const rm = requireResourceManager();
             rm.releaseTexture(cached.textureHandle);
             this.cache.delete(entity);
         }
     }
 
     cleanupOrphaned(isAlive: (entity: Entity) => boolean): void {
-        const rm = this.module.getResourceManager();
+        const rm = requireResourceManager();
         for (const [entity, result] of this.cache) {
             if (!isAlive(entity)) {
                 rm.releaseTexture(result.textureHandle);
@@ -249,7 +250,7 @@ export class TextRenderer {
      * Releases all cached textures
      */
     releaseAll(): void {
-        const rm = this.module.getResourceManager();
+        const rm = requireResourceManager();
         for (const result of this.cache.values()) {
             rm.releaseTexture(result.textureHandle);
         }

@@ -10,7 +10,7 @@ export {
 } from './tiledLoader';
 export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
 export {
-    registerTextureDimensions, getTextureDimensions, clearTextureDimensionsCache,
     registerTilemapSource, getTilemapSource, clearTilemapSourceCache,
-    type TextureDimensions, type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,
+    type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,
 } from './tilesetCache';
+export { getTextureDimensions, type TextureDimensions } from '../resourceManager';
