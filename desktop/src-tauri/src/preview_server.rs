@@ -116,21 +116,8 @@ impl PreviewServer {
                 let response = match path {
                     "" | "index.html" => serve_html(),
                     "favicon.ico" => serve_empty(),
-                    "wasm/esengine.js" => serve_embedded(embedded_assets::ENGINE_JS, "application/javascript"),
-                    "wasm/esengine.wasm" => serve_embedded(embedded_assets::ENGINE_WASM, "application/wasm"),
-                    "sdk/index.js" => serve_embedded(embedded_assets::SDK_ESM_JS, "application/javascript"),
-                    "sdk/index.js.map" | "sdk/index.bundled.js.map" => serve_embedded(embedded_assets::SDK_ESM_JS_MAP, "application/json"),
-                    "sdk/wasm.js" => serve_embedded(embedded_assets::SDK_WASM_JS, "application/javascript"),
-                    "sdk/wasm.js.map" => serve_embedded(embedded_assets::SDK_WASM_JS_MAP, "application/json"),
-                    "sdk/spine/index.js" => serve_embedded(embedded_assets::SDK_SPINE_JS, "application/javascript"),
-                    "sdk/spine/index.js.map" => serve_embedded(embedded_assets::SDK_SPINE_JS_MAP, "application/json"),
-                    "sdk/shared/index.js" => serve_embedded(embedded_assets::SDK_SHARED_INDEX_JS, "application/javascript"),
-                    "sdk/shared/index.js.map" => serve_embedded(embedded_assets::SDK_SHARED_INDEX_JS_MAP, "application/json"),
-                    "sdk/shared/material.js" => serve_embedded(embedded_assets::SDK_SHARED_MATERIAL_JS, "application/javascript"),
-                    "sdk/shared/material.js.map" => serve_embedded(embedded_assets::SDK_SHARED_MATERIAL_JS_MAP, "application/json"),
-                    "sdk/shared/SpineModuleLoader.js" => serve_embedded(embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS, "application/javascript"),
-                    "sdk/shared/SpineModuleLoader.js.map" => serve_embedded(embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS_MAP, "application/json"),
-                    _ if path.starts_with("wasm/") => serve_public_file(&public_dir, path),
+                    _ if path.starts_with("wasm/") || path.starts_with("sdk/") =>
+                        serve_public_or_embedded(&public_dir, path),
                     _ => serve_project_file(&current_dir, path),
                 };
 
@@ -269,8 +256,47 @@ fn serve_embedded(data: &[u8], content_type_str: &str) -> Response<std::io::Curs
         .with_header(cors())
 }
 
-fn serve_public_file(public_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    let full_path = public_dir.join(path);
+struct EmbeddedAsset {
+    url_path: &'static str,
+    data: &'static [u8],
+}
+
+const EMBEDDED_ASSETS: &[EmbeddedAsset] = &[
+    EmbeddedAsset { url_path: "wasm/esengine.js", data: embedded_assets::ENGINE_JS },
+    EmbeddedAsset { url_path: "wasm/esengine.wasm", data: embedded_assets::ENGINE_WASM },
+    EmbeddedAsset { url_path: "sdk/index.js", data: embedded_assets::SDK_ESM_JS },
+    EmbeddedAsset { url_path: "sdk/index.js.map", data: embedded_assets::SDK_ESM_JS_MAP },
+    EmbeddedAsset { url_path: "sdk/index.bundled.js.map", data: embedded_assets::SDK_ESM_JS_MAP },
+    EmbeddedAsset { url_path: "sdk/wasm.js", data: embedded_assets::SDK_WASM_JS },
+    EmbeddedAsset { url_path: "sdk/wasm.js.map", data: embedded_assets::SDK_WASM_JS_MAP },
+    EmbeddedAsset { url_path: "sdk/spine/index.js", data: embedded_assets::SDK_SPINE_JS },
+    EmbeddedAsset { url_path: "sdk/spine/index.js.map", data: embedded_assets::SDK_SPINE_JS_MAP },
+    EmbeddedAsset { url_path: "sdk/shared/index.js", data: embedded_assets::SDK_SHARED_INDEX_JS },
+    EmbeddedAsset { url_path: "sdk/shared/index.js.map", data: embedded_assets::SDK_SHARED_INDEX_JS_MAP },
+    EmbeddedAsset { url_path: "sdk/shared/material.js", data: embedded_assets::SDK_SHARED_MATERIAL_JS },
+    EmbeddedAsset { url_path: "sdk/shared/material.js.map", data: embedded_assets::SDK_SHARED_MATERIAL_JS_MAP },
+    EmbeddedAsset { url_path: "sdk/shared/SpineModuleLoader.js", data: embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS },
+    EmbeddedAsset { url_path: "sdk/shared/SpineModuleLoader.js.map", data: embedded_assets::SDK_SHARED_SPINEMODULELOADER_JS_MAP },
+];
+
+fn resolve_disk_path(url_path: &str) -> String {
+    match url_path {
+        "sdk/index.js" => "sdk/esm/esengine.bundled.js".to_string(),
+        "sdk/index.js.map" | "sdk/index.bundled.js.map" => "sdk/esm/esengine.bundled.js.map".to_string(),
+        p if p.starts_with("sdk/") => format!("sdk/esm/{}", &p[4..]),
+        p => p.to_string(),
+    }
+}
+
+fn find_embedded(url_path: &str) -> Option<&'static [u8]> {
+    EMBEDDED_ASSETS.iter()
+        .find(|a| a.url_path == url_path)
+        .map(|a| a.data)
+}
+
+fn serve_public_or_embedded(public_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+    let disk_path = resolve_disk_path(path);
+    let full_path = public_dir.join(&disk_path);
     if full_path.starts_with(public_dir) {
         if let Ok(data) = std::fs::read(&full_path) {
             return Response::from_data(data)
@@ -279,9 +305,11 @@ fn serve_public_file(public_dir: &PathBuf, path: &str) -> Response<std::io::Curs
                 .with_header(cors());
         }
     }
-    Response::from_data(b"Not found".to_vec())
-        .with_status_code(404)
-        .with_header(cors())
+
+    if let Some(data) = find_embedded(path) {
+        return serve_embedded(data, get_mime_type(path));
+    }
+    not_found()
 }
 
 fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
