@@ -423,3 +423,36 @@ export {
     type UIFlexColumnNode,
     type UIScrollViewNode,
 } from './UIBuilder';
+
+
+// DataBinding
+export {
+    DataBinding,
+    type DataBindingData,
+    type BindingEntry,
+} from './DataBinding';
+
+export {
+    DataBindingPlugin,
+    dataBindingPlugin,
+} from './DataBindingPlugin';
+
+export {
+    compileExpression,
+    type CompiledExpression,
+} from './DataBindingExpression';
+
+// Rich Text
+export {
+    parseRichText,
+    type TextRun,
+} from './RichTextParser';
+
+export {
+    createFontSet,
+    layoutRichText,
+    measureLayoutWidth,
+    type FontSet,
+    type PositionedRun,
+    type LayoutLine,
+} from './RichTextLayout';

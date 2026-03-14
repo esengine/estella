@@ -24,6 +24,7 @@ import { sceneViewSettingsPlugin } from './sceneViewSettings';
 import { runtimeSettingsPlugin } from './runtimeSettings';
 import { corePanelsPlugin } from './corePanels';
 import { coreMenusPlugin, coreStatusbarPlugin } from './coreMenus';
+import { dataBindingPlugin } from './dataBinding';
 
 export {
     assetInfraPlugin,
@@ -50,6 +51,7 @@ export {
     corePanelsPlugin,
     coreMenusPlugin,
     coreStatusbarPlugin,
+    dataBindingPlugin,
 };
 
 export const builtinPlugins: EditorPlugin[] = [
@@ -76,4 +78,5 @@ export const builtinPlugins: EditorPlugin[] = [
     runtimeSettingsPlugin,
     corePanelsPlugin,
     coreMenusPlugin,
+    dataBindingPlugin,
 ];

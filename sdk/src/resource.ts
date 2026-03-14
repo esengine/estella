@@ -86,9 +86,16 @@ export class ResMutInstance<T> {
 export class ResourceStorage {
     private resources_ = new Map<symbol, unknown>();
     private resMutPool_ = new Map<symbol, ResMutInstance<unknown>>();
+    private ticks_ = new Map<symbol, number>();
+    private globalTick_ = 0;
+    private nameRegistry_ = new Map<string, ResourceDef<unknown>>();
 
     insert<T>(resource: ResourceDef<T>, value: T): void {
         this.resources_.set(resource._id, value);
+        this.ticks_.set(resource._id, ++this.globalTick_);
+        if (resource._name && !resource._name.startsWith('Resource_')) {
+            this.nameRegistry_.set(resource._name, resource as ResourceDef<unknown>);
+        }
     }
 
     get<T>(resource: ResourceDef<T>): T {
@@ -100,6 +107,7 @@ export class ResourceStorage {
 
     set<T>(resource: ResourceDef<T>, value: T): void {
         this.resources_.set(resource._id, value);
+        this.ticks_.set(resource._id, ++this.globalTick_);
     }
 
     has<T>(resource: ResourceDef<T>): boolean {
@@ -109,6 +117,20 @@ export class ResourceStorage {
     remove<T>(resource: ResourceDef<T>): void {
         this.resources_.delete(resource._id);
         this.resMutPool_.delete(resource._id);
+        this.ticks_.delete(resource._id);
+        this.nameRegistry_.delete(resource._name);
+    }
+
+    getChangeTick(resource: ResourceDef<unknown>): number {
+        return this.ticks_.get(resource._id) ?? 0;
+    }
+
+    getByName(name: string): ResourceDef<unknown> | undefined {
+        return this.nameRegistry_.get(name);
+    }
+
+    getRegisteredNames(): string[] {
+        return Array.from(this.nameRegistry_.keys());
     }
 
     getResMut<T>(resource: ResourceDef<T>): ResMutInstance<T> {

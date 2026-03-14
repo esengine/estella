@@ -344,6 +344,20 @@ export class App {
         return this.resources_.has(resource);
     }
 
+    getResourceByName(name: string): unknown | undefined {
+        const def = this.resources_.getByName(name);
+        return def ? this.resources_.get(def) : undefined;
+    }
+
+    getResourceChangeTick(name: string): number {
+        const def = this.resources_.getByName(name);
+        return def ? this.resources_.getChangeTick(def) : 0;
+    }
+
+    getRegisteredResourceNames(): string[] {
+        return this.resources_.getRegisteredNames();
+    }
+
     // =========================================================================
     // Scene Management
     // =========================================================================

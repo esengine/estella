@@ -16,9 +16,11 @@ import { dropdownPlugin } from './ui/DropdownPlugin';
 import { layoutGroupPlugin } from './ui/LayoutGroupPlugin';
 import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 import { stateMachinePlugin } from './ui/StateMachinePlugin';
+import { dataBindingPlugin } from './ui/DataBindingPlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
+    dataBindingPlugin,
     textPlugin, uiMaskPlugin, uiLayoutPlugin,
     imagePlugin, progressBarPlugin,
     uiInteractionPlugin, dragPlugin, scrollViewPlugin, sliderPlugin,

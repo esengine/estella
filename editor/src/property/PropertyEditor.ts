@@ -38,6 +38,7 @@ export interface PropertyEditorContext {
     componentData?: Record<string, unknown>;
     getComponentValue?: (name: string) => unknown;
     getCurrentValue?: () => unknown;
+    entityComponents?: string[];
 }
 
 export type PropertyEditorFactory = (

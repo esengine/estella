@@ -391,12 +391,12 @@ export function renderComponent(
         return;
     }
 
+    const entityData = store.getEntityData(entity as number);
+    const entityComponents = entityData?.components.map(c => c.type) ?? [];
+
     if (schema) {
         const propsContainer = document.createElement('div');
         propsContainer.className = 'es-component-properties es-collapsible-content';
-
-        const entityData = store.getEntityData(entity as number);
-        const entityComponents = entityData?.components.map(c => c.type) ?? [];
 
         const ungrouped: import('../../property/PropertyEditor').PropertyMeta[] = [];
         const groups = new Map<string, import('../../property/PropertyEditor').PropertyMeta[]>();
@@ -524,6 +524,7 @@ export function renderComponent(
                 componentData: component.data,
                 getComponentValue: (name: string) => component.data[name],
                 getCurrentValue: () => component.data[key] ?? defaults[key],
+                entityComponents,
             });
 
             if (editor) {
@@ -640,6 +641,7 @@ function renderPropertyRow(
         componentData: component.data,
         getComponentValue: (name: string) => component.data[name],
         getCurrentValue: () => component.data[propMeta.name] ?? defaults[propMeta.name],
+        entityComponents,
     });
 
     if (editor) {

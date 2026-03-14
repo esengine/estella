@@ -287,11 +287,17 @@ declare class ResMutInstance<T> {
 declare class ResourceStorage {
     private resources_;
     private resMutPool_;
+    private ticks_;
+    private globalTick_;
+    private nameRegistry_;
     insert<T>(resource: ResourceDef<T>, value: T): void;
     get<T>(resource: ResourceDef<T>): T;
     set<T>(resource: ResourceDef<T>, value: T): void;
     has<T>(resource: ResourceDef<T>): boolean;
     remove<T>(resource: ResourceDef<T>): void;
+    getChangeTick(resource: ResourceDef<unknown>): number;
+    getByName(name: string): ResourceDef<unknown> | undefined;
+    getRegisteredNames(): string[];
     getResMut<T>(resource: ResourceDef<T>): ResMutInstance<T>;
 }
 interface TimeData {
@@ -1618,6 +1624,9 @@ declare class App {
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;
+    getResourceByName(name: string): unknown | undefined;
+    getResourceChangeTick(name: string): number;
+    getRegisteredResourceNames(): string[];
     registerScene(config: SceneConfig): this;
     setInitialScene(name: string): this;
     tick(delta: number): Promise<void>;
