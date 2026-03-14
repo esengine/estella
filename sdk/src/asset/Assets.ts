@@ -45,9 +45,12 @@ export interface SceneAssetResult {
     releaseCallbacks: ReleaseCallback[];
 }
 
+export type AssetRefResolver = (ref: string) => string | null;
+
 export class Assets {
     readonly backend: Backend;
     readonly catalog: Catalog;
+    baseUrl?: string;
 
     private module_: ESEngineModule;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
@@ -58,6 +61,7 @@ export class Assets {
     private textureRefCounts_ = new Map<string, number>();
     private genericCache_ = new Map<string, AsyncCache<unknown>>();
     private loadContext_: LoadContext | null = null;
+    private assetRefResolver_: AssetRefResolver | null = null;
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend;
@@ -419,6 +423,14 @@ export class Assets {
 
     getTextureLoader(): TextureLoader {
         return this.textureLoader_;
+    }
+
+    setAssetRefResolver(resolver: AssetRefResolver): void {
+        this.assetRefResolver_ = resolver;
+    }
+
+    getAssetRefResolver(): AssetRefResolver | null {
+        return this.assetRefResolver_;
     }
 
     // =========================================================================
