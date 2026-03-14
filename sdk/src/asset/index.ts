@@ -1,8 +1,3 @@
-/**
- * @file    index.ts
- * @brief   Asset module exports
- */
-
 export {
     AssetServer,
     type TextureInfo,
@@ -10,7 +5,7 @@ export {
     type SliceBorder,
     type SpineDescriptor,
     type FileLoadOptions,
-    type AssetBundle,
+    type AssetBundle as LegacyAssetBundle,
     type AddressableAssetType,
     type AddressableResultMap,
     type AddressableManifest,
@@ -18,9 +13,21 @@ export {
     type AddressableManifestAsset,
 } from './AssetServer';
 export { AsyncCache } from './AsyncCache';
-export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
+export { Assets, AssetsV2, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
 export { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
 export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
+
+export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult } from './Assets';
+export { type Backend, HttpBackend, EmbeddedBackend, type HttpBackendOptions } from './Backend';
+export { Catalog, type CatalogData, type CatalogEntry, type AtlasFrameInfo } from './Catalog';
+export { type AssetLoader, type LoadContext, type TextureResult, type SpineResult, type MaterialResult, type FontResult, type AudioResult } from './AssetLoader';
+export { SceneHandle } from './SceneHandle';
+export {
+    registerAssetFields, registerCompoundAssetFields,
+    getAssetFields, getCompoundAssetFields,
+    initBuiltinAssetFields,
+    type AssetFieldType, type AssetFieldDescriptor, type CompoundFieldDescriptor,
+} from './AssetFieldRegistry';
 
 import type { App } from '../app';
 import { Assets } from './AssetPlugin';
