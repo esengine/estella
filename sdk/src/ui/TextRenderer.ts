@@ -11,6 +11,8 @@ import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';
 import { wrapText, nextPowerOf2, colorToRgba } from './uiHelpers';
 import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RATIO } from './uiConstants';
+import { parseRichText } from './RichTextParser';
+import { createFontSet, layoutRichText, measureLayoutWidth, type LayoutLine } from './RichTextLayout';
 
 interface SizedRect {
     size: { x: number; y: number };
@@ -82,8 +84,6 @@ export class TextRenderer {
         const ctx = this.ctx;
         const canvas = this.canvas;
 
-        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
-
         const hasContainer = uiRect && uiRect.size.x > 0 && uiRect.size.y > 0;
         const containerWidth = hasContainer ? uiRect!.size.x : 0;
         const containerHeight = hasContainer ? uiRect!.size.y : 0;
@@ -94,23 +94,52 @@ export class TextRenderer {
         const shadowExpand = hasShadow ? Math.ceil(text.shadowBlur + Math.max(Math.abs(text.shadowOffsetX), Math.abs(text.shadowOffsetY))) : 0;
         const effectPadding = Math.max(strokeExpand, shadowExpand);
 
-        const shouldWrap = text.wordWrap && hasContainer;
-        let lines = wrapText(ctx, text.content, shouldWrap ? containerWidth : 0);
         const lineHeightPx = Math.ceil(text.fontSize * text.lineHeight);
         const padding = Math.ceil(text.fontSize * TEXT_PADDING_RATIO) + effectPadding;
+        const shouldWrap = text.wordWrap && hasContainer;
 
-        const measuredWidth = Math.ceil(this.measureWidth(lines));
-        const measuredHeight = Math.ceil(lines.length * lineHeightPx);
+        let richLines: LayoutLine[] | null = null;
+        let plainLines: string[] | null = null;
+        let fontSet: ReturnType<typeof createFontSet> | null = null;
+        let measuredWidth: number;
+        let measuredHeight: number;
 
-        const width = hasContainer ? Math.ceil(containerWidth) : measuredWidth + padding * 2;
-        const height = hasContainer ? Math.ceil(containerHeight) : measuredHeight + padding * 2;
+        if (text.richText) {
+            const runs = parseRichText(text.content);
+            fontSet = createFontSet(text.fontSize, text.fontFamily);
+            richLines = layoutRichText(ctx, runs, fontSet, text.color, shouldWrap ? containerWidth : 0);
+            measuredWidth = Math.ceil(measureLayoutWidth(richLines));
+            measuredHeight = Math.ceil(richLines.length * lineHeightPx);
+        } else {
+            ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+            plainLines = wrapText(ctx, text.content, shouldWrap ? containerWidth : 0);
+            measuredWidth = Math.ceil(this.measureWidth(plainLines));
+            measuredHeight = Math.ceil(plainLines.length * lineHeightPx);
+        }
+
+        const contentWidth = measuredWidth + padding * 2;
+        const contentHeight = measuredHeight + padding * 2;
+        let width: number;
+        let height: number;
+        if (hasContainer) {
+            const isVisible = text.overflow === TextOverflow.Visible;
+            width = isVisible ? Math.max(Math.ceil(containerWidth), contentWidth) : Math.ceil(containerWidth);
+            height = isVisible ? Math.max(Math.ceil(containerHeight), contentHeight) : Math.ceil(containerHeight);
+        } else {
+            width = contentWidth;
+            height = contentHeight;
+        }
 
         if (hasContainer && text.overflow === TextOverflow.Ellipsis && measuredHeight > containerHeight) {
             const maxLines = Math.floor(containerHeight / lineHeightPx);
-            if (maxLines > 0 && lines.length > maxLines) {
-                lines = lines.slice(0, maxLines);
-                const lastLine = lines[maxLines - 1];
-                lines[maxLines - 1] = this.truncateWithEllipsis(lastLine, containerWidth);
+            if (maxLines > 0) {
+                if (richLines && richLines.length > maxLines) {
+                    richLines = richLines.slice(0, maxLines);
+                    this.truncateRichLine(richLines[maxLines - 1], containerWidth, fontSet!);
+                } else if (plainLines && plainLines.length > maxLines) {
+                    plainLines = plainLines.slice(0, maxLines);
+                    plainLines[maxLines - 1] = this.truncateWithEllipsis(plainLines[maxLines - 1], containerWidth);
+                }
             }
         }
 
@@ -123,12 +152,8 @@ export class TextRenderer {
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
-        ctx.textAlign = this.mapAlign(text.align);
         ctx.textBaseline = 'top';
-        ctx.fillStyle = colorToRgba(text.color);
 
-        // Handle overflow clip
         if (hasContainer && text.overflow === TextOverflow.Clip) {
             ctx.save();
             ctx.beginPath();
@@ -136,7 +161,8 @@ export class TextRenderer {
             ctx.clip();
         }
 
-        const textBlockHeight = lines.length * lineHeightPx;
+        const finalLineCount = richLines ? richLines.length : plainLines!.length;
+        const textBlockHeight = finalLineCount * lineHeightPx;
         let startY: number;
         if (hasContainer) {
             switch (text.verticalAlign) {
@@ -163,27 +189,68 @@ export class TextRenderer {
             ctx.shadowOffsetY = text.shadowOffsetY;
         }
 
-        let y = startY;
-        for (const line of lines) {
-            let x: number;
-            switch (text.align) {
-                case TextAlign.Left:
-                    x = padding;
-                    break;
-                case TextAlign.Center:
-                    x = width / 2;
-                    break;
-                case TextAlign.Right:
-                    x = width - padding;
-                    break;
-                default:
-                    x = padding;
-            }
+        if (richLines) {
+            ctx.textAlign = 'left';
+            let lastFI = -1;
+            let y = startY;
+
             if (hasStroke) {
-                ctx.strokeText(line, x, y);
+                for (const line of richLines) {
+                    let baseX: number;
+                    switch (text.align) {
+                        case TextAlign.Left: baseX = padding; break;
+                        case TextAlign.Center: baseX = (width - line.width) / 2; break;
+                        case TextAlign.Right: baseX = width - padding - line.width; break;
+                        default: baseX = padding;
+                    }
+                    for (const run of line.runs) {
+                        if (run.fontIndex !== lastFI) {
+                            ctx.font = fontSet!.fonts[run.fontIndex];
+                            lastFI = run.fontIndex;
+                        }
+                        ctx.strokeText(run.text, baseX + run.x, y);
+                    }
+                    y += lineHeightPx;
+                }
+                lastFI = -1;
+                y = startY;
             }
-            ctx.fillText(line, x, y);
-            y += lineHeightPx;
+
+            for (const line of richLines) {
+                let baseX: number;
+                switch (text.align) {
+                    case TextAlign.Left: baseX = padding; break;
+                    case TextAlign.Center: baseX = (width - line.width) / 2; break;
+                    case TextAlign.Right: baseX = width - padding - line.width; break;
+                    default: baseX = padding;
+                }
+                for (const run of line.runs) {
+                    if (run.fontIndex !== lastFI) {
+                        ctx.font = fontSet!.fonts[run.fontIndex];
+                        lastFI = run.fontIndex;
+                    }
+                    ctx.fillStyle = colorToRgba(run.color);
+                    ctx.fillText(run.text, baseX + run.x, y);
+                }
+                y += lineHeightPx;
+            }
+        } else {
+            ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+            ctx.textAlign = this.mapAlign(text.align);
+            ctx.fillStyle = colorToRgba(text.color);
+            let y = startY;
+            for (const line of plainLines!) {
+                let x: number;
+                switch (text.align) {
+                    case TextAlign.Left: x = padding; break;
+                    case TextAlign.Center: x = width / 2; break;
+                    case TextAlign.Right: x = width - padding; break;
+                    default: x = padding;
+                }
+                if (hasStroke) ctx.strokeText(line, x, y);
+                ctx.fillText(line, x, y);
+                y += lineHeightPx;
+            }
         }
 
         if (hasShadow) {
@@ -213,22 +280,46 @@ export class TextRenderer {
 
     private truncateWithEllipsis(text: string, maxWidth: number): string {
         const ellipsis = '...';
-
-        if (this.ctx.measureText(text).width <= maxWidth) {
-            return text;
-        }
-
+        if (this.ctx.measureText(text).width <= maxWidth) return text;
         let truncated = text;
         while (truncated.length > 0 && this.ctx.measureText(truncated + ellipsis).width > maxWidth) {
             truncated = truncated.slice(0, -1);
         }
-
         return truncated + ellipsis;
     }
 
-    /**
-     * Renders text for an entity and caches the result
-     */
+    private truncateRichLine(line: LayoutLine, maxWidth: number, fontSet: ReturnType<typeof createFontSet>): void {
+        const ctx = this.ctx;
+        const ellipsis = '...';
+        const ellipsisWidth = ctx.measureText(ellipsis).width;
+        const target = maxWidth - ellipsisWidth;
+        if (target <= 0) {
+            line.runs = [];
+            line.width = 0;
+            return;
+        }
+        let accum = 0;
+        for (let i = 0; i < line.runs.length; i++) {
+            const run = line.runs[i];
+            if (accum + run.width > target) {
+                ctx.font = fontSet.fonts[run.fontIndex];
+                const available = target - accum;
+                let fitLen = 0;
+                for (let j = 1; j <= run.text.length; j++) {
+                    if (ctx.measureText(run.text.slice(0, j)).width > available) break;
+                    fitLen = j;
+                }
+                const truncText = run.text.slice(0, fitLen) + ellipsis;
+                const truncWidth = this.ctx.measureText(truncText).width;
+                line.runs = line.runs.slice(0, i + 1);
+                line.runs[i] = { ...run, text: truncText, width: truncWidth };
+                line.width = accum + truncWidth;
+                return;
+            }
+            accum += run.width;
+        }
+    }
+
     renderForEntity(entity: Entity, text: TextData, uiRect?: SizedRect | null): TextRenderResult {
         const result = this.renderText(text, uiRect);
         const existing = this.cache.get(entity);
@@ -240,16 +331,10 @@ export class TextRenderer {
         return result;
     }
 
-    /**
-     * Gets cached render result for entity
-     */
     getCached(entity: Entity): TextRenderResult | undefined {
         return this.cache.get(entity);
     }
 
-    /**
-     * Releases texture for entity
-     */
     release(entity: Entity): void {
         const cached = this.cache.get(entity);
         if (cached) {
@@ -269,9 +354,6 @@ export class TextRenderer {
         }
     }
 
-    /**
-     * Releases all cached textures
-     */
     releaseAll(): void {
         const rm = requireResourceManager();
         for (const result of this.cache.values()) {
@@ -290,13 +372,9 @@ export class TextRenderer {
 
     private mapAlign(align: TextAlign): CanvasTextAlign {
         switch (align) {
-            case TextAlign.Left:
-                return 'left';
-            case TextAlign.Center:
-                return 'center';
-            case TextAlign.Right:
-                return 'right';
+            case TextAlign.Left: return 'left';
+            case TextAlign.Center: return 'center';
+            case TextAlign.Right: return 'right';
         }
     }
-
 }

@@ -22,6 +22,8 @@ import {
     INVALID_FONT,
     INVALID_MATERIAL,
     UIRect,
+    UIRenderer,
+    Image,
     UIMask,
     defineSystem,
     Schedule,
@@ -452,6 +454,20 @@ export class EditorSceneManager {
                 sa.enabled = enabled;
                 this.world_.insert(entity, SpineAnimation, sa);
                 this.spineManager_?.setEnabled(entity, enabled);
+            }
+        }
+        if (this.world_.has(entity, Image)) {
+            const img = this.world_.get(entity, Image);
+            if (img.enabled !== enabled) {
+                img.enabled = enabled;
+                this.world_.insert(entity, Image, img);
+            }
+        }
+        if (this.world_.has(entity, UIRenderer)) {
+            const r = this.world_.get(entity, UIRenderer);
+            if (r.enabled !== enabled) {
+                r.enabled = enabled;
+                this.world_.insert(entity, UIRenderer, r);
             }
         }
     }

@@ -372,6 +372,7 @@ interface TextData {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
+    richText: boolean;
 }
 declare const Text: ComponentDef<TextData>;
 
@@ -423,22 +424,11 @@ declare class TextRenderer {
     private renderText;
     private renderTextInner;
     private truncateWithEllipsis;
-    /**
-     * Renders text for an entity and caches the result
-     */
+    private truncateRichLine;
     renderForEntity(entity: Entity, text: TextData, uiRect?: SizedRect | null): TextRenderResult;
-    /**
-     * Gets cached render result for entity
-     */
     getCached(entity: Entity): TextRenderResult | undefined;
-    /**
-     * Releases texture for entity
-     */
     release(entity: Entity): void;
     cleanupOrphaned(isAlive: (entity: Entity) => boolean): void;
-    /**
-     * Releases all cached textures
-     */
     releaseAll(): void;
     private measureWidth;
     private mapAlign;

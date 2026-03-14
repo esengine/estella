@@ -48,6 +48,7 @@ const TextSchema: ComponentSchema = {
         { name: 'shadowBlur', type: 'number', min: 0, max: 50, step: 1 },
         { name: 'shadowOffsetX', type: 'number', min: -50, max: 50, step: 1 },
         { name: 'shadowOffsetY', type: 'number', min: -50, max: 50, step: 1 },
+        { name: 'richText', type: 'boolean' },
     ],
 };
 

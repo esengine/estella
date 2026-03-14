@@ -41,6 +41,7 @@ export interface TextData {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
+    richText: boolean;
 }
 
 export const Text = defineComponent<TextData>('Text', {
@@ -59,4 +60,5 @@ export const Text = defineComponent<TextData>('Text', {
     shadowBlur: 0,
     shadowOffsetX: 0,
     shadowOffsetY: 0,
+    richText: false,
 });
