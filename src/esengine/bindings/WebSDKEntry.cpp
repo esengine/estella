@@ -511,6 +511,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("releaseShader", &esengine::rm_releaseShader)
         .function("getShaderRefCount", &esengine::rm_getShaderRefCount)
         .function("getTextureGLId", &esengine::rm_getTextureGLId)
+        .function("getTextureDimensions", &esengine::rm_getTextureDimensions)
         .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
 #ifdef ES_ENABLE_BITMAP_TEXT

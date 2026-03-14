@@ -70,7 +70,7 @@ void TilemapRenderPlugin::rebuildChunk(
             }
 
             f32 u0 = static_cast<f32>(tileCol) * layer.uv_tile_width;
-            f32 v0 = static_cast<f32>(tileRow) * layer.uv_tile_height;
+            f32 v0 = 1.0f - static_cast<f32>(tileRow + 1) * layer.uv_tile_height;
             f32 su = layer.uv_tile_width;
             f32 sv = layer.uv_tile_height;
 

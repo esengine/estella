@@ -98,6 +98,17 @@ u32 rm_getTextureGLId(resource::ResourceManager& rm, u32 handleId) {
     return tex ? tex->getId() : 0;
 }
 
+emscripten::val rm_getTextureDimensions(resource::ResourceManager& rm, u32 handleId) {
+    auto* tex = rm.getTexture(resource::TextureHandle(handleId));
+    if (!tex) {
+        return emscripten::val::null();
+    }
+    auto result = emscripten::val::object();
+    result.set("width", tex->getWidth());
+    result.set("height", tex->getHeight());
+    return result;
+}
+
 #ifdef ES_ENABLE_BITMAP_TEXT
 u32 rm_loadBitmapFont(resource::ResourceManager& rm, const std::string& fntContent,
                        u32 textureHandle, u32 texWidth, u32 texHeight) {
