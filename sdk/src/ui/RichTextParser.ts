@@ -1,11 +1,30 @@
 import type { Color } from '../types';
 
-export interface TextRun {
+export interface TextSegment {
+    type: 'text';
     text: string;
     bold: boolean;
     italic: boolean;
     color: Color | null;
 }
+
+export type ImageValign = 'baseline' | 'middle' | 'top' | 'bottom';
+
+export interface ImageSegment {
+    type: 'image';
+    src: string;
+    width: number;
+    height: number;
+    valign: ImageValign;
+    offsetX: number;
+    offsetY: number;
+    scale: number;
+    tint: Color | null;
+}
+
+export type RichTextRun = TextSegment | ImageSegment;
+
+export interface TextRun extends TextSegment {}
 
 interface StyleFrame {
     bold: boolean;
@@ -25,13 +44,45 @@ function parseHexColor(hex: string): Color | null {
     return { r: r / 255, g: g / 255, b: b / 255, a: a / 255 };
 }
 
-function emitRun(runs: TextRun[], text: string, style: StyleFrame): void {
+function emitTextRun(runs: RichTextRun[], text: string, style: StyleFrame): void {
     if (text.length === 0) return;
-    runs.push({ text, bold: style.bold, italic: style.italic, color: style.color });
+    runs.push({ type: 'text', text, bold: style.bold, italic: style.italic, color: style.color });
 }
 
-export function parseRichText(input: string): TextRun[] {
-    const runs: TextRun[] = [];
+const IMG_ATTR_RE = /(\w+)\s*=\s*(?:"([^"]*)"|(\S+))/g;
+const VALID_VALIGNS = new Set<ImageValign>(['baseline', 'middle', 'top', 'bottom']);
+
+function parseImgTag(tagContent: string): ImageSegment | null {
+    const attrs = new Map<string, string>();
+    let m: RegExpExecArray | null;
+    IMG_ATTR_RE.lastIndex = 0;
+    while ((m = IMG_ATTR_RE.exec(tagContent)) !== null) {
+        attrs.set(m[1], m[2] ?? m[3]);
+    }
+    const src = attrs.get('src');
+    if (!src) return null;
+    const w = parseInt(attrs.get('width') ?? '0', 10);
+    const h = parseInt(attrs.get('height') ?? '0', 10);
+    const rawValign = attrs.get('valign') as ImageValign | undefined;
+    const valign = rawValign && VALID_VALIGNS.has(rawValign) ? rawValign : 'baseline';
+    const ox = parseFloat(attrs.get('offsetX') ?? '0');
+    const oy = parseFloat(attrs.get('offsetY') ?? '0');
+    const scale = parseFloat(attrs.get('scale') ?? '1');
+    const tintStr = attrs.get('tint');
+    const tint = tintStr ? parseHexColor(tintStr) : null;
+    return {
+        type: 'image', src,
+        width: isNaN(w) ? 0 : w, height: isNaN(h) ? 0 : h,
+        valign,
+        offsetX: isNaN(ox) ? 0 : ox,
+        offsetY: isNaN(oy) ? 0 : oy,
+        scale: isNaN(scale) || scale <= 0 ? 1 : scale,
+        tint,
+    };
+}
+
+export function parseRichText(input: string): RichTextRun[] {
+    const runs: RichTextRun[] = [];
     if (!input) return runs;
 
     const stack: StyleFrame[] = [{ bold: false, italic: false, color: null }];
@@ -56,22 +107,33 @@ export function parseRichText(input: string): TextRun[] {
         const current = stack[stack.length - 1];
 
         if (tagContent === 'b') {
-            emitRun(runs, buffer, current);
+            emitTextRun(runs, buffer, current);
             buffer = '';
             stack.push({ ...current, bold: true });
         } else if (tagContent === 'i') {
-            emitRun(runs, buffer, current);
+            emitTextRun(runs, buffer, current);
             buffer = '';
             stack.push({ ...current, italic: true });
         } else if (tagContent === '/b' || tagContent === '/i' || tagContent === '/color') {
-            emitRun(runs, buffer, current);
+            emitTextRun(runs, buffer, current);
             buffer = '';
             if (stack.length > 1) stack.pop();
+        } else if (tagContent.startsWith('img ') && tagContent.endsWith('/')) {
+            const img = parseImgTag(tagContent.slice(0, -1));
+            if (img) {
+                emitTextRun(runs, buffer, current);
+                buffer = '';
+                runs.push(img);
+            } else {
+                buffer += input.slice(i, closeIdx + 1);
+                i = closeIdx + 1;
+                continue;
+            }
         } else {
             const colorMatch = tagContent.match(TAG_COLOR_RE);
             const parsed = colorMatch ? parseHexColor(colorMatch[1]) : null;
             if (parsed) {
-                emitRun(runs, buffer, current);
+                emitTextRun(runs, buffer, current);
                 buffer = '';
                 stack.push({ ...current, color: parsed });
             } else {
@@ -84,6 +146,6 @@ export function parseRichText(input: string): TextRun[] {
         i = closeIdx + 1;
     }
 
-    emitRun(runs, buffer, stack[stack.length - 1]);
+    emitTextRun(runs, buffer, stack[stack.length - 1]);
     return runs;
 }

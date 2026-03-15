@@ -1,12 +1,13 @@
 import type { Color } from '../types';
-import type { TextRun } from './RichTextParser';
+import type { RichTextRun, ImageValign } from './RichTextParser';
 import { isWordChar } from './uiHelpers';
 
 export interface FontSet {
     fonts: [string, string, string, string];
 }
 
-export interface PositionedRun {
+export interface TextPositionedRun {
+    type: 'text';
     text: string;
     x: number;
     width: number;
@@ -14,9 +15,24 @@ export interface PositionedRun {
     color: Color;
 }
 
+export interface ImagePositionedRun {
+    type: 'image';
+    src: string;
+    x: number;
+    width: number;
+    height: number;
+    valign: ImageValign;
+    offsetX: number;
+    offsetY: number;
+    tint: Color | null;
+}
+
+export type PositionedRun = TextPositionedRun | ImagePositionedRun;
+
 export interface LayoutLine {
     runs: PositionedRun[];
     width: number;
+    height?: number;
 }
 
 export function createFontSet(size: number, family: string): FontSet {
@@ -44,11 +60,11 @@ export function measureLayoutWidth(lines: LayoutLine[]): number {
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-function appendRun(
+function appendTextRun(
     line: PositionedRun[], lineWidth: number,
     text: string, width: number, fi: number, color: Color,
 ): number {
-    line.push({ text, x: lineWidth, width, fontIndex: fi, color });
+    line.push({ type: 'text', text, x: lineWidth, width, fontIndex: fi, color });
     return lineWidth + width;
 }
 
@@ -95,23 +111,45 @@ function breakRun(
 
 export function layoutRichText(
     ctx: Ctx,
-    runs: TextRun[],
+    runs: RichTextRun[],
     fontSet: FontSet,
     baseColor: Color,
     maxWidth: number,
+    fontSize: number = 16,
 ): LayoutLine[] {
     const lines: LayoutLine[] = [];
     let currentRuns: PositionedRun[] = [];
     let lineWidth = 0;
     let lastFI = -1;
 
+    let lineMaxImgH = 0;
+
     function emitLine(): void {
-        lines.push(finishLine(currentRuns, lineWidth));
+        const line = finishLine(currentRuns, lineWidth);
+        if (lineMaxImgH > 0) line.height = lineMaxImgH;
+        lines.push(line);
         currentRuns = [];
         lineWidth = 0;
+        lineMaxImgH = 0;
     }
 
     for (const run of runs) {
+        if (run.type === 'image') {
+            const s = run.scale;
+            const imgW = (run.width || fontSize) * s;
+            const imgH = (run.height || fontSize) * s;
+            if (maxWidth > 0 && lineWidth + imgW > maxWidth && currentRuns.length > 0) {
+                emitLine();
+            }
+            currentRuns.push({
+                type: 'image', src: run.src, x: lineWidth,
+                width: imgW, height: imgH, valign: run.valign,
+                offsetX: run.offsetX, offsetY: run.offsetY, tint: run.tint,
+            });
+            lineWidth += imgW;
+            if (imgH > lineMaxImgH) lineMaxImgH = imgH;
+            continue;
+        }
         const fi = fontIndex(run.bold, run.italic);
         if (fi !== lastFI) {
             ctx.font = fontSet.fonts[fi];
@@ -128,7 +166,7 @@ export function layoutRichText(
 
             if (maxWidth <= 0) {
                 const w = ctx.measureText(part).width;
-                lineWidth = appendRun(currentRuns, lineWidth, part, w, fi, color);
+                lineWidth = appendTextRun(currentRuns, lineWidth, part, w, fi, color);
                 continue;
             }
 
@@ -139,14 +177,14 @@ export function layoutRichText(
 
                 if (fit) {
                     const w = ctx.measureText(fit).width;
-                    lineWidth = appendRun(currentRuns, lineWidth, fit, w, fi, color);
+                    lineWidth = appendTextRun(currentRuns, lineWidth, fit, w, fi, color);
                 }
 
                 if (rest) {
                     if (!fit && currentRuns.length === 0) {
                         const oneChar = remaining[0];
                         const w = ctx.measureText(oneChar).width;
-                        lineWidth = appendRun(currentRuns, lineWidth, oneChar, w, fi, color);
+                        lineWidth = appendTextRun(currentRuns, lineWidth, oneChar, w, fi, color);
                         remaining = remaining.slice(1);
                     }
                     emitLine();

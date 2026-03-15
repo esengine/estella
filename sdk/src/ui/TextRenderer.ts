@@ -10,9 +10,10 @@ import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './tex
 import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';
 import { wrapText, nextPowerOf2, colorToRgba } from './uiHelpers';
-import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RATIO } from './uiConstants';
+import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RATIO, TEXT_ASCENT_RATIO } from './uiConstants';
 import { parseRichText } from './RichTextParser';
 import { createFontSet, layoutRichText, measureLayoutWidth, type LayoutLine } from './RichTextLayout';
+import type { ImageResolver } from './ImageResolver';
 
 interface SizedRect {
     size: { x: number; y: number };
@@ -40,6 +41,7 @@ export class TextRenderer {
     private shrinkCounter_ = 0;
     private frameMaxW_ = 0;
     private frameMaxH_ = 0;
+    private imageResolver_: ImageResolver | null = null;
 
     constructor(module: ESEngineModule) {
         this.module = module;
@@ -69,6 +71,10 @@ export class TextRenderer {
         }
         this.frameMaxW_ = 0;
         this.frameMaxH_ = 0;
+    }
+
+    setImageResolver(resolver: ImageResolver | null): void {
+        this.imageResolver_ = resolver;
     }
 
     private renderText(text: TextData, uiRect?: SizedRect | null): TextRenderResult {
@@ -107,9 +113,13 @@ export class TextRenderer {
         if (text.richText) {
             const runs = parseRichText(text.content);
             fontSet = createFontSet(text.fontSize, text.fontFamily);
-            richLines = layoutRichText(ctx, runs, fontSet, text.color, shouldWrap ? containerWidth : 0);
+            richLines = layoutRichText(ctx, runs, fontSet, text.color, shouldWrap ? containerWidth : 0, text.fontSize);
             measuredWidth = Math.ceil(measureLayoutWidth(richLines));
-            measuredHeight = Math.ceil(richLines.length * lineHeightPx);
+            let totalH = 0;
+            for (const line of richLines) {
+                totalH += line.height ? Math.max(lineHeightPx, line.height) : lineHeightPx;
+            }
+            measuredHeight = Math.ceil(totalH);
         } else {
             ctx.font = `${text.fontSize}px ${text.fontFamily}`;
             plainLines = wrapText(ctx, text.content, shouldWrap ? containerWidth : 0);
@@ -161,8 +171,15 @@ export class TextRenderer {
             ctx.clip();
         }
 
-        const finalLineCount = richLines ? richLines.length : plainLines!.length;
-        const textBlockHeight = finalLineCount * lineHeightPx;
+        let textBlockHeight: number;
+        if (richLines) {
+            textBlockHeight = 0;
+            for (const line of richLines) {
+                textBlockHeight += line.height ? Math.max(lineHeightPx, line.height) : lineHeightPx;
+            }
+        } else {
+            textBlockHeight = plainLines!.length * lineHeightPx;
+        }
         let startY: number;
         if (hasContainer) {
             switch (text.verticalAlign) {
@@ -194,29 +211,30 @@ export class TextRenderer {
             let lastFI = -1;
             let y = startY;
 
+            const resolver = this.imageResolver_;
+
             if (hasStroke) {
                 for (const line of richLines) {
-                    let baseX: number;
-                    switch (text.align) {
-                        case TextAlign.Left: baseX = padding; break;
-                        case TextAlign.Center: baseX = (width - line.width) / 2; break;
-                        case TextAlign.Right: baseX = width - padding - line.width; break;
-                        default: baseX = padding;
-                    }
+                    const lh = line.height ? Math.max(lineHeightPx, line.height) : lineHeightPx;
+                    const baseX = this.lineBaseX(text.align, width, line.width, padding);
                     for (const run of line.runs) {
+                        if (run.type !== 'text') continue;
                         if (run.fontIndex !== lastFI) {
                             ctx.font = fontSet!.fonts[run.fontIndex];
                             lastFI = run.fontIndex;
                         }
                         ctx.strokeText(run.text, baseX + run.x, y);
                     }
-                    y += lineHeightPx;
+                    y += lh;
                 }
                 lastFI = -1;
                 y = startY;
             }
 
+            const ascent = text.fontSize * TEXT_ASCENT_RATIO;
+
             for (const line of richLines) {
+                const lh = line.height ? Math.max(lineHeightPx, line.height) : lineHeightPx;
                 let baseX: number;
                 switch (text.align) {
                     case TextAlign.Left: baseX = padding; break;
@@ -225,6 +243,7 @@ export class TextRenderer {
                     default: baseX = padding;
                 }
                 for (const run of line.runs) {
+                    if (run.type !== 'text') continue;
                     if (run.fontIndex !== lastFI) {
                         ctx.font = fontSet!.fonts[run.fontIndex];
                         lastFI = run.fontIndex;
@@ -232,7 +251,42 @@ export class TextRenderer {
                     ctx.fillStyle = colorToRgba(run.color);
                     ctx.fillText(run.text, baseX + run.x, y);
                 }
-                y += lineHeightPx;
+                y += lh;
+            }
+
+            if (hasShadow) {
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            }
+
+            if (resolver) {
+                y = startY;
+                lastFI = -1;
+                for (const line of richLines) {
+                    const lh = line.height ? Math.max(lineHeightPx, line.height) : lineHeightPx;
+                    const baseX = this.lineBaseX(text.align, width, line.width, padding);
+                    for (const run of line.runs) {
+                        if (run.type !== 'image') continue;
+                        const img = resolver.resolve(run.src);
+                        if (!img) continue;
+                        let imgY: number;
+                        switch (run.valign) {
+                            case 'top':      imgY = y; break;
+                            case 'middle':   imgY = y + (lineHeightPx - run.height) / 2; break;
+                            case 'bottom':   imgY = y + lineHeightPx - run.height; break;
+                            case 'baseline':
+                            default:         imgY = y + ascent - run.height; break;
+                        }
+                        const dx = baseX + run.x + run.offsetX;
+                        const dy = imgY + run.offsetY;
+                        if (run.tint) ctx.globalAlpha = run.tint.a;
+                        ctx.drawImage(img, dx, dy, run.width, run.height);
+                        if (run.tint) ctx.globalAlpha = 1;
+                    }
+                    y += lh;
+                }
             }
         } else {
             ctx.font = `${text.fontSize}px ${text.fontFamily}`;
@@ -302,6 +356,11 @@ export class TextRenderer {
         for (let i = 0; i < line.runs.length; i++) {
             const run = line.runs[i];
             if (accum + run.width > target) {
+                if (run.type === 'image') {
+                    line.runs = line.runs.slice(0, i);
+                    line.width = accum;
+                    return;
+                }
                 ctx.font = fontSet.fonts[run.fontIndex];
                 const available = target - accum;
                 let fitLen = 0;
@@ -317,6 +376,15 @@ export class TextRenderer {
                 return;
             }
             accum += run.width;
+        }
+    }
+
+    private lineBaseX(align: TextAlign, totalWidth: number, lineWidth: number, pad: number): number {
+        switch (align) {
+            case TextAlign.Left: return pad;
+            case TextAlign.Center: return (totalWidth - lineWidth) / 2;
+            case TextAlign.Right: return totalWidth - pad - lineWidth;
+            default: return pad;
         }
     }
 

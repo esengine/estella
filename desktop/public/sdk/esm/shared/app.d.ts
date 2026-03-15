@@ -1,4 +1,4 @@
-import { b as Color, V as Vec2, E as Entity, c as Vec3, Q as Quat, C as CppRegistry, a as ESEngineModule, d as Vec4, T as TextureHandle, F as FontHandle } from './wasm.js';
+import { b as Color, V as Vec2, E as Entity, c as Vec3, Q as Quat, C as CppRegistry, a as ESEngineModule, T as TextureHandle, F as FontHandle, d as CppResourceManager, e as Vec4 } from './wasm.js';
 
 /**
  * @file    component.ts
@@ -686,6 +686,423 @@ declare class RenderPipeline {
     private executeDrawCallbacks;
 }
 
+interface Backend {
+    fetchBinary(path: string): Promise<ArrayBuffer>;
+    fetchText(path: string): Promise<string>;
+    resolveUrl(path: string): string;
+}
+
+interface AtlasFrameInfo {
+    atlas: string;
+    frame: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+    };
+    uvOffset: [number, number];
+    uvScale: [number, number];
+}
+interface CatalogEntry {
+    type: string;
+    atlas?: string;
+    frame?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+    };
+    uv?: {
+        offset: [number, number];
+        scale: [number, number];
+    };
+    deps?: string[];
+    buildPath?: string;
+}
+interface CatalogData {
+    version: number;
+    entries: Record<string, CatalogEntry>;
+    addresses?: Record<string, string>;
+    labels?: Record<string, string[]>;
+}
+declare class Catalog {
+    private entries_;
+    private addresses_;
+    private labels_;
+    private constructor();
+    static fromJson(data: CatalogData): Catalog;
+    static empty(): Catalog;
+    resolve(ref: string): string;
+    getEntry(path: string): CatalogEntry | null;
+    getAtlasFrame(path: string): AtlasFrameInfo | null;
+    getBuildPath(path: string): string;
+    getDeps(path: string): string[];
+    getByLabel(label: string): string[];
+    getAllLabels(): string[];
+    hasEntry(path: string): boolean;
+    hasAddress(address: string): boolean;
+    get isEmpty(): boolean;
+}
+
+interface TextureResult {
+    handle: TextureHandle;
+    width: number;
+    height: number;
+}
+interface SpineResult {
+    skeletonHandle: number;
+}
+interface MaterialResult {
+    handle: number;
+    shaderHandle: number;
+}
+interface FontResult {
+    handle: FontHandle;
+}
+interface AudioResult {
+    bufferId: string;
+}
+interface AnimClipResult {
+    clipId: string;
+}
+interface TilemapResult {
+    sourceId: string;
+}
+interface TimelineResult {
+    timelineId: string;
+}
+interface PrefabResult {
+    data: unknown;
+}
+interface LoadContext {
+    backend: Backend;
+    catalog: Catalog;
+    resourceManager: CppResourceManager;
+    loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
+    loadText(path: string): Promise<string>;
+    loadBinary(path: string): Promise<ArrayBuffer>;
+}
+interface AssetLoader<T> {
+    readonly type: string;
+    readonly extensions: string[];
+    load(path: string, ctx: LoadContext): Promise<T>;
+    unload(asset: T): void;
+}
+
+declare class TextureLoader implements AssetLoader<TextureResult> {
+    readonly type = "texture";
+    readonly extensions: string[];
+    private module_;
+    private canvas_;
+    private ctx_;
+    constructor(module: ESEngineModule);
+    private ensureCanvas_;
+    load(path: string, ctx: LoadContext): Promise<TextureResult>;
+    loadRaw(path: string, ctx: LoadContext): Promise<TextureResult>;
+    loadFromPixels(width: number, height: number, pixels: Uint8Array, flipY: boolean): Promise<TextureResult>;
+    unload(asset: TextureResult): void;
+    private loadWithFlip;
+    private loadImage;
+    private createTextureFromImage;
+    private getWebGL2Context;
+    private createTextureWebGL2;
+    private createTextureFallback;
+}
+
+/**
+ * @file    SpineModuleLoader.ts
+ * @brief   Loads and initializes the standalone Spine WASM module
+ */
+interface SpineWasmModule {
+    _spine_loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: number, atlasLen: number, isBinary: number): number;
+    _spine_unloadSkeleton(handle: number): void;
+    _spine_getAtlasPageCount(handle: number): number;
+    _spine_getAtlasPageTextureName(handle: number, pageIndex: number): number;
+    _spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    _spine_createInstance(skeletonHandle: number): number;
+    _spine_destroyInstance(instanceId: number): void;
+    _spine_playAnimation(instanceId: number, name: number, loop: number, track: number): number;
+    _spine_addAnimation(instanceId: number, name: number, loop: number, delay: number, track: number): number;
+    _spine_setSkin(instanceId: number, name: number): void;
+    _spine_update(instanceId: number, dt: number): void;
+    _spine_getAnimations(instanceId: number): number;
+    _spine_getSkins(instanceId: number): number;
+    _spine_getBonePosition(instanceId: number, bone: number, outXPtr: number, outYPtr: number): number;
+    _spine_getBoneRotation(instanceId: number, bone: number): number;
+    _spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    _spine_getMeshBatchCount(instanceId: number): number;
+    _spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    _spine_setDefaultMix(skeletonHandle: number, duration: number): void;
+    _spine_setMixDuration(skeletonHandle: number, fromAnim: number, toAnim: number, duration: number): void;
+    _spine_setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+    _spine_enableEvents(instanceId: number): void;
+    _spine_getEventCount(instanceId: number): number;
+    _spine_getEventBuffer(): number;
+    _spine_clearEvents(): void;
+    _spine_getEventAnimationName(index: number): number;
+    _spine_getEventName(index: number): number;
+    _spine_getEventStringValue(index: number): number;
+    _spine_setAttachment(instanceId: number, slotName: number, attachmentName: number): number;
+    _spine_setIKTarget(instanceId: number, constraintName: number, targetX: number, targetY: number, mix: number): number;
+    _spine_setSlotColor(instanceId: number, slotName: number, r: number, g: number, b: number, a: number): number;
+    _spine_listConstraints(instanceId: number): number;
+    _spine_getTransformConstraintMix(instanceId: number, name: number): number;
+    _spine_setTransformConstraintMix(instanceId: number, name: number, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): number;
+    _spine_getPathConstraintMix(instanceId: number, name: number): number;
+    _spine_setPathConstraintMix(instanceId: number, name: number, position: number, spacing: number, rotate: number, x: number, y: number): number;
+    cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
+    UTF8ToString(ptr: number): string;
+    stringToNewUTF8(str: string): number;
+    HEAPF32: Float32Array;
+    HEAPU8: Uint8Array;
+    HEAPU32: Uint32Array;
+    _malloc(size: number): number;
+    _free(ptr: number): void;
+}
+interface SpineWrappedAPI {
+    loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: string, atlasLen: number, isBinary: boolean): number;
+    getLastError(): string;
+    unloadSkeleton(handle: number): void;
+    getAtlasPageCount(handle: number): number;
+    getAtlasPageTextureName(handle: number, pageIndex: number): string;
+    setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    createInstance(skeletonHandle: number): number;
+    destroyInstance(instanceId: number): void;
+    playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
+    addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
+    setSkin(instanceId: number, name: string): void;
+    update(instanceId: number, dt: number): void;
+    getAnimations(instanceId: number): string;
+    getSkins(instanceId: number): string;
+    getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
+    getBoneRotation(instanceId: number, bone: string): number;
+    getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    getMeshBatchCount(instanceId: number): number;
+    getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    setDefaultMix(skeletonHandle: number, duration: number): void;
+    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+    enableEvents(instanceId: number): void;
+    getEventCount(instanceId: number): number;
+    getEventBuffer(): number;
+    clearEvents(): void;
+    getEventAnimationName(index: number): string;
+    getEventName(index: number): string;
+    getEventStringValue(index: number): string;
+    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
+    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    listConstraints(instanceId: number): string;
+    getTransformConstraintMix(instanceId: number, name: string): string;
+    setTransformConstraintMix(instanceId: number, name: string, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): boolean;
+    getPathConstraintMix(instanceId: number, name: string): string;
+    setPathConstraintMix(instanceId: number, name: string, position: number, spacing: number, rotate: number, x: number, y: number): boolean;
+}
+declare function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI;
+type SpineModuleFactory = (config?: Record<string, unknown>) => Promise<SpineWasmModule>;
+interface SpineWasmProvider {
+    loadJs(version: string): Promise<string>;
+    loadWasm(version: string): Promise<ArrayBuffer>;
+}
+type SpineVersion = '3.8' | '4.1' | '4.2';
+declare function createSpineFactories(provider: SpineWasmProvider): Map<SpineVersion, SpineModuleFactory>;
+declare function loadSpineModule(wasmUrl: string, factory?: SpineModuleFactory): Promise<{
+    raw: SpineWasmModule;
+    api: SpineWrappedAPI;
+}>;
+
+/**
+ * @file    SpineController.ts
+ * @brief   Spine animation control for the modular Spine WASM module
+ */
+
+type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
+interface RawSpineEvent {
+    type: number;
+    track: number;
+    floatValue: number;
+    intValue: number;
+    animationName: string;
+    eventName: string;
+    stringValue: string;
+}
+interface ConstraintList {
+    ik: string[];
+    transform: string[];
+    path: string[];
+}
+interface TransformMixData {
+    mixRotate: number;
+    mixX: number;
+    mixY: number;
+    mixScaleX: number;
+    mixScaleY: number;
+    mixShearY: number;
+}
+interface PathMixData {
+    position: number;
+    spacing: number;
+    mixRotate: number;
+    mixX: number;
+    mixY: number;
+}
+type SpineEventCallback = (event: SpineEvent) => void;
+interface SpineEvent {
+    type: SpineEventType;
+    entity: Entity;
+    track: number;
+    animation: string | null;
+    eventName?: string;
+    intValue?: number;
+    floatValue?: number;
+    stringValue?: string;
+}
+declare class SpineModuleController {
+    private raw_;
+    private api_;
+    private listeners_;
+    constructor(raw: SpineWasmModule, api: SpineWrappedAPI);
+    get raw(): SpineWasmModule;
+    loadSkeleton(skelData: Uint8Array | string, atlasText: string, isBinary: boolean): number;
+    getLastError(): string;
+    unloadSkeleton(handle: number): void;
+    getAtlasPageCount(handle: number): number;
+    getAtlasPageTextureName(handle: number, pageIndex: number): string;
+    setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    createInstance(skeletonHandle: number): number;
+    destroyInstance(instanceId: number): void;
+    play(instanceId: number, animation: string, loop?: boolean, track?: number): boolean;
+    addAnimation(instanceId: number, animation: string, loop?: boolean, delay?: number, track?: number): boolean;
+    setSkin(instanceId: number, skinName: string): void;
+    update(instanceId: number, dt: number): void;
+    getAnimations(instanceId: number): string[];
+    getSkins(instanceId: number): string[];
+    getBonePosition(instanceId: number, boneName: string): Vec2 | null;
+    getBoneRotation(instanceId: number, boneName: string): number;
+    getBounds(instanceId: number): {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    extractMeshBatches(instanceId: number): {
+        vertices: Float32Array;
+        indices: Uint16Array;
+        textureId: number;
+        blendMode: number;
+    }[];
+    setDefaultMix(skeletonHandle: number, duration: number): void;
+    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void;
+    setTrackAlpha(instanceId: number, track: number, alpha: number): void;
+    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
+    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
+    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    enableEvents(instanceId: number): void;
+    collectEvents(instanceId: number): RawSpineEvent[];
+    listConstraints(instanceId: number): ConstraintList;
+    getTransformConstraintMix(instanceId: number, name: string): TransformMixData | null;
+    setTransformConstraintMix(instanceId: number, name: string, mix: TransformMixData): boolean;
+    getPathConstraintMix(instanceId: number, name: string): PathMixData | null;
+    setPathConstraintMix(instanceId: number, name: string, mix: PathMixData): boolean;
+    on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
+    off(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
+    removeAllListeners(entity: Entity): void;
+}
+
+declare class SpineAssetLoader implements AssetLoader<SpineResult> {
+    readonly type = "spine";
+    readonly extensions: string[];
+    private module_;
+    private spineController_;
+    private loaded_;
+    private virtualFSPaths_;
+    private skeletonHandles_;
+    constructor(module: ESEngineModule);
+    setSpineController(controller: SpineModuleController): void;
+    getSkeletonHandle(cacheKey: string): number | undefined;
+    isLoaded(cacheKey: string): boolean;
+    load(skeletonPath: string, ctx: LoadContext): Promise<SpineResult>;
+    loadWithAtlas(skeletonPath: string, atlasPath: string, ctx: LoadContext): Promise<SpineResult>;
+    unload(_asset: SpineResult): void;
+    releaseAll(): void;
+    private writeToVirtualFS;
+    private cleanupVirtualFS;
+}
+
+type ReleaseCallback = () => void;
+
+interface AssetsOptions {
+    backend: Backend;
+    catalog?: Catalog;
+    module: ESEngineModule;
+}
+interface AssetBundle$1 {
+    textures: Map<string, TextureResult>;
+    materials: Map<string, MaterialResult>;
+    spine: Map<string, SpineResult>;
+    fonts: Map<string, FontResult>;
+}
+interface SceneAssetResult {
+    textureHandles: Map<string, number>;
+    materialHandles: Map<string, number>;
+    fontHandles: Map<string, number>;
+    releaseCallbacks: ReleaseCallback[];
+}
+type AssetRefResolver = (ref: string) => string | null;
+declare class Assets {
+    readonly backend: Backend;
+    readonly catalog: Catalog;
+    baseUrl?: string;
+    private module_;
+    private loaders_;
+    private textureLoader_;
+    private spineLoader_;
+    private textureCache_;
+    private textureRefCounts_;
+    private genericCache_;
+    private loadContext_;
+    private assetRefResolver_;
+    private constructor();
+    static create(options: AssetsOptions): Assets;
+    register<T>(loader: AssetLoader<T>): void;
+    getLoader<T>(type: string): AssetLoader<T> | undefined;
+    loadTexture(ref: string): Promise<TextureResult>;
+    loadTextureRaw(ref: string): Promise<TextureResult>;
+    getTexture(ref: string): TextureResult | undefined;
+    loadSpine(skeletonRef: string, atlasRef?: string): Promise<SpineResult>;
+    loadMaterial(ref: string): Promise<MaterialResult>;
+    loadFont(ref: string): Promise<FontResult>;
+    loadAudio(ref: string): Promise<AudioResult>;
+    loadAnimClip(ref: string): Promise<AnimClipResult>;
+    loadTilemap(ref: string): Promise<TilemapResult>;
+    loadTimeline(ref: string): Promise<TimelineResult>;
+    loadPrefab(ref: string): Promise<PrefabResult>;
+    load<T>(type: string, ref: string): Promise<T>;
+    getAtlasFrame(ref: string): AtlasFrameInfo | null;
+    loadByLabel(label: string): Promise<AssetBundle$1>;
+    fetchJson<T = unknown>(ref: string): Promise<T>;
+    fetchBinary(ref: string): Promise<ArrayBuffer>;
+    fetchText(ref: string): Promise<string>;
+    preloadSceneAssets(sceneData: SceneData): Promise<SceneAssetResult>;
+    resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void;
+    releaseTexture(ref: string): void;
+    releaseAll(): void;
+    setSpineController(controller: SpineModuleController): void;
+    getSpineLoader(): SpineAssetLoader;
+    getTextureLoader(): TextureLoader;
+    setAssetRefResolver(resolver: AssetRefResolver): void;
+    getAssetRefResolver(): AssetRefResolver | null;
+    private materialLoader_;
+    private registerBuiltinLoaders;
+    private textureCacheKey_;
+    private loadTyped;
+    private getLoadContext_;
+}
+
 /**
  * @file    blend.ts
  * @brief   Blend mode definitions for rendering
@@ -936,210 +1353,6 @@ interface FlattenResult {
     rootId: number;
 }
 
-/**
- * @file    SpineModuleLoader.ts
- * @brief   Loads and initializes the standalone Spine WASM module
- */
-interface SpineWasmModule {
-    _spine_loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: number, atlasLen: number, isBinary: number): number;
-    _spine_unloadSkeleton(handle: number): void;
-    _spine_getAtlasPageCount(handle: number): number;
-    _spine_getAtlasPageTextureName(handle: number, pageIndex: number): number;
-    _spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
-    _spine_createInstance(skeletonHandle: number): number;
-    _spine_destroyInstance(instanceId: number): void;
-    _spine_playAnimation(instanceId: number, name: number, loop: number, track: number): number;
-    _spine_addAnimation(instanceId: number, name: number, loop: number, delay: number, track: number): number;
-    _spine_setSkin(instanceId: number, name: number): void;
-    _spine_update(instanceId: number, dt: number): void;
-    _spine_getAnimations(instanceId: number): number;
-    _spine_getSkins(instanceId: number): number;
-    _spine_getBonePosition(instanceId: number, bone: number, outXPtr: number, outYPtr: number): number;
-    _spine_getBoneRotation(instanceId: number, bone: number): number;
-    _spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
-    _spine_getMeshBatchCount(instanceId: number): number;
-    _spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
-    _spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
-    _spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
-    _spine_setDefaultMix(skeletonHandle: number, duration: number): void;
-    _spine_setMixDuration(skeletonHandle: number, fromAnim: number, toAnim: number, duration: number): void;
-    _spine_setTrackAlpha(instanceId: number, track: number, alpha: number): void;
-    _spine_enableEvents(instanceId: number): void;
-    _spine_getEventCount(instanceId: number): number;
-    _spine_getEventBuffer(): number;
-    _spine_clearEvents(): void;
-    _spine_getEventAnimationName(index: number): number;
-    _spine_getEventName(index: number): number;
-    _spine_getEventStringValue(index: number): number;
-    _spine_setAttachment(instanceId: number, slotName: number, attachmentName: number): number;
-    _spine_setIKTarget(instanceId: number, constraintName: number, targetX: number, targetY: number, mix: number): number;
-    _spine_setSlotColor(instanceId: number, slotName: number, r: number, g: number, b: number, a: number): number;
-    _spine_listConstraints(instanceId: number): number;
-    _spine_getTransformConstraintMix(instanceId: number, name: number): number;
-    _spine_setTransformConstraintMix(instanceId: number, name: number, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): number;
-    _spine_getPathConstraintMix(instanceId: number, name: number): number;
-    _spine_setPathConstraintMix(instanceId: number, name: number, position: number, spacing: number, rotate: number, x: number, y: number): number;
-    cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
-    UTF8ToString(ptr: number): string;
-    stringToNewUTF8(str: string): number;
-    HEAPF32: Float32Array;
-    HEAPU8: Uint8Array;
-    HEAPU32: Uint32Array;
-    _malloc(size: number): number;
-    _free(ptr: number): void;
-}
-interface SpineWrappedAPI {
-    loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: string, atlasLen: number, isBinary: boolean): number;
-    getLastError(): string;
-    unloadSkeleton(handle: number): void;
-    getAtlasPageCount(handle: number): number;
-    getAtlasPageTextureName(handle: number, pageIndex: number): string;
-    setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
-    createInstance(skeletonHandle: number): number;
-    destroyInstance(instanceId: number): void;
-    playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
-    addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
-    setSkin(instanceId: number, name: string): void;
-    update(instanceId: number, dt: number): void;
-    getAnimations(instanceId: number): string;
-    getSkins(instanceId: number): string;
-    getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
-    getBoneRotation(instanceId: number, bone: string): number;
-    getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
-    getMeshBatchCount(instanceId: number): number;
-    getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
-    getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
-    getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
-    setDefaultMix(skeletonHandle: number, duration: number): void;
-    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void;
-    setTrackAlpha(instanceId: number, track: number, alpha: number): void;
-    enableEvents(instanceId: number): void;
-    getEventCount(instanceId: number): number;
-    getEventBuffer(): number;
-    clearEvents(): void;
-    getEventAnimationName(index: number): string;
-    getEventName(index: number): string;
-    getEventStringValue(index: number): string;
-    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
-    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
-    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
-    listConstraints(instanceId: number): string;
-    getTransformConstraintMix(instanceId: number, name: string): string;
-    setTransformConstraintMix(instanceId: number, name: string, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): boolean;
-    getPathConstraintMix(instanceId: number, name: string): string;
-    setPathConstraintMix(instanceId: number, name: string, position: number, spacing: number, rotate: number, x: number, y: number): boolean;
-}
-declare function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI;
-type SpineModuleFactory = (config?: Record<string, unknown>) => Promise<SpineWasmModule>;
-interface SpineWasmProvider {
-    loadJs(version: string): Promise<string>;
-    loadWasm(version: string): Promise<ArrayBuffer>;
-}
-type SpineVersion = '3.8' | '4.1' | '4.2';
-declare function createSpineFactories(provider: SpineWasmProvider): Map<SpineVersion, SpineModuleFactory>;
-declare function loadSpineModule(wasmUrl: string, factory?: SpineModuleFactory): Promise<{
-    raw: SpineWasmModule;
-    api: SpineWrappedAPI;
-}>;
-
-/**
- * @file    SpineController.ts
- * @brief   Spine animation control for the modular Spine WASM module
- */
-
-type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
-interface RawSpineEvent {
-    type: number;
-    track: number;
-    floatValue: number;
-    intValue: number;
-    animationName: string;
-    eventName: string;
-    stringValue: string;
-}
-interface ConstraintList {
-    ik: string[];
-    transform: string[];
-    path: string[];
-}
-interface TransformMixData {
-    mixRotate: number;
-    mixX: number;
-    mixY: number;
-    mixScaleX: number;
-    mixScaleY: number;
-    mixShearY: number;
-}
-interface PathMixData {
-    position: number;
-    spacing: number;
-    mixRotate: number;
-    mixX: number;
-    mixY: number;
-}
-type SpineEventCallback = (event: SpineEvent) => void;
-interface SpineEvent {
-    type: SpineEventType;
-    entity: Entity;
-    track: number;
-    animation: string | null;
-    eventName?: string;
-    intValue?: number;
-    floatValue?: number;
-    stringValue?: string;
-}
-declare class SpineModuleController {
-    private raw_;
-    private api_;
-    private listeners_;
-    constructor(raw: SpineWasmModule, api: SpineWrappedAPI);
-    get raw(): SpineWasmModule;
-    loadSkeleton(skelData: Uint8Array | string, atlasText: string, isBinary: boolean): number;
-    getLastError(): string;
-    unloadSkeleton(handle: number): void;
-    getAtlasPageCount(handle: number): number;
-    getAtlasPageTextureName(handle: number, pageIndex: number): string;
-    setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
-    createInstance(skeletonHandle: number): number;
-    destroyInstance(instanceId: number): void;
-    play(instanceId: number, animation: string, loop?: boolean, track?: number): boolean;
-    addAnimation(instanceId: number, animation: string, loop?: boolean, delay?: number, track?: number): boolean;
-    setSkin(instanceId: number, skinName: string): void;
-    update(instanceId: number, dt: number): void;
-    getAnimations(instanceId: number): string[];
-    getSkins(instanceId: number): string[];
-    getBonePosition(instanceId: number, boneName: string): Vec2 | null;
-    getBoneRotation(instanceId: number, boneName: string): number;
-    getBounds(instanceId: number): {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-    };
-    extractMeshBatches(instanceId: number): {
-        vertices: Float32Array;
-        indices: Uint16Array;
-        textureId: number;
-        blendMode: number;
-    }[];
-    setDefaultMix(skeletonHandle: number, duration: number): void;
-    setMixDuration(skeletonHandle: number, fromAnim: string, toAnim: string, duration: number): void;
-    setTrackAlpha(instanceId: number, track: number, alpha: number): void;
-    setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
-    setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
-    setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
-    enableEvents(instanceId: number): void;
-    collectEvents(instanceId: number): RawSpineEvent[];
-    listConstraints(instanceId: number): ConstraintList;
-    getTransformConstraintMix(instanceId: number, name: string): TransformMixData | null;
-    setTransformConstraintMix(instanceId: number, name: string, mix: TransformMixData): boolean;
-    getPathConstraintMix(instanceId: number, name: string): PathMixData | null;
-    setPathConstraintMix(instanceId: number, name: string, mix: PathMixData): boolean;
-    on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
-    off(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
-    removeAllListeners(entity: Entity): void;
-}
-
 type AssetContentType = 'json' | 'text' | 'binary' | 'image' | 'audio';
 type AddressableAssetType = 'texture' | 'material' | 'spine' | 'bitmap-font' | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
 type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'tilemap' | 'timeline' | 'unknown';
@@ -1350,11 +1563,6 @@ declare class AssetServer {
     private parseAtlasTextures;
 }
 
-/**
- * @file    scene.ts
- * @brief   Scene loading utilities
- */
-
 interface SceneEntityData {
     id: number;
     name: string;
@@ -1392,6 +1600,7 @@ interface LoadedSceneAssets {
 }
 interface SceneLoadOptions {
     assetServer?: AssetServer;
+    assets?: Assets;
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
 }
@@ -1649,5 +1858,5 @@ interface WebAppOptions {
 }
 declare function flushPendingSystems(app: App): void;
 
-export { Changed as $, App as A, BitmapText as Q, Camera as V, World as W, Canvas as Z, Children as a1, ClearFlags as a3, Commands as a4, CommandsInstance as a6, Parent as aB, ParticleEasing as aD, ParticleEmitter as aE, PostProcessVolume as aH, ProjectionType as aK, Query as aL, QueryInstance as aO, Removed as aQ, RemovedQueryInstance as aS, RenderPipeline as aU, Res as aV, ResMut as aX, ResMutInstance as aZ, ScaleMode as a_, EmitterShape as aa, EntityCommands as ab, EventReader as ad, EventReaderInstance as af, EventRegistry as ag, EventWriter as ah, EventWriterInstance as aj, GetWorld as al, LocalTransform as aq, Material as as, MaterialLoader as au, Mut as aw, Name as ay, getUserComponent as b$, SceneManager as b3, SceneManagerState as b4, SceneOwner as b5, Schedule as b8, WorldTransform as bA, addStartupSystem as bC, addSystem as bD, addSystemToSchedule as bE, clearDrawCallbacks as bF, clearUserComponents as bG, defineComponent as bH, defineEvent as bI, defineResource as bJ, defineSystem as bK, defineTag as bL, findEntityByName as bM, flushPendingSystems as bN, getAddressableType as bO, getAddressableTypeByEditorType as bP, getAllAssetExtensions as bQ, getAssetBuildTransform as bR, getAssetMimeType as bS, getAssetTypeEntry as bT, getComponent as bU, getComponentAssetFieldDescriptors as bV, getComponentAssetFields as bW, getComponentDefaults as bX, getComponentSpineFieldDescriptor as bY, getCustomExtensions as bZ, getEditorType as b_, ShaderSources as ba, ShapeRenderer as bb, ShapeType as bd, SimulationSpace as be, SpineAnimation as bg, Sprite as bk, SystemRunner as bp, Time as bs, Transform as bu, Velocity as bx, SpineModuleController as c, getWeChatPackOptions as c0, initMaterialAPI as c1, isBuiltinComponent as c2, isCustomExtension as c3, isKnownAssetExtension as c4, isTextureRef as c5, loadComponent as c6, loadSceneData as c7, loadSceneWithAssets as c8, looksLikeAssetPath as c9, registerAssetBuildTransform as ca, registerComponent as cb, registerComponentAssetFields as cc, registerDrawCallback as cd, registerMaterialCallback as ce, remapEntityFields as cf, shutdownMaterialAPI as cg, toBuildPath as ch, unregisterComponent as ci, unregisterDrawCallback as cj, updateCameraAspectRatio as ck, wrapSceneSystem as cl, createSpineFactories as e, loadSpineModule as l, AssetServer as m, PostProcessStack as n, wrapSpineModule as w, BlendMode as x, Added as z };
-export type { BuiltinComponentDef as B, ConstraintList as C, AddedWrapper as D, AddressableAssetType as E, FlattenContext as F, AddressableManifestAsset as G, AddressableManifestGroup as H, AddressableResultMap as I, AssetBuildTransform as J, AssetBundle as K, AssetContentType as L, MaterialHandle as M, AssetFieldType as N, AssetTypeEntry as O, Plugin as P, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, BitmapTextData as U, CameraData as X, CameraRenderParams as Y, CanvasData as _, PathMixData as a, SceneComponentData as a$, ChangedWrapper as a0, ChildrenData as a2, CommandsDescriptor as a5, ComponentData$1 as a7, DrawCallback as a8, EditorAssetType as a9, NestedPrefabRef as aA, ParentData as aC, ParticleEmitterData as aF, PluginDependency as aG, PostProcessVolumeData as aI, PrefabEntityData as aJ, QueryBuilder as aM, QueryDescriptor as aN, QueryResult as aP, RemovedQueryDescriptor as aR, RenderParams as aT, ResDescriptor as aW, ResMutDescriptor as aY, EventDef as ac, EventReaderDescriptor as ae, EventWriterDescriptor as ai, FileLoadOptions as ak, GetWorldDescriptor as am, InferParam as an, InferParams as ao, LoadedMaterial as ap, LocalTransformData as ar, MaterialAssetData as at, MaterialOptions as av, MutWrapper as ax, NameData as az, SpineEventCallback as b, SceneContext as b0, SceneEntityData as b1, SceneLoadOptions as b2, SceneOwnerData as b6, SceneStatus as b7, ShaderLoader as b9, WorldTransformData as bB, ShapeRendererData as bc, SliceBorder$1 as bf, SpineAnimationData as bh, SpineDescriptor as bi, SpineLoadResult as bj, SpriteData as bl, SystemDef as bm, SystemOptions as bn, SystemParam as bo, TextureInfo as bq, TextureRef as br, TimeData as bt, TransitionOptions as bv, UniformValue as bw, VelocityData as by, Viewport as bz, SpineModuleFactory as d, RawSpineEvent as f, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ComponentData as k, ShaderHandle as o, ComponentDef as p, TransformData as q, AnyComponentDef as r, SceneData as s, SpineWasmModule as t, AddressableManifest as u, SceneConfig as v, WebAppOptions as y };
+export { App as A, AssetServer as O, BitmapText as U, World as W, Camera as X, Canvas as _, ScaleMode as a$, Changed as a0, Children as a2, ClearFlags as a4, Commands as a5, CommandsInstance as a7, Parent as aC, ParticleEasing as aE, ParticleEmitter as aF, PostProcessVolume as aI, ProjectionType as aL, Query as aM, QueryInstance as aP, Removed as aR, RemovedQueryInstance as aT, RenderPipeline as aV, Res as aW, ResMut as aY, ResMutInstance as a_, EmitterShape as ab, EntityCommands as ac, EventReader as ae, EventReaderInstance as ag, EventRegistry as ah, EventWriter as ai, EventWriterInstance as ak, GetWorld as am, LocalTransform as ar, Material as at, MaterialLoader as av, Mut as ax, Name as az, getEditorType as b$, SceneManager as b4, SceneManagerState as b5, SceneOwner as b6, Schedule as b9, WorldTransform as bB, addStartupSystem as bD, addSystem as bE, addSystemToSchedule as bF, clearDrawCallbacks as bG, clearUserComponents as bH, defineComponent as bI, defineEvent as bJ, defineResource as bK, defineSystem as bL, defineTag as bM, findEntityByName as bN, flushPendingSystems as bO, getAddressableType as bP, getAddressableTypeByEditorType as bQ, getAllAssetExtensions as bR, getAssetBuildTransform as bS, getAssetMimeType as bT, getAssetTypeEntry as bU, getComponent as bV, getComponentAssetFieldDescriptors as bW, getComponentAssetFields as bX, getComponentDefaults as bY, getComponentSpineFieldDescriptor as bZ, getCustomExtensions as b_, ShaderSources as bb, ShapeRenderer as bc, ShapeType as be, SimulationSpace as bf, SpineAnimation as bh, Sprite as bl, SystemRunner as bq, Time as bt, Transform as bv, Velocity as by, SpineModuleController as c, getUserComponent as c0, getWeChatPackOptions as c1, initMaterialAPI as c2, isBuiltinComponent as c3, isCustomExtension as c4, isKnownAssetExtension as c5, isTextureRef as c6, loadComponent as c7, loadSceneData as c8, loadSceneWithAssets as c9, looksLikeAssetPath as ca, registerAssetBuildTransform as cb, registerComponent as cc, registerComponentAssetFields as cd, registerDrawCallback as ce, registerMaterialCallback as cf, remapEntityFields as cg, shutdownMaterialAPI as ch, toBuildPath as ci, unregisterComponent as cj, unregisterDrawCallback as ck, updateCameraAspectRatio as cl, wrapSceneSystem as cm, createSpineFactories as e, loadSpineModule as l, Assets as m, PostProcessStack as n, wrapSpineModule as w, BlendMode as x, Added as z };
+export type { CanvasData as $, BuiltinComponentDef as B, ConstraintList as C, AddedWrapper as D, AddressableAssetType as E, FlattenContext as F, AddressableManifestAsset as G, AddressableManifestGroup as H, AddressableResultMap as I, AssetBuildTransform as J, AssetBundle$1 as K, AssetContentType as L, MaterialHandle as M, AssetFieldType as N, Plugin as P, AssetTypeEntry as Q, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, BitmapTextData as V, CameraData as Y, CameraRenderParams as Z, PathMixData as a, ChangedWrapper as a1, ChildrenData as a3, CommandsDescriptor as a6, ComponentData$1 as a8, DrawCallback as a9, NameData as aA, NestedPrefabRef as aB, ParentData as aD, ParticleEmitterData as aG, PluginDependency as aH, PostProcessVolumeData as aJ, PrefabEntityData as aK, QueryBuilder as aN, QueryDescriptor as aO, QueryResult as aQ, RemovedQueryDescriptor as aS, RenderParams as aU, ResDescriptor as aX, ResMutDescriptor as aZ, EditorAssetType as aa, EventDef as ad, EventReaderDescriptor as af, EventWriterDescriptor as aj, FileLoadOptions as al, GetWorldDescriptor as an, InferParam as ao, InferParams as ap, LoadedMaterial as aq, LocalTransformData as as, MaterialAssetData as au, MaterialOptions as aw, MutWrapper as ay, SpineEventCallback as b, SceneComponentData as b0, SceneContext as b1, SceneEntityData as b2, SceneLoadOptions as b3, SceneOwnerData as b7, SceneStatus as b8, Viewport as bA, WorldTransformData as bC, ShaderLoader as ba, ShapeRendererData as bd, SliceBorder$1 as bg, SpineAnimationData as bi, SpineDescriptor as bj, SpineLoadResult as bk, SpriteData as bm, SystemDef as bn, SystemOptions as bo, SystemParam as bp, TextureInfo as br, TextureRef as bs, TimeData as bu, TransitionOptions as bw, UniformValue as bx, VelocityData as bz, SpineModuleFactory as d, RawSpineEvent as f, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ComponentData as k, ShaderHandle as o, ComponentDef as p, TransformData as q, AnyComponentDef as r, SceneData as s, SpineWasmModule as t, AddressableManifest as u, SceneConfig as v, WebAppOptions as y };

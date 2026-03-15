@@ -25,11 +25,16 @@ import {
     postProcessPlugin,
     timelinePlugin,
     clearTimelineHandles,
+    setImageResolver,
 } from 'esengine';
 import { PhysicsPlugin, type PhysicsPluginConfig } from 'esengine/physics';
 import { SpinePlugin, SpineManager, createSpineFactories, type SpineWasmProvider } from 'esengine/spine';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
 import { AssetPathResolver } from '../asset';
+import { getAssetDatabase } from '../asset/AssetDatabase';
+import { AssetGraph } from '../asset/AssetGraph';
+import { GraphImageResolver } from '../asset/GraphImageResolver';
+import { imageProcessor } from '../asset/processors/ImageProcessor';
 import type { GameViewRenderer } from './GameViewRenderer';
 import { getEditorContext } from '../context/EditorContext';
 
@@ -41,6 +46,7 @@ export class SharedRenderContext {
     pipeline_: RenderPipeline | null = null;
     webglCanvas_: HTMLCanvasElement | null = null;
     pathResolver_: AssetPathResolver;
+    assetGraph_: AssetGraph | null = null;
 
     private initialized_ = false;
     private gameViewRenderer_: GameViewRenderer | null = null;
@@ -172,12 +178,31 @@ export class SharedRenderContext {
         for (const plugin of uiPlugins) {
             app.addPlugin(plugin);
         }
+
+        this.assetGraph_ = new AssetGraph();
+        this.assetGraph_.registerProcessor(imageProcessor);
+        this.assetGraph_.onChange((events) => {
+            this.requestRender();
+            this.syncAssetDatabase_(events);
+        });
+        const graphResolver = new GraphImageResolver(this.assetGraph_);
+        setImageResolver(graphResolver);
+
         this.app_ = app;
 
         this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_, app.world);
         this.sceneManager_.setSpineManager(this.spineManager_);
         this.sceneManager_.registerSystems(app);
         this.initialized_ = true;
+
+        const existingDir = this.pathResolver_.getProjectDir();
+        if (existingDir && this.assetGraph_) {
+            const editorCtx = getEditorContext();
+            const nfs = editorCtx?.fs ?? null;
+            if (nfs) {
+                this.assetGraph_.startWatching(existingDir, nfs);
+            }
+        }
 
         for (const cb of this.onInitCallbacks_) cb();
         this.onInitCallbacks_ = [];
@@ -231,10 +256,37 @@ export class SharedRenderContext {
     setProjectDir(projectDir: string): void {
         this.pathResolver_.setProjectDir(projectDir);
         this.sceneManager_?.setProjectDir(projectDir);
+        const ctx = getEditorContext();
+        const fs = ctx?.fs ?? null;
+        if (this.assetGraph_ && fs && projectDir) {
+            this.assetGraph_.startWatching(projectDir, fs).then(() => {
+                this.requestRender();
+            });
+        }
     }
 
     get elapsed(): number {
         return (performance.now() - this.startTime_) / 1000;
+    }
+
+    private syncAssetDatabase_(events: import('../asset/AssetGraph').AssetGraphEvent[]): void {
+        const db = getAssetDatabase();
+        if (!db) return;
+        for (const event of events) {
+            switch (event.kind) {
+                case 'create':
+                    db.ensureMeta(event.path).catch((err) => {
+                        console.warn(`[AssetGraph] ensureMeta failed for ${event.path}:`, err);
+                    });
+                    break;
+                case 'delete':
+                    db.unregister(event.path);
+                    break;
+                case 'rename':
+                    if (event.oldPath) db.updatePath(event.oldPath, event.path);
+                    break;
+            }
+        }
     }
 
     requestRender(): void {

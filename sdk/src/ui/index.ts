@@ -446,6 +446,10 @@ export {
 export {
     parseRichText,
     type TextRun,
+    type TextSegment,
+    type ImageSegment,
+    type ImageValign,
+    type RichTextRun,
 } from './RichTextParser';
 
 export {
@@ -454,5 +458,15 @@ export {
     measureLayoutWidth,
     type FontSet,
     type PositionedRun,
+    type TextPositionedRun,
+    type ImagePositionedRun,
     type LayoutLine,
 } from './RichTextLayout';
+
+export {
+    setImageResolver,
+    getImageResolver,
+    DefaultImageResolver,
+    type ImageResolver,
+    type ResolvedImage,
+} from './ImageResolver';
