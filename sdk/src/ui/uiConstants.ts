@@ -1,4 +1,5 @@
 export const TEXT_PADDING_RATIO = 0.2;
+export const TEXT_ASCENT_RATIO = 0.8;
 export const TEXT_CANVAS_SHRINK_FRAMES = 60;
 export const TEXT_CANVAS_OVERSIZE_RATIO = 4;
 

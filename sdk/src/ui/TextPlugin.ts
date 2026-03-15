@@ -8,6 +8,8 @@ import { UIRect, type UIRectData } from './UIRect';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { getEffectiveWidth, getEffectiveHeight, setUIRectSizeNative } from './uiHelpers';
+import { getImageResolver, type DefaultImageResolver } from './ImageResolver';
+import { parseRichText } from './RichTextParser';
 
 function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
     if (!world.has(entity, UIRenderer)) {
@@ -45,6 +47,11 @@ export class TextPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
+                const resolver = getImageResolver();
+                renderer.setImageResolver(resolver);
+                if (resolver && 'retryFailed' in resolver) {
+                    (resolver as DefaultImageResolver).retryFailed();
+                }
                 renderer.beginFrame();
                 renderer.cleanupOrphaned(e => world.valid(e) && world.has(e, Text));
 
@@ -72,7 +79,10 @@ export class TextPlugin implements Plugin {
                     const hasValidRenderer = world.has(entity, UIRenderer)
                         && (world.get(entity, UIRenderer) as UIRendererData).texture !== 0;
 
-                    if (prevTick !== undefined && hasValidRenderer) {
+                    const pendingForImage = resolver && resolver.pendingEntities.has(entity);
+                    if (pendingForImage) resolver!.pendingEntities.delete(entity);
+
+                    if (prevTick !== undefined && hasValidRenderer && !pendingForImage) {
                         const textChanged = world.isChangedSince(entity, Text, prevTick);
                         if (!textChanged) {
                             const containerKey = uiRect
@@ -84,6 +94,17 @@ export class TextPlugin implements Plugin {
                                 lastContainerSize.set(entity, containerKey);
                                 continue;
                             }
+                        }
+                    }
+
+                    if (text.richText && resolver && 'trackEntity' in resolver) {
+                        const runs = parseRichText(text.content);
+                        const srcs: string[] = [];
+                        for (const run of runs) {
+                            if (run.type === 'image') srcs.push(run.src);
+                        }
+                        if (srcs.length > 0) {
+                            (resolver as DefaultImageResolver).trackEntity(entity, srcs);
                         }
                     }
 
