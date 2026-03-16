@@ -10,7 +10,8 @@ import { Time, type TimeData } from '../resource';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { initTweenAPI, shutdownTweenAPI, Tween } from './Tween';
 import { spriteAnimatorSystemUpdate } from './SpriteAnimator';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
+import { SystemLabel } from '../systemLabels';
 
 export class AnimationPlugin implements Plugin {
     name = 'animation';
@@ -24,20 +25,18 @@ export class AnimationPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
-                if (isEditor() && !isPlayMode()) return;
                 Tween.update(time.delta);
             },
             { name: 'TweenSystem' }
-        ));
+        ), { runIf: playModeOnly });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
-                if (isEditor() && !isPlayMode()) return;
                 spriteAnimatorSystemUpdate(world, time.delta);
             },
             { name: 'SpriteAnimatorSystem' }
-        ), { runAfter: ['TweenSystem'] });
+        ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });
     }
 
     cleanup(): void {

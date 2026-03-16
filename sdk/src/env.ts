@@ -20,3 +20,7 @@ export function setPlayMode(active: boolean): void {
 export function isPlayMode(): boolean {
     return playMode;
 }
+
+export function playModeOnly(): boolean {
+    return !editorMode || playMode;
+}

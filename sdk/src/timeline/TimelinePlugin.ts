@@ -3,7 +3,7 @@ import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import { defineComponent, getComponent } from '../component';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import { WrapMode, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { parseTimelineAsset } from './TimelineLoader';
 import { uploadTimelineToWasm, type UploadResult } from './TimelineUploader';
@@ -76,8 +76,6 @@ export class TimelinePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
-                if (isEditor() && !isPlayMode()) return;
-
                 const module = world.getWasmModule() as ESEngineModule;
                 if (!module) return;
 
@@ -137,7 +135,7 @@ export class TimelinePlugin implements Plugin {
                 }
             },
             { name: 'TimelineSystem' },
-        ));
+        ), { runIf: playModeOnly });
     }
 
     clearHandles(): void {

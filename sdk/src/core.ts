@@ -694,7 +694,10 @@ export {
     isRuntime,
     setPlayMode,
     isPlayMode,
+    playModeOnly,
 } from './env';
+
+export type { RunCondition } from './app';
 
 // =============================================================================
 // Physics

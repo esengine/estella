@@ -15,6 +15,7 @@ import { ItemPool } from './ItemPool';
 import { UIRect, type UIRectData } from './UIRect';
 import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
 import { Image as UIImage } from './Image';
+import { SystemLabel } from '../systemLabels';
 
 export interface CollectionState {
     pool: ItemPool;
@@ -164,7 +165,7 @@ export class CollectionViewPlugin implements Plugin {
                 }
             },
             { name: 'CollectionViewSystem' },
-        ), { runAfter: ['UILayoutLateSystem'], runBefore: ['UIRenderOrderSystem'] });
+        ), { runAfter: [SystemLabel.UILayoutLate], runBefore: [SystemLabel.UIRenderOrder] });
 
         this.cleanup_ = () => {
             for (const [, st] of states) {

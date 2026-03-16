@@ -10,6 +10,7 @@ import type { UIRendererData } from './UIRenderer';
 import { getEffectiveWidth, getEffectiveHeight, setUIRectSizeNative } from './uiHelpers';
 import { getImageResolver, type DefaultImageResolver } from './ImageResolver';
 import { parseRichText } from './RichTextParser';
+import { SystemLabel } from '../systemLabels';
 
 function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
     if (!world.has(entity, UIRenderer)) {
@@ -141,7 +142,7 @@ export class TextPlugin implements Plugin {
                 }
             },
             { name: 'TextSystem' }
-        ), { runAfter: ['UILayoutSystem'] });
+        ), { runAfter: [SystemLabel.UILayout] });
     }
 }
 

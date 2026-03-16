@@ -11,7 +11,7 @@ import { Interactable } from './Interactable';
 import type { InteractableData } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import { UIEvents, UIEventQueue } from './UIEvents';
 
 export class FocusPlugin implements Plugin {
@@ -27,7 +27,6 @@ export class FocusPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
             (input: InputState, events: UIEventQueue) => {
-                if (isEditor() && !isPlayMode()) return;
                 if (focusManager.focusedEntity !== null && !world.valid(focusManager.focusedEntity)) {
                     focusManager.focusedEntity = null;
                 }
@@ -95,7 +94,7 @@ export class FocusPlugin implements Plugin {
                 }
             },
             { name: 'FocusSystem' }
-        ));
+        ), { runIf: playModeOnly });
     }
 }
 

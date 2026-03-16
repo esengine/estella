@@ -6,6 +6,7 @@ import type { UIRectData } from './UIRect';
 import { ProgressBar } from './ProgressBar';
 import type { ProgressBarData } from './ProgressBar';
 import { applyDirectionalFill, withChildEntity } from './uiHelpers';
+import { SystemLabel } from '../systemLabels';
 
 export class ProgressBarPlugin implements Plugin {
     name = 'progressBar';
@@ -29,7 +30,7 @@ export class ProgressBarPlugin implements Plugin {
                 }
             },
             { name: 'ProgressBarSystem' }
-        ), { runAfter: ['UILayoutSystem'] });
+        ), { runAfter: [SystemLabel.UILayout] });
     }
 }
 

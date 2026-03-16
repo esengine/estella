@@ -31,6 +31,7 @@ import type { ESEngineModule } from '../wasm';
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import type { AssetServer } from '../asset/AssetServer';
 import { EntityStateMap } from './uiHelpers';
+import { SystemLabel } from '../systemLabels';
 import {
     isAssetPropertyPath, normalizeAssetValue, collectAssetPaths,
     StateMachineAssetCache,
@@ -587,7 +588,7 @@ export class StateMachinePlugin implements Plugin {
                 }
             },
             { name: 'StateMachineSystem' }
-        ), { runAfter: ['ButtonSystem'] });
+        ), { runAfter: [SystemLabel.Button] });
     }
 }
 

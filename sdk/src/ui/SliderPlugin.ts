@@ -19,6 +19,7 @@ import { UIEvents, UIEventQueue } from './UIEvents';
 import { isEditor, isPlayMode } from '../env';
 import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent, withChildEntity } from './uiHelpers';
 import { quaternionToAngle2D } from './uiMath';
+import { SystemLabel } from '../systemLabels';
 
 function computeSliderValue(
     worldMouseX: number, worldMouseY: number,
@@ -155,7 +156,7 @@ export class SliderPlugin implements Plugin {
                 }
             },
             { name: 'SliderSystem' }
-        ), { runAfter: ['UIInteractionSystem'] });
+        ), { runAfter: [SystemLabel.UIInteraction] });
     }
 }
 

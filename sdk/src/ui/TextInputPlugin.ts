@@ -14,9 +14,10 @@ import { UIEvents, UIEventQueue } from './UIEvents';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import { wrapText, nextPowerOf2, ensureComponent, colorToRgba } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
+import { SystemLabel } from '../systemLabels';
 
 export class TextInputPlugin implements Plugin {
     name = 'textInput';
@@ -33,7 +34,7 @@ export class TextInputPlugin implements Plugin {
     build(app: App): void {
         registerComponent('TextInput', TextInput);
 
-        if (isEditor() && !isPlayMode()) return;
+        if (!playModeOnly()) return;
 
         const moduleOrNull = app.wasmModule;
         if (!moduleOrNull) {
@@ -244,7 +245,7 @@ export class TextInputPlugin implements Plugin {
                 }
             },
             { name: 'TextInputFocusSystem' }
-        ), { runAfter: ['FocusSystem'] });
+        ), { runAfter: [SystemLabel.Focus] });
 
         // Render system
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(

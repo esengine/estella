@@ -16,8 +16,9 @@ import type { UIInteractionData } from './UIInteraction';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import { getEntityDepth } from './uiHelpers';
+import { SystemLabel } from '../systemLabels';
 import { quaternionToAngle2D } from './uiMath';
 
 function worldToLocalDelta(
@@ -87,7 +88,6 @@ export class DragPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
-                if (isEditor() && !isPlayMode()) return;
                 if (!camera.valid) return;
 
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
@@ -220,8 +220,8 @@ export class DragPlugin implements Plugin {
                     }
                 }
             },
-            { name: 'DragSystem', runAfter: ['UIInteractionSystem'] }
-        ));
+            { name: 'DragSystem', runAfter: [SystemLabel.UIInteraction] }
+        ), { runIf: playModeOnly });
     }
 }
 
