@@ -10,13 +10,9 @@ import {
     remapEntityFields,
     findEntityByName,
     updateCameraAspectRatio,
-    registerComponentAssetFields,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
     getComponentSpineFieldDescriptor,
-    getRegisteredAssetComponentTypes,
-    registerComponentEntityFields,
-    getComponentEntityFields,
     type SceneData,
     type SceneComponentData,
 } from '../src/scene';
@@ -48,6 +44,12 @@ const Sprite = defineBuiltin('Sprite', {
     size: { x: 100, y: 100 },
     material: 0,
 });
+
+const Slider = defineBuiltin('Slider', {
+    fillEntity: 0,
+    handleEntity: 0,
+    value: 0,
+}, { entityFields: ['fillEntity', 'handleEntity'] });
 
 describe('Scene', () => {
     let world: World;
@@ -81,14 +83,6 @@ describe('Scene', () => {
             expect(fields).toContain('material');
         });
 
-        it('should register custom component asset fields', () => {
-            registerComponentAssetFields('CustomComp', {
-                fields: [{ field: 'icon', type: 'texture' }],
-            });
-            const fields = getComponentAssetFields('CustomComp');
-            expect(fields).toContain('icon');
-        });
-
         it('should return field descriptors with type info', () => {
             const descriptors = getComponentAssetFieldDescriptors('Sprite');
             expect(descriptors).toEqual([
@@ -113,36 +107,6 @@ describe('Scene', () => {
             expect(getComponentSpineFieldDescriptor('Sprite')).toBeNull();
         });
 
-        it('should list all registered asset component types', () => {
-            const types = getRegisteredAssetComponentTypes();
-            expect(types).toContain('Sprite');
-            expect(types).toContain('SpineAnimation');
-            expect(types).toContain('BitmapText');
-            expect(types).toContain('Image');
-            expect(types).toContain('SpriteAnimator');
-        });
-    });
-
-    // =========================================================================
-    // Component Entity Reference Fields Registry
-    // =========================================================================
-
-    describe('Component Entity Reference Fields Registry', () => {
-        registerComponentEntityFields('Slider', ['fillEntity', 'handleEntity']);
-
-        it('should return entity fields for registered types', () => {
-            const fields = getComponentEntityFields('Slider');
-            expect(fields).toEqual(['fillEntity', 'handleEntity']);
-        });
-
-        it('should return undefined for unregistered types', () => {
-            expect(getComponentEntityFields('NonExistent')).toBeUndefined();
-        });
-
-        it('should register custom entity fields', () => {
-            registerComponentEntityFields('CustomUI', ['targetEntity']);
-            expect(getComponentEntityFields('CustomUI')).toEqual(['targetEntity']);
-        });
     });
 
     // =========================================================================
@@ -475,12 +439,6 @@ describe('Scene', () => {
         });
 
         it('should remap entity fields during component loading', () => {
-            const SliderComp = defineBuiltin('Slider', {
-                fillEntity: 0,
-                handleEntity: 0,
-                value: 0,
-            });
-
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'SliderScene',
@@ -501,7 +459,7 @@ describe('Scene', () => {
 
             const entityMap = loadSceneData(world, sceneData);
             const root = entityMap.get(0)!;
-            const slider = world.get(root, SliderComp);
+            const slider = world.get(root, Slider);
 
             expect(slider.fillEntity).toBe(entityMap.get(1));
             expect(slider.handleEntity).toBe(entityMap.get(2));
@@ -667,11 +625,7 @@ describe('Scene', () => {
                 clip: 'walk.esanim',
                 playing: true,
                 speed: 1,
-            });
-
-            registerComponentAssetFields('TestSpriteAnimatorScene', {
-                fields: [{ field: 'clip', type: 'anim-clip' }],
-            });
+            }, { assetFields: [{ field: 'clip', type: 'anim-clip' }] });
 
             const sceneData: SceneData = {
                 version: '1.0',
@@ -702,9 +656,8 @@ describe('Scene', () => {
             const assetServer = createMockAssetServer();
             assetServer.loadJson.mockRejectedValue(new Error('404'));
 
-            const AnimComp2 = defineComponent('TestSpriteAnimatorScene2', { clip: 'x' });
-            registerComponentAssetFields('TestSpriteAnimatorScene2', {
-                fields: [{ field: 'clip', type: 'anim-clip' }],
+            const AnimComp2 = defineComponent('TestSpriteAnimatorScene2', { clip: 'x' }, {
+                assetFields: [{ field: 'clip', type: 'anim-clip' }],
             });
 
             const sceneData: SceneData = {
@@ -739,9 +692,8 @@ describe('Scene', () => {
             });
             assetServer.loadTexture.mockRejectedValue(new Error('texture 404'));
 
-            const AnimComp3 = defineComponent('TestSpriteAnimatorScene3', { clip: 'x' });
-            registerComponentAssetFields('TestSpriteAnimatorScene3', {
-                fields: [{ field: 'clip', type: 'anim-clip' }],
+            const AnimComp3 = defineComponent('TestSpriteAnimatorScene3', { clip: 'x' }, {
+                assetFields: [{ field: 'clip', type: 'anim-clip' }],
             });
 
             const sceneData: SceneData = {
