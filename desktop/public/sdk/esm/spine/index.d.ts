@@ -20,6 +20,7 @@ interface SpineEventsData {
 }
 declare const SpineEvents: ResourceDef<SpineEventsData>;
 declare class SpinePlugin implements Plugin {
+    name: string;
     private spineManager_;
     private provider_;
     private app_;

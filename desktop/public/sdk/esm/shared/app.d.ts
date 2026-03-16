@@ -1,690 +1,4 @@
-import { b as Color, V as Vec2, E as Entity, c as Vec3, Q as Quat, C as CppRegistry, a as ESEngineModule, T as TextureHandle, F as FontHandle, d as CppResourceManager, e as Vec4 } from './wasm.js';
-
-/**
- * @file    component.ts
- * @brief   Component definition and builtin components
- */
-
-interface ComponentDef<T> {
-    readonly _id: symbol;
-    readonly _name: string;
-    readonly _default: T;
-    readonly _builtin: false;
-    create(data?: Partial<T>): T;
-}
-declare function defineComponent<T extends object>(name: string, defaults: T, metadata?: ComponentMetadata): ComponentDef<T>;
-declare function defineTag(name: string): ComponentDef<{}>;
-declare function getUserComponent(name: string): ComponentDef<any> | undefined;
-declare function clearUserComponents(): void;
-declare function unregisterComponent(name: string): void;
-interface BuiltinComponentDef<T> {
-    readonly _id: symbol;
-    readonly _name: string;
-    readonly _cppName: string;
-    readonly _builtin: true;
-    readonly _default: T;
-    readonly _colorKeys: readonly string[];
-}
-type AnyComponentDef = ComponentDef<any> | BuiltinComponentDef<any>;
-declare function isBuiltinComponent(comp: AnyComponentDef): comp is BuiltinComponentDef<any>;
-declare function registerComponent(name: string, def: AnyComponentDef): void;
-declare function getComponent(name: string): AnyComponentDef | undefined;
-interface ComponentMetadata {
-    entityFields?: string[];
-}
-declare const ProjectionType: {
-    readonly Perspective: 0;
-    readonly Orthographic: 1;
-};
-type ProjectionType = (typeof ProjectionType)[keyof typeof ProjectionType];
-declare const ClearFlags: {
-    readonly None: 0;
-    readonly ColorOnly: 1;
-    readonly DepthOnly: 2;
-    readonly ColorAndDepth: 3;
-};
-type ClearFlags = (typeof ClearFlags)[keyof typeof ClearFlags];
-declare const ScaleMode: {
-    readonly FixedWidth: 0;
-    readonly FixedHeight: 1;
-    readonly Expand: 2;
-    readonly Shrink: 3;
-    readonly Match: 4;
-};
-type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
-interface TransformData {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
-    worldPosition: Vec3;
-    worldRotation: Quat;
-    worldScale: Vec3;
-}
-type LocalTransformData = TransformData;
-type WorldTransformData = TransformData;
-interface SpriteData {
-    texture: number;
-    color: Color;
-    size: Vec2;
-    pivot: Vec2;
-    uvOffset: Vec2;
-    uvScale: Vec2;
-    layer: number;
-    flipX: boolean;
-    flipY: boolean;
-    material: number;
-    enabled: boolean;
-}
-declare const ShapeType: {
-    readonly Circle: 0;
-    readonly Capsule: 1;
-    readonly RoundedRect: 2;
-};
-type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
-interface ShapeRendererData {
-    shapeType: number;
-    color: Color;
-    size: Vec2;
-    cornerRadius: number;
-    layer: number;
-    enabled: boolean;
-}
-interface CameraData {
-    projectionType: number;
-    fov: number;
-    orthoSize: number;
-    nearPlane: number;
-    farPlane: number;
-    aspectRatio: number;
-    isActive: boolean;
-    priority: number;
-    /** Editor-only: not synced to C++ Camera component, used for gizmo rendering */
-    showFrustum: boolean;
-    viewportX: number;
-    viewportY: number;
-    viewportW: number;
-    viewportH: number;
-    clearFlags: number;
-}
-interface CanvasData {
-    designResolution: Vec2;
-    pixelsPerUnit: number;
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: Color;
-}
-interface VelocityData {
-    linear: Vec3;
-    angular: Vec3;
-}
-interface ParentData {
-    entity: Entity;
-}
-interface ChildrenData {
-    entities: Entity[];
-}
-interface SpineAnimationData {
-    skeletonPath: string;
-    atlasPath: string;
-    skin: string;
-    animation: string;
-    timeScale: number;
-    loop: boolean;
-    playing: boolean;
-    flipX: boolean;
-    flipY: boolean;
-    color: Color;
-    layer: number;
-    skeletonScale: number;
-    material: number;
-    enabled: boolean;
-}
-interface BitmapTextData {
-    text: string;
-    color: Color;
-    fontSize: number;
-    align: number;
-    spacing: number;
-    layer: number;
-    font: number;
-    enabled: boolean;
-}
-interface NameData {
-    value: string;
-}
-interface SceneOwnerData {
-    scene: string;
-    persistent: boolean;
-}
-declare const Transform: BuiltinComponentDef<TransformData>;
-declare const LocalTransform: BuiltinComponentDef<TransformData>;
-declare const WorldTransform: BuiltinComponentDef<TransformData>;
-declare const Sprite: BuiltinComponentDef<SpriteData>;
-declare const ShapeRenderer: BuiltinComponentDef<ShapeRendererData>;
-declare const Camera: BuiltinComponentDef<CameraData>;
-declare const Canvas: BuiltinComponentDef<CanvasData>;
-declare const Velocity: BuiltinComponentDef<VelocityData>;
-declare const Parent: BuiltinComponentDef<ParentData>;
-declare const Children: BuiltinComponentDef<ChildrenData>;
-declare const BitmapText: BuiltinComponentDef<BitmapTextData>;
-declare const SpineAnimation: BuiltinComponentDef<SpineAnimationData>;
-declare const EmitterShape: {
-    readonly Point: 0;
-    readonly Circle: 1;
-    readonly Rectangle: 2;
-    readonly Cone: 3;
-};
-type EmitterShape = (typeof EmitterShape)[keyof typeof EmitterShape];
-declare const SimulationSpace: {
-    readonly World: 0;
-    readonly Local: 1;
-};
-type SimulationSpace = (typeof SimulationSpace)[keyof typeof SimulationSpace];
-declare const ParticleEasing: {
-    readonly Linear: 0;
-    readonly EaseIn: 1;
-    readonly EaseOut: 2;
-    readonly EaseInOut: 3;
-};
-type ParticleEasing = (typeof ParticleEasing)[keyof typeof ParticleEasing];
-interface ParticleEmitterData {
-    rate: number;
-    burstCount: number;
-    burstInterval: number;
-    duration: number;
-    looping: boolean;
-    playOnStart: boolean;
-    maxParticles: number;
-    lifetimeMin: number;
-    lifetimeMax: number;
-    shape: number;
-    shapeRadius: number;
-    shapeSize: Vec2;
-    shapeAngle: number;
-    speedMin: number;
-    speedMax: number;
-    angleSpreadMin: number;
-    angleSpreadMax: number;
-    startSizeMin: number;
-    startSizeMax: number;
-    endSizeMin: number;
-    endSizeMax: number;
-    sizeEasing: number;
-    startColor: Color;
-    endColor: Color;
-    colorEasing: number;
-    rotationMin: number;
-    rotationMax: number;
-    angularVelocityMin: number;
-    angularVelocityMax: number;
-    gravity: Vec2;
-    damping: number;
-    texture: number;
-    spriteColumns: number;
-    spriteRows: number;
-    spriteFPS: number;
-    spriteLoop: boolean;
-    blendMode: number;
-    layer: number;
-    material: number;
-    simulationSpace: number;
-    enabled: boolean;
-}
-declare const ParticleEmitter: BuiltinComponentDef<ParticleEmitterData>;
-declare const Name: ComponentDef<NameData>;
-declare const SceneOwner: ComponentDef<SceneOwnerData>;
-interface PostProcessVolumeData {
-    effects: {
-        type: string;
-        enabled: boolean;
-        uniforms: Record<string, number>;
-    }[];
-    isGlobal: boolean;
-    shape: 'box' | 'sphere';
-    size: {
-        x: number;
-        y: number;
-    };
-    priority: number;
-    weight: number;
-    blendDistance: number;
-}
-declare const PostProcessVolume: ComponentDef<PostProcessVolumeData>;
-
-type ComponentData$1<C> = C extends BuiltinComponentDef<infer T> ? T : C extends ComponentDef<infer T> ? T : never;
-declare function getComponentDefaults(typeName: string): Record<string, unknown> | null;
-
-/**
- * @file    resource.ts
- * @brief   Resource system for global singleton data
- */
-interface ResourceDef<T> {
-    readonly _id: symbol;
-    readonly _name: string;
-    readonly _default: T;
-}
-declare function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T>;
-interface ResDescriptor<T> {
-    readonly _type: 'res';
-    readonly _resource: ResourceDef<T>;
-}
-interface ResMutDescriptor<T> {
-    readonly _type: 'res_mut';
-    readonly _resource: ResourceDef<T>;
-}
-declare function Res<T>(resource: ResourceDef<T>): ResDescriptor<T>;
-declare function ResMut<T>(resource: ResourceDef<T>): ResMutDescriptor<T>;
-declare class ResMutInstance<T> {
-    private value_;
-    private readonly setter_;
-    constructor(value: T, setter: (v: T) => void);
-    get(): T;
-    set(value: T): void;
-    modify(fn: (value: T) => void): void;
-    /** @internal */
-    updateValue(value: T): void;
-}
-declare class ResourceStorage {
-    private resources_;
-    private resMutPool_;
-    private ticks_;
-    private globalTick_;
-    private nameRegistry_;
-    insert<T>(resource: ResourceDef<T>, value: T): void;
-    get<T>(resource: ResourceDef<T>): T;
-    set<T>(resource: ResourceDef<T>, value: T): void;
-    has<T>(resource: ResourceDef<T>): boolean;
-    remove<T>(resource: ResourceDef<T>): void;
-    getChangeTick(resource: ResourceDef<unknown>): number;
-    getByName(name: string): ResourceDef<unknown> | undefined;
-    getRegisteredNames(): string[];
-    getResMut<T>(resource: ResourceDef<T>): ResMutInstance<T>;
-}
-interface TimeData {
-    delta: number;
-    elapsed: number;
-    frameCount: number;
-}
-declare const Time: ResourceDef<TimeData>;
-
-/**
- * @file    world.ts
- * @brief   ECS World with C++ Registry integration
- */
-
-declare class World {
-    private cppRegistry_;
-    private module_;
-    private entities_;
-    private tsStorage_;
-    private entityComponents_;
-    private builtinEntitySets_;
-    private worldVersion_;
-    private queryCache_;
-    private builtinMethodCache_;
-    private iterationDepth_;
-    private nextEntityId_;
-    private nextGeneration_;
-    private spawnCallbacks_;
-    private despawnCallbacks_;
-    private nameIndex_;
-    private worldTick_;
-    private componentAddedTicks_;
-    private componentChangedTicks_;
-    private componentRemovedBuffer_;
-    private trackedComponents_;
-    connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void;
-    disconnectCpp(): void;
-    get hasCpp(): boolean;
-    getCppRegistry(): CppRegistry | null;
-    /** @internal */
-    getWasmModule(): ESEngineModule | null;
-    spawn(name?: string): Entity;
-    despawn(entity: Entity): void;
-    onSpawn(callback: (entity: Entity) => void): () => void;
-    onDespawn(callback: (entity: Entity) => void): () => void;
-    valid(entity: Entity): boolean;
-    entityCount(): number;
-    getWorldVersion(): number;
-    beginIteration(): void;
-    endIteration(): void;
-    resetIterationDepth(): void;
-    isIterating(): boolean;
-    getAllEntities(): Entity[];
-    setParent(child: Entity, parent: Entity): void;
-    removeParent(entity: Entity): void;
-    insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData$1<C>>): ComponentData$1<C>;
-    set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData$1<C>): void;
-    get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData$1<C>;
-    has(entity: Entity, component: AnyComponentDef): boolean;
-    tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData$1<C> | null;
-    remove(entity: Entity, component: AnyComponentDef): void;
-    private getBuiltinMethods;
-    private insertBuiltin;
-    private getBuiltin;
-    private hasBuiltin;
-    private removeBuiltin;
-    private insertScript;
-    private getScript;
-    private hasScript;
-    private removeScript;
-    private updateNameIndex_;
-    private removeNameIndex_;
-    findEntityByName(name: string): Entity | null;
-    private getStorage;
-    /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
-    resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null;
-    /** @internal Pre-resolve a component to a direct has-check for fast query matching. */
-    resolveHas(component: AnyComponentDef): ((entity: Entity) => boolean) | null;
-    /** @internal Pre-resolve a component to a direct setter for fast Mut write-back. */
-    resolveSetter(component: AnyComponentDef): ((entity: Entity, data: unknown) => void) | null;
-    private resolvePtrFn_;
-    private resolvePtrSetter_;
-    private resolvePtrGetter_;
-    resetQueryPool(): void;
-    getComponentTypes(entity: Entity): string[];
-    private resolveStorages_;
-    getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string): Entity[];
-    advanceTick(): void;
-    getWorldTick(): number;
-    enableChangeTracking(component: AnyComponentDef): void;
-    isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
-    isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
-    getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[];
-    cleanRemovedBuffer(beforeTick: number): void;
-    private recordAddedTick_;
-    /** @internal Mark component as changed without writing data (for in-place Mut query) */
-    markChanged(entity: Entity, component: AnyComponentDef): void;
-    private recordChangedTick_;
-    private recordRemovedTick_;
-}
-
-/**
- * @file    query.ts
- * @brief   Component query system with mutable component support
- */
-
-interface MutWrapper<T extends AnyComponentDef> {
-    readonly _type: 'mut';
-    readonly _component: T;
-}
-declare function Mut<T extends AnyComponentDef>(component: T): MutWrapper<T>;
-interface AddedWrapper<T extends AnyComponentDef> {
-    readonly _filterType: 'added';
-    readonly _component: T;
-}
-interface ChangedWrapper<T extends AnyComponentDef> {
-    readonly _filterType: 'changed';
-    readonly _component: T;
-}
-declare function Added<T extends AnyComponentDef>(component: T): AddedWrapper<T>;
-declare function Changed<T extends AnyComponentDef>(component: T): ChangedWrapper<T>;
-type QueryArg$1 = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
-interface QueryDescriptor<C extends readonly QueryArg$1[]> {
-    readonly _type: 'query';
-    readonly _components: C;
-    readonly _mutIndices: number[];
-    readonly _with: AnyComponentDef[];
-    readonly _without: AnyComponentDef[];
-    readonly _addedFilters: Array<{
-        index: number;
-        component: AnyComponentDef;
-    }>;
-    readonly _changedFilters: Array<{
-        index: number;
-        component: AnyComponentDef;
-    }>;
-}
-interface QueryBuilder<C extends readonly QueryArg$1[]> extends QueryDescriptor<C> {
-    with(...components: AnyComponentDef[]): QueryBuilder<C>;
-    without(...components: AnyComponentDef[]): QueryBuilder<C>;
-}
-declare function Query<C extends QueryArg$1[]>(...components: C): QueryBuilder<C>;
-type UnwrapQueryArg<T> = T extends MutWrapper<infer C> ? C : T extends AddedWrapper<infer C> ? C : T extends ChangedWrapper<infer C> ? C : T;
-type ComponentsData<C extends readonly QueryArg$1[]> = {
-    [K in keyof C]: ComponentData$1<UnwrapQueryArg<C[K]>>;
-};
-type QueryResult<C extends readonly QueryArg$1[]> = [
-    Entity,
-    ...ComponentsData<C>
-];
-declare class QueryInstance<C extends readonly QueryArg$1[]> implements Iterable<QueryResult<C>> {
-    private readonly world_;
-    private readonly descriptor_;
-    private readonly actualComponents_;
-    private readonly allRequired_;
-    private readonly result_;
-    private readonly mutData_;
-    private readonly cacheKey_;
-    private lastRunTick_;
-    private readonly getters_;
-    private readonly mutSetters_;
-    private readonly mutIsBuiltin_;
-    constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick?: number);
-    /** @internal Update lastRunTick for reuse across system runs */
-    resetTick(tick: number): void;
-    private passesChangeFilters_;
-    [Symbol.iterator](): Iterator<QueryResult<C>>;
-    forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void;
-    single(): QueryResult<C> | null;
-    isEmpty(): boolean;
-    count(): number;
-    toArray(): QueryResult<C>[];
-}
-interface RemovedQueryDescriptor<T extends AnyComponentDef> {
-    readonly _type: 'removed';
-    readonly _component: T;
-}
-declare function Removed<T extends AnyComponentDef>(component: T): RemovedQueryDescriptor<T>;
-declare class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
-    private readonly world_;
-    private readonly component_;
-    private lastRunTick_;
-    constructor(world: World, component: T, lastRunTick: number);
-    /** @internal Update lastRunTick for reuse across system runs */
-    resetTick(tick: number): void;
-    [Symbol.iterator](): Iterator<Entity>;
-    isEmpty(): boolean;
-    toArray(): Entity[];
-}
-
-/**
- * @file    commands.ts
- * @brief   Deferred entity/component operations
- */
-
-interface CommandsDescriptor {
-    readonly _type: 'commands';
-}
-declare function Commands(): CommandsDescriptor;
-interface SpawnComponentEntry {
-    component: AnyComponentDef;
-    data: unknown;
-}
-declare class EntityCommands {
-    private readonly commands_;
-    private readonly entityRef_;
-    private readonly components_;
-    private isNew_;
-    constructor(commands: CommandsInstance, entity: Entity | null, name?: string);
-    insert<T extends object>(component: AnyComponentDef, data?: Partial<T>): this;
-    remove(component: AnyComponentDef): this;
-    id(): Entity;
-    finalize(): void;
-}
-declare class CommandsInstance {
-    private readonly world_;
-    private readonly resources_;
-    private pending_;
-    private spawned_;
-    constructor(world: World, resources: ResourceStorage);
-    spawn(name?: string): EntityCommands;
-    entity(entity: Entity): EntityCommands;
-    despawn(entity: Entity): this;
-    insertResource<T>(resource: ResourceDef<T>, value: T): this;
-    queueInsert(entity: Entity, component: AnyComponentDef, data: unknown): void;
-    queueRemove(entity: Entity, component: AnyComponentDef): void;
-    spawnImmediate(components: SpawnComponentEntry[], entityRef: {
-        entity: Entity;
-    }): void;
-    flush(): void;
-    private executeCommand;
-}
-
-/**
- * @file    event.ts
- * @brief   Event system with double-buffered event buses
- */
-interface EventDef<T> {
-    readonly _id: symbol;
-    readonly _name: string;
-    readonly _phantom?: T;
-}
-declare function defineEvent<T>(name: string): EventDef<T>;
-declare class EventBus<T> {
-    private readBuffer_;
-    private writeBuffer_;
-    send(event: T): void;
-    getReadBuffer(): readonly T[];
-    swap(): void;
-}
-declare class EventRegistry {
-    private readonly buses_;
-    register<T>(event: EventDef<T>): void;
-    getBus<T>(event: EventDef<T>): EventBus<T>;
-    swapAll(): void;
-}
-interface EventWriterDescriptor<T> {
-    readonly _type: 'event_writer';
-    readonly _event: EventDef<T>;
-}
-interface EventReaderDescriptor<T> {
-    readonly _type: 'event_reader';
-    readonly _event: EventDef<T>;
-}
-declare function EventWriter<T>(event: EventDef<T>): EventWriterDescriptor<T>;
-declare function EventReader<T>(event: EventDef<T>): EventReaderDescriptor<T>;
-declare class EventWriterInstance<T> {
-    private readonly bus_;
-    constructor(bus: EventBus<T>);
-    send(event: T): void;
-}
-declare class EventReaderInstance<T> implements Iterable<T> {
-    private readonly bus_;
-    constructor(bus: EventBus<T>);
-    [Symbol.iterator](): Iterator<T>;
-    isEmpty(): boolean;
-    toArray(): T[];
-}
-
-/**
- * @file    system.ts
- * @brief   System definition and scheduling
- */
-
-declare enum Schedule {
-    Startup = 0,
-    First = 1,
-    PreUpdate = 2,
-    Update = 3,
-    PostUpdate = 4,
-    Last = 5,
-    FixedPreUpdate = 10,
-    FixedUpdate = 11,
-    FixedPostUpdate = 12
-}
-interface GetWorldDescriptor {
-    readonly _type: 'get_world';
-}
-declare function GetWorld(): GetWorldDescriptor;
-type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
-type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor | EventWriterDescriptor<unknown> | EventReaderDescriptor<unknown> | RemovedQueryDescriptor<AnyComponentDef> | GetWorldDescriptor;
-type InferParam<P> = P extends QueryDescriptor<infer C> ? QueryInstance<C> : P extends ResDescriptor<infer T> ? T : P extends ResMutDescriptor<infer T> ? ResMutInstance<T> : P extends CommandsDescriptor ? CommandsInstance : P extends EventWriterDescriptor<infer T> ? EventWriterInstance<T> : P extends EventReaderDescriptor<infer T> ? EventReaderInstance<T> : P extends RemovedQueryDescriptor<infer _T> ? RemovedQueryInstance<_T> : P extends GetWorldDescriptor ? World : never;
-type InferParams<P extends readonly SystemParam[]> = {
-    [K in keyof P]: InferParam<P[K]>;
-};
-interface SystemDef {
-    readonly _id: symbol;
-    readonly _params: readonly SystemParam[];
-    readonly _fn: (...args: never[]) => void | Promise<void>;
-    readonly _name: string;
-}
-interface SystemOptions {
-    name?: string;
-    runBefore?: string[];
-    runAfter?: string[];
-}
-declare function defineSystem<P extends readonly SystemParam[]>(params: [...P], fn: (...args: InferParams<P>) => void | Promise<void>, options?: SystemOptions): SystemDef;
-declare function addSystem(system: SystemDef): void;
-declare function addStartupSystem(system: SystemDef): void;
-declare function addSystemToSchedule(schedule: Schedule, system: SystemDef): void;
-declare class SystemRunner {
-    private readonly world_;
-    private readonly resources_;
-    private readonly eventRegistry_;
-    private readonly argsCache_;
-    private readonly systemTicks_;
-    private readonly queryCache_;
-    private readonly removedCache_;
-    private currentLastRunTick_;
-    private timings_;
-    constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry);
-    setTimingEnabled(enabled: boolean): void;
-    getTimings(): ReadonlyMap<string, number> | null;
-    run(system: SystemDef): void | Promise<void>;
-    private flushSystem_;
-    private resolveParam;
-}
-
-/**
- * @file    renderPipeline.ts
- * @brief   Unified render pipeline for runtime and editor
- */
-
-interface Viewport {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-}
-interface RenderParams {
-    registry: {
-        _cpp: CppRegistry;
-    };
-    viewProjection: Float32Array;
-    width: number;
-    height: number;
-    elapsed: number;
-}
-interface CameraRenderParams {
-    registry: {
-        _cpp: CppRegistry;
-    };
-    viewProjection: Float32Array;
-    viewportPixels: Viewport;
-    clearFlags: number;
-    elapsed: number;
-    cameraEntity?: Entity;
-}
-declare class RenderPipeline {
-    private lastWidth_;
-    private lastHeight_;
-    private activeScenes_;
-    private preFlushCallbacks_;
-    setActiveScenes(scenes: Set<string> | null): void;
-    addPreFlushCallback(cb: (registry: {
-        _cpp: CppRegistry;
-    }) => void): void;
-    beginFrame(): void;
-    beginScreenCapture(): void;
-    endScreenCapture(): void;
-    submitScene(registry: {
-        _cpp: CppRegistry;
-    }, viewProjection: Float32Array, viewport: Viewport, _elapsed: number): void;
-    render(params: RenderParams): void;
-    renderCamera(params: CameraRenderParams): void;
-    private executeDrawCallbacks;
-}
+import { T as TextureHandle, F as FontHandle, b as CppResourceManager, a as ESEngineModule, V as Vec2, E as Entity, C as CppRegistry, c as Vec3, d as Vec4, e as Color, Q as Quat } from './wasm.js';
 
 interface Backend {
     fetchBinary(path: string): Promise<ArrayBuffer>;
@@ -1104,6 +418,99 @@ declare class Assets {
 }
 
 /**
+ * @file    world.ts
+ * @brief   ECS World with C++ Registry integration
+ */
+
+declare class World {
+    private cppRegistry_;
+    private module_;
+    private entities_;
+    private tsStorage_;
+    private entityComponents_;
+    private builtinEntitySets_;
+    private worldVersion_;
+    private queryCache_;
+    private builtinMethodCache_;
+    private iterationDepth_;
+    private nextEntityId_;
+    private nextGeneration_;
+    private spawnCallbacks_;
+    private despawnCallbacks_;
+    private nameIndex_;
+    private entityToName_;
+    private worldTick_;
+    private componentAddedTicks_;
+    private componentChangedTicks_;
+    private componentRemovedBuffer_;
+    private trackedComponents_;
+    connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void;
+    disconnectCpp(): void;
+    get hasCpp(): boolean;
+    getCppRegistry(): CppRegistry | null;
+    /** @internal */
+    getWasmModule(): ESEngineModule | null;
+    spawn(name?: string): Entity;
+    despawn(entity: Entity): void;
+    onSpawn(callback: (entity: Entity) => void): () => void;
+    onDespawn(callback: (entity: Entity) => void): () => void;
+    valid(entity: Entity): boolean;
+    entityCount(): number;
+    getWorldVersion(): number;
+    beginIteration(): void;
+    endIteration(): void;
+    resetIterationDepth(): void;
+    isIterating(): boolean;
+    getAllEntities(): Entity[];
+    setParent(child: Entity, parent: Entity): void;
+    removeParent(entity: Entity): void;
+    insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): ComponentData<C>;
+    set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void;
+    get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C>;
+    has(entity: Entity, component: AnyComponentDef): boolean;
+    tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null;
+    remove(entity: Entity, component: AnyComponentDef): void;
+    private getBuiltinMethods;
+    private insertBuiltin;
+    private getBuiltin;
+    private hasBuiltin;
+    private removeBuiltin;
+    private insertScript;
+    private getScript;
+    private hasScript;
+    private removeScript;
+    private updateNameIndex_;
+    private removeNameIndex_;
+    findEntityByName(name: string): Entity | null;
+    private getStorage;
+    /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
+    resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null;
+    /** @internal Pre-resolve a component to a direct has-check for fast query matching. */
+    resolveHas(component: AnyComponentDef): ((entity: Entity) => boolean) | null;
+    /** @internal Pre-resolve a component to a direct setter for fast Mut write-back. */
+    resolveSetter(component: AnyComponentDef): ((entity: Entity, data: unknown) => void) | null;
+    private resolvePtrFn_;
+    private resolvePtrSetter_;
+    private resolvePtrGetter_;
+    resetQueryPool(): void;
+    getComponentTypes(entity: Entity): string[];
+    private resolveStorages_;
+    getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string): Entity[];
+    advanceTick(): void;
+    getWorldTick(): number;
+    enableChangeTracking(component: AnyComponentDef): void;
+    isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[];
+    cleanRemovedBuffer(beforeTick: number): void;
+    private recordAddedTick_;
+    /** @internal Mark component as changed without writing data (for in-place Mut query) */
+    markChanged(entity: Entity, component: AnyComponentDef): void;
+    private recordChangedTick_;
+    private recordRemovedTick_;
+}
+
+/**
  * @file    blend.ts
  * @brief   Blend mode definitions for rendering
  */
@@ -1300,7 +707,7 @@ declare class MaterialLoader {
     private resolveShaderPath;
 }
 
-interface ComponentData {
+interface ComponentData$1 {
     type: string;
     data: Record<string, unknown>;
 }
@@ -1317,7 +724,7 @@ interface PrefabEntityData {
     name: string;
     parent: number | null;
     children: number[];
-    components: ComponentData[];
+    components: ComponentData$1[];
     visible: boolean;
     nestedPrefab?: NestedPrefabRef;
 }
@@ -1331,7 +738,7 @@ interface PrefabOverride {
     componentType?: string;
     propertyName?: string;
     value?: unknown;
-    componentData?: ComponentData;
+    componentData?: ComponentData$1;
 }
 interface ProcessedEntity {
     id: number;
@@ -1339,7 +746,7 @@ interface ProcessedEntity {
     name: string;
     parent: number | null;
     children: number[];
-    components: ComponentData[];
+    components: ComponentData$1[];
     visible: boolean;
 }
 interface FlattenContext {
@@ -1605,19 +1012,6 @@ interface SceneLoadOptions {
     collectAssets?: LoadedSceneAssets;
 }
 type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'timeline';
-interface AssetFieldDescriptor {
-    field: string;
-    type: AssetFieldType;
-}
-interface SpineFieldDescriptor {
-    skeletonField: string;
-    atlasField: string;
-}
-interface ComponentAssetFields {
-    fields?: AssetFieldDescriptor[];
-    spine?: SpineFieldDescriptor;
-}
-declare function registerComponentAssetFields(componentType: string, config: ComponentAssetFields): void;
 declare function getComponentAssetFields(componentType: string): string[];
 declare function getComponentAssetFieldDescriptors(componentType: string): readonly {
     field: string;
@@ -1633,6 +1027,635 @@ declare function loadSceneWithAssets(world: World, sceneData: SceneData, options
 declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void;
 declare function updateCameraAspectRatio(world: World, aspectRatio: number): void;
 declare function findEntityByName(world: World, name: string): Entity | null;
+
+/**
+ * @file    component.generated.ts
+ * @brief   Auto-generated component metadata
+ * @details Generated by EHT - DO NOT EDIT
+ */
+
+interface AssetFieldMeta {
+    field: string;
+    type: AssetFieldType;
+}
+interface SpineFieldMeta {
+    skeletonField: string;
+    atlasField: string;
+}
+
+/**
+ * @file    component.ts
+ * @brief   Component definition and builtin components
+ */
+
+interface AssetRef {
+    type: string;
+    path: string;
+}
+interface ComponentMetadata {
+    assetFields?: AssetFieldMeta[];
+    spineFields?: SpineFieldMeta;
+    entityFields?: string[];
+    discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
+}
+interface ComponentDef<T> {
+    readonly _id: symbol;
+    readonly _name: string;
+    readonly _default: T;
+    readonly _builtin: false;
+    readonly assetFields: readonly AssetFieldMeta[];
+    readonly spineFields?: SpineFieldMeta;
+    readonly entityFields: readonly string[];
+    readonly colorKeys: readonly string[];
+    readonly animatableFields: readonly string[];
+    readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
+    create(data?: Partial<T>): T;
+}
+declare function defineComponent<T extends object>(name: string, defaults: T, metadata?: ComponentMetadata): ComponentDef<T>;
+declare function defineTag(name: string): ComponentDef<{}>;
+declare function getUserComponent(name: string): ComponentDef<any> | undefined;
+declare function clearUserComponents(): void;
+declare function unregisterComponent(name: string): void;
+interface BuiltinComponentDef<T> {
+    readonly _id: symbol;
+    readonly _name: string;
+    readonly _cppName: string;
+    readonly _builtin: true;
+    readonly _default: T;
+    readonly assetFields: readonly AssetFieldMeta[];
+    readonly spineFields?: SpineFieldMeta;
+    readonly entityFields: readonly string[];
+    readonly colorKeys: readonly string[];
+    readonly animatableFields: readonly string[];
+    readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
+}
+type AnyComponentDef = ComponentDef<any> | BuiltinComponentDef<any>;
+declare function isBuiltinComponent(comp: AnyComponentDef): comp is BuiltinComponentDef<any>;
+declare function registerComponent(name: string, def: AnyComponentDef): void;
+declare function getComponent(name: string): AnyComponentDef | undefined;
+declare const ProjectionType: {
+    readonly Perspective: 0;
+    readonly Orthographic: 1;
+};
+type ProjectionType = (typeof ProjectionType)[keyof typeof ProjectionType];
+declare const ClearFlags: {
+    readonly None: 0;
+    readonly ColorOnly: 1;
+    readonly DepthOnly: 2;
+    readonly ColorAndDepth: 3;
+};
+type ClearFlags = (typeof ClearFlags)[keyof typeof ClearFlags];
+declare const ScaleMode: {
+    readonly FixedWidth: 0;
+    readonly FixedHeight: 1;
+    readonly Expand: 2;
+    readonly Shrink: 3;
+    readonly Match: 4;
+};
+type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
+interface TransformData {
+    position: Vec3;
+    rotation: Quat;
+    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
+}
+type LocalTransformData = TransformData;
+type WorldTransformData = TransformData;
+interface SpriteData {
+    texture: number;
+    color: Color;
+    size: Vec2;
+    pivot: Vec2;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    layer: number;
+    flipX: boolean;
+    flipY: boolean;
+    material: number;
+    enabled: boolean;
+}
+declare const ShapeType: {
+    readonly Circle: 0;
+    readonly Capsule: 1;
+    readonly RoundedRect: 2;
+};
+type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
+interface ShapeRendererData {
+    shapeType: number;
+    color: Color;
+    size: Vec2;
+    cornerRadius: number;
+    layer: number;
+    enabled: boolean;
+}
+interface CameraData {
+    projectionType: number;
+    fov: number;
+    orthoSize: number;
+    nearPlane: number;
+    farPlane: number;
+    aspectRatio: number;
+    isActive: boolean;
+    priority: number;
+    /** Editor-only: not synced to C++ Camera component, used for gizmo rendering */
+    showFrustum: boolean;
+    viewportX: number;
+    viewportY: number;
+    viewportW: number;
+    viewportH: number;
+    clearFlags: number;
+}
+interface CanvasData {
+    designResolution: Vec2;
+    pixelsPerUnit: number;
+    scaleMode: number;
+    matchWidthOrHeight: number;
+    backgroundColor: Color;
+}
+interface VelocityData {
+    linear: Vec3;
+    angular: Vec3;
+}
+interface ParentData {
+    entity: Entity;
+}
+interface ChildrenData {
+    entities: Entity[];
+}
+interface SpineAnimationData {
+    skeletonPath: string;
+    atlasPath: string;
+    skin: string;
+    animation: string;
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    flipX: boolean;
+    flipY: boolean;
+    color: Color;
+    layer: number;
+    skeletonScale: number;
+    material: number;
+    enabled: boolean;
+}
+interface BitmapTextData {
+    text: string;
+    color: Color;
+    fontSize: number;
+    align: number;
+    spacing: number;
+    layer: number;
+    font: number;
+    enabled: boolean;
+}
+interface NameData {
+    value: string;
+}
+interface SceneOwnerData {
+    scene: string;
+    persistent: boolean;
+}
+declare const Transform: BuiltinComponentDef<TransformData>;
+declare const LocalTransform: BuiltinComponentDef<TransformData>;
+declare const WorldTransform: BuiltinComponentDef<TransformData>;
+declare const Sprite: BuiltinComponentDef<SpriteData>;
+declare const ShapeRenderer: BuiltinComponentDef<ShapeRendererData>;
+declare const Camera: BuiltinComponentDef<CameraData>;
+declare const Canvas: BuiltinComponentDef<CanvasData>;
+declare const Velocity: BuiltinComponentDef<VelocityData>;
+declare const Parent: BuiltinComponentDef<ParentData>;
+declare const Children: BuiltinComponentDef<ChildrenData>;
+declare const BitmapText: BuiltinComponentDef<BitmapTextData>;
+declare const SpineAnimation: BuiltinComponentDef<SpineAnimationData>;
+declare const EmitterShape: {
+    readonly Point: 0;
+    readonly Circle: 1;
+    readonly Rectangle: 2;
+    readonly Cone: 3;
+};
+type EmitterShape = (typeof EmitterShape)[keyof typeof EmitterShape];
+declare const SimulationSpace: {
+    readonly World: 0;
+    readonly Local: 1;
+};
+type SimulationSpace = (typeof SimulationSpace)[keyof typeof SimulationSpace];
+declare const ParticleEasing: {
+    readonly Linear: 0;
+    readonly EaseIn: 1;
+    readonly EaseOut: 2;
+    readonly EaseInOut: 3;
+};
+type ParticleEasing = (typeof ParticleEasing)[keyof typeof ParticleEasing];
+interface ParticleEmitterData {
+    rate: number;
+    burstCount: number;
+    burstInterval: number;
+    duration: number;
+    looping: boolean;
+    playOnStart: boolean;
+    maxParticles: number;
+    lifetimeMin: number;
+    lifetimeMax: number;
+    shape: number;
+    shapeRadius: number;
+    shapeSize: Vec2;
+    shapeAngle: number;
+    speedMin: number;
+    speedMax: number;
+    angleSpreadMin: number;
+    angleSpreadMax: number;
+    startSizeMin: number;
+    startSizeMax: number;
+    endSizeMin: number;
+    endSizeMax: number;
+    sizeEasing: number;
+    startColor: Color;
+    endColor: Color;
+    colorEasing: number;
+    rotationMin: number;
+    rotationMax: number;
+    angularVelocityMin: number;
+    angularVelocityMax: number;
+    gravity: Vec2;
+    damping: number;
+    texture: number;
+    spriteColumns: number;
+    spriteRows: number;
+    spriteFPS: number;
+    spriteLoop: boolean;
+    blendMode: number;
+    layer: number;
+    material: number;
+    simulationSpace: number;
+    enabled: boolean;
+}
+declare const ParticleEmitter: BuiltinComponentDef<ParticleEmitterData>;
+declare const Disabled: ComponentDef<{}>;
+declare const Name: ComponentDef<NameData>;
+declare const SceneOwner: ComponentDef<SceneOwnerData>;
+interface PostProcessVolumeData {
+    effects: {
+        type: string;
+        enabled: boolean;
+        uniforms: Record<string, number>;
+    }[];
+    isGlobal: boolean;
+    shape: 'box' | 'sphere';
+    size: {
+        x: number;
+        y: number;
+    };
+    priority: number;
+    weight: number;
+    blendDistance: number;
+}
+declare const PostProcessVolume: ComponentDef<PostProcessVolumeData>;
+
+type ComponentData<C> = C extends BuiltinComponentDef<infer T> ? T : C extends ComponentDef<infer T> ? T : never;
+declare function getComponentDefaults(typeName: string): Record<string, unknown> | null;
+
+/**
+ * @file    resource.ts
+ * @brief   Resource system for global singleton data
+ */
+interface ResourceDef<T> {
+    readonly _id: symbol;
+    readonly _name: string;
+    readonly _default: T;
+}
+declare function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T>;
+interface ResDescriptor<T> {
+    readonly _type: 'res';
+    readonly _resource: ResourceDef<T>;
+}
+interface ResMutDescriptor<T> {
+    readonly _type: 'res_mut';
+    readonly _resource: ResourceDef<T>;
+}
+declare function Res<T>(resource: ResourceDef<T>): ResDescriptor<T>;
+declare function ResMut<T>(resource: ResourceDef<T>): ResMutDescriptor<T>;
+declare class ResMutInstance<T> {
+    private value_;
+    private readonly setter_;
+    constructor(value: T, setter: (v: T) => void);
+    get(): T;
+    set(value: T): void;
+    modify(fn: (value: T) => void): void;
+    /** @internal */
+    updateValue(value: T): void;
+}
+declare class ResourceStorage {
+    private resources_;
+    private resMutPool_;
+    private ticks_;
+    private globalTick_;
+    private nameRegistry_;
+    insert<T>(resource: ResourceDef<T>, value: T): void;
+    get<T>(resource: ResourceDef<T>): T;
+    set<T>(resource: ResourceDef<T>, value: T): void;
+    has<T>(resource: ResourceDef<T>): boolean;
+    remove<T>(resource: ResourceDef<T>): void;
+    getChangeTick(resource: ResourceDef<unknown>): number;
+    getByName(name: string): ResourceDef<unknown> | undefined;
+    getRegisteredNames(): string[];
+    getResMut<T>(resource: ResourceDef<T>): ResMutInstance<T>;
+}
+interface TimeData {
+    delta: number;
+    elapsed: number;
+    frameCount: number;
+}
+declare const Time: ResourceDef<TimeData>;
+
+/**
+ * @file    query.ts
+ * @brief   Component query system with mutable component support
+ */
+
+interface MutWrapper<T extends AnyComponentDef> {
+    readonly _type: 'mut';
+    readonly _component: T;
+}
+declare function Mut<T extends AnyComponentDef>(component: T): MutWrapper<T>;
+interface AddedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'added';
+    readonly _component: T;
+}
+interface ChangedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'changed';
+    readonly _component: T;
+}
+declare function Added<T extends AnyComponentDef>(component: T): AddedWrapper<T>;
+declare function Changed<T extends AnyComponentDef>(component: T): ChangedWrapper<T>;
+type QueryArg$1 = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
+interface QueryDescriptor<C extends readonly QueryArg$1[]> {
+    readonly _type: 'query';
+    readonly _components: C;
+    readonly _mutIndices: number[];
+    readonly _with: AnyComponentDef[];
+    readonly _without: AnyComponentDef[];
+    readonly _addedFilters: Array<{
+        index: number;
+        component: AnyComponentDef;
+    }>;
+    readonly _changedFilters: Array<{
+        index: number;
+        component: AnyComponentDef;
+    }>;
+}
+interface QueryBuilder<C extends readonly QueryArg$1[]> extends QueryDescriptor<C> {
+    with(...components: AnyComponentDef[]): QueryBuilder<C>;
+    without(...components: AnyComponentDef[]): QueryBuilder<C>;
+}
+declare function Query<C extends QueryArg$1[]>(...components: C): QueryBuilder<C>;
+type UnwrapQueryArg<T> = T extends MutWrapper<infer C> ? C : T extends AddedWrapper<infer C> ? C : T extends ChangedWrapper<infer C> ? C : T;
+type ComponentsData<C extends readonly QueryArg$1[]> = {
+    [K in keyof C]: ComponentData<UnwrapQueryArg<C[K]>>;
+};
+type QueryResult<C extends readonly QueryArg$1[]> = [
+    Entity,
+    ...ComponentsData<C>
+];
+declare class QueryInstance<C extends readonly QueryArg$1[]> implements Iterable<QueryResult<C>> {
+    private readonly world_;
+    private readonly descriptor_;
+    private readonly actualComponents_;
+    private readonly allRequired_;
+    private readonly result_;
+    private readonly mutData_;
+    private readonly cacheKey_;
+    private lastRunTick_;
+    private readonly getters_;
+    private readonly mutSetters_;
+    private readonly mutIsBuiltin_;
+    constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick?: number);
+    /** @internal Update lastRunTick for reuse across system runs */
+    resetTick(tick: number): void;
+    private passesChangeFilters_;
+    [Symbol.iterator](): Iterator<QueryResult<C>>;
+    forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void;
+    single(): QueryResult<C> | null;
+    isEmpty(): boolean;
+    count(): number;
+    toArray(): QueryResult<C>[];
+}
+interface RemovedQueryDescriptor<T extends AnyComponentDef> {
+    readonly _type: 'removed';
+    readonly _component: T;
+}
+declare function Removed<T extends AnyComponentDef>(component: T): RemovedQueryDescriptor<T>;
+declare class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
+    private readonly world_;
+    private readonly component_;
+    private lastRunTick_;
+    constructor(world: World, component: T, lastRunTick: number);
+    /** @internal Update lastRunTick for reuse across system runs */
+    resetTick(tick: number): void;
+    [Symbol.iterator](): Iterator<Entity>;
+    isEmpty(): boolean;
+    toArray(): Entity[];
+}
+
+/**
+ * @file    commands.ts
+ * @brief   Deferred entity/component operations
+ */
+
+interface CommandsDescriptor {
+    readonly _type: 'commands';
+}
+declare function Commands(): CommandsDescriptor;
+interface SpawnComponentEntry {
+    component: AnyComponentDef;
+    data: unknown;
+}
+declare class EntityCommands {
+    private readonly commands_;
+    private readonly entityRef_;
+    private readonly components_;
+    private readonly spawnName_?;
+    private isNew_;
+    constructor(commands: CommandsInstance, entity: Entity | null, name?: string);
+    insert<T extends object>(component: AnyComponentDef, data?: Partial<T>): this;
+    remove(component: AnyComponentDef): this;
+    id(): Entity;
+    finalize(): void;
+}
+declare class CommandsInstance {
+    private readonly world_;
+    private readonly resources_;
+    private pending_;
+    private spawned_;
+    constructor(world: World, resources: ResourceStorage);
+    spawn(name?: string): EntityCommands;
+    entity(entity: Entity): EntityCommands;
+    despawn(entity: Entity): this;
+    insertResource<T>(resource: ResourceDef<T>, value: T): this;
+    queueInsert(entity: Entity, component: AnyComponentDef, data: unknown): void;
+    queueRemove(entity: Entity, component: AnyComponentDef): void;
+    spawnImmediate(components: SpawnComponentEntry[], entityRef: {
+        entity: Entity;
+    }, name?: string): void;
+    flush(): void;
+    private executeCommand;
+}
+
+/**
+ * @file    event.ts
+ * @brief   Event system with double-buffered event buses
+ */
+interface EventDef<T> {
+    readonly _id: symbol;
+    readonly _name: string;
+    readonly _phantom?: T;
+}
+declare function defineEvent<T>(name: string): EventDef<T>;
+declare class EventBus<T> {
+    private readBuffer_;
+    private writeBuffer_;
+    send(event: T): void;
+    getReadBuffer(): readonly T[];
+    swap(): void;
+}
+declare class EventRegistry {
+    private readonly buses_;
+    register<T>(event: EventDef<T>): void;
+    getBus<T>(event: EventDef<T>): EventBus<T>;
+    swapAll(): void;
+}
+interface EventWriterDescriptor<T> {
+    readonly _type: 'event_writer';
+    readonly _event: EventDef<T>;
+}
+interface EventReaderDescriptor<T> {
+    readonly _type: 'event_reader';
+    readonly _event: EventDef<T>;
+}
+declare function EventWriter<T>(event: EventDef<T>): EventWriterDescriptor<T>;
+declare function EventReader<T>(event: EventDef<T>): EventReaderDescriptor<T>;
+declare class EventWriterInstance<T> {
+    private readonly bus_;
+    constructor(bus: EventBus<T>);
+    send(event: T): void;
+}
+declare class EventReaderInstance<T> implements Iterable<T> {
+    private readonly bus_;
+    constructor(bus: EventBus<T>);
+    [Symbol.iterator](): Iterator<T>;
+    isEmpty(): boolean;
+    toArray(): T[];
+}
+
+/**
+ * @file    system.ts
+ * @brief   System definition and scheduling
+ */
+
+declare enum Schedule {
+    Startup = 0,
+    First = 1,
+    PreUpdate = 2,
+    Update = 3,
+    PostUpdate = 4,
+    Last = 5,
+    FixedPreUpdate = 10,
+    FixedUpdate = 11,
+    FixedPostUpdate = 12
+}
+interface GetWorldDescriptor {
+    readonly _type: 'get_world';
+}
+declare function GetWorld(): GetWorldDescriptor;
+type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
+type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor | EventWriterDescriptor<unknown> | EventReaderDescriptor<unknown> | RemovedQueryDescriptor<AnyComponentDef> | GetWorldDescriptor;
+type InferParam<P> = P extends QueryDescriptor<infer C> ? QueryInstance<C> : P extends ResDescriptor<infer T> ? T : P extends ResMutDescriptor<infer T> ? ResMutInstance<T> : P extends CommandsDescriptor ? CommandsInstance : P extends EventWriterDescriptor<infer T> ? EventWriterInstance<T> : P extends EventReaderDescriptor<infer T> ? EventReaderInstance<T> : P extends RemovedQueryDescriptor<infer _T> ? RemovedQueryInstance<_T> : P extends GetWorldDescriptor ? World : never;
+type InferParams<P extends readonly SystemParam[]> = {
+    [K in keyof P]: InferParam<P[K]>;
+};
+interface SystemDef {
+    readonly _id: symbol;
+    readonly _params: readonly SystemParam[];
+    readonly _fn: (...args: never[]) => void | Promise<void>;
+    readonly _name: string;
+}
+interface SystemOptions {
+    name?: string;
+    runBefore?: string[];
+    runAfter?: string[];
+}
+declare function defineSystem<P extends readonly SystemParam[]>(params: [...P], fn: (...args: InferParams<P>) => void | Promise<void>, options?: SystemOptions): SystemDef;
+declare function addSystem(system: SystemDef): void;
+declare function addStartupSystem(system: SystemDef): void;
+declare function addSystemToSchedule(schedule: Schedule, system: SystemDef): void;
+declare class SystemRunner {
+    private readonly world_;
+    private readonly resources_;
+    private readonly eventRegistry_;
+    private readonly argsCache_;
+    private readonly systemTicks_;
+    private readonly queryCache_;
+    private readonly removedCache_;
+    private currentLastRunTick_;
+    private timings_;
+    constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry);
+    setTimingEnabled(enabled: boolean): void;
+    getTimings(): ReadonlyMap<string, number> | null;
+    run(system: SystemDef): void | Promise<void>;
+    private flushSystem_;
+    private resolveParam;
+}
+
+/**
+ * @file    renderPipeline.ts
+ * @brief   Unified render pipeline for runtime and editor
+ */
+
+interface Viewport {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+interface RenderParams {
+    registry: {
+        _cpp: CppRegistry;
+    };
+    viewProjection: Float32Array;
+    width: number;
+    height: number;
+    elapsed: number;
+}
+interface CameraRenderParams {
+    registry: {
+        _cpp: CppRegistry;
+    };
+    viewProjection: Float32Array;
+    viewportPixels: Viewport;
+    clearFlags: number;
+    elapsed: number;
+    cameraEntity?: Entity;
+}
+declare class RenderPipeline {
+    private lastWidth_;
+    private lastHeight_;
+    private activeScenes_;
+    private preFlushCallbacks_;
+    setActiveScenes(scenes: Set<string> | null): void;
+    addPreFlushCallback(cb: (registry: {
+        _cpp: CppRegistry;
+    }) => void): void;
+    beginFrame(): void;
+    beginScreenCapture(): void;
+    endScreenCapture(): void;
+    submitScene(registry: {
+        _cpp: CppRegistry;
+    }, viewProjection: Float32Array, viewport: Viewport, _elapsed: number): void;
+    render(params: RenderParams): void;
+    renderCamera(params: CameraRenderParams): void;
+    private executeDrawCallbacks;
+}
 
 /**
  * @file    customDraw.ts
@@ -1760,6 +1783,7 @@ interface Plugin {
     finish?(app: App): void;
     cleanup?(app?: App): void;
 }
+type RunCondition = () => boolean;
 declare class App {
     private readonly world_;
     private readonly resources_;
@@ -1793,11 +1817,13 @@ declare class App {
     private constructor();
     static new(): App;
     getPlugin<T extends Plugin>(ctor: new (...args: any[]) => T): T | undefined;
+    addPlugins(plugins: Plugin[]): this;
     addPlugin(plugin: Plugin): this;
     addEvent<T>(event: EventDef<T>): this;
     addSystemToSchedule(schedule: Schedule, system: SystemDef, options?: {
         runBefore?: string[];
         runAfter?: string[];
+        runIf?: RunCondition;
     }): this;
     addSystem(system: SystemDef): this;
     addStartupSystem(system: SystemDef): this;
@@ -1842,7 +1868,9 @@ declare class App {
     run(): Promise<void>;
     private mainLoop;
     quit(): void;
+    private runFrame_;
     private finishPlugins_;
+    private sortPlugins;
     private sortSystems;
     private flushStartupSystems_;
     private runSchedule;
@@ -1858,5 +1886,5 @@ interface WebAppOptions {
 }
 declare function flushPendingSystems(app: App): void;
 
-export { App as A, AssetServer as O, BitmapText as U, World as W, Camera as X, Canvas as _, ScaleMode as a$, Changed as a0, Children as a2, ClearFlags as a4, Commands as a5, CommandsInstance as a7, Parent as aC, ParticleEasing as aE, ParticleEmitter as aF, PostProcessVolume as aI, ProjectionType as aL, Query as aM, QueryInstance as aP, Removed as aR, RemovedQueryInstance as aT, RenderPipeline as aV, Res as aW, ResMut as aY, ResMutInstance as a_, EmitterShape as ab, EntityCommands as ac, EventReader as ae, EventReaderInstance as ag, EventRegistry as ah, EventWriter as ai, EventWriterInstance as ak, GetWorld as am, LocalTransform as ar, Material as at, MaterialLoader as av, Mut as ax, Name as az, getEditorType as b$, SceneManager as b4, SceneManagerState as b5, SceneOwner as b6, Schedule as b9, WorldTransform as bB, addStartupSystem as bD, addSystem as bE, addSystemToSchedule as bF, clearDrawCallbacks as bG, clearUserComponents as bH, defineComponent as bI, defineEvent as bJ, defineResource as bK, defineSystem as bL, defineTag as bM, findEntityByName as bN, flushPendingSystems as bO, getAddressableType as bP, getAddressableTypeByEditorType as bQ, getAllAssetExtensions as bR, getAssetBuildTransform as bS, getAssetMimeType as bT, getAssetTypeEntry as bU, getComponent as bV, getComponentAssetFieldDescriptors as bW, getComponentAssetFields as bX, getComponentDefaults as bY, getComponentSpineFieldDescriptor as bZ, getCustomExtensions as b_, ShaderSources as bb, ShapeRenderer as bc, ShapeType as be, SimulationSpace as bf, SpineAnimation as bh, Sprite as bl, SystemRunner as bq, Time as bt, Transform as bv, Velocity as by, SpineModuleController as c, getUserComponent as c0, getWeChatPackOptions as c1, initMaterialAPI as c2, isBuiltinComponent as c3, isCustomExtension as c4, isKnownAssetExtension as c5, isTextureRef as c6, loadComponent as c7, loadSceneData as c8, loadSceneWithAssets as c9, looksLikeAssetPath as ca, registerAssetBuildTransform as cb, registerComponent as cc, registerComponentAssetFields as cd, registerDrawCallback as ce, registerMaterialCallback as cf, remapEntityFields as cg, shutdownMaterialAPI as ch, toBuildPath as ci, unregisterComponent as cj, unregisterDrawCallback as ck, updateCameraAspectRatio as cl, wrapSceneSystem as cm, createSpineFactories as e, loadSpineModule as l, Assets as m, PostProcessStack as n, wrapSpineModule as w, BlendMode as x, Added as z };
-export type { CanvasData as $, BuiltinComponentDef as B, ConstraintList as C, AddedWrapper as D, AddressableAssetType as E, FlattenContext as F, AddressableManifestAsset as G, AddressableManifestGroup as H, AddressableResultMap as I, AssetBuildTransform as J, AssetBundle$1 as K, AssetContentType as L, MaterialHandle as M, AssetFieldType as N, Plugin as P, AssetTypeEntry as Q, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, BitmapTextData as V, CameraData as Y, CameraRenderParams as Z, PathMixData as a, ChangedWrapper as a1, ChildrenData as a3, CommandsDescriptor as a6, ComponentData$1 as a8, DrawCallback as a9, NameData as aA, NestedPrefabRef as aB, ParentData as aD, ParticleEmitterData as aG, PluginDependency as aH, PostProcessVolumeData as aJ, PrefabEntityData as aK, QueryBuilder as aN, QueryDescriptor as aO, QueryResult as aQ, RemovedQueryDescriptor as aS, RenderParams as aU, ResDescriptor as aX, ResMutDescriptor as aZ, EditorAssetType as aa, EventDef as ad, EventReaderDescriptor as af, EventWriterDescriptor as aj, FileLoadOptions as al, GetWorldDescriptor as an, InferParam as ao, InferParams as ap, LoadedMaterial as aq, LocalTransformData as as, MaterialAssetData as au, MaterialOptions as aw, MutWrapper as ay, SpineEventCallback as b, SceneComponentData as b0, SceneContext as b1, SceneEntityData as b2, SceneLoadOptions as b3, SceneOwnerData as b7, SceneStatus as b8, Viewport as bA, WorldTransformData as bC, ShaderLoader as ba, ShapeRendererData as bd, SliceBorder$1 as bg, SpineAnimationData as bi, SpineDescriptor as bj, SpineLoadResult as bk, SpriteData as bm, SystemDef as bn, SystemOptions as bo, SystemParam as bp, TextureInfo as br, TextureRef as bs, TimeData as bu, TransitionOptions as bw, UniformValue as bx, VelocityData as bz, SpineModuleFactory as d, RawSpineEvent as f, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ComponentData as k, ShaderHandle as o, ComponentDef as p, TransformData as q, AnyComponentDef as r, SceneData as s, SpineWasmModule as t, AddressableManifest as u, SceneConfig as v, WebAppOptions as y };
+export { App as A, AssetServer as O, BitmapText as U, World as W, Camera as X, Canvas as _, ResMutInstance as a$, Changed as a0, Children as a2, ClearFlags as a4, Commands as a5, CommandsInstance as a7, Disabled as a9, Name as aA, Parent as aD, ParticleEasing as aF, ParticleEmitter as aG, PostProcessVolume as aJ, ProjectionType as aM, Query as aN, QueryInstance as aQ, Removed as aS, RemovedQueryInstance as aU, RenderPipeline as aW, Res as aX, ResMut as aZ, EmitterShape as ac, EntityCommands as ad, EventReader as af, EventReaderInstance as ah, EventRegistry as ai, EventWriter as aj, EventWriterInstance as al, GetWorld as an, LocalTransform as as, Material as au, MaterialLoader as aw, Mut as ay, getComponentSpineFieldDescriptor as b$, ScaleMode as b1, SceneManager as b6, SceneManagerState as b7, SceneOwner as b8, Velocity as bA, WorldTransform as bD, addStartupSystem as bF, addSystem as bG, addSystemToSchedule as bH, clearDrawCallbacks as bI, clearUserComponents as bJ, defineComponent as bK, defineEvent as bL, defineResource as bM, defineSystem as bN, defineTag as bO, findEntityByName as bP, flushPendingSystems as bQ, getAddressableType as bR, getAddressableTypeByEditorType as bS, getAllAssetExtensions as bT, getAssetBuildTransform as bU, getAssetMimeType as bV, getAssetTypeEntry as bW, getComponent as bX, getComponentAssetFieldDescriptors as bY, getComponentAssetFields as bZ, getComponentDefaults as b_, Schedule as bb, ShaderSources as bd, ShapeRenderer as be, ShapeType as bg, SimulationSpace as bh, SpineAnimation as bj, Sprite as bn, SystemRunner as bs, Time as bv, Transform as bx, SpineModuleController as c, getCustomExtensions as c0, getEditorType as c1, getUserComponent as c2, getWeChatPackOptions as c3, initMaterialAPI as c4, isBuiltinComponent as c5, isCustomExtension as c6, isKnownAssetExtension as c7, isTextureRef as c8, loadComponent as c9, loadSceneData as ca, loadSceneWithAssets as cb, looksLikeAssetPath as cc, registerAssetBuildTransform as cd, registerComponent as ce, registerDrawCallback as cf, registerMaterialCallback as cg, remapEntityFields as ch, shutdownMaterialAPI as ci, toBuildPath as cj, unregisterComponent as ck, unregisterDrawCallback as cl, updateCameraAspectRatio as cm, wrapSceneSystem as cn, createSpineFactories as e, loadSpineModule as l, Assets as m, PostProcessStack as n, wrapSpineModule as w, BlendMode as x, Added as z };
+export type { CanvasData as $, BuiltinComponentDef as B, ConstraintList as C, AddedWrapper as D, AddressableAssetType as E, FlattenContext as F, AddressableManifestAsset as G, AddressableManifestGroup as H, AddressableResultMap as I, AssetBuildTransform as J, AssetBundle$1 as K, AssetContentType as L, MaterialHandle as M, AssetFieldType as N, Plugin as P, AssetTypeEntry as Q, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, BitmapTextData as V, CameraData as Y, CameraRenderParams as Z, PathMixData as a, ChangedWrapper as a1, ChildrenData as a3, CommandsDescriptor as a6, ComponentData as a8, NameData as aB, NestedPrefabRef as aC, ParentData as aE, ParticleEmitterData as aH, PluginDependency as aI, PostProcessVolumeData as aK, PrefabEntityData as aL, QueryBuilder as aO, QueryDescriptor as aP, QueryResult as aR, RemovedQueryDescriptor as aT, RenderParams as aV, ResDescriptor as aY, ResMutDescriptor as a_, DrawCallback as aa, EditorAssetType as ab, EventDef as ae, EventReaderDescriptor as ag, EventWriterDescriptor as ak, FileLoadOptions as am, GetWorldDescriptor as ao, InferParam as ap, InferParams as aq, LoadedMaterial as ar, LocalTransformData as at, MaterialAssetData as av, MaterialOptions as ax, MutWrapper as az, SpineEventCallback as b, RunCondition as b0, SceneComponentData as b2, SceneContext as b3, SceneEntityData as b4, SceneLoadOptions as b5, SceneOwnerData as b9, VelocityData as bB, Viewport as bC, WorldTransformData as bE, SceneStatus as ba, ShaderLoader as bc, ShapeRendererData as bf, SliceBorder$1 as bi, SpineAnimationData as bk, SpineDescriptor as bl, SpineLoadResult as bm, SpriteData as bo, SystemDef as bp, SystemOptions as bq, SystemParam as br, TextureInfo as bt, TextureRef as bu, TimeData as bw, TransitionOptions as by, UniformValue as bz, SpineModuleFactory as d, RawSpineEvent as f, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ComponentData$1 as k, ShaderHandle as o, ComponentDef as p, TransformData as q, AnyComponentDef as r, SceneData as s, SpineWasmModule as t, AddressableManifest as u, SceneConfig as v, WebAppOptions as y };
