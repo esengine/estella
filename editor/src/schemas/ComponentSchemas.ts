@@ -1,5 +1,6 @@
 import type { PropertyMeta } from '../property/PropertyEditor';
-import { getComponentDefaults } from 'esengine';
+import { getComponentDefaults, getComponent } from 'esengine';
+import type { AnyComponentDef } from 'esengine';
 import { getEditorContainer } from '../container';
 import { COMPONENT_SCHEMA } from '../container/tokens';
 
@@ -61,6 +62,115 @@ export function inferPropertyType(value: unknown): string {
         if ('x' in value && 'y' in value && 'z' in value && 'w' in value) return 'vec4';
     }
     return 'string';
+}
+
+const ASSET_TYPE_TO_EDITOR: Record<string, string> = {
+    'texture': 'texture',
+    'material': 'material-file',
+    'font': 'font',
+    'audio': 'audio-file',
+    'anim-clip': 'anim-file',
+    'timeline': 'timeline-file',
+    'tilemap': 'tilemap-file',
+};
+
+export interface SchemaOverrides {
+    category?: ComponentCategory;
+    displayName?: string;
+    description?: string;
+    requires?: string[];
+    conflicts?: string[];
+    removable?: boolean;
+    hidden?: boolean;
+    editorDefaults?: () => Record<string, unknown> | null;
+    sections?: InspectorSectionDef[];
+    overrides?: Record<string, Partial<PropertyMeta>>;
+    exclude?: string[];
+    extraProperties?: PropertyMeta[];
+}
+
+function inferPropertiesFromComponent(comp: AnyComponentDef): PropertyMeta[] {
+    const defaults = comp._default as Record<string, unknown>;
+    const assetFieldSet = new Map<string, string>();
+    for (const af of comp.assetFields) {
+        const editorType = ASSET_TYPE_TO_EDITOR[af.type];
+        if (editorType) assetFieldSet.set(af.field, editorType);
+    }
+    const colorFieldSet = new Set(comp.colorKeys);
+    const entityFieldSet = new Set(comp.entityFields);
+
+    const properties: PropertyMeta[] = [];
+    for (const [key, value] of Object.entries(defaults)) {
+        let type: string;
+
+        if (assetFieldSet.has(key)) {
+            type = assetFieldSet.get(key)!;
+        } else if (colorFieldSet.has(key)) {
+            type = 'color';
+        } else if (entityFieldSet.has(key)) {
+            type = Array.isArray(value) ? 'entity-array' : 'entity';
+        } else {
+            type = inferPropertyType(value);
+        }
+
+        properties.push({ name: key, type });
+    }
+    return properties;
+}
+
+export function defineSchema(
+    componentName: string,
+    opts: SchemaOverrides = {},
+): ComponentSchema {
+    const comp = getComponent(componentName);
+    let properties: PropertyMeta[];
+
+    if (comp) {
+        properties = inferPropertiesFromComponent(comp);
+    } else {
+        const defaults = getComponentDefaults(componentName);
+        properties = defaults
+            ? Object.entries(defaults).map(([key, value]) => ({
+                name: key,
+                type: inferPropertyType(value),
+            }))
+            : [];
+    }
+
+    if (opts.exclude) {
+        const excludeSet = new Set(opts.exclude);
+        properties = properties.filter(p => !excludeSet.has(p.name));
+    }
+
+    if (opts.overrides) {
+        for (const prop of properties) {
+            const override = opts.overrides[prop.name];
+            if (override) {
+                Object.assign(prop, override);
+            }
+        }
+    }
+
+    if (opts.extraProperties) {
+        properties.push(...opts.extraProperties);
+    }
+
+    const schema: ComponentSchema = {
+        name: componentName,
+        category: opts.category ?? 'builtin',
+        properties,
+        removable: opts.removable,
+        hidden: opts.hidden,
+        displayName: opts.displayName,
+        description: opts.description,
+        requires: opts.requires,
+        conflicts: opts.conflicts,
+        sections: opts.sections,
+        editorDefaults: opts.editorDefaults,
+    };
+
+    registerComponentSchema(schema);
+    return schema;
 }
 
 export function registerComponentSchema(schema: ComponentSchema): void {

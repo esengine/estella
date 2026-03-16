@@ -1,238 +1,192 @@
 import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
-import type { ComponentSchema } from '../schemas/ComponentSchemas';
-import { COMPONENT_SCHEMA } from '../container/tokens';
-import { Constraints, definePropertyGroup, POLYGON_VERTICES_MAX } from '../schemas/schemaConstants';
+import { defineSchema } from '../schemas/ComponentSchemas';
+import { Constraints, POLYGON_VERTICES_MAX } from '../schemas/schemaConstants';
 
-const ColliderMaterial = definePropertyGroup('Material', [
-    { name: 'density', type: 'number', ...Constraints.physDensity },
-    { name: 'friction', type: 'number', ...Constraints.physFriction },
-    { name: 'restitution', type: 'number', ...Constraints.physBounce, displayName: 'Bounciness' },
-    { name: 'isSensor', type: 'boolean', displayName: 'Is Sensor',
-      tooltip: 'Detects overlaps without physical collision' },
-]);
+const COLLIDER_MATERIAL_OVERRIDES = {
+    density: { ...Constraints.physDensity, group: 'Material' },
+    friction: { ...Constraints.physFriction, group: 'Material' },
+    restitution: { ...Constraints.physBounce, displayName: 'Bounciness', group: 'Material' },
+    isSensor: { displayName: 'Is Sensor', tooltip: 'Detects overlaps without physical collision', group: 'Material' },
+} as const;
 
-const ColliderFiltering = definePropertyGroup('Filtering', [
-    { name: 'categoryBits', type: 'collision-layer', displayName: 'Layer' },
-]);
+const COLLIDER_FILTERING_OVERRIDES = {
+    categoryBits: { type: 'collision-layer', displayName: 'Layer', group: 'Filtering' },
+    maskBits: { type: 'collision-layer', displayName: 'Mask', group: 'Filtering' },
+} as const;
 
-const RigidBodySchema: ComponentSchema = {
-    name: 'RigidBody',
-    category: 'physics',
-    properties: [
-        { name: 'bodyType', type: 'enum', displayName: 'Type',
-          options: [{ label: 'Static', value: 0 }, { label: 'Kinematic', value: 1 }, { label: 'Dynamic', value: 2 }] },
-        { name: 'gravityScale', type: 'number', step: 0.1, displayName: 'Gravity Scale' },
-        { name: 'linearDamping', type: 'number', min: 0, step: 0.1, displayName: 'Linear Damping' },
-        { name: 'angularDamping', type: 'number', min: 0, step: 0.1, displayName: 'Angular Damping' },
-        { name: 'fixedRotation', type: 'boolean', displayName: 'Fixed Rotation' },
-        { name: 'bullet', type: 'boolean', tooltip: 'Enable continuous collision detection for fast-moving objects' },
-        { name: 'enabled', type: 'boolean' },
-    ],
-};
+const SPRING_VISIBLE = { field: 'enableSpring', equals: true } as const;
+const MOTOR_VISIBLE = { field: 'enableMotor', equals: true } as const;
+const LIMIT_VISIBLE = { field: 'enableLimit', equals: true } as const;
 
-const BoxColliderSchema: ComponentSchema = {
-    name: 'BoxCollider',
-    category: 'physics',
-    properties: [
-        { name: 'halfExtents', type: 'vec2', displayName: 'Half Extents' },
-        { name: 'offset', type: 'vec2' },
-        { name: 'radius', type: 'number', min: 0, step: 0.01, tooltip: 'Corner rounding radius' },
-        ...ColliderMaterial,
-        ...ColliderFiltering,
-    ],
-};
+function registerPhysicsSchemas(): void {
+    defineSchema('RigidBody', {
+        category: 'physics',
+        overrides: {
+            bodyType: { type: 'enum', displayName: 'Type',
+                options: [{ label: 'Static', value: 0 }, { label: 'Kinematic', value: 1 }, { label: 'Dynamic', value: 2 }] },
+            gravityScale: { step: 0.1, displayName: 'Gravity Scale' },
+            linearDamping: { min: 0, step: 0.1, displayName: 'Linear Damping' },
+            angularDamping: { min: 0, step: 0.1, displayName: 'Angular Damping' },
+            fixedRotation: { displayName: 'Fixed Rotation' },
+            bullet: { tooltip: 'Enable continuous collision detection for fast-moving objects' },
+        },
+    });
 
-const CircleColliderSchema: ComponentSchema = {
-    name: 'CircleCollider',
-    category: 'physics',
-    properties: [
-        { name: 'radius', type: 'number', min: 0, step: 0.01 },
-        { name: 'offset', type: 'vec2' },
-        ...ColliderMaterial,
-        ...ColliderFiltering,
-    ],
-};
+    defineSchema('BoxCollider', {
+        category: 'physics',
+        overrides: {
+            halfExtents: { displayName: 'Half Extents' },
+            radius: { min: 0, step: 0.01, tooltip: 'Corner rounding radius' },
+            ...COLLIDER_MATERIAL_OVERRIDES,
+            ...COLLIDER_FILTERING_OVERRIDES,
+        },
+        exclude: ['enabled'],
+    });
 
-const CapsuleColliderSchema: ComponentSchema = {
-    name: 'CapsuleCollider',
-    category: 'physics',
-    properties: [
-        { name: 'radius', type: 'number', min: 0, step: 0.01 },
-        { name: 'halfHeight', type: 'number', min: 0, step: 0.01, displayName: 'Half Height' },
-        { name: 'offset', type: 'vec2' },
-        ...ColliderMaterial,
-        ...ColliderFiltering,
-    ],
-};
+    defineSchema('CircleCollider', {
+        category: 'physics',
+        overrides: {
+            radius: { min: 0, step: 0.01 },
+            ...COLLIDER_MATERIAL_OVERRIDES,
+            ...COLLIDER_FILTERING_OVERRIDES,
+        },
+        exclude: ['enabled'],
+    });
 
-const SegmentColliderSchema: ComponentSchema = {
-    name: 'SegmentCollider',
-    category: 'physics',
-    properties: [
-        { name: 'point1', type: 'vec2' },
-        { name: 'point2', type: 'vec2' },
-        ...ColliderMaterial,
-        ...ColliderFiltering,
-    ],
-};
+    defineSchema('CapsuleCollider', {
+        category: 'physics',
+        overrides: {
+            radius: { min: 0, step: 0.01 },
+            halfHeight: { min: 0, step: 0.01, displayName: 'Half Height' },
+            ...COLLIDER_MATERIAL_OVERRIDES,
+            ...COLLIDER_FILTERING_OVERRIDES,
+        },
+        exclude: ['enabled'],
+    });
 
-const PolygonColliderSchema: ComponentSchema = {
-    name: 'PolygonCollider',
-    category: 'physics',
-    properties: [
-        { name: 'vertices', type: 'vec2-array', max: POLYGON_VERTICES_MAX },
-        { name: 'radius', type: 'number', min: 0, step: 0.01, tooltip: 'Corner rounding radius' },
-        ...ColliderMaterial,
-        ...ColliderFiltering,
-    ],
-};
+    defineSchema('SegmentCollider', {
+        category: 'physics',
+        overrides: {
+            ...COLLIDER_MATERIAL_OVERRIDES,
+            ...COLLIDER_FILTERING_OVERRIDES,
+        },
+        exclude: ['enabled'],
+    });
 
-const ChainColliderSchema: ComponentSchema = {
-    name: 'ChainCollider',
-    category: 'physics',
-    properties: [
-        { name: 'points', type: 'vec2-array' },
-        { name: 'isLoop', type: 'boolean', displayName: 'Is Loop' },
-        { name: 'friction', type: 'number', ...Constraints.physFriction, group: 'Material' },
-        { name: 'restitution', type: 'number', ...Constraints.physBounce, displayName: 'Bounciness', group: 'Material' },
-        ...ColliderFiltering,
-    ],
-};
+    defineSchema('PolygonCollider', {
+        category: 'physics',
+        overrides: {
+            vertices: { max: POLYGON_VERTICES_MAX },
+            radius: { min: 0, step: 0.01, tooltip: 'Corner rounding radius' },
+            ...COLLIDER_MATERIAL_OVERRIDES,
+            ...COLLIDER_FILTERING_OVERRIDES,
+        },
+    });
 
-const RevoluteJointSchema: ComponentSchema = {
-    name: 'RevoluteJoint',
-    category: 'physics',
-    properties: [
-        { name: 'connectedEntity', type: 'entity', displayName: 'Connected Entity' },
-        { name: 'anchorA', type: 'vec2', displayName: 'Anchor A' },
-        { name: 'anchorB', type: 'vec2', displayName: 'Anchor B' },
-        { name: 'enableMotor', type: 'boolean', displayName: 'Enable Motor', group: 'Motor' },
-        { name: 'motorSpeed', type: 'number', step: 0.1, displayName: 'Speed', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'maxMotorTorque', type: 'number', min: 0, step: 1, displayName: 'Max Torque', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'enableLimit', type: 'boolean', displayName: 'Enable Limit', group: 'Limits' },
-        { name: 'lowerAngle', type: 'number', step: 0.01, displayName: 'Lower Angle', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'upperAngle', type: 'number', step: 0.01, displayName: 'Upper Angle', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'collideConnected', type: 'boolean', displayName: 'Collide Connected' },
-        { name: 'enabled', type: 'boolean' },
-    ],
-};
+    defineSchema('ChainCollider', {
+        category: 'physics',
+        overrides: {
+            isLoop: { displayName: 'Is Loop' },
+            friction: { ...Constraints.physFriction, group: 'Material' },
+            restitution: { ...Constraints.physBounce, displayName: 'Bounciness', group: 'Material' },
+            ...COLLIDER_FILTERING_OVERRIDES,
+        },
+    });
 
-const DistanceJointSchema: ComponentSchema = {
-    name: 'DistanceJoint',
-    category: 'physics',
-    properties: [
-        { name: 'connectedEntity', type: 'entity', displayName: 'Connected Entity' },
-        { name: 'anchorA', type: 'vec2', displayName: 'Anchor A' },
-        { name: 'anchorB', type: 'vec2', displayName: 'Anchor B' },
-        { name: 'length', type: 'number', min: 0, step: 0.1, displayName: 'Rest Length' },
-        { name: 'enableSpring', type: 'boolean', displayName: 'Enable Spring', group: 'Spring' },
-        { name: 'hertz', type: 'number', min: 0, step: 0.1, group: 'Spring',
-          visibleWhen: { field: 'enableSpring', equals: true } },
-        { name: 'dampingRatio', type: 'number', min: 0, step: 0.1, displayName: 'Damping Ratio', group: 'Spring',
-          visibleWhen: { field: 'enableSpring', equals: true } },
-        { name: 'enableLimit', type: 'boolean', displayName: 'Enable Limit', group: 'Limits' },
-        { name: 'minLength', type: 'number', min: 0, step: 0.1, displayName: 'Min Length', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'maxLength', type: 'number', min: 0, step: 0.1, displayName: 'Max Length', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'enableMotor', type: 'boolean', displayName: 'Enable Motor', group: 'Motor' },
-        { name: 'maxMotorForce', type: 'number', min: 0, step: 1, displayName: 'Max Force', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'motorSpeed', type: 'number', step: 0.1, displayName: 'Speed', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'collideConnected', type: 'boolean', displayName: 'Collide Connected' },
-        { name: 'enabled', type: 'boolean' },
-    ],
-};
+    defineSchema('RevoluteJoint', {
+        category: 'physics',
+        overrides: {
+            connectedEntity: { displayName: 'Connected Entity' },
+            anchorA: { displayName: 'Anchor A' },
+            anchorB: { displayName: 'Anchor B' },
+            enableMotor: { displayName: 'Enable Motor', group: 'Motor' },
+            motorSpeed: { step: 0.1, displayName: 'Speed', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            maxMotorTorque: { min: 0, step: 1, displayName: 'Max Torque', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            enableLimit: { displayName: 'Enable Limit', group: 'Limits' },
+            lowerAngle: { step: 0.01, displayName: 'Lower Angle', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            upperAngle: { step: 0.01, displayName: 'Upper Angle', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            collideConnected: { displayName: 'Collide Connected' },
+        },
+    });
 
-const PrismaticJointSchema: ComponentSchema = {
-    name: 'PrismaticJoint',
-    category: 'physics',
-    properties: [
-        { name: 'connectedEntity', type: 'entity', displayName: 'Connected Entity' },
-        { name: 'anchorA', type: 'vec2', displayName: 'Anchor A' },
-        { name: 'anchorB', type: 'vec2', displayName: 'Anchor B' },
-        { name: 'axis', type: 'vec2', displayName: 'Axis' },
-        { name: 'enableSpring', type: 'boolean', displayName: 'Enable Spring', group: 'Spring' },
-        { name: 'hertz', type: 'number', min: 0, step: 0.1, group: 'Spring',
-          visibleWhen: { field: 'enableSpring', equals: true } },
-        { name: 'dampingRatio', type: 'number', min: 0, step: 0.1, displayName: 'Damping Ratio', group: 'Spring',
-          visibleWhen: { field: 'enableSpring', equals: true } },
-        { name: 'enableLimit', type: 'boolean', displayName: 'Enable Limit', group: 'Limits' },
-        { name: 'lowerTranslation', type: 'number', step: 0.1, displayName: 'Lower', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'upperTranslation', type: 'number', step: 0.1, displayName: 'Upper', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'enableMotor', type: 'boolean', displayName: 'Enable Motor', group: 'Motor' },
-        { name: 'maxMotorForce', type: 'number', min: 0, step: 1, displayName: 'Max Force', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'motorSpeed', type: 'number', step: 0.1, displayName: 'Speed', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'collideConnected', type: 'boolean', displayName: 'Collide Connected' },
-        { name: 'enabled', type: 'boolean' },
-    ],
-};
+    defineSchema('DistanceJoint', {
+        category: 'physics',
+        overrides: {
+            connectedEntity: { displayName: 'Connected Entity' },
+            anchorA: { displayName: 'Anchor A' },
+            anchorB: { displayName: 'Anchor B' },
+            length: { min: 0, step: 0.1, displayName: 'Rest Length' },
+            enableSpring: { displayName: 'Enable Spring', group: 'Spring' },
+            hertz: { min: 0, step: 0.1, group: 'Spring', visibleWhen: SPRING_VISIBLE },
+            dampingRatio: { min: 0, step: 0.1, displayName: 'Damping Ratio', group: 'Spring', visibleWhen: SPRING_VISIBLE },
+            enableLimit: { displayName: 'Enable Limit', group: 'Limits' },
+            minLength: { min: 0, step: 0.1, displayName: 'Min Length', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            maxLength: { min: 0, step: 0.1, displayName: 'Max Length', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            enableMotor: { displayName: 'Enable Motor', group: 'Motor' },
+            maxMotorForce: { min: 0, step: 1, displayName: 'Max Force', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            motorSpeed: { step: 0.1, displayName: 'Speed', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            collideConnected: { displayName: 'Collide Connected' },
+        },
+    });
 
-const WeldJointSchema: ComponentSchema = {
-    name: 'WeldJoint',
-    category: 'physics',
-    properties: [
-        { name: 'connectedEntity', type: 'entity', displayName: 'Connected Entity' },
-        { name: 'anchorA', type: 'vec2', displayName: 'Anchor A' },
-        { name: 'anchorB', type: 'vec2', displayName: 'Anchor B' },
-        { name: 'linearHertz', type: 'number', min: 0, step: 0.1, displayName: 'Linear Hertz', group: 'Stiffness' },
-        { name: 'angularHertz', type: 'number', min: 0, step: 0.1, displayName: 'Angular Hertz', group: 'Stiffness' },
-        { name: 'linearDampingRatio', type: 'number', min: 0, step: 0.1, displayName: 'Linear Damping', group: 'Stiffness' },
-        { name: 'angularDampingRatio', type: 'number', min: 0, step: 0.1, displayName: 'Angular Damping', group: 'Stiffness' },
-        { name: 'collideConnected', type: 'boolean', displayName: 'Collide Connected' },
-        { name: 'enabled', type: 'boolean' },
-    ],
-};
+    defineSchema('PrismaticJoint', {
+        category: 'physics',
+        overrides: {
+            connectedEntity: { displayName: 'Connected Entity' },
+            anchorA: { displayName: 'Anchor A' },
+            anchorB: { displayName: 'Anchor B' },
+            axis: { displayName: 'Axis' },
+            enableSpring: { displayName: 'Enable Spring', group: 'Spring' },
+            hertz: { min: 0, step: 0.1, group: 'Spring', visibleWhen: SPRING_VISIBLE },
+            dampingRatio: { min: 0, step: 0.1, displayName: 'Damping Ratio', group: 'Spring', visibleWhen: SPRING_VISIBLE },
+            enableLimit: { displayName: 'Enable Limit', group: 'Limits' },
+            lowerTranslation: { step: 0.1, displayName: 'Lower', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            upperTranslation: { step: 0.1, displayName: 'Upper', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            enableMotor: { displayName: 'Enable Motor', group: 'Motor' },
+            maxMotorForce: { min: 0, step: 1, displayName: 'Max Force', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            motorSpeed: { step: 0.1, displayName: 'Speed', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            collideConnected: { displayName: 'Collide Connected' },
+        },
+    });
 
-const WheelJointSchema: ComponentSchema = {
-    name: 'WheelJoint',
-    category: 'physics',
-    properties: [
-        { name: 'connectedEntity', type: 'entity', displayName: 'Connected Entity' },
-        { name: 'anchorA', type: 'vec2', displayName: 'Anchor A' },
-        { name: 'anchorB', type: 'vec2', displayName: 'Anchor B' },
-        { name: 'axis', type: 'vec2', displayName: 'Axis' },
-        { name: 'enableSpring', type: 'boolean', displayName: 'Enable Spring', group: 'Spring' },
-        { name: 'hertz', type: 'number', min: 0, step: 0.1, group: 'Spring',
-          visibleWhen: { field: 'enableSpring', equals: true } },
-        { name: 'dampingRatio', type: 'number', min: 0, step: 0.1, displayName: 'Damping Ratio', group: 'Spring',
-          visibleWhen: { field: 'enableSpring', equals: true } },
-        { name: 'enableLimit', type: 'boolean', displayName: 'Enable Limit', group: 'Limits' },
-        { name: 'lowerTranslation', type: 'number', step: 0.1, displayName: 'Lower', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'upperTranslation', type: 'number', step: 0.1, displayName: 'Upper', group: 'Limits',
-          visibleWhen: { field: 'enableLimit', equals: true } },
-        { name: 'enableMotor', type: 'boolean', displayName: 'Enable Motor', group: 'Motor' },
-        { name: 'maxMotorTorque', type: 'number', min: 0, step: 1, displayName: 'Max Torque', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'motorSpeed', type: 'number', step: 0.1, displayName: 'Speed', group: 'Motor',
-          visibleWhen: { field: 'enableMotor', equals: true } },
-        { name: 'collideConnected', type: 'boolean', displayName: 'Collide Connected' },
-        { name: 'enabled', type: 'boolean' },
-    ],
-};
+    defineSchema('WeldJoint', {
+        category: 'physics',
+        overrides: {
+            connectedEntity: { displayName: 'Connected Entity' },
+            anchorA: { displayName: 'Anchor A' },
+            anchorB: { displayName: 'Anchor B' },
+            linearHertz: { min: 0, step: 0.1, displayName: 'Linear Hertz', group: 'Stiffness' },
+            angularHertz: { min: 0, step: 0.1, displayName: 'Angular Hertz', group: 'Stiffness' },
+            linearDampingRatio: { min: 0, step: 0.1, displayName: 'Linear Damping', group: 'Stiffness' },
+            angularDampingRatio: { min: 0, step: 0.1, displayName: 'Angular Damping', group: 'Stiffness' },
+            collideConnected: { displayName: 'Collide Connected' },
+        },
+    });
 
-const PHYSICS_SCHEMAS: ComponentSchema[] = [
-    RigidBodySchema, BoxColliderSchema, CircleColliderSchema,
-    CapsuleColliderSchema, SegmentColliderSchema, PolygonColliderSchema,
-    ChainColliderSchema, RevoluteJointSchema,
-    DistanceJointSchema, PrismaticJointSchema, WeldJointSchema, WheelJointSchema,
-];
+    defineSchema('WheelJoint', {
+        category: 'physics',
+        overrides: {
+            connectedEntity: { displayName: 'Connected Entity' },
+            anchorA: { displayName: 'Anchor A' },
+            anchorB: { displayName: 'Anchor B' },
+            axis: { displayName: 'Axis' },
+            enableSpring: { displayName: 'Enable Spring', group: 'Spring' },
+            hertz: { min: 0, step: 0.1, group: 'Spring', visibleWhen: SPRING_VISIBLE },
+            dampingRatio: { min: 0, step: 0.1, displayName: 'Damping Ratio', group: 'Spring', visibleWhen: SPRING_VISIBLE },
+            enableLimit: { displayName: 'Enable Limit', group: 'Limits' },
+            lowerTranslation: { step: 0.1, displayName: 'Lower', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            upperTranslation: { step: 0.1, displayName: 'Upper', group: 'Limits', visibleWhen: LIMIT_VISIBLE },
+            enableMotor: { displayName: 'Enable Motor', group: 'Motor' },
+            maxMotorTorque: { min: 0, step: 1, displayName: 'Max Torque', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            motorSpeed: { step: 0.1, displayName: 'Speed', group: 'Motor', visibleWhen: MOTOR_VISIBLE },
+            collideConnected: { displayName: 'Collide Connected' },
+        },
+    });
+}
 
 export const physicsPlugin: EditorPlugin = {
     name: 'physics',
-    register(ctx: EditorPluginContext) {
-        for (const schema of PHYSICS_SCHEMAS) {
-            ctx.registrar.provide(COMPONENT_SCHEMA, schema.name, schema);
-        }
+    register(_ctx: EditorPluginContext) {
+        registerPhysicsSchemas();
     },
 };
