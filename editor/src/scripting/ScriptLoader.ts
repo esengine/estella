@@ -5,10 +5,17 @@
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import * as esengineModule from 'esengine';
-import { defineComponent, defineTag, unregisterComponent } from 'esengine';
 import { virtualFsPlugin, playModeShimPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
-import { clearScriptComponents } from '../schemas/ComponentSchemas';
+import { ComponentSwapper } from './ComponentSwapper';
+import type { ScriptContent } from './ComponentSwapper';
+import {
+    extractComponentDefs,
+    registerComponentEntries,
+    safeParseObjectLiteral,
+    extractObjectLiteral,
+    type ComponentDefEntry,
+} from './componentExtraction';
 import { getEditorContext } from '../context/EditorContext';
 import { initializeEsbuild } from '../builder/ArtifactBuilder';
 import { normalizePath, joinPath, getProjectDir } from '../utils/path';
@@ -67,19 +74,30 @@ export class ScriptLoader {
     }
 
     async compile(): Promise<boolean> {
+        if (this.compiling_) {
+            this.pendingCompile_ = true;
+            return false;
+        }
+        this.compiling_ = true;
+        this.pendingCompile_ = false;
+
+        try {
+            return await this.compileInternal_();
+        } finally {
+            this.compiling_ = false;
+            if (this.pendingCompile_) {
+                this.pendingCompile_ = false;
+                void this.compile();
+            }
+        }
+    }
+
+    private async compileInternal_(): Promise<boolean> {
         const fs = getNativeFS();
         if (!fs) {
             console.warn('ScriptLoader: NativeFS not available');
             return false;
         }
-
-        const prevSourceMap = window.__esengine_componentSourceMap;
-        if (prevSourceMap) {
-            for (const name of prevSourceMap.keys()) {
-                unregisterComponent(name);
-            }
-        }
-        clearScriptComponents();
 
         const scripts = await this.discoverScripts();
 
@@ -94,7 +112,10 @@ export class ScriptLoader {
         }
 
         if (scripts.length === 0 && pluginImports.length === 0) {
+            this.swapper_.prepare([]);
+            this.swapper_.swap();
             this.lastCompiled_ = null;
+            this.onCompileSuccess_?.();
             return true;
         }
 
@@ -140,7 +161,9 @@ export class ScriptLoader {
             }
 
             this.lastCompiled_ = result.outputFiles?.[0]?.text ?? null;
-            await this.registerDiscoveredComponents(fs, scripts);
+            const scriptContents = await this.readScriptContents_(fs, scripts);
+            this.swapper_.prepare(scriptContents);
+            this.swapper_.swap();
             this.onCompileSuccess_?.();
             return true;
         } catch (err: any) {
@@ -206,27 +229,20 @@ export class ScriptLoader {
     }
 
     // =========================================================================
-    // Component Discovery
+    // Private Helpers
     // =========================================================================
 
-    private async registerDiscoveredComponents(
+    private async readScriptContents_(
         fs: { readFile(path: string): Promise<string | null> },
         scripts: string[]
-    ): Promise<void> {
-        const sourceMap = new Map<string, string>();
-
-        for (const scriptPath of scripts) {
-            const content = await fs.readFile(scriptPath);
-            if (!content) continue;
-            const names = extractAndRegisterComponents(content);
-            for (const name of names) {
-                sourceMap.set(name, scriptPath);
-            }
-        }
-
-        if (typeof window !== 'undefined') {
-            window.__esengine_componentSourceMap = sourceMap;
-        }
+    ): Promise<ScriptContent[]> {
+        const reads = await Promise.all(
+            scripts.map(async (path) => {
+                const content = await fs.readFile(path);
+                return content ? { path, content } : null;
+            })
+        );
+        return reads.filter((r): r is ScriptContent => r !== null);
     }
 
     // =========================================================================
@@ -239,6 +255,9 @@ export class ScriptLoader {
     private lastCompiled_: string | null = null;
     private unwatchFn_: (() => void) | null = null;
     private recompileTimer_: number | null = null;
+    private compiling_ = false;
+    private pendingCompile_ = false;
+    private swapper_ = new ComponentSwapper();
     private onCompileError_?: (errors: CompileError[]) => void;
     private onCompileSuccess_?: () => void;
 }
@@ -275,90 +294,13 @@ async function findTsFiles(
 }
 
 export { findTsFiles, IGNORED_SCRIPT_DIRS, EDITOR_ONLY_DIRS };
-export { extractAndRegisterComponents, safeParseObjectLiteral, extractObjectLiteral };
 
-// =============================================================================
-// Component Extraction
-// =============================================================================
-
-const DEFINE_COMPONENT_RE = /defineComponent\s*(?:<[^>]*>\s*)?\(\s*['"]([^'"]+)['"]\s*,/g;
-const DEFINE_TAG_RE = /defineTag\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-
+// Re-export for backward compatibility (used in tests)
 function extractAndRegisterComponents(source: string): string[] {
-    const names: string[] = [];
-    const registerSchema = typeof window !== 'undefined'
-        ? window.__esengine_registerComponent as
-            ((name: string, defaults: Record<string, unknown>, isTag: boolean) => void) | undefined
-        : undefined;
-
-    DEFINE_COMPONENT_RE.lastIndex = 0;
-    let match;
-    while ((match = DEFINE_COMPONENT_RE.exec(source)) !== null) {
-        const name = match[1];
-        const rest = source.substring(match.index + match[0].length);
-        const objStr = extractObjectLiteral(rest);
-        if (!objStr) continue;
-        try {
-            const defaults = safeParseObjectLiteral(objStr);
-            if (!defaults) continue;
-            defineComponent(name, defaults);
-            registerSchema?.(name, defaults, false);
-            names.push(name);
-        } catch { /* skip complex expressions */ }
-    }
-
-    DEFINE_TAG_RE.lastIndex = 0;
-    while ((match = DEFINE_TAG_RE.exec(source)) !== null) {
-        defineTag(match[1]);
-        registerSchema?.(match[1], {}, true);
-        names.push(match[1]);
-    }
-
-    return names;
+    const entries = extractComponentDefs(source);
+    registerComponentEntries(entries);
+    return entries.map(e => e.name);
 }
 
-function safeParseObjectLiteral(objStr: string): Record<string, unknown> | null {
-    try {
-        const json = objStr
-            .replace(/\/\/.*$/gm, '')
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/'/g, '"')
-            .replace(/(\w+)\s*:/g, '"$1":')
-            .replace(/,\s*([}\]])/g, '$1');
-        return JSON.parse(json) as Record<string, unknown>;
-    } catch {
-        return null;
-    }
-}
-
-function extractObjectLiteral(source: string): string | null {
-    const trimmed = source.trimStart();
-    if (trimmed[0] !== '{') return null;
-
-    let depth = 0;
-    let inString = false;
-    let quote = '';
-
-    for (let i = 0; i < trimmed.length; i++) {
-        const ch = trimmed[i];
-
-        if (inString) {
-            if (ch === quote && trimmed[i - 1] !== '\\') inString = false;
-            continue;
-        }
-
-        if (ch === '"' || ch === "'" || ch === '`') {
-            inString = true;
-            quote = ch;
-            continue;
-        }
-
-        if (ch === '{') depth++;
-        else if (ch === '}') {
-            depth--;
-            if (depth === 0) return trimmed.substring(0, i + 1);
-        }
-    }
-
-    return null;
-}
+export { extractAndRegisterComponents, extractComponentDefs, safeParseObjectLiteral, extractObjectLiteral };
+export type { ComponentDefEntry };
