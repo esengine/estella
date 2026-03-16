@@ -53,4 +53,9 @@ export const Image = defineComponent<ImageData>('Image', {
     layer: 0,
     material: 0,
     enabled: true,
+}, {
+    assetFields: [
+        { field: 'texture', type: 'texture' },
+        { field: 'material', type: 'material' },
+    ],
 });

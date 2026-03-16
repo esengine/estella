@@ -20,10 +20,10 @@ struct UIRenderer {
     ES_PROPERTY()
     UIVisualType visualType{UIVisualType::None};
 
-    ES_PROPERTY()
+    ES_PROPERTY(asset = texture)
     resource::TextureHandle texture;
 
-    ES_PROPERTY()
+    ES_PROPERTY(animatable)
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
 
     ES_PROPERTY()
@@ -35,7 +35,7 @@ struct UIRenderer {
     ES_PROPERTY()
     glm::vec4 sliceBorder{0.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(asset = material)
     u32 material{0};
 
     ES_PROPERTY()

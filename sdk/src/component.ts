@@ -3,12 +3,28 @@
  * @brief   Component definition and builtin components
  */
 
-import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE, INVALID_FONT } from './types';
+import { Entity, Vec2, Vec3, Color, Quat } from './types';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPRITE_SIZE } from './defaults';
-import { registerComponentEntityFields } from './componentEntityFields';
+import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
 import type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './physics/PhysicsComponents';
+
+// =============================================================================
+// Self-Describing Component Types
+// =============================================================================
+
+export interface AssetRef {
+    type: string;
+    path: string;
+}
+
+export interface ComponentMetadata {
+    assetFields?: AssetFieldMeta[];
+    spineFields?: SpineFieldMeta;
+    entityFields?: string[];
+    discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
+}
 
 // =============================================================================
 // Component Definition
@@ -19,6 +35,12 @@ export interface ComponentDef<T> {
     readonly _name: string;
     readonly _default: T;
     readonly _builtin: false;
+    readonly assetFields: readonly AssetFieldMeta[];
+    readonly spineFields?: SpineFieldMeta;
+    readonly entityFields: readonly string[];
+    readonly colorKeys: readonly string[];
+    readonly animatableFields: readonly string[];
+    readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     create(data?: Partial<T>): T;
 }
 
@@ -61,7 +83,8 @@ function classifyKeys(obj: object): { flatKeys: string[]; objectKeys: string[]; 
 
 function createComponentDef<T extends object>(
     name: string,
-    defaults: T
+    defaults: T,
+    metadata?: ComponentMetadata,
 ): ComponentDef<T> {
     const id = ++componentCounter;
     const keyInfo = classifyKeys(defaults);
@@ -71,6 +94,12 @@ function createComponentDef<T extends object>(
         _name: name,
         _default: defaults,
         _builtin: false as const,
+        assetFields: metadata?.assetFields ?? [],
+        spineFields: metadata?.spineFields,
+        entityFields: metadata?.entityFields ?? [],
+        colorKeys: detectColorKeys(defaults),
+        animatableFields: [],
+        discoverAssets: metadata?.discoverAssets,
         create(data?: Partial<T>): T {
             if (keyInfo) {
                 const result = { ...defaultsRec };
@@ -97,13 +126,10 @@ export function defineComponent<T extends object>(
     const existing = componentRegistry.get(name) ?? getComponentRegistry().get(name);
     if (existing) return existing as ComponentDef<T>;
 
-    const def = createComponentDef(name, defaults);
+    const def = createComponentDef(name, defaults, metadata);
     getComponentRegistry().set(name, def);
     componentRegistry.set(name, def);
     registerToEditor(name, defaults as Record<string, unknown>, false);
-    if (metadata?.entityFields) {
-        registerComponentEntityFields(name, metadata.entityFields);
-    }
     return def;
 }
 
@@ -156,7 +182,12 @@ export interface BuiltinComponentDef<T> {
     readonly _cppName: string;
     readonly _builtin: true;
     readonly _default: T;
-    readonly _colorKeys: readonly string[];
+    readonly assetFields: readonly AssetFieldMeta[];
+    readonly spineFields?: SpineFieldMeta;
+    readonly entityFields: readonly string[];
+    readonly colorKeys: readonly string[];
+    readonly animatableFields: readonly string[];
+    readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
 }
 
 // =============================================================================
@@ -203,18 +234,21 @@ export interface ComponentMetadata {
 }
 
 export function defineBuiltin<T>(name: string, defaults: T, metadata?: ComponentMetadata): BuiltinComponentDef<T> {
+    const meta = COMPONENT_META[name];
     const def: BuiltinComponentDef<T> = {
         _id: Symbol(`Builtin_${name}`),
         _name: name,
         _cppName: name,
         _builtin: true,
         _default: defaults,
-        _colorKeys: detectColorKeys(defaults),
+        assetFields: metadata?.assetFields ?? meta?.assetFields ?? [],
+        spineFields: metadata?.spineFields ?? meta?.spine,
+        entityFields: metadata?.entityFields ?? meta?.entityFields ?? [],
+        colorKeys: meta?.colorFields ?? detectColorKeys(defaults),
+        animatableFields: meta?.animatableFields ?? [],
+        discoverAssets: metadata?.discoverAssets,
     };
     componentRegistry.set(name, def);
-    if (metadata?.entityFields) {
-        registerComponentEntityFields(name, metadata.entityFields);
-    }
     return def;
 }
 
@@ -375,105 +409,64 @@ export interface SceneOwnerData {
 // Builtin Component Instances
 // =============================================================================
 
-export const Transform = defineBuiltin<TransformData>('Transform', {
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { w: 1, x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 },
-    worldPosition: { x: 0, y: 0, z: 0 },
-    worldRotation: { w: 1, x: 0, y: 0, z: 0 },
-    worldScale: { x: 1, y: 1, z: 1 },
-});
+function metaDefaults<T>(name: string, overrides?: Partial<T>): T {
+    const base = COMPONENT_META[name]?.defaults ?? {};
+    return (overrides ? { ...base, ...overrides } : { ...base }) as T;
+}
+
+export const Transform = defineBuiltin<TransformData>('Transform',
+    metaDefaults<TransformData>('Transform')
+);
 export const LocalTransform = Transform;
 export const WorldTransform = Transform;
 
-export const Sprite = defineBuiltin<SpriteData>('Sprite', {
-    texture: INVALID_TEXTURE,
-    color: { r: 1, g: 1, b: 1, a: 1 },
-    size: { x: DEFAULT_SPRITE_SIZE.x, y: DEFAULT_SPRITE_SIZE.y },
-    pivot: { x: 0.5, y: 0.5 },
-    uvOffset: { x: 0, y: 0 },
-    uvScale: { x: 1, y: 1 },
-    layer: 0,
-    flipX: false,
-    flipY: false,
-    material: 0,
-    enabled: true
-});
+export const Sprite = defineBuiltin<SpriteData>('Sprite',
+    metaDefaults<SpriteData>('Sprite', {
+        size: { x: DEFAULT_SPRITE_SIZE.x, y: DEFAULT_SPRITE_SIZE.y },
+    })
+);
 
-export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer', {
-    shapeType: ShapeType.Circle,
-    color: { r: 1, g: 1, b: 1, a: 1 },
-    size: { x: 100, y: 100 },
-    cornerRadius: 0,
-    layer: 0,
-    enabled: true,
-});
+export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
+    metaDefaults<ShapeRendererData>('ShapeRenderer')
+);
 
-export const Camera = defineBuiltin<CameraData>('Camera', {
-    projectionType: ProjectionType.Orthographic,
-    fov: 60,
-    orthoSize: 540,
-    nearPlane: 0.1,
-    farPlane: 1000,
-    aspectRatio: 1.77,
-    isActive: true,
-    priority: 0,
-    showFrustum: false,
-    viewportX: 0,
-    viewportY: 0,
-    viewportW: 1,
-    viewportH: 1,
-    clearFlags: ClearFlags.ColorAndDepth,
-});
+export const Camera = defineBuiltin<CameraData>('Camera',
+    metaDefaults<CameraData>('Camera', {
+        projectionType: ProjectionType.Orthographic,
+        orthoSize: 540,
+        aspectRatio: 1.77,
+        isActive: true,
+        showFrustum: false,
+    })
+);
 
-export const Canvas = defineBuiltin<CanvasData>('Canvas', {
-    designResolution: { x: DEFAULT_DESIGN_WIDTH, y: DEFAULT_DESIGN_HEIGHT },
-    pixelsPerUnit: DEFAULT_PIXELS_PER_UNIT,
-    scaleMode: ScaleMode.FixedHeight,
-    matchWidthOrHeight: 0.5,
-    backgroundColor: { r: 0, g: 0, b: 0, a: 1 }
-});
+export const Canvas = defineBuiltin<CanvasData>('Canvas',
+    metaDefaults<CanvasData>('Canvas', {
+        designResolution: { x: DEFAULT_DESIGN_WIDTH, y: DEFAULT_DESIGN_HEIGHT },
+        pixelsPerUnit: DEFAULT_PIXELS_PER_UNIT,
+        scaleMode: ScaleMode.FixedHeight,
+    })
+);
 
-export const Velocity = defineBuiltin<VelocityData>('Velocity', {
-    linear: { x: 0, y: 0, z: 0 },
-    angular: { x: 0, y: 0, z: 0 }
-});
+export const Velocity = defineBuiltin<VelocityData>('Velocity',
+    metaDefaults<VelocityData>('Velocity')
+);
 
-export const Parent = defineBuiltin<ParentData>('Parent', {
-    entity: 0 as Entity
-});
+export const Parent = defineBuiltin<ParentData>('Parent',
+    metaDefaults<ParentData>('Parent')
+);
 
-export const Children = defineBuiltin<ChildrenData>('Children', {
-    entities: []
-});
+export const Children = defineBuiltin<ChildrenData>('Children',
+    metaDefaults<ChildrenData>('Children')
+);
 
-export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText', {
-    text: '',
-    color: { r: 1, g: 1, b: 1, a: 1 },
-    fontSize: 1.0,
-    align: 0,
-    spacing: 0,
-    layer: 0,
-    font: INVALID_FONT,
-    enabled: true,
-});
+export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText',
+    metaDefaults<BitmapTextData>('BitmapText')
+);
 
-export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation', {
-    skeletonPath: '',
-    atlasPath: '',
-    skin: '',
-    animation: '',
-    timeScale: 1.0,
-    loop: true,
-    playing: true,
-    flipX: false,
-    flipY: false,
-    color: { r: 1, g: 1, b: 1, a: 1 },
-    layer: 0,
-    skeletonScale: 1.0,
-    material: 0,
-    enabled: true
-});
+export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation',
+    metaDefaults<SpineAnimationData>('SpineAnimation')
+);
 
 // =============================================================================
 // ParticleEmitter Enums
@@ -552,49 +545,9 @@ export interface ParticleEmitterData {
     enabled: boolean;
 }
 
-export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter', {
-    rate: 10,
-    burstCount: 0,
-    burstInterval: 1,
-    duration: 5,
-    looping: true,
-    playOnStart: true,
-    maxParticles: 1000,
-    lifetimeMin: 5,
-    lifetimeMax: 5,
-    shape: EmitterShape.Cone,
-    shapeRadius: 100,
-    shapeSize: { x: 100, y: 100 },
-    shapeAngle: 25,
-    speedMin: 500,
-    speedMax: 500,
-    angleSpreadMin: 0,
-    angleSpreadMax: 360,
-    startSizeMin: 100,
-    startSizeMax: 100,
-    endSizeMin: 100,
-    endSizeMax: 100,
-    sizeEasing: ParticleEasing.Linear,
-    startColor: { r: 1, g: 1, b: 1, a: 1 },
-    endColor: { r: 1, g: 1, b: 1, a: 0 },
-    colorEasing: ParticleEasing.Linear,
-    rotationMin: 0,
-    rotationMax: 0,
-    angularVelocityMin: 0,
-    angularVelocityMax: 0,
-    gravity: { x: 0, y: 0 },
-    damping: 0,
-    texture: INVALID_TEXTURE,
-    spriteColumns: 1,
-    spriteRows: 1,
-    spriteFPS: 10,
-    spriteLoop: true,
-    blendMode: 1,
-    layer: 0,
-    material: 0,
-    simulationSpace: SimulationSpace.World,
-    enabled: true,
-});
+export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
+    metaDefaults<ParticleEmitterData>('ParticleEmitter')
+);
 
 export const Name = defineComponent<NameData>('Name', { value: '' });
 

@@ -40,8 +40,20 @@
  * @details Properties marked with this macro will be accessible from
  *          JavaScript/TypeScript with automatic getter/setter generation.
  *          Only works inside ES_COMPONENT() marked types.
+ *
+ *          Supports optional metadata annotations parsed by EHT:
+ *          - asset=<type>     : marks field as asset reference (texture, material, font, audio, etc.)
+ *          - animatable       : marks field as animatable via timeline
+ *          - entity_ref       : marks field as entity reference (for ID remapping)
+ *          - anim_flag=<flag> : animation side-effect flag (e.g. ANIM_POS_X on UIRect)
+ *
+ *          Examples:
+ *            ES_PROPERTY(asset=texture)
+ *            ES_PROPERTY(animatable)
+ *            ES_PROPERTY(animatable, anim_flag=ANIM_POS_X)
+ *            ES_PROPERTY(entity_ref)
  */
-#define ES_PROPERTY()
+#define ES_PROPERTY(...)
 
 /**
  * @brief Mark a method that should be exposed to scripts

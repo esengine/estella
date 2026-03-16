@@ -23,6 +23,8 @@ export interface TilemapLayerData {
 
 export const Tilemap = defineComponent<TilemapData>('Tilemap', {
     source: '',
+}, {
+    assetFields: [{ field: 'source', type: 'tilemap' }],
 });
 
 export const TilemapLayer = defineComponent<TilemapLayerData>('TilemapLayer', {
@@ -40,4 +42,6 @@ export const TilemapLayer = defineComponent<TilemapLayerData>('TilemapLayer', {
     opacity: 1,
     visible: true,
     parallaxFactor: { x: 1, y: 1 },
+}, {
+    assetFields: [{ field: 'texture', type: 'texture' }],
 });

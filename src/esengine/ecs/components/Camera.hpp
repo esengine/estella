@@ -63,7 +63,7 @@ struct Camera {
     f32 fov{60.0f};
 
     /** @brief Orthographic size (half-height in world units) */
-    ES_PROPERTY()
+    ES_PROPERTY(animatable)
     f32 orthoSize{5.0f};
 
     /** @brief Near clipping plane distance */

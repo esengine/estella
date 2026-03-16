@@ -47,11 +47,11 @@ namespace esengine::ecs {
 ES_COMPONENT()
 struct SpineAnimation {
     /** @brief Path to skeleton data file (.skel or .json) */
-    ES_PROPERTY()
+    ES_PROPERTY(asset = spine_skeleton)
     std::string skeletonPath;
 
     /** @brief Path to atlas file (.atlas) */
-    ES_PROPERTY()
+    ES_PROPERTY(asset = spine_atlas)
     std::string atlasPath;
 
     /** @brief Current skin name (empty for default) */
@@ -95,7 +95,7 @@ struct SpineAnimation {
     f32 skeletonScale{1.0f};
 
     /** @brief Custom material ID (0 = use default batch shader) */
-    ES_PROPERTY()
+    ES_PROPERTY(asset = material)
     u32 material{0};
 
     ES_PROPERTY()

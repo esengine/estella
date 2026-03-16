@@ -44,15 +44,15 @@ namespace esengine::ecs {
 ES_COMPONENT()
 struct Sprite {
     /** @brief Texture resource handle (type-safe) */
-    ES_PROPERTY()
+    ES_PROPERTY(asset = texture)
     resource::TextureHandle texture;
 
     /** @brief Color tint (RGBA, 0-1 range) */
-    ES_PROPERTY()
+    ES_PROPERTY(animatable)
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
 
     /** @brief Sprite size in world units */
-    ES_PROPERTY()
+    ES_PROPERTY(animatable)
     glm::vec2 size{1.0f, 1.0f};
 
     /** @brief Pivot point (0,0 = bottom-left, 0.5,0.5 = center, 1,1 = top-right) */
@@ -80,7 +80,7 @@ struct Sprite {
     bool flipY{false};
 
     /** @brief Custom material ID (0 = use default batch shader) */
-    ES_PROPERTY()
+    ES_PROPERTY(asset = material)
     u32 material{0};
 
     ES_PROPERTY()

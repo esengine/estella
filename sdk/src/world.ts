@@ -543,7 +543,7 @@ export class World {
                     }
                     this.getBuiltinMethods(component._cppName).add(
                         entity,
-                        convertForWasm(wasmData, component._colorKeys)
+                        convertForWasm(wasmData, component.colorKeys)
                     );
                 } catch (e) {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
@@ -587,7 +587,7 @@ export class World {
                 if (!bset && !methods.has(entity)) return null;
                 return convertFromWasm(
                     methods.get(entity) as Record<string, unknown>,
-                    component._colorKeys,
+                    component.colorKeys,
                 ) as ComponentData<C>;
             } catch (e) {
                 handleWasmError(e, `tryGet(${component._name}, entity=${entity})`);
@@ -673,7 +673,7 @@ export class World {
             try {
                 const methods = this.getBuiltinMethods(component._cppName);
                 isNew = !methods.has(entity);
-                methods.add(entity, convertForWasm(merged as Record<string, unknown>, component._colorKeys));
+                methods.add(entity, convertForWasm(merged as Record<string, unknown>, component.colorKeys));
             } catch (e) {
                 handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
             }
@@ -702,7 +702,7 @@ export class World {
             const raw = this.getBuiltinMethods(component._cppName).get(entity);
             return convertFromWasm(
                 raw as Record<string, unknown>,
-                component._colorKeys,
+                component.colorKeys,
             ) as T;
         } catch (e) {
             handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);
@@ -857,7 +857,7 @@ export class World {
             }
 
             const methods = this.getBuiltinMethods(component._cppName);
-            const colorKeys = component._colorKeys;
+            const colorKeys = component.colorKeys;
             if (colorKeys.length === 0) {
                 return (e) => methods.get(e);
             }
@@ -891,7 +891,7 @@ export class World {
             }
 
             const methods = this.getBuiltinMethods(component._cppName);
-            const colorKeys = component._colorKeys;
+            const colorKeys = component.colorKeys;
             if (colorKeys.length === 0) {
                 return (e, d) => methods.add(e, d);
             }

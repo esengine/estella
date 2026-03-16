@@ -27,6 +27,7 @@ class Property:
     name: str
     cpp_type: str
     default_value: Optional[str] = None
+    annotations: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -153,7 +154,7 @@ class CppParser:
     RE_COMPONENT = re.compile(r'ES_COMPONENT\s*\(\s*\)\s*struct\s+(\w+)')
     RE_ENUM = re.compile(r'ES_ENUM\s*\(\s*\)\s*enum\s+class\s+(\w+)(?:\s*:\s*(\w+))?')
     RE_PROPERTY = re.compile(
-        r'ES_PROPERTY\s*\(\s*\)\s*'
+        r'ES_PROPERTY\s*\(\s*([^)]*)\s*\)\s*'
         r'([^;]+?)\s+(\w+)\s*'
         r'(?:\{([^}]*)\}|=\s*([^;]+))?;'
     )
@@ -213,15 +214,31 @@ class CppParser:
             )
 
             for prop_match in self.RE_PROPERTY.finditer(body):
-                cpp_type = prop_match.group(1).strip()
-                prop_name = prop_match.group(2).strip()
-                default = prop_match.group(3) or prop_match.group(4)
+                annotations = self._parse_annotations(prop_match.group(1))
+                cpp_type = prop_match.group(2).strip()
+                prop_name = prop_match.group(3).strip()
+                default = prop_match.group(4) or prop_match.group(5)
                 component.properties.append(Property(
                     name=prop_name, cpp_type=cpp_type,
-                    default_value=default.strip() if default else None
+                    default_value=default.strip() if default else None,
+                    annotations=annotations
                 ))
 
             self.components.append(component)
+
+    @staticmethod
+    def _parse_annotations(raw: str) -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        for token in raw.split(','):
+            token = token.strip()
+            if not token:
+                continue
+            if '=' in token:
+                key, value = token.split('=', 1)
+                result[key.strip()] = value.strip()
+            else:
+                result[token] = 'true'
+        return result
 
     def parse_directory(self, dirpath: Path) -> None:
         for filepath in dirpath.rglob('*.hpp'):
@@ -635,6 +652,267 @@ class TypeScriptGenerator:
 
 
 # =============================================================================
+# Metadata Generator
+# =============================================================================
+
+class MetadataGenerator:
+    """Generates component.generated.ts with defaults and metadata."""
+
+    COLOR_FIELD_PATTERNS = {'color', 'Color', 'tint', 'Tint'}
+
+    def __init__(self, components: List[Component], enums: List[Enum]):
+        self.components = components
+        self.enums = enums
+        self.types = TypeSystem(enums)
+        self._enum_values = self._build_enum_value_map()
+
+    def _build_enum_value_map(self) -> Dict[str, Dict[str, int]]:
+        result: Dict[str, Dict[str, int]] = {}
+        for enum in self.enums:
+            vals: Dict[str, int] = {}
+            for i, v in enumerate(enum.values):
+                vals[v] = i
+            result[enum.name] = vals
+            if enum.namespace:
+                result[f'{enum.namespace}::{enum.name}'] = vals
+        return result
+
+    def _is_color_field(self, prop: Property) -> bool:
+        t = self.types.clean_type(prop.cpp_type)
+        if t != 'glm::vec4':
+            return False
+        return any(pat in prop.name for pat in self.COLOR_FIELD_PATTERNS)
+
+    def _convert_default(self, prop: Property) -> str:
+        t = self.types.clean_type(prop.cpp_type)
+        raw = prop.default_value
+
+        if self.types.is_handle(t):
+            return '0'
+        if t == 'std::string':
+            if raw and raw.startswith('"') and raw.endswith('"'):
+                return raw
+            return "''"
+        if t in self.types.VECTOR_TYPES:
+            return '[]'
+        if t == 'Padding':
+            return '{ left: 0, top: 0, right: 0, bottom: 0 }'
+        if raw and 'static_cast' in raw:
+            m = re.search(r'(\w+)::(\w+)', raw)
+            if m:
+                enum_name, val_name = m.group(1), m.group(2)
+                for key, vals in self._enum_values.items():
+                    if key.endswith(enum_name) or key == enum_name:
+                        if val_name in vals:
+                            return str(vals[val_name])
+        if self.types.is_enum(t):
+            enum_short = t.split('::')[-1]
+            if raw and '::' in raw:
+                val_name = raw.split('::')[-1].strip()
+                for key, vals in self._enum_values.items():
+                    if key.endswith(enum_short) or key == enum_short:
+                        if val_name in vals:
+                            return str(vals[val_name])
+            return '0'
+        if t == 'bool':
+            return 'true' if raw == 'true' else 'false'
+        if t == 'glm::quat':
+            vals = self._parse_float_list(raw, 4)
+            return f'{{ w: {vals[0]}, x: {vals[1]}, y: {vals[2]}, z: {vals[3]} }}'
+        if t == 'glm::vec2':
+            vals = self._parse_float_list(raw, 2)
+            return f'{{ x: {vals[0]}, y: {vals[1]} }}'
+        if t == 'glm::uvec2':
+            vals = self._parse_int_list(raw, 2)
+            return f'{{ x: {vals[0]}, y: {vals[1]} }}'
+        if t == 'glm::vec3':
+            vals = self._parse_float_list(raw, 3)
+            return f'{{ x: {vals[0]}, y: {vals[1]}, z: {vals[2]} }}'
+        if t == 'glm::vec4':
+            vals = self._parse_float_list(raw, 4)
+            if self._is_color_field(prop):
+                return f'{{ r: {vals[0]}, g: {vals[1]}, b: {vals[2]}, a: {vals[3]} }}'
+            return f'{{ x: {vals[0]}, y: {vals[1]}, z: {vals[2]}, w: {vals[3]} }}'
+        if t in TypeSystem.PRIMITIVE_TYPES:
+            return self._format_number(raw)
+        return '0'
+
+    @staticmethod
+    def _parse_float_list(raw: Optional[str], count: int) -> List[str]:
+        if not raw:
+            return ['0'] * count
+        raw = raw.strip()
+        parts = [p.strip().rstrip('fF') for p in raw.split(',')]
+        if len(parts) == 1:
+            val = MetadataGenerator._format_number(parts[0])
+            return [val] * count
+        result = [MetadataGenerator._format_number(p) for p in parts[:count]]
+        while len(result) < count:
+            result.append('0')
+        return result
+
+    @staticmethod
+    def _parse_int_list(raw: Optional[str], count: int) -> List[str]:
+        if not raw:
+            return ['0'] * count
+        parts = [p.strip() for p in raw.split(',')]
+        result = parts[:count]
+        while len(result) < count:
+            result.append('0')
+        return result
+
+    @staticmethod
+    def _format_number(raw: Optional[str]) -> str:
+        if not raw:
+            return '0'
+        raw = raw.strip().rstrip('fF')
+        try:
+            val = float(raw)
+            if val == int(val):
+                return str(int(val))
+            return str(val)
+        except (ValueError, OverflowError):
+            return '0'
+
+    def _get_asset_fields(self, comp: Component) -> List[Dict[str, str]]:
+        fields = []
+        for prop in comp.properties:
+            asset_type = prop.annotations.get('asset')
+            if asset_type and asset_type not in ('spine_skeleton', 'spine_atlas'):
+                fields.append({'field': prop.name, 'type': asset_type})
+        return fields
+
+    def _get_spine_descriptor(self, comp: Component) -> Optional[Dict[str, str]]:
+        skel_field = atlas_field = None
+        for prop in comp.properties:
+            asset_type = prop.annotations.get('asset')
+            if asset_type == 'spine_skeleton':
+                skel_field = prop.name
+            elif asset_type == 'spine_atlas':
+                atlas_field = prop.name
+        if skel_field and atlas_field:
+            return {'skeletonField': skel_field, 'atlasField': atlas_field}
+        return None
+
+    def _get_entity_fields(self, comp: Component) -> List[str]:
+        return [p.name for p in comp.properties if 'entity_ref' in p.annotations]
+
+    def _get_color_fields(self, comp: Component) -> List[str]:
+        return [p.name for p in comp.properties if self._is_color_field(p)]
+
+    def _get_animatable_fields(self, comp: Component) -> List[str]:
+        fields = []
+        for prop in comp.properties:
+            if 'animatable' not in prop.annotations:
+                continue
+            t = self.types.clean_type(prop.cpp_type)
+            if t == 'glm::vec2':
+                fields.extend([f'{prop.name}.x', f'{prop.name}.y'])
+            elif t == 'glm::vec3':
+                fields.extend([f'{prop.name}.x', f'{prop.name}.y', f'{prop.name}.z'])
+            elif t == 'glm::vec4':
+                if self._is_color_field(prop):
+                    fields.extend([f'{prop.name}.r', f'{prop.name}.g', f'{prop.name}.b', f'{prop.name}.a'])
+                else:
+                    fields.extend([f'{prop.name}.x', f'{prop.name}.y', f'{prop.name}.z', f'{prop.name}.w'])
+            elif t == 'glm::quat':
+                fields.append(f'{prop.name}.z')
+            else:
+                fields.append(prop.name)
+        return fields
+
+    def generate(self) -> str:
+        lines = [
+            '/**',
+            ' * @file    component.generated.ts',
+            ' * @brief   Auto-generated component metadata',
+            ' * @details Generated by EHT - DO NOT EDIT',
+            ' */',
+            '',
+            "import type { AssetFieldType } from './scene';",
+            '',
+            'export interface AssetFieldMeta {',
+            '    field: string;',
+            '    type: AssetFieldType;',
+            '}',
+            '',
+            'export interface SpineFieldMeta {',
+            '    skeletonField: string;',
+            '    atlasField: string;',
+            '}',
+            '',
+            'export interface ComponentMetaEntry {',
+            '    defaults: Record<string, unknown>;',
+            '    assetFields: AssetFieldMeta[];',
+            '    spine?: SpineFieldMeta;',
+            '    entityFields: string[];',
+            '    colorFields: string[];',
+            '    animatableFields: string[];',
+            '}',
+            '',
+            'export const COMPONENT_META: Record<string, ComponentMetaEntry> = {',
+        ]
+
+        for comp in self.components:
+            if not comp.properties:
+                continue
+
+            asset_fields = self._get_asset_fields(comp)
+            spine = self._get_spine_descriptor(comp)
+            entity_fields = self._get_entity_fields(comp)
+            color_fields = self._get_color_fields(comp)
+            animatable = self._get_animatable_fields(comp)
+
+            lines.append(f'    {comp.name}: {{')
+            lines.append('        defaults: {')
+            for prop in comp.properties:
+                if self.types.is_skip(prop.cpp_type) and prop.cpp_type not in self.types.VECTOR_TYPES:
+                    continue
+                val = self._convert_default(prop)
+                lines.append(f'            {prop.name}: {val},')
+            lines.append('        },')
+
+            if asset_fields:
+                parts = ', '.join(
+                    f"{{ field: '{f['field']}', type: '{f['type']}' as AssetFieldType }}"
+                    for f in asset_fields
+                )
+                lines.append(f'        assetFields: [{parts}],')
+            else:
+                lines.append('        assetFields: [],')
+
+            if spine:
+                lines.append(
+                    f"        spine: {{ skeletonField: '{spine['skeletonField']}', "
+                    f"atlasField: '{spine['atlasField']}' }},"
+                )
+
+            if entity_fields:
+                parts = ', '.join(f"'{f}'" for f in entity_fields)
+                lines.append(f'        entityFields: [{parts}],')
+            else:
+                lines.append('        entityFields: [],')
+
+            if color_fields:
+                parts = ', '.join(f"'{f}'" for f in color_fields)
+                lines.append(f'        colorFields: [{parts}],')
+            else:
+                lines.append('        colorFields: [],')
+
+            if animatable:
+                parts = ', '.join(f"'{f}'" for f in animatable)
+                lines.append(f'        animatableFields: [{parts}],')
+            else:
+                lines.append('        animatableFields: [],')
+
+            lines.append('    },')
+
+        lines.append('};')
+        lines.append('')
+        return '\n'.join(lines)
+
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -686,6 +964,14 @@ def main():
     if ts_src_path.parent.exists():
         print(f"Generating: {ts_src_path}")
         ts_src_path.write_text(ts_content, encoding='utf-8')
+
+    meta_gen = MetadataGenerator(cpp_parser.components, cpp_parser.enums)
+    meta_content = meta_gen.generate()
+
+    meta_path = args.ts_output / 'src' / 'component.generated.ts'
+    if meta_path.parent.exists():
+        print(f"Generating: {meta_path}")
+        meta_path.write_text(meta_content, encoding='utf-8')
 
     print("[OK] Done!")
     return 0

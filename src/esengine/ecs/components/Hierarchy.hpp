@@ -43,7 +43,7 @@ namespace esengine::ecs {
 ES_COMPONENT()
 struct Parent {
     /** @brief Parent entity ID */
-    ES_PROPERTY()
+    ES_PROPERTY(entity_ref)
     Entity entity = INVALID_ENTITY;
 
     Parent() = default;
@@ -63,7 +63,7 @@ struct Parent {
 ES_COMPONENT()
 struct Children {
     /** @brief List of child entity IDs */
-    ES_PROPERTY()
+    ES_PROPERTY(entity_ref)
     std::vector<Entity> entities;
 
     Children() = default;

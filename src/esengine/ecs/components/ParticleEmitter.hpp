@@ -126,7 +126,7 @@ struct ParticleEmitter {
     f32 damping{0.0f};
 
     // Texture
-    ES_PROPERTY()
+    ES_PROPERTY(asset = texture)
     resource::TextureHandle texture;
 
     ES_PROPERTY()
@@ -148,7 +148,7 @@ struct ParticleEmitter {
     ES_PROPERTY()
     i32 layer{0};
 
-    ES_PROPERTY()
+    ES_PROPERTY(asset = material)
     u32 material{0};
 
     // Space
