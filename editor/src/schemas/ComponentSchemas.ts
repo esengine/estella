@@ -258,8 +258,6 @@ export function exposeRegistrationAPI(): void {
     }
 }
 
-export { TransformSchema, CameraSchema } from '../plugins/coreComponents';
-export { SpriteSchema } from '../plugins/sprite';
 export { TextSchema } from '../plugins/text';
 
 export function getDefaultComponentData(typeName: string): Record<string, unknown> {
