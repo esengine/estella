@@ -9,7 +9,7 @@ import type { TransformData, ParentData, CanvasData } from '../component';
 import { Transform, Parent, Canvas } from '../component';
 import { defineResource, Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import {
     loadPhysicsModule,
     type PhysicsWasmModule,
@@ -189,8 +189,6 @@ export class PhysicsPlugin implements Plugin {
                     defineSystem(
                         [Res(Time)],
                         (time: TimeData) => {
-                            if (isEditor() && !isPlayMode()) return;
-
                             const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
                             const currentEntities = new Set<Entity>();
 
@@ -285,7 +283,8 @@ export class PhysicsPlugin implements Plugin {
                             collectEvents(app, module, ppu);
                         },
                         { name: 'PhysicsSystem' }
-                    )
+                    ),
+                    { runIf: playModeOnly }
                 );
 
                 app.physicsModule = module;

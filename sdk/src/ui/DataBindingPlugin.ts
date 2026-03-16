@@ -3,9 +3,10 @@ import type { Entity } from '../types';
 import type { AnyComponentDef } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { registerComponent, getComponent } from '../component';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import { DataBinding, type DataBindingData, type BindingEntry } from './DataBinding';
 import { compileExpression } from './DataBindingExpression';
+import { SystemLabel } from '../systemLabels';
 
 const componentDefCache = new Map<string, AnyComponentDef | null>();
 
@@ -28,8 +29,6 @@ export class DataBindingPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
-                if (isEditor() && !isPlayMode()) return;
-
                 for (const entity of lastSourceTick.keys()) {
                     if (!world.valid(entity) || !world.has(entity, DataBinding)) {
                         lastSourceTick.delete(entity);
@@ -56,7 +55,7 @@ export class DataBindingPlugin implements Plugin {
                 }
             },
             { name: 'DataBindingSystem' }
-        ), { runBefore: ['TextSystem', 'ImageSystem'] });
+        ), { runBefore: [SystemLabel.Text, SystemLabel.Image], runIf: playModeOnly });
     }
 }
 

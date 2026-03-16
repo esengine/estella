@@ -16,6 +16,7 @@ import { UIRenderer } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { isEditor, isPlayMode } from '../env';
 import { applyColorTransition, applyDefaultTint, ensureComponent, withChildEntity } from './uiHelpers';
+import { SystemLabel } from '../systemLabels';
 
 function setRendererColor(world: import('../world').World, entity: Entity, color: Color): void {
     if (!world.has(entity, UIRenderer)) return;
@@ -138,7 +139,7 @@ export class TogglePlugin implements Plugin {
                 }
             },
             { name: 'ToggleSystem' }
-        ), { runAfter: ['UIInteractionSystem'] });
+        ), { runAfter: [SystemLabel.UIInteraction] });
     }
 }
 

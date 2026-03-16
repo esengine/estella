@@ -1,6 +1,7 @@
 import type { App, Plugin } from '../app';
 import { registerComponent } from '../component';
 import { defineSystem, Schedule } from '../system';
+import { SystemLabel } from '../systemLabels';
 import { Res } from '../resource';
 import { UIRect } from './UIRect';
 import { UIRenderer } from './UIRenderer';
@@ -59,13 +60,13 @@ export class UILayoutPlugin implements Plugin {
             [Res(UICameraInfo)],
             layoutOnlyFn,
             { name: 'UILayoutLateSystem' }
-        ), { runBefore: ['UIRenderOrderSystem'] });
+        ), { runBefore: [SystemLabel.UIRenderOrder] });
 
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [],
             () => { module.transform_update(registry); },
             { name: 'UITransformFinalSystem' }
-        ), { runAfter: ['ScrollViewSystem', 'ListViewSystem'], runBefore: ['UIRenderOrderSystem'] });
+        ), { runAfter: [SystemLabel.ScrollView, SystemLabel.ListView], runBefore: [SystemLabel.UIRenderOrder] });
     }
 }
 

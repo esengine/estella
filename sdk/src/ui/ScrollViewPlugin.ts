@@ -26,6 +26,7 @@ import {
     SCROLL_MAX_OVERSCROLL_RATIO, SCROLL_MAX_VELOCITY_RATIO,
     SCROLL_POSITION_EPSILON,
 } from './uiConstants';
+import { SystemLabel } from '../systemLabels';
 
 function rubberBand(pos: number, min: number, max: number, viewSize: number): number {
     if (viewSize <= 0) return 1;
@@ -308,7 +309,7 @@ export class ScrollViewPlugin implements Plugin {
                 }
             },
             { name: 'ScrollViewSystem' }
-        ), { runAfter: ['UILayoutLateSystem'], runBefore: ['UIRenderOrderSystem'] });
+        ), { runAfter: [SystemLabel.UILayoutLate], runBefore: [SystemLabel.UIRenderOrder] });
 
         this.cleanup_ = () => {
             states.clear();

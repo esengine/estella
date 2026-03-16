@@ -22,6 +22,7 @@ import type { InputState } from '../input';
 import { isEditor, isPlayMode } from '../env';
 import { ensureComponent, getEffectiveWidth, getEffectiveHeight, setEntityColor, setEntityEnabled, withChildEntity } from './uiHelpers';
 import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR, DROPDOWN_DEFAULT_COLOR, DROPDOWN_OPTION_COLOR } from './uiConstants';
+import { SystemLabel } from '../systemLabels';
 
 interface DropdownState {
     optionEntities: Entity[];
@@ -153,7 +154,7 @@ export class DropdownPlugin implements Plugin {
                 }
             },
             { name: 'DropdownSystem' }
-        ), { runAfter: ['UIInteractionSystem'] });
+        ), { runAfter: [SystemLabel.UIInteraction] });
 
         function normalizeListTransform(listEntity: Entity): void {
             withChildEntity(world, listEntity, (e) => {

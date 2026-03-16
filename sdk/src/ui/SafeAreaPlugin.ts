@@ -9,6 +9,7 @@ import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
+import { SystemLabel } from '../systemLabels';
 
 export interface SafeAreaInsets {
     top: number;
@@ -128,7 +129,7 @@ export class SafeAreaPlugin implements Plugin {
                 }
             },
             { name: 'SafeAreaSystem' }
-        ), { runBefore: ['UILayoutSystem'] });
+        ), { runBefore: [SystemLabel.UILayout] });
     }
 }
 

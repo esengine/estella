@@ -42,10 +42,13 @@ export interface Plugin {
 // System Entry
 // =============================================================================
 
+export type RunCondition = () => boolean;
+
 interface SystemEntry {
     system: SystemDef;
     runBefore?: string[];
     runAfter?: string[];
+    runIf?: RunCondition;
 }
 
 // =============================================================================
@@ -156,12 +159,13 @@ export class App {
     addSystemToSchedule(
         schedule: Schedule,
         system: SystemDef,
-        options?: { runBefore?: string[]; runAfter?: string[] }
+        options?: { runBefore?: string[]; runAfter?: string[]; runIf?: RunCondition }
     ): this {
         this.systems_.get(schedule)!.push({
             system,
             runBefore: options?.runBefore,
             runAfter: options?.runAfter,
+            runIf: options?.runIf,
         });
         this.sortedSystemsCache_.delete(schedule);
         return this;
@@ -643,6 +647,7 @@ export class App {
         const t0 = this.phaseTimings_ ? performance.now() : 0;
 
         for (const entry of systems) {
+            if (entry.runIf && !entry.runIf()) continue;
             try {
                 const result = this.runner_.run(entry.system);
                 if (result instanceof Promise) {

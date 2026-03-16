@@ -9,6 +9,7 @@ import type { UIRectData } from './UIRect';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
+import { SystemLabel } from '../systemLabels';
 
 function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
     if (!world.has(entity, UIRenderer)) {
@@ -120,7 +121,7 @@ export class ImagePlugin implements Plugin {
                 }
             },
             { name: 'ImageSystem' }
-        ), { runAfter: ['UILayoutSystem'] });
+        ), { runAfter: [SystemLabel.UILayout] });
     }
 }
 

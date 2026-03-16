@@ -6,7 +6,7 @@ import { Input } from '../input';
 import type { InputState } from '../input';
 import type { Entity } from '../types';
 import type { World } from '../world';
-import { isEditor, isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import { Interactable } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
@@ -24,6 +24,7 @@ import { Image } from './Image';
 import type { ImageData } from './Image';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { UILayoutGeneration } from './UILayoutGeneration';
+import { SystemLabel } from '../systemLabels';
 import type { UILayoutGenerationData } from './UILayoutGeneration';
 
 const vpCache = createInvVPCache();
@@ -73,8 +74,6 @@ export class UIInteractionPlugin implements Plugin {
             [Res(Input), Res(UICameraInfo), Res(UILayoutGeneration)],
             (input: InputState, camera: UICameraData, layoutGen: UILayoutGenerationData) => {
                 events.drain();
-
-                if (isEditor() && !isPlayMode()) return;
 
                 const interactionEntities = world.getEntitiesWithComponents([UIInteraction]);
                 for (const entity of interactionEntities) {
@@ -172,7 +171,7 @@ export class UIInteractionPlugin implements Plugin {
                 }
             },
             { name: 'UIInteractionSystem' }
-        ), { runAfter: ['UILayoutSystem'] });
+        ), { runAfter: [SystemLabel.UILayout], runIf: playModeOnly });
 
         const buttonInitialized = new Set<Entity>();
 

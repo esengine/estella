@@ -2,7 +2,7 @@ import type { App, Plugin } from '../app';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import type { Entity } from '../types';
-import { isPlayMode } from '../env';
+import { playModeOnly } from '../env';
 import { Interactable } from './Interactable';
 import { UIInteraction, type UIInteractionData } from './UIInteraction';
 import { Selectable, type SelectableData } from './Selectable';
@@ -17,8 +17,6 @@ export class SelectablePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(UIEvents)],
             (uiEvents: UIEventQueue) => {
-                if (!isPlayMode()) return;
-
                 const entities = world.getEntitiesWithComponents([Selectable, Interactable]);
 
                 for (const entity of entities) {
@@ -50,7 +48,7 @@ export class SelectablePlugin implements Plugin {
                 }
             },
             { name: 'SelectableSystem' },
-        ));
+        ), { runIf: playModeOnly });
     }
 }
 
