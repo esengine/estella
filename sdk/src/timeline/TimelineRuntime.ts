@@ -6,6 +6,14 @@ import type { TimelineAsset } from './TimelineTypes';
 import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
 
+const TimelineEventType = {
+    SpinePlay: 0,
+    SpineStop: 1,
+    SpriteAnimPlay: 2,
+    AudioPlay: 3,
+    ActivationSet: 4,
+} as const;
+
 export function setNestedProperty(obj: Record<string, any>, path: string, value: number): boolean {
     const parts = path.split('.');
     let target = obj;
@@ -100,7 +108,7 @@ export function processTimelineEvents(world: any, module: ESEngineModule): void 
         const entity = module._tl_getEventEntity(i);
 
         switch (type) {
-            case 0: { // SpinePlay
+            case TimelineEventType.SpinePlay: {
                 const animName = decodeEventString(module, i);
                 const loop = module._tl_getEventIntParam(i) !== 0;
                 if (world.has(entity, SpineAnimation)) {
@@ -112,7 +120,7 @@ export function processTimelineEvents(world: any, module: ESEngineModule): void 
                 }
                 break;
             }
-            case 1: { // SpineStop
+            case TimelineEventType.SpineStop: {
                 if (world.has(entity, SpineAnimation)) {
                     const current = world.get(entity, SpineAnimation);
                     current.playing = false;
@@ -120,7 +128,7 @@ export function processTimelineEvents(world: any, module: ESEngineModule): void 
                 }
                 break;
             }
-            case 2: { // SpriteAnimPlay
+            case TimelineEventType.SpriteAnimPlay: {
                 const clipName = decodeEventString(module, i);
                 if (world.has(entity, SpriteAnimator)) {
                     const current = world.get(entity, SpriteAnimator);
@@ -132,7 +140,7 @@ export function processTimelineEvents(world: any, module: ESEngineModule): void 
                 }
                 break;
             }
-            case 3: { // AudioPlay
+            case TimelineEventType.AudioPlay: {
                 const clipPath = decodeEventString(module, i);
                 const volume = module._tl_getEventFloatParam(i);
                 if (clipPath) {
@@ -140,7 +148,7 @@ export function processTimelineEvents(world: any, module: ESEngineModule): void 
                 }
                 break;
             }
-            case 4: { // ActivationSet
+            case TimelineEventType.ActivationSet: {
                 const active = module._tl_getEventIntParam(i) !== 0;
                 if (world.has(entity, SpineAnimation)) {
                     const current = world.get(entity, SpineAnimation);
