@@ -347,6 +347,7 @@ interface MassData {
 }
 declare const PhysicsAPI: ResourceDef<Physics>;
 declare class PhysicsPlugin implements Plugin {
+    name: string;
     private config_;
     private wasmUrl_;
     private factory_?;
