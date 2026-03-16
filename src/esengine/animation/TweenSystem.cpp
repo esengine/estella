@@ -115,19 +115,19 @@ void TweenSystem::resumeTween(ecs::Registry& registry, Entity tweenEntity) {
 }
 
 constexpr AnimTargetField TWEEN_TO_ANIM_FIELD[] = {
-    AnimTargetField::PositionX,       // TransformPositionX
-    AnimTargetField::PositionY,       // TransformPositionY
-    AnimTargetField::PositionZ,       // TransformPositionZ
-    AnimTargetField::ScaleX,          // TransformScaleX
-    AnimTargetField::ScaleY,          // TransformScaleY
-    AnimTargetField::RotationZ,       // TransformRotationZ
-    AnimTargetField::ColorR,          // SpriteColorR
-    AnimTargetField::ColorG,          // SpriteColorG
-    AnimTargetField::ColorB,          // SpriteColorB
-    AnimTargetField::ColorA,          // SpriteColorA
-    AnimTargetField::SpriteSizeX,     // SpriteSizeX
-    AnimTargetField::SpriteSizeY,     // SpriteSizeY
-    AnimTargetField::CameraOrthoSize, // CameraOrthoSize
+    AnimTargetField::TransformPositionX,
+    AnimTargetField::TransformPositionY,
+    AnimTargetField::TransformPositionZ,
+    AnimTargetField::TransformScaleX,
+    AnimTargetField::TransformScaleY,
+    AnimTargetField::TransformRotationZ,
+    AnimTargetField::SpriteColorR,
+    AnimTargetField::SpriteColorG,
+    AnimTargetField::SpriteColorB,
+    AnimTargetField::SpriteColorA,
+    AnimTargetField::SpriteSizeX,
+    AnimTargetField::SpriteSizeY,
+    AnimTargetField::CameraOrthoSize,
 };
 
 void TweenSystem::applyValue(ecs::Registry& registry, const TweenData& tween, f32 value) {

@@ -1,73 +1,8 @@
 import type { ESEngineModule } from '../wasm';
 import type { TimelineAsset, PropertyTrack, Track } from './TimelineTypes';
 import { TrackType, InterpType } from './TimelineTypes';
-
-export enum AnimTargetField {
-    PositionX = 0, PositionY, PositionZ,
-    ScaleX, ScaleY, ScaleZ,
-    RotationZ,
-    ColorR, ColorG, ColorB, ColorA,
-    SpriteOpacity,
-    SpriteSizeX, SpriteSizeY,
-    OffsetMinX, OffsetMinY,
-    OffsetMaxX, OffsetMaxY,
-    AnchorMinX, AnchorMinY,
-    AnchorMaxX, AnchorMaxY,
-    PivotX, PivotY,
-    CameraOrthoSize,
-    CustomField,
-}
-
-enum AnimTargetComponent {
-    Transform = 0,
-    Sprite,
-    UIRect,
-    Camera,
-    Custom,
-}
-
-const FIELD_MAP: Record<string, Record<string, AnimTargetField>> = {
-    Transform: {
-        'position.x': AnimTargetField.PositionX,
-        'position.y': AnimTargetField.PositionY,
-        'position.z': AnimTargetField.PositionZ,
-        'scale.x': AnimTargetField.ScaleX,
-        'scale.y': AnimTargetField.ScaleY,
-        'scale.z': AnimTargetField.ScaleZ,
-        'rotation': AnimTargetField.RotationZ,
-    },
-    Sprite: {
-        'color.r': AnimTargetField.ColorR,
-        'color.g': AnimTargetField.ColorG,
-        'color.b': AnimTargetField.ColorB,
-        'color.a': AnimTargetField.ColorA,
-        'opacity': AnimTargetField.SpriteOpacity,
-        'size.x': AnimTargetField.SpriteSizeX,
-        'size.y': AnimTargetField.SpriteSizeY,
-    },
-    UIRect: {
-        'offsetMin.x': AnimTargetField.OffsetMinX,
-        'offsetMin.y': AnimTargetField.OffsetMinY,
-        'offsetMax.x': AnimTargetField.OffsetMaxX,
-        'offsetMax.y': AnimTargetField.OffsetMaxY,
-        'anchorMin.x': AnimTargetField.AnchorMinX,
-        'anchorMin.y': AnimTargetField.AnchorMinY,
-        'anchorMax.x': AnimTargetField.AnchorMaxX,
-        'anchorMax.y': AnimTargetField.AnchorMaxY,
-        'pivot.x': AnimTargetField.PivotX,
-        'pivot.y': AnimTargetField.PivotY,
-    },
-    Camera: {
-        'orthoSize': AnimTargetField.CameraOrthoSize,
-    },
-};
-
-const COMPONENT_MAP: Record<string, AnimTargetComponent> = {
-    Transform: AnimTargetComponent.Transform,
-    Sprite: AnimTargetComponent.Sprite,
-    UIRect: AnimTargetComponent.UIRect,
-    Camera: AnimTargetComponent.Camera,
-};
+export { AnimTargetField, AnimTargetComponent, FIELD_MAP, COMPONENT_MAP } from './animTargets.generated';
+import { AnimTargetField, AnimTargetComponent, FIELD_MAP, COMPONENT_MAP } from './animTargets.generated';
 
 const INTERP_TYPE_MAP: Record<string, number> = {
     [InterpType.Hermite]: 0,

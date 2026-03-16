@@ -38,13 +38,13 @@ namespace esengine::ecs {
  */
 ES_COMPONENT()
 struct Transform {
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, anim_override)
     glm::vec3 position{0.0f, 0.0f, 0.0f};
 
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, anim_override)
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, anim_override)
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 
     ES_PROPERTY()

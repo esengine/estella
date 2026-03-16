@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "animTargets.generated.hpp"
 
 #include <string>
 #include <vector>
@@ -32,50 +33,6 @@ struct TimelineKeyframe {
 
 struct TimelineChannel {
     std::vector<TimelineKeyframe> keyframes;
-};
-
-enum class AnimTargetComponent : u8 {
-    Transform = 0,
-    Sprite,
-    UIRect,
-    Camera,
-    Custom,
-    COUNT
-};
-
-enum class AnimTargetField : u8 {
-    // Transform
-    PositionX = 0,
-    PositionY,
-    PositionZ,
-    ScaleX,
-    ScaleY,
-    ScaleZ,
-    RotationZ,
-    // Sprite
-    ColorR,
-    ColorG,
-    ColorB,
-    ColorA,
-    SpriteOpacity,
-    SpriteSizeX,
-    SpriteSizeY,
-    // UIRect
-    OffsetMinX,
-    OffsetMinY,
-    OffsetMaxX,
-    OffsetMaxY,
-    AnchorMinX,
-    AnchorMinY,
-    AnchorMaxX,
-    AnchorMaxY,
-    PivotX,
-    PivotY,
-    // Camera
-    CameraOrthoSize,
-    // Custom (fallback to TS)
-    CustomField,
-    COUNT
 };
 
 struct PropertyTrackBinding {
