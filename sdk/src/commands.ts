@@ -67,6 +67,7 @@ export class EntityCommands {
     private readonly commands_: CommandsInstance;
     private readonly entityRef_: { entity: Entity };
     private readonly components_: SpawnComponentEntry[] = [];
+    private readonly spawnName_?: string;
     private isNew_: boolean;
 
     constructor(commands: CommandsInstance, entity: Entity | null, name?: string) {
@@ -75,9 +76,7 @@ export class EntityCommands {
         if (entity === null) {
             this.entityRef_ = { entity: 0 as Entity };
             this.isNew_ = true;
-            if (name !== undefined) {
-                this.insert(Name, { value: name });
-            }
+            this.spawnName_ = name;
         } else {
             this.entityRef_ = { entity };
             this.isNew_ = false;
@@ -118,7 +117,7 @@ export class EntityCommands {
 
     finalize(): void {
         if (this.isNew_) {
-            this.commands_.spawnImmediate(this.components_, this.entityRef_);
+            this.commands_.spawnImmediate(this.components_, this.entityRef_, this.spawnName_);
             this.isNew_ = false;
         }
     }
@@ -171,8 +170,8 @@ export class CommandsInstance {
         this.pending_.push({ type: 'remove', entity, component });
     }
 
-    spawnImmediate(components: SpawnComponentEntry[], entityRef: { entity: Entity }): void {
-        const entity = this.world_.spawn();
+    spawnImmediate(components: SpawnComponentEntry[], entityRef: { entity: Entity }, name?: string): void {
+        const entity = this.world_.spawn(name);
         entityRef.entity = entity;
 
         for (const entry of components) {
