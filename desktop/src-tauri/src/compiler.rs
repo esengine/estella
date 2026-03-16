@@ -719,6 +719,10 @@ pub async fn compile_wasm(
         return Err(format!("Invalid emsdk at: {}", emsdk_path));
     }
 
+    if !emsdk_dir.join(".emscripten").exists() {
+        generate_emscripten_config(&emsdk_dir)?;
+    }
+
     let engine_src = resolve_engine_src(&app)?;
     let cache_key = compute_cache_key(&options);
 
