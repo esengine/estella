@@ -173,6 +173,10 @@ export class SharedRenderContext {
             ...uiPlugins,
         ]);
 
+        app.onWasmError((error, context) => {
+            console.error(`[ESEngine:${context}]`, error);
+        });
+
         this.assetGraph_ = new AssetGraph();
         this.assetGraph_.registerProcessor(imageProcessor);
         this.assetGraph_.onChange((events) => {

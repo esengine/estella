@@ -274,32 +274,13 @@ export class EditorStore {
 
     newScene(name: string = 'Untitled', designResolution?: { width: number; height: number }): void {
         this.saveRecoveryBackup();
-        this.state_.scene = createEmptyScene(name, designResolution);
-        this.state_.selectedEntities.clear();
-        this.state_.selectedAsset = null;
-        this.state_.filePath = null;
-        this.history_.clear();
-        this.forceDirty_ = false;
-        this.nextEntityId_ = this.computeNextEntityId(this.state_.scene);
-        this.rebuildEntityMap();
-        this.worldTransforms_.setScene(this.state_.scene);
-        this.notifySceneSync();
-        this.notify('scene');
+        const scene = createEmptyScene(name, designResolution);
+        this.swapScene_(scene, null);
     }
 
     loadScene(scene: SceneData, filePath: string | null = null): void {
         this.saveRecoveryBackup();
-        this.state_.scene = scene;
-        this.state_.selectedEntities.clear();
-        this.state_.selectedAsset = null;
-        this.state_.filePath = filePath;
-        this.history_.clear();
-        this.forceDirty_ = false;
-
-        this.nextEntityId_ = this.computeNextEntityId(scene);
-
-        this.rebuildEntityMap();
-        this.worldTransforms_.setScene(scene);
+        this.swapScene_(scene, filePath);
 
         const tracker = getPrefabDependencyTracker();
         tracker.setScene(scene, () => {
@@ -307,7 +288,21 @@ export class EditorStore {
             this.state_.isDirty = true;
             this.notify('scene');
         });
+    }
 
+    private swapScene_(scene: SceneData, filePath: string | null): void {
+        this.state_ = {
+            scene,
+            selectedEntities: new Set(),
+            selectedAsset: null,
+            isDirty: false,
+            filePath,
+        };
+        this.history_.clear();
+        this.forceDirty_ = false;
+        this.nextEntityId_ = this.computeNextEntityId(scene);
+        this.rebuildEntityMap();
+        this.worldTransforms_.setScene(scene);
         this.notifySceneSync();
         this.notify('scene');
     }
@@ -322,10 +317,14 @@ export class EditorStore {
     }
 
     restoreSnapshot(snapshot: SceneSnapshot): void {
-        this.state_.scene = snapshot.scene;
-        this.state_.selectedEntities = new Set(snapshot.selectedEntities);
+        this.state_ = {
+            scene: snapshot.scene,
+            selectedEntities: new Set(snapshot.selectedEntities),
+            selectedAsset: null,
+            isDirty: snapshot.isDirty,
+            filePath: snapshot.filePath,
+        };
         this.forceDirty_ = snapshot.isDirty;
-        this.state_.filePath = snapshot.filePath;
         this.nextEntityId_ = this.computeNextEntityId(this.state_.scene);
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
