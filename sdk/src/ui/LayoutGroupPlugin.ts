@@ -3,7 +3,7 @@ import { registerComponent } from '../component';
 import { LayoutGroup } from './LayoutGroup';
 
 export class LayoutGroupPlugin implements Plugin {
-    build(app: App): void {
+    build(_app: App): void {
         registerComponent('LayoutGroup', LayoutGroup);
     }
 }

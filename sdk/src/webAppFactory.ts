@@ -27,9 +27,7 @@ export { dragPlugin, DragPlugin } from './ui/DragPlugin';
 export { scrollViewPlugin, ScrollViewPlugin } from './ui/ScrollViewPlugin';
 export { focusPlugin, FocusPlugin } from './ui/FocusPlugin';
 export { safeAreaPlugin, SafeAreaPlugin } from './ui/SafeAreaPlugin';
-export { listViewPlugin, ListViewPlugin } from './ui/ListViewPlugin';
 export { dropdownPlugin, DropdownPlugin } from './ui/DropdownPlugin';
-export { layoutGroupPlugin, LayoutGroupPlugin } from './ui/LayoutGroupPlugin';
 export { stateMachinePlugin, StateMachinePlugin } from './ui/StateMachinePlugin';
 
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';

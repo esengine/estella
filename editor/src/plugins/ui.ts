@@ -289,7 +289,7 @@ const UI_SCHEMAS: ComponentSchema[] = [
     ButtonSchema, TextInputSchema, ImageSchema,
     ToggleSchema, ToggleGroupSchema, ProgressBarSchema,
     DraggableSchema, ScrollViewSchema, SliderSchema, FocusableSchema,
-    SafeAreaSchema, ListViewSchema, DropdownSchema,
+    SafeAreaSchema, DropdownSchema,
     FlexContainerSchema, FlexItemSchema, LayoutGroupSchema,
     StateMachineSchema,
     DragStateSchema,

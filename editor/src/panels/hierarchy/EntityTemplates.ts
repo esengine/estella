@@ -15,12 +15,14 @@ interface EntityTemplateNode {
     children?: EntityTemplateNode[];
 }
 
-type EntityCategory = 'ui' | 'physics' | 'general';
+type EntityCategory = 'ui' | 'physics' | 'general' | 'audio';
 
 interface EntityTemplate {
     root: EntityTemplateNode;
     bindings?: Record<string, string>;
     category: EntityCategory;
+    menuLabel?: string;
+    icon?: string;
 }
 
 function ui(root: EntityTemplateNode, bindings?: Record<string, string>): EntityTemplate {
@@ -33,6 +35,10 @@ function physics(root: EntityTemplateNode): EntityTemplate {
 
 function general(root: EntityTemplateNode): EntityTemplate {
     return { root, category: 'general' };
+}
+
+function audio(root: EntityTemplateNode): EntityTemplate {
+    return { root, category: 'audio' };
 }
 
 // =============================================================================
@@ -81,18 +87,18 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         components: [{ type: 'Transform' }, { type: 'Camera' }],
     }),
 
-    AudioSource: general({
+    AudioSource: audio({
         name: 'AudioSource',
         components: [{ type: 'Transform' }, { type: 'AudioSource' }],
     }),
 
-    AudioListener: general({
+    AudioListener: audio({
         name: 'AudioListener',
         components: [{ type: 'Transform' }, { type: 'AudioListener' }],
     }),
 
     // ---- UI ----
-    Canvas: general({
+    Canvas: ui({
         name: 'Canvas',
         components: [{ type: 'Transform' }, { type: 'UIRect' }, { type: 'Canvas' }],
     }),
@@ -268,6 +274,35 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
         ],
     }),
 
+    'CollectionView (Linear)': { ...ui({
+        name: 'CollectionView',
+        components: [
+            { type: 'Transform' },
+            { type: 'UIRect', defaults: { size: { x: 300, y: 400 } } },
+            { type: 'CollectionView', defaults: { itemCount: 10, layout: 'linear' } },
+            { type: 'LinearLayout', defaults: { itemSize: 40, spacing: 4 } },
+        ],
+    }), menuLabel: 'List (Linear)' },
+
+    'CollectionView (Grid)': { ...ui({
+        name: 'CollectionView',
+        components: [
+            { type: 'Transform' },
+            { type: 'UIRect', defaults: { size: { x: 400, y: 400 } } },
+            { type: 'CollectionView', defaults: { itemCount: 20, layout: 'grid' } },
+            { type: 'GridLayout', defaults: { crossAxisCount: 4, itemSize: { x: 80, y: 80 }, spacing: { x: 4, y: 4 } } },
+        ],
+    }), menuLabel: 'Grid' },
+
+    'CollectionView (Fan)': { ...ui({
+        name: 'CardHand',
+        components: [
+            { type: 'Transform' },
+            { type: 'CollectionView', defaults: { itemCount: 5, layout: 'fan', virtualized: false } },
+            { type: 'FanLayout', defaults: { radius: 500, maxSpreadAngle: 25 } },
+        ],
+    }), menuLabel: 'Card Hand (Fan)' },
+
     TextInput: ui({
         name: 'TextInput',
         components: [
@@ -388,4 +423,18 @@ function createNode(
     }
 
     return entity;
+}
+
+// =============================================================================
+// Auto-generate menu items from template registry
+// =============================================================================
+
+export function getTemplatesByCategory(category: EntityCategory): { key: string; label: string }[] {
+    const results: { key: string; label: string }[] = [];
+    for (const [key, template] of Object.entries(ENTITY_TEMPLATES)) {
+        if (template.category === category) {
+            results.push({ key, label: template.menuLabel ?? key });
+        }
+    }
+    return results;
 }

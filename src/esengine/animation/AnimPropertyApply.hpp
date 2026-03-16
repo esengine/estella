@@ -37,10 +37,20 @@ inline void applyAnimatedValue(
             if (auto* t = registry.tryGet<ecs::Transform>(entity)) { t->position.z = value; }
             break;
         case AnimTargetField::ScaleX:
-            if (auto* t = registry.tryGet<ecs::Transform>(entity)) { t->scale.x = value; }
+            if (auto* t = registry.tryGet<ecs::Transform>(entity)) {
+                t->scale.x = value;
+                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) {
+                    r->anim_override_ |= ecs::UIRect::ANIM_SCALE_X;
+                }
+            }
             break;
         case AnimTargetField::ScaleY:
-            if (auto* t = registry.tryGet<ecs::Transform>(entity)) { t->scale.y = value; }
+            if (auto* t = registry.tryGet<ecs::Transform>(entity)) {
+                t->scale.y = value;
+                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) {
+                    r->anim_override_ |= ecs::UIRect::ANIM_SCALE_Y;
+                }
+            }
             break;
         case AnimTargetField::ScaleZ:
             if (auto* t = registry.tryGet<ecs::Transform>(entity)) { t->scale.z = value; }
@@ -49,6 +59,9 @@ inline void applyAnimatedValue(
             if (auto* t = registry.tryGet<ecs::Transform>(entity)) {
                 f32 halfAngle = value * 0.5f;
                 t->rotation = glm::quat(std::cos(halfAngle), 0.0f, 0.0f, std::sin(halfAngle));
+                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) {
+                    r->anim_override_ |= ecs::UIRect::ANIM_ROT_Z;
+                }
             }
             break;
         }

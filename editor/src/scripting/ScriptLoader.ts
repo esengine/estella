@@ -275,6 +275,7 @@ async function findTsFiles(
 }
 
 export { findTsFiles, IGNORED_SCRIPT_DIRS, EDITOR_ONLY_DIRS };
+export { extractAndRegisterComponents, safeParseObjectLiteral, extractObjectLiteral };
 
 // =============================================================================
 // Component Extraction

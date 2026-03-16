@@ -132,6 +132,14 @@ interface SegmentCollider {
     categoryBits: number;
     maskBits: number;
 }
+interface FanLayout {
+    radius: number;
+    maxSpreadAngle: number;
+    maxCardAngle: number;
+    tiltFactor: number;
+    cardSpacing: number;
+    direction: number;
+}
 interface ParticleEmitter {
     rate: number;
     burstCount: number;
@@ -192,6 +200,12 @@ interface UIRenderer {
     sliceBorder: Vec4;
     material: number;
     enabled: boolean;
+}
+interface GridLayout {
+    direction: number;
+    crossAxisCount: number;
+    itemSize: Vec2;
+    spacing: Vec2;
 }
 interface Velocity {
     linear: Vec3;
@@ -283,6 +297,10 @@ interface ShapeRenderer {
     layer: number;
     enabled: boolean;
 }
+interface Selectable {
+    selected: boolean;
+    group: number;
+}
 interface LayoutGroup {
     direction: number;
     spacing: number;
@@ -343,6 +361,10 @@ interface Registry {
     getSegmentCollider(entity: Entity): SegmentCollider;
     addSegmentCollider(entity: Entity, component: SegmentCollider): void;
     removeSegmentCollider(entity: Entity): void;
+    hasFanLayout(entity: Entity): boolean;
+    getFanLayout(entity: Entity): FanLayout;
+    addFanLayout(entity: Entity, component: FanLayout): void;
+    removeFanLayout(entity: Entity): void;
     hasParticleEmitter(entity: Entity): boolean;
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
@@ -355,6 +377,10 @@ interface Registry {
     getUIRenderer(entity: Entity): UIRenderer;
     addUIRenderer(entity: Entity, component: UIRenderer): void;
     removeUIRenderer(entity: Entity): void;
+    hasGridLayout(entity: Entity): boolean;
+    getGridLayout(entity: Entity): GridLayout;
+    addGridLayout(entity: Entity, component: GridLayout): void;
+    removeGridLayout(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -403,6 +429,10 @@ interface Registry {
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
     removeShapeRenderer(entity: Entity): void;
+    hasSelectable(entity: Entity): boolean;
+    getSelectable(entity: Entity): Selectable;
+    addSelectable(entity: Entity, component: Selectable): void;
+    removeSelectable(entity: Entity): void;
     hasLayoutGroup(entity: Entity): boolean;
     getLayoutGroup(entity: Entity): LayoutGroup;
     addLayoutGroup(entity: Entity, component: LayoutGroup): void;
