@@ -68,6 +68,9 @@ interface ScrollState {
 }
 
 export class ScrollViewPlugin implements Plugin {
+    name = 'scrollView';
+    dependencies = ['uiLayout'];
+
     private cleanup_: (() => void) | null = null;
 
     cleanup(): void {

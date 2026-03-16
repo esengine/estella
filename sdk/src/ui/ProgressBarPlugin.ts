@@ -8,6 +8,8 @@ import type { ProgressBarData } from './ProgressBar';
 import { applyDirectionalFill, withChildEntity } from './uiHelpers';
 
 export class ProgressBarPlugin implements Plugin {
+    name = 'progressBar';
+
     build(app: App): void {
         registerComponent('ProgressBar', ProgressBar);
 

@@ -51,6 +51,7 @@ export class InputState {
 export const Input = defineResource<InputState>(new InputState(), 'Input');
 
 export class InputPlugin implements Plugin {
+    name = 'input';
     private target_: unknown;
 
     constructor(target?: unknown) {

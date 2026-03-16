@@ -17,6 +17,8 @@ function getCachedComponentDef(name: string): AnyComponentDef | null {
 }
 
 export class DataBindingPlugin implements Plugin {
+    name = 'dataBinding';
+
     build(app: App): void {
         registerComponent('DataBinding', DataBinding);
 

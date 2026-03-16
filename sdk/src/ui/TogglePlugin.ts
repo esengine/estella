@@ -34,6 +34,8 @@ function setRendererEnabled(world: import('../world').World, entity: Entity, ena
 }
 
 export class TogglePlugin implements Plugin {
+    name = 'toggle';
+
     build(app: App): void {
         registerComponent('Toggle', Toggle);
         registerComponent('ToggleGroup', ToggleGroup);

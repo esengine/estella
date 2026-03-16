@@ -79,6 +79,8 @@ function syncHandleRect(
 }
 
 export class SliderPlugin implements Plugin {
+    name = 'slider';
+
     build(app: App): void {
         registerComponent('Slider', Slider);
 

@@ -26,6 +26,8 @@ function ensureUIRenderer(world: import('../world').World, entity: Entity): void
 }
 
 export class ImagePlugin implements Plugin {
+    name = 'image';
+
     build(app: App): void {
         registerComponent('Image', Image);
 

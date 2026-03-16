@@ -494,6 +494,8 @@ function processLayer(
 }
 
 export class StateMachinePlugin implements Plugin {
+    name = 'stateMachine';
+
     build(app: App): void {
         registerComponent('StateMachine', StateMachine);
 

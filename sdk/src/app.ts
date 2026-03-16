@@ -108,6 +108,14 @@ export class App {
         return this.installed_plugins_.find((p): p is T => p instanceof ctor);
     }
 
+    addPlugins(plugins: Plugin[]): this {
+        const sorted = this.sortPlugins(plugins);
+        for (const plugin of sorted) {
+            this.addPlugin(plugin);
+        }
+        return this;
+    }
+
     addPlugin(plugin: Plugin): this {
         if (this.installedPluginSet_.has(plugin)) return this;
         if (plugin.dependencies) {
@@ -538,6 +546,46 @@ export class App {
         }
     }
 
+    private sortPlugins(plugins: Plugin[]): Plugin[] {
+        if (plugins.length <= 1) return plugins;
+
+        const nameToIndex = new Map<string, number>();
+        for (let i = 0; i < plugins.length; i++) {
+            const name = plugins[i].name;
+            if (name) nameToIndex.set(name, i);
+        }
+
+        const sorted: Plugin[] = [];
+        const visited = new Set<number>();
+        const visiting = new Set<number>();
+
+        const visit = (index: number): void => {
+            if (visited.has(index)) return;
+            if (visiting.has(index)) {
+                throw new Error(`Circular plugin dependency detected involving "${plugins[index].name ?? index}"`);
+            }
+            visiting.add(index);
+            const deps = plugins[index].dependencies;
+            if (deps) {
+                for (const dep of deps) {
+                    if (typeof dep !== 'string') continue;
+                    const depIndex = nameToIndex.get(dep);
+                    if (depIndex !== undefined) {
+                        visit(depIndex);
+                    }
+                }
+            }
+            visiting.delete(index);
+            visited.add(index);
+            sorted.push(plugins[index]);
+        };
+
+        for (let i = 0; i < plugins.length; i++) {
+            visit(i);
+        }
+        return sorted;
+    }
+
     private sortSystems(systems: SystemEntry[]): SystemEntry[] {
         if (systems.length <= 1) {
             return systems;
@@ -805,9 +853,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(inputPlugin);
     app.addPlugin(sceneManagerPlugin);
     if (options?.plugins) {
-        for (const plugin of options.plugins) {
-            app.addPlugin(plugin);
-        }
+        app.addPlugins(options.plugins);
     }
 
     return app;

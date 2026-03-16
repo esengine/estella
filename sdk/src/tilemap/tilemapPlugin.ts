@@ -19,7 +19,7 @@ const GRID_TYPE_MAP: Record<string, number> = {
 };
 
 export class TilemapPlugin implements Plugin {
-    name = 'TilemapPlugin';
+    name = 'tilemap';
 
     private initializedLayers_ = new Set<number>();
     private animatedLayers_ = new Set<number>();

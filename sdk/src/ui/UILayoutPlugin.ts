@@ -13,6 +13,8 @@ import type { CppRegistry } from '../wasm';
 import { initUIHelpers } from './uiHelpers';
 
 export class UILayoutPlugin implements Plugin {
+    name = 'uiLayout';
+
     build(app: App): void {
         registerComponent('UIRect', UIRect);
         registerComponent('UIRenderer', UIRenderer);

@@ -70,6 +70,9 @@ function applyConstraints(
 }
 
 export class DragPlugin implements Plugin {
+    name = 'drag';
+    dependencies = ['uiInteraction'];
+
     build(app: App): void {
         registerComponent('Draggable', Draggable);
         registerComponent('DragState', DragState);

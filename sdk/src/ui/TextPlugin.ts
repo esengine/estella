@@ -27,6 +27,9 @@ function ensureUIRenderer(world: import('../world').World, entity: Entity): void
 }
 
 export class TextPlugin implements Plugin {
+    name = 'text';
+    dependencies = ['uiLayout'];
+
     build(app: App): void {
         registerComponent('Text', Text);
 

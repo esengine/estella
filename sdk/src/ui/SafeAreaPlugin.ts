@@ -60,6 +60,8 @@ function getSafeAreaInsets(): SafeAreaInsets {
 }
 
 export class SafeAreaPlugin implements Plugin {
+    name = 'safeArea';
+
     build(app: App): void {
         registerComponent('SafeArea', SafeArea);
 

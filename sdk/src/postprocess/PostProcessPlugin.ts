@@ -5,7 +5,7 @@ import { cleanupAllPostProcessVolumes } from './sync';
 import { postProcessVolumeSystem, cleanupVolumeSystem, PostProcessVolumeConfigResource } from './volumeSystem';
 
 export class PostProcessPlugin implements Plugin {
-    name = 'PostProcessPlugin';
+    name = 'postProcess';
 
     build(app: App): void {
         app.insertResource(PostProcessVolumeConfigResource, { enabled: true });

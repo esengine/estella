@@ -122,6 +122,7 @@ function readPixelsPerUnit(app: App): number {
 }
 
 export class PhysicsPlugin implements Plugin {
+    name = 'physics';
     private config_: Required<Omit<PhysicsPluginConfig, 'collisionLayerMasks'>> & Pick<PhysicsPluginConfig, 'collisionLayerMasks'>;
     private wasmUrl_: string;
     private factory_?: PhysicsModuleFactory;

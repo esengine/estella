@@ -153,7 +153,7 @@ export interface StatsPluginOptions {
 }
 
 export class StatsPlugin implements Plugin {
-    readonly name = 'Stats';
+    readonly name = 'stats';
     private collector_ = new StatsCollector();
     private overlay_: StatsOverlay | null = null;
     private options_: StatsPluginOptions;

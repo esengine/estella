@@ -18,7 +18,7 @@ export interface AudioPluginConfig {
 }
 
 export class AudioPlugin implements Plugin {
-    name = 'AudioPlugin';
+    name = 'audio';
     private config_: AudioPluginConfig;
     private activeSourceHandles_: Map<number, AudioHandle> | null = null;
     private playedEntities_: Set<number> | null = null;
