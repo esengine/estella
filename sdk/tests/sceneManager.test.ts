@@ -43,10 +43,14 @@ vi.mock('../src/resource', () => ({
 
 vi.mock('../src/component', () => ({
     SceneOwner: Symbol('SceneOwner'),
+    Disabled: { _id: Symbol('Disabled'), _name: 'Disabled', _builtin: false, _default: {} },
     Sprite: Symbol('Sprite'),
     SpineAnimation: Symbol('SpineAnimation'),
     BitmapText: Symbol('BitmapText'),
+    ShapeRenderer: Symbol('ShapeRenderer'),
+    ParticleEmitter: Symbol('ParticleEmitter'),
     defineBuiltin: (name: string, defaults: unknown) => Symbol(name),
+    defineTag: (name: string) => ({ _id: Symbol(name), _name: name, _builtin: false, _default: {} }),
 }));
 
 vi.mock('../src/asset/AssetPlugin', () => ({
@@ -85,6 +89,13 @@ function createMockApp() {
         insert: vi.fn((e: number, comp: symbol, data: any) => {
             if (!entities.has(e)) entities.set(e, new Map());
             entities.get(e)!.set(comp, data);
+        }),
+        set: vi.fn((e: number, comp: symbol, data: any) => {
+            if (!entities.has(e)) entities.set(e, new Map());
+            entities.get(e)!.set(comp, data);
+        }),
+        remove: vi.fn((e: number, comp: symbol) => {
+            entities.get(e)?.delete(comp);
         }),
     };
 
@@ -489,13 +500,13 @@ describe('SceneManager', () => {
     describe('sleep / wake', () => {
         function setupEntityWithComponents(entityId: number) {
             const entityComponents = new Map<symbol, any>();
-            entityComponents.set(Sprite, { color: { r: 1, g: 1, b: 1, a: 0.8 } });
-            entityComponents.set(SpineAnimation, { color: { r: 1, g: 1, b: 1, a: 0.6 } });
-            entityComponents.set(BitmapText, { color: { r: 1, g: 1, b: 1, a: 0.9 } });
+            entityComponents.set(Sprite, { color: { r: 1, g: 1, b: 1, a: 0.8 }, enabled: true });
+            entityComponents.set(SpineAnimation, { color: { r: 1, g: 1, b: 1, a: 0.6 }, enabled: true });
+            entityComponents.set(BitmapText, { color: { r: 1, g: 1, b: 1, a: 0.9 }, enabled: true });
             app._entities.set(entityId, entityComponents);
         }
 
-        it('sleep() sets status=sleeping and saves entity alphas', async () => {
+        it('sleep() sets status=sleeping and disables renderable components', async () => {
             const entityMap = new Map([[100, 1]]);
             vi.mocked(loadSceneWithAssets).mockResolvedValueOnce(entityMap);
             setupEntityWithComponents(1);
@@ -507,9 +518,8 @@ describe('SceneManager', () => {
             expect(manager.getSceneStatus('level1')).toBe('sleeping');
             expect(manager.isSleeping('level1')).toBe(true);
 
-            // Alpha should be set to 0
             const sprite = app._entities.get(1)!.get(Sprite);
-            expect(sprite.color.a).toBe(0);
+            expect(sprite.enabled).toBe(false);
         });
 
         it('sleep() only on running scenes', async () => {
@@ -528,7 +538,7 @@ describe('SceneManager', () => {
             expect(manager.isSleeping('nonexistent')).toBe(false);
         });
 
-        it('wake() restores alphas from savedAlphas', async () => {
+        it('wake() restores enabled state from saved values', async () => {
             const entityMap = new Map([[100, 1]]);
             vi.mocked(loadSceneWithAssets).mockResolvedValueOnce(entityMap);
             setupEntityWithComponents(1);
@@ -543,13 +553,13 @@ describe('SceneManager', () => {
             expect(manager.isSleeping('level1')).toBe(false);
 
             const sprite = app._entities.get(1)!.get(Sprite);
-            expect(sprite.color.a).toBe(0.8);
+            expect(sprite.enabled).toBe(true);
 
             const spine = app._entities.get(1)!.get(SpineAnimation);
-            expect(spine.color.a).toBe(0.6);
+            expect(spine.enabled).toBe(true);
 
             const bt = app._entities.get(1)!.get(BitmapText);
-            expect(bt.color.a).toBe(0.9);
+            expect(bt.enabled).toBe(true);
         });
 
         it('wake() only on sleeping scenes', async () => {

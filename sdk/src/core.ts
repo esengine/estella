@@ -80,6 +80,7 @@ export {
     BitmapText,
     SpineAnimation,
     Name,
+    Disabled,
     SceneOwner,
     ProjectionType,
     ClearFlags,

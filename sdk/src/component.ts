@@ -229,10 +229,6 @@ function detectColorKeys(defaults: unknown): readonly string[] {
     return keys;
 }
 
-export interface ComponentMetadata {
-    entityFields?: string[];
-}
-
 export function defineBuiltin<T>(name: string, defaults: T, metadata?: ComponentMetadata): BuiltinComponentDef<T> {
     const meta = COMPONENT_META[name];
     const def: BuiltinComponentDef<T> = {
@@ -548,6 +544,8 @@ export interface ParticleEmitterData {
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
     metaDefaults<ParticleEmitterData>('ParticleEmitter')
 );
+
+export const Disabled = defineTag('Disabled');
 
 export const Name = defineComponent<NameData>('Name', { value: '' });
 
