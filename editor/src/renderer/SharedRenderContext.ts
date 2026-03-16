@@ -164,20 +164,14 @@ export class SharedRenderContext {
 
         setEditorMode(true);
         app.enableStats();
-        app.addPlugin(assetPlugin);
-        app.addPlugin(prefabsPlugin);
-        app.addPlugin(animationPlugin);
-        app.addPlugin(audioPlugin);
-        app.addPlugin(particlePlugin);
-        app.addPlugin(tilemapPlugin);
         this.spineManager_ = this.createSpineManager_(module);
-        app.addPlugin(new SpinePlugin(this.spineManager_ ?? undefined));
-        app.addPlugin(sceneManagerPlugin);
-        app.addPlugin(postProcessPlugin);
-        app.addPlugin(timelinePlugin);
-        for (const plugin of uiPlugins) {
-            app.addPlugin(plugin);
-        }
+        app.addPlugins([
+            assetPlugin, prefabsPlugin,
+            animationPlugin, audioPlugin, particlePlugin, tilemapPlugin,
+            new SpinePlugin(this.spineManager_ ?? undefined),
+            sceneManagerPlugin, postProcessPlugin, timelinePlugin,
+            ...uiPlugins,
+        ]);
 
         this.assetGraph_ = new AssetGraph();
         this.assetGraph_.registerProcessor(imageProcessor);
