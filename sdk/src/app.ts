@@ -397,43 +397,7 @@ export class App {
         }
 
         await this.flushStartupSystems_();
-
-        this.eventRegistry_.swapAll();
-        this.world_.advanceTick();
-        this.updateTime(delta);
-        this.world_.resetQueryPool();
-        this.frame_paused_ = false;
-
-        if (this.user_paused_ && !this.step_pending_) {
-            await this.runSchedule(Schedule.Last);
-        } else {
-            await this.runSchedule(Schedule.First);
-
-            this.fixedAccumulator_ += delta;
-            let fixedSteps = 0;
-            while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
-                this.fixedAccumulator_ -= this.fixedTimestep_;
-                await this.runSchedule(Schedule.FixedPreUpdate);
-                await this.runSchedule(Schedule.FixedUpdate);
-                await this.runSchedule(Schedule.FixedPostUpdate);
-                fixedSteps++;
-            }
-            if (fixedSteps >= this.maxFixedSteps_) {
-                this.fixedAccumulator_ = this.fixedTimestep_;
-            }
-
-            await this.runSchedule(Schedule.PreUpdate);
-            await this.runSchedule(Schedule.Update);
-            await this.runSchedule(Schedule.PostUpdate);
-            await this.runSchedule(Schedule.Last);
-
-            if (this.step_pending_) {
-                this.step_pending_ = false;
-            }
-        }
-
-        const REMOVED_BUFFER_RETENTION = 2;
-        this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
+        await this.runFrame_(delta);
     }
 
     async run(): Promise<void> {
@@ -469,7 +433,38 @@ export class App {
         const delta = rawDelta * this.play_speed_;
 
         await this.flushStartupSystems_();
+        await this.runFrame_(delta);
 
+        requestAnimationFrame(this.mainLoop);
+    };
+
+    quit(): void {
+        this.running_ = false;
+
+        for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
+            try { this.installed_plugins_[i].cleanup?.(this); } catch (e) {
+                console.error('[ESEngine] Plugin cleanup error:', e);
+            }
+        }
+        this.installed_plugins_.length = 0;
+        this.installedPluginSet_.clear();
+        this.installedPluginNames_.clear();
+
+        for (const entity of this.world_.getAllEntities()) {
+            try { this.world_.despawn(entity); } catch (e) { console.warn('[App] Shutdown despawn error:', e); }
+        }
+        this.world_.disconnectCpp();
+
+        this.pipeline_ = null;
+        this.runner_ = null;
+        this.module_ = null;
+    }
+
+    // =========================================================================
+    // Internal
+    // =========================================================================
+
+    private async runFrame_(delta: number): Promise<void> {
         this.eventRegistry_.swapAll();
         this.world_.advanceTick();
         this.updateTime(delta);
@@ -506,35 +501,7 @@ export class App {
 
         const REMOVED_BUFFER_RETENTION = 2;
         this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
-
-        requestAnimationFrame(this.mainLoop);
-    };
-
-    quit(): void {
-        this.running_ = false;
-
-        for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
-            try { this.installed_plugins_[i].cleanup?.(this); } catch (e) {
-                console.error('[ESEngine] Plugin cleanup error:', e);
-            }
-        }
-        this.installed_plugins_.length = 0;
-        this.installedPluginSet_.clear();
-        this.installedPluginNames_.clear();
-
-        for (const entity of this.world_.getAllEntities()) {
-            try { this.world_.despawn(entity); } catch (e) { console.warn('[App] Shutdown despawn error:', e); }
-        }
-        this.world_.disconnectCpp();
-
-        this.pipeline_ = null;
-        this.runner_ = null;
-        this.module_ = null;
     }
-
-    // =========================================================================
-    // Internal
-    // =========================================================================
 
     private finishPlugins_(): void {
         if (this.pluginsFinished_) return;

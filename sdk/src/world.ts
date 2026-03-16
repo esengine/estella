@@ -218,6 +218,7 @@ export class World {
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
 
     private nameIndex_ = new Map<string, Entity>();
+    private entityToName_ = new Map<Entity, string>();
 
     private worldTick_ = 0;
     private componentAddedTicks_ = new Map<symbol, Map<Entity, number>>();
@@ -710,23 +711,23 @@ export class World {
     // =========================================================================
 
     private updateNameIndex_(entity: Entity, name: string): void {
-        for (const [n, e] of this.nameIndex_) {
-            if (e === entity) {
-                this.nameIndex_.delete(n);
-                break;
-            }
+        const oldName = this.entityToName_.get(entity);
+        if (oldName !== undefined) {
+            this.nameIndex_.delete(oldName);
         }
         if (name) {
             this.nameIndex_.set(name, entity);
+            this.entityToName_.set(entity, name);
+        } else {
+            this.entityToName_.delete(entity);
         }
     }
 
     private removeNameIndex_(entity: Entity): void {
-        for (const [n, e] of this.nameIndex_) {
-            if (e === entity) {
-                this.nameIndex_.delete(n);
-                break;
-            }
+        const oldName = this.entityToName_.get(entity);
+        if (oldName !== undefined) {
+            this.nameIndex_.delete(oldName);
+            this.entityToName_.delete(entity);
         }
     }
 

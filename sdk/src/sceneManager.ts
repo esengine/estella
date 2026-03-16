@@ -15,11 +15,18 @@ import { registerDrawCallback, unregisterDrawCallback } from './customDraw';
 import { PostProcess, PostProcessStack } from './postprocess';
 import { Draw } from './draw';
 import { defineResource } from './resource';
-import { SceneOwner, Sprite, SpineAnimation, BitmapText } from './component';
+import {
+    SceneOwner, Disabled, Sprite, SpineAnimation, BitmapText,
+    ShapeRenderer, ParticleEmitter,
+    type AnyComponentDef,
+} from './component';
 import { UIRenderer } from './ui/UIRenderer';
-import type { UIRendererData } from './ui/UIRenderer';
 import { Assets } from './asset/AssetPlugin';
 import { RuntimeConfig } from './defaults';
+
+const RENDERABLE_COMPONENTS: AnyComponentDef[] = [
+    Sprite, SpineAnimation, BitmapText, ShapeRenderer, ParticleEmitter, UIRenderer,
+];
 
 // =============================================================================
 // Types
@@ -81,7 +88,7 @@ class SceneInstance {
     readonly entities = new Set<Entity>();
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessBindings = new Map<Entity, PostProcessStack>();
-    readonly savedAlphas = new Map<Entity, { sprite?: number; spine?: number; bitmapText?: number; uiRenderer?: number }>();
+    readonly savedEnabled = new Map<Entity, Map<AnyComponentDef, boolean>>();
     loadedAssets: LoadedSceneAssets | null = null;
     status: SceneStatus = 'loading';
 
@@ -557,45 +564,25 @@ export class SceneManagerState {
         instance.status = 'sleeping';
         this.sleepingScenes_.add(name);
         this.setPostProcessPassesEnabled(instance, false);
-        instance.savedAlphas.clear();
+        instance.savedEnabled.clear();
 
         const world = this.app_.world;
         for (const entity of instance.entities) {
             if (!world.valid(entity)) continue;
-            const saved: { sprite?: number; spine?: number; bitmapText?: number; uiRenderer?: number } = {};
-            let hasSaved = false;
-
-            if (world.has(entity, Sprite)) {
-                const sprite = world.get(entity, Sprite);
-                saved.sprite = sprite.color.a;
-                sprite.color.a = 0;
-                world.insert(entity, Sprite, sprite);
-                hasSaved = true;
+            world.insert(entity, Disabled, {});
+            const entitySaved = new Map<AnyComponentDef, boolean>();
+            for (const comp of RENDERABLE_COMPONENTS) {
+                if (world.has(entity, comp)) {
+                    const data = world.get(entity, comp) as { enabled: boolean };
+                    entitySaved.set(comp, data.enabled);
+                    if (data.enabled) {
+                        data.enabled = false;
+                        world.set(entity, comp, data);
+                    }
+                }
             }
-            if (world.has(entity, SpineAnimation)) {
-                const spine = world.get(entity, SpineAnimation);
-                saved.spine = spine.color.a;
-                spine.color.a = 0;
-                world.insert(entity, SpineAnimation, spine);
-                hasSaved = true;
-            }
-            if (world.has(entity, BitmapText)) {
-                const bt = world.get(entity, BitmapText);
-                saved.bitmapText = bt.color.a;
-                bt.color.a = 0;
-                world.insert(entity, BitmapText, bt);
-                hasSaved = true;
-            }
-            if (world.has(entity, UIRenderer)) {
-                const r = world.get(entity, UIRenderer) as UIRendererData;
-                saved.uiRenderer = r.color.a;
-                r.color.a = 0;
-                world.insert(entity, UIRenderer, r);
-                hasSaved = true;
-            }
-
-            if (hasSaved) {
-                instance.savedAlphas.set(entity, saved);
+            if (entitySaved.size > 0) {
+                instance.savedEnabled.set(entity, entitySaved);
             }
         }
     }
@@ -610,31 +597,18 @@ export class SceneManagerState {
         const world = this.app_.world;
         for (const entity of instance.entities) {
             if (!world.valid(entity)) continue;
-            const saved = instance.savedAlphas.get(entity);
-            if (!saved) continue;
-
-            if (saved.sprite !== undefined && world.has(entity, Sprite)) {
-                const sprite = world.get(entity, Sprite);
-                sprite.color.a = saved.sprite;
-                world.insert(entity, Sprite, sprite);
-            }
-            if (saved.spine !== undefined && world.has(entity, SpineAnimation)) {
-                const spine = world.get(entity, SpineAnimation);
-                spine.color.a = saved.spine;
-                world.insert(entity, SpineAnimation, spine);
-            }
-            if (saved.bitmapText !== undefined && world.has(entity, BitmapText)) {
-                const bt = world.get(entity, BitmapText);
-                bt.color.a = saved.bitmapText;
-                world.insert(entity, BitmapText, bt);
-            }
-            if (saved.uiRenderer !== undefined && world.has(entity, UIRenderer)) {
-                const r = world.get(entity, UIRenderer) as UIRendererData;
-                r.color.a = saved.uiRenderer;
-                world.insert(entity, UIRenderer, r);
+            world.remove(entity, Disabled);
+            const entitySaved = instance.savedEnabled.get(entity);
+            if (!entitySaved) continue;
+            for (const [comp, wasEnabled] of entitySaved) {
+                if (world.has(entity, comp)) {
+                    const data = world.get(entity, comp) as { enabled: boolean };
+                    data.enabled = wasEnabled;
+                    world.set(entity, comp, data);
+                }
             }
         }
-        instance.savedAlphas.clear();
+        instance.savedEnabled.clear();
     }
 
     private setPostProcessPassesEnabled(instance: SceneInstance, enabled: boolean): void {
