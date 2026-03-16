@@ -79,6 +79,11 @@ export class PlayModeService {
         this.selectedEntityId_ = null;
 
         const ctx = getSharedRenderContext();
+
+        if (ctx.sceneManager_) {
+            await ctx.sceneManager_.loadScene(this.snapshot_.scene);
+        }
+
         this.configureAssetBaseUrl(ctx);
         this.registerProjectScenes(ctx);
         await this.injectUserScripts(ctx);
@@ -272,6 +277,7 @@ export class PlayModeService {
         if (!app) return;
 
         const scriptService = getEditorContainer().get(SCRIPT_SERVICE, 'default')!;
+        await scriptService.reload();
         const compiledCode = scriptService.getCompiledScripts();
         if (!compiledCode) return;
 
