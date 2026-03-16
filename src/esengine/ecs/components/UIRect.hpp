@@ -29,8 +29,11 @@ struct UIRect {
     glm::vec2 computed_size_{0.0f};
 
     u8 anim_override_{0};
-    static constexpr u8 ANIM_POS_X = 1;
-    static constexpr u8 ANIM_POS_Y = 2;
+    static constexpr u8 ANIM_POS_X   = 1;
+    static constexpr u8 ANIM_POS_Y   = 2;
+    static constexpr u8 ANIM_ROT_Z   = 4;
+    static constexpr u8 ANIM_SCALE_X = 8;
+    static constexpr u8 ANIM_SCALE_Y = 16;
 
     UIRect() = default;
 };

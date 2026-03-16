@@ -1,7 +1,7 @@
 import { defineResource } from '../resource';
 import type { Entity } from '../types';
 
-export type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit' | 'focus' | 'blur' | 'submit' | 'change' | 'drag_start' | 'drag_move' | 'drag_end' | 'scroll';
+export type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit' | 'focus' | 'blur' | 'submit' | 'change' | 'drag_start' | 'drag_move' | 'drag_end' | 'scroll' | 'select' | 'deselect';
 
 export type UIEventHandler = (event: UIEvent) => void;
 export type Unsubscribe = () => void;

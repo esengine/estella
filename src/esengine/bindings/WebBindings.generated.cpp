@@ -17,14 +17,17 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
+#include "../ecs/components/FanLayout.hpp"
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/FlexItem.hpp"
+#include "../ecs/components/GridLayout.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/LayoutGroup.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/ScreenSpace.hpp"
+#include "../ecs/components/Selectable.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
@@ -746,6 +749,14 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
         .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
 
+    value_object<esengine::ecs::FanLayout>("FanLayout")
+        .field("radius", &esengine::ecs::FanLayout::radius)
+        .field("maxSpreadAngle", &esengine::ecs::FanLayout::maxSpreadAngle)
+        .field("maxCardAngle", &esengine::ecs::FanLayout::maxCardAngle)
+        .field("tiltFactor", &esengine::ecs::FanLayout::tiltFactor)
+        .field("cardSpacing", &esengine::ecs::FanLayout::cardSpacing)
+        .field("direction", &esengine::ecs::FanLayout::direction);
+
     value_object<ParticleEmitterJS>("ParticleEmitter")
         .field("rate", &ParticleEmitterJS::rate)
         .field("burstCount", &ParticleEmitterJS::burstCount)
@@ -806,6 +817,12 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("sliceBorder", &UIRendererJS::sliceBorder)
         .field("material", &UIRendererJS::material)
         .field("enabled", &UIRendererJS::enabled);
+
+    value_object<esengine::ecs::GridLayout>("GridLayout")
+        .field("direction", &esengine::ecs::GridLayout::direction)
+        .field("crossAxisCount", &esengine::ecs::GridLayout::crossAxisCount)
+        .field("itemSize", &esengine::ecs::GridLayout::itemSize)
+        .field("spacing", &esengine::ecs::GridLayout::spacing);
 
     value_object<esengine::ecs::Velocity>("Velocity")
         .field("linear", &esengine::ecs::Velocity::linear)
@@ -896,6 +913,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("cornerRadius", &esengine::ecs::ShapeRenderer::cornerRadius)
         .field("layer", &esengine::ecs::ShapeRenderer::layer)
         .field("enabled", &esengine::ecs::ShapeRenderer::enabled);
+
+    value_object<esengine::ecs::Selectable>("Selectable")
+        .field("selected", &esengine::ecs::Selectable::selected)
+        .field("group", &esengine::ecs::Selectable::group);
 
     value_object<LayoutGroupJS>("LayoutGroup")
         .field("direction", &LayoutGroupJS::direction)
@@ -1073,6 +1094,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::SegmentCollider>(entity);
         }))
 
+        // FanLayout
+        .function("hasFanLayout", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::FanLayout>(static_cast<Entity>(e));
+        }))
+        .function("getFanLayout", optional_override([](Registry& r, u32 e) -> esengine::ecs::FanLayout& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::FanLayout s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::FanLayout>(entity)) return s_dummy;
+            return r.get<esengine::ecs::FanLayout>(entity);
+        }), allow_raw_pointers())
+        .function("addFanLayout", optional_override([](Registry& r, u32 e, const esengine::ecs::FanLayout& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::FanLayout>(entity, c);
+        }))
+        .function("removeFanLayout", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::FanLayout>(entity)) return;
+            r.remove<esengine::ecs::FanLayout>(entity);
+        }))
+
         // ParticleEmitter
         .function("hasParticleEmitter", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
@@ -1134,6 +1176,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return;
             r.remove<esengine::ecs::UIRenderer>(entity);
+        }))
+
+        // GridLayout
+        .function("hasGridLayout", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::GridLayout>(static_cast<Entity>(e));
+        }))
+        .function("getGridLayout", optional_override([](Registry& r, u32 e) -> esengine::ecs::GridLayout& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::GridLayout s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::GridLayout>(entity)) return s_dummy;
+            return r.get<esengine::ecs::GridLayout>(entity);
+        }), allow_raw_pointers())
+        .function("addGridLayout", optional_override([](Registry& r, u32 e, const esengine::ecs::GridLayout& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::GridLayout>(entity, c);
+        }))
+        .function("removeGridLayout", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::GridLayout>(entity)) return;
+            r.remove<esengine::ecs::GridLayout>(entity);
         }))
 
         // Velocity
@@ -1381,6 +1444,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::ShapeRenderer>(entity)) return;
             r.remove<esengine::ecs::ShapeRenderer>(entity);
+        }))
+
+        // Selectable
+        .function("hasSelectable", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Selectable>(static_cast<Entity>(e));
+        }))
+        .function("getSelectable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Selectable& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Selectable s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Selectable>(entity);
+        }), allow_raw_pointers())
+        .function("addSelectable", optional_override([](Registry& r, u32 e, const esengine::ecs::Selectable& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Selectable>(entity, c);
+        }))
+        .function("removeSelectable", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return;
+            r.remove<esengine::ecs::Selectable>(entity);
         }))
 
         // LayoutGroup

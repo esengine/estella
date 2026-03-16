@@ -9,6 +9,8 @@
 #include "components/FlexContainer.hpp"
 #include "components/FlexItem.hpp"
 #include "components/LayoutGroup.hpp"
+#include "components/GridLayout.hpp"
+#include "components/FanLayout.hpp"
 
 #include <yoga/Yoga.h>
 #include <algorithm>
@@ -89,6 +91,22 @@ inline LayoutRect getParentLayoutRect(
              pw * (1.0f - parentRect.pivot.x), ph * (1.0f - parentRect.pivot.y) };
 }
 
+inline void setLayoutPosition(Transform& t, UIRect* rect, f32 x, f32 y) {
+    if (rect && rect->anim_override_) {
+        if (!(rect->anim_override_ & UIRect::ANIM_POS_X)) t.position.x = x;
+        if (!(rect->anim_override_ & UIRect::ANIM_POS_Y)) t.position.y = y;
+    } else {
+        t.position.x = x;
+        t.position.y = y;
+    }
+}
+
+inline void setLayoutRotation(Transform& t, UIRect* rect, f32 rot) {
+    if (rect && (rect->anim_override_ & UIRect::ANIM_ROT_Z)) return;
+    f32 halfRad = rot / 2.0f;
+    t.rotation = glm::quat(std::cos(halfRad), 0.0f, 0.0f, std::sin(halfRad));
+}
+
 inline void writePosition(
     Registry& registry,
     const UITree::Node& node,
@@ -97,19 +115,7 @@ inline void writePosition(
 ) {
     auto* transform = registry.tryGet<Transform>(node.entity);
     if (!transform) return;
-
-    auto* rect = registry.tryGet<UIRect>(node.entity);
-    if (rect && rect->anim_override_) {
-        if (!(rect->anim_override_ & UIRect::ANIM_POS_X)) {
-            transform->position.x = originX;
-        }
-        if (!(rect->anim_override_ & UIRect::ANIM_POS_Y)) {
-            transform->position.y = originY;
-        }
-    } else {
-        transform->position.x = originX;
-        transform->position.y = originY;
-    }
+    setLayoutPosition(*transform, registry.tryGet<UIRect>(node.entity), originX, originY);
 }
 
 inline void layoutNodeAnchor(
@@ -319,17 +325,7 @@ inline void resolveFlexChildren(
 
         auto* transform = registry.tryGet<Transform>(info.entity);
         if (transform) {
-            if (childRect.anim_override_) {
-                if (!(childRect.anim_override_ & UIRect::ANIM_POS_X)) {
-                    transform->position.x = localX;
-                }
-                if (!(childRect.anim_override_ & UIRect::ANIM_POS_Y)) {
-                    transform->position.y = localY;
-                }
-            } else {
-                transform->position.x = localX;
-                transform->position.y = localY;
-            }
+            setLayoutPosition(*transform, &childRect, localX, localY);
         }
 
         childRect.computed_size_.x = finalW;
@@ -437,21 +433,121 @@ inline void resolveLayoutGroupChildren(
 
         auto* transform = registry.tryGet<Transform>(child.entity);
         if (transform) {
-            auto& cr = registry.get<UIRect>(child.entity);
-            if (cr.anim_override_) {
-                if (!(cr.anim_override_ & UIRect::ANIM_POS_X)) {
-                    transform->position.x = localX;
-                }
-                if (!(cr.anim_override_ & UIRect::ANIM_POS_Y)) {
-                    transform->position.y = localY;
-                }
-            } else {
-                transform->position.x = localX;
-                transform->position.y = localY;
-            }
+            setLayoutPosition(*transform, registry.tryGet<UIRect>(child.entity), localX, localY);
         }
 
         tree.nodes_[child.tree_index].flags &= ~LAYOUT_DIRTY;
+    }
+}
+
+inline void resolveGridLayoutChildren(
+    Registry& registry,
+    UITree& tree,
+    i32 containerIndex,
+    const LayoutRect& cameraRect
+) {
+    (void)cameraRect;
+    Entity containerEntity = tree.nodes_[containerIndex].entity;
+    auto& grid = registry.get<GridLayout>(containerEntity);
+    auto& parentRect = registry.get<UIRect>(containerEntity);
+
+    f32 pw = parentRect.computed_size_.x;
+    f32 ph = parentRect.computed_size_.y;
+    f32 pivotX = parentRect.pivot.x;
+    f32 pivotY = parentRect.pivot.y;
+
+    i32 cols = grid.crossAxisCount;
+    if (cols < 1) cols = 1;
+    f32 strideX = grid.itemSize.x + grid.spacing.x;
+    f32 strideY = grid.itemSize.y + grid.spacing.y;
+    bool isVertical = (grid.direction == 0);
+
+    i32 childIdx = 0;
+    for (i32 j = containerIndex + 1; j < static_cast<i32>(tree.nodes_.size()); j++) {
+        if (tree.nodes_[j].parent != containerEntity) continue;
+        if (tree.nodes_[j].depth != tree.nodes_[containerIndex].depth + 1) continue;
+
+        Entity childEntity = tree.nodes_[j].entity;
+        auto* childRect = registry.tryGet<UIRect>(childEntity);
+        auto* transform = registry.tryGet<Transform>(childEntity);
+        if (!childRect || !transform) continue;
+
+        i32 col = isVertical ? childIdx % cols : childIdx / cols;
+        i32 row = isVertical ? childIdx / cols : childIdx % cols;
+
+        childRect->size = grid.itemSize;
+        childRect->computed_size_ = grid.itemSize;
+
+        f32 localX = -pivotX * pw + col * strideX + childRect->pivot.x * grid.itemSize.x;
+        f32 localY = (1.0f - pivotY) * ph - row * strideY - (1.0f - childRect->pivot.y) * grid.itemSize.y;
+
+        setLayoutPosition(*transform, childRect, localX, localY);
+
+        tree.nodes_[j].flags &= ~LAYOUT_DIRTY;
+        childIdx++;
+    }
+}
+
+inline void resolveFanLayoutChildren(
+    Registry& registry,
+    UITree& tree,
+    i32 containerIndex,
+    const LayoutRect& cameraRect
+) {
+    (void)cameraRect;
+    Entity containerEntity = tree.nodes_[containerIndex].entity;
+    auto& fan = registry.get<FanLayout>(containerEntity);
+
+    struct ChildInfo {
+        i32 tree_index;
+        Entity entity;
+    };
+
+    std::vector<ChildInfo> children;
+    for (i32 j = containerIndex + 1; j < static_cast<i32>(tree.nodes_.size()); j++) {
+        if (tree.nodes_[j].parent != containerEntity) continue;
+        if (tree.nodes_[j].depth != tree.nodes_[containerIndex].depth + 1) continue;
+
+        Entity childEntity = tree.nodes_[j].entity;
+        if (registry.has<Transform>(childEntity)) {
+            children.push_back({j, childEntity});
+        }
+    }
+
+    i32 n = static_cast<i32>(children.size());
+    if (n == 0) return;
+
+    f32 spreadAngle = std::min(fan.maxSpreadAngle, (n - 1) * fan.maxCardAngle);
+    f32 dirSign = (fan.direction == 1) ? -1.0f : 1.0f;
+    constexpr f32 DEG2RAD = 3.14159265358979f / 180.0f;
+    bool useFixedSpacing = (fan.cardSpacing > 0.0f && n > 1);
+
+    for (i32 i = 0; i < n; i++) {
+        f32 t = (n == 1) ? 0.0f : (static_cast<f32>(i) / (n - 1) - 0.5f);
+        f32 angle = spreadAngle * t * DEG2RAD;
+
+        f32 x, y;
+        if (useFixedSpacing) {
+            x = (static_cast<f32>(i) - (n - 1) * 0.5f) * fan.cardSpacing;
+            y = fan.radius * (1.0f - std::cos(angle)) * dirSign;
+        } else {
+            x = fan.radius * std::sin(angle);
+            y = fan.radius * (1.0f - std::cos(angle)) * dirSign;
+        }
+        f32 rot = angle * fan.tiltFactor * dirSign;
+
+        Entity childEntity = children[i].entity;
+        auto& transform = registry.get<Transform>(childEntity);
+        auto* childRect = registry.tryGet<UIRect>(childEntity);
+
+        setLayoutPosition(transform, childRect, x, -y);
+        setLayoutRotation(transform, childRect, rot);
+
+        if (childRect) {
+            childRect->computed_size_ = childRect->size;
+        }
+
+        tree.nodes_[children[i].tree_index].flags &= ~LAYOUT_DIRTY;
     }
 }
 
@@ -465,10 +561,14 @@ inline void unifiedLayoutPass(Registry& registry, UITree& tree, const LayoutRect
         }
 
         if (node.flags & LAYOUT_DIRTY) {
-            bool isFlexChild = (node.parent != INVALID_ENTITY && registry.has<FlexContainer>(node.parent));
-            bool isLayoutGroupChild = (node.parent != INVALID_ENTITY && registry.has<LayoutGroup>(node.parent));
+            bool parentManaged = node.parent != INVALID_ENTITY && (
+                registry.has<FlexContainer>(node.parent) ||
+                registry.has<LayoutGroup>(node.parent) ||
+                registry.has<GridLayout>(node.parent) ||
+                registry.has<FanLayout>(node.parent)
+            );
 
-            if (!isFlexChild && !isLayoutGroupChild) {
+            if (!parentManaged) {
                 layoutNodeAnchor(registry, node, cameraRect);
             }
 
@@ -476,6 +576,10 @@ inline void unifiedLayoutPass(Registry& registry, UITree& tree, const LayoutRect
                 resolveFlexChildren(registry, tree, i, cameraRect);
             } else if (registry.has<LayoutGroup>(node.entity)) {
                 resolveLayoutGroupChildren(registry, tree, i, cameraRect);
+            } else if (registry.has<GridLayout>(node.entity)) {
+                resolveGridLayoutChildren(registry, tree, i, cameraRect);
+            } else if (registry.has<FanLayout>(node.entity)) {
+                resolveFanLayoutChildren(registry, tree, i, cameraRect);
             }
         }
 

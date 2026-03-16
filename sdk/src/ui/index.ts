@@ -296,20 +296,6 @@ export {
     safeAreaPlugin,
 } from './SafeAreaPlugin';
 
-// ListView Component
-export {
-    ListView,
-    type ListViewData,
-    type ListViewItemRenderer,
-} from './ListView';
-
-// ListView Plugin
-export {
-    ListViewPlugin,
-    listViewPlugin,
-    setListViewRenderer,
-} from './ListViewPlugin';
-
 // Dropdown Component
 export {
     Dropdown,
@@ -322,7 +308,7 @@ export {
     dropdownPlugin,
 } from './DropdownPlugin';
 
-// LayoutGroup Component
+// LayoutGroup Component (C++ backed)
 export {
     LayoutGroup,
     LayoutDirection,
@@ -330,7 +316,6 @@ export {
     type LayoutGroupData,
 } from './LayoutGroup';
 
-// LayoutGroup Plugin
 export {
     LayoutGroupPlugin,
     layoutGroupPlugin,
@@ -470,3 +455,64 @@ export {
     type ImageResolver,
     type ResolvedImage,
 } from './ImageResolver';
+
+// Collection View
+export {
+    CollectionView,
+    CollectionItem,
+    SelectionMode,
+    type CollectionViewData,
+    type CollectionItemData,
+} from './CollectionView';
+
+export {
+    setCollectionAdapter,
+    getCollectionAdapter,
+    removeCollectionAdapter,
+    type CollectionAdapter,
+} from './CollectionAdapter';
+
+export {
+    registerLayoutProvider,
+    getLayoutProvider,
+    ScrollAlign,
+    type LayoutProvider,
+    type LayoutResult as CollectionLayoutResult,
+} from './LayoutProvider';
+
+export { ItemPool } from './ItemPool';
+
+export {
+    collectionViewPlugin,
+    CollectionViewPlugin,
+} from './CollectionViewPlugin';
+
+export {
+    collectionGetItemEntity,
+    collectionRefreshItems,
+    collectionRefreshItem,
+    collectionInsertItems,
+    collectionRemoveItems,
+} from './CollectionViewAPI';
+
+export { LinearLayout, type LinearLayoutData } from './layouts/LinearLayout';
+export { GridLayout, type GridLayoutData } from './layouts/GridLayout';
+export { FanLayout, type FanLayoutData } from './layouts/FanLayout';
+export { LinearLayoutProvider } from './layouts/LinearLayoutProvider';
+export { GridLayoutProvider } from './layouts/GridLayoutProvider';
+export { FanLayoutProvider, computeFanPositions } from './layouts/FanLayoutProvider';
+
+export { FanLayoutPlugin, fanLayoutPlugin } from './FanLayoutPlugin';
+export { LinearLayoutPlugin, linearLayoutPlugin } from './LinearLayoutPlugin';
+export { GridLayoutPlugin, gridLayoutPlugin } from './GridLayoutPlugin';
+
+export { Selectable, type SelectableData } from './Selectable';
+export { SelectablePlugin, selectablePlugin } from './SelectablePlugin';
+
+export const AnimOverride = {
+    POS_X: 1,
+    POS_Y: 2,
+    ROT_Z: 4,
+    SCALE_X: 8,
+    SCALE_Y: 16,
+} as const;

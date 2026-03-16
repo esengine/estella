@@ -25,6 +25,7 @@ import { runtimeSettingsPlugin } from './runtimeSettings';
 import { corePanelsPlugin } from './corePanels';
 import { coreMenusPlugin, coreStatusbarPlugin } from './coreMenus';
 import { dataBindingPlugin } from './dataBinding';
+import { collectionViewEditorPlugin } from './collectionView';
 
 export {
     assetInfraPlugin,
@@ -52,6 +53,7 @@ export {
     coreMenusPlugin,
     coreStatusbarPlugin,
     dataBindingPlugin,
+    collectionViewEditorPlugin,
 };
 
 export const builtinPlugins: EditorPlugin[] = [
@@ -79,4 +81,5 @@ export const builtinPlugins: EditorPlugin[] = [
     corePanelsPlugin,
     coreMenusPlugin,
     dataBindingPlugin,
+    collectionViewEditorPlugin,
 ];

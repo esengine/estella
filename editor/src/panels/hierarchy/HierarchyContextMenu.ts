@@ -11,11 +11,24 @@ import { joinPath, getParentDir } from '../../utils/path';
 import { hasAnyOverrides } from '../../prefab';
 import { getAssetTypeDescriptor } from '../../asset/AssetTypeRegistry';
 import type { HierarchyState } from './HierarchyTypes';
-import { instantiateTemplate } from './EntityTemplates';
+import { instantiateTemplate, getTemplatesByCategory } from './EntityTemplates';
 import { showCreateTilemapDialog } from './CreateTilemapDialog';
 
 const create = (state: HierarchyState, template: string, parent: Entity | null) =>
     () => instantiateTemplate(state, template, parent);
+
+function templateMenuItems(
+    state: HierarchyState,
+    category: 'general' | 'ui' | 'physics' | 'audio',
+    parent: Entity | null,
+    defaultIcon: string,
+): ContextMenuItem[] {
+    return getTemplatesByCategory(category).map(({ key, label }) => ({
+        label,
+        icon: defaultIcon,
+        onClick: create(state, key, parent),
+    }));
+}
 
 export function showEntityContextMenu(state: HierarchyState, x: number, y: number, entity: Entity | null): void {
     const entityData = entity !== null ? state.store.getEntityData(entity as number) : null;
@@ -39,32 +52,9 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             { label: 'Tilemap', icon: icons.grid(14), onClick: create(state, 'Tilemap', entity) },
             { label: 'Tilemap Layer', icon: icons.layers(14), onClick: () => showCreateTilemapDialog(state, entity) },
         ] },
-        { label: 'UI', icon: icons.pointer(14), children: [
-            { label: 'Canvas', icon: icons.template(14), onClick: create(state, 'Canvas', entity) },
-            { label: '', separator: true },
-            { label: 'Button', icon: icons.pointer(14), onClick: create(state, 'Button', entity) },
-            { label: 'TextInput', icon: icons.type(14), onClick: create(state, 'TextInput', entity) },
-            { label: 'Image', icon: icons.image(14), onClick: create(state, 'Image', entity) },
-            { label: 'Panel', icon: icons.layers(14), onClick: create(state, 'Panel', entity) },
-            { label: '', separator: true },
-            { label: 'Toggle', icon: icons.toggle(14), onClick: create(state, 'Toggle', entity) },
-            { label: 'Slider', icon: icons.sliders(14), onClick: create(state, 'Slider', entity) },
-            { label: 'ProgressBar', icon: icons.gauge(14), onClick: create(state, 'ProgressBar', entity) },
-            { label: 'ScrollView', icon: icons.list(14), onClick: create(state, 'ScrollView', entity) },
-            { label: 'Dropdown', icon: icons.chevronDown(14), onClick: create(state, 'Dropdown', entity) },
-        ] },
-        { label: 'Audio', icon: icons.volume(14), children: [
-            { label: 'AudioSource', icon: icons.volume(14), onClick: create(state, 'AudioSource', entity) },
-            { label: 'AudioListener', icon: icons.headphones(14), onClick: create(state, 'AudioListener', entity) },
-        ] },
-        { label: 'Physics', icon: icons.circle(14), children: [
-            { label: 'Box Collider', icon: icons.box(14), onClick: create(state, 'BoxCollider', entity) },
-            { label: 'Circle Collider', icon: icons.circle(14), onClick: create(state, 'CircleCollider', entity) },
-            { label: 'Capsule Collider', icon: icons.shield(14), onClick: create(state, 'CapsuleCollider', entity) },
-            { label: 'Segment Collider', icon: icons.minus(14), onClick: create(state, 'SegmentCollider', entity) },
-            { label: 'Polygon Collider', icon: icons.hexagon(14), onClick: create(state, 'PolygonCollider', entity) },
-            { label: 'Chain Collider', icon: icons.link(14), onClick: create(state, 'ChainCollider', entity) },
-        ] },
+        { label: 'UI', icon: icons.pointer(14), children: templateMenuItems(state, 'ui', entity, icons.pointer(14)) },
+        { label: 'Audio', icon: icons.volume(14), children: templateMenuItems(state, 'audio', entity, icons.volume(14)) },
+        { label: 'Physics', icon: icons.circle(14), children: templateMenuItems(state, 'physics', entity, icons.circle(14)) },
         { label: '', separator: true },
         { label: 'Camera', icon: icons.camera(14), onClick: create(state, 'Camera', entity) },
     ];

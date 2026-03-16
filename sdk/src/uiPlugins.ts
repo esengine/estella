@@ -11,12 +11,16 @@ import { scrollViewPlugin } from './ui/ScrollViewPlugin';
 import { sliderPlugin } from './ui/SliderPlugin';
 import { focusPlugin } from './ui/FocusPlugin';
 import { safeAreaPlugin } from './ui/SafeAreaPlugin';
-import { listViewPlugin } from './ui/ListViewPlugin';
 import { dropdownPlugin } from './ui/DropdownPlugin';
-import { layoutGroupPlugin } from './ui/LayoutGroupPlugin';
 import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 import { stateMachinePlugin } from './ui/StateMachinePlugin';
 import { dataBindingPlugin } from './ui/DataBindingPlugin';
+import { layoutGroupPlugin } from './ui/LayoutGroupPlugin';
+import { collectionViewPlugin } from './ui/CollectionViewPlugin';
+import { fanLayoutPlugin } from './ui/FanLayoutPlugin';
+import { selectablePlugin } from './ui/SelectablePlugin';
+import { linearLayoutPlugin } from './ui/LinearLayoutPlugin';
+import { gridLayoutPlugin } from './ui/GridLayoutPlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
@@ -25,7 +29,8 @@ export const uiPlugins: Plugin[] = [
     imagePlugin, progressBarPlugin,
     uiInteractionPlugin, dragPlugin, scrollViewPlugin, sliderPlugin,
     togglePlugin, textInputPlugin, stateMachinePlugin,
-    focusPlugin, safeAreaPlugin, listViewPlugin, dropdownPlugin,
-    layoutGroupPlugin,
+    focusPlugin, safeAreaPlugin, dropdownPlugin,
+    layoutGroupPlugin, collectionViewPlugin,
+    fanLayoutPlugin, selectablePlugin, linearLayoutPlugin, gridLayoutPlugin,
     uiRenderOrderPlugin,
 ];

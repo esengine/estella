@@ -80,13 +80,13 @@ export class PlayModeService {
 
         const ctx = getSharedRenderContext();
 
-        if (ctx.sceneManager_) {
-            await ctx.sceneManager_.loadScene(this.snapshot_.scene);
-        }
-
         this.configureAssetBaseUrl(ctx);
         this.registerProjectScenes(ctx);
         await this.injectUserScripts(ctx);
+
+        if (ctx.sceneManager_) {
+            await ctx.sceneManager_.loadScene(this.snapshot_.scene);
+        }
 
         const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
         const physicsConfig = enablePhysics ? {

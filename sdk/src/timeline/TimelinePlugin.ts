@@ -81,7 +81,6 @@ export class TimelinePlugin implements Plugin {
 
                 setTimelineModule(module);
                 const registry = world.getCppRegistry() as any;
-                module.uiRect_clearAnimOverrides(registry);
 
                 const entities = world.getEntitiesWithComponents([TimelinePlayer]);
                 for (const entity of entities) {
