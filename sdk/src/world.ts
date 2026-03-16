@@ -43,123 +43,16 @@ function convertForWasm(
 // Pointer-based Field Layout Descriptors
 // =============================================================================
 
-type PtrFieldType = 'f32' | 'i32' | 'u32' | 'bool' | 'u8' | 'vec2' | 'vec3' | 'quat' | 'color';
+import { PTR_LAYOUTS, type PtrLayout } from './ptrLayouts.generated';
+export { PTR_LAYOUTS };
+
+type PtrFieldType = 'f32' | 'i32' | 'u32' | 'bool' | 'u8' | 'vec2' | 'vec3' | 'vec4' | 'quat' | 'color';
 
 interface PtrFieldDesc {
     readonly name: string;
     readonly type: PtrFieldType;
     readonly offset: number;
 }
-
-interface PtrLayout {
-    readonly ptrFn: string;
-    readonly fields: readonly PtrFieldDesc[];
-}
-
-const PTR_LAYOUTS: Record<string, PtrLayout> = {
-    Transform: {
-        ptrFn: 'getTransformPtr',
-        fields: [
-            { name: 'position',      type: 'vec3', offset: 0 },
-            { name: 'rotation',      type: 'quat', offset: 12 },
-            { name: 'scale',         type: 'vec3', offset: 28 },
-            { name: 'worldPosition', type: 'vec3', offset: 40 },
-            { name: 'worldRotation', type: 'quat', offset: 52 },
-            { name: 'worldScale',    type: 'vec3', offset: 68 },
-        ],
-    },
-    Sprite: {
-        ptrFn: 'getSpritePtr',
-        fields: [
-            { name: 'texture',  type: 'u32',   offset: 0 },
-            { name: 'color',    type: 'color', offset: 4 },
-            { name: 'size',     type: 'vec2',  offset: 20 },
-            { name: 'uvOffset', type: 'vec2',  offset: 28 },
-            { name: 'uvScale',  type: 'vec2',  offset: 36 },
-            { name: 'layer',    type: 'i32',   offset: 44 },
-            { name: 'flipX',    type: 'bool',  offset: 48 },
-            { name: 'flipY',    type: 'bool',  offset: 49 },
-            { name: 'material', type: 'u32',   offset: 52 },
-            { name: 'enabled',  type: 'bool',  offset: 56 },
-        ],
-    },
-    Velocity: {
-        ptrFn: 'getVelocityPtr',
-        fields: [
-            { name: 'linear',  type: 'vec3', offset: 0 },
-            { name: 'angular', type: 'vec3', offset: 12 },
-        ],
-    },
-    Camera: {
-        ptrFn: 'getCameraPtr',
-        fields: [
-            { name: 'projectionType', type: 'u8',   offset: 0 },
-            { name: 'fov',            type: 'f32',  offset: 4 },
-            { name: 'orthoSize',      type: 'f32',  offset: 8 },
-            { name: 'nearPlane',      type: 'f32',  offset: 12 },
-            { name: 'farPlane',       type: 'f32',  offset: 16 },
-            { name: 'aspectRatio',    type: 'f32',  offset: 20 },
-            { name: 'isActive',       type: 'bool', offset: 24 },
-            { name: 'priority',       type: 'i32',  offset: 28 },
-            { name: 'viewportX',      type: 'f32',  offset: 32 },
-            { name: 'viewportY',      type: 'f32',  offset: 36 },
-            { name: 'viewportW',      type: 'f32',  offset: 40 },
-            { name: 'viewportH',      type: 'f32',  offset: 44 },
-            { name: 'clearFlags',     type: 'i32',  offset: 48 },
-        ],
-    },
-    UIRect: {
-        ptrFn: 'getUIRectPtr',
-        fields: [
-            { name: 'anchorMin', type: 'vec2', offset: 0 },
-            { name: 'anchorMax', type: 'vec2', offset: 8 },
-            { name: 'offsetMin', type: 'vec2', offset: 16 },
-            { name: 'offsetMax', type: 'vec2', offset: 24 },
-            { name: 'size',      type: 'vec2', offset: 32 },
-            { name: 'pivot',     type: 'vec2', offset: 40 },
-        ],
-    },
-    RigidBody: {
-        ptrFn: 'getRigidBodyPtr',
-        fields: [
-            { name: 'bodyType',       type: 'u8',   offset: 0 },
-            { name: 'gravityScale',   type: 'f32',  offset: 4 },
-            { name: 'linearDamping',  type: 'f32',  offset: 8 },
-            { name: 'angularDamping', type: 'f32',  offset: 12 },
-            { name: 'fixedRotation',  type: 'bool', offset: 16 },
-            { name: 'bullet',         type: 'bool', offset: 17 },
-            { name: 'enabled',        type: 'bool', offset: 18 },
-        ],
-    },
-    BoxCollider: {
-        ptrFn: 'getBoxColliderPtr',
-        fields: [
-            { name: 'halfExtents',  type: 'vec2', offset: 0 },
-            { name: 'offset',       type: 'vec2', offset: 8 },
-            { name: 'density',      type: 'f32',  offset: 16 },
-            { name: 'friction',     type: 'f32',  offset: 20 },
-            { name: 'restitution',  type: 'f32',  offset: 24 },
-            { name: 'isSensor',     type: 'bool', offset: 28 },
-            { name: 'enabled',      type: 'bool', offset: 29 },
-            { name: 'categoryBits', type: 'u32',  offset: 32 },
-            { name: 'maskBits',     type: 'u32',  offset: 36 },
-        ],
-    },
-    CircleCollider: {
-        ptrFn: 'getCircleColliderPtr',
-        fields: [
-            { name: 'radius',       type: 'f32',  offset: 0 },
-            { name: 'offset',       type: 'vec2', offset: 4 },
-            { name: 'density',      type: 'f32',  offset: 12 },
-            { name: 'friction',     type: 'f32',  offset: 16 },
-            { name: 'restitution',  type: 'f32',  offset: 20 },
-            { name: 'isSensor',     type: 'bool', offset: 24 },
-            { name: 'enabled',      type: 'bool', offset: 25 },
-            { name: 'categoryBits', type: 'u32',  offset: 28 },
-            { name: 'maskBits',     type: 'u32',  offset: 32 },
-        ],
-    },
-};
 
 function readPtrField(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
@@ -175,6 +68,7 @@ function readPtrField(
         case 'u8':    return u8[byteOff];
         case 'vec2':  return { x: f32[idx], y: f32[idx + 1] };
         case 'vec3':  return { x: f32[idx], y: f32[idx + 1], z: f32[idx + 2] };
+        case 'vec4':
         case 'quat':  return { x: f32[idx], y: f32[idx + 1], z: f32[idx + 2], w: f32[idx + 3] };
         case 'color': return { r: f32[idx], g: f32[idx + 1], b: f32[idx + 2], a: f32[idx + 3] };
     }
@@ -204,6 +98,7 @@ function fillPtrFields(
                 v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2];
                 break;
             }
+            case 'vec4':
             case 'quat': {
                 const v = target[field.name] as any;
                 v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2]; v.w = f32[idx + 3];
@@ -224,6 +119,7 @@ function createPreallocatedResult(fields: readonly PtrFieldDesc[]): Record<strin
         switch (f.type) {
             case 'vec2':  obj[f.name] = { x: 0, y: 0 }; break;
             case 'vec3':  obj[f.name] = { x: 0, y: 0, z: 0 }; break;
+            case 'vec4':
             case 'quat':  obj[f.name] = { x: 0, y: 0, z: 0, w: 0 }; break;
             case 'color': obj[f.name] = { r: 0, g: 0, b: 0, a: 0 }; break;
             default:      obj[f.name] = null; break;
@@ -246,6 +142,7 @@ function writePtrField(
         case 'u8':    u8[byteOff] = value; break;
         case 'vec2':  f32[idx] = value.x; f32[idx + 1] = value.y; break;
         case 'vec3':  f32[idx] = value.x; f32[idx + 1] = value.y; f32[idx + 2] = value.z; break;
+        case 'vec4':
         case 'quat':  f32[idx] = value.x; f32[idx + 1] = value.y; f32[idx + 2] = value.z; f32[idx + 3] = value.w; break;
         case 'color': f32[idx] = value.r; f32[idx + 1] = value.g; f32[idx + 2] = value.b; f32[idx + 3] = value.a; break;
     }
