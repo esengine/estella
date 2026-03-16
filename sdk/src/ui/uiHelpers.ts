@@ -6,7 +6,7 @@ import type { Entity, Color } from '../types';
 import type { World } from '../world';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
-import { UIRenderer } from './UIRenderer';
+import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
@@ -361,6 +361,21 @@ export function ensureComponent(
 ): void {
     if (!world.has(entity, component)) {
         world.insert(entity, component, defaults);
+    }
+}
+
+export function ensureUIRenderer(world: World, entity: Entity): void {
+    if (!world.has(entity, UIRenderer)) {
+        world.insert(entity, UIRenderer, {
+            visualType: UIVisualType.None,
+            texture: 0,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            uvOffset: { x: 0, y: 0 },
+            uvScale: { x: 1, y: 1 },
+            sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+            material: 0,
+            enabled: true,
+        });
     }
 }
 

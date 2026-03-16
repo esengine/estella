@@ -18,7 +18,7 @@ import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { playModeOnly } from '../env';
 import { getEntityDepth } from './uiHelpers';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 import { quaternionToAngle2D } from './uiMath';
 
 function worldToLocalDelta(
@@ -72,7 +72,7 @@ function applyConstraints(
 
 export class DragPlugin implements Plugin {
     name = 'drag';
-    dependencies = ['uiInteraction'];
+    dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {
         registerComponent('Draggable', Draggable);

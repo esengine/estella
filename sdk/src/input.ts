@@ -46,6 +46,15 @@ export class InputState {
     getScrollDelta(): { x: number; y: number } {
         return { x: this.scrollDeltaX, y: this.scrollDeltaY };
     }
+
+    clearFrameState(): void {
+        this.keysPressed.clear();
+        this.keysReleased.clear();
+        this.mouseButtonsPressed.clear();
+        this.mouseButtonsReleased.clear();
+        this.scrollDeltaX = 0;
+        this.scrollDeltaY = 0;
+    }
 }
 
 export const Input = defineResource<InputState>(new InputState(), 'Input');
@@ -53,6 +62,7 @@ export const Input = defineResource<InputState>(new InputState(), 'Input');
 export class InputPlugin implements Plugin {
     name = 'input';
     private target_: unknown;
+    private unbind_: (() => void) | null = null;
 
     constructor(target?: unknown) {
         this.target_ = target ?? null;
@@ -94,13 +104,15 @@ export class InputPlugin implements Plugin {
         }, this.target_ ?? undefined);
 
         app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
-            state.keysPressed.clear();
-            state.keysReleased.clear();
-            state.mouseButtonsPressed.clear();
-            state.mouseButtonsReleased.clear();
-            state.scrollDeltaX = 0;
-            state.scrollDeltaY = 0;
+            state.clearFrameState();
         }, { name: 'InputClearSystem' }));
+    }
+
+    cleanup(): void {
+        const platform = getPlatform() as any;
+        if (typeof platform.unbindInputEvents === 'function') {
+            platform.unbindInputEvents();
+        }
     }
 }
 

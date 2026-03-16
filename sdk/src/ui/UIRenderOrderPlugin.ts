@@ -1,10 +1,11 @@
 import type { App, Plugin } from '../app';
 import { defineSystem, Schedule } from '../system';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+import { PluginName } from '../systemLabels';
 
 export class UIRenderOrderPlugin implements Plugin {
     name = 'uiRenderOrder';
-    dependencies = ['uiLayout', 'collectionView'];
+    dependencies = [PluginName.UILayout, PluginName.CollectionView];
 
     build(app: App): void {
         const world = app.world;
