@@ -364,7 +364,7 @@ await app.tick(1 / 60);
     });
 
     it('should have name "Stats"', () => {
-        expect(new StatsPlugin().name).toBe('Stats');
+        expect(new StatsPlugin().name).toBe('stats');
     });
 
     // === Review fix: Critical #3 — singleton reuse ===

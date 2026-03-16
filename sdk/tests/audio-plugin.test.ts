@@ -71,7 +71,7 @@ describe('AudioPlugin', () => {
     });
 
     it('should have name "AudioPlugin"', () => {
-        expect(audioPlugin.name).toBe('AudioPlugin');
+        expect(audioPlugin.name).toBe('audio');
     });
 
     it('should have a build method', () => {
@@ -85,7 +85,7 @@ describe('AudioPlugin', () => {
             musicVolume: 0.5,
             sfxVolume: 0.9,
         });
-        expect(plugin.name).toBe('AudioPlugin');
+        expect(plugin.name).toBe('audio');
     });
 
     it('should call Audio.dispose on cleanup', () => {

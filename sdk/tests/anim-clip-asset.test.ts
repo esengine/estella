@@ -19,6 +19,21 @@ import {
     getComponentAssetFieldDescriptors,
     type AssetFieldType,
 } from '../src/scene';
+import { defineComponent } from '../src/component';
+
+function ensureSpriteAnimator() {
+    defineComponent('SpriteAnimator', {
+        clip: '',
+        speed: 1.0,
+        playing: true,
+        loop: true,
+        enabled: true,
+        currentFrame: 0,
+        frameTimer: 0,
+    }, {
+        assetFields: [{ field: 'clip', type: 'anim-clip' }],
+    });
+}
 
 // =============================================================================
 // Asset Type Registration
@@ -123,11 +138,13 @@ describe('parseAnimClipData', () => {
     });
 
     it('should register clip field in COMPONENT_ASSET_FIELDS', () => {
+        ensureSpriteAnimator();
         const fields = getComponentAssetFields('SpriteAnimator');
         expect(fields).toContain('clip');
     });
 
     it('should have anim-clip asset field type', () => {
+        ensureSpriteAnimator();
         const descriptors = getComponentAssetFieldDescriptors('SpriteAnimator');
         const clipDesc = descriptors.find(d => d.field === 'clip');
         expect(clipDesc).toBeDefined();

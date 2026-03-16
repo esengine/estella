@@ -520,6 +520,22 @@ async function preloadSceneAssets(
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void {
+    if (compData.type === 'LocalTransform' || compData.type === 'WorldTransform') {
+        compData.type = 'Transform';
+    }
+    if (compData.type === 'UIRect') {
+        const rectData = compData.data as Record<string, unknown>;
+        if (rectData.anchor && !rectData.anchorMin) {
+            rectData.anchorMin = { ...(rectData.anchor as Record<string, unknown>) };
+            rectData.anchorMax = { ...(rectData.anchor as Record<string, unknown>) };
+            delete rectData.anchor;
+        }
+    }
+    if (compData.type === 'UIMask') {
+        const maskData = compData.data as Record<string, unknown>;
+        if (maskData.mode === 'scissor') maskData.mode = 0;
+        else if (maskData.mode === 'stencil') maskData.mode = 1;
+    }
     const comp = getComponent(compData.type);
     if (comp) {
         world.insert(entity, comp, compData.data);

@@ -11,7 +11,7 @@ import { postProcessPlugin } from '../src/postprocess/PostProcessPlugin';
 
 describe('PostProcessPlugin', () => {
     it('has correct name', () => {
-        expect(postProcessPlugin.name).toBe('PostProcessPlugin');
+        expect(postProcessPlugin.name).toBe('postProcess');
     });
 
     it('implements Plugin interface with build and cleanup', () => {

@@ -13,7 +13,8 @@ vi.mock('../src/scene', async (importOriginal) => {
 });
 
 import { instantiatePrefab } from '../src/prefab';
-import { loadSceneWithAssets, registerComponentEntityFields } from '../src/scene';
+import { loadSceneWithAssets } from '../src/scene';
+import { defineComponent } from '../src/component';
 
 const mockLoadScene = vi.mocked(loadSceneWithAssets);
 
@@ -387,7 +388,11 @@ describe('Prefab', () => {
 
     describe('entity reference remapping', () => {
         beforeEach(() => {
-            registerComponentEntityFields('Slider', ['fillEntity', 'handleEntity']);
+            defineComponent('Slider', {
+                fillEntity: 0,
+                handleEntity: 0,
+                value: 0,
+            }, { entityFields: ['fillEntity', 'handleEntity'] });
         });
 
         it('should remap entity references in components', async () => {

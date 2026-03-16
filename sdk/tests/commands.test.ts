@@ -15,10 +15,13 @@ function createMockWorld() {
     const components = new Map<Entity, Map<string, any>>();
 
     const world = {
-        spawn: vi.fn(() => {
+        spawn: vi.fn((name?: string) => {
             const entity = nextId++ as Entity;
             validEntities.add(entity);
             components.set(entity, new Map());
+            if (name !== undefined) {
+                world.insert(entity, Name, { value: name });
+            }
             return entity;
         }),
         despawn: vi.fn((entity: Entity) => {
