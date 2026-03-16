@@ -319,6 +319,8 @@ function extractAndRegisterComponents(source: string): string[] {
 function safeParseObjectLiteral(objStr: string): Record<string, unknown> | null {
     try {
         const json = objStr
+            .replace(/\/\/.*$/gm, '')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
             .replace(/'/g, '"')
             .replace(/(\w+)\s*:/g, '"$1":')
             .replace(/,\s*([}\]])/g, '$1');
