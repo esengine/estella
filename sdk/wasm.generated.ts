@@ -22,6 +22,14 @@ export interface VectorEntity {
 
 // Enums
 
+export enum AlignSelf {
+    Auto = 0,
+    Start = 1,
+    Center = 2,
+    End = 3,
+    Stretch = 4,
+}
+
 export enum EmitterShape {
     Point = 0,
     Circle = 1,
@@ -86,6 +94,15 @@ export enum AlignItems {
     Stretch = 3,
 }
 
+export enum AlignContent {
+    Start = 0,
+    Center = 1,
+    End = 2,
+    Stretch = 3,
+    SpaceBetween = 4,
+    SpaceAround = 5,
+}
+
 export enum LayoutDirection {
     Horizontal = 0,
     Vertical = 1,
@@ -126,6 +143,14 @@ export interface FlexItem {
     flexShrink: number;
     flexBasis: number;
     order: number;
+    alignSelf: number;
+    margin: Padding;
+    minWidth: number;
+    minHeight: number;
+    maxWidth: number;
+    maxHeight: number;
+    widthPercent: number;
+    heightPercent: number;
 }
 
 export interface BoxCollider {
@@ -175,6 +200,15 @@ export interface SegmentCollider {
     enabled: boolean;
     categoryBits: number;
     maskBits: number;
+}
+
+export interface FanLayout {
+    radius: number;
+    maxSpreadAngle: number;
+    maxCardAngle: number;
+    tiltFactor: number;
+    cardSpacing: number;
+    direction: number;
 }
 
 export interface ParticleEmitter {
@@ -241,6 +275,13 @@ export interface UIRenderer {
     enabled: boolean;
 }
 
+export interface GridLayout {
+    direction: number;
+    crossAxisCount: number;
+    itemSize: Vec2;
+    spacing: Vec2;
+}
+
 export interface Velocity {
     linear: Vec3;
     angular: Vec3;
@@ -301,6 +342,7 @@ export interface Sprite {
     texture: number;
     color: Vec4;
     size: Vec2;
+    pivot: Vec2;
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;
@@ -320,6 +362,7 @@ export interface FlexContainer {
     wrap: number;
     justifyContent: number;
     alignItems: number;
+    alignContent: number;
     gap: Vec2;
     padding: Padding;
 }
@@ -339,6 +382,11 @@ export interface ShapeRenderer {
     cornerRadius: number;
     layer: number;
     enabled: boolean;
+}
+
+export interface Selectable {
+    selected: boolean;
+    group: number;
 }
 
 export interface LayoutGroup {
@@ -407,6 +455,10 @@ export interface Registry {
     getSegmentCollider(entity: Entity): SegmentCollider;
     addSegmentCollider(entity: Entity, component: SegmentCollider): void;
     removeSegmentCollider(entity: Entity): void;
+    hasFanLayout(entity: Entity): boolean;
+    getFanLayout(entity: Entity): FanLayout;
+    addFanLayout(entity: Entity, component: FanLayout): void;
+    removeFanLayout(entity: Entity): void;
     hasParticleEmitter(entity: Entity): boolean;
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
@@ -419,6 +471,10 @@ export interface Registry {
     getUIRenderer(entity: Entity): UIRenderer;
     addUIRenderer(entity: Entity, component: UIRenderer): void;
     removeUIRenderer(entity: Entity): void;
+    hasGridLayout(entity: Entity): boolean;
+    getGridLayout(entity: Entity): GridLayout;
+    addGridLayout(entity: Entity, component: GridLayout): void;
+    removeGridLayout(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -467,6 +523,10 @@ export interface Registry {
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
     removeShapeRenderer(entity: Entity): void;
+    hasSelectable(entity: Entity): boolean;
+    getSelectable(entity: Entity): Selectable;
+    addSelectable(entity: Entity, component: Selectable): void;
+    removeSelectable(entity: Entity): void;
     hasLayoutGroup(entity: Entity): boolean;
     getLayoutGroup(entity: Entity): LayoutGroup;
     addLayoutGroup(entity: Entity, component: LayoutGroup): void;
@@ -497,9 +557,11 @@ export interface ESEngineModule {
     CircleCollider: new () => CircleCollider;
     CapsuleCollider: new () => CapsuleCollider;
     SegmentCollider: new () => SegmentCollider;
+    FanLayout: new () => FanLayout;
     ParticleEmitter: new () => ParticleEmitter;
     Transform: new () => Transform;
     UIRenderer: new () => UIRenderer;
+    GridLayout: new () => GridLayout;
     Velocity: new () => Velocity;
     SpineAnimation: new () => SpineAnimation;
     Interactable: new () => Interactable;
@@ -512,6 +574,7 @@ export interface ESEngineModule {
     Parent: new () => Parent;
     Children: new () => Children;
     ShapeRenderer: new () => ShapeRenderer;
+    Selectable: new () => Selectable;
     LayoutGroup: new () => LayoutGroup;
     ScreenSpace: new () => ScreenSpace;
     Canvas: new () => Canvas;
