@@ -147,6 +147,9 @@ export class BuildCache {
         const cachePath = this.getCachePath(configId);
 
         try {
+            const exists = await this.fs_.exists(cachePath);
+            if (!exists) return null;
+
             const content = await this.fs_.readFile(cachePath);
             if (!content) return null;
 

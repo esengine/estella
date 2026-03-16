@@ -520,6 +520,10 @@ pub async fn install_emsdk(app: AppHandle) -> Result<ToolchainStatus, String> {
     .await
     .map_err(|e| format!("Extract task failed: {}", e))??;
 
+    // Generate .emscripten config
+    emit_progress(&app, "configure", "Configuring emscripten...", 0.9);
+    generate_emscripten_config(&install_dir)?;
+
     emit_progress(&app, "complete", "Toolchain installed!", 1.0);
 
     // Save path
@@ -563,6 +567,52 @@ async fn download_with_progress(app: &AppHandle, url: &str) -> Result<Vec<u8>, S
     }
 
     Ok(data)
+}
+
+fn generate_emscripten_config(emsdk_dir: &Path) -> Result<(), String> {
+    let upstream = emsdk_dir.join("upstream");
+    let emscripten = upstream.join("emscripten");
+    let node_dir = emsdk_dir.join("node");
+
+    let node_bin = if cfg!(windows) {
+        find_first_subdir(&node_dir)
+            .map(|d| d.join("bin").join("node.exe"))
+            .unwrap_or_else(|| node_dir.join("bin").join("node.exe"))
+    } else {
+        find_first_subdir(&node_dir)
+            .map(|d| d.join("bin").join("node"))
+            .unwrap_or_else(|| node_dir.join("bin").join("node"))
+    };
+
+    let to_python_path = |p: &Path| -> String {
+        let s = p.to_string_lossy().replace('\\', "/");
+        format!("'{}'", s)
+    };
+
+    let config = format!(
+        "import os\nEMSCRIPTEN_ROOT = {}\nLLVM_ROOT = {}\nBINARYEN_ROOT = {}\nNODE_JS = {}\n",
+        to_python_path(&emscripten),
+        to_python_path(&upstream.join("bin")),
+        to_python_path(&upstream),
+        to_python_path(&node_bin),
+    );
+
+    let config_path = emsdk_dir.join(".emscripten");
+    std::fs::write(&config_path, config)
+        .map_err(|e| format!("Failed to write .emscripten config: {}", e))?;
+
+    Ok(())
+}
+
+fn find_first_subdir(dir: &Path) -> Option<std::path::PathBuf> {
+    if !dir.exists() {
+        return None;
+    }
+    std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .find(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.path())
 }
 
 fn extract_zip(data: &[u8], target: &Path) -> Result<(), String> {
