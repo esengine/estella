@@ -31,6 +31,8 @@ export const AudioSource = defineComponent<AudioSourceData>('AudioSource', {
     rolloff: 1.0,
     priority: 0,
     enabled: true,
+}, {
+    assetFields: [{ field: 'clip', type: 'audio' }],
 });
 
 export interface AudioListenerData {

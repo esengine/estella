@@ -68,109 +68,25 @@ export interface SceneLoadOptions {
 }
 
 // =============================================================================
-// Component Asset Field Registry
+// Asset Field Types
 // =============================================================================
 
 export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'timeline';
 
-interface AssetFieldDescriptor {
-    field: string;
-    type: AssetFieldType;
-}
-
-interface SpineFieldDescriptor {
-    skeletonField: string;
-    atlasField: string;
-}
-
-interface ComponentAssetFields {
-    fields?: AssetFieldDescriptor[];
-    spine?: SpineFieldDescriptor;
-}
-
-const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
-    ['Sprite', {
-        fields: [
-            { field: 'texture', type: 'texture' },
-            { field: 'material', type: 'material' },
-        ],
-    }],
-    ['SpineAnimation', {
-        spine: { skeletonField: 'skeletonPath', atlasField: 'atlasPath' },
-        fields: [
-            { field: 'material', type: 'material' },
-        ],
-    }],
-    ['BitmapText', {
-        fields: [
-            { field: 'font', type: 'font' },
-        ],
-    }],
-    ['Image', {
-        fields: [
-            { field: 'texture', type: 'texture' },
-            { field: 'material', type: 'material' },
-        ],
-    }],
-    ['UIRenderer', {
-        fields: [
-            { field: 'texture', type: 'texture' },
-            { field: 'material', type: 'material' },
-        ],
-    }],
-    ['SpriteAnimator', {
-        fields: [
-            { field: 'clip', type: 'anim-clip' },
-        ],
-    }],
-    ['AudioSource', {
-        fields: [
-            { field: 'clip', type: 'audio' },
-        ],
-    }],
-    ['ParticleEmitter', {
-        fields: [
-            { field: 'texture', type: 'texture' },
-            { field: 'material', type: 'material' },
-        ],
-    }],
-    ['Tilemap', {
-        fields: [
-            { field: 'source', type: 'tilemap' },
-        ],
-    }],
-    ['TilemapLayer', {
-        fields: [
-            { field: 'texture', type: 'texture' },
-        ],
-    }],
-    ['TimelinePlayer', {
-        fields: [
-            { field: 'timeline', type: 'timeline' },
-        ],
-    }],
-]);
-
-export function registerComponentAssetFields(
-    componentType: string,
-    config: ComponentAssetFields
-): void {
-    COMPONENT_ASSET_FIELDS.set(componentType, config);
-}
+// =============================================================================
+// Component Query Helpers (read from self-describing ComponentDef)
+// =============================================================================
 
 export function getComponentAssetFields(componentType: string): string[] {
-    const config = COMPONENT_ASSET_FIELDS.get(componentType);
-    if (!config) return [];
-
+    const comp = getComponent(componentType);
+    if (!comp) return [];
     const fields: string[] = [];
-    if (config.fields) {
-        for (const { field } of config.fields) {
-            fields.push(field);
-        }
+    for (const { field } of comp.assetFields) {
+        fields.push(field);
     }
-    if (config.spine) {
-        fields.push(config.spine.skeletonField);
-        fields.push(config.spine.atlasField);
+    if (comp.spineFields) {
+        fields.push(comp.spineFields.skeletonField);
+        fields.push(comp.spineFields.atlasField);
     }
     return fields;
 }
@@ -178,35 +94,24 @@ export function getComponentAssetFields(componentType: string): string[] {
 export function getComponentAssetFieldDescriptors(
     componentType: string,
 ): readonly { field: string; type: AssetFieldType }[] {
-    return COMPONENT_ASSET_FIELDS.get(componentType)?.fields ?? [];
+    return getComponent(componentType)?.assetFields ?? [];
 }
 
 export function getComponentSpineFieldDescriptor(
     componentType: string,
 ): { skeletonField: string; atlasField: string } | null {
-    return COMPONENT_ASSET_FIELDS.get(componentType)?.spine ?? null;
-}
-
-export function getRegisteredAssetComponentTypes(): string[] {
-    return Array.from(COMPONENT_ASSET_FIELDS.keys());
+    return getComponent(componentType)?.spineFields ?? null;
 }
 
 // =============================================================================
-// Component Entity Reference Fields Registry
+// Entity Reference Remapping
 // =============================================================================
-
-export {
-    registerComponentEntityFields,
-    getComponentEntityFields,
-} from './componentEntityFields';
-
-import { getComponentEntityFields } from './componentEntityFields';
 
 export function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void {
-    const fields = getComponentEntityFields(compData.type);
-    if (!fields) return;
+    const comp = getComponent(compData.type);
+    if (!comp || comp.entityFields.length === 0) return;
     const data = compData.data as Record<string, unknown>;
-    for (const field of fields) {
+    for (const field of comp.entityFields) {
         const editorId = data[field];
         if (typeof editorId === 'number' && editorId !== INVALID_ENTITY) {
             const runtimeId = entityMap.get(editorId);
@@ -522,39 +427,35 @@ async function preloadSceneAssets(
         if (entityData.visible === false) continue;
 
         for (const compData of entityData.components) {
-            if (compData.type === 'StateMachine') {
-                const smData = compData.data as { states?: Record<string, { timeline?: string }> };
-                if (smData.states) {
-                    for (const state of Object.values(smData.states)) {
-                        if (typeof state.timeline === 'string' && state.timeline) {
-                            assetPaths.get('timeline')?.add(state.timeline);
-                        }
-                    }
-                }
-            }
-
-            const config = COMPONENT_ASSET_FIELDS.get(compData.type);
-            if (!config) continue;
+            const comp = getComponent(compData.type);
+            if (!comp) continue;
 
             const data = compData.data as Record<string, unknown>;
 
-            if (config.spine) {
-                const skelPath = data[config.spine.skeletonField] as string;
-                const atlasPath = data[config.spine.atlasField] as string;
+            // Strategy: component-defined complex asset discovery
+            if (comp.discoverAssets) {
+                for (const ref of comp.discoverAssets(data)) {
+                    assetPaths.get(ref.type as AssetFieldType)?.add(ref.path);
+                }
+            }
+
+            // Declarative: simple field→type asset references
+            for (const desc of comp.assetFields) {
+                const value = data[desc.field];
+                if (typeof value !== 'string' || !value) continue;
+                assetPaths.get(desc.type)?.add(value);
+            }
+
+            // Spine: paired skeleton+atlas references
+            if (comp.spineFields) {
+                const skelPath = data[comp.spineFields.skeletonField] as string;
+                const atlasPath = data[comp.spineFields.atlasField] as string;
                 if (skelPath && atlasPath) {
                     const key = `${skelPath}:${atlasPath}`;
                     if (!spineKeys.has(key)) {
                         spineKeys.add(key);
                         spines.push({ skeleton: skelPath, atlas: atlasPath });
                     }
-                }
-            }
-
-            if (config.fields) {
-                for (const desc of config.fields) {
-                    const value = data[desc.field];
-                    if (typeof value !== 'string' || !value) continue;
-                    assetPaths.get(desc.type)?.add(value);
                 }
             }
         }
@@ -600,11 +501,11 @@ async function preloadSceneAssets(
         if (entityData.visible === false) continue;
 
         for (const compData of entityData.components) {
-            const config = COMPONENT_ASSET_FIELDS.get(compData.type);
-            if (!config?.fields) continue;
+            const comp = getComponent(compData.type);
+            if (!comp || comp.assetFields.length === 0) continue;
 
             const data = compData.data as Record<string, unknown>;
-            for (const desc of config.fields) {
+            for (const desc of comp.assetFields) {
                 const handles = assetHandles.get(desc.type);
                 if (!handles) continue;
                 const value = data[desc.field];
@@ -619,22 +520,6 @@ async function preloadSceneAssets(
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void {
-    if (compData.type === 'LocalTransform' || compData.type === 'WorldTransform') {
-        compData.type = 'Transform';
-    }
-    if (compData.type === 'UIRect') {
-        const rectData = compData.data as Record<string, unknown>;
-        if (rectData.anchor && !rectData.anchorMin) {
-            rectData.anchorMin = { ...(rectData.anchor as Record<string, unknown>) };
-            rectData.anchorMax = { ...(rectData.anchor as Record<string, unknown>) };
-            delete rectData.anchor;
-        }
-    }
-    if (compData.type === 'UIMask') {
-        const maskData = compData.data as Record<string, unknown>;
-        if (maskData.mode === 'scissor') maskData.mode = 0;
-        else if (maskData.mode === 'stencil') maskData.mode = 1;
-    }
     const comp = getComponent(compData.type);
     if (comp) {
         world.insert(entity, comp, compData.data);

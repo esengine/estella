@@ -21,7 +21,7 @@ struct BitmapText {
     ES_PROPERTY()
     std::string text;
 
-    ES_PROPERTY()
+    ES_PROPERTY(animatable)
     glm::vec4 color{1.0f};
 
     ES_PROPERTY()
@@ -36,7 +36,7 @@ struct BitmapText {
     ES_PROPERTY()
     i32 layer{0};
 
-    ES_PROPERTY()
+    ES_PROPERTY(asset = font)
     resource::BitmapFontHandle font;
 
     ES_PROPERTY()

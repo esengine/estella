@@ -29,6 +29,8 @@ export const TimelinePlayer = defineComponent<TimelinePlayerData>('TimelinePlaye
     playing: false,
     speed: 1.0,
     wrapMode: 'once',
+}, {
+    assetFields: [{ field: 'timeline', type: 'timeline' }],
 });
 
 const loadedAssets_ = new Map<string, TimelineAsset>();

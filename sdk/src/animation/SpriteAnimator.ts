@@ -70,6 +70,8 @@ export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent(
     enabled: true,
     currentFrame: 0,
     frameTimer: 0,
+}, {
+    assetFields: [{ field: 'clip', type: 'anim-clip' }],
 });
 
 // =============================================================================

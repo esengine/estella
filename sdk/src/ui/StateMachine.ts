@@ -1,4 +1,4 @@
-import { defineComponent } from '../component';
+import { defineComponent, type AssetRef } from '../component';
 
 export interface Condition {
     inputName: string;
@@ -67,4 +67,17 @@ export const StateMachine = defineComponent<StateMachineData>('StateMachine', {
     inputs: [],
     listeners: [],
     initialState: '',
+}, {
+    discoverAssets(data) {
+        const refs: AssetRef[] = [];
+        const states = data.states as Record<string, { timeline?: string }> | undefined;
+        if (states) {
+            for (const state of Object.values(states)) {
+                if (typeof state.timeline === 'string' && state.timeline) {
+                    refs.push({ type: 'timeline', path: state.timeline });
+                }
+            }
+        }
+        return refs;
+    },
 });
