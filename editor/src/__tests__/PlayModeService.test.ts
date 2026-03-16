@@ -69,6 +69,7 @@ vi.mock('../renderer/SharedRenderContext', () => ({
         },
         sceneManager_: {
             getEntityMap: vi.fn(() => new Map()),
+            loadScene: vi.fn().mockResolvedValue(undefined),
         },
         enterPlayMode: vi.fn(),
         exitPlayMode: vi.fn().mockResolvedValue(undefined),
@@ -131,6 +132,7 @@ describe('PlayModeService — SceneManager integration', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockContainer.provide(SCRIPT_SERVICE, 'default', {
+            reload: vi.fn(),
             getCompiledScripts: vi.fn(() => null),
         });
         mockContainer.provide(PLAY_MODE_SERVICE, 'default', new PlayModeService());
