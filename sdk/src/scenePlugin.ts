@@ -19,7 +19,7 @@ const sceneTransitionSystem = defineSystem(
 );
 
 export const sceneManagerPlugin: Plugin = {
-    name: 'SceneManager',
+    name: 'sceneManager',
     build(app: App): void {
         const state = new SceneManagerState(app);
         app.insertResource(SceneManager, state);

@@ -65,7 +65,7 @@ interface AnimFramesState {
 }
 
 export class TimelinePlugin implements Plugin {
-    name = 'TimelinePlugin';
+    name = 'timeline';
 
     private handles_ = new Map<number, UploadResult>();
     private animFramesStates_ = new Map<number, AnimFramesState>();

@@ -19,6 +19,8 @@ import { wrapText, nextPowerOf2, ensureComponent, colorToRgba } from './uiHelper
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 
 export class TextInputPlugin implements Plugin {
+    name = 'textInput';
+
     private cleanupListeners_: (() => void) | null = null;
 
     cleanup(): void {

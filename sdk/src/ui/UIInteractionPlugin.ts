@@ -49,6 +49,9 @@ function emitWithBubbling(
 }
 
 export class UIInteractionPlugin implements Plugin {
+    name = 'uiInteraction';
+    dependencies = ['uiLayout'];
+
     build(app: App): void {
         registerComponent('Interactable', Interactable);
         registerComponent('Button', Button);

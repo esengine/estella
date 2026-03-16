@@ -9,7 +9,7 @@ import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 
 export const corePlugin: Plugin = {
-    name: 'EngineCore',
+    name: 'engineCore',
 
     build(app) {
         const module = app.wasmModule!;

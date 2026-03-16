@@ -13,7 +13,7 @@ import { spriteAnimatorSystemUpdate } from './SpriteAnimator';
 import { isEditor, isPlayMode } from '../env';
 
 export class AnimationPlugin implements Plugin {
-    name = 'AnimationPlugin';
+    name = 'animation';
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;

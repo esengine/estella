@@ -3,6 +3,8 @@ import { registerComponent } from '../component';
 import { UIMask } from './UIMask';
 
 export class UIMaskPlugin implements Plugin {
+    name = 'uiMask';
+
     build(app: App): void {
         registerComponent('UIMask', UIMask);
     }

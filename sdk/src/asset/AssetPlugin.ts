@@ -12,6 +12,8 @@ export const Assets = defineResource<AssetsData>(
 );
 
 export class AssetPlugin implements Plugin {
+    name = 'asset';
+
     build(app: App): void {
         const module = app.wasmModule;
         if (!module) {

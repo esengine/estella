@@ -9,6 +9,8 @@ import { Selectable, type SelectableData } from './Selectable';
 import { UIEvents, UIEventQueue } from './UIEvents';
 
 export class SelectablePlugin implements Plugin {
+    name = 'selectable';
+
     build(app: App): void {
         const world = app.world;
 

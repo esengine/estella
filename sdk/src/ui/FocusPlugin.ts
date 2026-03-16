@@ -15,6 +15,8 @@ import { isEditor, isPlayMode } from '../env';
 import { UIEvents, UIEventQueue } from './UIEvents';
 
 export class FocusPlugin implements Plugin {
+    name = 'focus';
+
     build(app: App): void {
         registerComponent('Focusable', Focusable);
 

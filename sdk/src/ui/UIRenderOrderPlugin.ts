@@ -3,6 +3,9 @@ import { defineSystem, Schedule } from '../system';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 
 export class UIRenderOrderPlugin implements Plugin {
+    name = 'uiRenderOrder';
+    dependencies = ['uiLayout', 'collectionView'];
+
     build(app: App): void {
         const world = app.world;
         const module = app.wasmModule as ESEngineModule;

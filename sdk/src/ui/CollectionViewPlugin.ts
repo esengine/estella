@@ -30,6 +30,9 @@ export function getCollectionState(entity: Entity): CollectionState | null {
 }
 
 export class CollectionViewPlugin implements Plugin {
+    name = 'collectionView';
+    dependencies = ['uiLayout'];
+
     private cleanup_: (() => void) | null = null;
 
     build(app: App): void {

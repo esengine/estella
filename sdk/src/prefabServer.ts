@@ -39,7 +39,7 @@ export class PrefabServer {
 export const Prefabs = defineResource<PrefabServer>(null!, 'Prefabs');
 
 export class PrefabsPlugin implements Plugin {
-    name = 'PrefabsPlugin';
+    name = 'prefabs';
     dependencies = [Assets];
 
     build(app: App): void {

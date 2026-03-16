@@ -31,6 +31,8 @@ interface DropdownState {
 }
 
 export class DropdownPlugin implements Plugin {
+    name = 'dropdown';
+
     private cleanup_: (() => void) | null = null;
 
     cleanup(): void {

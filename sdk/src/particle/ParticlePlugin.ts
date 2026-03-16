@@ -6,7 +6,7 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import { initParticleAPI, shutdownParticleAPI, Particle } from './ParticleAPI';
 
 export class ParticlePlugin implements Plugin {
-    name = 'ParticlePlugin';
+    name = 'particle';
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;

@@ -3,6 +3,8 @@ import { registerComponent } from '../component';
 import { GridLayout } from './layouts/GridLayout';
 
 export class GridLayoutPlugin implements Plugin {
+    name = 'gridLayout';
+
     build(_app: App): void {
         registerComponent('GridLayout', GridLayout);
     }
