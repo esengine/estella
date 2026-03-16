@@ -150,6 +150,14 @@ export class EditorSceneRenderer {
         );
     }
 
+    async flushPendingUpdates(): Promise<void> {
+        if (this.rafId_ !== null) {
+            cancelAnimationFrame(this.rafId_);
+            this.rafId_ = null;
+        }
+        await this.flushDirtyEntities();
+    }
+
     private scheduleEntityUpdate(entityId: number): void {
         this.dirtyEntities_.add(entityId);
         if (this.rafId_ !== null) return;
@@ -159,11 +167,11 @@ export class EditorSceneRenderer {
         });
     }
 
-    private flushDirtyEntities(): void {
+    private async flushDirtyEntities(): Promise<void> {
         const entities = [...this.dirtyEntities_];
         this.dirtyEntities_.clear();
         for (const entityId of entities) {
-            this.syncEntity(entityId);
+            await this.syncEntity(entityId);
         }
     }
 
