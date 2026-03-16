@@ -15,7 +15,7 @@ import { ItemPool } from './ItemPool';
 import { UIRect, type UIRectData } from './UIRect';
 import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
 import { Image as UIImage } from './Image';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 export interface CollectionState {
     pool: ItemPool;
@@ -32,7 +32,7 @@ export function getCollectionState(entity: Entity): CollectionState | null {
 
 export class CollectionViewPlugin implements Plugin {
     name = 'collectionView';
-    dependencies = ['uiLayout'];
+    dependencies = [PluginName.UILayout];
 
     private cleanup_: (() => void) | null = null;
 

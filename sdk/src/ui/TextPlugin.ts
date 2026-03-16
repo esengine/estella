@@ -7,29 +7,14 @@ import { TextRenderer } from './TextRenderer';
 import { UIRect, type UIRectData } from './UIRect';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
-import { getEffectiveWidth, getEffectiveHeight, setUIRectSizeNative } from './uiHelpers';
+import { getEffectiveWidth, getEffectiveHeight, setUIRectSizeNative, ensureUIRenderer } from './uiHelpers';
 import { getImageResolver, type DefaultImageResolver } from './ImageResolver';
 import { parseRichText } from './RichTextParser';
-import { SystemLabel } from '../systemLabels';
-
-function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
-    if (!world.has(entity, UIRenderer)) {
-        world.insert(entity, UIRenderer, {
-            visualType: UIVisualType.None,
-            texture: 0,
-            color: { r: 1, g: 1, b: 1, a: 1 },
-            uvOffset: { x: 0, y: 0 },
-            uvScale: { x: 1, y: 1 },
-            sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
-            material: 0,
-            enabled: true,
-        });
-    }
-}
+import { SystemLabel, PluginName } from '../systemLabels';
 
 export class TextPlugin implements Plugin {
     name = 'text';
-    dependencies = ['uiLayout'];
+    dependencies = [PluginName.UILayout];
 
     build(app: App): void {
         registerComponent('Text', Text);

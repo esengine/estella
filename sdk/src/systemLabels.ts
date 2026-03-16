@@ -1,7 +1,13 @@
 /**
  * @file    systemLabels.ts
- * @brief   System name constants for ordering dependencies
+ * @brief   System and plugin name constants for ordering dependencies
  */
+
+export const PluginName = {
+    UILayout: 'uiLayout',
+    UIInteraction: 'uiInteraction',
+    CollectionView: 'collectionView',
+} as const;
 
 export const SystemLabel = {
     UILayout: 'UILayoutSystem',

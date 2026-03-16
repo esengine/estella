@@ -24,7 +24,7 @@ import { Image } from './Image';
 import type { ImageData } from './Image';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { UILayoutGeneration } from './UILayoutGeneration';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 import type { UILayoutGenerationData } from './UILayoutGeneration';
 
 const vpCache = createInvVPCache();
@@ -51,7 +51,7 @@ function emitWithBubbling(
 
 export class UIInteractionPlugin implements Plugin {
     name = 'uiInteraction';
-    dependencies = ['uiLayout'];
+    dependencies = [PluginName.UILayout];
 
     build(app: App): void {
         registerComponent('Interactable', Interactable);

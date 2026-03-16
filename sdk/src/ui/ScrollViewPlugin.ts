@@ -26,7 +26,7 @@ import {
     SCROLL_MAX_OVERSCROLL_RATIO, SCROLL_MAX_VELOCITY_RATIO,
     SCROLL_POSITION_EPSILON,
 } from './uiConstants';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 function rubberBand(pos: number, min: number, max: number, viewSize: number): number {
     if (viewSize <= 0) return 1;
@@ -70,7 +70,7 @@ interface ScrollState {
 
 export class ScrollViewPlugin implements Plugin {
     name = 'scrollView';
-    dependencies = ['uiLayout'];
+    dependencies = [PluginName.UILayout];
 
     private cleanup_: (() => void) | null = null;
 
