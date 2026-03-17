@@ -22,6 +22,13 @@ import { Aside } from '@astrojs/starlight/components';
 | `wordWrap` | boolean | `true` | 启用自动换行 |
 | `overflow` | TextOverflow | `Visible` | `Visible` (0)、`Clip` (1)、`Ellipsis` (2) |
 | `lineHeight` | number | `1.2` | 行高倍率 |
+| `richText` | boolean | `false` | 启用富文本解析 |
+| `strokeColor` | Color | `{r:0, g:0, b:0, a:0}` | 文本描边颜色 |
+| `strokeWidth` | number | `0` | 文本描边宽度（像素） |
+| `shadowColor` | Color | `{r:0, g:0, b:0, a:0.5}` | 投影颜色 |
+| `shadowBlur` | number | `0` | 投影模糊半径 |
+| `shadowOffsetX` | number | `0` | 投影水平偏移 |
+| `shadowOffsetY` | number | `0` | 投影垂直偏移 |
 
 <Aside type="note">
   无需手动配置 Sprite。`TextPlugin` 会自动从 Text 内容创建和更新纹理。
@@ -42,6 +49,44 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+### 富文本
+
+启用 `richText` 属性以使用内联格式标签：
+
+```typescript
+text.richText = true;
+text.content = '<color=#FF0000>红色</color>和<b>粗体</b>文本';
+```
+
+支持的标签：
+
+| 标签 | 说明 | 示例 |
+|------|------|------|
+| `<color=#RRGGBB>` | 文本颜色 | `<color=#FF0000>红色</color>` |
+| `<b>` | 粗体 | `<b>粗体文本</b>` |
+| `<i>` | 斜体 | `<i>斜体文本</i>` |
+| `<img src="path"/>` | 内联图片 | `<img src="icons/star.png"/>` |
+
+标签可以嵌套：`<color=#00FF00><b>绿色粗体</b></color>`
+
+### 描边与投影
+
+为任意文本添加描边和投影效果：
+
+```typescript
+// 描边
+text.strokeColor = { r: 0, g: 0, b: 0, a: 1 };
+text.strokeWidth = 2;
+
+// 投影
+text.shadowColor = { r: 0, g: 0, b: 0, a: 0.5 };
+text.shadowBlur = 4;
+text.shadowOffsetX = 2;
+text.shadowOffsetY = 2;
+```
+
+描边和投影同时适用于普通文本和富文本。在富文本模式下，描边能够正确渲染所有文本片段（所有描边在填充之前绘制，以防止视觉重叠）。
 
 ## Image
 

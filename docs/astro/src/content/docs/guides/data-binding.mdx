@@ -1,0 +1,103 @@
+---
+title: Data Binding
+description: Reactive data binding for UI components in Estella
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **DataBinding** component connects component properties to expressions that update automatically each frame. Use it to display resource values in UI text, drive progress bars from game state, or create reactive UI without writing custom systems.
+
+## Quick Start
+
+1. Add a `DataBinding` component to an entity that already has a `Text` component
+2. Set the `source` to a resource name (e.g., `'GameState'`)
+3. Add a binding entry mapping a target property to an expression
+
+In the editor Inspector, the DataBinding section provides a visual editor for configuring bindings with a dropdown for selecting target properties.
+
+## Component
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `source` | string | `''` | Default resource name for expression lookups |
+| `bindings` | BindingEntry[] | `[]` | Array of property-to-expression mappings |
+
+Each `BindingEntry` has:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `target` | string | Target property path (e.g., `'Text.content'`, `'ProgressBar.value'`) |
+| `expression` | string | Expression to evaluate (template or math) |
+
+## Expressions
+
+### Template Strings
+
+Reference resource or component properties with curly braces:
+
+```
+Score: {GameState.score}
+HP: {Health.current} / {Health.max}
+```
+
+The expression system resolves `{ResourceName.property}` by looking up the named resource via the SDK resource registry.
+
+### Math Expressions
+
+Use arithmetic inside templates for computed values:
+
+```
+{Health.current} / {Health.max}
+{Score.value} * 10 + {Bonus.multiplier}
+```
+
+Supported operators: `+`, `-`, `*`, `/`, `(`, `)`. The parser is a recursive descent parser — no `eval()` is used, making it safe for WeChat MiniGame and other restricted environments.
+
+### Auto Type Coercion
+
+- When targeting a `string` property (e.g., `Text.content`), the result is converted to string
+- When targeting a `number` property (e.g., `ProgressBar.value`), the result is parsed as a number
+
+## Example: Score Display
+
+Define a resource and bind it to a Text entity:
+
+```typescript
+import { defineResource, addStartupSystem, defineSystem, Commands } from 'esengine';
+
+const GameState = defineResource({ score: 0, level: 1 }, 'GameState');
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(GameState, { score: 0, level: 1 });
+}));
+```
+
+In the editor, add `DataBinding` to the score text entity:
+
+- **Source**: `GameState`
+- **Binding**: target = `Text.content`, expression = `Score: {GameState.score}`
+
+The text updates automatically whenever `GameState.score` changes — no custom system needed.
+
+## Example: Health Bar
+
+Bind a `ProgressBar.value` to a computed expression:
+
+- **Binding**: target = `ProgressBar.value`, expression = `{Health.current} / {Health.max}`
+
+The progress bar tracks the health ratio reactively.
+
+<Aside type="note">
+Data binding evaluation is automatically skipped in editor edit mode to prevent scene data corruption. Bindings only execute in Play Mode and at runtime.
+</Aside>
+
+## Performance
+
+- Compiled expressions are cached in an LRU cache — repeated evaluations reuse the compiled form
+- The `DataBindingPlugin` runs in `Schedule.PreUpdate` before text and image systems, so bound values are always up-to-date when rendering
+
+## Next Steps
+
+- [Text & Image](/docs/guides/ui-text/) — text rendering and image display
+- [UI Widgets](/docs/guides/ui-widgets/) — sliders, progress bars, and other controls
+- [Resources](/docs/core-concepts/resources/) — defining and using global resources

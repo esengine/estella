@@ -1,0 +1,103 @@
+---
+title: 数据绑定
+description: Estella 中 UI 组件的响应式数据绑定
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**DataBinding** 组件将组件属性连接到每帧自动更新的表达式。用它来在 UI 文字中显示资源值、用游戏状态驱动进度条，或创建响应式 UI 而无需编写自定义系统。
+
+## 快速开始
+
+1. 给已有 `Text` 组件的实体添加 `DataBinding` 组件
+2. 将 `source` 设为资源名称（如 `'GameState'`）
+3. 添加绑定条目，将目标属性映射到表达式
+
+在编辑器 Inspector 中，DataBinding 区域提供可视化编辑器，支持下拉选择目标属性。
+
+## 组件
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `source` | string | `''` | 表达式查找的默认资源名称 |
+| `bindings` | BindingEntry[] | `[]` | 属性到表达式的映射数组 |
+
+每个 `BindingEntry` 包含：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `target` | string | 目标属性路径（如 `'Text.content'`、`'ProgressBar.value'`） |
+| `expression` | string | 要求值的表达式（模板或数学表达式） |
+
+## 表达式
+
+### 模板字符串
+
+用花括号引用资源或组件属性：
+
+```
+分数: {GameState.score}
+HP: {Health.current} / {Health.max}
+```
+
+表达式系统通过 SDK 资源注册表查找 `{资源名.属性}` 进行解析。
+
+### 数学表达式
+
+在模板中使用算术运算计算值：
+
+```
+{Health.current} / {Health.max}
+{Score.value} * 10 + {Bonus.multiplier}
+```
+
+支持的运算符：`+`、`-`、`*`、`/`、`(`、`)`。解析器使用递归下降算法——不使用 `eval()`，因此在微信小游戏等受限环境中安全可用。
+
+### 自动类型转换
+
+- 目标为 `string` 属性（如 `Text.content`）时，结果转为字符串
+- 目标为 `number` 属性（如 `ProgressBar.value`）时，结果解析为数字
+
+## 示例：分数显示
+
+定义一个资源并绑定到 Text 实体：
+
+```typescript
+import { defineResource, addStartupSystem, defineSystem, Commands } from 'esengine';
+
+const GameState = defineResource({ score: 0, level: 1 }, 'GameState');
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(GameState, { score: 0, level: 1 });
+}));
+```
+
+在编辑器中，给分数文字实体添加 `DataBinding`：
+
+- **Source**：`GameState`
+- **Binding**：target = `Text.content`，expression = `分数: {GameState.score}`
+
+文字会在 `GameState.score` 变化时自动更新——无需自定义系统。
+
+## 示例：血条
+
+将 `ProgressBar.value` 绑定到计算表达式：
+
+- **Binding**：target = `ProgressBar.value`，expression = `{Health.current} / {Health.max}`
+
+进度条会响应式地跟踪生命值比例。
+
+<Aside type="note">
+数据绑定求值在编辑器编辑模式下自动跳过，防止场景数据损坏。绑定仅在 Play Mode 和运行时执行。
+</Aside>
+
+## 性能
+
+- 编译后的表达式缓存在 LRU 缓存中——重复求值复用编译结果
+- `DataBindingPlugin` 在 `Schedule.PreUpdate` 中运行，先于文本和图片系统，确保绑定值在渲染前已更新
+
+## 下一步
+
+- [文本与图片](/docs/zh/guides/ui-text/) — 文本渲染和图片显示
+- [UI 控件](/docs/zh/guides/ui-widgets/) — 滑块、进度条等控件
+- [资源](/docs/zh/core-concepts/resources/) — 定义和使用全局资源

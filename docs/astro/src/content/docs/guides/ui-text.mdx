@@ -22,6 +22,13 @@ Renders styled text into a `Sprite` texture automatically via `TextPlugin`.
 | `wordWrap` | boolean | `true` | Enable word wrapping |
 | `overflow` | TextOverflow | `Visible` | `Visible` (0), `Clip` (1), `Ellipsis` (2) |
 | `lineHeight` | number | `1.2` | Line height multiplier |
+| `richText` | boolean | `false` | Enable rich text parsing |
+| `strokeColor` | Color | `{r:0, g:0, b:0, a:0}` | Text outline color |
+| `strokeWidth` | number | `0` | Text outline width in pixels |
+| `shadowColor` | Color | `{r:0, g:0, b:0, a:0.5}` | Drop shadow color |
+| `shadowBlur` | number | `0` | Shadow blur radius |
+| `shadowOffsetX` | number | `0` | Shadow horizontal offset |
+| `shadowOffsetY` | number | `0` | Shadow vertical offset |
 
 <Aside type="note">
   You don't need to configure the Sprite manually. `TextPlugin` creates and updates the texture from the Text content.
@@ -42,6 +49,44 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+### Rich Text
+
+Enable the `richText` property to use inline formatting tags:
+
+```typescript
+text.richText = true;
+text.content = '<color=#FF0000>Red</color> and <b>bold</b> text';
+```
+
+Supported tags:
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `<color=#RRGGBB>` | Text color | `<color=#FF0000>red</color>` |
+| `<b>` | Bold | `<b>bold text</b>` |
+| `<i>` | Italic | `<i>italic text</i>` |
+| `<img src="path"/>` | Inline image | `<img src="icons/star.png"/>` |
+
+Tags can be nested: `<color=#00FF00><b>green bold</b></color>`
+
+### Stroke & Shadow
+
+Add outlines and drop shadows to any text:
+
+```typescript
+// Outline
+text.strokeColor = { r: 0, g: 0, b: 0, a: 1 };
+text.strokeWidth = 2;
+
+// Drop shadow
+text.shadowColor = { r: 0, g: 0, b: 0, a: 0.5 };
+text.shadowBlur = 4;
+text.shadowOffsetX = 2;
+text.shadowOffsetY = 2;
+```
+
+Stroke and shadow work with both plain text and rich text. In rich text mode, strokes render correctly across all text runs (all strokes are drawn before any fills to prevent visual overlap).
 
 ## Image
 

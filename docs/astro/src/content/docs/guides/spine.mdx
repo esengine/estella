@@ -224,6 +224,105 @@ const skins = manager.getSkins(entity);              // ['default', 'warrior']
 const bounds = manager.getBounds(entity);            // { x, y, width, height }
 ```
 
+## Animation Queries & Events
+
+*Added in v0.12.0.*
+
+### Animation Queries
+
+Use the `SpineManager` resource to query animation state at runtime:
+
+```typescript
+import { SpineManager } from 'esengine/spine';
+
+const manager = app.getResource(SpineManager);
+
+// List all available animations / skins for an entity
+const anims = manager.getAnimations(entity);   // ['idle', 'run', 'jump']
+const skins = manager.getSkins(entity);         // ['default', 'warrior']
+
+// Get axis-aligned bounding box
+const bounds = manager.getBounds(entity);  // { x, y, width, height }
+```
+
+### Event Callbacks
+
+Spine emits lifecycle and custom events each frame. The `SpineEvents` resource collects them into a read-only array you can consume in any system:
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { SpineEvents } from 'esengine/spine';
+import type { SpineEvent } from 'esengine/spine';
+
+addSystem(defineSystem(
+    [Res(SpineEvents)],
+    (spineEvents) => {
+        for (const evt of spineEvents.events) {
+            switch (evt.type) {
+                case 'complete':
+                    console.log(`${evt.animationName} finished on track ${evt.track}`);
+                    break;
+                case 'event':
+                    // Custom event defined in Spine editor
+                    console.log(`Custom event: ${evt.eventName}`,
+                        evt.intValue, evt.floatValue, evt.stringValue);
+                    break;
+            }
+        }
+    }
+));
+```
+
+Event types: `start`, `interrupt`, `end`, `complete`, `event` (custom).
+
+Each `SpineEvent` contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `entity` | Entity | The entity that fired the event |
+| `type` | SpineEventType | One of the event types listed above |
+| `track` | number | Animation track index |
+| `animationName` | string | Name of the animation |
+| `eventName` | string? | Name of the custom event (only for `event` type) |
+| `intValue` | number? | Integer payload (only for `event` type) |
+| `floatValue` | number? | Float payload (only for `event` type) |
+| `stringValue` | string? | String payload (only for `event` type) |
+
+<Aside type="note">
+  Events must be enabled per-entity before they are collected. Call `manager.enableEvents(entity)` once after the Spine asset is loaded.
+</Aside>
+
+### Constraint Control
+
+Query and modify IK, transform, and path constraints at runtime:
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+// List all constraints on an entity
+const constraints = manager.listConstraints(entity);
+// { ik: ['aim-ik'], transform: ['hip-transform'], path: ['path-follow'] }
+
+// IK: set target position with mix strength
+manager.setIKTarget(entity, 'aim-ik', targetX, targetY, 1.0);
+
+// Transform constraints: read and modify mix values
+const tmix = manager.getTransformConstraintMix(entity, 'hip-transform');
+// { mixRotate, mixX, mixY, mixScaleX, mixScaleY, mixShearY }
+manager.setTransformConstraintMix(entity, 'hip-transform', {
+    ...tmix!,
+    mixRotate: 0.5,
+});
+
+// Path constraints: read and modify mix values
+const pmix = manager.getPathConstraintMix(entity, 'path-follow');
+// { position, spacing, mixRotate, mixX, mixY }
+manager.setPathConstraintMix(entity, 'path-follow', {
+    ...pmix!,
+    mixRotate: 0.8,
+});
+```
+
 ## Multi-Texture Batching
 
 Spine skeletons that use multiple atlas pages are automatically batched by the renderer. No additional configuration is needed — the C++ backend handles multi-texture setups transparently, keeping draw calls low even with complex multi-atlas characters.

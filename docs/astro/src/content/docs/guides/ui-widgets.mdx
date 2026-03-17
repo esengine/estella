@@ -270,33 +270,74 @@ Scrollable container with momentum and elastic bounce.
 | `contentWidth` | number | `0` | Total width of scrollable content |
 | `contentHeight` | number | `0` | Total height of scrollable content |
 
-## ListView
+## CollectionView
 
-Virtual scrolling for large lists — only visible items are rendered.
+Virtual scrolling for large datasets with pluggable layout providers and item pooling. Replaces the previous `ListView`.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `itemHeight` | number | `40` | Fixed item height |
-| `itemCount` | number | `0` | Total items |
-| `scrollY` | number | `0` | Scroll position |
+| `itemCount` | number | `0` | Total items in the dataset |
+| `layout` | string | `'linear'` | Layout provider: `'linear'`, `'grid'`, or `'fan'` |
+| `virtualized` | boolean | `true` | Enable virtual scrolling (only render visible items) |
 | `overscan` | number | `2` | Extra items above/below viewport |
+| `itemPrefab` | string | `''` | Prefab path for item template |
+
+### Layout Providers
+
+| Layout | Description | Key Config |
+|--------|-------------|------------|
+| **Linear** | Vertical or horizontal list | `direction`, `spacing` |
+| **Grid** | Fixed-column grid | `columns`, `rowGap`, `columnGap` |
+| **Fan** | Radial fan arrangement | `radius`, `startAngle`, `endAngle` |
 
 ### Custom Item Renderer
 
-Use `setListViewRenderer()` to define how each list item is populated. The callback receives the item index and the entity to configure:
+Use `setCollectionAdapter()` to define how items are created and populated:
 
 ```typescript
-import { setListViewRenderer, Text, Sprite } from 'esengine';
+import { setCollectionAdapter, Text } from 'esengine';
 
-setListViewRenderer(listEntity, (index, itemEntity) => {
-    world.set(itemEntity, Text, { content: `Item ${index}`, fontSize: 16 });
+setCollectionAdapter(collectionEntity, {
+    makeItem(entity, world) {
+        // Called once when a new item entity is created
+        world.insert(entity, Text, { content: '', fontSize: 16 });
+    },
+    bindItem(entity, index, world) {
+        // Called each time an item is bound to a data index
+        const text = world.get(entity, Text);
+        text.content = `Item ${index}`;
+        world.set(entity, Text, text);
+    },
 });
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `index` | number | 0-based index of the list item |
-| `entity` | Entity | The spawned entity for this item — populate it with components |
+Items are automatically pooled — recycled items call `bindItem` with new indices, so the number of active entities stays minimal regardless of dataset size.
+
+## Selectable
+
+Enables selection behavior with group-based mutual exclusion. When an entity in a group is selected, all other entities in the same group are automatically deselected.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `selected` | boolean | `false` | Selection state |
+| `group` | number | `0` | Group ID for mutual exclusion (entities with the same group ID are mutually exclusive) |
+
+Listen for selection changes:
+
+```typescript
+addSystem(defineSystem(
+    [Res(UIEvents), Query(Selectable, Name)],
+    (events, query) => {
+        for (const e of events.query('select')) {
+            for (const [entity, sel, name] of query) {
+                if (entity === e.entity) {
+                    console.log(name.value, 'selected:', sel.selected);
+                }
+            }
+        }
+    }
+));
+```
 
 ## TextInput
 

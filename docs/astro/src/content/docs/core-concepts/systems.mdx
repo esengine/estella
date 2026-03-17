@@ -95,6 +95,51 @@ The engine uses topological sorting to determine the final execution order. If t
   `name` is the basis for ordering. Only systems that participate in ordering need a `name`. Systems without a name cannot be referenced by other systems.
 </Aside>
 
+### Built-in System Labels
+
+When ordering relative to built-in systems, use the `SystemLabel` constants instead of raw strings for compile-time safety:
+
+```typescript
+import { SystemLabel } from 'esengine';
+
+app.addSystemToSchedule(Schedule.PostUpdate, myLayoutSystem, {
+    runAfter: [SystemLabel.UILayout],
+    runBefore: [SystemLabel.UIRenderOrder],
+});
+```
+
+Available labels: `UILayout`, `UILayoutLate`, `UIRenderOrder`, `UIInteraction`, `Button`, `ScrollView`, `CollectionView`, `ListView`, `Text`, `Image`, `Focus`, `Tween`.
+
+Similarly, use `PluginName` constants when declaring plugin dependencies:
+
+```typescript
+import { PluginName } from 'esengine';
+
+class MyUIPlugin implements Plugin {
+    dependencies = [PluginName.UILayout];
+}
+```
+
+## Run Conditions
+
+Systems can declare a pre-condition via `runIf`. The condition is evaluated before the system runs — if it returns `false`, the system is skipped entirely with zero overhead:
+
+```typescript
+import { playModeOnly } from 'esengine';
+
+app.addSystemToSchedule(Schedule.Update, gameplaySystem, {
+    runIf: playModeOnly,
+});
+```
+
+`playModeOnly` is a built-in condition that returns `true` when running outside the editor, or inside the editor in Play Mode. You can write custom conditions — any `() => boolean` function works:
+
+```typescript
+app.addSystemToSchedule(Schedule.Update, debugSystem, {
+    runIf: () => app.getResource(DebugConfig).enabled,
+});
+```
+
 ## System Parameters
 
 ### Commands

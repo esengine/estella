@@ -33,11 +33,154 @@ addSystem(defineSystem(
 | `applyAngularImpulse(entity, impulse)` | Apply instant angular impulse |
 | `setGravity(gravity)` | Change world gravity at runtime |
 | `getGravity()` | Get current world gravity (Vec2) |
+| `shapeCastCircle(center, radius, translation, maskBits?)` | Sweep a circle and return hits |
+| `shapeCastBox(center, halfExtents, angle, translation, maskBits?)` | Sweep an oriented box and return hits |
+| `shapeCastCapsule(center1, center2, radius, translation, maskBits?)` | Sweep a capsule and return hits |
+| `overlapAABB(min, max, maskBits?)` | Query entities overlapping an AABB |
+| `getMass(entity)` | Get body mass (kg) |
+| `getInertia(entity)` | Get body rotational inertia |
+| `getCenterOfMass(entity)` | Get body center of mass (Vec2, pixels) |
+| `getMassData(entity)` | Get mass, inertia, and center of mass |
 
 ## Force vs Impulse
 
 - **Force** is applied continuously each frame. The effect depends on the body's mass and is integrated over the physics timestep. Use for sustained push (e.g., rocket thrust, wind).
 - **Impulse** is applied instantly. It directly changes velocity, independent of frame rate. Use for one-time events (e.g., jump, explosion knockback).
+
+## Shape Cast
+
+*Added in v0.12.0.*
+
+Shape casts sweep a shape along a translation vector and return all hits. They work like raycasts but with volume, useful for checking if a character can fit through a gap or predicting collisions along a path.
+
+Each method returns `ShapeCastHit[]` with the same structure as `RaycastHit`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `entity` | Entity | The entity that was hit |
+| `point` | Vec2 | Contact point in world pixels |
+| `normal` | Vec2 | Surface normal at the contact |
+| `fraction` | number | Fraction of the translation at contact (0..1) |
+
+```typescript
+// Circle cast: sweep a circle from `center` along `translation`
+const hits = physics.shapeCastCircle(
+    center,        // Vec2 — origin
+    radius,        // number — circle radius (pixels)
+    translation,   // Vec2 — sweep direction and distance (pixels)
+    maskBits,      // number — collision layer mask (default 0xFFFF)
+);
+
+// Box cast: sweep an oriented box
+const hits = physics.shapeCastBox(
+    center,        // Vec2 — box center
+    halfExtents,   // Vec2 — half width/height (pixels)
+    angle,         // number — rotation (radians)
+    translation,   // Vec2 — sweep vector (pixels)
+    maskBits,
+);
+
+// Capsule cast: sweep a capsule defined by two circle centers + radius
+const hits = physics.shapeCastCapsule(
+    center1,       // Vec2 — first circle center
+    center2,       // Vec2 — second circle center
+    radius,        // number — capsule radius (pixels)
+    translation,   // Vec2 — sweep vector (pixels)
+    maskBits,
+);
+```
+
+## AABB Overlap Query
+
+*Added in v0.12.0.*
+
+Query all entities whose colliders overlap an axis-aligned bounding box:
+
+```typescript
+const entities = physics.overlapAABB(
+    { x: 100, y: 100 },   // min corner (pixels)
+    { x: 300, y: 300 },   // max corner (pixels)
+    0xFFFF,                // collision layer mask
+);
+for (const entity of entities) {
+    // entity overlaps the AABB
+}
+```
+
+Returns `Entity[]` with no duplicates.
+
+## Mass Data
+
+*Added in v0.12.0.*
+
+Read mass properties of a rigid body at runtime:
+
+```typescript
+// Individual queries
+const mass    = physics.getMass(entity);            // number (kg)
+const inertia = physics.getInertia(entity);         // number (kg*px^2)
+const center  = physics.getCenterOfMass(entity);    // Vec2 (pixels)
+
+// All at once
+const data = physics.getMassData(entity);
+// { mass: number, inertia: number, centerOfMass: Vec2 }
+```
+
+## Joint State Queries
+
+*Added in v0.12.0.*
+
+Runtime state control for Distance, Prismatic, and Wheel joints.
+
+### Distance Joint
+
+```typescript
+// Query
+const length  = physics.getDistanceJointLength(entity);         // rest length (px)
+const current = physics.getDistanceJointCurrentLength(entity);  // current length (px)
+const force   = physics.getDistanceJointMotorForce(entity);
+
+// Modify
+physics.setDistanceJointLength(entity, 200);
+physics.enableDistanceJointSpring(entity, true);
+physics.enableDistanceJointLimit(entity, true);
+physics.setDistanceJointLimits(entity, 100, 300);  // min, max (px)
+physics.enableDistanceJointMotor(entity, true);
+physics.setDistanceJointMotorSpeed(entity, 50);
+physics.setDistanceJointMaxMotorForce(entity, 1000);
+```
+
+### Prismatic Joint
+
+```typescript
+// Query
+const translation = physics.getPrismaticJointTranslation(entity);  // current offset (px)
+const speed       = physics.getPrismaticJointSpeed(entity);        // current speed (px/s)
+const force       = physics.getPrismaticJointMotorForce(entity);
+
+// Modify
+physics.enablePrismaticJointSpring(entity, true);
+physics.enablePrismaticJointLimit(entity, true);
+physics.setPrismaticJointLimits(entity, -100, 100);  // lower, upper (px)
+physics.enablePrismaticJointMotor(entity, true);
+physics.setPrismaticJointMotorSpeed(entity, 80);
+physics.setPrismaticJointMaxMotorForce(entity, 500);
+```
+
+### Wheel Joint
+
+```typescript
+// Query
+const torque = physics.getWheelJointMotorTorque(entity);
+
+// Modify
+physics.enableWheelJointSpring(entity, true);
+physics.enableWheelJointLimit(entity, true);
+physics.setWheelJointLimits(entity, -50, 50);  // lower, upper (px)
+physics.enableWheelJointMotor(entity, true);
+physics.setWheelJointMotorSpeed(entity, 60);
+physics.setWheelJointMaxMotorTorque(entity, 200);
+```
 
 ## See Also
 

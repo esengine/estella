@@ -98,6 +98,7 @@ export default defineConfig({
                 { label: 'Widgets', translations: { 'zh-CN': '控件' }, slug: 'guides/ui-widgets' },
                 { label: 'Masking & SafeArea', translations: { 'zh-CN': '遮罩与安全区' }, slug: 'guides/ui-masking' },
                 { label: 'UI Builder', translations: { 'zh-CN': 'UI 构建器' }, slug: 'guides/ui-builder' },
+                { label: 'Data Binding', translations: { 'zh-CN': '数据绑定' }, slug: 'guides/data-binding' },
               ],
             },
             {
@@ -155,6 +156,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.12.0', slug: 'changelog-v0120' },
             { label: 'v0.11.0', slug: 'changelog-v0110' },
             { label: 'v0.10.0', slug: 'changelog-v0100' },
             { label: 'v0.9.2', slug: 'changelog-v092' },
