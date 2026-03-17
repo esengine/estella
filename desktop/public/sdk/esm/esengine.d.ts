@@ -217,13 +217,16 @@ declare class InputState {
         x: number;
         y: number;
     };
+    clearFrameState(): void;
 }
 declare const Input: ResourceDef<InputState>;
 declare class InputPlugin implements Plugin {
     name: string;
     private target_;
+    private unbind_;
     constructor(target?: unknown);
     build(app: App): void;
+    cleanup(): void;
 }
 declare const inputPlugin: InputPlugin;
 
@@ -463,7 +466,7 @@ declare class TextRenderer {
 
 declare class TextPlugin implements Plugin {
     name: string;
-    dependencies: string[];
+    dependencies: "uiLayout"[];
     build(app: App): void;
 }
 declare const textPlugin: TextPlugin;
@@ -592,7 +595,7 @@ declare const uiLayoutPlugin: UILayoutPlugin;
 
 declare class UIInteractionPlugin implements Plugin {
     name: string;
-    dependencies: string[];
+    dependencies: "uiLayout"[];
     build(app: App): void;
 }
 declare const uiInteractionPlugin: UIInteractionPlugin;
@@ -746,7 +749,7 @@ declare const DragState: ComponentDef<DragStateData>;
 
 declare class DragPlugin implements Plugin {
     name: string;
-    dependencies: string[];
+    dependencies: "uiInteraction"[];
     build(app: App): void;
 }
 declare const dragPlugin: DragPlugin;
@@ -768,7 +771,7 @@ declare const ScrollView: ComponentDef<ScrollViewData>;
 
 declare class ScrollViewPlugin implements Plugin {
     name: string;
-    dependencies: string[];
+    dependencies: "uiLayout"[];
     private cleanup_;
     cleanup(): void;
     build(app: App): void;
@@ -920,7 +923,7 @@ interface FlexItemData {
 
 declare class UIRenderOrderPlugin implements Plugin {
     name: string;
-    dependencies: string[];
+    dependencies: ("uiLayout" | "collectionView")[];
     build(app: App): void;
 }
 declare const uiRenderOrderPlugin: UIRenderOrderPlugin;
@@ -1329,7 +1332,7 @@ declare class ItemPool {
 
 declare class CollectionViewPlugin implements Plugin {
     name: string;
-    dependencies: string[];
+    dependencies: "uiLayout"[];
     private cleanup_;
     build(app: App): void;
     private getLayoutConfig_;
@@ -1501,23 +1504,23 @@ interface AssetRefInfo {
     entities: number[];
 }
 declare class AssetRefCounter {
-    private textureRefs_;
-    private fontRefs_;
-    private materialRefs_;
+    private textures_;
+    private fonts_;
+    private materials_;
     addTextureRef(path: string, entity: number): void;
     removeTextureRef(path: string, entity: number): void;
     getTextureRefCount(path: string): number;
     getTextureRefs(path: string): number[];
+    getAllTextureRefs(): AssetRefInfo[];
     addFontRef(path: string, entity: number): void;
     removeFontRef(path: string, entity: number): void;
     getFontRefCount(path: string): number;
     getFontRefs(path: string): number[];
+    getAllFontRefs(): AssetRefInfo[];
     addMaterialRef(path: string, entity: number): void;
     removeMaterialRef(path: string, entity: number): void;
     getMaterialRefCount(path: string): number;
     getMaterialRefs(path: string): number[];
-    getAllTextureRefs(): AssetRefInfo[];
-    getAllFontRefs(): AssetRefInfo[];
     getAllMaterialRefs(): AssetRefInfo[];
     removeAllRefsForEntity(entity: number): void;
     clear(): void;
