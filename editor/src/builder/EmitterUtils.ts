@@ -100,8 +100,7 @@ export async function compileUserScripts(
     context: BuildContext,
     options: CompileOptions,
 ): Promise<string> {
-    const compiler = new ScriptCompiler();
-    return compiler.compile(fs, projectDir, options.entryContent, {
+    return ScriptCompiler.compile(fs, projectDir, options.entryContent, {
         format: 'iife',
         sdk: { type: 'loader', load: options.sdkResolver, preferEsmEntry: options.preferEsmEntry ?? true },
         minify: options.minify,
@@ -165,13 +164,12 @@ export async function collectUserScriptImports(
     fs: NativeFS,
     projectDir: string,
 ): Promise<{ imports: string; hasSrcDir: boolean }> {
-    const compiler = new ScriptCompiler();
     const scriptsPath = joinPath(projectDir, 'src');
     const hasSrcDir = await fs.exists(scriptsPath);
 
-    const plugins = await compiler.discoverPlugins(fs, projectDir, 'main');
-    const scripts = hasSrcDir ? await compiler.discoverScripts(fs, projectDir) : [];
-    const imports = compiler.buildEntry(plugins, scripts);
+    const plugins = await ScriptCompiler.discoverPlugins(fs, projectDir, 'main');
+    const scripts = hasSrcDir ? await ScriptCompiler.discoverScripts(fs, projectDir) : [];
+    const imports = ScriptCompiler.buildEntry(plugins, scripts);
 
     return { imports, hasSrcDir: hasSrcDir || plugins.length > 0 };
 }

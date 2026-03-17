@@ -161,10 +161,6 @@ export function sdkResolvePlugin(strategy: SdkResolveStrategy): esbuild.Plugin {
             build.onLoad({ filter: /.*/, namespace: 'esengine-sdk' }, async (args) => {
                 return load(args.path);
             });
-
-            if (preferEsmEntry !== undefined) {
-                (build as any).__sdkPreferEsm = preferEsmEntry;
-            }
         },
     };
 }
@@ -187,7 +183,7 @@ export function virtualFsPlugin(options: VirtualFsOptions): esbuild.Plugin {
     return {
         name: 'virtual-fs',
         setup(build) {
-            const esmPref = (build as any).__sdkPreferEsm ?? preferEsmEntry;
+            const esmPref = preferEsmEntry;
 
             // -----------------------------------------------------------------
             // Absolute path resolution (Unix + Windows)
@@ -323,18 +319,14 @@ async function resolveExtension(
     fs: { exists(path: string): Promise<boolean> },
     basePath: string,
 ): Promise<string> {
-    const tsPath = basePath + '.ts';
-    if (await fs.exists(tsPath)) return tsPath;
-
-    const jsPath = basePath + '.js';
-    if (await fs.exists(jsPath)) return jsPath;
-
-    const indexTsPath = joinPath(basePath, 'index.ts');
-    if (await fs.exists(indexTsPath)) return indexTsPath;
-
-    const indexJsPath = joinPath(basePath, 'index.js');
-    if (await fs.exists(indexJsPath)) return indexJsPath;
-
-    return tsPath;
+    const candidates = [
+        basePath + '.ts',
+        basePath + '.js',
+        joinPath(basePath, 'index.ts'),
+        joinPath(basePath, 'index.js'),
+    ];
+    const results = await Promise.all(candidates.map(c => fs.exists(c)));
+    const idx = results.indexOf(true);
+    return idx >= 0 ? candidates[idx] : candidates[0];
 }
 
