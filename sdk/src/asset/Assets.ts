@@ -50,7 +50,15 @@ export type AssetRefResolver = (ref: string) => string | null;
 export class Assets {
     readonly backend: Backend;
     readonly catalog: Catalog;
-    baseUrl?: string;
+
+    get baseUrl(): string | undefined { return this.baseUrl_; }
+    set baseUrl(url: string | undefined) {
+        this.baseUrl_ = url;
+        if (this.backend.setBaseUrl) {
+            this.backend.setBaseUrl(url ?? '');
+        }
+    }
+    private baseUrl_?: string;
 
     private module_: ESEngineModule;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
@@ -225,28 +233,22 @@ export class Assets {
     // =========================================================================
 
     async fetchJson<T = unknown>(ref: string): Promise<T> {
-        const url = this.resolveUrl_(ref);
+        const path = this.catalog.resolve(ref);
+        const url = this.backend.resolveUrl(this.catalog.getBuildPath(path));
         const text = await this.backend.fetchText(url);
         return JSON.parse(text) as T;
     }
 
     async fetchBinary(ref: string): Promise<ArrayBuffer> {
-        const url = this.resolveUrl_(ref);
+        const path = this.catalog.resolve(ref);
+        const url = this.backend.resolveUrl(this.catalog.getBuildPath(path));
         return this.backend.fetchBinary(url);
     }
 
     async fetchText(ref: string): Promise<string> {
-        const url = this.resolveUrl_(ref);
-        return this.backend.fetchText(url);
-    }
-
-    private resolveUrl_(ref: string): string {
         const path = this.catalog.resolve(ref);
-        const buildPath = this.catalog.getBuildPath(path);
-        if (buildPath.startsWith('/') || buildPath.startsWith('http://') || buildPath.startsWith('https://')) {
-            return buildPath;
-        }
-        return this.baseUrl ? `${this.baseUrl}/${buildPath}` : buildPath;
+        const url = this.backend.resolveUrl(this.catalog.getBuildPath(path));
+        return this.backend.fetchText(url);
     }
 
     // =========================================================================

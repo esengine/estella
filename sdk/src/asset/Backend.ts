@@ -4,6 +4,7 @@ export interface Backend {
     fetchBinary(path: string): Promise<ArrayBuffer>;
     fetchText(path: string): Promise<string>;
     resolveUrl(path: string): string;
+    setBaseUrl?(url: string): void;
 }
 
 export interface HttpBackendOptions {
@@ -39,7 +40,11 @@ export class HttpBackend implements Backend {
         if (path.startsWith('/') || path.includes('://')) {
             return path;
         }
-        return `${this.baseUrl_}/${path}`;
+        return this.baseUrl_ ? `${this.baseUrl_}/${path}` : path;
+    }
+
+    setBaseUrl(url: string): void {
+        this.baseUrl_ = url.replace(/\/+$/, '');
     }
 }
 

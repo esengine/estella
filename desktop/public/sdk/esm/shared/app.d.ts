@@ -4,6 +4,7 @@ interface Backend {
     fetchBinary(path: string): Promise<ArrayBuffer>;
     fetchText(path: string): Promise<string>;
     resolveUrl(path: string): string;
+    setBaseUrl?(url: string): void;
 }
 
 interface AtlasFrameInfo {
@@ -370,7 +371,9 @@ type AssetRefResolver = (ref: string) => string | null;
 declare class Assets {
     readonly backend: Backend;
     readonly catalog: Catalog;
-    baseUrl?: string;
+    get baseUrl(): string | undefined;
+    set baseUrl(url: string | undefined);
+    private baseUrl_?;
     private module_;
     private loaders_;
     private textureLoader_;
@@ -401,7 +404,6 @@ declare class Assets {
     fetchJson<T = unknown>(ref: string): Promise<T>;
     fetchBinary(ref: string): Promise<ArrayBuffer>;
     fetchText(ref: string): Promise<string>;
-    private resolveUrl_;
     preloadSceneAssets(sceneData: SceneData): Promise<SceneAssetResult>;
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void;
     releaseTexture(ref: string): void;

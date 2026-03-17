@@ -1,7 +1,7 @@
 import { AssetNode, type AssetHandle } from './AssetNode';
 import type { AssetProcessor } from './AssetProcessor';
 import type { NativeFS } from '../types/NativeFS';
-import { normalizePath, getFileExtension } from '../utils/path';
+import { normalizePath, getFileExtension, isTransientFile } from '../utils/path';
 
 export type AssetGraphEventKind = 'create' | 'modify' | 'delete' | 'rename';
 
@@ -139,7 +139,7 @@ export class AssetGraph {
     }
 
     private shouldIgnore_(path: string): boolean {
-        return path.endsWith('.meta') || path.endsWith('.DS_Store');
+        return path.endsWith('.meta') || isTransientFile(path);
     }
 
     private hasProcessor_(path: string): boolean {

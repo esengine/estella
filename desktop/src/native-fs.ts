@@ -262,8 +262,7 @@ export const nativeFS: NativeFS = {
                 modified: stats.mtime,
                 created: stats.birthtime,
             };
-        } catch (err) {
-            console.error('Failed to get file stats:', err);
+        } catch {
             return null;
         }
     },

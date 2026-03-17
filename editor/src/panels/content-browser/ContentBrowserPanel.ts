@@ -1,6 +1,6 @@
 import type { EditorStore } from '../../store/EditorStore';
 import { icons } from '../../utils/icons';
-import { getParentDir, joinPath } from '../../utils/path';
+import { getParentDir, joinPath, isTransientFile } from '../../utils/path';
 import { getGlobalPathResolver } from '../../asset';
 import type { ContentBrowserState, ContentBrowserOptions, FolderNode, AssetItem, ViewMode } from './ContentBrowserTypes';
 import { getNativeFS, getNativeShell, VIEW_MODE_KEY, SEARCH_RESULTS_LIMIT } from './ContentBrowserTypes';
@@ -263,8 +263,10 @@ export class ContentBrowserPanel implements ContentBrowserState {
             const unwatchFn = await fs.watchDirectory(
                 projectDir,
                 (event) => {
+                    const relevant = event.paths.filter(p => !isTransientFile(p));
+                    if (relevant.length === 0) return;
                     this.refresh();
-                    const prefabPaths = event.paths.filter(p => p.endsWith('.esprefab'));
+                    const prefabPaths = relevant.filter(p => p.endsWith('.esprefab'));
                     if (prefabPaths.length > 0) {
                         getPrefabDependencyTracker().onPrefabFileChanged(prefabPaths);
                     }
