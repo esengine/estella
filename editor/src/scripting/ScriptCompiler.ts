@@ -6,7 +6,7 @@
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { NativeFS, CompileTarget } from './types';
 import { sdkResolvePlugin, virtualFsPlugin } from './esbuildPlugins';
-import { findTsFiles, EDITOR_ONLY_DIRS } from './ScriptLoader';
+import { findTsFiles, EDITOR_ONLY_DIRS } from './scriptDiscovery';
 import { discoverPluginPackages, type DiscoveredPlugin } from '../extension/pluginDiscovery';
 import { joinPath } from '../utils/path';
 import { initializeEsbuild } from '../builder/ArtifactBuilder';
