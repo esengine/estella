@@ -741,7 +741,7 @@ pub async fn compile_wasm(
 
     std::fs::create_dir_all(&build_dir).map_err(|e| e.to_string())?;
 
-    // Check cache
+    // Check cache — validate both output existence AND source hash
     if !options.clean_build {
         let wasm_output = if options.target == "playable" {
             build_dir.join("sdk/esengine.single.js")
@@ -750,8 +750,15 @@ pub async fn compile_wasm(
         };
 
         if wasm_output.exists() {
-            emit_progress(&app, "complete", "Using cached build", 1.0);
-            return Ok(make_result(true, &build_dir, &cache_key, &options));
+            let current_hash = compute_source_hash(&engine_src);
+            let hash_file = build_dir.join(".source_hash");
+            let cached_hash = std::fs::read_to_string(&hash_file).unwrap_or_default();
+
+            if current_hash == cached_hash {
+                emit_progress(&app, "complete", "Using cached build", 1.0);
+                return Ok(make_result(true, &build_dir, &cache_key, &options));
+            }
+            emit_progress(&app, "configure", "Source changed, rebuilding...", 0.05);
         }
     }
 
@@ -893,6 +900,10 @@ pub async fn compile_wasm(
         }
     }
 
+    // Save source hash for cache invalidation
+    let hash_file = build_dir.join(".source_hash");
+    let _ = std::fs::write(&hash_file, compute_source_hash(&engine_src));
+
     emit_progress(&app, "complete", "Build complete!", 1.0);
 
     Ok(make_result(true, &build_dir, &cache_key, &options))
@@ -988,6 +999,50 @@ fn compute_cache_key(options: &CompileOptions) -> String {
     options.enable_physics.hash(&mut hasher);
     options.spine_versions.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
+}
+
+fn compute_source_hash(engine_src: &Path) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    let src_dir = engine_src.join("src/esengine");
+    if let Ok(entries) = collect_source_files(&src_dir) {
+        for path in entries {
+            if let Ok(metadata) = std::fs::metadata(&path) {
+                path.to_string_lossy().hash(&mut hasher);
+                metadata.len().hash(&mut hasher);
+                if let Ok(modified) = metadata.modified() {
+                    modified.hash(&mut hasher);
+                }
+            }
+        }
+    }
+    let cmake_path = engine_src.join("CMakeLists.txt");
+    if let Ok(content) = std::fs::read(&cmake_path) {
+        content.hash(&mut hasher);
+    }
+    format!("{:016x}", hasher.finish())
+}
+
+fn collect_source_files(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+    let mut files = Vec::new();
+    if !dir.is_dir() {
+        return Ok(files);
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            files.extend(collect_source_files(&path)?);
+        } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            if matches!(ext, "cpp" | "hpp" | "h" | "c") {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
 }
 
 fn build_cmake_flags(options: &CompileOptions) -> Vec<String> {
