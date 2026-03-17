@@ -252,7 +252,7 @@ export { ContentBrowserPanel } from './panels/ContentBrowserPanel';
 // Bridge
 // =============================================================================
 
-export { EditorBridge } from './bridge';
+export { EditorBridge, LauncherBridge, type LauncherBridgeCallbacks } from './bridge';
 
 // =============================================================================
 // IO

@@ -88,7 +88,11 @@ fn start_bridge_server(
     project_path: Option<String>,
 ) -> Result<u16, String> {
     let mut bridge = state.bridge_server.lock().unwrap();
-    bridge.start(app, project_path)
+    let port = bridge.start(app, project_path.clone())?;
+    if let Some(ref path) = project_path {
+        bridge.update_project_path(path);
+    }
+    Ok(port)
 }
 
 #[tauri::command]
@@ -326,6 +330,14 @@ pub fn run() {
             compiler::compile_wasm,
             compiler::clear_build_cache,
         ])
+        .setup(|app| {
+            let state = app.state::<AppState>();
+            let mut bridge = state.bridge_server.lock().unwrap();
+            if let Err(e) = bridge.start(app.handle().clone(), None) {
+                eprintln!("[Setup] Failed to start bridge server: {}", e);
+            }
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 let app = window.app_handle();

@@ -105,6 +105,7 @@ export class McpBridge {
 
     private async dispatch_(method: string, params: Record<string, unknown>): Promise<unknown> {
         switch (method) {
+            case 'getEditorStatus': return { mode: 'editor', projectPath: this.projectPath_ };
             case 'getSceneTree': return this.getSceneTree_(params.depth as number | undefined);
             case 'getEntityData': return this.getEntityData_(params);
             case 'getSelection': return this.getSelection_();
