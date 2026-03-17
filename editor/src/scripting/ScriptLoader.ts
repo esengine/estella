@@ -72,7 +72,7 @@ export class ScriptLoader {
             console.warn('ScriptLoader: NativeFS not available');
             return [];
         }
-        return this.compiler_.discoverScripts(fs, this.projectDir_);
+        return ScriptCompiler.discoverScripts(fs, this.projectDir_);
     }
 
     async compile(): Promise<boolean> {
@@ -101,8 +101,8 @@ export class ScriptLoader {
             return false;
         }
 
-        const scripts = await this.compiler_.discoverScripts(fs, this.projectDir_);
-        const plugins = await this.compiler_.discoverPlugins(fs, this.projectDir_, 'main');
+        const scripts = await ScriptCompiler.discoverScripts(fs, this.projectDir_);
+        const plugins = await ScriptCompiler.discoverPlugins(fs, this.projectDir_, 'main');
 
         if (scripts.length === 0 && plugins.length === 0) {
             this.swapper_.prepare([]);
@@ -113,7 +113,7 @@ export class ScriptLoader {
         }
 
         try {
-            const entryContent = this.compiler_.buildEntry(plugins, scripts);
+            const entryContent = ScriptCompiler.buildEntry(plugins, scripts);
 
             const result = await this.compiler_.compileIncremental(
                 fs,

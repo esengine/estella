@@ -742,6 +742,7 @@ pub async fn compile_wasm(
     std::fs::create_dir_all(&build_dir).map_err(|e| e.to_string())?;
 
     // Check cache — validate both output existence AND source hash
+    let source_hash = compute_source_hash(&engine_src);
     if !options.clean_build {
         let wasm_output = if options.target == "playable" {
             build_dir.join("sdk/esengine.single.js")
@@ -750,11 +751,10 @@ pub async fn compile_wasm(
         };
 
         if wasm_output.exists() {
-            let current_hash = compute_source_hash(&engine_src);
             let hash_file = build_dir.join(".source_hash");
             let cached_hash = std::fs::read_to_string(&hash_file).unwrap_or_default();
 
-            if current_hash == cached_hash {
+            if source_hash == cached_hash {
                 emit_progress(&app, "complete", "Using cached build", 1.0);
                 return Ok(make_result(true, &build_dir, &cache_key, &options));
             }
@@ -902,7 +902,9 @@ pub async fn compile_wasm(
 
     // Save source hash for cache invalidation
     let hash_file = build_dir.join(".source_hash");
-    let _ = std::fs::write(&hash_file, compute_source_hash(&engine_src));
+    if let Err(e) = std::fs::write(&hash_file, &source_hash) {
+        eprintln!("[compiler] Failed to write source hash: {}", e);
+    }
 
     emit_progress(&app, "complete", "Build complete!", 1.0);
 
