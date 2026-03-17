@@ -1,0 +1,22 @@
+#pragma shader "Color"
+
+#pragma vertex
+attribute vec2 a_position;
+
+uniform mat4 u_projection;
+uniform mat4 u_model;
+
+void main() {
+    gl_Position = u_projection * u_model * vec4(a_position, 0.0, 1.0);
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+uniform vec4 u_color;
+
+void main() {
+    gl_FragColor = u_color;
+}
+#pragma end
