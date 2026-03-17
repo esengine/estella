@@ -25,7 +25,7 @@ export { type PlatformEmitter, type BuildArtifact } from './PlatformEmitter';
 export { PlayableEmitter } from './PlayableEmitter';
 export { WeChatEmitter } from './WeChatEmitter';
 export { discoverProjectScenes } from './SceneDiscovery';
-export { analyzeUsedPlugins, buildDefinesMap, generatePhysicsConfig, compileUserScripts, resolveSceneUUIDs, collectUserScriptImports, type CompileOptions } from './EmitterUtils';
+export { resolvePlayablePlugins, filterPluginsByModules, buildDefinesMap, generatePhysicsConfig, compileUserScripts, resolveSceneUUIDs, collectUserScriptImports, type CompileOptions } from './EmitterUtils';
 export { executeHooks, validateHook, createDefaultHook } from './BuildHooks';
 export { TextureAtlasPacker, type AtlasFrame, type AtlasPage, type AtlasResult } from './TextureAtlas';
 export { AssetDatabase, AssetDatabase as AssetLibrary, getAssetDatabase, getAssetDatabase as getAssetLibrary, resetAssetDatabase, resetAssetDatabase as resetAssetLibrary, isUUID } from '../asset/AssetDatabase';
