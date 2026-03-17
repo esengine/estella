@@ -341,7 +341,21 @@ fn which_sync(bin: &str) -> Option<PathBuf> {
 }
 
 fn resolve_engine_src(app: &AppHandle) -> Result<PathBuf, String> {
-    // Bundled engine source in resources
+    // Dev mode: use project root directly (always up-to-date)
+    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|p| p.to_path_buf());
+
+    if let Some(root) = &project_root {
+        let live_src = root.join("src/esengine");
+        let live_cmake = root.join("CMakeLists.txt");
+        if live_src.exists() && live_cmake.exists() {
+            return Ok(root.clone());
+        }
+    }
+
+    // Bundled engine source in resources (release builds)
     let resource_dir = app
         .path()
         .resource_dir()
@@ -352,15 +366,11 @@ fn resolve_engine_src(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(engine_src);
     }
 
-    // Dev mode fallback
-    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(|p| p.parent())
-        .map(|root| root.join("desktop/src-tauri/toolchain/engine-src"));
-
-    if let Some(path) = dev_path {
-        if path.exists() {
-            return Ok(path);
+    // Legacy fallback: toolchain copy in dev tree
+    if let Some(root) = &project_root {
+        let toolchain_path = root.join("desktop/src-tauri/toolchain/engine-src");
+        if toolchain_path.exists() {
+            return Ok(toolchain_path);
         }
     }
 
