@@ -2,6 +2,8 @@ import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
 import type { OutputService, OutputType } from '../services/OutputService';
 import type { ScriptService } from '../services/ScriptService';
 import type { BuildHistory } from '../builder/BuildHistory';
+import { BuildService } from '../builder/BuildService';
+import { getBuildConfigService } from '../builder/BuildConfigService';
 import { getEditorStore } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
 import { getEditorContainer } from '../container';
@@ -149,6 +151,8 @@ export class McpBridge {
             case 'deleteAsset': return this.deleteAsset_(params);
             case 'renameAsset': return this.renameAsset_(params);
             case 'instantiateTemplate': return this.instantiateTemplate_(params);
+            case 'buildProject': return this.buildProject_(params);
+            case 'listBuildConfigs': return this.listBuildConfigs_();
             default: throw new Error(`Unknown method: ${method}`);
         }
     }
@@ -257,6 +261,48 @@ export class McpBridge {
     private getBuildStatus_(): unknown {
         if (!this.buildHistory_) return { entries: [] };
         return { entries: this.buildHistory_.getRecentBuilds(20) };
+    }
+
+    private async buildProject_(params: Record<string, unknown>): Promise<unknown> {
+        if (!this.projectPath_) throw new Error('No project open');
+
+        const configService = getBuildConfigService();
+        await configService.load();
+
+        const configId = params.configId as string | undefined;
+        const platform = params.platform as string | undefined;
+        const cleanBuild = params.cleanBuild as boolean | undefined;
+
+        let config = configId
+            ? configService.getConfig(configId)
+            : configService.getActiveConfig();
+
+        if (!config && platform) {
+            const platformConfigs = configService.getConfigsByPlatform(platform as 'playable' | 'wechat');
+            config = platformConfigs[0];
+        }
+
+        if (!config) {
+            throw new Error('No build config found. Specify configId or platform.');
+        }
+
+        const buildService = new BuildService(this.projectPath_);
+        const result = await buildService.build(config, { cleanBuild: cleanBuild ?? false });
+        return result;
+    }
+
+    private listBuildConfigs_(): unknown {
+        const configService = getBuildConfigService();
+        const configs = configService.getConfigs();
+        return {
+            configs: configs.map(c => ({
+                id: c.id,
+                name: c.name,
+                platform: c.platform,
+                scenes: c.scenes,
+            })),
+            activeConfigId: configService.getActiveConfig()?.id ?? null,
+        };
     }
 
     private getRenderStats_(): unknown {

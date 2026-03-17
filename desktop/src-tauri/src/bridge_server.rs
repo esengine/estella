@@ -63,13 +63,10 @@ impl BridgeServer {
             worker_loop(server, shutdown, app, project);
         }));
 
-        if let Some(ref path) = project_path {
-            let file = write_bridge_file(port, path);
-            eprintln!("[BridgeServer] Bridge file written: {:?}", file);
-            self.bridge_file = Some(file);
-        } else {
-            eprintln!("[BridgeServer] No project path provided, skipping bridge file");
-        }
+        let bridge_path = project_path.as_deref().unwrap_or("__launcher__");
+        let file = write_bridge_file(port, bridge_path);
+        eprintln!("[BridgeServer] Bridge file written: {:?}", file);
+        self.bridge_file = Some(file);
 
         Ok(port)
     }
@@ -215,6 +212,9 @@ fn parse_request(
         ("GET", "/state/build") => {
             Ok(("getBuildStatus".into(), json!({})))
         }
+        ("GET", "/state/build-configs") => {
+            Ok(("listBuildConfigs".into(), json!({})))
+        }
         ("GET", "/state/render-stats") => {
             Ok(("getRenderStats".into(), json!({})))
         }
@@ -324,6 +324,10 @@ fn parse_request(
         ("POST", "/action/redo") => {
             Ok(("redo".into(), json!({})))
         }
+        ("POST", "/action/build") => {
+            let body = read_json_body(reader)?;
+            Ok(("buildProject".into(), body))
+        }
         ("GET", "/timeline/data") => {
             let uuid = query_params.get("uuid").cloned();
             let path = query_params.get("path").cloned();
@@ -367,6 +371,24 @@ fn parse_request(
         ("POST", "/ui/create") => {
             let body = read_json_body(reader)?;
             Ok(("instantiateTemplate".into(), body))
+        }
+        // Launcher / project management routes
+        ("GET", "/editor/status") => {
+            Ok(("getEditorStatus".into(), json!({})))
+        }
+        ("GET", "/projects/recent") => {
+            Ok(("listRecentProjects".into(), json!({})))
+        }
+        ("GET", "/projects/examples") => {
+            Ok(("listExamples".into(), json!({})))
+        }
+        ("POST", "/projects/open") => {
+            let body = read_json_body(reader)?;
+            Ok(("openProject".into(), body))
+        }
+        ("POST", "/projects/create-from-example") => {
+            let body = read_json_body(reader)?;
+            Ok(("createFromExample".into(), body))
         }
         _ => Err(format!("Unknown route: {} {}", method, path)),
     }
