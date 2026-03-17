@@ -5,7 +5,7 @@
 
 import 'dockview-core/dist/styles/dockview.css';
 import '@esengine/editor/styles';
-import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, getSettingsValue, type Editor } from '@esengine/editor';
+import { createEditor, ProjectLauncher, LauncherBridge, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, getSettingsValue, type Editor } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -14,6 +14,7 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import type { App, ESEngineModule } from 'esengine';
 
 let currentLauncher: ProjectLauncher | null = null;
+let launcherBridge: LauncherBridge | null = null;
 let wasmModule: ESEngineModule | null = null;
 
 function loadESModule(url: string): Promise<any> {
@@ -61,13 +62,21 @@ async function loadWasmModule(): Promise<ESEngineModule | null> {
     }
 }
 
+function openProjectFromLauncher(container: HTMLElement, projectPath: string): void {
+    launcherBridge?.dispose();
+    launcherBridge = null;
+    currentLauncher?.dispose();
+    currentLauncher = null;
+    openEditor(container, projectPath);
+}
+
 async function showLauncher(container: HTMLElement): Promise<void> {
+    launcherBridge = new LauncherBridge({
+        onOpenProject: (path) => openProjectFromLauncher(container, path),
+    });
+
     currentLauncher = new ProjectLauncher(container, {
-        onProjectOpen: (projectPath) => {
-            currentLauncher?.dispose();
-            currentLauncher = null;
-            openEditor(container, projectPath);
-        },
+        onProjectOpen: (projectPath) => openProjectFromLauncher(container, projectPath),
     });
 }
 
