@@ -368,8 +368,10 @@ static_assert(offsetof(ecs::Sprite, uvScale) == 44);
 static_assert(offsetof(ecs::Sprite, layer) == 52);
 static_assert(offsetof(ecs::Sprite, flipX) == 56);
 static_assert(offsetof(ecs::Sprite, flipY) == 57);
-static_assert(offsetof(ecs::Sprite, material) == 60);
-static_assert(offsetof(ecs::Sprite, enabled) == 64);
+static_assert(offsetof(ecs::Sprite, tileSize) == 60);
+static_assert(offsetof(ecs::Sprite, tileSpacing) == 68);
+static_assert(offsetof(ecs::Sprite, material) == 76);
+static_assert(offsetof(ecs::Sprite, enabled) == 80);
 
 int getTransformPtr(ecs::Registry& r, u32 e) {
     auto* t = r.tryGet<ecs::Transform>(static_cast<Entity>(e));

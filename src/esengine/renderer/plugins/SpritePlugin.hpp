@@ -62,6 +62,19 @@ private:
         const ClipState& clips
     );
 
+    void emitTiledQuads(
+        TransientBufferPool& buffers, DrawList& draw_list,
+        const glm::vec2& position, const glm::vec2& size,
+        const glm::vec2& pivot,
+        f32 angle, f32 depth, u32 textureId,
+        const glm::vec4& color,
+        const glm::vec2& uvOffset, const glm::vec2& uvScale,
+        const glm::vec2& tileSize, const glm::vec2& tileSpacing,
+        Entity entity, RenderStage stage, i32 layer,
+        BlendMode blend, u32 shaderId,
+        const ClipState& clips
+    );
+
     u32 batch_shader_id_ = 0;
 };
 

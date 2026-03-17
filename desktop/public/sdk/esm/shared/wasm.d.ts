@@ -267,6 +267,8 @@ interface Sprite {
     layer: number;
     flipX: boolean;
     flipY: boolean;
+    tileSize: Vec2;
+    tileSpacing: Vec2;
     material: number;
     enabled: boolean;
 }

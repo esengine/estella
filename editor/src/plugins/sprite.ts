@@ -11,6 +11,11 @@ export const spritePlugin: EditorPlugin = {
     name: 'sprite',
     dependencies: ['core-components'],
     register(ctx: EditorPluginContext) {
+        const hasTiling = (data: Record<string, unknown>) => {
+            const ts = data.tileSize as { x: number; y: number } | undefined;
+            return ts != null && (ts.x > 0 || ts.y > 0);
+        };
+
         SpriteSchema = defineSchema('Sprite', {
             editorDefaults: () => {
                 const w = getSettingsValue<number>('rendering.defaultSpriteWidth');
@@ -23,6 +28,9 @@ export const spritePlugin: EditorPlugin = {
             overrides: {
                 size: { hiddenWhen: { hasComponent: 'UIRect' } },
                 layer: { min: LAYER_MIN, max: LAYER_MAX },
+                tileSize: { displayName: 'Tile Size', group: 'Tiling' },
+                tileSpacing: { displayName: 'Tile Spacing', group: 'Tiling',
+                    visibleWhen: hasTiling },
             },
         });
 

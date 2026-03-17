@@ -78,10 +78,26 @@ void SpritePlugin::collect(
             uvSc.y = -uvSc.y;
         }
 
+        bool hasTiling = sprite.tileSize.x > 0.0f && sprite.tileSize.y > 0.0f;
+        bool hasSpacing = sprite.tileSpacing.x > 0.0f || sprite.tileSpacing.y > 0.0f;
+
+        if (hasTiling && !hasSpacing) {
+            uvSc = finalSize / (sprite.tileSize * glm::vec2(scale));
+        }
+
         u32 shaderId = batch_shader_id_;
         BlendMode blend = BlendMode::Normal;
 
-        if (useNineSlice) {
+        if (hasTiling && hasSpacing) {
+            emitTiledQuads(buffers, draw_list,
+                glm::vec2(position), finalSize, sprite.pivot,
+                angle, position.z,
+                textureId, sprite.color, uvOff, uvSc,
+                sprite.tileSize * glm::vec2(scale),
+                sprite.tileSpacing * glm::vec2(scale),
+                entity, ctx.current_stage, sprite.layer,
+                blend, shaderId, clips);
+        } else if (useNineSlice) {
             emitNineSlice(buffers, draw_list,
                 glm::vec2(position), finalSize, sprite.pivot,
                 angle, position.z,
@@ -258,6 +274,109 @@ void SpritePlugin::emitNineSlice(
 
             clips.applyTo(entity, cmd);
 
+            draw_list.push(cmd);
+        }
+    }
+}
+
+void SpritePlugin::emitTiledQuads(
+    TransientBufferPool& buffers, DrawList& draw_list,
+    const glm::vec2& position, const glm::vec2& size,
+    const glm::vec2& pivot,
+    f32 angle, f32 depth, u32 textureId,
+    const glm::vec4& color,
+    const glm::vec2& uvOffset, const glm::vec2& uvScale,
+    const glm::vec2& tileSize, const glm::vec2& tileSpacing,
+    Entity entity, RenderStage stage, i32 layer,
+    BlendMode blend, u32 shaderId,
+    const ClipState& clips
+) {
+    glm::vec2 step = tileSize + tileSpacing;
+    if (step.x <= 0.0f || step.y <= 0.0f) return;
+
+    glm::vec2 absSize = glm::vec2(std::abs(size.x), std::abs(size.y));
+
+    f32 baseX = position.x - absSize.x * pivot.x;
+    f32 baseY = position.y - absSize.y * pivot.y;
+
+    bool hasRotation = std::abs(angle) > 0.001f;
+    f32 cosA = 0.0f, sinA = 0.0f;
+    if (hasRotation) {
+        cosA = std::cos(angle);
+        sinA = std::sin(angle);
+    }
+
+    auto rotatePoint = [&](f32 px, f32 py) -> glm::vec2 {
+        f32 dx = px - position.x;
+        f32 dy = py - position.y;
+        return glm::vec2(
+            position.x + dx * cosA - dy * sinA,
+            position.y + dx * sinA + dy * cosA
+        );
+    };
+
+    u32 pc = packColor(color);
+
+    DrawCommand tmpl{};
+    tmpl.sort_key = DrawCommand::buildSortKey(stage, layer, shaderId, blend, 0, textureId, depth);
+    tmpl.index_count = 6;
+    tmpl.shader_id = shaderId;
+    tmpl.blend_mode = blend;
+    tmpl.layout_id = LayoutId::Batch;
+    tmpl.texture_count = 1;
+    tmpl.texture_ids[0] = textureId;
+    tmpl.entity = entity;
+    tmpl.type = RenderType::Sprite;
+    tmpl.layer = layer;
+    clips.applyTo(entity, tmpl);
+
+    i32 tilesY = static_cast<i32>(std::ceil(absSize.y / step.y));
+    i32 tilesX = static_cast<i32>(std::ceil(absSize.x / step.x));
+
+    for (i32 iy = 0; iy < tilesY; ++iy) {
+        f32 ty = iy * step.y;
+        f32 th = glm::min(tileSize.y, absSize.y - ty);
+        if (th <= 0.0f) break;
+        f32 vFrac = th / tileSize.y;
+
+        for (i32 ix = 0; ix < tilesX; ++ix) {
+            f32 tx = ix * step.x;
+            f32 tw = glm::min(tileSize.x, absSize.x - tx);
+            if (tw <= 0.0f) break;
+            f32 uFrac = tw / tileSize.x;
+
+            f32 x0 = baseX + tx;
+            f32 y0 = baseY + ty;
+            f32 x1 = x0 + tw;
+            f32 y1 = y0 + th;
+
+            glm::vec2 tileUvScale = { uvScale.x * uFrac, uvScale.y * vFrac };
+
+            BatchVertex verts[4];
+            if (hasRotation) {
+                verts[0] = { rotatePoint(x0, y0), pc, { uvOffset.x,                uvOffset.y } };
+                verts[1] = { rotatePoint(x1, y0), pc, { uvOffset.x + tileUvScale.x, uvOffset.y } };
+                verts[2] = { rotatePoint(x1, y1), pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } };
+                verts[3] = { rotatePoint(x0, y1), pc, { uvOffset.x,                uvOffset.y + tileUvScale.y } };
+            } else {
+                verts[0] = { { x0, y0 }, pc, { uvOffset.x,                uvOffset.y } };
+                verts[1] = { { x1, y0 }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y } };
+                verts[2] = { { x1, y1 }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } };
+                verts[3] = { { x0, y1 }, pc, { uvOffset.x,                uvOffset.y + tileUvScale.y } };
+            }
+
+            u32 vOff = buffers.appendVertices(verts, sizeof(verts));
+            u32 baseVert = vOff / sizeof(BatchVertex);
+
+            u16 indices[6];
+            for (u32 i = 0; i < 6; ++i) {
+                indices[i] = static_cast<u16>(baseVert + QUAD_INDICES[i]);
+            }
+            u32 iOff = buffers.appendIndices(indices, 6);
+
+            DrawCommand cmd = tmpl;
+            cmd.index_offset = iOff;
+            cmd.vertex_byte_offset = vOff;
             draw_list.push(cmd);
         }
     }

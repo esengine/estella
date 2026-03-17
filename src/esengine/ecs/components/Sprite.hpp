@@ -79,6 +79,14 @@ struct Sprite {
     ES_PROPERTY()
     bool flipY{false};
 
+    /** @brief Tile size in world units for tiling mode ({0,0} = no tiling) */
+    ES_PROPERTY()
+    glm::vec2 tileSize{0.0f, 0.0f};
+
+    /** @brief Spacing between tiles in world units ({0,0} = seamless) */
+    ES_PROPERTY()
+    glm::vec2 tileSpacing{0.0f, 0.0f};
+
     /** @brief Custom material ID (0 = use default batch shader) */
     ES_PROPERTY(asset = material)
     u32 material{0};
