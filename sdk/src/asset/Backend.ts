@@ -20,17 +20,23 @@ export class HttpBackend implements Backend {
     async fetchBinary(path: string): Promise<ArrayBuffer> {
         const url = this.resolveUrl(path);
         const response = await platformFetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch '${path}': ${response.status} ${response.statusText}`);
+        }
         return response.arrayBuffer();
     }
 
     async fetchText(path: string): Promise<string> {
         const url = this.resolveUrl(path);
         const response = await platformFetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch '${path}': ${response.status} ${response.statusText}`);
+        }
         return response.text();
     }
 
     resolveUrl(path: string): string {
-        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
+        if (path.startsWith('/') || path.includes('://')) {
             return path;
         }
         return `${this.baseUrl_}/${path}`;

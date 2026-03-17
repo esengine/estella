@@ -401,6 +401,7 @@ declare class Assets {
     fetchJson<T = unknown>(ref: string): Promise<T>;
     fetchBinary(ref: string): Promise<ArrayBuffer>;
     fetchText(ref: string): Promise<string>;
+    private resolveUrl_;
     preloadSceneAssets(sceneData: SceneData): Promise<SceneAssetResult>;
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void;
     releaseTexture(ref: string): void;
