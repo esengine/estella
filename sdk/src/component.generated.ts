@@ -332,6 +332,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: 0,
             flipX: false,
             flipY: false,
+            tileSize: { x: 0, y: 0 },
+            tileSpacing: { x: 0, y: 0 },
             material: 0,
             enabled: true,
         },

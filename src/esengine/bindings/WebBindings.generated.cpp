@@ -482,6 +482,8 @@ struct SpriteJS {
     i32 layer;
     bool flipX;
     bool flipY;
+    glm::vec2 tileSize;
+    glm::vec2 tileSpacing;
     u32 material;
     bool enabled;
 };
@@ -497,6 +499,8 @@ esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
     c.layer = js.layer;
     c.flipX = js.flipX;
     c.flipY = js.flipY;
+    c.tileSize = js.tileSize;
+    c.tileSpacing = js.tileSpacing;
     c.material = js.material;
     c.enabled = js.enabled;
     return c;
@@ -513,6 +517,8 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     js.layer = c.layer;
     js.flipX = c.flipX;
     js.flipY = c.flipY;
+    js.tileSize = c.tileSize;
+    js.tileSpacing = c.tileSpacing;
     js.material = c.material;
     js.enabled = c.enabled;
     return js;
@@ -884,6 +890,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("layer", &SpriteJS::layer)
         .field("flipX", &SpriteJS::flipX)
         .field("flipY", &SpriteJS::flipY)
+        .field("tileSize", &SpriteJS::tileSize)
+        .field("tileSpacing", &SpriteJS::tileSpacing)
         .field("material", &SpriteJS::material)
         .field("enabled", &SpriteJS::enabled);
 
