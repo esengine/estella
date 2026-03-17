@@ -341,20 +341,6 @@ fn which_sync(bin: &str) -> Option<PathBuf> {
 }
 
 fn resolve_engine_src(app: &AppHandle) -> Result<PathBuf, String> {
-    // Dev mode: use project root directly (always up-to-date)
-    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(|p| p.parent())
-        .map(|p| p.to_path_buf());
-
-    if let Some(root) = &project_root {
-        let live_src = root.join("src/esengine");
-        let live_cmake = root.join("CMakeLists.txt");
-        if live_src.exists() && live_cmake.exists() {
-            return Ok(root.clone());
-        }
-    }
-
     // Bundled engine source in resources (release builds)
     let resource_dir = app
         .path()
@@ -366,15 +352,80 @@ fn resolve_engine_src(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(engine_src);
     }
 
-    // Legacy fallback: toolchain copy in dev tree
-    if let Some(root) = &project_root {
-        let toolchain_path = root.join("desktop/src-tauri/toolchain/engine-src");
-        if toolchain_path.exists() {
-            return Ok(toolchain_path);
+    // Dev mode fallback
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|root| root.join("desktop/src-tauri/toolchain/engine-src"));
+
+    if let Some(path) = dev_path {
+        if path.exists() {
+            return Ok(path);
         }
     }
 
     Err("Engine source not found. Rebuild the editor.".to_string())
+}
+
+fn project_root() -> Option<PathBuf> {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|p| p.to_path_buf())
+}
+
+fn sync_engine_src_if_needed(engine_src: &Path) -> Result<bool, String> {
+    let root = match project_root() {
+        Some(r) => r,
+        None => return Ok(false),
+    };
+    let live_bindings = root.join("src/esengine/bindings/WebBindings.generated.cpp");
+    let toolchain_bindings = engine_src.join("src/esengine/bindings/WebBindings.generated.cpp");
+
+    if !live_bindings.exists() {
+        return Ok(false);
+    }
+
+    let needs_sync = if toolchain_bindings.exists() {
+        let live_meta = std::fs::metadata(&live_bindings).map_err(|e| e.to_string())?;
+        let tc_meta = std::fs::metadata(&toolchain_bindings).map_err(|e| e.to_string())?;
+        live_meta.len() != tc_meta.len() || live_meta.modified().ok() != tc_meta.modified().ok()
+    } else {
+        true
+    };
+
+    if !needs_sync {
+        return Ok(false);
+    }
+
+    let live_src = root.join("src/esengine");
+    let dest_src = engine_src.join("src/esengine");
+
+    sync_directory(&live_src, &dest_src)?;
+
+    Ok(true)
+}
+
+fn sync_directory(src: &Path, dest: &Path) -> Result<(), String> {
+    if !src.is_dir() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
+
+    for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let src_path = entry.path();
+        let dest_path = dest.join(entry.file_name());
+
+        if src_path.is_dir() {
+            sync_directory(&src_path, &dest_path)?;
+        } else if let Some(ext) = src_path.extension().and_then(|e| e.to_str()) {
+            if matches!(ext, "cpp" | "hpp" | "h" | "c" | "inl") {
+                std::fs::copy(&src_path, &dest_path).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn auto_detect_emsdk(app: &AppHandle) -> Option<PathBuf> {
@@ -734,6 +785,11 @@ pub async fn compile_wasm(
     }
 
     let engine_src = resolve_engine_src(&app)?;
+
+    if sync_engine_src_if_needed(&engine_src).unwrap_or(false) {
+        emit_progress(&app, "configure", "Synced engine sources from project root", 0.02);
+    }
+
     let cache_key = compute_cache_key(&options);
 
     // Build directory
