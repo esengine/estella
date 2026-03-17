@@ -1,0 +1,706 @@
+/**
+ * @file    Renderer.cpp
+ * @brief   2D renderer and batch renderer implementation
+ * @details Implements immediate-mode and batched 2D rendering with quad primitives.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
+#include "Renderer.hpp"
+#include "BatchVertex.hpp"
+#include "RenderCommand.hpp"
+#include "TextureSlotAllocator.hpp"
+#include "ShaderEmbeds.generated.hpp"
+#include "../resource/ShaderParser.hpp"
+#include "../core/Log.hpp"
+#include "../resource/ResourceManager.hpp"
+
+#ifdef ES_PLATFORM_WEB
+    #include <GLES3/gl3.h>
+#else
+    #ifdef _WIN32
+        #include <windows.h>
+    #endif
+    #include <glad/glad.h>
+#endif
+
+#include <array>
+#include <cmath>
+#include <vector>
+
+namespace esengine {
+
+// ========================================
+// RenderCommand Implementation
+// ========================================
+
+BlendMode RenderCommand::currentBlend_ = BlendMode::Normal;
+
+void RenderCommand::init() {
+    // Enable depth testing by default
+    glEnable(GL_DEPTH_TEST);
+
+    // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+void RenderCommand::shutdown() {
+    ES_LOG_INFO("RenderCommand shutdown");
+}
+
+void RenderCommand::setViewport(i32 x, i32 y, u32 width, u32 height) {
+    glViewport(x, y, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+}
+
+void RenderCommand::setClearColor(const glm::vec4& color) {
+    glClearColor(color.r, color.g, color.b, color.a);
+}
+
+void RenderCommand::clear() {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void RenderCommand::drawIndexed(const VertexArray& vao, u32 indexCount) {
+    vao.bind();
+    auto ib = vao.getIndexBuffer();
+    u32 count = indexCount ? indexCount : (ib ? ib->getCount() : 0);
+    if (count > 0 && ib) {
+        GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), type, nullptr);
+    }
+}
+
+void RenderCommand::drawArrays(u32 vertexCount) {
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
+}
+
+void RenderCommand::setDepthTest(bool enabled) {
+    if (enabled) {
+        glEnable(GL_DEPTH_TEST);
+    } else {
+        glDisable(GL_DEPTH_TEST);
+    }
+}
+
+void RenderCommand::setDepthWrite(bool enabled) {
+    glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
+void RenderCommand::setBlending(bool enabled) {
+    if (enabled) {
+        glEnable(GL_BLEND);
+    } else {
+        glDisable(GL_BLEND);
+    }
+}
+
+void RenderCommand::setBlendFunc() {
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+void RenderCommand::resetBlendState() {
+    currentBlend_ = BlendMode::Normal;
+}
+
+void RenderCommand::setBlendMode(BlendMode mode) {
+    if (mode == currentBlend_) return;
+    currentBlend_ = mode;
+    switch (mode) {
+        case BlendMode::Normal:
+            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::Additive:
+            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ONE);
+            break;
+        case BlendMode::Multiply:
+            glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::Screen:
+            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_COLOR, GL_ONE, GL_ONE_MINUS_SRC_COLOR);
+            break;
+        case BlendMode::PremultipliedAlpha:
+            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::PmaAdditive:
+            glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
+            break;
+    }
+}
+
+void RenderCommand::setCulling(bool enabled) {
+    if (enabled) {
+        glEnable(GL_CULL_FACE);
+    } else {
+        glDisable(GL_CULL_FACE);
+    }
+}
+
+void RenderCommand::setCullFace(bool front) {
+    glCullFace(front ? GL_FRONT : GL_BACK);
+}
+
+void RenderCommand::setWireframe(bool enabled) {
+#ifndef ES_PLATFORM_WEB
+    glPolygonMode(GL_FRONT_AND_BACK, enabled ? GL_LINE : GL_FILL);
+#else
+    (void)enabled;
+#endif
+}
+
+// ========================================
+// Renderer Implementation
+// ========================================
+
+Renderer::Renderer(RenderContext& context)
+    : context_(context) {
+}
+
+void Renderer::beginFrame() {
+    context_.stats().reset();
+}
+
+void Renderer::endFrame() {
+    // Nothing to do for now
+}
+
+void Renderer::setViewport(i32 x, i32 y, u32 width, u32 height) {
+    RenderCommand::setViewport(x, y, width, height);
+}
+
+void Renderer::setClearColor(const glm::vec4& color) {
+    RenderCommand::setClearColor(color);
+}
+
+void Renderer::clear() {
+    RenderCommand::clear();
+}
+
+void Renderer::beginScene(const glm::mat4& viewProjection) {
+    context_.viewProjection() = viewProjection;
+}
+
+void Renderer::endScene() {
+    // Nothing to do for now
+}
+
+void Renderer::submit(const Shader& shader, const VertexArray& vao, const glm::mat4& transform) {
+    shader.bind();
+    shader.setUniform("u_projection", context_.viewProjection());
+    shader.setUniform("u_model", transform);
+
+    RenderCommand::drawIndexed(vao);
+
+    context_.stats().drawCalls++;
+}
+
+void Renderer::drawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color) {
+    drawQuad(glm::vec3(position, 0.0f), size, color);
+}
+
+void Renderer::drawQuad(const glm::vec3& position, const glm::vec2& size, const glm::vec4& color) {
+    auto* shader = context_.getColorShader();
+    auto* vao = context_.getQuadVAO();
+    if (!shader || !vao) return;
+
+    glm::mat4 transform = glm::translate(glm::mat4(1.0f), position);
+    transform = glm::scale(transform, glm::vec3(size, 1.0f));
+
+    shader->bind();
+    shader->setUniform("u_projection", context_.viewProjection());
+    shader->setUniform("u_model", transform);
+    shader->setUniform("u_color", color);
+
+    RenderCommand::drawIndexed(*vao);
+
+    context_.stats().drawCalls++;
+    context_.stats().triangleCount += 2;
+}
+
+void Renderer::drawQuad(const glm::vec2& position, const glm::vec2& size,
+                        const Texture& texture, const glm::vec4& tintColor) {
+    drawQuad(glm::vec3(position, 0.0f), size, texture, tintColor);
+}
+
+void Renderer::drawQuad(const glm::vec3& position, const glm::vec2& size,
+                        const Texture& texture, const glm::vec4& tintColor) {
+    auto* shader = context_.getTextureShader();
+    auto* vao = context_.getQuadVAO();
+    if (!shader || !vao) return;
+
+    glm::mat4 transform = glm::translate(glm::mat4(1.0f), position);
+    transform = glm::scale(transform, glm::vec3(size, 1.0f));
+
+    texture.bind(0);
+
+    shader->bind();
+    shader->setUniform("u_projection", context_.viewProjection());
+    shader->setUniform("u_model", transform);
+    shader->setUniform("u_color", tintColor);
+    shader->setUniform("u_texture", 0);
+
+    RenderCommand::drawIndexed(*vao);
+
+    context_.stats().drawCalls++;
+    context_.stats().triangleCount += 2;
+}
+
+void Renderer::drawQuad(const glm::vec2& position, const glm::vec2& size,
+                        resource::TextureHandle texture, resource::ResourceManager& rm,
+                        const glm::vec4& tintColor) {
+    Texture* tex = rm.getTexture(texture);
+    if (tex) {
+        drawQuad(position, size, *tex, tintColor);
+    }
+}
+
+RendererStats Renderer::getStats() const {
+    return context_.stats();
+}
+
+void Renderer::resetStats() {
+    context_.stats().reset();
+}
+
+// ========================================
+// BatchRenderer2D Implementation
+// ========================================
+
+
+// Batch rendering constants
+constexpr u32 MAX_QUADS = 10000;
+constexpr u32 MAX_VERTICES = MAX_QUADS * 4;
+constexpr u32 MAX_INDICES = MAX_QUADS * 6;
+constexpr u32 MAX_TEXTURE_SLOTS = 8;
+
+// Quad vertex positions (CCW from bottom-left)
+constexpr glm::vec4 QUAD_POSITIONS[4] = {
+    { -0.5f, -0.5f, 0.0f, 1.0f },
+    {  0.5f, -0.5f, 0.0f, 1.0f },
+    {  0.5f,  0.5f, 0.0f, 1.0f },
+    { -0.5f,  0.5f, 0.0f, 1.0f }
+};
+
+constexpr glm::vec2 QUAD_TEX_COORDS[4] = {
+    { 0.0f, 0.0f },
+    { 1.0f, 0.0f },
+    { 1.0f, 1.0f },
+    { 0.0f, 1.0f }
+};
+
+// BatchRenderer2D internal data
+struct BatchRenderer2D::BatchData {
+    Unique<VertexArray> vao;
+    Shared<VertexBuffer> vbo;
+    resource::ShaderHandle shader_handle;
+
+    std::vector<BatchVertex> vertices;
+    std::vector<BatchVertex> triVertices;
+    u32 indexCount = 0;
+    u32 triangleCount = 0;
+
+    TextureSlotAllocator<MAX_TEXTURE_SLOTS> texSlots;
+
+    glm::mat4 projection{1.0f};
+    i32 projectionLoc = -1;
+
+    u32 drawCallCount = 0;
+    u32 quadCount = 0;
+
+    bool initialized = false;
+};
+
+BatchRenderer2D::BatchRenderer2D(RenderContext& context,
+                                 resource::ResourceManager& resource_manager)
+    : data_(makeUnique<BatchData>())
+    , context_(context)
+    , resource_manager_(resource_manager) {
+}
+
+void BatchRenderer2D::setFlushCallback(FlushCallback cb, void* userData) {
+    flush_callback_ = cb;
+    flush_callback_data_ = userData;
+}
+
+BatchRenderer2D::~BatchRenderer2D() {
+    if (data_ && data_->initialized) {
+        shutdown();
+    }
+}
+
+void BatchRenderer2D::init() {
+    data_->vertices.reserve(MAX_VERTICES);
+    data_->triVertices.reserve(MAX_VERTICES);
+
+    data_->vao = VertexArray::create();
+
+    data_->vbo = makeShared<VertexBuffer>();
+    *data_->vbo = std::move(*VertexBuffer::create(MAX_VERTICES * sizeof(BatchVertex)));
+    data_->vbo->setLayout({
+        { ShaderDataType::Float2, "a_position" },
+        { ShaderDataType::UByte4N, "a_color" },
+        { ShaderDataType::Float2, "a_texCoord" }
+    });
+
+    data_->vao->addVertexBuffer(data_->vbo);
+
+    std::vector<u16> indices(MAX_INDICES);
+    u16 offset = 0;
+    for (u32 i = 0; i < MAX_INDICES; i += 6) {
+        indices[i + 0] = offset + 0;
+        indices[i + 1] = offset + 1;
+        indices[i + 2] = offset + 2;
+        indices[i + 3] = offset + 2;
+        indices[i + 4] = offset + 3;
+        indices[i + 5] = offset + 0;
+        offset += 4;
+    }
+    auto ibo = IndexBuffer::create(indices.data(), MAX_INDICES);
+    data_->vao->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
+
+#ifndef ES_PLATFORM_WEB
+    data_->shader_handle = resource_manager_.loadEngineShader("batch");
+#endif
+    if (!data_->shader_handle.isValid()) {
+        data_->shader_handle = resource_manager_.createShaderWithBindings(
+            ShaderSources::BATCH_VERTEX,
+            ShaderSources::BATCH_FRAGMENT,
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
+        );
+    }
+
+    Shader* batchShader = resource_manager_.getShader(data_->shader_handle);
+
+    if (!batchShader || !batchShader->isValid()) {
+        ES_LOG_WARN("GLSL ES 3.0 batch shader failed, trying GLSL ES 1.0 fallback");
+        auto batchParsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
+        data_->shader_handle = resource_manager_.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Vertex),
+            resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Fragment),
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
+        );
+        batchShader = resource_manager_.getShader(data_->shader_handle);
+    }
+
+    if (batchShader && batchShader->isValid()) {
+        batchShader->bind();
+        GLint texLoc = glGetUniformLocation(batchShader->getProgramId(), "u_texture");
+        if (texLoc >= 0) {
+            glUniform1i(texLoc, 0);
+        }
+    } else {
+        ES_LOG_ERROR("All batch shader variants FAILED!");
+    }
+
+    if (batchShader) {
+        data_->projectionLoc = batchShader->getUniformLocation("u_projection");
+    }
+
+    data_->texSlots.init(context_.getWhiteTextureId());
+    data_->initialized = true;
+}
+
+void BatchRenderer2D::shutdown() {
+    if (!data_ || !data_->initialized) return;
+
+    data_->vao.reset();
+    data_->vbo.reset();
+    data_->initialized = false;
+
+    ES_LOG_INFO("BatchRenderer2D shutdown");
+}
+
+void BatchRenderer2D::beginBatch() {
+    data_->vertices.clear();
+    data_->triVertices.clear();
+    data_->indexCount = 0;
+    data_->triangleCount = 0;
+    data_->texSlots.reset();
+    data_->drawCallCount = 0;
+    data_->quadCount = 0;
+}
+
+void BatchRenderer2D::endBatch() {
+    flush();
+}
+
+void BatchRenderer2D::flush() {
+    bool hasQuads = !data_->vertices.empty();
+    bool hasTris = !data_->triVertices.empty();
+    if (!hasQuads && !hasTris) return;
+
+    u32 vertexCount = static_cast<u32>(data_->vertices.size() + data_->triVertices.size());
+    u32 triangleCount = data_->quadCount * 2 + static_cast<u32>(data_->triVertices.size()) / 3;
+    u8 slotUsage = static_cast<u8>(data_->texSlots.slotCount());
+
+    Shader* shader = resource_manager_.getShader(data_->shader_handle);
+    if (!shader) return;
+
+    u32 quadBytes = static_cast<u32>(data_->vertices.size() * sizeof(BatchVertex));
+    u32 triBytes = static_cast<u32>(data_->triVertices.size() * sizeof(BatchVertex));
+
+    if (hasQuads) {
+        data_->vbo->setDataRaw(data_->vertices.data(), quadBytes);
+        if (hasTris) {
+            data_->vbo->setSubDataRaw(data_->triVertices.data(), triBytes, quadBytes);
+        }
+    } else {
+        data_->vbo->setDataRaw(data_->triVertices.data(), triBytes);
+    }
+
+    data_->texSlots.bindAll();
+
+    shader->bind();
+    shader->setUniform(data_->projectionLoc, data_->projection);
+
+    data_->vao->bind();
+
+    if (hasQuads) {
+        auto ib = data_->vao->getIndexBuffer();
+        if (ib) {
+            ib->bind();
+            GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(data_->indexCount), type, nullptr);
+        }
+        data_->drawCallCount++;
+    }
+
+    if (hasTris) {
+        glDrawArrays(GL_TRIANGLES,
+                     static_cast<GLint>(data_->vertices.size()),
+                     static_cast<GLsizei>(data_->triVertices.size()));
+        data_->drawCallCount++;
+    }
+
+    if (flush_callback_) {
+        flush_callback_(next_flush_reason_, vertexCount, triangleCount, slotUsage, flush_callback_data_);
+        next_flush_reason_ = FlushReason::FrameEnd;
+    }
+
+    data_->vertices.clear();
+    data_->triVertices.clear();
+    data_->indexCount = 0;
+    data_->triangleCount = 0;
+    data_->texSlots.reset();
+}
+
+void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
+                                u32 textureId, const glm::vec4& color,
+                                const glm::vec2& uvOffset, const glm::vec2& uvScale) {
+    drawQuad(glm::vec3(position, 0.0f), size, textureId, color, uvOffset, uvScale);
+}
+
+void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
+                                u32 textureId, const glm::vec4& color,
+                                const glm::vec2& uvOffset, const glm::vec2& uvScale) {
+    if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
+        next_flush_reason_ = FlushReason::BatchFull;
+        flush();
+    }
+
+    for (u32 i = 0; i < 4; ++i) {
+        BatchVertex vertex;
+        vertex.position = glm::vec2(
+            position.x + QUAD_POSITIONS[i].x * size.x,
+            position.y + QUAD_POSITIONS[i].y * size.y
+        );
+        vertex.color = packColor(color);
+        vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
+        data_->vertices.push_back(vertex);
+    }
+
+    data_->indexCount += 6;
+    data_->quadCount++;
+}
+
+void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
+                                const glm::vec4& color) {
+    drawQuad(glm::vec3(position, 0.0f), size, 0, color);
+}
+
+void BatchRenderer2D::drawTriangle(const glm::vec2& p0, const glm::vec2& p1,
+                                    const glm::vec2& p2, const glm::vec4& color) {
+    if (data_->vertices.size() + data_->triVertices.size() + 3 > MAX_VERTICES) {
+        next_flush_reason_ = FlushReason::BatchFull;
+        flush();
+    }
+
+    BatchVertex v;
+    v.color = packColor(color);
+    v.texCoord = { 0.0f, 0.0f };
+
+    v.position = p0;
+    data_->triVertices.push_back(v);
+    v.position = p1;
+    data_->triVertices.push_back(v);
+    v.position = p2;
+    data_->triVertices.push_back(v);
+
+    data_->triangleCount++;
+}
+
+void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
+                                       f32 rotation, const glm::vec4& color) {
+    drawRotatedQuad(position, size, rotation, 0, color);
+}
+
+void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
+                                       f32 rotation, u32 textureId, const glm::vec4& tintColor,
+                                       const glm::vec2& uvOffset, const glm::vec2& uvScale) {
+    if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
+        next_flush_reason_ = FlushReason::BatchFull;
+        flush();
+    }
+
+    glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0.0f));
+    transform = glm::rotate(transform, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
+    transform = glm::scale(transform, glm::vec3(size, 1.0f));
+
+    for (u32 i = 0; i < 4; ++i) {
+        BatchVertex vertex;
+        vertex.position = glm::vec2(transform * QUAD_POSITIONS[i]);
+        vertex.color = packColor(tintColor);
+        vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
+        data_->vertices.push_back(vertex);
+    }
+
+    data_->indexCount += 6;
+    data_->quadCount++;
+}
+
+void BatchRenderer2D::setProjection(const glm::mat4& projection) {
+    data_->projection = projection;
+}
+
+void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& size,
+                                     u32 textureId, const glm::vec2& texSize,
+                                     const resource::SliceBorder& border,
+                                     const glm::vec4& color,
+                                     f32 rotation,
+                                     const glm::vec2& uvOffset, const glm::vec2& uvScale) {
+    f32 L = border.left;
+    f32 R = border.right;
+    f32 T = border.top;
+    f32 B = border.bottom;
+
+    f32 baseX = position.x - size.x * 0.5f;
+    f32 baseY = position.y - size.y * 0.5f;
+
+    f32 x0 = baseX;
+    f32 x1 = baseX + L;
+    f32 x2 = baseX + size.x - R;
+    f32 x3 = baseX + size.x;
+
+    f32 y0 = baseY;
+    f32 y1 = baseY + B;
+    f32 y2 = baseY + size.y - T;
+    f32 y3 = baseY + size.y;
+
+    f32 u0 = uvOffset.x;
+    f32 u1 = uvOffset.x + L / texSize.x;
+    f32 u2 = uvOffset.x + uvScale.x - R / texSize.x;
+    f32 u3 = uvOffset.x + uvScale.x;
+
+    f32 v0 = uvOffset.y;
+    f32 v1 = uvOffset.y + B / texSize.y;
+    f32 v2 = uvOffset.y + uvScale.y - T / texSize.y;
+    f32 v3 = uvOffset.y + uvScale.y;
+
+    // Precompute rotation sin/cos
+    f32 cosR = std::cos(rotation);
+    f32 sinR = std::sin(rotation);
+
+    // Helper to rotate a point around center (position)
+    auto rotatePoint = [&position, cosR, sinR](f32 x, f32 y) -> glm::vec2 {
+        f32 dx = x - position.x;
+        f32 dy = y - position.y;
+        return glm::vec2(
+            position.x + dx * cosR - dy * sinR,
+            position.y + dx * sinR + dy * cosR
+        );
+    };
+
+    u32 packedColor = packColor(color);
+    auto drawSlice = [this, packedColor, &rotatePoint](
+        f32 px, f32 py, f32 pw, f32 ph,
+        f32 uvX, f32 uvY, f32 uvW, f32 uvH) {
+
+        if (pw <= 0 || ph <= 0) return;
+
+        if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
+            next_flush_reason_ = FlushReason::BatchFull;
+            flush();
+        }
+
+        BatchVertex v0, v1, v2, v3;
+
+        glm::vec2 p0 = rotatePoint(px, py);
+        glm::vec2 p1 = rotatePoint(px + pw, py);
+        glm::vec2 p2 = rotatePoint(px + pw, py + ph);
+        glm::vec2 p3 = rotatePoint(px, py + ph);
+
+        v0.position = p0;
+        v0.color = packedColor;
+        v0.texCoord = glm::vec2(uvX, uvY);
+
+        v1.position = p1;
+        v1.color = packedColor;
+        v1.texCoord = glm::vec2(uvX + uvW, uvY);
+
+        v2.position = p2;
+        v2.color = packedColor;
+        v2.texCoord = glm::vec2(uvX + uvW, uvY + uvH);
+
+        v3.position = p3;
+        v3.color = packedColor;
+        v3.texCoord = glm::vec2(uvX, uvY + uvH);
+
+        data_->vertices.push_back(v0);
+        data_->vertices.push_back(v1);
+        data_->vertices.push_back(v2);
+        data_->vertices.push_back(v3);
+
+        data_->indexCount += 6;
+        data_->quadCount++;
+    };
+
+    // Draw 9 slices (3x3 grid)
+    // Row 1 (bottom): y0 to y1
+    drawSlice(x0, y0, x1 - x0, y1 - y0, u0, v0, u1 - u0, v1 - v0);  // Bottom-left
+    drawSlice(x1, y0, x2 - x1, y1 - y0, u1, v0, u2 - u1, v1 - v0);  // Bottom-center
+    drawSlice(x2, y0, x3 - x2, y1 - y0, u2, v0, u3 - u2, v1 - v0);  // Bottom-right
+
+    // Row 2 (middle): y1 to y2
+    drawSlice(x0, y1, x1 - x0, y2 - y1, u0, v1, u1 - u0, v2 - v1);  // Middle-left
+    drawSlice(x1, y1, x2 - x1, y2 - y1, u1, v1, u2 - u1, v2 - v1);  // Center
+    drawSlice(x2, y1, x3 - x2, y2 - y1, u2, v1, u3 - u2, v2 - v1);  // Middle-right
+
+    // Row 3 (top): y2 to y3
+    drawSlice(x0, y2, x1 - x0, y3 - y2, u0, v2, u1 - u0, v3 - v2);  // Top-left
+    drawSlice(x1, y2, x2 - x1, y3 - y2, u1, v2, u2 - u1, v3 - v2);  // Top-center
+    drawSlice(x2, y2, x3 - x2, y3 - y2, u2, v2, u3 - u2, v3 - v2);  // Top-right
+}
+
+u32 BatchRenderer2D::getDrawCallCount() const {
+    return data_ ? data_->drawCallCount : 0;
+}
+
+u32 BatchRenderer2D::getQuadCount() const {
+    return data_ ? data_->quadCount : 0;
+}
+
+u32 BatchRenderer2D::getTriangleCount() const {
+    return data_ ? data_->triangleCount : 0;
+}
+
+u32 BatchRenderer2D::getShaderProgramId() const {
+    if (!data_ || !data_->shader_handle.isValid()) return 0;
+    Shader* shader = resource_manager_.getShader(data_->shader_handle);
+    return shader ? shader->getProgramId() : 0;
+}
+
+}  // namespace esengine

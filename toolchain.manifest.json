@@ -13,7 +13,8 @@
         "full": [
             "stb",
             "nlohmann",
-            "cute_tiled"
+            "cute_tiled",
+            "yoga"
         ],
         "partial": {
             "glm": ["glm"],
