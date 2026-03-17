@@ -224,6 +224,105 @@ const skins = manager.getSkins(entity);              // ['default', 'warrior']
 const bounds = manager.getBounds(entity);            // { x, y, width, height }
 ```
 
+## 动画查询与事件
+
+*v0.12.0 新增。*
+
+### 动画查询
+
+通过 `SpineManager` 资源在运行时查询动画状态：
+
+```typescript
+import { SpineManager } from 'esengine/spine';
+
+const manager = app.getResource(SpineManager);
+
+// 列出实体的所有可用动画 / 皮肤
+const anims = manager.getAnimations(entity);   // ['idle', 'run', 'jump']
+const skins = manager.getSkins(entity);         // ['default', 'warrior']
+
+// 获取轴对齐包围盒
+const bounds = manager.getBounds(entity);  // { x, y, width, height }
+```
+
+### 事件回调
+
+Spine 每帧会发出生命周期事件和自定义事件。`SpineEvents` 资源会将它们收集到一个只读数组中，可在任何系统中消费：
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { SpineEvents } from 'esengine/spine';
+import type { SpineEvent } from 'esengine/spine';
+
+addSystem(defineSystem(
+    [Res(SpineEvents)],
+    (spineEvents) => {
+        for (const evt of spineEvents.events) {
+            switch (evt.type) {
+                case 'complete':
+                    console.log(`${evt.animationName} 在 track ${evt.track} 上播放完成`);
+                    break;
+                case 'event':
+                    // 在 Spine 编辑器中定义的自定义事件
+                    console.log(`自定义事件: ${evt.eventName}`,
+                        evt.intValue, evt.floatValue, evt.stringValue);
+                    break;
+            }
+        }
+    }
+));
+```
+
+事件类型：`start`、`interrupt`、`end`、`complete`、`event`（自定义）。
+
+每个 `SpineEvent` 包含：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `entity` | Entity | 触发事件的实体 |
+| `type` | SpineEventType | 上述事件类型之一 |
+| `track` | number | 动画轨道索引 |
+| `animationName` | string | 动画名 |
+| `eventName` | string? | 自定义事件名（仅 `event` 类型） |
+| `intValue` | number? | 整数载荷（仅 `event` 类型） |
+| `floatValue` | number? | 浮点载荷（仅 `event` 类型） |
+| `stringValue` | string? | 字符串载荷（仅 `event` 类型） |
+
+<Aside type="note">
+  需要先为实体启用事件才能收集。在 Spine 资源加载完成后调用一次 `manager.enableEvents(entity)`。
+</Aside>
+
+### 约束控制
+
+在运行时查询和修改 IK、变换、路径约束：
+
+```typescript
+const manager = app.getResource(SpineManager);
+
+// 列出实体上的所有约束
+const constraints = manager.listConstraints(entity);
+// { ik: ['aim-ik'], transform: ['hip-transform'], path: ['path-follow'] }
+
+// IK：设置目标位置和混合强度
+manager.setIKTarget(entity, 'aim-ik', targetX, targetY, 1.0);
+
+// 变换约束：读取和修改混合值
+const tmix = manager.getTransformConstraintMix(entity, 'hip-transform');
+// { mixRotate, mixX, mixY, mixScaleX, mixScaleY, mixShearY }
+manager.setTransformConstraintMix(entity, 'hip-transform', {
+    ...tmix!,
+    mixRotate: 0.5,
+});
+
+// 路径约束：读取和修改混合值
+const pmix = manager.getPathConstraintMix(entity, 'path-follow');
+// { position, spacing, mixRotate, mixX, mixY }
+manager.setPathConstraintMix(entity, 'path-follow', {
+    ...pmix!,
+    mixRotate: 0.8,
+});
+```
+
 ## 多纹理批处理
 
 使用多个图集页的 Spine 骨骼会被渲染器自动批处理。无需额外配置 — C++ 后端透明地处理多纹理情况，即使是复杂的多图集角色也能保持较低的 draw call。

@@ -270,33 +270,74 @@ addSystem(defineSystem(
 | `contentWidth` | number | `0` | 可滚动内容总宽度（由插件自动计算） |
 | `contentHeight` | number | `0` | 可滚动内容总高度（由插件自动计算） |
 
-## ListView
+## CollectionView
 
-大列表虚拟滚动——仅渲染可见项目。
+大数据集虚拟滚动，支持可插拔的布局提供者和对象池。替代之前的 `ListView`。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `itemHeight` | number | `40` | 固定项目高度 |
-| `itemCount` | number | `0` | 总项目数 |
-| `scrollY` | number | `0` | 滚动位置 |
+| `itemCount` | number | `0` | 数据集总项目数 |
+| `layout` | string | `'linear'` | 布局提供者：`'linear'`、`'grid'` 或 `'fan'` |
+| `virtualized` | boolean | `true` | 启用虚拟滚动（仅渲染可见项目） |
 | `overscan` | number | `2` | 视口上下额外渲染的项目数 |
+| `itemPrefab` | string | `''` | 项目模板的 Prefab 路径 |
+
+### 布局提供者
+
+| 布局 | 说明 | 关键配置 |
+|------|------|----------|
+| **Linear** | 垂直或水平列表 | `direction`、`spacing` |
+| **Grid** | 固定列数网格 | `columns`、`rowGap`、`columnGap` |
+| **Fan** | 扇形排列 | `radius`、`startAngle`、`endAngle` |
 
 ### 自定义项目渲染器
 
-使用 `setListViewRenderer()` 定义每个列表项的填充方式。回调接收项目索引和要配置的实体：
+使用 `setCollectionAdapter()` 定义项目的创建和填充方式：
 
 ```typescript
-import { setListViewRenderer, Text, Sprite } from 'esengine';
+import { setCollectionAdapter, Text } from 'esengine';
 
-setListViewRenderer(listEntity, (index, itemEntity) => {
-    world.set(itemEntity, Text, { content: `Item ${index}`, fontSize: 16 });
+setCollectionAdapter(collectionEntity, {
+    makeItem(entity, world) {
+        // 新项目实体创建时调用一次
+        world.insert(entity, Text, { content: '', fontSize: 16 });
+    },
+    bindItem(entity, index, world) {
+        // 每次项目绑定到数据索引时调用
+        const text = world.get(entity, Text);
+        text.content = `Item ${index}`;
+        world.set(entity, Text, text);
+    },
 });
 ```
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `index` | number | 列表项的 0 基索引 |
-| `entity` | Entity | 该列表项的实体——用组件填充它 |
+项目自动池化——回收的项目会以新索引调用 `bindItem`，无论数据集多大，活跃实体数都保持最小。
+
+## Selectable
+
+实现选择行为，支持组内互斥。同一组中的一个实体被选中时，其他实体自动取消选中。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `selected` | boolean | `false` | 选中状态 |
+| `group` | number | `0` | 互斥组 ID（相同组 ID 的实体互斥） |
+
+监听选择变化：
+
+```typescript
+addSystem(defineSystem(
+    [Res(UIEvents), Query(Selectable, Name)],
+    (events, query) => {
+        for (const e of events.query('select')) {
+            for (const [entity, sel, name] of query) {
+                if (entity === e.entity) {
+                    console.log(name.value, '选中:', sel.selected);
+                }
+            }
+        }
+    }
+));
+```
 
 ## TextInput
 

@@ -1,0 +1,192 @@
+---
+title: v0.12.0
+description: Estella v0.12.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.12.0 是一个大版本：完整的 Tilemap 编辑器与绘制工具、富文本描边/阴影、数据绑定系统、全新统一资产架构、CollectionView 虚拟滚动，以及 SDK 架构大幅重构（声明式系统调度）。
+</Aside>
+
+## Tilemap 编辑器 v2
+
+全新的 Tilemap 编辑系统，替代之前仅支持导入 Tiled 的工作流。现在可以完全在编辑器内创建、绘制和编辑 Tilemap。
+
+### 调色板与绘制工具
+
+新增 Tile Palette 面板，提供 5 种工具：
+
+- **笔刷**：绘制单个 Tile 或多 Tile 图章区域
+- **矩形填充**：拖拽填充矩形区域
+- **油漆桶**：洪水填充相连 Tile（BFS，10k Tile 上限）
+- **橡皮擦**：清除 Tile，任何工具下右键也可擦除
+- **吸管**：从地图采样 Tile 作为当前笔刷
+
+在调色板中拖拽选择图章区域，工具栏按钮支持水平/垂直翻转。
+
+### 无限地图与分块渲染
+
+Tilemap 现在支持无限地图（稀疏分块存储）。渲染器使用 16×16 分块 + 脏标记实现增量顶点重建——每帧只重建脏块和动画块。屏幕外的分块在分块级别被剔除。
+
+### 图层管理
+
+支持添加、删除、重命名和重排序 Tilemap 图层。每个图层独立渲染，有各自的 Tile 数据和可见性开关。
+
+### 原生 Tilemap 创建
+
+从 Hierarchy 右键菜单直接创建 Tilemap，无需外部 Tiled 编辑器。创建对话框中可选无限地图模式。
+
+## 富文本
+
+`Text` 组件现在支持富文本内联格式标签：
+
+- `<color=#FF0000>红色文字</color>` — 彩色文字片段
+- `<b>粗体</b>`、`<i>斜体</i>` — 字体样式
+- 内联图片 `<img src="资产路径"/>` 标签
+- 在 Text 组件上启用 `richText` 开关
+
+解析器基于栈结构，支持逐 run 字体测量和自动换行。
+
+## 文字描边与阴影
+
+`Text` 组件新增属性：
+
+- **描边**：`strokeColor` 和 `strokeWidth` 用于文字轮廓
+- **阴影**：`shadowColor`、`shadowBlur`、`shadowOffsetX`、`shadowOffsetY` 用于投影效果
+
+描边渲染先绘制所有描边再绘制所有填充，避免视觉重叠问题。
+
+## 数据绑定
+
+新增 `DataBinding` 组件，将组件属性连接到每帧自动更新的表达式。
+
+- **模板字符串**：`"分数: {Score.value}"` — 引用任意 Resource 或组件属性
+- **数学表达式**：`"{Health.current} / {Health.max} * 100"` — 递归下降解析器，无 `eval`（微信兼容）
+- **自动类型转换**：string ↔ number 自动处理
+- **编辑器 UI**：自定义属性编辑器，下拉选择实体组件的目标属性
+- **LRU 表达式缓存**：编译后的表达式被缓存以提升性能
+
+编辑器编辑模式下自动跳过数据绑定求值，防止场景数据损坏。
+
+## 统一资产架构
+
+全新 4 层资产系统替代旧版 `AssetServer`：
+
+- **Assets**：面向用户的 API，提供类型化的 `loadTexture()`、`loadSpine()`、`loadPrefab()` 等
+- **Catalog**：地址解析、图集帧查询、标签资产分组、依赖图
+- **AssetLoader**：可插拔类型加载器（texture、spine、material、font、audio、tilemap、timeline、animclip、prefab）
+- **Backend**：平台特定的数据获取（HTTP、嵌入式、微信）
+
+构建管线生成 manifest catalog 用于可寻址资产加载。已有的 `AssetServer` 消费端已全部迁移。
+
+## CollectionView 与 Selectable
+
+### CollectionView
+
+虚拟滚动系统，替代 `ListView`，支持可插拔的布局提供者：
+
+- **LinearLayout**：垂直或水平列表
+- **GridLayout**：固定列数网格，支持行/列间距
+- **FanLayout**：扇形排列，可配置角度范围
+
+使用适配器模式 + 对象池实现大数据集的高效渲染。
+
+### Selectable
+
+新增 `Selectable` 组件（C++ 内置），支持组内互斥选择——选中一个实体时同组其他实体自动取消选中。通过 `UIEvents` 派发选中/取消选中事件。
+
+## Spine API 扩展
+
+- **动画查询**：运行时查询当前动画状态、轨道条目和混合信息
+- **事件回调**：监听 Spine 动画事件（开始、结束、完成、自定义事件）
+- **约束 API**：读取和修改 IK、变换和路径约束
+- **编辑器可见性**：SpineAnimation 在编辑器中支持实体可见性切换
+
+## Physics API 扩展
+
+- **Shape Cast**：在物理世界中进行形状投射，可配置距离
+- **AABB Overlap**：查询与轴对齐包围盒重叠的所有物体
+- **质量数据**：运行时读取和修改物体质量、质心和惯性
+- **关节状态**：查询关节反力、锚点位置和当前限制
+
+## 自描述组件元数据
+
+组件元数据（资产字段、颜色字段、实体引用、可动画属性）现由 EHT 代码生成工具从 C++ 注解自动生成：
+
+- `defineBuiltin()` 从生成的 `COMPONENT_META` 读取默认值和字段元数据
+- 编辑器 `defineSchema()` 从 SDK 元数据推断 Inspector 属性类型
+- 动画目标枚举由 C++ 的 `ES_ANIMATABLE` 注解生成
+- Ptr 字段布局由 C++ 结构体定义生成，实现零拷贝 WASM 读取
+
+## 声明式系统调度
+
+### 运行条件
+
+系统可通过 `runIf` 声明执行前置条件：
+
+```typescript
+import { playModeOnly } from 'esengine';
+
+app.addSystemToSchedule(Schedule.Update, mySystem, {
+    runIf: playModeOnly,
+});
+```
+
+被跳过的系统零开销——条件在参数解析前检查。
+
+### System 与 Plugin 名称常量
+
+所有系统排序和插件依赖引用均有编译安全的常量：
+
+```typescript
+import { SystemLabel, PluginName } from 'esengine';
+
+app.addSystemToSchedule(Schedule.PostUpdate, mySystem, {
+    runAfter: [SystemLabel.UILayout],
+});
+```
+
+### Disabled 标签
+
+新增 `Disabled` 标签组件，排除实体参与处理：
+
+```typescript
+import { Disabled } from 'esengine';
+
+world.insert(entity, Disabled, {});
+const active = Query(Transform).without(Disabled);
+```
+
+### 插件依赖排序
+
+`app.addPlugins()` 对依赖声明执行拓扑排序，允许以任意顺序传入插件。
+
+## 引擎内部改进
+
+- 通过 `corePlugin` 统一引擎初始化，集中管理 ResourceManager 和静态 API 生命周期
+- 提取 `App.runFrame_()` 统一 tick/mainLoop 调度逻辑
+- O(1) 实体名称索引更新（反向 `entityToName_` Map）
+- 使用泛型 `RefMap` 重构 `AssetRefCounter`（175 → 99 行）
+- 共享 `ensureUIRenderer()` 工具函数至 `uiHelpers`
+- 编辑器 Schema 定义移入插件 `register()` 实现懒初始化
+- 拆分 `RenderFrame.cpp` 为 mask 和 submit 文件，提升可维护性
+- 去重 `BatchVertex` 和 `packColor` 至共享渲染头文件
+- 从 C++ 结构体定义生成 `PTR_LAYOUTS`，替代手写偏移表
+- 场景操作使用原子状态交换，防止加载/卸载竞态
+- WASM 错误节流，防止 C++ 重复异常导致控制台刷屏
+
+## Bug 修复
+
+- 修复 spawn 回调中实体名称不可用
+- 修复场景 sleep/wake 忽略 ShapeRenderer 和 ParticleEmitter 组件
+- 修复 App 销毁时输入事件监听器泄漏
+- 修复首次编译时 emscripten 配置未自动生成
+- 修复 emsdk 安装后缓存文件存在性检查
+- 修复编辑器中 Image/UIRenderer 组件的可见性切换
+- 修复 Text overflow Visible 模式裁剪到容器而非扩展
+- 修复富文本描边渲染顺序（先描边后填充）
+- 修复 Play Mode 脚本注入顺序（脚本在场景反序列化前加载）
+- 修复脚本重编译失败时组件 Schema 丢失
+- 修复进入 Play Mode 前场景未同步
+- 修复循环 Schema 导入导致编辑器启动失败

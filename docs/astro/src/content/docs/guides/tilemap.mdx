@@ -7,6 +7,44 @@ import { Aside } from '@astrojs/starlight/components';
 
 The tilemap system loads [Tiled](https://www.mapeditor.org/) maps (`.tmj` / `.json`) and renders tile layers with automatic camera culling, per-layer tint/opacity, parallax scrolling, and collision generation.
 
+## Editor Tilemap Creation
+
+You can create and paint tilemaps entirely within the editor — no external tools required.
+
+### Creating a Tilemap
+
+1. Right-click in the **Hierarchy** panel → **Create** → **Tilemap**
+2. In the creation dialog, set the tile size and choose between **Finite** or **Infinite** map mode
+3. Assign a tileset image in the **Tilemap** component Inspector
+
+### Tile Palette
+
+The **Tile Palette** panel opens automatically when a tilemap entity is selected. It provides 5 tools:
+
+| Tool | Shortcut | Description |
+|------|----------|-------------|
+| Brush | B | Paint individual tiles or stamp multi-tile regions |
+| Rectangle | R | Drag to fill a rectangular area |
+| Bucket | G | Flood-fill connected tiles of the same type |
+| Eraser | E | Remove tiles (also available via right-click with any tool) |
+| Picker | I | Sample a tile from the map to use as the current brush |
+
+**Stamp selection**: drag in the palette grid to select a multi-tile region, then paint with the brush tool to stamp the entire selection.
+
+**Flip**: use the toolbar buttons to flip tiles horizontally or vertically before painting.
+
+### Infinite Maps
+
+Infinite maps use sparse chunk storage — only painted areas consume memory. The renderer uses 16×16 tile chunks with:
+
+- **Dirty flags**: only chunks with changed tiles rebuild vertices each frame
+- **Chunk-level culling**: off-screen chunks are skipped entirely
+- **Animated tile tracking**: chunks without animated tiles skip rebuild checks
+
+### Layer Management
+
+Add, remove, rename, and reorder layers via the layer dropdown in the Tile Palette. Each layer has independent tile data and a visibility toggle.
+
 ## Quick Start
 
 The simplest way to use tilemaps is through the editor:
@@ -172,13 +210,20 @@ Low-level API for runtime tile manipulation:
 
 ## Editor Workflow
 
+You can create tilemaps in two ways:
+
+**Option A — Paint natively in the editor** (recommended for new projects):
+1. Right-click in the Hierarchy → **Create** → **Tilemap** (see [Editor Tilemap Creation](#editor-tilemap-creation) above)
+2. Use the **Tile Palette** to paint, erase, and manage layers directly in the Scene View
+
+**Option B — Import from Tiled**:
 1. Add a **Tilemap** component to an entity in the Hierarchy
 2. Set the **Source** field to a `.tmj` or `.json` Tiled map file using the asset picker
 3. The editor automatically loads the map, resolves tileset textures, and renders the layers
 4. Collision objects are visualized as gizmo overlays
 
 <Aside type="tip">
-  Design your maps in the [Tiled Map Editor](https://www.mapeditor.org/), export as JSON (`.tmj`), and place the file alongside your tileset images in the project assets folder.
+  For imported maps, design in the [Tiled Map Editor](https://www.mapeditor.org/), export as JSON (`.tmj`), and place the file alongside your tileset images in the project assets folder.
 </Aside>
 
 ## Layer Properties

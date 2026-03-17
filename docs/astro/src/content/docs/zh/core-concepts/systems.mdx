@@ -95,6 +95,51 @@ const renderSystem = defineSystem(
   `name` 是排序的基础。只有需要参与排序的系统才必须指定 `name`，未指定名称的系统不能被其他系统引用。
 </Aside>
 
+### 内置系统标签
+
+当需要相对于内置系统排序时，使用 `SystemLabel` 常量代替原始字符串，获得编译期安全检查：
+
+```typescript
+import { SystemLabel } from 'esengine';
+
+app.addSystemToSchedule(Schedule.PostUpdate, myLayoutSystem, {
+    runAfter: [SystemLabel.UILayout],
+    runBefore: [SystemLabel.UIRenderOrder],
+});
+```
+
+可用标签：`UILayout`、`UILayoutLate`、`UIRenderOrder`、`UIInteraction`、`Button`、`ScrollView`、`CollectionView`、`ListView`、`Text`、`Image`、`Focus`、`Tween`。
+
+类似地，声明插件依赖时使用 `PluginName` 常量：
+
+```typescript
+import { PluginName } from 'esengine';
+
+class MyUIPlugin implements Plugin {
+    dependencies = [PluginName.UILayout];
+}
+```
+
+## 运行条件
+
+系统可以通过 `runIf` 声明前置条件。条件在系统执行前求值——如果返回 `false`，系统被完全跳过，零开销：
+
+```typescript
+import { playModeOnly } from 'esengine';
+
+app.addSystemToSchedule(Schedule.Update, gameplaySystem, {
+    runIf: playModeOnly,
+});
+```
+
+`playModeOnly` 是内置条件，在编辑器外运行时或编辑器 Play Mode 中返回 `true`。你也可以编写自定义条件——任何 `() => boolean` 函数都可以：
+
+```typescript
+app.addSystemToSchedule(Schedule.Update, debugSystem, {
+    runIf: () => app.getResource(DebugConfig).enabled,
+});
+```
+
 ## 系统参数
 
 ### Commands
