@@ -3,16 +3,14 @@
  * @brief   Shared utilities for platform emitters (Playable, WeChat)
  */
 
-import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildArtifact } from './PlatformEmitter';
 import type { BuildContext } from './BuildService';
 import type { EngineModules } from '../types/BuildTypes';
 import type { NativeFS } from '../types/NativeFS';
-import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
+import type { SdkModuleLoader } from '../scripting/types';
+import { ScriptCompiler } from '../scripting/ScriptCompiler';
 import { joinPath } from '../utils/path';
-import { discoverPluginPackages } from '../extension/pluginDiscovery';
 import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
-import { initializeEsbuild, createBuildVirtualFsPlugin, type SdkModuleLoader } from './ArtifactBuilder';
 import { toBuildPath } from 'esengine';
 
 // =============================================================================
@@ -145,39 +143,13 @@ export async function compileUserScripts(
     context: BuildContext,
     options: CompileOptions,
 ): Promise<string> {
-    const defines = buildDefinesMap(context.config.defines);
-
-    await initializeEsbuild();
-
-    const plugin = createBuildVirtualFsPlugin(
-        fs,
-        projectDir,
-        options.sdkResolver,
-        options.preferEsmEntry ?? true,
-    );
-
-    const result = await esbuild.build({
-        stdin: {
-            contents: options.entryContent,
-            loader: 'ts',
-            resolveDir: options.resolveDir,
-        },
-        bundle: true,
+    const compiler = new ScriptCompiler();
+    return compiler.compile(fs, projectDir, options.entryContent, {
         format: 'iife',
-        write: false,
-        platform: 'browser',
-        target: 'es2020',
-        treeShaking: true,
+        sdk: { type: 'loader', load: options.sdkResolver, preferEsmEntry: options.preferEsmEntry ?? true },
         minify: options.minify,
-        define: defines,
-        plugins: [plugin],
+        defines: buildDefinesMap(context.config.defines),
     });
-
-    const output = result.outputFiles?.[0]?.text;
-    if (!output) {
-        throw new Error('esbuild produced no output');
-    }
-    return output;
 }
 
 // =============================================================================
@@ -236,26 +208,13 @@ export async function collectUserScriptImports(
     fs: NativeFS,
     projectDir: string,
 ): Promise<{ imports: string; hasSrcDir: boolean }> {
+    const compiler = new ScriptCompiler();
     const scriptsPath = joinPath(projectDir, 'src');
     const hasSrcDir = await fs.exists(scriptsPath);
 
-    const parts: string[] = [];
+    const plugins = await compiler.discoverPlugins(fs, projectDir, 'main');
+    const scripts = hasSrcDir ? await compiler.discoverScripts(fs, projectDir) : [];
+    const imports = compiler.buildEntry(plugins, scripts);
 
-    try {
-        const plugins = await discoverPluginPackages(fs, projectDir, 'main');
-        for (const p of plugins) {
-            parts.push(`import "${p.entryPath}";`);
-        }
-    } catch {
-        // plugin discovery is best-effort in production builds
-    }
-
-    if (hasSrcDir) {
-        const scripts = await findTsFiles(fs, scriptsPath, EDITOR_ONLY_DIRS);
-        for (const p of scripts) {
-            parts.push(`import "${p}";`);
-        }
-    }
-
-    return { imports: parts.join('\n'), hasSrcDir: hasSrcDir || parts.length > 0 };
+    return { imports, hasSrcDir: hasSrcDir || plugins.length > 0 };
 }
