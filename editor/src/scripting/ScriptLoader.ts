@@ -3,12 +3,11 @@
  * @brief   Load and compile user TypeScript scripts for preview
  */
 
-import * as esbuild from 'esbuild-wasm/esm/browser';
 import * as esengineModule from 'esengine';
-import { virtualFsPlugin, playModeShimPlugin } from './esbuildPlugins';
-import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
+import type { NativeFS, ScriptLoaderOptions, CompileError, CompileTarget } from './types';
 import { ComponentSwapper } from './ComponentSwapper';
 import type { ScriptContent } from './ComponentSwapper';
+import { ScriptCompiler } from './ScriptCompiler';
 import {
     extractComponentDefs,
     registerComponentEntries,
@@ -17,9 +16,7 @@ import {
     type ComponentDefEntry,
 } from './componentExtraction';
 import { getEditorContext } from '../context/EditorContext';
-import { initializeEsbuild } from '../builder/ArtifactBuilder';
 import { normalizePath, joinPath, getProjectDir } from '../utils/path';
-import { discoverPluginPackages } from '../extension/pluginDiscovery';
 
 // =============================================================================
 // Native FS Access
@@ -28,6 +25,21 @@ import { discoverPluginPackages } from '../extension/pluginDiscovery';
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;
 }
+
+// =============================================================================
+// Play Mode Compile Target
+// =============================================================================
+
+const PLAY_MODE_TARGET: CompileTarget = {
+    format: 'esm',
+    sdk: {
+        type: 'shim',
+        modules: new Map<string, Record<string, unknown>>([
+            ['esengine', esengineModule as unknown as Record<string, unknown>],
+        ]),
+    },
+    sourcemap: 'inline',
+};
 
 // =============================================================================
 // Script Loader
@@ -51,7 +63,6 @@ export class ScriptLoader {
 
     async initialize(): Promise<void> {
         if (this.initialized_) return;
-        await initializeEsbuild();
         this.initialized_ = true;
     }
 
@@ -61,16 +72,7 @@ export class ScriptLoader {
             console.warn('ScriptLoader: NativeFS not available');
             return [];
         }
-
-        const srcPath = joinPath(this.projectDir_, 'src');
-
-        try {
-            if (!await fs.exists(srcPath)) return [];
-            return await findTsFiles(fs, srcPath, EDITOR_ONLY_DIRS);
-        } catch (err) {
-            console.error('ScriptLoader: Failed to discover scripts:', err);
-            return [];
-        }
+        return this.compiler_.discoverScripts(fs, this.projectDir_);
     }
 
     async compile(): Promise<boolean> {
@@ -99,19 +101,10 @@ export class ScriptLoader {
             return false;
         }
 
-        const scripts = await this.discoverScripts();
+        const scripts = await this.compiler_.discoverScripts(fs, this.projectDir_);
+        const plugins = await this.compiler_.discoverPlugins(fs, this.projectDir_, 'main');
 
-        const pluginImports: string[] = [];
-        try {
-            const plugins = await discoverPluginPackages(fs, this.projectDir_, 'main');
-            for (const p of plugins) {
-                pluginImports.push(`import "${p.entryPath}";`);
-            }
-        } catch (err) {
-            console.warn('ScriptLoader: Plugin discovery failed:', err);
-        }
-
-        if (scripts.length === 0 && pluginImports.length === 0) {
+        if (scripts.length === 0 && plugins.length === 0) {
             this.swapper_.prepare([]);
             this.swapper_.swap();
             this.lastCompiled_ = null;
@@ -120,33 +113,14 @@ export class ScriptLoader {
         }
 
         try {
-            const localImports = scripts.map(p => `import "${p}";`).join('\n');
-            const entryContent = pluginImports.join('\n') + '\n' + localImports;
+            const entryContent = this.compiler_.buildEntry(plugins, scripts);
 
-            const shimModules = new Map<string, Record<string, unknown>>([
-                ['esengine', esengineModule as unknown as Record<string, unknown>],
-            ]);
-
-            const result = await esbuild.build({
-                stdin: {
-                    contents: entryContent,
-                    loader: 'ts',
-                    resolveDir: joinPath(this.projectDir_, 'src'),
-                },
-                bundle: true,
-                format: 'esm',
-                write: false,
-                sourcemap: 'inline',
-                platform: 'browser',
-                target: 'es2020',
-                plugins: [
-                    playModeShimPlugin(shimModules),
-                    virtualFsPlugin({
-                        fs,
-                        projectDir: this.projectDir_,
-                    }),
-                ],
-            });
+            const result = await this.compiler_.compileIncremental(
+                fs,
+                this.projectDir_,
+                entryContent,
+                PLAY_MODE_TARGET,
+            );
 
             if (result.errors.length > 0) {
                 const errors: CompileError[] = result.errors.map(e => ({
@@ -168,7 +142,7 @@ export class ScriptLoader {
             return true;
         } catch (err: any) {
             console.error('ScriptLoader: Compilation failed:', err);
-            const esbuildErrors = err?.errors as esbuild.Message[] | undefined;
+            const esbuildErrors = err?.errors as Array<{ location?: { file?: string; line?: number; column?: number }; text: string }> | undefined;
             const errors: CompileError[] = esbuildErrors?.length
                 ? esbuildErrors.map(e => ({
                     file: e.location?.file || 'unknown',
@@ -183,6 +157,7 @@ export class ScriptLoader {
     }
 
     async reload(): Promise<boolean> {
+        this.compiler_.invalidateIncremental();
         return this.compile();
     }
 
@@ -226,6 +201,7 @@ export class ScriptLoader {
 
     dispose(): void {
         this.unwatch();
+        void this.compiler_.dispose();
     }
 
     // =========================================================================
@@ -257,6 +233,7 @@ export class ScriptLoader {
     private recompileTimer_: number | null = null;
     private compiling_ = false;
     private pendingCompile_ = false;
+    private compiler_ = new ScriptCompiler();
     private swapper_ = new ComponentSwapper();
     private onCompileError_?: (errors: CompileError[]) => void;
     private onCompileSuccess_?: () => void;
@@ -295,7 +272,6 @@ async function findTsFiles(
 
 export { findTsFiles, IGNORED_SCRIPT_DIRS, EDITOR_ONLY_DIRS };
 
-// Re-export for backward compatibility (used in tests)
 function extractAndRegisterComponents(source: string): string[] {
     const entries = extractComponentDefs(source);
     registerComponentEntries(entries);

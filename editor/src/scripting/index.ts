@@ -4,4 +4,5 @@
  */
 
 export { ScriptLoader } from './ScriptLoader';
-export type { ScriptLoaderOptions, CompileError, CompileResult } from './types';
+export { ScriptCompiler } from './ScriptCompiler';
+export type { ScriptLoaderOptions, CompileError, CompileResult, CompileTarget, SdkResolveStrategy, SdkModuleLoader } from './types';

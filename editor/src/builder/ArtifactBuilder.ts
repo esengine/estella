@@ -350,8 +350,6 @@ function embedTextureImporterSettings(sceneData: Record<string, unknown>, assetL
 // Shared esbuild utilities
 // =============================================================================
 
-export type SdkModuleLoader = (path: string) => Promise<{ contents: string; loader: esbuild.Loader }>;
-
 let esbuildInitialized = false;
 
 export async function initializeEsbuild(): Promise<void> {
@@ -644,99 +642,3 @@ function rewritePrefabAtlasRefs(
     }
 }
 
-export function createBuildVirtualFsPlugin(
-    fs: NativeFS,
-    projectDir: string,
-    loadSdkModule: SdkModuleLoader,
-    preferEsmEntry = true
-): esbuild.Plugin {
-    return {
-        name: 'virtual-fs',
-        setup(build) {
-            build.onResolve({ filter: /^esengine(\/wasm)?$/ }, (args) => ({
-                path: args.path,
-                namespace: 'esengine-sdk',
-            }));
-
-            build.onResolve({ filter: /^\./ }, (args) => {
-                if (args.namespace !== 'esengine-sdk') return undefined;
-                const baseDir = args.importer.includes('/')
-                    ? args.importer.substring(0, args.importer.lastIndexOf('/'))
-                    : '';
-                const resolved = baseDir ? `${baseDir}/${args.path}` : args.path;
-                const normalized = resolved.replace(/^\.\//, '').replace(/\/\.\//g, '/').replace(/[^/]+\/\.\.\//g, '');
-                return { path: normalized, namespace: 'esengine-sdk' };
-            });
-
-            build.onLoad({ filter: /.*/, namespace: 'esengine-sdk' }, async (args) => {
-                return loadSdkModule(args.path);
-            });
-
-            build.onResolve({ filter: /.*/ }, async (args) => {
-                if (args.kind === 'entry-point') {
-                    return { path: args.path, namespace: 'virtual' };
-                }
-
-                let resolvedPath = args.path;
-
-                if (isAbsolutePath(args.path)) {
-                    resolvedPath = normalizePath(args.path);
-                } else if (args.path.startsWith('.')) {
-                    const baseDir = args.importer ? getParentDir(args.importer) : args.resolveDir;
-                    resolvedPath = joinPath(baseDir, args.path);
-                } else {
-                    const pkgPath = joinPath(projectDir, 'node_modules', args.path, 'package.json');
-                    const pkgContent = await fs.readFile(pkgPath);
-                    if (pkgContent) {
-                        try {
-                            const pkg = JSON.parse(pkgContent);
-                            let entry = preferEsmEntry
-                                ? (pkg.module || pkg.main || 'index.js')
-                                : (pkg.main || 'index.js');
-                            if (pkg.exports) {
-                                const root = pkg.exports['.'];
-                                if (typeof root === 'string') {
-                                    entry = root;
-                                } else if (root?.import) {
-                                    entry = root.import;
-                                } else if (root?.default) {
-                                    entry = root.default;
-                                }
-                            }
-                            resolvedPath = joinPath(projectDir, 'node_modules', args.path, entry);
-                        } catch {
-                            throw new Error(`Failed to parse package.json for: ${args.path}`);
-                        }
-                    } else {
-                        throw new Error(`Module not found: ${args.path}. Please install it with npm.`);
-                    }
-                }
-
-                if (!resolvedPath.endsWith('.ts') && !resolvedPath.endsWith('.js')) {
-                    if (await fs.exists(resolvedPath + '.ts')) {
-                        resolvedPath += '.ts';
-                    } else if (await fs.exists(resolvedPath + '.js')) {
-                        resolvedPath += '.js';
-                    } else if (await fs.exists(joinPath(resolvedPath, 'index.ts'))) {
-                        resolvedPath = joinPath(resolvedPath, 'index.ts');
-                    } else if (await fs.exists(joinPath(resolvedPath, 'index.js'))) {
-                        resolvedPath = joinPath(resolvedPath, 'index.js');
-                    } else {
-                        resolvedPath += '.ts';
-                    }
-                }
-
-                return { path: resolvedPath, namespace: 'virtual' };
-            });
-
-            build.onLoad({ filter: /.*/, namespace: 'virtual' }, async (args) => {
-                const content = await fs.readFile(args.path);
-                if (content === null) {
-                    return { contents: '', loader: 'ts' };
-                }
-                const loader = args.path.endsWith('.ts') ? 'ts' : 'js';
-                return { contents: content, loader };
-            });
-        },
-    };
-}
