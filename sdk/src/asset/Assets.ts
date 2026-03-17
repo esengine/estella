@@ -225,22 +225,28 @@ export class Assets {
     // =========================================================================
 
     async fetchJson<T = unknown>(ref: string): Promise<T> {
-        const path = this.catalog.resolve(ref);
-        const buildPath = this.catalog.getBuildPath(path);
-        const text = await this.backend.fetchText(buildPath);
+        const url = this.resolveUrl_(ref);
+        const text = await this.backend.fetchText(url);
         return JSON.parse(text) as T;
     }
 
     async fetchBinary(ref: string): Promise<ArrayBuffer> {
-        const path = this.catalog.resolve(ref);
-        const buildPath = this.catalog.getBuildPath(path);
-        return this.backend.fetchBinary(buildPath);
+        const url = this.resolveUrl_(ref);
+        return this.backend.fetchBinary(url);
     }
 
     async fetchText(ref: string): Promise<string> {
+        const url = this.resolveUrl_(ref);
+        return this.backend.fetchText(url);
+    }
+
+    private resolveUrl_(ref: string): string {
         const path = this.catalog.resolve(ref);
         const buildPath = this.catalog.getBuildPath(path);
-        return this.backend.fetchText(buildPath);
+        if (buildPath.startsWith('/') || buildPath.startsWith('http://') || buildPath.startsWith('https://')) {
+            return buildPath;
+        }
+        return this.baseUrl ? `${this.baseUrl}/${buildPath}` : buildPath;
     }
 
     // =========================================================================
