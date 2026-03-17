@@ -48,3 +48,14 @@ export function getProjectDir(projectPath: string): string {
 export function isAbsolutePath(path: string): boolean {
     return path.startsWith('/') || /^[a-zA-Z]:/.test(path);
 }
+
+const TRANSIENT_PATTERN = /\.tmp\.\d+\.\d+$/;
+
+export function isTransientFile(path: string): boolean {
+    const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+    if (name === '.DS_Store' || name === 'Thumbs.db') return true;
+    if (name.startsWith('.')) return true;
+    if (name.endsWith('~') || name.endsWith('.swp') || name.endsWith('.bak')) return true;
+    if (TRANSIENT_PATTERN.test(name)) return true;
+    return false;
+}
