@@ -14,8 +14,7 @@ import { PLAYABLE_HTML_TEMPLATE } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
 import {
-    analyzeUsedPlugins,
-    filterPluginsByModules,
+    resolvePlayablePlugins,
     collectUserScriptImports,
     compileUserScripts,
     resolveSceneUUIDs,
@@ -174,14 +173,9 @@ export class PlayableEmitter implements PlatformEmitter {
     ): Promise<string> {
         const { imports, hasSrcDir } = await collectUserScriptImports(fs, projectDir);
 
-        const usedPlugins = analyzeUsedPlugins(artifact);
-        const alwaysPlugins = ['animationPlugin', 'audioPlugin', 'particlePlugin'];
-        const allPlugins = filterPluginsByModules(
-            [...new Set([...usedPlugins, ...alwaysPlugins])],
+        const { imports: pluginImports, list: pluginList } = resolvePlayablePlugins(
             context.config.engineModules,
         );
-        const pluginImports = allPlugins.join(', ');
-        const pluginList = allPlugins.join(', ');
 
         const entryContent = `
 import { createWebApp as _cwa, initPlayableRuntime, RuntimeConfig, ${pluginImports} } from 'esengine';

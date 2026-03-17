@@ -14,67 +14,13 @@ import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
 import { toBuildPath } from 'esengine';
 
 // =============================================================================
-// Plugin Analysis
+// Plugin Resolution
 // =============================================================================
 
-const COMPONENT_TO_PLUGIN: Record<string, string> = {
-    'Text': 'textPlugin',
-    'BitmapText': 'textPlugin',
-    'UIRect': 'uiLayoutPlugin',
-    'UIMask': 'uiMaskPlugin',
-    'Interactable': 'uiInteractionPlugin',
-    'Button': 'uiInteractionPlugin',
-    'TextInput': 'textInputPlugin',
-    'Image': 'imagePlugin',
-    'Toggle': 'togglePlugin',
-    'ToggleGroup': 'togglePlugin',
-    'ProgressBar': 'progressBarPlugin',
-    'Slider': 'sliderPlugin',
-    'Draggable': 'dragPlugin',
-    'ScrollView': 'scrollViewPlugin',
-    'Focusable': 'focusPlugin',
-    'SafeArea': 'safeAreaPlugin',
-    'ListView': 'listViewPlugin',
-    'Dropdown': 'dropdownPlugin',
-    'LayoutGroup': 'layoutGroupPlugin',
-    'AudioSource': 'audioPlugin',
-    'ParticleEmitter': 'particlePlugin',
-    'Tilemap': 'tilemapPlugin',
-    'TilemapLayer': 'tilemapPlugin',
-    'PostProcessVolume': 'postProcessPlugin',
-};
-
-export function analyzeUsedPlugins(artifact: BuildArtifact): string[] {
-    const plugins = new Set<string>();
-    let hasUI = false;
-
-    for (const sceneData of artifact.scenes.values()) {
-        const entities = (sceneData as any).entities as Array<{
-            components: Array<{ type: string }>;
-        }> | undefined;
-        if (!entities) continue;
-
-        for (const entity of entities) {
-            for (const comp of entity.components) {
-                const plugin = COMPONENT_TO_PLUGIN[comp.type];
-                if (plugin) {
-                    plugins.add(plugin);
-                    hasUI = true;
-                }
-            }
-        }
-    }
-
-    if (hasUI) {
-        plugins.add('uiRenderOrderPlugin');
-    }
-
-    return Array.from(plugins);
-}
-
-// =============================================================================
-// Engine Module → Plugin Mapping
-// =============================================================================
+const BASE_PLUGINS = [
+    'animationPlugin', 'audioPlugin', 'particlePlugin',
+    'tilemapPlugin', 'postProcessPlugin', 'timelinePlugin',
+];
 
 const MODULE_PLUGIN_MAP: Record<keyof EngineModules, string[]> = {
     particles: ['particlePlugin'],
@@ -96,6 +42,17 @@ export function filterPluginsByModules(plugins: string[], modules?: EngineModule
     }
 
     return plugins.filter(p => !disabled.has(p));
+}
+
+export function resolvePlayablePlugins(
+    engineModules?: EngineModules,
+): { imports: string; list: string } {
+    const optional = filterPluginsByModules(BASE_PLUGINS, engineModules);
+    const imports = ['uiPlugins', ...optional].join(', ');
+    const list = optional.length > 0
+        ? `...uiPlugins, ${optional.join(', ')}`
+        : '...uiPlugins';
+    return { imports, list };
 }
 
 // =============================================================================
