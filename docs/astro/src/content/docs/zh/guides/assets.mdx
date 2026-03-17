@@ -120,29 +120,22 @@ const prefab = await assets.loadPrefab('prefabs/Enemy.esprefab');
 
 | 方法 | 返回值 | 说明 |
 |------|--------|------|
-| `loadJson<T>(path, options?)` | `Promise<T>` | 加载并解析 JSON 文件 |
-| `loadText(path, options?)` | `Promise<string>` | 加载文本文件 |
-| `loadBinary(path, options?)` | `Promise<ArrayBuffer>` | 加载二进制文件 |
+| `fetchJson<T>(path)` | `Promise<T>` | 加载并解析 JSON 文件 |
+| `fetchText(path)` | `Promise<string>` | 加载文本文件 |
+| `fetchBinary(path)` | `Promise<ArrayBuffer>` | 加载二进制文件 |
 
 ```typescript
-const config = await assets.loadJson<GameConfig>('assets/config.json');
-const csv = await assets.loadText('assets/levels.csv');
-const data = await assets.loadBinary('assets/tilemap.bin');
+const config = await assets.fetchJson<GameConfig>('assets/config.json');
+const csv = await assets.fetchText('assets/levels.csv');
+const data = await assets.fetchBinary('assets/tilemap.bin');
 ```
-
-### FileLoadOptions
-
-| 选项 | 类型 | 说明 |
-|------|------|------|
-| `baseUrl` | string | 覆盖此请求的基础 URL |
-| `noCache` | boolean | 跳过缓存，始终从网络获取 |
 
 ## 批量加载
 
 使用 `loadAll` 从 `AddressableManifest` 并行加载所有资源：
 
 ```typescript
-const manifest = await assets.loadJson('assets/addressable-manifest.json');
+const manifest = await assets.fetchJson('assets/addressable-manifest.json');
 assets.setAddressableManifest(manifest);
 
 const bundle = await assets.loadAll(manifest);
@@ -191,11 +184,7 @@ sprite.material = loaded.handle;
 
 ## 缓存机制
 
-所有加载方法按路径缓存。同一路径加载两次会直接返回缓存结果，不会再次发起网络请求。使用 `noCache` 选项跳过缓存：
-
-```typescript
-const fresh = await assets.loadJson('assets/config.json', { noCache: true });
-```
+类型化加载方法（`loadTexture`、`loadSpine`、`loadMaterial`、`loadPrefab`）按路径缓存。同一路径加载两次会直接返回缓存结果，不会再次发起网络请求。通用获取方法（`fetchJson`、`fetchText`、`fetchBinary`）不缓存——每次调用都从后端获取。
 
 ## 基础 URL
 
@@ -214,7 +203,7 @@ const tex = await assets.loadTexture('sprites/player.png');
 通过一次调用加载场景文件及其所有引用的资源：
 
 ```typescript
-const sceneData = await assets.loadJson<SceneData>('assets/scenes/main.esscene');
+const sceneData = await assets.fetchJson<SceneData>('assets/scenes/main.esscene');
 const entityMap = await assets.loadScene(world, sceneData);
 ```
 
@@ -222,7 +211,7 @@ const entityMap = await assets.loadScene(world, sceneData);
 
 ## 嵌入式资源
 
-对于 Playable Ad 构建，编辑器的构建流程会自动将所有引用的资源以 data URI 形式嵌入输出包中。运行时 `assets.loadTexture()` / `assets.loadJson()` 等加载调用会直接从嵌入数据解析，无需网络请求，也无需修改任何代码。
+对于 Playable Ad 构建，编辑器的构建流程会自动将所有引用的资源以 data URI 形式嵌入输出包中。运行时 `assets.loadTexture()` / `assets.fetchJson()` 等加载调用会直接从嵌入数据解析，无需网络请求，也无需修改任何代码。
 
 对于自定义构建，可以手动注册嵌入式资源：
 
@@ -278,7 +267,7 @@ const bundle = await assets.loadGroup('level-1');
 ```typescript
 import { Assets } from 'esengine';
 
-const manifest = await assets.loadJson('assets/addressable-manifest.json');
+const manifest = await assets.fetchJson('assets/addressable-manifest.json');
 assets.setAddressableManifest(manifest);
 ```
 
