@@ -1861,6 +1861,7 @@ interface PlatformAdapter {
     createImage(): HTMLImageElement;
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
     createAudioBackend(): PlatformAudioBackend;
+    devicePixelRatio(): number;
     getStorageItem(key: string): string | null;
     setStorageItem(key: string, value: string): void;
     removeStorageItem(key: string): void;
