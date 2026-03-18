@@ -20,6 +20,8 @@ The `Sprite` component is the primary way to display 2D graphics. Add it to an e
 | `flipX` | boolean | `false` | Flip horizontally |
 | `flipY` | boolean | `false` | Flip vertically |
 | `pivot` | Vec2 | `{x: 0.5, y: 0.5}` | Pivot point for rotation and scaling |
+| `tileSize` | Vec2 | `{x: 0, y: 0}` | Tile dimensions for tiling (0 = no tiling) |
+| `tileSpacing` | Vec2 | `{x: 0, y: 0}` | Gap between tiles |
 | `material` | number | `0` | Material ID |
 | `enabled` | boolean | `true` | Whether this sprite is rendered |
 
@@ -119,6 +121,25 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+## Tiling
+
+Set `tileSize` to repeat a texture across the sprite area. Each tile is drawn at the specified size, filling the sprite's `size` region.
+
+```typescript
+sprite.tileSize = { x: 64, y: 64 };    // each tile is 64×64
+sprite.size = { x: 256, y: 256 };       // 4×4 grid of tiles
+```
+
+Add `tileSpacing` for gaps between tiles:
+
+```typescript
+sprite.tileSpacing = { x: 4, y: 4 };   // 4px gap between tiles
+```
+
+<Aside type="note">
+  In the Inspector, the **Tile Spacing** field only appears when **Tile Size** is non-zero. Set Tile Size first to enable tiling.
+</Aside>
 
 ## Render Order
 
