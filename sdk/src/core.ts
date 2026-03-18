@@ -222,6 +222,10 @@ export {
 // =============================================================================
 
 export { World } from './world';
+export { PTR_LAYOUTS } from './ptrLayouts.generated';
+export type { PtrLayout } from './ptrLayouts.generated';
+export { writePtrField, readPtrField } from './ecs/BuiltinBridge';
+export type { BuiltinBridge } from './ecs/BuiltinBridge';
 
 // =============================================================================
 // App
@@ -899,3 +903,9 @@ export {
 // =============================================================================
 
 export { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
+
+// =============================================================================
+// App Context
+// =============================================================================
+
+export { AppContext, getDefaultContext, setDefaultContext, type EditorBridge } from './context';

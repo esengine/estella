@@ -4,6 +4,7 @@
  */
 
 import { AnyComponentDef } from './component';
+import { getDefaultContext } from './context';
 import { QueryDescriptor, QueryInstance, MutWrapper, RemovedQueryDescriptor, RemovedQueryInstance } from './query';
 import { ResDescriptor, ResMutDescriptor, ResMutInstance, ResourceStorage } from './resource';
 import { CommandsDescriptor, CommandsInstance } from './commands';
@@ -116,8 +117,7 @@ export function defineSystem<P extends readonly SystemParam[]>(
 // =============================================================================
 
 function getPendingSystems(): Array<{ schedule: number; system: unknown }> {
-    const g = globalThis as any;
-    return (g.__esengine_pendingSystems ??= []);
+    return getDefaultContext().pendingSystems;
 }
 
 export function addSystem(system: SystemDef): void {

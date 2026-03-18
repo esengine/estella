@@ -238,7 +238,7 @@ export async function showCreateTilemapDialog(
     }
 
     state.store.selectEntity(entity);
-    state.store.requestGizmo('tile-brush');
+    state.store.bus.emit('gizmo:requested', { id: 'tile-brush' });
     getNavigationService().showPanel('tile-palette');
     return entity;
 }

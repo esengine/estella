@@ -421,32 +421,110 @@ declare class Assets {
 }
 
 /**
- * @file    world.ts
- * @brief   ECS World with C++ Registry integration
+ * @file    BuiltinBridge.ts
+ * @brief   C++ Registry integration layer for builtin components
  */
 
-declare class World {
+type PtrFieldType = 'f32' | 'i32' | 'u32' | 'bool' | 'u8' | 'vec2' | 'vec3' | 'vec4' | 'quat' | 'color';
+interface PtrFieldDesc {
+    readonly name: string;
+    readonly type: PtrFieldType;
+    readonly offset: number;
+}
+declare function readPtrField(f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, field: PtrFieldDesc): unknown;
+declare function writePtrField(f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, field: PtrFieldDesc, value: any): void;
+interface BuiltinMethods {
+    add: (e: Entity, d: unknown) => void;
+    get: (e: Entity) => unknown;
+    has: (e: Entity) => boolean;
+    remove: (e: Entity) => void;
+}
+declare class BuiltinBridge {
     private cppRegistry_;
     private module_;
-    private entities_;
-    private tsStorage_;
-    private entityComponents_;
-    private builtinEntitySets_;
-    private worldVersion_;
-    private queryCache_;
     private builtinMethodCache_;
-    private iterationDepth_;
-    private nextEntityId_;
-    private nextGeneration_;
-    private spawnCallbacks_;
-    private despawnCallbacks_;
-    private nameIndex_;
-    private entityToName_;
+    private builtinEntitySets_;
+    connect(cppRegistry: CppRegistry, module?: ESEngineModule): void;
+    disconnect(): void;
+    get hasCpp(): boolean;
+    getCppRegistry(): CppRegistry | null;
+    getWasmModule(): ESEngineModule | null;
+    getBuiltinMethods(cppName: string): BuiltinMethods;
+    getMethodCache(): Map<string, BuiltinMethods>;
+    getEntitySet(cppName: string): Set<Entity> | undefined;
+    getOrCreateEntitySet(cppName: string): Set<Entity>;
+    deleteFromEntitySets(entity: Entity): void;
+    insert<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): {
+        merged: T;
+        isNew: boolean;
+    };
+    get<T>(entity: Entity, component: BuiltinComponentDef<T>): T;
+    has(entity: Entity, component: BuiltinComponentDef<any>): boolean;
+    remove(entity: Entity, component: BuiltinComponentDef<any>): void;
+    resolvePtrFn(cppName: string): ((entity: Entity) => number) | null;
+    resolvePtrSetter(cppName: string): ((entity: Entity, data: unknown) => void) | null;
+    resolvePtrGetter(cppName: string): ((entity: Entity) => unknown) | null;
+}
+
+/**
+ * @file    ChangeTracker.ts
+ * @brief   Tracks per-component add/change/remove ticks for change detection queries
+ */
+
+declare class ChangeTracker {
     private worldTick_;
     private componentAddedTicks_;
     private componentChangedTicks_;
     private componentRemovedBuffer_;
     private trackedComponents_;
+    advanceTick(): void;
+    getWorldTick(): number;
+    enableChangeTracking(component: AnyComponentDef): void;
+    isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[];
+    cleanRemovedBuffer(beforeTick: number): void;
+    recordAdded(component: AnyComponentDef, entity: Entity): void;
+    recordChanged(component: AnyComponentDef, entity: Entity): void;
+    recordRemoved(component: AnyComponentDef, entity: Entity): void;
+    recordRemovedById(componentId: symbol, entity: Entity): void;
+}
+
+/**
+ * @file    QueryCache.ts
+ * @brief   Component-aware query result cache with fine-grained invalidation
+ */
+
+declare class QueryCache {
+    private structuralVersion_;
+    private componentVersions_;
+    private cache_;
+    get structuralVersion(): number;
+    markStructuralChange(): void;
+    markComponentDirty(componentId: symbol): void;
+    invalidateAll(): void;
+    getOrCompute(cacheKey: string, dependentComponentIds: symbol[], computeFn: () => Entity[]): Entity[];
+    private isValid_;
+}
+
+/**
+ * @file    world.ts
+ * @brief   ECS World with C++ Registry integration
+ */
+
+declare class World {
+    private readonly builtin_;
+    private readonly scripts_;
+    private readonly names_;
+    readonly changes_: ChangeTracker;
+    readonly queries_: QueryCache;
+    private entities_;
+    private iterationDepth_;
+    private nextEntityId_;
+    private nextGeneration_;
+    private spawnCallbacks_;
+    private despawnCallbacks_;
+    get builtin(): BuiltinBridge;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
@@ -473,31 +551,20 @@ declare class World {
     has(entity: Entity, component: AnyComponentDef): boolean;
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null;
     remove(entity: Entity, component: AnyComponentDef): void;
-    private getBuiltinMethods;
-    private insertBuiltin;
-    private getBuiltin;
-    private hasBuiltin;
-    private removeBuiltin;
-    private insertScript;
-    private getScript;
-    private hasScript;
-    private removeScript;
-    private updateNameIndex_;
-    private removeNameIndex_;
+    private insertBuiltin_;
+    private insertScript_;
+    private removeScript_;
     findEntityByName(name: string): Entity | null;
-    private getStorage;
     /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
     resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null;
     /** @internal Pre-resolve a component to a direct has-check for fast query matching. */
     resolveHas(component: AnyComponentDef): ((entity: Entity) => boolean) | null;
     /** @internal Pre-resolve a component to a direct setter for fast Mut write-back. */
     resolveSetter(component: AnyComponentDef): ((entity: Entity, data: unknown) => void) | null;
-    private resolvePtrFn_;
-    private resolvePtrSetter_;
-    private resolvePtrGetter_;
     resetQueryPool(): void;
     getComponentTypes(entity: Entity): string[];
     private resolveStorages_;
+    private collectComponentIds_;
     getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string): Entity[];
     advanceTick(): void;
     getWorldTick(): number;
@@ -506,11 +573,8 @@ declare class World {
     isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
     getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[];
     cleanRemovedBuffer(beforeTick: number): void;
-    private recordAddedTick_;
     /** @internal Mark component as changed without writing data (for in-place Mut query) */
     markChanged(entity: Entity, component: AnyComponentDef): void;
-    private recordChangedTick_;
-    private recordRemovedTick_;
 }
 
 /**
@@ -1891,5 +1955,5 @@ interface WebAppOptions {
 }
 declare function flushPendingSystems(app: App): void;
 
-export { App as A, AssetServer as O, BitmapText as U, World as W, Camera as X, Canvas as _, ResMutInstance as a$, Changed as a0, Children as a2, ClearFlags as a4, Commands as a5, CommandsInstance as a7, Disabled as a9, Name as aA, Parent as aD, ParticleEasing as aF, ParticleEmitter as aG, PostProcessVolume as aJ, ProjectionType as aM, Query as aN, QueryInstance as aQ, Removed as aS, RemovedQueryInstance as aU, RenderPipeline as aW, Res as aX, ResMut as aZ, EmitterShape as ac, EntityCommands as ad, EventReader as af, EventReaderInstance as ah, EventRegistry as ai, EventWriter as aj, EventWriterInstance as al, GetWorld as an, LocalTransform as as, Material as au, MaterialLoader as aw, Mut as ay, getComponentSpineFieldDescriptor as b$, ScaleMode as b1, SceneManager as b6, SceneManagerState as b7, SceneOwner as b8, Velocity as bA, WorldTransform as bD, addStartupSystem as bF, addSystem as bG, addSystemToSchedule as bH, clearDrawCallbacks as bI, clearUserComponents as bJ, defineComponent as bK, defineEvent as bL, defineResource as bM, defineSystem as bN, defineTag as bO, findEntityByName as bP, flushPendingSystems as bQ, getAddressableType as bR, getAddressableTypeByEditorType as bS, getAllAssetExtensions as bT, getAssetBuildTransform as bU, getAssetMimeType as bV, getAssetTypeEntry as bW, getComponent as bX, getComponentAssetFieldDescriptors as bY, getComponentAssetFields as bZ, getComponentDefaults as b_, Schedule as bb, ShaderSources as bd, ShapeRenderer as be, ShapeType as bg, SimulationSpace as bh, SpineAnimation as bj, Sprite as bn, SystemRunner as bs, Time as bv, Transform as bx, SpineModuleController as c, getCustomExtensions as c0, getEditorType as c1, getUserComponent as c2, getWeChatPackOptions as c3, initMaterialAPI as c4, isBuiltinComponent as c5, isCustomExtension as c6, isKnownAssetExtension as c7, isTextureRef as c8, loadComponent as c9, loadSceneData as ca, loadSceneWithAssets as cb, looksLikeAssetPath as cc, registerAssetBuildTransform as cd, registerComponent as ce, registerDrawCallback as cf, registerMaterialCallback as cg, remapEntityFields as ch, shutdownMaterialAPI as ci, toBuildPath as cj, unregisterComponent as ck, unregisterDrawCallback as cl, updateCameraAspectRatio as cm, wrapSceneSystem as cn, createSpineFactories as e, loadSpineModule as l, Assets as m, PostProcessStack as n, wrapSpineModule as w, BlendMode as x, Added as z };
-export type { CanvasData as $, BuiltinComponentDef as B, ConstraintList as C, AddedWrapper as D, AddressableAssetType as E, FlattenContext as F, AddressableManifestAsset as G, AddressableManifestGroup as H, AddressableResultMap as I, AssetBuildTransform as J, AssetBundle$1 as K, AssetContentType as L, MaterialHandle as M, AssetFieldType as N, Plugin as P, AssetTypeEntry as Q, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, BitmapTextData as V, CameraData as Y, CameraRenderParams as Z, PathMixData as a, ChangedWrapper as a1, ChildrenData as a3, CommandsDescriptor as a6, ComponentData as a8, NameData as aB, NestedPrefabRef as aC, ParentData as aE, ParticleEmitterData as aH, PluginDependency as aI, PostProcessVolumeData as aK, PrefabEntityData as aL, QueryBuilder as aO, QueryDescriptor as aP, QueryResult as aR, RemovedQueryDescriptor as aT, RenderParams as aV, ResDescriptor as aY, ResMutDescriptor as a_, DrawCallback as aa, EditorAssetType as ab, EventDef as ae, EventReaderDescriptor as ag, EventWriterDescriptor as ak, FileLoadOptions as am, GetWorldDescriptor as ao, InferParam as ap, InferParams as aq, LoadedMaterial as ar, LocalTransformData as at, MaterialAssetData as av, MaterialOptions as ax, MutWrapper as az, SpineEventCallback as b, RunCondition as b0, SceneComponentData as b2, SceneContext as b3, SceneEntityData as b4, SceneLoadOptions as b5, SceneOwnerData as b9, VelocityData as bB, Viewport as bC, WorldTransformData as bE, SceneStatus as ba, ShaderLoader as bc, ShapeRendererData as bf, SliceBorder$1 as bi, SpineAnimationData as bk, SpineDescriptor as bl, SpineLoadResult as bm, SpriteData as bo, SystemDef as bp, SystemOptions as bq, SystemParam as br, TextureInfo as bt, TextureRef as bu, TimeData as bw, TransitionOptions as by, UniformValue as bz, SpineModuleFactory as d, RawSpineEvent as f, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ComponentData$1 as k, ShaderHandle as o, ComponentDef as p, TransformData as q, AnyComponentDef as r, SceneData as s, SpineWasmModule as t, AddressableManifest as u, SceneConfig as v, WebAppOptions as y };
+export { Canvas as $, App as A, AssetServer as O, BitmapText as U, World as W, BuiltinBridge as X, Camera as Y, Changed as a1, Children as a3, ClearFlags as a5, Commands as a6, CommandsInstance as a8, Name as aB, Parent as aE, ParticleEasing as aG, ParticleEmitter as aH, PostProcessVolume as aK, ProjectionType as aN, Query as aO, QueryInstance as aR, Removed as aT, RemovedQueryInstance as aV, RenderPipeline as aX, Res as aY, ResMut as a_, Disabled as aa, EmitterShape as ad, EntityCommands as ae, EventReader as ag, EventReaderInstance as ai, EventRegistry as aj, EventWriter as ak, EventWriterInstance as am, GetWorld as ao, LocalTransform as at, Material as av, MaterialLoader as ax, Mut as az, getComponentDefaults as b$, ResMutInstance as b0, ScaleMode as b2, SceneManager as b7, SceneManagerState as b8, SceneOwner as b9, Velocity as bB, WorldTransform as bE, addStartupSystem as bG, addSystem as bH, addSystemToSchedule as bI, clearDrawCallbacks as bJ, clearUserComponents as bK, defineComponent as bL, defineEvent as bM, defineResource as bN, defineSystem as bO, defineTag as bP, findEntityByName as bQ, flushPendingSystems as bR, getAddressableType as bS, getAddressableTypeByEditorType as bT, getAllAssetExtensions as bU, getAssetBuildTransform as bV, getAssetMimeType as bW, getAssetTypeEntry as bX, getComponent as bY, getComponentAssetFieldDescriptors as bZ, getComponentAssetFields as b_, Schedule as bc, ShaderSources as be, ShapeRenderer as bf, ShapeType as bh, SimulationSpace as bi, SpineAnimation as bk, Sprite as bo, SystemRunner as bt, Time as bw, Transform as by, SpineModuleController as c, getComponentSpineFieldDescriptor as c0, getCustomExtensions as c1, getEditorType as c2, getUserComponent as c3, getWeChatPackOptions as c4, initMaterialAPI as c5, isBuiltinComponent as c6, isCustomExtension as c7, isKnownAssetExtension as c8, isTextureRef as c9, loadComponent as ca, loadSceneData as cb, loadSceneWithAssets as cc, looksLikeAssetPath as cd, readPtrField as ce, registerAssetBuildTransform as cf, registerComponent as cg, registerDrawCallback as ch, registerMaterialCallback as ci, remapEntityFields as cj, shutdownMaterialAPI as ck, toBuildPath as cl, unregisterComponent as cm, unregisterDrawCallback as cn, updateCameraAspectRatio as co, wrapSceneSystem as cp, writePtrField as cq, createSpineFactories as e, loadSpineModule as l, Assets as m, PostProcessStack as n, wrapSpineModule as w, BlendMode as x, Added as z };
+export type { BuiltinComponentDef as B, ConstraintList as C, AddedWrapper as D, AddressableAssetType as E, FlattenContext as F, AddressableManifestAsset as G, AddressableManifestGroup as H, AddressableResultMap as I, AssetBuildTransform as J, AssetBundle$1 as K, AssetContentType as L, MaterialHandle as M, AssetFieldType as N, Plugin as P, AssetTypeEntry as Q, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, BitmapTextData as V, CameraData as Z, CameraRenderParams as _, PathMixData as a, ResMutDescriptor as a$, CanvasData as a0, ChangedWrapper as a2, ChildrenData as a4, CommandsDescriptor as a7, ComponentData as a9, MutWrapper as aA, NameData as aC, NestedPrefabRef as aD, ParentData as aF, ParticleEmitterData as aI, PluginDependency as aJ, PostProcessVolumeData as aL, PrefabEntityData as aM, QueryBuilder as aP, QueryDescriptor as aQ, QueryResult as aS, RemovedQueryDescriptor as aU, RenderParams as aW, ResDescriptor as aZ, DrawCallback as ab, EditorAssetType as ac, EventDef as af, EventReaderDescriptor as ah, EventWriterDescriptor as al, FileLoadOptions as an, GetWorldDescriptor as ap, InferParam as aq, InferParams as ar, LoadedMaterial as as, LocalTransformData as au, MaterialAssetData as aw, MaterialOptions as ay, SpineEventCallback as b, RunCondition as b1, SceneComponentData as b3, SceneContext as b4, SceneEntityData as b5, SceneLoadOptions as b6, UniformValue as bA, VelocityData as bC, Viewport as bD, WorldTransformData as bF, SceneOwnerData as ba, SceneStatus as bb, ShaderLoader as bd, ShapeRendererData as bg, SliceBorder$1 as bj, SpineAnimationData as bl, SpineDescriptor as bm, SpineLoadResult as bn, SpriteData as bp, SystemDef as bq, SystemOptions as br, SystemParam as bs, TextureInfo as bu, TextureRef as bv, TimeData as bx, TransitionOptions as bz, SpineModuleFactory as d, RawSpineEvent as f, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ComponentData$1 as k, ShaderHandle as o, ComponentDef as p, TransformData as q, AnyComponentDef as r, SceneData as s, SpineWasmModule as t, AddressableManifest as u, SceneConfig as v, WebAppOptions as y };

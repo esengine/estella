@@ -4,13 +4,15 @@ import { createEmptyScene } from '../types/SceneTypes';
 import { CommandHistory, type Command } from '../commands';
 import { WorldTransformCache } from '../transform/WorldTransformCache';
 import type { TransformValue } from '../math/Transform';
-import { SelectionService } from './SelectionService';
+import { SelectionStore } from './SelectionStore';
 import { SceneOperations } from './SceneOperations';
 import { PrefabEditService } from './PrefabEditService';
 import { PropertyWritePipeline } from './PropertyWritePipeline';
 import { registerBuiltinTransformHooks } from './propertyHooks';
 import { getPrefabDependencyTracker } from '../prefab';
 import { showToast } from '../ui/Toast';
+import { TileToolStore } from './TileToolStore';
+import type { EditorEventBus } from '../events/EditorEventBus';
 
 // =============================================================================
 // Types
@@ -92,12 +94,6 @@ export class EditorStore {
     private history_: CommandHistory;
     private forceDirty_ = false;
     private listeners_ = new Set<EditorListener>();
-    private propertyListeners_ = new Set<PropertyChangeListener>();
-    private hierarchyListeners_ = new Set<HierarchyChangeListener>();
-    private visibilityListeners_ = new Set<VisibilityChangeListener>();
-    private entityLifecycleListeners_ = new Set<EntityLifecycleListener>();
-    private componentChangeListeners_ = new Set<ComponentChangeListener>();
-    private sceneSyncListeners_ = new Set<() => void>();
     private pendingNotify_ = false;
     private dirtyFlags_ = new Set<DirtyFlag>();
     nextEntityId_ = 1;
@@ -107,13 +103,10 @@ export class EditorStore {
 
     private autoSaveTimer_: ReturnType<typeof setInterval> | null = null;
 
-    private tileBrushTool_: 'paint' | 'rect-fill' | 'bucket-fill' | 'eraser' | 'picker' = 'paint';
-    private tileBrushStamp_: { width: number; height: number; tiles: number[] } = { width: 1, height: 1, tiles: [1] };
-    private tileBrushFlipH_ = false;
-    private tileBrushFlipV_ = false;
-    private requestedGizmoId_: string | null = null;
+    private readonly bus_: EditorEventBus;
+    readonly tileTool: TileToolStore;
 
-    private readonly selection_: SelectionService;
+    readonly selection_: SelectionStore;
     private readonly sceneOps_: SceneOperations;
     private readonly prefabEdit_: PrefabEditService;
     readonly pipeline_: PropertyWritePipeline;
@@ -121,7 +114,9 @@ export class EditorStore {
     private static readonly AUTOSAVE_KEY = 'esengine.autosave';
     private static readonly AUTOSAVE_INTERVAL = 60_000;
 
-    constructor() {
+    constructor(bus: EditorEventBus) {
+        this.bus_ = bus;
+        this.tileTool = new TileToolStore(bus);
         const scene = createEmptyScene();
         this.state_ = {
             scene,
@@ -135,7 +130,16 @@ export class EditorStore {
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
 
-        this.selection_ = new SelectionService(this);
+        this.selection_ = new SelectionStore(
+            bus,
+            (id: number) => this.entityMap_.get(id) ?? null,
+            () => this.state_.scene.entities,
+        );
+        this.selection_.onSelectionChanged(() => {
+            this.state_.selectedEntities = new Set(this.selection_.selectedEntities);
+            this.state_.selectedAsset = this.selection_.selectedAsset;
+            this.notify('selection');
+        });
         this.sceneOps_ = new SceneOperations(this);
         this.prefabEdit_ = new PrefabEditService(this);
 
@@ -187,6 +191,14 @@ export class EditorStore {
         return this.state_.selectedAsset;
     }
 
+    get selection(): SelectionStore {
+        return this.selection_;
+    }
+
+    get bus(): EditorEventBus {
+        return this.bus_;
+    }
+
     get prefabEditingPath(): string | null {
         return this.prefabEdit_.prefabEditingPath;
     }
@@ -195,54 +207,14 @@ export class EditorStore {
         return this.prefabEdit_.isEditingPrefab;
     }
 
-    get tileBrushTool(): 'paint' | 'rect-fill' | 'bucket-fill' | 'eraser' | 'picker' {
-        return this.tileBrushTool_;
-    }
-
-    set tileBrushTool(tool: 'paint' | 'rect-fill' | 'bucket-fill' | 'eraser' | 'picker') {
-        if (this.tileBrushTool_ === tool) return;
-        this.tileBrushTool_ = tool;
-        this.notify();
-    }
-
-    get tileBrushStamp(): Readonly<{ width: number; height: number; tiles: number[] }> {
-        return this.tileBrushStamp_;
-    }
-
-    set tileBrushStamp(stamp: { width: number; height: number; tiles: number[] }) {
-        this.tileBrushStamp_ = stamp;
-        this.notify();
-    }
-
-    get tileBrushFlipH(): boolean {
-        return this.tileBrushFlipH_;
-    }
-
-    set tileBrushFlipH(v: boolean) {
-        if (this.tileBrushFlipH_ === v) return;
-        this.tileBrushFlipH_ = v;
-        this.notify();
-    }
-
-    get tileBrushFlipV(): boolean {
-        return this.tileBrushFlipV_;
-    }
-
-    set tileBrushFlipV(v: boolean) {
-        if (this.tileBrushFlipV_ === v) return;
-        this.tileBrushFlipV_ = v;
-        this.notify();
-    }
-
-    consumeRequestedGizmoId(): string | null {
-        const id = this.requestedGizmoId_;
-        this.requestedGizmoId_ = null;
-        return id;
-    }
-
-    requestGizmo(id: string): void {
-        this.requestedGizmoId_ = id;
-    }
+    get tileBrushTool() { return this.tileTool.brushTool; }
+    set tileBrushTool(v) { this.tileTool.brushTool = v; }
+    get tileBrushStamp() { return this.tileTool.brushStamp; }
+    set tileBrushStamp(v) { this.tileTool.brushStamp = v; }
+    get tileBrushFlipH() { return this.tileTool.brushFlipH; }
+    set tileBrushFlipH(v) { this.tileTool.brushFlipH = v; }
+    get tileBrushFlipV() { return this.tileTool.brushFlipV; }
+    set tileBrushFlipV(v) { this.tileTool.brushFlipV = v; }
 
     get canUndo(): boolean {
         return this.history_.canUndo();
@@ -291,6 +263,7 @@ export class EditorStore {
     }
 
     private swapScene_(scene: SceneData, filePath: string | null): void {
+        this.selection_.clearSelection();
         this.state_ = {
             scene,
             selectedEntities: new Set(),
@@ -317,6 +290,7 @@ export class EditorStore {
     }
 
     restoreSnapshot(snapshot: SceneSnapshot): void {
+        this.selection_.selectEntities(snapshot.selectedEntities);
         this.state_ = {
             scene: snapshot.scene,
             selectedEntities: new Set(snapshot.selectedEntities),
@@ -430,11 +404,6 @@ export class EditorStore {
         if (parentId === null) return true;
         const parentData = this.entityMap_.get(parentId);
         return parentData?.visible !== false;
-    }
-
-    subscribeToVisibilityChanges(listener: VisibilityChangeListener): () => void {
-        this.visibilityListeners_.add(listener);
-        return () => this.visibilityListeners_.delete(listener);
     }
 
     // =========================================================================
@@ -628,31 +597,6 @@ export class EditorStore {
         return () => this.listeners_.delete(listener);
     }
 
-    subscribeToPropertyChanges(listener: PropertyChangeListener): () => void {
-        this.propertyListeners_.add(listener);
-        return () => this.propertyListeners_.delete(listener);
-    }
-
-    subscribeToHierarchyChanges(listener: HierarchyChangeListener): () => void {
-        this.hierarchyListeners_.add(listener);
-        return () => this.hierarchyListeners_.delete(listener);
-    }
-
-    subscribeToEntityLifecycle(listener: EntityLifecycleListener): () => void {
-        this.entityLifecycleListeners_.add(listener);
-        return () => this.entityLifecycleListeners_.delete(listener);
-    }
-
-    subscribeToComponentChanges(listener: ComponentChangeListener): () => void {
-        this.componentChangeListeners_.add(listener);
-        return () => this.componentChangeListeners_.delete(listener);
-    }
-
-    subscribeToSceneSync(listener: () => void): () => void {
-        this.sceneSyncListeners_.add(listener);
-        return () => this.sceneSyncListeners_.delete(listener);
-    }
-
     // =========================================================================
     // Internal (used by services via host interfaces)
     // =========================================================================
@@ -678,9 +622,7 @@ export class EditorStore {
     }
 
     private notifySceneSync(): void {
-        for (const listener of this.sceneSyncListeners_) {
-            listener();
-        }
+        this.bus_.emit('scene:synced', {});
     }
 
     notify(flag: DirtyFlag = 'scene'): void {
@@ -701,33 +643,23 @@ export class EditorStore {
 
     notifyPropertyChange(event: PropertyChangeEvent): void {
         this.pipeline_.handlePropertyNotification(event);
-        for (const listener of this.propertyListeners_) {
-            listener(event);
-        }
+        this.bus_.emit('property:changed', event);
     }
 
     notifyHierarchyChange(event: HierarchyChangeEvent): void {
-        for (const listener of this.hierarchyListeners_) {
-            listener(event);
-        }
+        this.bus_.emit('hierarchy:changed', event);
     }
 
     notifyEntityLifecycle(event: EntityLifecycleEvent): void {
-        for (const listener of this.entityLifecycleListeners_) {
-            listener(event);
-        }
+        this.bus_.emit('entity:lifecycle', event);
     }
 
     notifyComponentChange(event: ComponentChangeEvent): void {
-        for (const listener of this.componentChangeListeners_) {
-            listener(event);
-        }
+        this.bus_.emit('component:changed', event);
     }
 
     notifyVisibilityChange(event: VisibilityChangeEvent): void {
-        for (const listener of this.visibilityListeners_) {
-            listener(event);
-        }
+        this.bus_.emit('visibility:changed', event);
     }
 
     private rebuildEntityMap(): void {

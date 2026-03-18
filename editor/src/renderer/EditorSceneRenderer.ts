@@ -79,18 +79,19 @@ export class EditorSceneRenderer {
 
         this.registerPipelineSyncHooks_(store);
 
+        const bus = store.bus;
         this.unsubscribes_.push(
-            store.subscribeToHierarchyChanges((e) => {
+            bus.on('hierarchy:changed', (e) => {
                 sm.reparentEntity(e.entity, e.newParent);
             }),
-            store.subscribeToVisibilityChanges((e) => {
+            bus.on('visibility:changed', (e) => {
                 if (e.visible) {
                     sm.showEntity(e.entity);
                 } else {
                     sm.hideEntity(e.entity);
                 }
             }),
-            store.subscribeToEntityLifecycle((e) => {
+            bus.on('entity:lifecycle', (e) => {
                 if (e.type === 'created') {
                     sm.spawnEntity(e.entity, e.parent);
                 } else {
@@ -98,7 +99,7 @@ export class EditorSceneRenderer {
                     this.dirtyEntities_.delete(e.entity);
                 }
             }),
-            store.subscribeToComponentChanges((e) => {
+            bus.on('component:changed', (e) => {
                 if (e.action === 'removed') {
                     sm.removeComponentFromEntity(e.entity, e.componentType);
                     if (e.componentType === 'PostProcessVolume') {

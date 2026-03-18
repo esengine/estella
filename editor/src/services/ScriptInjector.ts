@@ -1,5 +1,6 @@
 import * as esengine from 'esengine';
 import type { App } from 'esengine';
+import { getDefaultContext } from 'esengine';
 
 export class ScriptInjector {
     private cleanupFns_: (() => void)[] = [];
@@ -12,7 +13,8 @@ export class ScriptInjector {
 
         this.app_ = app;
 
-        const pendingBefore = (window as any).__esengine_pendingSystems?.length ?? 0;
+        const ctx = getDefaultContext();
+        const pendingBefore = ctx.pendingSystems.length;
 
         (window as any).__esengine_shim__ = { esengine };
 
@@ -32,12 +34,12 @@ export class ScriptInjector {
             console.error('[ScriptInjector] Failed to load user scripts:', e);
         }
 
-        const pending = (window as any).__esengine_pendingSystems;
-        if (pending && pending.length > pendingBefore) {
+        const pending = ctx.pendingSystems;
+        if (pending.length > pendingBefore) {
             for (let i = pendingBefore; i < pending.length; i++) {
                 const entry = pending[i];
-                app.addSystemToSchedule(entry.schedule, entry.system);
-                this.injectedSystemIds_.push(entry.system._id);
+                app.addSystemToSchedule(entry.schedule as any, entry.system as any);
+                this.injectedSystemIds_.push((entry.system as any)._id);
             }
             pending.length = 0;
         }

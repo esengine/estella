@@ -12,3 +12,15 @@ export {
     type AssetCategory,
     type AssetEventListener,
 } from './AssetEventBus';
+
+export {
+    EditorEventBus,
+    getEditorEventBus,
+    type EditorEventMap,
+    type PropertyChangeEvent,
+    type HierarchyChangeEvent,
+    type VisibilityChangeEvent,
+    type EntityLifecycleEvent,
+    type ComponentChangeEvent,
+    type AssetSelection,
+} from './EditorEventBus';

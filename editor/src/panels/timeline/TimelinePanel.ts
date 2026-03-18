@@ -55,7 +55,7 @@ export class TimelinePanel implements PanelInstance {
             }
         }));
 
-        this.disposables_.add(store.subscribeToPropertyChanges(
+        this.disposables_.add(store.bus.on('property:changed',
             (event) => this.onPropertyChanged(event),
         ));
 

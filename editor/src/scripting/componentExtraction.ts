@@ -1,4 +1,4 @@
-import { defineComponent, defineTag } from 'esengine';
+import { defineComponent, defineTag, getDefaultContext } from 'esengine';
 
 export interface ComponentDefEntry {
     name: string;
@@ -48,10 +48,7 @@ export function extractComponentDefs(source: string): ComponentDefEntry[] {
 // =============================================================================
 
 export function registerComponentEntries(entries: ComponentDefEntry[]): void {
-    const registerSchema = typeof window !== 'undefined'
-        ? window.__esengine_registerComponent as
-            ((name: string, defaults: Record<string, unknown>, isTag: boolean) => void) | undefined
-        : undefined;
+    const bridge = getDefaultContext().editorBridge;
 
     for (const { name, defaults, isTag } of entries) {
         if (isTag) {
@@ -59,7 +56,7 @@ export function registerComponentEntries(entries: ComponentDefEntry[]): void {
         } else {
             defineComponent(name, defaults);
         }
-        registerSchema?.(name, defaults, isTag);
+        bridge?.registerComponent(name, defaults, isTag);
     }
 }
 

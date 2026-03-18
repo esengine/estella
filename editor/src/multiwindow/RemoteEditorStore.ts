@@ -204,30 +204,6 @@ export class RemoteEditorStore {
         return () => this.listeners_.delete(listener);
     }
 
-    subscribeToPropertyChanges(): () => void {
-        return () => {};
-    }
-
-    subscribeToHierarchyChanges(): () => void {
-        return () => {};
-    }
-
-    subscribeToEntityLifecycle(): () => void {
-        return () => {};
-    }
-
-    subscribeToComponentChanges(): () => void {
-        return () => {};
-    }
-
-    subscribeToVisibilityChanges(): () => void {
-        return () => {};
-    }
-
-    subscribeToSceneSync(): () => void {
-        return () => {};
-    }
-
     onFocusEntity(): () => void {
         return () => {};
     }

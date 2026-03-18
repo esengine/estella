@@ -153,7 +153,10 @@ export class SceneViewPanel {
         );
 
         this.disposables_.add(store.subscribe(() => this.onSceneChanged()));
-        this.disposables_.add(store.subscribeToSceneSync(() => this.onSceneSyncNeeded()));
+        this.disposables_.add(store.bus.on('scene:synced', () => this.onSceneSyncNeeded()));
+        this.disposables_.add(store.bus.on('gizmo:requested', ({ id }) => {
+            this.toolbar_.setMode(id);
+        }));
         this.disposables_.add(store.onFocusEntity((entityId) => {
             const worldTransform = this.store_.getWorldTransform(entityId);
             this.camera_.focusOnEntity(worldTransform.position.x, worldTransform.position.y);
@@ -447,12 +450,7 @@ export class SceneViewPanel {
     }
 
     private onSceneChanged(): void {
-        const gizmoId = this.store_.consumeRequestedGizmoId();
-        if (gizmoId) {
-            this.toolbar_.setMode(gizmoId);
-        } else {
-            this.autoSwitchGizmo_();
-        }
+        this.autoSwitchGizmo_();
         this.requestRender();
     }
 

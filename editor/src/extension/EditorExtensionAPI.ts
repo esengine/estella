@@ -374,7 +374,7 @@ export class EditorExtensionAPI {
         newValue: unknown;
     }) => void): Disposable {
         const store = this.getStore_();
-        const unsub = store.subscribeToPropertyChanges(callback);
+        const unsub = store.bus.on('property:changed', callback);
         this.subscriptions_.push(unsub);
         return { dispose: unsub };
     }
@@ -385,7 +385,7 @@ export class EditorExtensionAPI {
         parent: number | null;
     }) => void): Disposable {
         const store = this.getStore_();
-        const unsub = store.subscribeToEntityLifecycle(callback);
+        const unsub = store.bus.on('entity:lifecycle', callback);
         this.subscriptions_.push(unsub);
         return { dispose: unsub };
     }
@@ -396,7 +396,7 @@ export class EditorExtensionAPI {
         action: 'added' | 'removed';
     }) => void): Disposable {
         const store = this.getStore_();
-        const unsub = store.subscribeToComponentChanges(callback);
+        const unsub = store.bus.on('component:changed', callback);
         this.subscriptions_.push(unsub);
         return { dispose: unsub };
     }

@@ -174,7 +174,7 @@ export class RuntimeStoreProxy {
     }
 
     subscribeToPropertyChanges(listener: any): () => void {
-        return this.editorStore_.subscribeToPropertyChanges(listener);
+        return this.editorStore_.bus.on('property:changed', listener);
     }
 
     isPrefabInstance(_entityId: number): boolean {

@@ -8,6 +8,7 @@ import {
     addSystemToSchedule,
     SystemRunner,
 } from '../src/system';
+import { getDefaultContext } from '../src/context';
 import { Query, Mut, QueryInstance, Removed, RemovedQueryInstance } from '../src/query';
 import { Res, ResMut, ResMutInstance, defineResource, ResourceStorage } from '../src/resource';
 import { Commands, CommandsInstance } from '../src/commands';
@@ -133,27 +134,27 @@ describe('defineSystem', () => {
 
 describe('Global system registration', () => {
     afterEach(() => {
-        (globalThis as any).__esengine_pendingSystems = [];
+        getDefaultContext().pendingSystems.length = 0;
     });
 
     it('addSystem should register with Update schedule', () => {
         const sys = defineSystem([], () => {});
         addSystem(sys);
-        const pending = (globalThis as any).__esengine_pendingSystems;
+        const pending = getDefaultContext().pendingSystems;
         expect(pending).toContainEqual({ schedule: Schedule.Update, system: sys });
     });
 
     it('addStartupSystem should register with Startup schedule', () => {
         const sys = defineSystem([], () => {});
         addStartupSystem(sys);
-        const pending = (globalThis as any).__esengine_pendingSystems;
+        const pending = getDefaultContext().pendingSystems;
         expect(pending).toContainEqual({ schedule: Schedule.Startup, system: sys });
     });
 
     it('addSystemToSchedule should register with specified schedule', () => {
         const sys = defineSystem([], () => {});
         addSystemToSchedule(Schedule.Last, sys);
-        const pending = (globalThis as any).__esengine_pendingSystems;
+        const pending = getDefaultContext().pendingSystems;
         expect(pending).toContainEqual({ schedule: Schedule.Last, system: sys });
     });
 });

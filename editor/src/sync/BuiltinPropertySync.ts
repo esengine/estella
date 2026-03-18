@@ -3,6 +3,7 @@ import type { EditorSceneManager } from '../scene/EditorSceneManager';
 import type { EditorStore } from '../store/EditorStore';
 import type { PropertyChangeEvent } from '../store/EditorStore';
 import type { EntityData } from '../types/SceneTypes';
+import { IncrementalSync } from './IncrementalSync';
 
 const UIRECT_PATCH_PROPS = new Set(['offsetMin', 'offsetMax']);
 const TRANSFORM_PATCH_PROPS = new Set(['position', 'rotation', 'scale']);
@@ -11,10 +12,12 @@ export class BuiltinPropertySync {
     private sceneManager_: EditorSceneManager;
     private store_: EditorStore;
     private renderCallback_: (() => void) | null = null;
+    private incrementalSync_: IncrementalSync | null = null;
 
     constructor(sceneManager: EditorSceneManager, store: EditorStore) {
         this.sceneManager_ = sceneManager;
         this.store_ = store;
+        this.initIncrementalSync_();
     }
 
     setRenderCallback(callback: (() => void) | null): void {
@@ -39,8 +42,11 @@ export class BuiltinPropertySync {
             return true;
         }
 
-        // Other builtin properties (anchor, pivot, size, Sprite, etc.)
-        // → fall through to defaultSyncHook (scheduleEntityUpdate, async safe)
+        if (this.tryIncrementalSync_(event)) {
+            this.renderCallback_?.();
+            return true;
+        }
+
         return false;
     }
 
@@ -70,5 +76,27 @@ export class BuiltinPropertySync {
         const min = uiRect.data.offsetMin as { x: number; y: number };
         const max = uiRect.data.offsetMax as { x: number; y: number };
         this.sceneManager_.patchUIRectOffset(entityId, min.x, min.y, max.x, max.y);
+    }
+
+    private initIncrementalSync_(): void {
+        const world = this.sceneManager_.world;
+        const module = world.getWasmModule();
+        if (!module) return;
+        this.incrementalSync_ = new IncrementalSync(world.builtin, module);
+    }
+
+    private tryIncrementalSync_(event: PropertyChangeEvent): boolean {
+        if (!this.incrementalSync_) return false;
+
+        const entityMap = this.sceneManager_.getEntityMap();
+        const runtimeEntity = entityMap.get(event.entity);
+        if (runtimeEntity === undefined) return false;
+
+        return this.incrementalSync_.syncProperty(
+            runtimeEntity,
+            event.componentType,
+            event.propertyName,
+            event.newValue,
+        );
     }
 }

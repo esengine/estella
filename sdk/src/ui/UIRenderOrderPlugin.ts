@@ -5,7 +5,7 @@ import { PluginName } from '../systemLabels';
 
 export class UIRenderOrderPlugin implements Plugin {
     name = 'uiRenderOrder';
-    dependencies = [PluginName.UILayout, PluginName.CollectionView];
+    dependencies = [PluginName.UILayout];
 
     build(app: App): void {
         const world = app.world;
