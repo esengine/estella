@@ -1211,9 +1211,19 @@ async fn run_command_streamed(
     cwd: &Path,
     env: &HashMap<String, String>,
 ) -> Result<(), String> {
-    let mut command = Command::new(cmd);
+    let needs_shell = cfg!(windows) && cmd.ends_with(".bat");
+    let mut command = if needs_shell {
+        let mut c = Command::new("cmd.exe");
+        let mut cmd_args = vec!["/C".to_string(), cmd.to_string()];
+        cmd_args.extend_from_slice(args);
+        c.args(&cmd_args);
+        c
+    } else {
+        let mut c = Command::new(cmd);
+        c.args(args);
+        c
+    };
     command
-        .args(args)
         .current_dir(cwd)
         .envs(env)
         .stdout(std::process::Stdio::piped())
