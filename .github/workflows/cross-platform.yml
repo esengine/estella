@@ -132,18 +132,62 @@ jobs:
       - name: Build Editor
         run: pnpm --filter ./editor build
 
-      # Full engine build (WASM + SDK)
-      - name: Build engine (WASM + SDK)
-        run: node build-tools/cli.js build -t all
+      # Build WASM targets individually and verify outputs
+      - name: Build Web target
+        run: node build-tools/cli.js build -t web --no-sync
+
+      - name: Verify Web output
+        shell: bash
+        run: |
+          test -f build/wasm/web/esengine.js || (echo "FAIL: esengine.js not found" && exit 1)
+          test -f build/wasm/web/esengine.wasm || (echo "FAIL: esengine.wasm not found" && exit 1)
+          echo "Web build OK"
+
+      - name: Build Playable target
+        run: node build-tools/cli.js build -t playable --no-sync
+
+      - name: Verify Playable output
+        shell: bash
+        run: |
+          test -f build/wasm/playable/esengine.single.js || (echo "FAIL: esengine.single.js not found" && exit 1)
+          echo "Playable build OK"
+
+      - name: Build WeChat target
+        run: node build-tools/cli.js build -t wechat --no-sync
+
+      - name: Verify WeChat output
+        shell: bash
+        run: |
+          test -f build/wasm/wechat/esengine.wxgame.js || (echo "FAIL: esengine.wxgame.js not found" && exit 1)
+          test -f build/wasm/wechat/esengine.wxgame.wasm || (echo "FAIL: esengine.wxgame.wasm not found" && exit 1)
+          echo "WeChat build OK"
+
+      - name: Build Spine targets
+        run: |
+          node build-tools/cli.js build -t spine --no-sync
+          node build-tools/cli.js build -t spine38 --no-sync
+          node build-tools/cli.js build -t spine41 --no-sync
+
+      - name: Build Physics targets
+        run: |
+          node build-tools/cli.js build -t physics --no-sync
+          node build-tools/cli.js build -t physics-playable --no-sync
+
+      - name: Build SDK
+        run: node build-tools/cli.js sdk --no-sync
 
       # Toolchain packaging
       - name: Package toolchain
         run: node build-tools/cli.js toolchain
 
-      # Rust compilation check (Tauri app)
+      # Rust tests (Tauri app)
       - name: Tauri build check
         shell: bash
         run: cd desktop/src-tauri && cargo check
+
+      - name: Tauri unit tests
+        shell: bash
+        run: cd desktop/src-tauri && cargo test
 
       # Artifact size report
       - name: Collect artifact sizes
