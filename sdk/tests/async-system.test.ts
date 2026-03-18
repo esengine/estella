@@ -234,6 +234,24 @@ describe('App async systems', () => {
         expect(app.getResource(MyData).loaded).toBe(true);
     });
 
+    it('should not run async startup system twice when tick is called concurrently', async () => {
+        const app = App.new();
+        let runCount = 0;
+
+        app.addSystemToSchedule(Schedule.Startup, defineSystem(
+            [], async () => {
+                runCount++;
+                await new Promise(r => setTimeout(r, 50));
+            }, { name: 'AsyncStartupOnce' }
+        ));
+
+        const tick1 = app.tick(1 / 60);
+        const tick2 = app.tick(1 / 60);
+        await Promise.all([tick1, tick2]);
+
+        expect(runCount).toBe(1);
+    });
+
     it('should handle error in async system gracefully', async () => {
         const app = App.new();
         const errors: string[] = [];

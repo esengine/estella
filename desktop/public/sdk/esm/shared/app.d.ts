@@ -1942,6 +1942,7 @@ declare class App {
     private finishPlugins_;
     private sortPlugins;
     private sortSystems;
+    private flushing_startup_;
     private flushStartupSystems_;
     private runSchedule;
     private updateTime;
