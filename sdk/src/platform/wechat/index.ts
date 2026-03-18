@@ -162,6 +162,14 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         }
     }
 
+    devicePixelRatio(): number {
+        try {
+            return wx.getSystemInfoSync?.()?.pixelRatio ?? 1;
+        } catch {
+            return 1;
+        }
+    }
+
     clearStorage(prefix: string): void {
         try {
             const { keys } = wx.getStorageInfoSync();

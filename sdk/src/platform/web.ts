@@ -234,6 +234,10 @@ class WebPlatformAdapter implements PlatformAdapter {
         localStorage.removeItem(key);
     }
 
+    devicePixelRatio(): number {
+        return typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+    }
+
     clearStorage(prefix: string): void {
         const toRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {

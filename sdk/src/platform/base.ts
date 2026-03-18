@@ -111,9 +111,8 @@ export function platformCreateAudioBackend(): import('../audio/PlatformAudioBack
 }
 
 export function platformDevicePixelRatio(): number {
-    if (currentPlatform?.name === 'wechat') {
-        const g = globalThis as any;
-        return g.wx?.getSystemInfoSync?.()?.pixelRatio ?? 1;
+    if (currentPlatform) {
+        return currentPlatform.devicePixelRatio();
     }
     return typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 }

@@ -93,6 +93,8 @@ export interface PlatformAdapter {
 
     createAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
 
+    devicePixelRatio(): number;
+
     getStorageItem(key: string): string | null;
     setStorageItem(key: string, value: string): void;
     removeStorageItem(key: string): void;

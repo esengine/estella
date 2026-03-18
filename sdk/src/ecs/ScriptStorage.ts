@@ -72,6 +72,16 @@ export class ScriptStorage {
     }
 
     set(entity: Entity, component: ComponentDef<any>, data: unknown): void {
+        if (data !== null && data !== undefined && typeof data === 'object') {
+            const errors = validateComponentData(
+                component._name,
+                component._default as Record<string, unknown>,
+                data as Record<string, unknown>,
+            );
+            if (errors.length > 0) {
+                console.warn(formatValidationErrors(component._name, errors));
+            }
+        }
         this.getStorage(component).set(entity, data);
     }
 
