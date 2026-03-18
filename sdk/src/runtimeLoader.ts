@@ -6,6 +6,7 @@
 import { SceneOwner } from './component';
 import { Material } from './material';
 import { loadSceneData, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, type AssetFieldType, type SceneData } from './scene';
+import { discoverSceneAssets, getAssetPathsByType } from './asset/discoverAssets';
 import type { ESEngineModule } from './wasm';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import { SpineManager, type SpineVersion } from './spine/SpineManager';
@@ -77,27 +78,19 @@ async function loadTextures(
     module: ESEngineModule,
     sceneData: SceneData,
     provider: RuntimeAssetProvider,
+    texturePaths: Set<string>,
 ): Promise<Record<string, number>> {
     const cache: Record<string, number> = {};
     const texSettings = (sceneData as any).textureImporterSettings as Record<string, TextureParams> | undefined;
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            const descriptors = getComponentAssetFieldDescriptors(comp.type);
-            for (const desc of descriptors) {
-                if (desc.type !== 'texture') continue;
-                const ref = comp.data[desc.field];
-                if (typeof ref !== 'string' || !ref) continue;
-                if (cache[ref] !== undefined) continue;
-                try {
-                    const params = texSettings?.[ref];
-                    const pixelData = await provider.loadPixels(ref);
-                    const handle = createTextureFromPixels(module, pixelData, true, params);
-                    cache[ref] = handle;
-                } catch (e) {
-                    console.warn(`[loadTextures] Failed to load texture: ${ref}`, e);
-                    cache[ref] = 0;
-                }
-            }
+    for (const ref of texturePaths) {
+        try {
+            const params = texSettings?.[ref];
+            const pixelData = await provider.loadPixels(ref);
+            const handle = createTextureFromPixels(module, pixelData, true, params);
+            cache[ref] = handle;
+        } catch (e) {
+            console.warn(`[loadTextures] Failed to load texture: ${ref}`, e);
+            cache[ref] = 0;
         }
     }
     return cache;
@@ -198,26 +191,18 @@ interface SpineAssetInfo {
 
 async function loadSpineAssetsToVirtualFS(
     module: ESEngineModule,
-    sceneData: SceneData,
     provider: RuntimeAssetProvider,
-    spineManager?: SpineManager | null,
+    spineManager: SpineManager | null | undefined,
+    spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
 ): Promise<Map<string, SpineAssetInfo>> {
-    const loaded = new Set<string>();
     const assetInfoMap = new Map<string, SpineAssetInfo>();
 
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            const spineDesc = getComponentSpineFieldDescriptor(comp.type);
-            if (!spineDesc || !comp.data) continue;
-            const skelRef = comp.data[spineDesc.skeletonField] as string;
-            const atlasRef = comp.data[spineDesc.atlasField] as string;
-            if (!skelRef || !atlasRef) continue;
+    for (const pair of spinePairs) {
+        const skelRef = pair.skeleton;
+        const atlasRef = pair.atlas;
+        const cacheKey = `${skelRef}:${atlasRef}`;
 
-            const cacheKey = `${skelRef}:${atlasRef}`;
-            if (loaded.has(cacheKey)) continue;
-            loaded.add(cacheKey);
-
-            const atlasPath = provider.resolvePath(atlasRef);
+        const atlasPath = provider.resolvePath(atlasRef);
 
             try {
                 const atlasContent = await provider.readText(atlasRef);
@@ -267,7 +252,6 @@ async function loadSpineAssetsToVirtualFS(
             } catch (err) {
                 console.warn(`[Runtime] Failed to load spine asset: skel=${skelRef} atlas=${atlasRef}`, err);
             }
-        }
     }
     return assetInfoMap;
 }
@@ -278,51 +262,44 @@ async function loadSpineAssetsToVirtualFS(
 
 async function loadBitmapFonts(
     module: ESEngineModule,
-    sceneData: SceneData,
     provider: RuntimeAssetProvider,
+    fontPaths: Set<string>,
 ): Promise<Record<string, number>> {
     const cache: Record<string, number> = {};
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            const descriptors = getComponentAssetFieldDescriptors(comp.type);
-            const fontDesc = descriptors.find(d => d.type === 'font');
-            if (!fontDesc) continue;
-            const ref = comp.data[fontDesc.field];
-            if (typeof ref !== 'string' || !ref) continue;
-            if (cache[ref] !== undefined) continue;
-            try {
-                let fntContent: string;
-                let fntDir: string;
+    for (const ref of fontPaths) {
+        if (cache[ref] !== undefined) continue;
+        try {
+            let fntContent: string;
+            let fntDir: string;
 
-                const fontEntry = getAssetTypeEntry(ref);
-                if (fontEntry?.editorType === 'bitmap-font' && fontEntry.contentType === 'json') {
-                    const json = JSON.parse(await provider.readText(ref));
-                    const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
-                    if (!fntFile) { cache[ref] = 0; continue; }
-                    const dir = ref.substring(0, ref.lastIndexOf('/'));
-                    const fntRef = dir ? `${dir}/${fntFile}` : fntFile;
-                    fntContent = await provider.readText(fntRef);
-                    fntDir = fntRef.substring(0, fntRef.lastIndexOf('/'));
-                } else {
-                    fntContent = await provider.readText(ref);
-                    fntDir = ref.substring(0, ref.lastIndexOf('/'));
-                }
-
-                const pageMatch = fntContent.match(/file="([^"]+)"/);
-                if (!pageMatch) { cache[ref] = 0; continue; }
-
-                const texRef = fntDir ? `${fntDir}/${pageMatch[1]}` : pageMatch[1];
-                const pixels = provider.loadPixelsRaw
-                    ? await provider.loadPixelsRaw(texRef)
-                    : await provider.loadPixels(texRef);
-                const texHandle = createTextureFromPixels(module, pixels, false);
-
-                const rm = requireResourceManager();
-                cache[ref] = rm.loadBitmapFont(fntContent, texHandle, pixels.width, pixels.height);
-            } catch (e) {
-                console.warn(`[Runtime] Failed to load bitmap font: ${ref}`, e);
-                cache[ref] = 0;
+            const fontEntry = getAssetTypeEntry(ref);
+            if (fontEntry?.editorType === 'bitmap-font' && fontEntry.contentType === 'json') {
+                const json = JSON.parse(await provider.readText(ref));
+                const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
+                if (!fntFile) { cache[ref] = 0; continue; }
+                const dir = ref.substring(0, ref.lastIndexOf('/'));
+                const fntRef = dir ? `${dir}/${fntFile}` : fntFile;
+                fntContent = await provider.readText(fntRef);
+                fntDir = fntRef.substring(0, fntRef.lastIndexOf('/'));
+            } else {
+                fntContent = await provider.readText(ref);
+                fntDir = ref.substring(0, ref.lastIndexOf('/'));
             }
+
+            const pageMatch = fntContent.match(/file="([^"]+)"/);
+            if (!pageMatch) { cache[ref] = 0; continue; }
+
+            const texRef = fntDir ? `${fntDir}/${pageMatch[1]}` : pageMatch[1];
+            const pixels = provider.loadPixelsRaw
+                ? await provider.loadPixelsRaw(texRef)
+                : await provider.loadPixels(texRef);
+            const texHandle = createTextureFromPixels(module, pixels, false);
+
+            const rm = requireResourceManager();
+            cache[ref] = rm.loadBitmapFont(fntContent, texHandle, pixels.width, pixels.height);
+        } catch (e) {
+            console.warn(`[Runtime] Failed to load bitmap font: ${ref}`, e);
+            cache[ref] = 0;
         }
     }
     return cache;
@@ -333,37 +310,29 @@ async function loadBitmapFonts(
 // =============================================================================
 
 async function loadMaterials(
-    sceneData: SceneData,
     provider: RuntimeAssetProvider,
+    materialPaths: Set<string>,
 ): Promise<Record<string, number>> {
     const materialCache: Record<string, number> = {};
     const shaderCache: Record<string, number> = {};
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            if (!comp.data) continue;
-            const descriptors = getComponentAssetFieldDescriptors(comp.type);
-            const matDesc = descriptors.find(d => d.type === 'material');
-            if (!matDesc) continue;
-            const matRef = comp.data[matDesc.field];
-            if (typeof matRef !== 'string' || !matRef) continue;
-            if (materialCache[matRef] !== undefined) continue;
-            try {
-                const matData = JSON.parse(await provider.readText(matRef));
-                if (!matData.vertexSource || !matData.fragmentSource) {
-                    materialCache[matRef] = 0;
-                    continue;
-                }
-                const shaderKey = matData.vertexSource + matData.fragmentSource;
-                let shaderHandle = shaderCache[shaderKey];
-                if (!shaderHandle) {
-                    shaderHandle = Material.createShader(matData.vertexSource, matData.fragmentSource);
-                    shaderCache[shaderKey] = shaderHandle;
-                }
-                materialCache[matRef] = Material.createFromAsset(matData, shaderHandle);
-            } catch (e) {
-                console.warn(`[Runtime] Failed to load material: ${matRef}`, e);
+    for (const matRef of materialPaths) {
+        if (materialCache[matRef] !== undefined) continue;
+        try {
+            const matData = JSON.parse(await provider.readText(matRef));
+            if (!matData.vertexSource || !matData.fragmentSource) {
                 materialCache[matRef] = 0;
+                continue;
             }
+            const shaderKey = matData.vertexSource + matData.fragmentSource;
+            let shaderHandle = shaderCache[shaderKey];
+            if (!shaderHandle) {
+                shaderHandle = Material.createShader(matData.vertexSource, matData.fragmentSource);
+                shaderCache[shaderKey] = shaderHandle;
+            }
+            materialCache[matRef] = Material.createFromAsset(matData, shaderHandle);
+        } catch (e) {
+            console.warn(`[Runtime] Failed to load material: ${matRef}`, e);
+            materialCache[matRef] = 0;
         }
     }
     return materialCache;
@@ -373,24 +342,10 @@ async function loadMaterials(
 // Audio Helpers
 // =============================================================================
 
-async function preloadAudioClips(sceneData: SceneData, provider?: RuntimeAssetProvider): Promise<void> {
-    const paths: string[] = [];
-    const seen = new Set<string>();
+async function preloadAudioClips(provider: RuntimeAssetProvider, audioPaths: Set<string>): Promise<void> {
+    if (audioPaths.size === 0) return;
 
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            const descriptors = getComponentAssetFieldDescriptors(comp.type);
-            for (const desc of descriptors) {
-                if (desc.type !== 'audio') continue;
-                const clipPath = comp.data[desc.field];
-                if (typeof clipPath !== 'string' || !clipPath || seen.has(clipPath)) continue;
-                seen.add(clipPath);
-                paths.push(clipPath);
-            }
-        }
-    }
-
-    if (paths.length === 0) return;
+    const paths = [...audioPaths];
 
     if (provider) {
         await Promise.all(paths.map(async (path) => {
@@ -414,42 +369,30 @@ async function preloadAudioClips(sceneData: SceneData, provider?: RuntimeAssetPr
 
 async function loadAnimClips(
     module: ESEngineModule,
-    sceneData: SceneData,
     provider: RuntimeAssetProvider,
+    animClipPaths: Set<string>,
 ): Promise<void> {
-    const processed = new Set<string>();
+    for (const clipPath of animClipPaths) {
+        try {
+            const clipText = await provider.readText(clipPath);
+            const clipData: AnimClipAssetData = JSON.parse(clipText);
+            const texturePaths = extractAnimClipTexturePaths(clipData);
+            const textureHandles = new Map<string, number>();
 
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            const descriptors = getComponentAssetFieldDescriptors(comp.type);
-            for (const desc of descriptors) {
-                if (desc.type !== 'anim-clip') continue;
-                const clipPath = comp.data[desc.field];
-                if (typeof clipPath !== 'string' || !clipPath || processed.has(clipPath)) continue;
-                processed.add(clipPath);
-
+            for (const texPath of texturePaths) {
                 try {
-                    const clipText = await provider.readText(clipPath);
-                    const clipData: AnimClipAssetData = JSON.parse(clipText);
-                    const texturePaths = extractAnimClipTexturePaths(clipData);
-                    const textureHandles = new Map<string, number>();
-
-                    for (const texPath of texturePaths) {
-                        try {
-                            const result = await provider.loadPixels(texPath);
-                            textureHandles.set(texPath, createTextureFromPixels(module, result));
-                        } catch (e) {
-                            console.warn(`[Runtime] Failed to load anim texture: ${texPath}`, e);
-                            textureHandles.set(texPath, 0);
-                        }
-                    }
-
-                    const clip = parseAnimClipData(clipPath, clipData, textureHandles);
-                    registerAnimClip(clip);
-                } catch (err) {
-                    console.warn(`[loadAnimClips] Failed to load animation clip: ${clipPath}`, err);
+                    const result = await provider.loadPixels(texPath);
+                    textureHandles.set(texPath, createTextureFromPixels(module, result));
+                } catch (e) {
+                    console.warn(`[Runtime] Failed to load anim texture: ${texPath}`, e);
+                    textureHandles.set(texPath, 0);
                 }
             }
+
+            const clip = parseAnimClipData(clipPath, clipData, textureHandles);
+            registerAnimClip(clip);
+        } catch (err) {
+            console.warn(`[loadAnimClips] Failed to load animation clip: ${clipPath}`, err);
         }
     }
 }
@@ -460,55 +403,43 @@ async function loadAnimClips(
 
 async function loadTilemaps(
     module: ESEngineModule,
-    sceneData: SceneData,
     provider: RuntimeAssetProvider,
+    tilemapPaths: Set<string>,
 ): Promise<void> {
-    const processed = new Set<string>();
+    for (const tmjPath of tilemapPaths) {
+        try {
+            const jsonText = await provider.readText(tmjPath);
+            const mapData = parseTmjJson(JSON.parse(jsonText));
+            if (!mapData) continue;
 
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            const descriptors = getComponentAssetFieldDescriptors(comp.type);
-            for (const desc of descriptors) {
-                if (desc.type !== 'tilemap') continue;
-                const tmjPath = comp.data[desc.field];
-                if (typeof tmjPath !== 'string' || !tmjPath || processed.has(tmjPath)) continue;
-                processed.add(tmjPath);
-
+            const tilesets = [];
+            for (const ts of mapData.tilesets) {
+                const imagePath = resolveRelativePath(tmjPath, ts.image);
+                let textureHandle = 0;
                 try {
-                    const jsonText = await provider.readText(tmjPath);
-                    const mapData = parseTmjJson(JSON.parse(jsonText));
-                    if (!mapData) continue;
-
-                    const tilesets = [];
-                    for (const ts of mapData.tilesets) {
-                        const imagePath = resolveRelativePath(tmjPath, ts.image);
-                        let textureHandle = 0;
-                        try {
-                            const result = await provider.loadPixels(imagePath);
-                            textureHandle = createTextureFromPixels(module, result);
-                        } catch (e) {
-                            console.warn(`[Runtime] Failed to load tileset texture: ${imagePath}`, e);
-                        }
-                        tilesets.push({ textureHandle, columns: ts.columns });
-                    }
-
-                    registerTilemapSource(tmjPath, {
-                        tileWidth: mapData.tileWidth,
-                        tileHeight: mapData.tileHeight,
-                        layers: mapData.layers.map(l => ({
-                            name: l.name,
-                            width: l.width,
-                            height: l.height,
-                            tiles: l.tiles,
-                            chunks: l.chunks ?? [],
-                            infinite: l.infinite ?? false,
-                        })),
-                        tilesets,
-                    });
-                } catch (err) {
-                    console.warn(`[loadTilemaps] Failed to load tilemap: ${tmjPath}`, err);
+                    const result = await provider.loadPixels(imagePath);
+                    textureHandle = createTextureFromPixels(module, result);
+                } catch (e) {
+                    console.warn(`[Runtime] Failed to load tileset texture: ${imagePath}`, e);
                 }
+                tilesets.push({ textureHandle, columns: ts.columns });
             }
+
+            registerTilemapSource(tmjPath, {
+                tileWidth: mapData.tileWidth,
+                tileHeight: mapData.tileHeight,
+                layers: mapData.layers.map(l => ({
+                    name: l.name,
+                    width: l.width,
+                    height: l.height,
+                    tiles: l.tiles,
+                    chunks: l.chunks ?? [],
+                    infinite: l.infinite ?? false,
+                })),
+                tilesets,
+            });
+        } catch (err) {
+            console.warn(`[loadTilemaps] Failed to load tilemap: ${tmjPath}`, err);
         }
     }
 }
@@ -533,10 +464,12 @@ export interface LoadRuntimeSceneOptions {
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
     const { app, module, sceneData, provider, spineManager, physicsModule, physicsConfig, manifest, sceneName } = options;
 
-    const textureCache = await loadTextures(module, sceneData, provider);
+    const discovered = discoverSceneAssets(sceneData);
+
+    const textureCache = await loadTextures(module, sceneData, provider, getAssetPathsByType(discovered, 'texture'));
     applyTextureMetadata(sceneData, textureCache);
 
-    const spineAssetInfo = await loadSpineAssetsToVirtualFS(module, sceneData, provider, spineManager);
+    const spineAssetInfo = await loadSpineAssetsToVirtualFS(module, provider, spineManager, discovered.spines);
 
     if (physicsModule) {
         const config: PhysicsPluginConfig = {
@@ -551,11 +484,11 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         physicsPlugin.build(app);
     }
 
-    const fontCache = await loadBitmapFonts(module, sceneData, provider);
-    const materialCache = await loadMaterials(sceneData, provider);
-    await loadAnimClips(module, sceneData, provider);
-    await loadTilemaps(module, sceneData, provider);
-    await preloadAudioClips(sceneData, provider);
+    const fontCache = await loadBitmapFonts(module, provider, getAssetPathsByType(discovered, 'font'));
+    const materialCache = await loadMaterials(provider, getAssetPathsByType(discovered, 'material'));
+    await loadAnimClips(module, provider, getAssetPathsByType(discovered, 'anim-clip'));
+    await loadTilemaps(module, provider, getAssetPathsByType(discovered, 'tilemap'));
+    await preloadAudioClips(provider, getAssetPathsByType(discovered, 'audio'));
 
     resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);
