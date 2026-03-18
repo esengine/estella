@@ -33,24 +33,22 @@ export const TimelinePlayer = defineComponent<TimelinePlayerData>('TimelinePlaye
     assetFields: [{ field: 'timeline', type: 'timeline' }],
 });
 
-const loadedAssets_ = new Map<string, TimelineAsset>();
+let activeTimelinePlugin: TimelinePlugin | null = null;
 
 export function registerTimelineAsset(path: string, asset: TimelineAsset): void {
-    loadedAssets_.set(path, asset);
+    activeTimelinePlugin?.registerAsset(path, asset);
 }
 
 export function getTimelineAsset(path: string): TimelineAsset | undefined {
-    return loadedAssets_.get(path);
+    return activeTimelinePlugin?.getAsset(path);
 }
 
-const textureHandles_ = new Map<string, Map<string, number>>();
-
 export function registerTimelineTextureHandles(path: string, handles: Map<string, number>): void {
-    textureHandles_.set(path, handles);
+    activeTimelinePlugin?.registerTextureHandles(path, handles);
 }
 
 export function getTimelineTextureHandle(timelinePath: string, textureUuid: string): number {
-    return textureHandles_.get(timelinePath)?.get(textureUuid) ?? 0;
+    return activeTimelinePlugin?.getTextureHandle(timelinePath, textureUuid) ?? 0;
 }
 
 const WRAP_MODE_MAP: Record<string, number> = {
@@ -67,10 +65,29 @@ interface AnimFramesState {
 export class TimelinePlugin implements Plugin {
     name = 'timeline';
 
+    private loadedAssets_ = new Map<string, TimelineAsset>();
+    private textureHandles_ = new Map<string, Map<string, number>>();
     private handles_ = new Map<number, UploadResult>();
     private animFramesStates_ = new Map<number, AnimFramesState>();
 
+    registerAsset(path: string, asset: TimelineAsset): void {
+        this.loadedAssets_.set(path, asset);
+    }
+
+    getAsset(path: string): TimelineAsset | undefined {
+        return this.loadedAssets_.get(path);
+    }
+
+    registerTextureHandles(path: string, handles: Map<string, number>): void {
+        this.textureHandles_.set(path, handles);
+    }
+
+    getTextureHandle(timelinePath: string, textureUuid: string): number {
+        return this.textureHandles_.get(timelinePath)?.get(textureUuid) ?? 0;
+    }
+
     build(app: App): void {
+        activeTimelinePlugin = this;
         const world = app.world;
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
@@ -89,7 +106,7 @@ export class TimelinePlugin implements Plugin {
 
                     let uploadResult = this.handles_.get(entity);
                     if (!uploadResult) {
-                        const asset = loadedAssets_.get(playerData.timeline);
+                        const asset = this.loadedAssets_.get(playerData.timeline);
                         if (!asset) continue;
                         uploadResult = uploadTimelineToWasm(module, asset);
                         if (!uploadResult.handle) continue;
@@ -146,7 +163,9 @@ export class TimelinePlugin implements Plugin {
     cleanup(): void {
         this.handles_.clear();
         this.animFramesStates_.clear();
-        loadedAssets_.clear();
+        this.loadedAssets_.clear();
+        this.textureHandles_.clear();
+        activeTimelinePlugin = null;
     }
 
     private processAnimFrames(

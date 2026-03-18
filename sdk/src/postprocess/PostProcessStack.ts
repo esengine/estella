@@ -9,21 +9,41 @@ export interface PassConfig {
     vec4Uniforms: Map<string, Vec4>;
 }
 
-let nextStackId = 1;
+export class PostProcessRegistry {
+    nextStackId = 1;
+    readonly stacks: Map<number, PostProcessStack> = new Map();
+    readonly cameraBindings: Map<Entity, PostProcessStack> = new Map();
 
-const stacks: Map<number, PostProcessStack> = new Map();
-const cameraBindings: Map<Entity, PostProcessStack> = new Map();
+    reset(): void {
+        for (const stack of this.stacks.values()) {
+            stack.destroy();
+        }
+        this.stacks.clear();
+        this.cameraBindings.clear();
+        this.nextStackId = 1;
+    }
+}
+
+let activeRegistry = new PostProcessRegistry();
+
+export function getPostProcessRegistry(): PostProcessRegistry {
+    return activeRegistry;
+}
+
+export function setPostProcessRegistry(registry: PostProcessRegistry): void {
+    activeRegistry = registry;
+}
 
 export function getStacks(): Map<number, PostProcessStack> {
-    return stacks;
+    return activeRegistry.stacks;
 }
 
 export function getCameraBindings(): Map<Entity, PostProcessStack> {
-    return cameraBindings;
+    return activeRegistry.cameraBindings;
 }
 
 export function resetNextStackId(): void {
-    nextStackId = 1;
+    activeRegistry.nextStackId = 1;
 }
 
 export class PostProcessStack {
@@ -32,8 +52,8 @@ export class PostProcessStack {
     private destroyed_ = false;
 
     constructor() {
-        this.id = nextStackId++;
-        stacks.set(this.id, this);
+        this.id = activeRegistry.nextStackId++;
+        activeRegistry.stacks.set(this.id, this);
     }
 
     addPass(name: string, shader: ShaderHandle): this {
@@ -114,12 +134,12 @@ export class PostProcessStack {
         if (this.destroyed_) return;
         this.destroyed_ = true;
 
-        for (const [camera, stack] of cameraBindings) {
+        for (const [camera, stack] of activeRegistry.cameraBindings) {
             if (stack === this) {
-                cameraBindings.delete(camera);
+                activeRegistry.cameraBindings.delete(camera);
             }
         }
 
-        stacks.delete(this.id);
+        activeRegistry.stacks.delete(this.id);
     }
 }

@@ -24,17 +24,22 @@ export interface CollectionState {
     dirty: boolean;
 }
 
-let globalStates: Map<Entity, CollectionState> | null = null;
+let activePlugin: CollectionViewPlugin | null = null;
 
 export function getCollectionState(entity: Entity): CollectionState | null {
-    return globalStates?.get(entity) ?? null;
+    return activePlugin?.getState(entity) ?? null;
 }
 
 export class CollectionViewPlugin implements Plugin {
     name = 'collectionView';
     dependencies = [PluginName.UILayout];
 
+    private states_: Map<Entity, CollectionState> | null = null;
     private cleanup_: (() => void) | null = null;
+
+    getState(entity: Entity): CollectionState | null {
+        return this.states_?.get(entity) ?? null;
+    }
 
     build(app: App): void {
         registerComponent('CollectionView', CollectionView);
@@ -46,7 +51,8 @@ export class CollectionViewPlugin implements Plugin {
 
         const world = app.world;
         const states = new Map<Entity, CollectionState>();
-        globalStates = states;
+        this.states_ = states;
+        activePlugin = this;
 
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [],
@@ -175,7 +181,8 @@ export class CollectionViewPlugin implements Plugin {
                 st.pool.clear(world);
             }
             states.clear();
-            globalStates = null;
+            this.states_ = null;
+            activePlugin = null;
         };
     }
 

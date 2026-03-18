@@ -479,6 +479,11 @@ export {
     type SceneLoadOptions,
 } from './scene';
 
+export {
+    registerAssetHandler,
+    type AssetFieldHandler,
+} from './asset/AssetHandlerRegistry';
+
 // =============================================================================
 // Scene Manager
 // =============================================================================
