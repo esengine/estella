@@ -1211,18 +1211,9 @@ async fn run_command_streamed(
     cwd: &Path,
     env: &HashMap<String, String>,
 ) -> Result<(), String> {
-    let needs_shell = cfg!(windows) && cmd.ends_with(".bat");
-    let mut command = if needs_shell {
-        let mut c = Command::new("cmd.exe");
-        let mut cmd_args = vec!["/C".to_string(), cmd.to_string()];
-        cmd_args.extend_from_slice(args);
-        c.args(&cmd_args);
-        c
-    } else {
-        let mut c = Command::new(cmd);
-        c.args(args);
-        c
-    };
+    let (program, full_args) = build_command_for_platform(cmd, args);
+    let mut command = Command::new(&program);
+    command.args(&full_args);
     command
         .current_dir(cwd)
         .envs(env)
@@ -1284,4 +1275,64 @@ fn num_cpus() -> usize {
     std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
+}
+
+/// Build the (program, args) pair for running a command, handling .bat files on Windows.
+///
+/// On Windows, `.bat` files must be executed via `cmd.exe /C` because the OS
+/// cannot spawn batch files directly as processes.
+fn build_command_for_platform(cmd: &str, args: &[String]) -> (String, Vec<String>) {
+    if cfg!(windows) && cmd.ends_with(".bat") {
+        let mut cmd_args = vec!["/C".to_string(), cmd.to_string()];
+        cmd_args.extend_from_slice(args);
+        ("cmd.exe".to_string(), cmd_args)
+    } else {
+        (cmd.to_string(), args.to_vec())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bat_file_wraps_with_cmd_exe_on_windows() {
+        let args = vec!["cmake".to_string(), "-G".to_string(), "Ninja".to_string()];
+        let (program, full_args) = build_command_for_platform("C:\\emsdk\\emcmake.bat", &args);
+
+        if cfg!(windows) {
+            assert_eq!(program, "cmd.exe");
+            assert_eq!(full_args[0], "/C");
+            assert_eq!(full_args[1], "C:\\emsdk\\emcmake.bat");
+            assert_eq!(full_args[2], "cmake");
+            assert_eq!(full_args[3], "-G");
+            assert_eq!(full_args[4], "Ninja");
+        } else {
+            assert_eq!(program, "C:\\emsdk\\emcmake.bat");
+            assert_eq!(full_args, args);
+        }
+    }
+
+    #[test]
+    fn non_bat_file_passes_through_directly() {
+        let args = vec!["-G".to_string(), "Ninja".to_string()];
+        let (program, full_args) = build_command_for_platform("/usr/bin/emcmake", &args);
+
+        assert_eq!(program, "/usr/bin/emcmake");
+        assert_eq!(full_args, args);
+    }
+
+    #[test]
+    fn empty_args_handled_correctly() {
+        let args: Vec<String> = vec![];
+        let (program, full_args) = build_command_for_platform("emcmake.bat", &args);
+
+        if cfg!(windows) {
+            assert_eq!(program, "cmd.exe");
+            assert_eq!(full_args, vec!["/C", "emcmake.bat"]);
+        } else {
+            assert_eq!(program, "emcmake.bat");
+            assert!(full_args.is_empty());
+        }
+    }
 }
