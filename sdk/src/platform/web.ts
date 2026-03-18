@@ -65,8 +65,10 @@ class WebPlatformAdapter implements PlatformAdapter {
 
     async fileExists(path: string): Promise<boolean> {
         try {
-            const response = await globalThis.fetch(path, { method: 'HEAD' });
-            return response.ok;
+            const response = await globalThis.fetch(path);
+            const ok = response.ok;
+            response.body?.cancel();
+            return ok;
         } catch {
             return false;
         }

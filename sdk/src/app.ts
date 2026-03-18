@@ -617,13 +617,21 @@ export class App {
         return sorted;
     }
 
+    private flushing_startup_ = false;
+
     private async flushStartupSystems_(): Promise<void> {
+        if (this.flushing_startup_) return;
         const startup = this.systems_.get(Schedule.Startup)!;
         if (startup.length === 0) return;
-        this.sortedSystemsCache_.delete(Schedule.Startup);
-        await this.runSchedule(Schedule.Startup);
-        startup.length = 0;
-        this.sortedSystemsCache_.delete(Schedule.Startup);
+        this.flushing_startup_ = true;
+        try {
+            this.sortedSystemsCache_.delete(Schedule.Startup);
+            await this.runSchedule(Schedule.Startup);
+            startup.length = 0;
+            this.sortedSystemsCache_.delete(Schedule.Startup);
+        } finally {
+            this.flushing_startup_ = false;
+        }
     }
 
     private async runSchedule(schedule: Schedule): Promise<void> {
