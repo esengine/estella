@@ -181,6 +181,10 @@ jobs:
         run: node build-tools/cli.js toolchain
 
       # Rust tests (Tauri app)
+      - name: Fix broken symlinks in toolchain
+        shell: bash
+        run: find desktop/src-tauri/toolchain -xtype l -delete 2>/dev/null || true
+
       - name: Tauri build check
         shell: bash
         run: cd desktop/src-tauri && cargo check
