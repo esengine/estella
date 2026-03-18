@@ -19,6 +19,8 @@ import { Aside } from '@astrojs/starlight/components';
 | `layer` | number | `0` | 渲染顺序（越大越靠前） |
 | `flipX` | boolean | `false` | 水平翻转 |
 | `flipY` | boolean | `false` | 垂直翻转 |
+| `tileSize` | Vec2 | `{x: 0, y: 0}` | 平铺 tile 尺寸（0 = 不平铺） |
+| `tileSpacing` | Vec2 | `{x: 0, y: 0}` | tile 之间的间距 |
 | `material` | number | `0` | 材质 ID |
 | `enabled` | boolean | `true` | 是否渲染精灵 |
 
@@ -118,6 +120,25 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+## 平铺
+
+设置 `tileSize` 可以让纹理在精灵区域内重复。每个 tile 按指定尺寸绘制，填满精灵的 `size` 区域。
+
+```typescript
+sprite.tileSize = { x: 64, y: 64 };    // 每个 tile 64×64
+sprite.size = { x: 256, y: 256 };       // 4×4 网格
+```
+
+添加 `tileSpacing` 在 tile 之间留间距：
+
+```typescript
+sprite.tileSpacing = { x: 4, y: 4 };   // tile 之间 4px 间距
+```
+
+<Aside type="note">
+  在 Inspector 中，**Tile Spacing** 字段仅在 **Tile Size** 非零时出现。先设置 Tile Size 即可启用平铺。
+</Aside>
 
 ## 渲染顺序
 

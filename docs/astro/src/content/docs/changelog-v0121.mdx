@@ -11,11 +11,12 @@ v0.12.1 brings Sprite tiling, MCP on the startup page, a unified script compilat
 
 ## Sprite Tiling
 
-The `Sprite` component now supports `tileSize` and `tileSpacing` for seamless or spaced tiling:
+The `Sprite` component now supports `tileSize` and `tileSpacing` for repeating a texture across a larger area:
 
-- **Seamless tiling** (`tileSpacing = 0`): uses `uvScale` override with `GL_REPEAT` for zero extra draw-call overhead
-- **Spaced tiling**: emits N×M quads with configurable gaps, auto-merged into a single draw call via the batch system
-- Both modes respect sprite flip and pivot settings
+- Set `tileSize` to the desired tile dimensions (e.g. `{x: 64, y: 64}`) — the texture repeats to fill the sprite `size`
+- Set `tileSpacing` to add gaps between tiles (e.g. `{x: 4, y: 4}`) — appears in the Inspector only when `tileSize` is non-zero
+- Both modes emit N×M quads auto-merged into a single draw call via the batch system
+- Respects sprite flip and pivot settings
 
 ## MCP on Startup Page
 
@@ -116,3 +117,6 @@ Property edits in the editor now use field-level WASM direct writes instead of f
 - Fixed WASM toolchain sync copying root `CMakeLists.txt` which references unavailable yogacore sources
 - Fixed stale WASM builds when new components are added to `WebBindings.generated.cpp`
 - Fixed Assets API documentation referencing non-existent `loadJson`/`loadText`/`loadBinary` methods (actual API is `fetchJson`/`fetchText`/`fetchBinary`)
+- Fixed Sprite seamless tiling (`tileSpacing = 0`) rendering only a single tile — textures default to `ClampToEdge`, now uses quad-based tiling for both modes
+- Fixed Inspector `visibleWhen` / `hiddenWhen` rules not updating dynamically when controlling property changes — previously required deselecting and reselecting the entity
+- Removed `worldPosition`, `worldRotation`, `worldScale` from Transform Inspector — these are system-computed read-only values
