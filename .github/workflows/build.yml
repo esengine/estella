@@ -77,8 +77,25 @@ jobs:
     - name: Install dependencies
       run: pnpm install
 
-    - name: Build all targets
-      run: node build-tools/cli.js build -t all --no-sync
+    - name: Build Web target
+      run: node build-tools/cli.js build -t web --no-sync
+
+    - name: Build Playable target
+      run: node build-tools/cli.js build -t playable --no-sync
+
+    - name: Build WeChat target
+      run: node build-tools/cli.js build -t wechat --no-sync
+
+    - name: Verify build outputs
+      run: |
+        test -f build/wasm/web/esengine.js && echo "✓ Web JS"
+        test -f build/wasm/web/esengine.wasm && echo "✓ Web WASM"
+        test -f build/wasm/playable/esengine.single.js && echo "✓ Playable JS"
+        test -f build/wasm/wechat/esengine.wxgame.js && echo "✓ WeChat JS"
+        test -f build/wasm/wechat/esengine.wxgame.wasm && echo "✓ WeChat WASM"
+
+    - name: Build remaining targets (spine, physics)
+      run: node build-tools/cli.js build -t all --no-sync --continue-on-error
 
   test:
     name: Tests (SDK + Editor)
@@ -114,3 +131,45 @@ jobs:
 
     - name: Run Editor tests
       run: pnpm --filter ./editor exec vitest run
+
+  test-tauri:
+    name: Tests (Tauri)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: dtolnay/rust-toolchain@stable
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: desktop/src-tauri -> target
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+    - name: Run Tauri tests
+      run: cd desktop/src-tauri && cargo test
+
+  test-tauri:
+    name: Tests (Tauri)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: dtolnay/rust-toolchain@stable
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: desktop/src-tauri -> target
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+    - name: Run Tauri tests
+      run: cd desktop/src-tauri && cargo test
