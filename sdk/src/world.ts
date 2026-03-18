@@ -14,7 +14,7 @@ import { ChangeTracker } from './ecs/ChangeTracker';
 import { QueryCache } from './ecs/QueryCache';
 
 export { PTR_LAYOUTS } from './ptrLayouts.generated';
-export { BuiltinBridge, convertFromWasm, convertForWasm } from './ecs/BuiltinBridge';
+export { BuiltinBridge } from './ecs/BuiltinBridge';
 export type { BuiltinMethods } from './ecs/BuiltinBridge';
 
 // =============================================================================

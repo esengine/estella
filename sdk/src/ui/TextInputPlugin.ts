@@ -17,10 +17,11 @@ import { requireResourceManager } from '../resourceManager';
 import { playModeOnly } from '../env';
 import { wrapText, nextPowerOf2, ensureComponent, colorToRgba } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 export class TextInputPlugin implements Plugin {
     name = 'textInput';
+    dependencies = [PluginName.Focus];
 
     private cleanupListeners_: (() => void) | null = null;
 

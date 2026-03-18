@@ -9,7 +9,7 @@ import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 export interface SafeAreaInsets {
     top: number;
@@ -62,6 +62,7 @@ function getSafeAreaInsets(): SafeAreaInsets {
 
 export class SafeAreaPlugin implements Plugin {
     name = 'safeArea';
+    dependencies = [PluginName.UILayout];
 
     build(app: App): void {
         registerComponent('SafeArea', SafeArea);

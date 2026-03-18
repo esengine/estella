@@ -9,10 +9,11 @@ import type { UIRectData } from './UIRect';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { getEffectiveWidth, getEffectiveHeight, ensureUIRenderer } from './uiHelpers';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 export class ImagePlugin implements Plugin {
     name = 'image';
+    dependencies = [PluginName.UILayout];
 
     build(app: App): void {
         registerComponent('Image', Image);

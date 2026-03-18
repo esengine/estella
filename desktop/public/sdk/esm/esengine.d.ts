@@ -643,6 +643,7 @@ declare const TextInput: ComponentDef<TextInputData>;
 
 declare class TextInputPlugin implements Plugin {
     name: string;
+    dependencies: "focus"[];
     private cleanupListeners_;
     cleanup(): void;
     build(app: App): void;
@@ -688,6 +689,7 @@ declare const Image: ComponentDef<ImageData$1>;
 
 declare class ImagePlugin implements Plugin {
     name: string;
+    dependencies: "uiLayout"[];
     build(app: App): void;
 }
 declare const imagePlugin: ImagePlugin;
@@ -705,6 +707,7 @@ declare const Toggle: ComponentDef<ToggleData>;
 
 declare class TogglePlugin implements Plugin {
     name: string;
+    dependencies: "uiInteraction"[];
     build(app: App): void;
 }
 declare const togglePlugin: TogglePlugin;
@@ -725,6 +728,7 @@ declare const ProgressBar: ComponentDef<ProgressBarData>;
 
 declare class ProgressBarPlugin implements Plugin {
     name: string;
+    dependencies: "uiLayout"[];
     build(app: App): void;
 }
 declare const progressBarPlugin: ProgressBarPlugin;
@@ -820,6 +824,7 @@ declare const Slider: ComponentDef<SliderData>;
 
 declare class SliderPlugin implements Plugin {
     name: string;
+    dependencies: "uiInteraction"[];
     build(app: App): void;
 }
 declare const sliderPlugin: SliderPlugin;
@@ -838,6 +843,7 @@ declare const FocusManager: ResourceDef<FocusManagerState>;
 
 declare class FocusPlugin implements Plugin {
     name: string;
+    dependencies: "uiInteraction"[];
     build(app: App): void;
 }
 declare const focusPlugin: FocusPlugin;
@@ -852,6 +858,7 @@ declare const SafeArea: ComponentDef<SafeAreaData>;
 
 declare class SafeAreaPlugin implements Plugin {
     name: string;
+    dependencies: "uiLayout"[];
     build(app: App): void;
 }
 declare const safeAreaPlugin: SafeAreaPlugin;
@@ -867,6 +874,7 @@ declare const Dropdown: ComponentDef<DropdownData>;
 
 declare class DropdownPlugin implements Plugin {
     name: string;
+    dependencies: "uiInteraction"[];
     private cleanup_;
     cleanup(): void;
     build(app: App): void;
@@ -1019,6 +1027,7 @@ declare const UIThemeRes: ResourceDef<UITheme | null>;
 
 declare class StateMachinePlugin implements Plugin {
     name: string;
+    dependencies: "uiInteraction"[];
     build(app: App): void;
 }
 declare const stateMachinePlugin: StateMachinePlugin;

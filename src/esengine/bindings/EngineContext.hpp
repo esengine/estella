@@ -16,6 +16,7 @@
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
 #include "../animation/TweenSystem.hpp"
+#include "MaterialCache.hpp"
 #ifdef ES_ENABLE_TIMELINE
 #include "../animation/TimelineSystem.hpp"
 #endif
@@ -116,6 +117,8 @@ public:
     const glm::mat4& currentViewProjection() const { return currentViewProjection_; }
     void setCurrentViewProjection(const glm::mat4& vp) { currentViewProjection_ = vp; }
 
+    MaterialCache& materialCache() { return materialCache_; }
+
     void setInitialized(bool initialized) { initialized_ = initialized; }
     void setRenderContext(Unique<RenderContext> ctx);
     void setRenderFrame(Unique<RenderFrame> frame);
@@ -175,6 +178,7 @@ private:
     glm::mat4 currentViewProjection_{1.0f};
     f32 deltaTime_ = 0.016f;
     bool transformsUpdated_ = false;
+    MaterialCache materialCache_;
 };
 
 }  // namespace esengine

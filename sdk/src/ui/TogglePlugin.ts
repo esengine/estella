@@ -16,7 +16,7 @@ import { UIRenderer } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { isEditor, isPlayMode } from '../env';
 import { applyColorTransition, applyDefaultTint, ensureComponent, withChildEntity } from './uiHelpers';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 function setRendererColor(world: import('../world').World, entity: Entity, color: Color): void {
     if (!world.has(entity, UIRenderer)) return;
@@ -36,6 +36,7 @@ function setRendererEnabled(world: import('../world').World, entity: Entity, ena
 
 export class TogglePlugin implements Plugin {
     name = 'toggle';
+    dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {
         registerComponent('Toggle', Toggle);

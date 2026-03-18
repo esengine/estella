@@ -103,23 +103,10 @@ EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBl
     }
 });
 
-struct MaterialUniformData {
-    char name[32];
-    u32 type;
-    f32 values[4];
-};
-
-struct CachedMaterialData {
-    u32 shaderId = 0;
-    u32 blendMode = 0;
-    std::vector<MaterialUniformData> uniforms;
-};
-static std::unordered_map<u32, CachedMaterialData> s_materialCache;
-
-void clearMaterialCache() { s_materialCache.clear(); }
+void clearMaterialCache() { ctx().materialCache().clear(); }
 
 void invalidateMaterialCache(u32 materialId) {
-    s_materialCache.erase(materialId);
+    ctx().materialCache().invalidate(materialId);
 }
 
 bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
@@ -143,11 +130,12 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
         return false;
     }
 
-    auto cacheIt = s_materialCache.find(materialId);
-    if (cacheIt != s_materialCache.end()) {
-        shaderId = cacheIt->second.shaderId;
-        blendMode = cacheIt->second.blendMode;
-        uniforms = cacheIt->second.uniforms;
+    auto& cache = ctx().materialCache();
+    const auto* cached = cache.find(materialId);
+    if (cached) {
+        shaderId = cached->shaderId;
+        blendMode = cached->blendMode;
+        uniforms = cached->uniforms;
         return shaderId != 0;
     }
 
@@ -161,7 +149,7 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
         toPtr(&uniformCount));
 
     if (shaderId == 0) {
-        s_materialCache[materialId] = {};
+        cache.store(materialId, {});
         return false;
     }
 
@@ -204,7 +192,7 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
         }
     }
 
-    s_materialCache[materialId] = { shaderId, blendMode, uniforms };
+    cache.store(materialId, { shaderId, blendMode, uniforms });
     return true;
 }
 

@@ -13,9 +13,11 @@ import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { playModeOnly } from '../env';
 import { UIEvents, UIEventQueue } from './UIEvents';
+import { PluginName } from '../systemLabels';
 
 export class FocusPlugin implements Plugin {
     name = 'focus';
+    dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {
         registerComponent('Focusable', Focusable);
