@@ -8,6 +8,7 @@ import { Entity, INVALID_ENTITY } from './types';
 import { getComponent, Name, Camera } from './component';
 import type { AssetServer } from './asset/AssetServer';
 import { getAssetHandlers, type AssetFieldHandler } from './asset/AssetHandlerRegistry';
+import { discoverSceneAssets } from './asset/discoverAssets';
 import './asset/builtinAssetHandlers';
 
 // =============================================================================
@@ -235,55 +236,9 @@ async function preloadSceneAssets(
     collectAssets?: LoadedSceneAssets,
 ): Promise<void> {
     const handlers = getAssetHandlers();
-    const assetPaths = new Map<string, Set<string>>();
-    for (const type of handlers.keys()) {
-        assetPaths.set(type, new Set());
-    }
-    const spines: { skeleton: string; atlas: string }[] = [];
-    const spineKeys = new Set<string>();
-
-    for (const entityData of sceneData.entities) {
-        if (entityData.visible === false) continue;
-
-        for (const compData of entityData.components) {
-            const comp = getComponent(compData.type);
-            if (!comp) continue;
-
-            const data = compData.data as Record<string, unknown>;
-
-            // Strategy: component-defined complex asset discovery
-            if (comp.discoverAssets) {
-                for (const ref of comp.discoverAssets(data)) {
-                    const typeSet = assetPaths.get(ref.type);
-                    if (typeSet) {
-                        typeSet.add(ref.path);
-                    } else {
-                        assetPaths.set(ref.type, new Set([ref.path]));
-                    }
-                }
-            }
-
-            // Declarative: simple field→type asset references
-            for (const desc of comp.assetFields) {
-                const value = data[desc.field];
-                if (typeof value !== 'string' || !value) continue;
-                assetPaths.get(desc.type)?.add(value);
-            }
-
-            // Spine: paired skeleton+atlas references
-            if (comp.spineFields) {
-                const skelPath = data[comp.spineFields.skeletonField] as string;
-                const atlasPath = data[comp.spineFields.atlasField] as string;
-                if (skelPath && atlasPath) {
-                    const key = `${skelPath}:${atlasPath}`;
-                    if (!spineKeys.has(key)) {
-                        spineKeys.add(key);
-                        spines.push({ skeleton: skelPath, atlas: atlasPath });
-                    }
-                }
-            }
-        }
-    }
+    const discovered = discoverSceneAssets(sceneData);
+    const assetPaths = discovered.byType;
+    const spines = discovered.spines;
 
     const assetHandles = new Map<string, Map<string, number>>();
     const loadPromises = [...handlers.entries()].map(async ([type, handler]) => {
@@ -318,8 +273,8 @@ async function preloadSceneAssets(
                 collectAssets.fontPaths.add(path);
             }
         }
-        for (const key of spineKeys) {
-            collectAssets.spineKeys.add(key);
+        for (const spine of spines) {
+            collectAssets.spineKeys.add(`${spine.skeleton}:${spine.atlas}`);
         }
     }
 

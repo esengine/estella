@@ -21,6 +21,7 @@ pub struct PreviewServer {
     reload_signal: Arc<ReloadSignal>,
     project_dir: Arc<RwLock<PathBuf>>,
     public_dir: Arc<PathBuf>,
+    asset_cache: Arc<RwLock<HashMap<String, String>>>,
     port: u16,
 }
 
@@ -79,6 +80,7 @@ impl PreviewServer {
             reload_signal: Arc::new(ReloadSignal::new()),
             project_dir: Arc::new(RwLock::new(project_dir)),
             public_dir: Arc::new(public_dir),
+            asset_cache: Arc::new(RwLock::new(HashMap::new())),
             port,
         }
     }
@@ -97,6 +99,7 @@ impl PreviewServer {
         let project_dir = Arc::clone(&self.project_dir);
         let public_dir = Arc::clone(&self.public_dir);
         let reload_signal = Arc::clone(&self.reload_signal);
+        let asset_cache = Arc::clone(&self.asset_cache);
 
         let handle = thread::spawn(move || {
             for request in server.incoming_requests() {
@@ -118,7 +121,7 @@ impl PreviewServer {
                     "favicon.ico" => serve_empty(),
                     _ if path.starts_with("wasm/") || path.starts_with("sdk/") =>
                         serve_public_or_embedded(&public_dir, path),
-                    _ => serve_project_file(&current_dir, path),
+                    _ => serve_project_file(&current_dir, path, &asset_cache),
                 };
 
                 let _ = request.respond(response);
@@ -141,6 +144,7 @@ impl PreviewServer {
     }
 
     pub fn notify_reload(&self) {
+        self.asset_cache.write().unwrap().clear();
         self.reload_signal.notify();
     }
 
@@ -158,6 +162,7 @@ impl PreviewServer {
 
     pub fn set_project_dir(&self, dir: PathBuf) {
         *self.project_dir.write().unwrap() = dir;
+        self.asset_cache.write().unwrap().clear();
     }
 }
 
@@ -312,12 +317,16 @@ fn serve_public_or_embedded(public_dir: &PathBuf, path: &str) -> Response<std::i
     not_found()
 }
 
-fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+fn serve_project_file(
+    project_dir: &PathBuf,
+    path: &str,
+    asset_cache: &Arc<RwLock<HashMap<String, String>>>,
+) -> Response<std::io::Cursor<Vec<u8>>> {
     let decoded_path = urlencoding::decode(path).unwrap_or_else(|_| path.into());
     let path_str = decoded_path.as_ref();
 
     if is_uuid(path_str) {
-        if let Some(mapped_path) = resolve_asset_uuid(project_dir, path_str) {
+        if let Some(mapped_path) = resolve_asset_uuid(project_dir, path_str, asset_cache) {
             let full_path = project_dir.join(&mapped_path);
             if full_path.starts_with(project_dir) {
                 if let Ok(data) = std::fs::read(&full_path) {
@@ -362,7 +371,25 @@ fn is_uuid(s: &str) -> bool {
     s.len() == 36 && s.chars().filter(|c| *c == '-').count() == 4
 }
 
-fn resolve_asset_uuid(project_dir: &PathBuf, uuid: &str) -> Option<String> {
+fn resolve_asset_uuid(
+    project_dir: &PathBuf,
+    uuid: &str,
+    cache: &Arc<RwLock<HashMap<String, String>>>,
+) -> Option<String> {
+    if let Some(cached) = cache.read().unwrap().get(uuid) {
+        return Some(cached.clone());
+    }
+
+    let result = resolve_asset_uuid_uncached(project_dir, uuid);
+
+    if let Some(ref path) = result {
+        cache.write().unwrap().insert(uuid.to_string(), path.clone());
+    }
+
+    result
+}
+
+fn resolve_asset_uuid_uncached(project_dir: &PathBuf, uuid: &str) -> Option<String> {
     let assets_json = project_dir.join(".esengine/preview/.assets.json");
 
     if !assets_json.exists() {
@@ -390,7 +417,6 @@ fn resolve_asset_uuid(project_dir: &PathBuf, uuid: &str) -> Option<String> {
 
     if let Some(asset) = assets.get(uuid) {
         if let Some(path) = asset.get("path").and_then(|p| p.as_str()) {
-            eprintln!("[preview-server] Resolved UUID {} -> {}", uuid, path);
             return Some(path.to_string());
         }
     }

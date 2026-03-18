@@ -32,6 +32,8 @@ function getModule(): ESEngineModule {
 }
 
 export function syncStackToWasm(stack: PostProcessStack): void {
+    if (!stack.isDirty) return;
+
     const m = getModule();
 
     try {
@@ -66,6 +68,8 @@ export function syncStackToWasm(stack: PostProcessStack): void {
             }
         }
     }
+
+    stack.clearDirty();
 }
 
 export const PostProcess = {

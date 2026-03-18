@@ -19,9 +19,8 @@ import { TilemapAssetLoader } from './loaders/TilemapAssetLoader';
 import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
-import {
-    getAssetFields, getCompoundAssetFields,
-} from './AssetFieldRegistry';
+import { getAssetFields } from './AssetFieldRegistry';
+import { discoverSceneAssets } from './discoverAssets';
 import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 
@@ -256,44 +255,15 @@ export class Assets {
     // =========================================================================
 
     async preloadSceneAssets(sceneData: SceneData): Promise<SceneAssetResult> {
-        const texturePaths = new Set<string>();
-        const materialPaths = new Set<string>();
-        const fontPaths = new Set<string>();
-        const animClipPaths = new Set<string>();
-        const audioPaths = new Set<string>();
-        const tilemapPaths = new Set<string>();
-        const timelinePaths = new Set<string>();
-        const spinePairs: Array<{ skeleton: string; atlas: string }> = [];
-
-        for (const entity of sceneData.entities) {
-            for (const comp of entity.components) {
-                const fields = getAssetFields(comp.type);
-                for (const { field, type } of fields) {
-                    const value = comp.data[field];
-                    if (typeof value !== 'string' || !value) continue;
-                    switch (type) {
-                        case 'texture': texturePaths.add(value); break;
-                        case 'material': materialPaths.add(value); break;
-                        case 'font': fontPaths.add(value); break;
-                        case 'anim-clip': animClipPaths.add(value); break;
-                        case 'audio': audioPaths.add(value); break;
-                        case 'tilemap': tilemapPaths.add(value); break;
-                        case 'timeline': timelinePaths.add(value); break;
-                    }
-                }
-
-                const compounds = getCompoundAssetFields(comp.type);
-                for (const compound of compounds) {
-                    if (compound.type === 'spine') {
-                        const skeleton = comp.data[compound.fields.skeleton] as string;
-                        const atlas = comp.data[compound.fields.atlas] as string;
-                        if (skeleton && atlas) {
-                            spinePairs.push({ skeleton, atlas });
-                        }
-                    }
-                }
-            }
-        }
+        const discovered = discoverSceneAssets(sceneData);
+        const texturePaths = discovered.byType.get('texture') ?? new Set<string>();
+        const materialPaths = discovered.byType.get('material') ?? new Set<string>();
+        const fontPaths = discovered.byType.get('font') ?? new Set<string>();
+        const animClipPaths = discovered.byType.get('anim-clip') ?? new Set<string>();
+        const audioPaths = discovered.byType.get('audio') ?? new Set<string>();
+        const tilemapPaths = discovered.byType.get('tilemap') ?? new Set<string>();
+        const timelinePaths = discovered.byType.get('timeline') ?? new Set<string>();
+        const spinePairs = discovered.spines;
 
         const textureHandles = new Map<string, number>();
         const materialHandles = new Map<string, number>();

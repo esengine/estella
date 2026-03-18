@@ -50,6 +50,7 @@ export class PostProcessStack {
     readonly id: number;
     private passes_: PassConfig[] = [];
     private destroyed_ = false;
+    private dirty_ = true;
 
     constructor() {
         this.id = activeRegistry.nextStackId++;
@@ -64,6 +65,7 @@ export class PostProcessStack {
             floatUniforms: new Map(),
             vec4Uniforms: new Map(),
         });
+        this.dirty_ = true;
         return this;
     }
 
@@ -71,19 +73,24 @@ export class PostProcessStack {
         const idx = this.passes_.findIndex(p => p.name === name);
         if (idx !== -1) {
             this.passes_.splice(idx, 1);
+            this.dirty_ = true;
         }
         return this;
     }
 
     clearPasses(): this {
-        this.passes_.length = 0;
+        if (this.passes_.length > 0) {
+            this.passes_.length = 0;
+            this.dirty_ = true;
+        }
         return this;
     }
 
     setEnabled(name: string, enabled: boolean): this {
         const pass = this.passes_.find(p => p.name === name);
-        if (pass) {
+        if (pass && pass.enabled !== enabled) {
             pass.enabled = enabled;
+            this.dirty_ = true;
         }
         return this;
     }
@@ -91,7 +98,10 @@ export class PostProcessStack {
     setUniform(passName: string, uniform: string, value: number): this {
         const pass = this.passes_.find(p => p.name === passName);
         if (pass) {
-            pass.floatUniforms.set(uniform, value);
+            if (pass.floatUniforms.get(uniform) !== value) {
+                pass.floatUniforms.set(uniform, value);
+                this.dirty_ = true;
+            }
         }
         return this;
     }
@@ -99,14 +109,21 @@ export class PostProcessStack {
     setUniformVec4(passName: string, uniform: string, value: Vec4): this {
         const pass = this.passes_.find(p => p.name === passName);
         if (pass) {
-            pass.vec4Uniforms.set(uniform, { ...value });
+            const cur = pass.vec4Uniforms.get(uniform);
+            if (!cur || cur.x !== value.x || cur.y !== value.y || cur.z !== value.z || cur.w !== value.w) {
+                pass.vec4Uniforms.set(uniform, { ...value });
+                this.dirty_ = true;
+            }
         }
         return this;
     }
 
     setAllPassesEnabled(enabled: boolean): void {
         for (const pass of this.passes_) {
-            pass.enabled = enabled;
+            if (pass.enabled !== enabled) {
+                pass.enabled = enabled;
+                this.dirty_ = true;
+            }
         }
     }
 
@@ -124,6 +141,14 @@ export class PostProcessStack {
 
     get passes(): readonly PassConfig[] {
         return this.passes_;
+    }
+
+    get isDirty(): boolean {
+        return this.dirty_;
+    }
+
+    clearDirty(): void {
+        this.dirty_ = false;
     }
 
     get isDestroyed(): boolean {
