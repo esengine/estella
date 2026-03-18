@@ -590,13 +590,19 @@ function renderPropertyRow(
         return;
     }
 
+    const hasVisibilityRule = propMeta.visibleWhen != null || propMeta.hiddenWhen != null;
     const fullData = { ...defaults, ...component.data };
-    if (!visibilityResolver.isVisible(propMeta, fullData, entityComponents)) {
+    const initiallyVisible = visibilityResolver.isVisible(propMeta, fullData, entityComponents);
+
+    if (!initiallyVisible && !hasVisibilityRule) {
         return;
     }
 
     const row = document.createElement('div');
     row.className = 'es-property-row';
+    if (!initiallyVisible) {
+        row.style.display = 'none';
+    }
 
     const entityData = store.getEntityData(entity as number);
     if (entityData?.prefab && isPropertyOverridden(
@@ -680,6 +686,21 @@ function renderPropertyRow(
     }
 
     container.appendChild(row);
+
+    if (hasVisibilityRule) {
+        editors.push({
+            editor: {
+                update() {
+                    const data = { ...defaults, ...component.data };
+                    const visible = visibilityResolver.isVisible(propMeta, data, entityComponents);
+                    row.style.display = visible ? '' : 'none';
+                },
+                dispose() {},
+            },
+            componentType: component.type,
+            propertyName: `__visibility_${propMeta.name}`,
+        });
+    }
 }
 
 // =============================================================================
