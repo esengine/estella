@@ -79,16 +79,11 @@ void SpritePlugin::collect(
         }
 
         bool hasTiling = sprite.tileSize.x > 0.0f && sprite.tileSize.y > 0.0f;
-        bool hasSpacing = sprite.tileSpacing.x > 0.0f || sprite.tileSpacing.y > 0.0f;
-
-        if (hasTiling && !hasSpacing) {
-            uvSc = finalSize / (sprite.tileSize * glm::vec2(scale));
-        }
 
         u32 shaderId = batch_shader_id_;
         BlendMode blend = BlendMode::Normal;
 
-        if (hasTiling && hasSpacing) {
+        if (hasTiling) {
             emitTiledQuads(buffers, draw_list,
                 glm::vec2(position), finalSize, sprite.pivot,
                 angle, position.z,

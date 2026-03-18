@@ -29,6 +29,7 @@ export const coreComponentsPlugin: EditorPlugin = {
 
         TransformSchema = defineSchema('Transform', {
             removable: false,
+            exclude: ['worldPosition', 'worldRotation', 'worldScale'],
             overrides: {
                 rotation: { type: 'euler' },
             },
