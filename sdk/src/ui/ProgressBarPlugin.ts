@@ -6,10 +6,11 @@ import type { UIRectData } from './UIRect';
 import { ProgressBar } from './ProgressBar';
 import type { ProgressBarData } from './ProgressBar';
 import { applyDirectionalFill, withChildEntity } from './uiHelpers';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 export class ProgressBarPlugin implements Plugin {
     name = 'progressBar';
+    dependencies = [PluginName.UILayout];
 
     build(app: App): void {
         registerComponent('ProgressBar', ProgressBar);

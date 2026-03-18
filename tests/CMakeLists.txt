@@ -30,3 +30,17 @@ add_executable(test_tilemap
 )
 target_link_libraries(test_tilemap PRIVATE esengine)
 add_test(NAME test_tilemap COMMAND test_tilemap)
+
+# SparseSet tests
+add_executable(test_sparse_set
+    ecs/test_sparse_set.cpp
+)
+target_link_libraries(test_sparse_set PRIVATE esengine)
+add_test(NAME test_sparse_set COMMAND test_sparse_set)
+
+# ResourcePool tests
+add_executable(test_resource_pool
+    resource/test_resource_pool.cpp
+)
+target_link_libraries(test_resource_pool PRIVATE esengine)
+add_test(NAME test_resource_pool COMMAND test_resource_pool)

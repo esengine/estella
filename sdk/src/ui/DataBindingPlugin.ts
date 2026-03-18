@@ -6,7 +6,7 @@ import { registerComponent, getComponent } from '../component';
 import { playModeOnly } from '../env';
 import { DataBinding, type DataBindingData, type BindingEntry } from './DataBinding';
 import { compileExpression } from './DataBindingExpression';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 const componentDefCache = new Map<string, AnyComponentDef | null>();
 
@@ -19,6 +19,7 @@ function getCachedComponentDef(name: string): AnyComponentDef | null {
 
 export class DataBindingPlugin implements Plugin {
     name = 'dataBinding';
+    dependencies = [PluginName.Text, PluginName.Image];
 
     build(app: App): void {
         registerComponent('DataBinding', DataBinding);

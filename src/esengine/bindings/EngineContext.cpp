@@ -108,6 +108,7 @@ void EngineContext::shutdown() {
         webglContext_ = 0;
     }
 
+    materialCache_.clear();
     initialized_ = false;
 }
 

@@ -7,9 +7,11 @@ import { Interactable } from './Interactable';
 import { UIInteraction, type UIInteractionData } from './UIInteraction';
 import { Selectable, type SelectableData } from './Selectable';
 import { UIEvents, UIEventQueue } from './UIEvents';
+import { PluginName } from '../systemLabels';
 
 export class SelectablePlugin implements Plugin {
     name = 'selectable';
+    dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {
         const world = app.world;

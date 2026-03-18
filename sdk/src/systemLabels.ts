@@ -7,6 +7,9 @@ export const PluginName = {
     UILayout: 'uiLayout',
     UIInteraction: 'uiInteraction',
     CollectionView: 'collectionView',
+    Text: 'text',
+    Image: 'image',
+    Focus: 'focus',
 } as const;
 
 export const SystemLabel = {

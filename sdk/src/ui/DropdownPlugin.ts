@@ -22,7 +22,7 @@ import type { InputState } from '../input';
 import { isEditor, isPlayMode } from '../env';
 import { ensureComponent, getEffectiveWidth, getEffectiveHeight, setEntityColor, setEntityEnabled, withChildEntity } from './uiHelpers';
 import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR, DROPDOWN_DEFAULT_COLOR, DROPDOWN_OPTION_COLOR } from './uiConstants';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 interface DropdownState {
     optionEntities: Entity[];
@@ -33,6 +33,7 @@ interface DropdownState {
 
 export class DropdownPlugin implements Plugin {
     name = 'dropdown';
+    dependencies = [PluginName.UIInteraction];
 
     private cleanup_: (() => void) | null = null;
 

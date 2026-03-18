@@ -19,7 +19,7 @@ import { UIEvents, UIEventQueue } from './UIEvents';
 import { isEditor, isPlayMode } from '../env';
 import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent, withChildEntity } from './uiHelpers';
 import { quaternionToAngle2D } from './uiMath';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel, PluginName } from '../systemLabels';
 
 function computeSliderValue(
     worldMouseX: number, worldMouseY: number,
@@ -81,6 +81,7 @@ function syncHandleRect(
 
 export class SliderPlugin implements Plugin {
     name = 'slider';
+    dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {
         registerComponent('Slider', Slider);
