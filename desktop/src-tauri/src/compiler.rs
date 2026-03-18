@@ -841,6 +841,14 @@ pub async fn compile_wasm(
 
     let emcmake_name = if cfg!(windows) { "emcmake.bat" } else { "emcmake" };
     let emcmake = emsdk_dir.join("upstream/emscripten").join(emcmake_name);
+
+    if !emcmake.exists() {
+        return Err(format!(
+            "emcmake not found at: {}. Is emsdk installed correctly?",
+            emcmake.display()
+        ));
+    }
+
     let mut cmake_args = vec![cmake_str.clone()];
     cmake_args.extend(build_cmake_flags(&options));
     cmake_args.push(engine_src.to_string_lossy().to_string());
@@ -1246,25 +1254,36 @@ async fn run_command_streamed(
     let stderr_handle = tokio::spawn(async move {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
+        let mut collected = Vec::new();
         while let Ok(Some(line)) = lines.next_line().await {
             let _ = app_err.emit(
                 "compile-output",
                 super::CommandOutput {
                     stream: "stderr".to_string(),
-                    data: line,
+                    data: line.clone(),
                 },
             );
+            collected.push(line);
         }
+        collected
     });
 
-    let _ = tokio::join!(stdout_handle, stderr_handle);
+    let (_, stderr_result) = tokio::join!(stdout_handle, stderr_handle);
 
     let status = child.wait().await.map_err(|e| e.to_string())?;
     if !status.success() {
+        let stderr_lines = stderr_result.unwrap_or_default();
+        let last_lines: Vec<&str> = stderr_lines.iter().rev().take(10).rev().map(|s| s.as_str()).collect();
+        let detail = if last_lines.is_empty() {
+            String::new()
+        } else {
+            format!("\n\nOutput:\n{}", last_lines.join("\n"))
+        };
         return Err(format!(
-            "Command failed: {} (exit code: {})",
+            "Command failed: {} (exit code: {}){}",
             cmd,
-            status.code().unwrap_or(-1)
+            status.code().unwrap_or(-1),
+            detail
         ));
     }
 
@@ -1283,7 +1302,13 @@ fn num_cpus() -> usize {
 /// cannot spawn batch files directly as processes.
 fn build_command_for_platform(cmd: &str, args: &[String]) -> (String, Vec<String>) {
     if cfg!(windows) && cmd.ends_with(".bat") {
-        let mut cmd_args = vec!["/C".to_string(), cmd.to_string()];
+        // Quote the .bat path if it contains spaces
+        let quoted_cmd = if cmd.contains(' ') {
+            format!("\"{}\"", cmd)
+        } else {
+            cmd.to_string()
+        };
+        let mut cmd_args = vec!["/C".to_string(), quoted_cmd];
         cmd_args.extend_from_slice(args);
         ("cmd.exe".to_string(), cmd_args)
     } else {
@@ -1309,6 +1334,25 @@ mod tests {
             assert_eq!(full_args[4], "Ninja");
         } else {
             assert_eq!(program, "C:\\emsdk\\emcmake.bat");
+            assert_eq!(full_args, args);
+        }
+    }
+
+    #[test]
+    fn bat_file_with_spaces_gets_quoted_on_windows() {
+        let args = vec!["cmake".to_string()];
+        let (program, full_args) = build_command_for_platform(
+            "C:\\Program Files\\emsdk\\emcmake.bat",
+            &args,
+        );
+
+        if cfg!(windows) {
+            assert_eq!(program, "cmd.exe");
+            assert_eq!(full_args[0], "/C");
+            assert_eq!(full_args[1], "\"C:\\Program Files\\emsdk\\emcmake.bat\"");
+            assert_eq!(full_args[2], "cmake");
+        } else {
+            assert_eq!(program, "C:\\Program Files\\emsdk\\emcmake.bat");
             assert_eq!(full_args, args);
         }
     }
