@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EditorStore } from '../../store/EditorStore';
+import { EditorEventBus } from '../../events/EditorEventBus';
 import type { Entity } from 'esengine';
 import type { SceneData, EntityData } from '../../types/SceneTypes';
 import { createEmptyScene } from '../../types/SceneTypes';
@@ -8,7 +9,7 @@ describe('EditorStore', () => {
     let store: EditorStore;
 
     beforeEach(() => {
-        store = new EditorStore();
+        store = new EditorStore(new EditorEventBus());
         store.newScene('Test Scene');
     });
 
@@ -574,7 +575,7 @@ describe('EditorStore', () => {
 
         it('property change listener fires on updateProperty', () => {
             const events: Array<{ entity: number; componentType: string; propertyName: string }> = [];
-            store.subscribeToPropertyChanges((event) => {
+            store.bus.on('property:changed', (event) => {
                 events.push({ entity: event.entity, componentType: event.componentType, propertyName: event.propertyName });
             });
 
@@ -590,7 +591,7 @@ describe('EditorStore', () => {
 
         it('hierarchy change listener fires on reparent', () => {
             const events: Array<{ entity: number; newParent: number | null }> = [];
-            store.subscribeToHierarchyChanges((event) => {
+            store.bus.on('hierarchy:changed', (event) => {
                 events.push({ entity: event.entity, newParent: event.newParent });
             });
 
@@ -605,7 +606,7 @@ describe('EditorStore', () => {
 
         it('entity lifecycle listener fires on create/delete', () => {
             const events: Array<{ entity: number; type: string }> = [];
-            store.subscribeToEntityLifecycle((event) => {
+            store.bus.on('entity:lifecycle', (event) => {
                 events.push({ entity: event.entity, type: event.type });
             });
 
@@ -619,7 +620,7 @@ describe('EditorStore', () => {
 
         it('component change listener fires on add/remove', () => {
             const events: Array<{ entity: number; componentType: string; action: string }> = [];
-            store.subscribeToComponentChanges((event) => {
+            store.bus.on('component:changed', (event) => {
                 events.push({ entity: event.entity, componentType: event.componentType, action: event.action });
             });
 
@@ -633,7 +634,7 @@ describe('EditorStore', () => {
 
         it('unsubscribe stops notifications', () => {
             let callCount = 0;
-            const unsubscribe = store.subscribeToEntityLifecycle(() => callCount++);
+            const unsubscribe = store.bus.on('entity:lifecycle', () => callCount++);
 
             store.createEntity('Entity1');
             expect(callCount).toBe(1);
@@ -655,7 +656,7 @@ describe('EditorStore', () => {
 
         it('visibility listener fires on toggle', () => {
             const events: Array<{ entity: number; visible: boolean }> = [];
-            store.subscribeToVisibilityChanges((event) => {
+            store.bus.on('visibility:changed', (event) => {
                 events.push({ entity: event.entity, visible: event.visible });
             });
 

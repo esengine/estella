@@ -1,5 +1,5 @@
 import type { PropertyMeta } from '../property/PropertyEditor';
-import { getComponentDefaults, getComponent } from 'esengine';
+import { getComponentDefaults, getComponent, getDefaultContext } from 'esengine';
 import type { AnyComponentDef } from 'esengine';
 import { getEditorContainer } from '../container';
 import { COMPONENT_SCHEMA } from '../container/tokens';
@@ -253,9 +253,9 @@ function registerUserComponent(
 }
 
 export function exposeRegistrationAPI(): void {
-    if (typeof window !== 'undefined') {
-        window.__esengine_registerComponent = registerUserComponent;
-    }
+    getDefaultContext().editorBridge = {
+        registerComponent: registerUserComponent,
+    };
 }
 
 export { TextSchema } from '../plugins/text';

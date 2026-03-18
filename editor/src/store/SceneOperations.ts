@@ -40,6 +40,7 @@ export interface SceneOperationsHost {
     notifyPropertyChange(event: PropertyChangeEvent): void;
     notifyVisibilityChange(event: VisibilityChangeEvent): void;
     selectEntity(entity: Entity | null): void;
+    selectEntities(entities: number[]): void;
     worldTransforms_: {
         updateEntity(entity: EntityData): void;
         markDirty(entityId: number): void;

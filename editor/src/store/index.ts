@@ -13,3 +13,5 @@ export {
     type PropertyChangeEvent,
     type PropertyChangeListener,
 } from './EditorStore';
+
+export { SelectionStore } from './SelectionStore';

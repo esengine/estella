@@ -6,6 +6,7 @@
 import { Entity, Vec2, Vec3, Color, Quat } from './types';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPRITE_SIZE } from './defaults';
 import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
+import { getDefaultContext } from './context';
 import type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './physics/PhysicsComponents';
@@ -114,8 +115,7 @@ function createComponentDef<T extends object>(
 }
 
 export function getComponentRegistry(): Map<string, ComponentDef<any>> {
-    const g = globalThis as any;
-    return (g.__esengine_componentRegistry ??= new Map());
+    return getDefaultContext().componentRegistry;
 }
 
 export function defineComponent<T extends object>(
@@ -166,10 +166,7 @@ function registerToEditor(
     defaults: Record<string, unknown>,
     isTag: boolean
 ): void {
-    const g = globalThis as any;
-    if (g.__esengine_registerComponent) {
-        g.__esengine_registerComponent(name, defaults, isTag);
-    }
+    getDefaultContext().editorBridge?.registerComponent(name, defaults, isTag);
 }
 
 // =============================================================================
