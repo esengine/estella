@@ -81,7 +81,9 @@ export class SpinePlugin implements Plugin {
 
         app.insertResource(SpineEvents, { events: [] });
 
-        const self = this;
+        app.world.onDespawn((entity: Entity) => {
+            this.spineManager_?.removeEntity(entity);
+        });
 
         const spineUpdateSystem: SystemDef = {
             _id: Symbol('SpineUpdateSystem'),
@@ -92,8 +94,8 @@ export class SpinePlugin implements Plugin {
                 if (!cppRegistry) return;
                 const time = app.getResource(Time);
                 SpineCpp.update({ _cpp: cppRegistry }, time.delta);
-                self.spineManager_?.updateAnimations(time.delta);
-                self.collectAndPublishEvents_(app);
+                this.spineManager_?.updateAnimations(time.delta);
+                this.collectAndPublishEvents_(app);
             },
         };
 

@@ -48,6 +48,15 @@ export class AudioPlugin implements Plugin {
         this.activeSourceHandles_ = activeSourceHandles;
         const playedEntities = new Set<number>();
         this.playedEntities_ = playedEntities;
+
+        app.world.onDespawn((entity: Entity) => {
+            const handle = activeSourceHandles.get(entity);
+            if (handle) {
+                handle.stop();
+                activeSourceHandles.delete(entity);
+            }
+            playedEntities.delete(entity);
+        });
         const liveEntities = new Set<number>();
         let spatialListenerWarned = false;
         let wasPlayMode = false;

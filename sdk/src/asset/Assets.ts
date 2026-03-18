@@ -369,6 +369,22 @@ export class Assets {
         }
     }
 
+    releaseFont(ref: string): void {
+        this.releaseTyped('font', ref);
+    }
+
+    private releaseTyped(type: string, ref: string): void {
+        const path = this.catalog.resolve(ref);
+        const cache = this.genericCache_.get(type);
+        if (!cache) return;
+        const entry = cache.get(path);
+        if (entry) {
+            const loader = this.loaders_.get(type);
+            loader?.unload(entry);
+            cache.delete(path);
+        }
+    }
+
     releaseAll(): void {
         const rm = requireResourceManager();
         for (const info of this.textureCache_.values()) {

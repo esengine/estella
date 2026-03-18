@@ -375,6 +375,11 @@ export const Draw: DrawAPI = {
                 idx = 0;
                 let autoTextureSlot = 0;
                 for (const [name, value] of matData.uniforms) {
+                    if (idx > UNIFORMS_BUFFER_SIZE - 6) {
+                        console.warn('Uniform buffer overflow, some uniforms will be ignored');
+                        break;
+                    }
+
                     const nameId = getUniformNameId(name);
                     if (nameId < 0) continue;
 
@@ -413,10 +418,6 @@ export const Draw: DrawAPI = {
                         uniformBuffer[idx++] = value.y;
                     }
 
-                    if (idx > UNIFORMS_BUFFER_SIZE - 6) {
-                        console.warn('Uniform buffer overflow, some uniforms will be ignored');
-                        break;
-                    }
                 }
 
                 if (!matData.cachedBuffer_ || matData.cachedBuffer_.length < idx) {

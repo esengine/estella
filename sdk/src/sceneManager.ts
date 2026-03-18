@@ -539,6 +539,12 @@ export class SceneManagerState {
             Material.release(handle);
         }
 
+        if (assetServer) {
+            for (const fontPath of assets.fontPaths) {
+                assetServer.releaseFont(fontPath);
+            }
+        }
+
         instance.loadedAssets = null;
     }
 
