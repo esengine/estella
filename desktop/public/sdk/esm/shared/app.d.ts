@@ -407,6 +407,8 @@ declare class Assets {
     preloadSceneAssets(sceneData: SceneData): Promise<SceneAssetResult>;
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void;
     releaseTexture(ref: string): void;
+    releaseFont(ref: string): void;
+    private releaseTyped;
     releaseAll(): void;
     setSpineController(controller: SpineModuleController): void;
     getSpineLoader(): SpineAssetLoader;
@@ -1747,6 +1749,7 @@ declare class PostProcessStack {
     readonly id: number;
     private passes_;
     private destroyed_;
+    private dirty_;
     constructor();
     addPass(name: string, shader: ShaderHandle): this;
     removePass(name: string): this;
@@ -1758,6 +1761,8 @@ declare class PostProcessStack {
     get passCount(): number;
     get enabledPassCount(): number;
     get passes(): readonly PassConfig[];
+    get isDirty(): boolean;
+    clearDirty(): void;
     get isDestroyed(): boolean;
     destroy(): void;
 }
