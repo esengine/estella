@@ -186,7 +186,11 @@ export class CommandsInstance {
         this.spawned_.length = 0;
 
         for (const cmd of this.pending_) {
-            this.executeCommand(cmd);
+            try {
+                this.executeCommand(cmd);
+            } catch (e) {
+                console.warn('[Commands] Failed to execute command:', cmd.type, e);
+            }
         }
         this.pending_.length = 0;
     }

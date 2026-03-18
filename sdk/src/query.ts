@@ -248,6 +248,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
         const mutIsBuiltin = this.mutIsBuiltin_;
         const writeMut = () => {
+            if (!world.valid(prevEntity!)) return;
             for (let i = 0; i < mutCount; i++) {
                 const mut = mutData[i];
                 if (mutIsBuiltin[i]) {
@@ -341,7 +342,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             const entity = entities[idx];
             if (hasChangeFilters && !this.passesChangeFilters_(entity)) continue;
 
-            if (prevEntity !== null && hasMut) {
+            if (prevEntity !== null && hasMut && world.valid(prevEntity)) {
                 for (let i = 0; i < mutCount; i++) {
                     const mut = mutData[i];
                     if (this.mutIsBuiltin_[i]) {
@@ -375,7 +376,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             }
         }
 
-        if (prevEntity !== null && hasMut) {
+        if (prevEntity !== null && hasMut && world.valid(prevEntity)) {
             for (let i = 0; i < mutCount; i++) {
                 const mut = mutData[i];
                 if (this.mutIsBuiltin_[i]) {
