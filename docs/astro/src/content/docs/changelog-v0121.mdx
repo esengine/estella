@@ -1,0 +1,118 @@
+---
+title: v0.12.1
+description: Estella v0.12.1 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.12.1 brings Sprite tiling, MCP on the startup page, a unified script compilation pipeline, and a large SDK/editor architecture overhaul with explicit DI, typed event bus, and component-aware query caching.
+</Aside>
+
+## Sprite Tiling
+
+The `Sprite` component now supports `tileSize` and `tileSpacing` for seamless or spaced tiling:
+
+- **Seamless tiling** (`tileSpacing = 0`): uses `uvScale` override with `GL_REPEAT` for zero extra draw-call overhead
+- **Spaced tiling**: emits N×M quads with configurable gaps, auto-merged into a single draw call via the batch system
+- Both modes respect sprite flip and pivot settings
+
+## MCP on Startup Page
+
+MCP tools are now available before opening a project:
+
+- Bridge server starts in Tauri `setup()` before the frontend loads
+- New MCP tools on the startup page: `get_editor_status`, `list_recent_projects`, `list_examples`, `open_project`, `create_from_example`
+- New MCP build tools: `build_project` (trigger playable/wechat build) and `list_build_configs` (query available configs)
+- `LauncherBridge` handles project management tools; editor-mode tools lazy-discover the editor on first call
+
+## Unified Script Compilation
+
+Script compilation is now handled by a single `ScriptCompiler` class, merging two previously divergent VirtualFS plugins and SDK resolution strategies:
+
+- Play Mode uses incremental compilation via esbuild context
+- Build export uses one-shot compilation
+- Circular dependency between `ScriptLoader` and `ScriptCompiler` broken by extracting `scriptDiscovery.ts`
+
+## SDK Core Decomposition
+
+### App Slimdown
+
+`app.ts` reduced from 1090 to 729 lines by extracting the camera system and math utilities:
+
+- **CameraPlugin** (`camera/CameraPlugin.ts`): multi-camera collection, ortho/perspective projection, Canvas scale mode adaptation, and the render system are now a standalone plugin
+- **mat4** (`math/mat4.ts`): `ortho`, `perspective`, `invertTranslation`, `multiply` extracted as pure functions with pooled Float32Array buffers
+- `createWebApp()` is now a pure assembly function — plugin registration only, no inline system definitions
+
+### World Facade Refactoring
+
+`world.ts` reduced from 1101 to 674 lines by splitting into 5 focused internal classes:
+
+| Module | Responsibility |
+|--------|---------------|
+| `ecs/BuiltinBridge` | C++ Registry method cache, ptr layout direct reads/writes, color format conversion |
+| `ecs/ScriptStorage` | TypeScript Map-based component storage, entity-component tracking |
+| `ecs/NameIndex` | Bidirectional name-to-entity lookup |
+| `ecs/ChangeTracker` | Tick-based added/changed/removed detection |
+| `ecs/QueryCache` | Cached entity queries with component-aware invalidation |
+
+All public `World` API signatures remain identical — the split is internal (Facade pattern).
+
+### AppContext Replaces globalThis
+
+Three `globalThis.__esengine_*` implicit coupling points replaced with an explicit `AppContext`:
+
+- `getDefaultContext().componentRegistry` replaces `globalThis.__esengine_componentRegistry`
+- `getDefaultContext().pendingSystems` replaces `globalThis.__esengine_pendingSystems`
+- `getDefaultContext().editorBridge` replaces `globalThis.__esengine_registerComponent`
+
+Enables multi-app instance isolation and proper test cleanup via `setDefaultContext()`.
+
+### Component-Aware Query Cache
+
+The query cache previously invalidated all cached queries on any entity change. Now each cache entry tracks which component types it depends on, and only invalidates when a relevant component changes.
+
+## Editor Architecture
+
+### EditorEventBus
+
+A new typed pub-sub event bus replaces 6 manual listener sets on `EditorStore`:
+
+- Immediate delivery via `emit()` for structural changes
+- Batched delivery via `emitBatched()` using `requestAnimationFrame` — same-type events within a frame are merged (last-write-wins)
+- Events: `selection:changed`, `scene:synced`, `property:changed`, `hierarchy:changed`, `entity:lifecycle`, `component:changed`, `visibility:changed`, `tiletool:changed`, `gizmo:requested`
+
+### Store Decomposition
+
+`EditorStore` split into focused stores:
+
+- **SelectionStore**: entity/asset selection state, focus tracking
+- **TileToolStore**: tile brush tool, stamp, flip state
+- **EditorStore** (slimmed): scene data, command history, world transform cache — notifications routed through EventBus
+
+All stores registered in the IoC container with typed tokens.
+
+### IncrementalSync
+
+Property edits in the editor now use field-level WASM direct writes instead of full component re-adds:
+
+- Utilizes `PTR_LAYOUTS` to write individual fields directly to `HEAPF32`/`HEAPU32`/`HEAPU8`
+- Transform drag operations write only `position.x/y/z` (3 floats) instead of the full 20+ field component
+- Falls back to full component sync for components without ptr layouts
+
+## Build Pipeline
+
+- **WASM build cache hash validation**: cache now computes a hash of all C++/HPP source files and `CMakeLists.txt`, invalidating on source changes instead of only checking output existence
+- **Engine source resolution**: dev mode now prefers the live project root `src/esengine/` over the stale toolchain copy, ensuring new components are included in builds
+- **Toolchain manifest**: added yoga library to `toolchain.manifest.json` for UILayoutSystem flex support
+- **Playable build fix**: replaced hardcoded `COMPONENT_TO_PLUGIN` mapping (missing 10+ components) with SDK's `uiPlugins` array as single source of truth
+
+## Bug Fixes
+
+- Fixed `Assets.baseUrl` not propagating to `HttpBackend` for `loadTexture`, `loadMaterial`, `loadFont`, `loadSpine` and all Loader-based methods — only `fetchJson` worked previously
+- Fixed `Assets.fetchJson`/`fetchText`/`fetchBinary` not resolving relative paths through `baseUrl`, causing Play Mode JSON loading to fail in Tauri
+- Fixed `HttpBackend.resolveUrl` only recognizing `http://`/`https://` — now handles `asset://`, `blob://`, and other URI schemes
+- Fixed `UIRenderOrderPlugin` requiring `CollectionView` plugin to be installed — execution order is already guaranteed by system-level `runBefore/runAfter`
+- Fixed WASM toolchain sync copying root `CMakeLists.txt` which references unavailable yogacore sources
+- Fixed stale WASM builds when new components are added to `WebBindings.generated.cpp`
+- Fixed Assets API documentation referencing non-existent `loadJson`/`loadText`/`loadBinary` methods (actual API is `fetchJson`/`fetchText`/`fetchBinary`)
