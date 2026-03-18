@@ -141,7 +141,16 @@ export class App {
         if (plugin.name) {
             this.installedPluginNames_.add(plugin.name);
         }
-        plugin.build(this);
+        try {
+            plugin.build(this);
+        } catch (e) {
+            this.installedPluginSet_.delete(plugin);
+            this.installed_plugins_.pop();
+            if (plugin.name) {
+                this.installedPluginNames_.delete(plugin.name);
+            }
+            throw e;
+        }
         return this;
     }
 

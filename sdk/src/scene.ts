@@ -165,24 +165,31 @@ function spawnAndLoadEntities(world: World, sceneData: SceneData): Map<number, E
         world.insert(entity, Name, { value: entityData.name });
     }
 
-    for (const entityData of sceneData.entities) {
-        if (entityData.visible === false) continue;
-        migrateToUIRenderer(entityData);
-        const entity = entityMap.get(entityData.id)!;
-        for (const compData of entityData.components) {
-            remapEntityFields(compData, entityMap);
-            loadComponent(world, entity, compData, entityData.name);
-        }
-    }
-
-    for (const entityData of sceneData.entities) {
-        if (entityData.parent !== null) {
-            const entity = entityMap.get(entityData.id);
-            const parentEntity = entityMap.get(entityData.parent);
-            if (entity !== undefined && parentEntity !== undefined) {
-                world.setParent(entity, parentEntity);
+    try {
+        for (const entityData of sceneData.entities) {
+            if (entityData.visible === false) continue;
+            migrateToUIRenderer(entityData);
+            const entity = entityMap.get(entityData.id)!;
+            for (const compData of entityData.components) {
+                remapEntityFields(compData, entityMap);
+                loadComponent(world, entity, compData, entityData.name);
             }
         }
+
+        for (const entityData of sceneData.entities) {
+            if (entityData.parent !== null) {
+                const entity = entityMap.get(entityData.id);
+                const parentEntity = entityMap.get(entityData.parent);
+                if (entity !== undefined && parentEntity !== undefined) {
+                    world.setParent(entity, parentEntity);
+                }
+            }
+        }
+    } catch (e) {
+        for (const entity of entityMap.values()) {
+            try { world.despawn(entity); } catch { /* ignore cleanup errors */ }
+        }
+        throw e;
     }
 
     return entityMap;

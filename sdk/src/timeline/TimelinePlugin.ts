@@ -7,7 +7,7 @@ import { playModeOnly } from '../env';
 import { WrapMode, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { parseTimelineAsset } from './TimelineLoader';
 import { uploadTimelineToWasm, type UploadResult } from './TimelineUploader';
-import { setTimelineHandle, setTimelineModule } from './TimelineControl';
+import { setTimelineHandle, setTimelineModule, removeTimelineHandle } from './TimelineControl';
 import {
     resolveTrackTargets,
     advanceAndProcess,
@@ -89,6 +89,12 @@ export class TimelinePlugin implements Plugin {
     build(app: App): void {
         activeTimelinePlugin = this;
         const world = app.world;
+
+        world.onDespawn((entity: Entity) => {
+            removeTimelineHandle(entity);
+            this.handles_.delete(entity);
+            this.animFramesStates_.delete(entity);
+        });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],

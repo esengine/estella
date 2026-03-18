@@ -7,6 +7,7 @@ import type { App, Plugin } from '../app';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
+import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { initTweenAPI, shutdownTweenAPI, Tween } from './Tween';
 import { spriteAnimatorSystemUpdate } from './SpriteAnimator';
@@ -21,6 +22,10 @@ export class AnimationPlugin implements Plugin {
         const registry = app.world.getCppRegistry() as CppRegistry;
         initTweenAPI(module, registry);
         const world = app.world;
+
+        world.onDespawn((entity: Entity) => {
+            Tween.cancelAll(entity);
+        });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
