@@ -63,7 +63,8 @@ TEST_CASE("entity_recycling") {
     registry.destroy(e1);
     esengine::Entity e2 = registry.create();
 
-    CHECK_EQ(e1, e2);
+    CHECK_EQ(e1.index(), e2.index());
+    CHECK_NE(e1, e2);
     CHECK(registry.valid(e2));
 }
 
@@ -237,9 +238,9 @@ TEST_CASE("clear_registry") {
 TEST_CASE("sparse_set_basic") {
     esengine::ecs::SparseSet<test::Position> set;
 
-    esengine::Entity e1 = 0;
-    esengine::Entity e2 = 5;
-    esengine::Entity e3 = 100;
+    esengine::Entity e1 = esengine::Entity::make(0, 1);
+    esengine::Entity e2 = esengine::Entity::make(5, 1);
+    esengine::Entity e3 = esengine::Entity::make(100, 1);
 
     set.emplace(e1, 1.0f, 1.0f);
     set.emplace(e2, 2.0f, 2.0f);
@@ -248,7 +249,7 @@ TEST_CASE("sparse_set_basic") {
     CHECK(set.contains(e1));
     CHECK(set.contains(e2));
     CHECK(set.contains(e3));
-    CHECK(!set.contains(50));
+    CHECK(!set.contains(esengine::Entity::make(50, 1)));
 
     CHECK_EQ(set.get(e1).x, 1.0f);
     CHECK_EQ(set.get(e2).x, 2.0f);
@@ -260,9 +261,9 @@ TEST_CASE("sparse_set_basic") {
 TEST_CASE("sparse_set_remove") {
     esengine::ecs::SparseSet<test::Position> set;
 
-    esengine::Entity e1 = 0;
-    esengine::Entity e2 = 1;
-    esengine::Entity e3 = 2;
+    esengine::Entity e1 = esengine::Entity::make(0, 1);
+    esengine::Entity e2 = esengine::Entity::make(1, 1);
+    esengine::Entity e3 = esengine::Entity::make(2, 1);
 
     set.emplace(e1, 1.0f, 1.0f);
     set.emplace(e2, 2.0f, 2.0f);
