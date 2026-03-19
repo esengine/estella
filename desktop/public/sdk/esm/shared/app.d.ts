@@ -1674,6 +1674,12 @@ declare class SystemRunner {
     constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry);
     setTimingEnabled(enabled: boolean): void;
     getTimings(): ReadonlyMap<string, number> | null;
+    /** @brief Clear timing data for the current frame */
+    clearTimings(): void;
+    /** @brief Remove cached state for a single system */
+    evict(systemId: symbol): void;
+    /** @brief Clear all cached state */
+    reset(): void;
     run(system: SystemDef): void | Promise<void>;
     private flushSystem_;
     private resolveParam;
@@ -1864,6 +1870,8 @@ declare class App {
     private readonly resources_;
     private readonly systems_;
     private runner_;
+    private systemCounter_;
+    private readonly templateToRuntime_;
     private running_;
     private lastTime_;
     private fixedTimestep_;
