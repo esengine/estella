@@ -27,6 +27,35 @@ export interface ToastAction {
 }
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+const MAX_TOAST_LINES = 4;
+const MAX_TOAST_CHARS = 300;
+
+function truncateToastMessage(message: string): string {
+    const lines = message.split('\n');
+    if (lines.length <= MAX_TOAST_LINES && message.length <= MAX_TOAST_CHARS) {
+        return message;
+    }
+
+    const kept = lines.slice(0, MAX_TOAST_LINES);
+    let result = kept.join('\n');
+    if (result.length > MAX_TOAST_CHARS) {
+        result = result.slice(0, MAX_TOAST_CHARS);
+    }
+
+    const omitted = lines.length - MAX_TOAST_LINES;
+    if (omitted > 0) {
+        result += `\n... (${omitted} more lines, see build output)`;
+    } else if (message.length > MAX_TOAST_CHARS) {
+        result += '...';
+    }
+
+    return result;
+}
+
+// =============================================================================
 // Toast Manager (Singleton)
 // =============================================================================
 
@@ -75,7 +104,7 @@ class ToastManager {
         `;
         toast.querySelector('.es-toast-title')!.textContent = options.title;
         if (options.message) {
-            toast.querySelector('.es-toast-message')!.textContent = options.message;
+            toast.querySelector('.es-toast-message')!.textContent = truncateToastMessage(options.message);
         }
 
         // Event listeners
@@ -125,7 +154,7 @@ class ToastManager {
                     messageEl.className = 'es-toast-message';
                     toast.querySelector('.es-toast-content')?.appendChild(messageEl);
                 }
-                messageEl.textContent = updates.message;
+                messageEl.textContent = truncateToastMessage(updates.message);
             } else if (messageEl) {
                 messageEl.remove();
             }

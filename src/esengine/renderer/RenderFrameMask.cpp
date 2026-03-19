@@ -100,7 +100,7 @@ bool hasAncestorScissorMask(ecs::Registry& registry, Entity entity,
     while (registry.has<ecs::Parent>(current)) {
         Entity parent = registry.get<ecs::Parent>(current).entity;
         if (parent == INVALID_ENTITY) break;
-        if (maskSet.count(static_cast<u32>(parent))) {
+        if (maskSet.count(parent.id())) {
             const auto& parentMask = registry.get<ecs::UIMask>(parent);
             if (parentMask.mode == ecs::MaskMode::Scissor) return true;
         }
@@ -115,7 +115,7 @@ bool hasAncestorStencilMask(ecs::Registry& registry, Entity entity,
     while (registry.has<ecs::Parent>(current)) {
         Entity parent = registry.get<ecs::Parent>(current).entity;
         if (parent == INVALID_ENTITY) break;
-        if (stencilSet.count(static_cast<u32>(parent))) return true;
+        if (stencilSet.count(parent.id())) return true;
         current = parent;
     }
     return false;
@@ -131,7 +131,7 @@ void applyScissorToDescendants(
     for (auto child : children.entities) {
         ScreenRect childClip = clipRect;
 
-        if (maskSet.count(static_cast<u32>(child))) {
+        if (maskSet.count(child.id())) {
             const auto& childMask = registry.get<ecs::UIMask>(child);
             if (childMask.mode == ecs::MaskMode::Scissor) {
                 ScreenRect childRect = computeMaskScreenRect(registry, child, vp, vpX, vpY, vpW, vpH);
@@ -139,7 +139,7 @@ void applyScissorToDescendants(
             }
         }
 
-        frame.setEntityClipRect(static_cast<u32>(child), childClip.x, childClip.y, childClip.w, childClip.h);
+        frame.setEntityClipRect(child.id(), childClip.x, childClip.y, childClip.w, childClip.h);
         applyScissorToDescendants(registry, frame, child, childClip, maskSet, vp, vpX, vpY, vpW, vpH);
     }
 }
@@ -154,17 +154,17 @@ void applyStencilHierarchy(ecs::Registry& registry, RenderFrame& frame,
                             Entity entity, i32 refValue,
                             const std::unordered_set<u32>& stencilSet, i32& nextRef, bool& overflowed) {
     if (overflowed) return;
-    frame.setEntityStencilMask(static_cast<u32>(entity), refValue);
+    frame.setEntityStencilMask(entity.id(), refValue);
 
     if (!registry.has<ecs::Children>(entity)) return;
     const auto& children = registry.get<ecs::Children>(entity);
     for (auto child : children.entities) {
         if (overflowed) return;
-        if (stencilSet.count(static_cast<u32>(child))) {
+        if (stencilSet.count(child.id())) {
             if (nextRef > MAX_STENCIL_REF) { overflowed = true; return; }
             applyStencilHierarchy(registry, frame, child, nextRef++, stencilSet, nextRef, overflowed);
         } else {
-            frame.setEntityStencilTest(static_cast<u32>(child), refValue);
+            frame.setEntityStencilTest(child.id(), refValue);
             applyStencilDescendants(registry, frame, child, refValue, stencilSet, nextRef, overflowed);
         }
     }
@@ -178,11 +178,11 @@ void applyStencilDescendants(ecs::Registry& registry, RenderFrame& frame,
     const auto& children = registry.get<ecs::Children>(entity);
     for (auto child : children.entities) {
         if (overflowed) return;
-        if (stencilSet.count(static_cast<u32>(child))) {
+        if (stencilSet.count(child.id())) {
             if (nextRef > MAX_STENCIL_REF) { overflowed = true; return; }
             applyStencilHierarchy(registry, frame, child, nextRef++, stencilSet, nextRef, overflowed);
         } else {
-            frame.setEntityStencilTest(static_cast<u32>(child), refValue);
+            frame.setEntityStencilTest(child.id(), refValue);
             applyStencilDescendants(registry, frame, child, refValue, stencilSet, nextRef, overflowed);
         }
     }
@@ -203,10 +203,10 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
     for (auto entity : maskView) {
         const auto& mask = registry.get<ecs::UIMask>(entity);
         if (!mask.enabled) continue;
-        maskSet.insert(static_cast<u32>(entity));
+        maskSet.insert(entity.id());
         if (mask.mode == ecs::MaskMode::Stencil) {
             stencilMasks.push_back(entity);
-            stencilSet.insert(static_cast<u32>(entity));
+            stencilSet.insert(entity.id());
         } else {
             scissorMasks.push_back(entity);
         }

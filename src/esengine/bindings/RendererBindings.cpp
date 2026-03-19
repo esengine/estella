@@ -12,6 +12,7 @@
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/Registry.hpp"
 #include "../ecs/TransformSystem.hpp"
+#include "../core/World.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -208,7 +209,7 @@ emscripten::val spine_native_getEventRecord(i32 index) {
     }
     auto& record = g_spineSystem->getEventRecord(index);
     auto result = emscripten::val::object();
-    result.set("entity", static_cast<i32>(record.entity));
+    result.set("entity", static_cast<i32>(record.entity.id()));
     result.set("animationName", record.animationName);
     result.set("eventName", record.eventName);
     result.set("stringValue", record.stringValue);
@@ -291,7 +292,8 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     }
 
     if (g_transformSystem) {
-        g_transformSystem->update(registry, 0.0f);
+        esengine::World w{registry, ctx().services(), 0.0f};
+        g_transformSystem->update(w);
     }
 
 #ifdef ES_ENABLE_SPINE
@@ -354,7 +356,8 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
     }
 
     if (g_transformSystem) {
-        g_transformSystem->update(registry, 0.0f);
+        esengine::World w{registry, ctx().services(), 0.0f};
+        g_transformSystem->update(w);
     }
 
 #ifdef ES_ENABLE_SPINE
@@ -419,7 +422,8 @@ void renderer_end() {
 
 static void ensureTransformsUpdated(ecs::Registry& registry) {
     if (!ctx().transformsUpdated() && g_transformSystem) {
-        g_transformSystem->update(registry, 0.0f);
+        esengine::World w{registry, ctx().services(), 0.0f};
+        g_transformSystem->update(w);
         ctx().setTransformsUpdated(true);
     }
 }
@@ -693,7 +697,7 @@ u32 gl_checkErrors(const std::string& context) {
 i32 registry_getCanvasEntity(ecs::Registry& registry) {
     auto view = registry.view<ecs::Canvas>();
     for (auto entity : view) {
-        return static_cast<i32>(entity);
+        return static_cast<i32>(entity.id());
     }
     return -1;
 }
@@ -705,7 +709,7 @@ emscripten::val registry_getCameraEntities(ecs::Registry& registry) {
     for (auto entity : cameraView) {
         auto& camera = registry.get<ecs::Camera>(entity);
         if (camera.isActive) {
-            result.set(idx++, static_cast<u32>(entity));
+            result.set(idx++, entity.id());
         }
     }
     return result;
@@ -713,19 +717,19 @@ emscripten::val registry_getCameraEntities(ecs::Registry& registry) {
 
 emscripten::val getChildEntities(ecs::Registry& registry, u32 entity) {
     auto result = emscripten::val::array();
-    if (!registry.has<ecs::Children>(static_cast<Entity>(entity))) {
+    if (!registry.has<ecs::Children>(Entity::fromRaw(entity))) {
         return result;
     }
-    const auto& children = registry.get<ecs::Children>(static_cast<Entity>(entity));
+    const auto& children = registry.get<ecs::Children>(Entity::fromRaw(entity));
     u32 idx = 0;
     for (auto child : children.entities) {
-        result.set(idx++, static_cast<u32>(child));
+        result.set(idx++, child.id());
     }
     return result;
 }
 
 u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
-    return Entity(entity).generation();
+    return Entity::fromRaw(entity).generation();
 }
 
 u32 registry_getSchemaPoolVersion(ecs::Registry& registry, u32 poolId) {
@@ -738,7 +742,7 @@ void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t buff
         const int offset = i * 4;
         uint32_t entityId;
         std::memcpy(&entityId, buffer + offset, sizeof(uint32_t));
-        auto entity = static_cast<Entity>(entityId);
+        auto entity = Entity::fromRaw(entityId);
         if (!registry.valid(entity)) continue;
         if (!registry.has<ecs::Transform>(entity)) continue;
 

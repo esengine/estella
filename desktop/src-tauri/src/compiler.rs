@@ -30,6 +30,8 @@ pub struct ToolchainStatus {
     pub python_found: bool,
     pub python_version: Option<String>,
     pub python_ok: bool,
+    pub corrupted: bool,
+    pub missing_tools: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,6 +114,7 @@ pub struct CompileResult {
 
 const EMSDK_VERSION: &str = "5.0.0";
 const EMSDK_DOWNLOAD_BASE: &str = "https://github.com/esengine/emsdk-releases/releases/download";
+const NINJA_VERSION: &str = "1.13.2";
 
 const MIN_EMSCRIPTEN_VERSION: &str = "5.0.0";
 const MIN_CMAKE_VERSION: &str = "3.16";
@@ -199,6 +202,28 @@ fn find_emcc_in_emsdk(emsdk_path: &Path) -> Option<PathBuf> {
 
 fn validate_emsdk(emsdk_path: &Path) -> bool {
     find_emcc_in_emsdk(emsdk_path).is_some()
+}
+
+fn validate_emsdk_integrity(emsdk_path: &Path) -> Vec<String> {
+    let ninja_name = if cfg!(windows) { "ninja.exe" } else { "ninja" };
+    let required = [
+        ("upstream/bin", ninja_name, "ninja"),
+        ("upstream/emscripten", if cfg!(windows) { "emcc.bat" } else { "emcc" }, "emcc"),
+        (".emscripten", "", ".emscripten config"),
+    ];
+
+    let mut missing = Vec::new();
+    for (dir, file, label) in &required {
+        let path = if file.is_empty() {
+            emsdk_path.join(dir)
+        } else {
+            emsdk_path.join(dir).join(file)
+        };
+        if !path.exists() {
+            missing.push(label.to_string());
+        }
+    }
+    missing
 }
 
 fn get_emcc_version(emsdk_path: &Path) -> Option<String> {
@@ -396,55 +421,173 @@ fn project_root() -> Option<PathBuf> {
         .map(|p| p.to_path_buf())
 }
 
+// =============================================================================
+// Manifest-driven toolchain sync
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+struct ToolchainManifest {
+    engine: EngineManifest,
+    third_party: ThirdPartyManifest,
+}
+
+#[derive(Debug, Deserialize)]
+struct EngineManifest {
+    root_files: Vec<String>,
+    directories: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ThirdPartyManifest {
+    root_files: Vec<String>,
+    full: Vec<String>,
+    partial: HashMap<String, Vec<String>>,
+}
+
+fn load_manifest(root: &Path) -> Result<ToolchainManifest, String> {
+    let path = root.join("toolchain.manifest.json");
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read toolchain manifest: {}", e))?;
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse toolchain manifest: {}", e))
+}
+
 fn sync_engine_src_if_needed(engine_src: &Path) -> Result<bool, String> {
     let root = match project_root() {
         Some(r) => r,
         None => return Ok(false),
     };
-    let live_bindings = root.join("src/esengine/bindings/WebBindings.generated.cpp");
-    let toolchain_bindings = engine_src.join("src/esengine/bindings/WebBindings.generated.cpp");
 
-    if !live_bindings.exists() {
-        return Ok(false);
-    }
-
-    let needs_sync = if toolchain_bindings.exists() {
-        let live_meta = std::fs::metadata(&live_bindings).map_err(|e| e.to_string())?;
-        let tc_meta = std::fs::metadata(&toolchain_bindings).map_err(|e| e.to_string())?;
-        live_meta.len() != tc_meta.len() || live_meta.modified().ok() != tc_meta.modified().ok()
-    } else {
-        true
+    let manifest = match load_manifest(&root) {
+        Ok(m) => m,
+        Err(_) => return Ok(false),
     };
 
-    if !needs_sync {
+    let current_hash = compute_manifest_hash(&root, &manifest);
+    let hash_file = engine_src.join(".sync_hash");
+    let stored_hash = std::fs::read_to_string(&hash_file).unwrap_or_default();
+
+    if current_hash == stored_hash {
         return Ok(false);
     }
 
-    let live_src = root.join("src/esengine");
-    let dest_src = engine_src.join("src/esengine");
-
-    sync_directory(&live_src, &dest_src)?;
-
+    sync_from_manifest(&root, engine_src, &manifest)?;
+    let _ = std::fs::write(&hash_file, &current_hash);
     Ok(true)
 }
 
-fn sync_directory(src: &Path, dest: &Path) -> Result<(), String> {
-    if !src.is_dir() {
-        return Ok(());
+fn compute_manifest_hash(root: &Path, manifest: &ToolchainManifest) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::Hasher;
+
+    let mut hasher = DefaultHasher::new();
+
+    for file in &manifest.engine.root_files {
+        hash_file_meta(&mut hasher, &root.join(file));
+    }
+    for dir in &manifest.engine.directories {
+        hash_dir_meta(&mut hasher, &root.join(dir));
+    }
+    for file in &manifest.third_party.root_files {
+        hash_file_meta(&mut hasher, &root.join("third_party").join(file));
+    }
+    for dir in &manifest.third_party.full {
+        hash_file_meta(&mut hasher, &root.join("third_party").join(dir).join("CMakeLists.txt"));
+    }
+    for (lib, subdirs) in &manifest.third_party.partial {
+        for subdir in subdirs {
+            hash_dir_meta(&mut hasher, &root.join("third_party").join(lib).join(subdir));
+        }
+    }
+
+    format!("{:016x}", hasher.finish())
+}
+
+fn hash_file_meta(hasher: &mut impl std::hash::Hasher, path: &Path) {
+    use std::hash::Hash;
+    if let Ok(meta) = std::fs::metadata(path) {
+        path.to_string_lossy().hash(hasher);
+        meta.len().hash(hasher);
+        if let Ok(modified) = meta.modified() {
+            modified.hash(hasher);
+        }
+    }
+}
+
+fn hash_dir_meta(hasher: &mut impl std::hash::Hasher, dir: &Path) {
+    if let Ok(entries) = collect_all_files(dir) {
+        for path in entries {
+            hash_file_meta(hasher, &path);
+        }
+    }
+}
+
+fn sync_from_manifest(root: &Path, dest: &Path, manifest: &ToolchainManifest) -> Result<(), String> {
+    // Clean dest (preserve .sync_hash)
+    let hash_backup = std::fs::read_to_string(dest.join(".sync_hash")).ok();
+
+    if dest.exists() {
+        std::fs::remove_dir_all(dest).map_err(|e| e.to_string())?;
     }
     std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
 
+    if let Some(hash) = hash_backup {
+        let _ = std::fs::write(dest.join(".sync_hash"), hash);
+    }
+
+    for file in &manifest.engine.root_files {
+        let src = root.join(file);
+        if src.exists() {
+            std::fs::copy(&src, dest.join(file)).map_err(|e| e.to_string())?;
+        }
+    }
+
+    for dir in &manifest.engine.directories {
+        let src = root.join(dir);
+        if src.exists() {
+            copy_dir_recursive(&src, &dest.join(dir))?;
+        }
+    }
+
+    let tp_dest = dest.join("third_party");
+    std::fs::create_dir_all(&tp_dest).map_err(|e| e.to_string())?;
+
+    for file in &manifest.third_party.root_files {
+        let src = root.join("third_party").join(file);
+        if src.exists() {
+            std::fs::copy(&src, tp_dest.join(file)).map_err(|e| e.to_string())?;
+        }
+    }
+
+    for dir in &manifest.third_party.full {
+        let src = root.join("third_party").join(dir);
+        if src.exists() {
+            copy_dir_recursive(&src, &tp_dest.join(dir))?;
+        }
+    }
+
+    for (lib, subdirs) in &manifest.third_party.partial {
+        for subdir in subdirs {
+            let src = root.join("third_party").join(lib).join(subdir);
+            if src.exists() {
+                copy_dir_recursive(&src, &tp_dest.join(lib).join(subdir))?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
     for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let src_path = entry.path();
         let dest_path = dest.join(entry.file_name());
-
         if src_path.is_dir() {
-            sync_directory(&src_path, &dest_path)?;
-        } else if let Some(ext) = src_path.extension().and_then(|e| e.to_str()) {
-            if matches!(ext, "cpp" | "hpp" | "h" | "c" | "inl") {
-                std::fs::copy(&src_path, &dest_path).map_err(|e| e.to_string())?;
-            }
+            copy_dir_recursive(&src_path, &dest_path)?;
+        } else {
+            std::fs::copy(&src_path, &dest_path).map_err(|e| e.to_string())?;
         }
     }
     Ok(())
@@ -493,8 +636,27 @@ fn default_emsdk_install_path(app: &AppHandle) -> PathBuf {
 // =============================================================================
 
 #[tauri::command]
-pub fn get_toolchain_status(app: AppHandle) -> ToolchainStatus {
-    let mut config = load_config(&app);
+pub async fn get_toolchain_status(app: AppHandle) -> ToolchainStatus {
+    tokio::task::spawn_blocking(move || get_toolchain_status_sync(&app))
+        .await
+        .unwrap_or_else(|_| ToolchainStatus {
+            installed: false,
+            emsdk_path: None,
+            emscripten_version: None,
+            emscripten_ok: false,
+            cmake_found: false,
+            cmake_version: None,
+            cmake_ok: false,
+            python_found: false,
+            python_version: None,
+            python_ok: false,
+            corrupted: false,
+            missing_tools: Vec::new(),
+        })
+}
+
+fn get_toolchain_status_sync(app: &AppHandle) -> ToolchainStatus {
+    let mut config = load_config(app);
 
     let (emsdk_path, emscripten_version) = config
         .emsdk_path
@@ -509,18 +671,18 @@ pub fn get_toolchain_status(app: AppHandle) -> ToolchainStatus {
             }
         })
         .or_else(|| {
-            let detected = auto_detect_emsdk(&app)?;
+            let detected = auto_detect_emsdk(app)?;
             let version = get_emcc_version(&detected);
             let path_str = detected.to_string_lossy().to_string();
 
             config.emsdk_path = Some(path_str.clone());
-            let _ = save_config(&app, &config);
+            let _ = save_config(app, &config);
 
             Some((Some(path_str), version))
         })
         .unwrap_or((None, None));
 
-    let (cmake_found, cmake_version) = find_cmake(&app)
+    let (cmake_found, cmake_version) = find_cmake(app)
         .map(|(_, v)| (true, Some(v)))
         .unwrap_or((false, None));
 
@@ -540,8 +702,14 @@ pub fn get_toolchain_status(app: AppHandle) -> ToolchainStatus {
         .as_deref()
         .map_or(false, |v| version_ge(v, MIN_PYTHON_VERSION));
 
+    let missing_tools = emsdk_path
+        .as_ref()
+        .map(|p| validate_emsdk_integrity(&PathBuf::from(p)))
+        .unwrap_or_default();
+    let corrupted = !missing_tools.is_empty();
+
     ToolchainStatus {
-        installed: emscripten_ok && cmake_ok && python_ok,
+        installed: emscripten_ok && cmake_ok && python_ok && !corrupted,
         emsdk_path,
         emscripten_version,
         emscripten_ok,
@@ -551,11 +719,13 @@ pub fn get_toolchain_status(app: AppHandle) -> ToolchainStatus {
         python_found,
         python_version,
         python_ok,
+        corrupted,
+        missing_tools,
     }
 }
 
 #[tauri::command]
-pub fn set_emsdk_path(app: AppHandle, path: String) -> Result<ToolchainStatus, String> {
+pub async fn set_emsdk_path(app: AppHandle, path: String) -> Result<ToolchainStatus, String> {
     let emsdk_path = PathBuf::from(&path);
     if !validate_emsdk(&emsdk_path) {
         return Err(format!(
@@ -568,7 +738,7 @@ pub fn set_emsdk_path(app: AppHandle, path: String) -> Result<ToolchainStatus, S
     config.emsdk_path = Some(path);
     save_config(&app, &config)?;
 
-    Ok(get_toolchain_status(app))
+    Ok(get_toolchain_status(app).await)
 }
 
 #[tauri::command]
@@ -614,7 +784,103 @@ pub async fn install_emsdk(app: AppHandle) -> Result<ToolchainStatus, String> {
     config.emsdk_path = Some(install_dir_str);
     save_config(&app, &config)?;
 
-    Ok(get_toolchain_status(app))
+    Ok(get_toolchain_status(app).await)
+}
+
+fn ninja_download_url() -> String {
+    let platform = if cfg!(target_os = "windows") {
+        if cfg!(target_arch = "aarch64") {
+            "ninja-winarm64"
+        } else {
+            "ninja-win"
+        }
+    } else if cfg!(target_os = "macos") {
+        "ninja-mac"
+    } else if cfg!(target_arch = "aarch64") {
+        "ninja-linux-aarch64"
+    } else {
+        "ninja-linux"
+    };
+    format!(
+        "https://github.com/ninja-build/ninja/releases/download/v{}/{}.zip",
+        NINJA_VERSION, platform
+    )
+}
+
+#[tauri::command]
+pub async fn repair_toolchain(app: AppHandle) -> Result<ToolchainStatus, String> {
+    let config = load_config(&app);
+    let emsdk_path = config
+        .emsdk_path
+        .ok_or("emsdk path not configured")?;
+    let emsdk_dir = PathBuf::from(&emsdk_path);
+
+    let missing = validate_emsdk_integrity(&emsdk_dir);
+    if missing.is_empty() {
+        return Ok(get_toolchain_status(app).await);
+    }
+
+    if missing.contains(&"ninja".to_string()) {
+        let bin_dir = emsdk_dir.join("upstream").join("bin");
+        let ninja_name = if cfg!(windows) { "ninja.exe" } else { "ninja" };
+
+        emit_progress(&app, "download", "Downloading ninja...", 0.1);
+
+        let url = ninja_download_url();
+        let data = download_bytes(&url).await?;
+
+        emit_progress(&app, "extract", "Installing ninja...", 0.7);
+
+        let target = bin_dir.clone();
+        let ninja = ninja_name.to_string();
+        tokio::task::spawn_blocking(move || {
+            let cursor = std::io::Cursor::new(&data);
+            let mut archive =
+                zip::ZipArchive::new(cursor).map_err(|e| format!("Invalid zip: {}", e))?;
+            for i in 0..archive.len() {
+                let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+                let name = file.name().to_string();
+                if name.ends_with(&ninja) {
+                    std::fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+                    let out_path = target.join(&ninja);
+                    let mut out =
+                        std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+                    std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
+
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::set_permissions(
+                            &out_path,
+                            std::fs::Permissions::from_mode(0o755),
+                        )
+                        .ok();
+                    }
+                    return Ok(());
+                }
+            }
+            Err("ninja not found in archive".to_string())
+        })
+        .await
+        .map_err(|e| format!("Extract task failed: {}", e))??;
+    }
+
+    emit_progress(&app, "complete", "Toolchain repaired!", 1.0);
+    Ok(get_toolchain_status(app).await)
+}
+
+async fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Download failed: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", response.status()));
+    }
+    response
+        .bytes()
+        .await
+        .map(|b| b.to_vec())
+        .map_err(|e| format!("Download failed: {}", e))
 }
 
 async fn download_with_progress(app: &AppHandle, url: &str) -> Result<Vec<u8>, String> {
@@ -812,7 +1078,7 @@ pub async fn compile_wasm(
         emit_progress(&app, "configure", "Synced engine sources from project root", 0.02);
     }
 
-    let cache_key = compute_cache_key(&options);
+    let cache_key = compute_cache_key(&options, &engine_src);
 
     // Build directory
     let build_base = app
@@ -872,6 +1138,7 @@ pub async fn compile_wasm(
     }
 
     let mut cmake_args = vec![cmake_str.clone()];
+    cmake_args.extend(["-G".to_string(), "Ninja".to_string()]);
     cmake_args.extend(build_cmake_flags(&options));
     cmake_args.push(engine_src.to_string_lossy().to_string());
 
@@ -1079,11 +1346,12 @@ fn make_result(success: bool, build_dir: &Path, cache_key: &str, options: &Compi
     }
 }
 
-fn compute_cache_key(options: &CompileOptions) -> String {
+fn compute_cache_key(options: &CompileOptions, engine_src: &Path) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
     let mut hasher = DefaultHasher::new();
+    engine_src.to_string_lossy().hash(&mut hasher);
     let f = &options.features;
     f.tilemap.hash(&mut hasher);
     f.particles.hash(&mut hasher);
@@ -1101,29 +1369,13 @@ fn compute_cache_key(options: &CompileOptions) -> String {
 
 fn compute_source_hash(engine_src: &Path) -> String {
     use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
+    use std::hash::Hasher;
     let mut hasher = DefaultHasher::new();
-    let src_dir = engine_src.join("src/esengine");
-    if let Ok(entries) = collect_source_files(&src_dir) {
-        for path in entries {
-            if let Ok(metadata) = std::fs::metadata(&path) {
-                path.to_string_lossy().hash(&mut hasher);
-                metadata.len().hash(&mut hasher);
-                if let Ok(modified) = metadata.modified() {
-                    modified.hash(&mut hasher);
-                }
-            }
-        }
-    }
-    let cmake_path = engine_src.join("CMakeLists.txt");
-    if let Ok(content) = std::fs::read(&cmake_path) {
-        content.hash(&mut hasher);
-    }
+    hash_dir_meta(&mut hasher, engine_src);
     format!("{:016x}", hasher.finish())
 }
 
-fn collect_source_files(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+fn collect_all_files(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut files = Vec::new();
     if !dir.is_dir() {
         return Ok(files);
@@ -1132,11 +1384,9 @@ fn collect_source_files(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
-            files.extend(collect_source_files(&path)?);
-        } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-            if matches!(ext, "cpp" | "hpp" | "h" | "c") {
-                files.push(path);
-            }
+            files.extend(collect_all_files(&path)?);
+        } else {
+            files.push(path);
         }
     }
     files.sort();
@@ -1263,15 +1513,18 @@ async fn run_command_streamed(
     let stdout_handle = tokio::spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
+        let mut collected = Vec::new();
         while let Ok(Some(line)) = lines.next_line().await {
             let _ = app_out.emit(
                 "compile-output",
                 super::CommandOutput {
                     stream: "stdout".to_string(),
-                    data: line,
+                    data: line.clone(),
                 },
             );
+            collected.push(line);
         }
+        collected
     });
 
     let app_err = app.clone();
@@ -1292,16 +1545,23 @@ async fn run_command_streamed(
         collected
     });
 
-    let (_, stderr_result) = tokio::join!(stdout_handle, stderr_handle);
+    let (stdout_result, stderr_result) = tokio::join!(stdout_handle, stderr_handle);
 
     let status = child.wait().await.map_err(|e| e.to_string())?;
     if !status.success() {
         let stderr_lines = stderr_result.unwrap_or_default();
-        let last_lines: Vec<&str> = stderr_lines.iter().rev().take(10).rev().map(|s| s.as_str()).collect();
-        let detail = if last_lines.is_empty() {
+        let stdout_lines = stdout_result.unwrap_or_default();
+
+        // Merge both streams — errors may appear in either stdout or stderr
+        let mut combined: Vec<&str> = Vec::new();
+        combined.extend(stdout_lines.iter().map(|s| s.as_str()));
+        combined.extend(stderr_lines.iter().map(|s| s.as_str()));
+        let tail: Vec<&str> = combined.iter().rev().take(30).rev().copied().collect();
+
+        let detail = if tail.is_empty() {
             String::new()
         } else {
-            format!("\n\nOutput:\n{}", last_lines.join("\n"))
+            format!("\n\nOutput:\n{}", tail.join("\n"))
         };
         return Err(format!(
             "Command failed: {} (exit code: {}){}",

@@ -52,6 +52,7 @@
 #endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
+#include "../core/World.hpp"
 #include "../ecs/components/Velocity.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/UIRect.hpp"
@@ -371,14 +372,14 @@ static_assert(offsetof(ecs::Sprite, material) == 76);
 static_assert(offsetof(ecs::Sprite, enabled) == 80);
 
 int getTransformPtr(ecs::Registry& r, u32 e) {
-    auto* t = r.tryGet<ecs::Transform>(static_cast<Entity>(e));
+    auto* t = r.tryGet<ecs::Transform>(Entity::fromRaw(e));
     if (!t) return 0;
     t->ensureDecomposed();
     return static_cast<int>(reinterpret_cast<uintptr_t>(t));
 }
 
 int getSpritePtr(ecs::Registry& r, u32 e) {
-    auto* s = r.tryGet<ecs::Sprite>(static_cast<Entity>(e));
+    auto* s = r.tryGet<ecs::Sprite>(Entity::fromRaw(e));
     if (!s) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(s));
 }
@@ -388,7 +389,7 @@ static_assert(offsetof(ecs::Velocity, linear) == 0);
 static_assert(offsetof(ecs::Velocity, angular) == 12);
 
 int getVelocityPtr(ecs::Registry& r, u32 e) {
-    auto* v = r.tryGet<ecs::Velocity>(static_cast<Entity>(e));
+    auto* v = r.tryGet<ecs::Velocity>(Entity::fromRaw(e));
     if (!v) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(v));
 }
@@ -409,7 +410,7 @@ static_assert(offsetof(ecs::Camera, viewportH) == 44);
 static_assert(offsetof(ecs::Camera, clearFlags) == 48);
 
 int getCameraPtr(ecs::Registry& r, u32 e) {
-    auto* c = r.tryGet<ecs::Camera>(static_cast<Entity>(e));
+    auto* c = r.tryGet<ecs::Camera>(Entity::fromRaw(e));
     if (!c) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(c));
 }
@@ -424,7 +425,7 @@ static_assert(offsetof(ecs::UIRect, pivot) == 40);
 static_assert(offsetof(ecs::UIRect, computed_size_) == 48);
 
 int getUIRectPtr(ecs::Registry& r, u32 e) {
-    auto* rect = r.tryGet<ecs::UIRect>(static_cast<Entity>(e));
+    auto* rect = r.tryGet<ecs::UIRect>(Entity::fromRaw(e));
     if (!rect) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(rect));
 }
@@ -439,7 +440,7 @@ static_assert(offsetof(ecs::RigidBody, bullet) == 17);
 static_assert(offsetof(ecs::RigidBody, enabled) == 18);
 
 int getRigidBodyPtr(ecs::Registry& r, u32 e) {
-    auto* rb = r.tryGet<ecs::RigidBody>(static_cast<Entity>(e));
+    auto* rb = r.tryGet<ecs::RigidBody>(Entity::fromRaw(e));
     if (!rb) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(rb));
 }
@@ -456,7 +457,7 @@ static_assert(offsetof(ecs::BoxCollider, categoryBits) == 32);
 static_assert(offsetof(ecs::BoxCollider, maskBits) == 36);
 
 int getBoxColliderPtr(ecs::Registry& r, u32 e) {
-    auto* bc = r.tryGet<ecs::BoxCollider>(static_cast<Entity>(e));
+    auto* bc = r.tryGet<ecs::BoxCollider>(Entity::fromRaw(e));
     if (!bc) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(bc));
 }
@@ -473,7 +474,7 @@ static_assert(offsetof(ecs::CircleCollider, categoryBits) == 28);
 static_assert(offsetof(ecs::CircleCollider, maskBits) == 32);
 
 int getCircleColliderPtr(ecs::Registry& r, u32 e) {
-    auto* cc = r.tryGet<ecs::CircleCollider>(static_cast<Entity>(e));
+    auto* cc = r.tryGet<ecs::CircleCollider>(Entity::fromRaw(e));
     if (!cc) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(cc));
 }
@@ -731,7 +732,7 @@ void uiTree_markStructureDirty() {
 }
 
 void uiTree_markDirty(u32 entity) {
-    auto e = static_cast<Entity>(entity);
+    auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
     ecs::uiTreeMarkDirty(e);
 }
@@ -741,31 +742,32 @@ void uiTree_markAllDirty() {
 }
 
 f32 getUIRectComputedWidth(ecs::Registry& registry, u32 entity) {
-    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
     if (!rect) return 0.0f;
     return rect->computed_size_.x;
 }
 
 f32 getUIRectComputedHeight(ecs::Registry& registry, u32 entity) {
-    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
     if (!rect) return 0.0f;
     return rect->computed_size_.y;
 }
 
 void setUIRectSize(ecs::Registry& registry, u32 entity, f32 w, f32 h) {
-    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
     if (!rect) return;
     rect->size.x = w;
     rect->size.y = h;
-    ecs::uiTreeMarkDirty(static_cast<Entity>(entity));
+    ecs::uiTreeMarkDirty(Entity::fromRaw(entity));
 }
 
 void transform_update(ecs::Registry& registry) {
+    esengine::World world{registry, ctx().services(), 0.0f};
     if (ctx().transformSystem()) {
-        ctx().transformSystem()->update(registry, 0.0f);
+        ctx().transformSystem()->update(world);
     } else {
         ecs::TransformSystem ts;
-        ts.update(registry, 0.0f);
+        ts.update(world);
     }
 }
 
@@ -776,7 +778,7 @@ void uiRect_clearAnimOverrides(ecs::Registry& registry) {
 }
 
 void uiRect_setAnimOverride(ecs::Registry& registry, u32 entity, u8 flags) {
-    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
     if (rect) {
         rect->anim_override_ |= flags;
     }
@@ -784,7 +786,7 @@ void uiRect_setAnimOverride(ecs::Registry& registry, u32 entity, u8 flags) {
 
 void uiRect_patchOffset(ecs::Registry& registry, u32 entity,
                         f32 minX, f32 minY, f32 maxX, f32 maxY) {
-    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
     if (!rect) return;
     rect->offsetMin = {minX, minY};
     rect->offsetMax = {maxX, maxY};
@@ -792,7 +794,7 @@ void uiRect_patchOffset(ecs::Registry& registry, u32 entity,
 
 void transform_patchPosition(ecs::Registry& registry, u32 entity,
                              f32 x, f32 y, f32 z) {
-    auto* transform = registry.tryGet<ecs::Transform>(static_cast<Entity>(entity));
+    auto* transform = registry.tryGet<ecs::Transform>(Entity::fromRaw(entity));
     if (!transform) return;
     transform->position = {x, y, z};
 }
@@ -831,10 +833,10 @@ u32 anim_createTween(ecs::Registry& registry, u32 entity, u32 targetProp,
                      u32 loopMode, i32 loopCount) {
     auto* sys = ctx().tweenSystem();
     if (!sys) {
-        return static_cast<u32>(INVALID_ENTITY);
+        return INVALID_ENTITY.id();
     }
     auto tweenEntity = sys->createTween(
-        registry, static_cast<Entity>(entity),
+        registry, Entity::fromRaw(entity),
         static_cast<animation::TweenTarget>(targetProp),
         from, to, duration,
         static_cast<animation::EasingType>(easing));
@@ -844,36 +846,36 @@ u32 anim_createTween(ecs::Registry& registry, u32 entity, u32 targetProp,
     tween.loop_mode = static_cast<animation::LoopMode>(loopMode);
     tween.loop_count = loopCount;
     tween.loops_remaining = loopCount;
-    return static_cast<u32>(tweenEntity);
+    return tweenEntity.id();
 }
 
 void anim_cancelTween(ecs::Registry& registry, u32 tweenEntity) {
     if (auto* sys = ctx().tweenSystem()) {
-        sys->cancelTween(registry, static_cast<Entity>(tweenEntity));
+        sys->cancelTween(registry, Entity::fromRaw(tweenEntity));
     }
 }
 
 void anim_cancelAllTweens(ecs::Registry& registry, u32 targetEntity) {
     if (auto* sys = ctx().tweenSystem()) {
-        sys->cancelAllTweens(registry, static_cast<Entity>(targetEntity));
+        sys->cancelAllTweens(registry, Entity::fromRaw(targetEntity));
     }
 }
 
 void anim_pauseTween(ecs::Registry& registry, u32 tweenEntity) {
     if (auto* sys = ctx().tweenSystem()) {
-        sys->pauseTween(registry, static_cast<Entity>(tweenEntity));
+        sys->pauseTween(registry, Entity::fromRaw(tweenEntity));
     }
 }
 
 void anim_resumeTween(ecs::Registry& registry, u32 tweenEntity) {
     if (auto* sys = ctx().tweenSystem()) {
-        sys->resumeTween(registry, static_cast<Entity>(tweenEntity));
+        sys->resumeTween(registry, Entity::fromRaw(tweenEntity));
     }
 }
 
 void anim_setTweenBezier(ecs::Registry& registry, u32 tweenEntity,
                           f32 p1x, f32 p1y, f32 p2x, f32 p2y) {
-    if (auto* tween = registry.tryGet<animation::TweenData>(static_cast<Entity>(tweenEntity))) {
+    if (auto* tween = registry.tryGet<animation::TweenData>(Entity::fromRaw(tweenEntity))) {
         tween->easing = animation::EasingType::CubicBezier;
         tween->bezier_p1x = p1x;
         tween->bezier_p1y = p1y;
@@ -883,8 +885,8 @@ void anim_setTweenBezier(ecs::Registry& registry, u32 tweenEntity,
 }
 
 void anim_setSequenceNext(ecs::Registry& registry, u32 tweenEntity, u32 nextEntity) {
-    if (auto* tween = registry.tryGet<animation::TweenData>(static_cast<Entity>(tweenEntity))) {
-        tween->sequence_next = static_cast<Entity>(nextEntity);
+    if (auto* tween = registry.tryGet<animation::TweenData>(Entity::fromRaw(tweenEntity))) {
+        tween->sequence_next = Entity::fromRaw(nextEntity);
     }
 }
 
@@ -895,7 +897,7 @@ void anim_updateTweens(ecs::Registry& registry, f32 deltaTime) {
 }
 
 i32 anim_getTweenState(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* tween = registry.tryGet<animation::TweenData>(static_cast<Entity>(tweenEntity))) {
+    if (auto* tween = registry.tryGet<animation::TweenData>(Entity::fromRaw(tweenEntity))) {
         return static_cast<i32>(tween->state);
     }
     return static_cast<i32>(animation::TweenState::Completed);

@@ -327,6 +327,7 @@ pub fn run() {
             compiler::get_toolchain_status,
             compiler::set_emsdk_path,
             compiler::install_emsdk,
+            compiler::repair_toolchain,
             compiler::compile_wasm,
             compiler::clear_build_cache,
         ])
