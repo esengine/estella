@@ -154,7 +154,7 @@
 }
 
 .es-fd-item-selected {
-    background: var(--es-accent-subtle) !important;
+    background: var(--es-selection-bg) !important;
 }
 
 .es-fd-index {

@@ -183,7 +183,7 @@
 }
 
 .es-timeline-track-row.es-selected {
-    background: var(--es-accent-subtle);
+    background: var(--es-selection-bg);
 }
 
 .es-timeline-track-color-bar {
