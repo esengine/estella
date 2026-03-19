@@ -199,6 +199,10 @@ const myPlugin: Plugin = {
 | `finish?(app)` | After all plugins are built | Cross-plugin initialization that depends on other plugins being ready |
 | `cleanup?(app)` | App shutdown | Release resources, clean up listeners and state |
 
+<Aside type="note">
+If `build()` throws an exception, the plugin is automatically rolled back — it is removed from the installed plugin set and will not receive `finish()` or `cleanup()` calls. This prevents half-initialized plugins from corrupting engine state.
+</Aside>
+
 Plugins can declare resource dependencies:
 
 ```typescript

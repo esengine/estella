@@ -259,6 +259,10 @@ const despawnDead = defineSystem(
 
 `Commands` operations are flushed after the current system function returns. At that point iteration has finished, so the modifications do not affect any in-progress traversal.
 
+<Aside type="note">
+When using `Mut` queries, the engine validates that each entity still exists before writing back mutations. This means it is safe to despawn entities via `Commands` during iteration — the write-back for a despawned entity is silently skipped rather than crashing.
+</Aside>
+
 ## Next Steps
 
 - [Change Detection](/docs/core-concepts/change-detection/) — tick-based tracking for Added, Changed, Removed

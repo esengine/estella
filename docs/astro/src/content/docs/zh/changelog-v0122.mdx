@@ -1,0 +1,77 @@
+---
+title: v0.12.2
+description: Estella v0.12.2 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.12.2 是稳定性修复版本——修复了粒子不渲染、多处 WASM 内存泄漏、ECS 命令异常隔离，并新增可扩展资产处理器注册 API。
+</Aside>
+
+## 粒子渲染修复
+
+粒子系统在 v0.12.1 中无法正确渲染——顶点数据未到达 GPU。此版本重写了粒子渲染路径：
+
+- ParticlePlugin 现在在标准 `collect()` 阶段直接构建旋转四边形到 TransientBufferPool，走标准 DrawCommand 路径
+- 消除了每个发射器的中间堆分配
+- DrawCommand 新增 `CMD_STATE_CUSTOM_DRAW` 标志，使自定义绘制可扩展，不再硬编码 RenderType 检查
+
+## 可扩展资产处理器
+
+新增 `registerAssetHandler()` API，允许插件注册自定义资产类型处理器：
+
+- 场景加载不再硬编码资产字段处理逻辑
+- 内置处理器（纹理、Spine、材质、字体等）通过 `builtinAssetHandlers.ts` 懒初始化注册
+- 插件可在 `build()` 中调用 `registerAssetHandler()` 注册自定义资产类型
+
+## 跨平台 devicePixelRatio
+
+`PlatformAdapter` 接口新增 `devicePixelRatio()` 方法：
+
+- Web 平台和微信小游戏平台各自提供原生实现
+- 替代了此前 `base.ts` 中的平台特殊分支判断
+
+## 内存泄漏修复
+
+修复了多处实体销毁时的 WASM 内存泄漏：
+
+- **Timeline/Tween**：实体销毁时未释放 C++ 侧 timeline 对象和 tween 实体，现在通过 `onDespawn` 自动调用 `_tl_destroy` 和 `Tween.cancelAll()`
+- **Spine**：实体销毁时 SpineManager 未清理，现在自动调用 `SpineManager.removeEntity()`
+- **Audio**：实体销毁时音频句柄未停止和释放，现在自动停止并清理
+- **字体资源**：场景卸载时未释放字体资源，现在通过 `releaseFont()` 清理
+
+## ECS 稳定性增强
+
+### Commands 异常隔离
+
+`Commands.flush()` 现在为每个待执行命令包裹 try-catch——单个命令抛出异常不再跳过队列中的后续命令。
+
+### Query Mut 实体校验
+
+Query 的 Mut 回写路径（迭代器和 forEach）在写回前验证实体是否仍然存在，防止迭代过程中通过 Commands 销毁实体导致的崩溃。
+
+### ScriptStorage 校验
+
+`ScriptStorage.set()` 新增 schema 校验（warn 级别），在热路径中检测无效组件数据。
+
+## 场景与插件容错
+
+- 场景加载时组件反序列化失败会自动清理已创建的实体，防止半初始化实体残留
+- 插件 `build()` 抛出异常时自动回滚注册，从 `installedPluginSet_`、`installed_plugins_` 和 `installedPluginNames_` 中移除
+
+## 引擎内部改进
+
+- 消除模块级单例：CollectionViewPlugin、TimelinePlugin、PostProcessStack 的全局状态移入插件/类实例
+- 统一资产发现逻辑 `discoverSceneAssets()`——场景加载、预加载、运行时加载共用一套发现函数
+- PostProcessStack 增加 dirty flag，无变更时跳过 WASM 同步
+- MaterialCache 从静态全局提取到 EngineContext，随引擎生命周期正确释放
+- 11 个 UI 插件显式声明插件依赖，利用拓扑排序保证初始化顺序
+
+## Bug 修复
+
+- 修复异步 startup system 在并发 `tick()` 调用下可能执行两次——新增重入锁保护
+- 修复 Web 平台 `fileExists` 在 Tauri 自定义协议下误报——Tauri 对 HEAD 请求总返回 200，改用 GET + body cancel
+- 修复 Windows 平台调用 `emcmake.bat` 构建失败——`.bat` 文件需通过 `cmd.exe /C` 执行
+- 修复 Windows 平台 `emcmake.bat` 路径含空格时构建失败——路径加引号处理
+- 修复 uniform buffer 溢出时越界写入——溢出检查移至写入前

@@ -198,6 +198,10 @@ handle.cancel();
 Tween.cancelAll(entity);
 ```
 
+<Aside type="note">
+实体被销毁时，其所有活跃的补间会通过 `Tween.cancelAll()` 自动取消。销毁实体前无需手动取消补间。
+</Aside>
+
 ## 自定义属性动画
 
 使用 `Tween.value()` 通过回调动画化任意数值：

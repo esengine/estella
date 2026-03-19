@@ -307,6 +307,33 @@ interface AddressableManifestAsset {
   Addressable 的地址、标签和分组在编辑器的 Addressable 面板中配置。清单在构建时自动生成。
 </Aside>
 
+## 自定义资产处理器
+
+*v0.12.2 新增。*
+
+插件可以注册自定义资产类型处理器，使场景加载器能够发现和加载你的资产类型：
+
+```typescript
+import { registerAssetHandler } from 'esengine';
+import type { AssetFieldHandler } from 'esengine';
+
+const myHandler: AssetFieldHandler = {
+    async load(paths, assetServer, baseUrl, texturePathToUrl) {
+        const results = new Map<string, number>();
+        for (const path of paths) {
+            // 加载你的资产，返回句柄
+            const handle = await loadMyAsset(assetServer, path, baseUrl);
+            results.set(path, handle);
+        }
+        return results;
+    },
+};
+
+registerAssetHandler('my-asset-type', myHandler);
+```
+
+内置处理器（texture、material、font、spine、audio、tilemap、timeline、anim-clip）会自动注册。自定义处理器通常在插件的 `build()` 方法中注册。
+
 ## 下一步
 
 - [材质与着色器](/docs/zh/guides/materials/) — 自定义着色器和混合模式

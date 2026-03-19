@@ -21,12 +21,17 @@ interface EntityTemplate {
     root: EntityTemplateNode;
     bindings?: Record<string, string>;
     category: EntityCategory;
+    isUIRoot?: boolean;
     menuLabel?: string;
     icon?: string;
 }
 
 function ui(root: EntityTemplateNode, bindings?: Record<string, string>): EntityTemplate {
     return { root, bindings, category: 'ui' };
+}
+
+function uiRoot(root: EntityTemplateNode): EntityTemplate {
+    return { root, category: 'ui', isUIRoot: true };
 }
 
 function physics(root: EntityTemplateNode): EntityTemplate {
@@ -98,7 +103,7 @@ export const ENTITY_TEMPLATES: Record<string, EntityTemplate> = {
     }),
 
     // ---- UI ----
-    Canvas: ui({
+    Canvas: uiRoot({
         name: 'Canvas',
         components: [{ type: 'Transform' }, { type: 'UIRect' }, { type: 'Canvas' }],
     }),
@@ -359,7 +364,7 @@ export function instantiateTemplate(
     if (!template) return null;
 
     let effectiveParent = parent;
-    if (template.category === 'ui') {
+    if (template.category === 'ui' && !template.isUIRoot) {
         effectiveParent = resolveUIParent(state.store, parent);
     }
 

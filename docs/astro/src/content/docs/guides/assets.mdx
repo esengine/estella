@@ -307,6 +307,33 @@ Each group contains assets with their paths, optional addresses, labels, and typ
   Addressable addresses, labels, and groups are configured in the editor's Addressable panel. The manifest is generated automatically during build.
 </Aside>
 
+## Custom Asset Handlers
+
+*Added in v0.12.2.*
+
+Plugins can register custom asset type handlers so the scene loader knows how to discover and load your asset types:
+
+```typescript
+import { registerAssetHandler } from 'esengine';
+import type { AssetFieldHandler } from 'esengine';
+
+const myHandler: AssetFieldHandler = {
+    async load(paths, assetServer, baseUrl, texturePathToUrl) {
+        const results = new Map<string, number>();
+        for (const path of paths) {
+            // load your asset, return a handle
+            const handle = await loadMyAsset(assetServer, path, baseUrl);
+            results.set(path, handle);
+        }
+        return results;
+    },
+};
+
+registerAssetHandler('my-asset-type', myHandler);
+```
+
+Built-in handlers (texture, material, font, spine, audio, tilemap, timeline, anim-clip) are registered automatically. Custom handlers are typically registered in a plugin's `build()` method.
+
 ## Next Steps
 
 - [Materials & Shaders](/docs/guides/materials/) — custom shaders and blend modes
