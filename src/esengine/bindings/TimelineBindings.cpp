@@ -251,7 +251,7 @@ void tl_advance(ecs::Registry& registry, u32 handle, u32 rootEntity, f32 deltaTi
     auto* sys = tlSys();
     if (!sys) return;
     sys->setSpeed(handle, speed);
-    sys->advance(registry, handle, static_cast<Entity>(rootEntity), deltaTime);
+    sys->advance(registry, handle, Entity::fromRaw(rootEntity), deltaTime);
 }
 
 // ---------------------------------------------------------------------------
@@ -281,8 +281,8 @@ i32 tl_getEventType(i32 index) {
 
 u32 tl_getEventEntity(i32 index) {
     auto* sys = tlSys();
-    if (!sys || index < 0 || index >= static_cast<i32>(sys->pendingEvents().size())) return INVALID_ENTITY;
-    return sys->pendingEvents()[index].targetEntity;
+    if (!sys || index < 0 || index >= static_cast<i32>(sys->pendingEvents().size())) return INVALID_ENTITY.id();
+    return sys->pendingEvents()[index].targetEntity.id();
 }
 
 i32 tl_getEventIntParam(i32 index) {
@@ -319,8 +319,8 @@ i32 tl_getCustomPropertyCount() {
 
 u32 tl_getCustomPropertyEntity(i32 index) {
     auto* sys = tlSys();
-    if (!sys || index < 0 || index >= static_cast<i32>(sys->pendingCustomProperties().size())) return INVALID_ENTITY;
-    return sys->pendingCustomProperties()[index].targetEntity;
+    if (!sys || index < 0 || index >= static_cast<i32>(sys->pendingCustomProperties().size())) return INVALID_ENTITY.id();
+    return sys->pendingCustomProperties()[index].targetEntity.id();
 }
 
 i32 tl_getCustomPropertyTrackIndex(i32 index) {
@@ -350,7 +350,7 @@ void tl_clearResults() {
 void tl_setTrackTarget(u32 handle, i32 isEventTrack, i32 trackIndex, u32 entity) {
     auto* sys = tlSys();
     if (!sys) return;
-    sys->setTrackTarget(handle, isEventTrack != 0, trackIndex, static_cast<Entity>(entity));
+    sys->setTrackTarget(handle, isEventTrack != 0, trackIndex, Entity::fromRaw(entity));
 }
 
 }  // namespace esengine

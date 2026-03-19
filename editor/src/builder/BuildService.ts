@@ -168,7 +168,7 @@ export class BuildService {
             progress.setCurrentTask('Compiling WASM...', 0);
             progress.log('info', 'Compiling engine WASM via toolchain...');
 
-            const compileResult = await compileWasm(config, context, artifact.spineVersions, options?.cleanBuild);
+            const compileResult = await compileWasm(config, context, artifact.spineVersions, options?.cleanBuild, progress);
             if (!compileResult.success) {
                 progress.fail(compileResult.error || 'WASM compilation failed');
                 return {
@@ -318,8 +318,9 @@ interface CompileWasmResult {
     physicsWasmPath?: string;
 }
 
-async function compileWasm(config: BuildConfig, context: BuildContext, detectedSpineVersions: Set<string>, cleanBuild?: boolean): Promise<CompileWasmResult> {
+async function compileWasm(config: BuildConfig, context: BuildContext, detectedSpineVersions: Set<string>, cleanBuild?: boolean, progress?: BuildProgressReporter): Promise<CompileWasmResult> {
     const { invoke } = await import('@tauri-apps/api/core');
+    const { listen } = await import('@tauri-apps/api/event');
 
     const modules = config.engineModules ?? createDefaultEngineModules();
     const target = config.platform === 'wechat' ? 'wechat' : 'playable';
@@ -333,48 +334,87 @@ async function compileWasm(config: BuildConfig, context: BuildContext, detectedS
         }
     }
 
-    const result = await invoke<{
-        success: boolean;
-        wasm_path: string | null;
-        js_path: string | null;
-        wasm_size: number | null;
-        error: string | null;
-        spine_modules: Array<{ version: string; js_path: string; wasm_path: string }>;
-        physics_js_path: string | null;
-        physics_wasm_path: string | null;
-    }>('compile_wasm', {
-        options: {
-            features: {
-                tilemap: modules.tilemap,
-                particles: modules.particles,
-                timeline: modules.timeline,
-                postprocess: modules.postprocess,
-                bitmap_text: modules.bitmapText,
-                spine: modules.spine,
-            },
-            target,
-            debug: false,
-            optimization: '-Oz',
-            enable_physics: context.enablePhysics ?? false,
-            spine_versions: spineVersions,
-            clean_build: cleanBuild ?? false,
-        },
-    });
+    const unlisteners: Array<() => void> = [];
 
-    return {
-        success: result.success,
-        jsPath: result.js_path ?? undefined,
-        wasmPath: result.wasm_path ?? undefined,
-        wasmSize: result.wasm_size ?? undefined,
-        error: result.error ?? undefined,
-        spineModules: result.spine_modules.map(m => ({
-            version: m.version,
-            jsPath: m.js_path,
-            wasmPath: m.wasm_path,
-        })),
-        physicsJsPath: result.physics_js_path ?? undefined,
-        physicsWasmPath: result.physics_wasm_path ?? undefined,
-    };
+    if (progress) {
+        const unlistenProgress = await listen<{ stage: string; message: string; progress: number }>('compile-progress', (event) => {
+            const { stage, message, progress: pct } = event.payload;
+            const taskProgress = Math.round(pct * 100);
+            progress.setCurrentTask(message, taskProgress);
+            if (stage === 'compile') {
+                progress.log('info', message);
+            }
+        });
+        unlisteners.push(unlistenProgress);
+
+        const unlistenOutput = await listen<{ stream: string; data: string }>('compile-output', (event) => {
+            const line = event.payload.data;
+            if (!line.trim()) return;
+
+            // Extract meaningful info from ninja output like "[42/100] Building CXX object ..."
+            const ninjaMatch = line.match(/^\[(\d+)\/(\d+)\]\s+(.+)/);
+            if (ninjaMatch) {
+                const current = parseInt(ninjaMatch[1], 10);
+                const total = parseInt(ninjaMatch[2], 10);
+                const file = ninjaMatch[3];
+                const taskProgress = Math.round((current / total) * 100);
+                progress.setCurrentTask(`[${current}/${total}] ${file}`, taskProgress);
+                progress.log('info', line);
+            } else if (event.payload.stream === 'stderr') {
+                progress.log('warn', line);
+            }
+        });
+        unlisteners.push(unlistenOutput);
+    }
+
+    try {
+        const result = await invoke<{
+            success: boolean;
+            wasm_path: string | null;
+            js_path: string | null;
+            wasm_size: number | null;
+            error: string | null;
+            spine_modules: Array<{ version: string; js_path: string; wasm_path: string }>;
+            physics_js_path: string | null;
+            physics_wasm_path: string | null;
+        }>('compile_wasm', {
+            options: {
+                features: {
+                    tilemap: modules.tilemap,
+                    particles: modules.particles,
+                    timeline: modules.timeline,
+                    postprocess: modules.postprocess,
+                    bitmap_text: modules.bitmapText,
+                    spine: modules.spine,
+                },
+                target,
+                debug: false,
+                optimization: '-Oz',
+                enable_physics: context.enablePhysics ?? false,
+                spine_versions: spineVersions,
+                clean_build: cleanBuild ?? false,
+            },
+        });
+
+        return {
+            success: result.success,
+            jsPath: result.js_path ?? undefined,
+            wasmPath: result.wasm_path ?? undefined,
+            wasmSize: result.wasm_size ?? undefined,
+            error: result.error ?? undefined,
+            spineModules: result.spine_modules.map(m => ({
+                version: m.version,
+                jsPath: m.js_path,
+                wasmPath: m.wasm_path,
+            })),
+            physicsJsPath: result.physics_js_path ?? undefined,
+            physicsWasmPath: result.physics_wasm_path ?? undefined,
+        };
+    } finally {
+        for (const unlisten of unlisteners) {
+            unlisten();
+        }
+    }
 }
 
 function formatSize(bytes?: number): string {

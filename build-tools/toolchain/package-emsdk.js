@@ -25,6 +25,7 @@ import os from 'os';
 import { execSync } from 'child_process';
 
 const EMSDK_VERSION = '5.0.0';
+const NINJA_VERSION = '1.13.2';
 
 const KEEP_DIRS = [
     'upstream/emscripten',
@@ -78,6 +79,51 @@ function log(msg) {
     console.log(`[package-emsdk] ${msg}`);
 }
 
+function ninjaDownloadUrl() {
+    const p = os.platform();
+    const arch = os.arch();
+    if (p === 'darwin') return `https://github.com/ninja-build/ninja/releases/download/v${NINJA_VERSION}/ninja-mac.zip`;
+    if (p === 'win32') {
+        const asset = arch === 'arm64' ? 'ninja-winarm64' : 'ninja-win';
+        return `https://github.com/ninja-build/ninja/releases/download/v${NINJA_VERSION}/${asset}.zip`;
+    }
+    const asset = arch === 'arm64' ? 'ninja-linux-aarch64' : 'ninja-linux';
+    return `https://github.com/ninja-build/ninja/releases/download/v${NINJA_VERSION}/${asset}.zip`;
+}
+
+function ensureNinja(emsdkPath) {
+    const binDir = path.join(emsdkPath, 'upstream', 'bin');
+    const ninjaName = os.platform() === 'win32' ? 'ninja.exe' : 'ninja';
+    const ninjaPath = path.join(binDir, ninjaName);
+
+    if (fs.existsSync(ninjaPath)) {
+        log(`ninja already present at ${ninjaPath}`);
+        return;
+    }
+
+    const url = ninjaDownloadUrl();
+    log(`Downloading ninja ${NINJA_VERSION} from ${url}...`);
+
+    const tmpZip = path.join(os.tmpdir(), `ninja-${NINJA_VERSION}.zip`);
+    execSync(`curl -L -o "${tmpZip}" "${url}"`, { stdio: 'inherit' });
+
+    fs.mkdirSync(binDir, { recursive: true });
+
+    // Extract ninja binary from zip
+    if (os.platform() === 'win32') {
+        execSync(
+            `powershell -NoProfile -Command "Expand-Archive -Path '${tmpZip}' -DestinationPath '${binDir}' -Force"`,
+            { stdio: 'inherit' },
+        );
+    } else {
+        execSync(`unzip -o "${tmpZip}" ${ninjaName} -d "${binDir}"`, { stdio: 'inherit' });
+        fs.chmodSync(ninjaPath, 0o755);
+    }
+
+    fs.rmSync(tmpZip, { force: true });
+    log(`ninja installed to ${ninjaPath}`);
+}
+
 function main() {
     const { emsdkPath, outputDir } = parseArgs();
 
@@ -85,6 +131,8 @@ function main() {
         console.error(`Invalid emsdk path: ${emsdkPath}`);
         process.exit(1);
     }
+
+    ensureNinja(emsdkPath);
 
     const platform = getPlatform();
     const archiveName = `emsdk-${EMSDK_VERSION}-${platform}`;

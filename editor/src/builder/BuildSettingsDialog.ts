@@ -689,11 +689,25 @@ export class BuildSettingsDialog {
             }
             return `<div class="es-build-toolchain-row${cls}">${label}: ${display}</div>`;
         };
-        return [
+        const rows = [
             row('Emscripten', s.emscripten_version ?? (s.emsdk_path ? 'unknown' : null), s.emscripten_ok, '5.0.0'),
             row('CMake', s.cmake_version, s.cmake_ok, '3.16', s.cmake_ok ? 'bundled' : undefined),
             row('Python', s.python_version, s.python_ok, '3.0', s.python_ok ? 'from emsdk' : undefined),
-        ].join('');
+        ];
+        if (s.corrupted && s.missing_tools?.length) {
+            rows.push(`<div class="es-build-toolchain-row es-build-row-error" style="color:var(--error-color,#e54);display:flex;align-items:center;gap:8px">
+                <span>Missing ${s.missing_tools.join(', ')}</span>
+                <button class="es-btn es-btn-xs" data-action="repair-toolchain" style="flex-shrink:0">${icons.download(12)} Repair</button>
+            </div>`);
+        }
+        if (s.emsdk_path) {
+            rows.push(`<div class="es-build-toolchain-row" style="opacity:0.6;font-size:0.85em;display:flex;align-items:center;gap:4px">
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.emsdk_path}">Path: ${s.emsdk_path}</span>
+                <button class="es-btn es-btn-xs" data-action="copy-emsdk-path" title="Copy path" style="flex-shrink:0;padding:1px 4px">${icons.copy(12)}</button>
+                <button class="es-btn es-btn-xs" data-action="open-emsdk-folder" title="Open folder" style="flex-shrink:0;padding:1px 4px">${icons.folderOpen(12)}</button>
+            </div>`);
+        }
+        return rows.join('');
     }
 
     private getPlatformName(platform: BuildPlatform): string {
@@ -1001,6 +1015,24 @@ export class BuildSettingsDialog {
             case 'install-emsdk':
                 this.handleInstallEmsdk();
                 break;
+
+            case 'repair-toolchain':
+                this.handleRepairToolchain();
+                break;
+
+            case 'copy-emsdk-path':
+                if (this.toolchainStatus_?.emsdk_path) {
+                    navigator.clipboard.writeText(this.toolchainStatus_.emsdk_path);
+                    showSuccessToast('Path copied');
+                }
+                break;
+
+            case 'open-emsdk-folder':
+                if (this.toolchainStatus_?.emsdk_path) {
+                    const fs = getEditorContext().fs;
+                    fs?.openFolder(this.toolchainStatus_.emsdk_path);
+                }
+                break;
         }
     }
 
@@ -1172,6 +1204,30 @@ export class BuildSettingsDialog {
         } catch (err: any) {
             dismissToast(toastId);
             showErrorToast(`Install failed: ${err}`);
+        } finally {
+            unlisten?.();
+        }
+    }
+
+    private async handleRepairToolchain(): Promise<void> {
+        const toastId = showProgressToast('Repairing toolchain...');
+        let unlisten: (() => void) | undefined;
+        try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            const { listen } = await import('@tauri-apps/api/event');
+            unlisten = await listen<{ stage: string; message: string; progress: number }>('compile-progress', (event) => {
+                updateToast(toastId, {
+                    message: event.payload.message,
+                    progress: event.payload.progress,
+                });
+            });
+            await invoke('repair_toolchain');
+            dismissToast(toastId);
+            showSuccessToast('Toolchain repaired');
+            await this.checkToolchainStatus();
+        } catch (err: any) {
+            dismissToast(toastId);
+            showErrorToast(`Repair failed: ${err}`);
         } finally {
             unlisten?.();
         }
@@ -1847,6 +1903,8 @@ export class BuildSettingsDialog {
         python_found: boolean;
         python_version: string | null;
         python_ok: boolean;
+        corrupted: boolean;
+        missing_tools: string[];
     } | null = null;
     private toolchainError_ = false;
 }

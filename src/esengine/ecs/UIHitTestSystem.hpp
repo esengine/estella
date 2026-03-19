@@ -131,11 +131,11 @@ inline void uiHitTestUpdate(
 }
 
 inline u32 uiHitTestGetHitEntity() {
-    return static_cast<u32>(s_hit_test_result.hit_entity);
+    return s_hit_test_result.hit_entity.id();
 }
 
 inline u32 uiHitTestGetHitEntityPrev() {
-    return static_cast<u32>(s_hit_test_result.prev_hit_entity);
+    return s_hit_test_result.prev_hit_entity.id();
 }
 
 }  // namespace esengine::ecs

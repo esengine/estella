@@ -146,7 +146,7 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     if (geom->hasIndices()) {
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
         if (ib) {
-            GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
             RenderCommand::getDevice()->drawElements(geom->getIndexCount(), type, 0);
         }
     } else {
@@ -236,7 +236,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
     if (geom->hasIndices()) {
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
         if (ib) {
-            GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
             RenderCommand::getDevice()->drawElements(geom->getIndexCount(), type, 0);
         }
     } else {

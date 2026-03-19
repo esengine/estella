@@ -19,6 +19,7 @@
 
 // Standard library
 #include <cstdint>
+#include <ostream>
 #include <limits>
 #include <memory>
 #include <span>
@@ -142,6 +143,12 @@ struct Entity {
 
     /** @brief Checks if this is not the invalid sentinel */
     constexpr bool isValid() const { return raw != INVALID_RAW; }
+
+    /** @brief Returns the raw packed value for FFI serialization */
+    constexpr u32 id() const { return raw; }
+
+    /** @brief Reconstructs an Entity from a raw packed value */
+    static constexpr Entity fromRaw(u32 v) { return Entity(v); }
 
     /** @brief Creates an Entity from index and generation */
     static constexpr Entity make(u32 idx, u32 gen) {
@@ -291,3 +298,7 @@ struct std::hash<esengine::Entity> {
         return std::hash<esengine::u32>{}(e.raw);
     }
 };
+
+inline std::ostream& operator<<(std::ostream& os, esengine::Entity e) {
+    return os << e.raw;
+}

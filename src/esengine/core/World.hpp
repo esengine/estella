@@ -13,10 +13,9 @@
 #pragma once
 
 #include "Types.hpp"
+#include "ServiceRegistry.hpp"
 
 namespace esengine {
-
-class ServiceRegistry;
 
 namespace ecs {
 class Registry;

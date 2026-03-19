@@ -37,7 +37,7 @@ public:
     }
 
     void applyTo(Entity entity, DrawCommand& cmd) const {
-        auto it = entries_.find(static_cast<u32>(entity));
+        auto it = entries_.find(entity.id());
         if (it != entries_.end()) {
             cmd.state_flags = it->second.flags;
             cmd.scissor = it->second.scissor;
