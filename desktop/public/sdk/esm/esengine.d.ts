@@ -2948,6 +2948,10 @@ declare class AppContext {
     readonly componentRegistry: Map<string, any>;
     readonly pendingSystems: PendingSystemEntry[];
     editorBridge: EditorBridge | null;
+    /** @brief Drain all pending systems and clear the queue */
+    drainPendingSystems(): PendingSystemEntry[];
+    /** @brief Reset all mutable state for a new session */
+    reset(): void;
 }
 declare function getDefaultContext(): AppContext;
 declare function setDefaultContext(ctx: AppContext): void;
