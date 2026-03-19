@@ -34,9 +34,8 @@ public:
         (void)registry;
     }
 
-    void update(Registry& registry, f32 deltaTime) override {
-        (void)deltaTime;
-        updateDirtyTransforms(registry);
+    void update(World& world) override {
+        updateDirtyTransforms(world.registry);
     }
 
 private:

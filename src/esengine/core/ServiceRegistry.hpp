@@ -59,7 +59,10 @@ public:
      */
     template<typename T>
     void registerService(T* service) {
-        services_[getTypeId<T>()] = static_cast<void*>(service);
+        TypeId id = getTypeId<T>();
+        ES_ASSERT(services_.find(id) == services_.end(),
+                  "Service already registered, use removeService first");
+        services_[id] = static_cast<void*>(service);
     }
 
     /**
@@ -69,8 +72,11 @@ public:
      */
     template<typename T>
     void registerOwned(Unique<T> service) {
+        TypeId id = getTypeId<T>();
+        ES_ASSERT(services_.find(id) == services_.end(),
+                  "Service already registered, use removeService first");
         T* raw = service.get();
-        services_[getTypeId<T>()] = static_cast<void*>(raw);
+        services_[id] = static_cast<void*>(raw);
 
         auto deleter = [](void* ptr) {
             delete static_cast<T*>(ptr);

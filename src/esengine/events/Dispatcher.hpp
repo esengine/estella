@@ -65,11 +65,10 @@ public:
     Dispatcher() = default;
     ~Dispatcher() = default;
 
-    Dispatcher(Dispatcher&&) = default;
-    Dispatcher& operator=(Dispatcher&&) = default;
-
     Dispatcher(const Dispatcher&) = delete;
     Dispatcher& operator=(const Dispatcher&) = delete;
+    Dispatcher(Dispatcher&&) = delete;
+    Dispatcher& operator=(Dispatcher&&) = delete;
 
     /**
      * @brief Get a sink for subscribing to an event type
@@ -125,9 +124,8 @@ public:
      */
     template<typename Event>
     void enqueue(const Event& event) {
-        auto* signal = &assure<Event>();
-        eventQueue_.push({[signal, event]() {
-            signal->publish(event);
+        eventQueue_.push({[this, event]() {
+            trigger(event);
         }});
     }
 

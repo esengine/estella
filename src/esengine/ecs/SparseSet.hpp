@@ -135,8 +135,11 @@ public:
     /** @brief Page size for paged sparse array (entities per page) */
     static constexpr usize SPARSE_PAGE_SIZE = 4096;
 
-    /** @brief Page type: array of entity indices */
-    using Page = std::array<Entity, SPARSE_PAGE_SIZE>;
+    /** @brief Sentinel for empty sparse slots */
+    static constexpr u32 INVALID_INDEX = INVALID_DENSE_INDEX;
+
+    /** @brief Page type: array of dense indices */
+    using Page = std::array<u32, SPARSE_PAGE_SIZE>;
 
     /** @brief Default constructor */
     SparseSet() = default;
@@ -163,15 +166,8 @@ public:
      *          Uses paged lookup to avoid unbounded memory growth.
      */
     bool contains(Entity entity) const override {
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-
-        if (pageIndex >= pages_.size() || !pages_[pageIndex]) {
-            return false;
-        }
-
-        const Entity denseIndex = (*pages_[pageIndex])[offset];
-        return denseIndex < dense_.size() && dense_[denseIndex] == entity;
+        u32 di = denseIndexOf(entity);
+        return di != INVALID_INDEX && dense_[di] == entity;
     }
 
     /**
@@ -183,29 +179,21 @@ public:
      */
     T& get(Entity entity) {
         ES_ASSERT(contains(entity), "Entity does not have component");
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        return components_[(*pages_[pageIndex])[offset]];
+        return components_[denseIndexOf(entity)];
     }
 
     /** @copydoc get() */
     const T& get(Entity entity) const {
         ES_ASSERT(contains(entity), "Entity does not have component");
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        return components_[(*pages_[pageIndex])[offset]];
+        return components_[denseIndexOf(entity)];
     }
 
     T& getUnchecked(Entity entity) {
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        return components_[(*pages_[pageIndex])[offset]];
+        return components_[denseIndexOf(entity)];
     }
 
     const T& getUnchecked(Entity entity) const {
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        return components_[(*pages_[pageIndex])[offset]];
+        return components_[denseIndexOf(entity)];
     }
 
     /**
@@ -214,18 +202,16 @@ public:
      * @return Pointer to the component, or nullptr
      */
     T* tryGet(Entity entity) {
-        if (!contains(entity)) return nullptr;
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        return &components_[(*pages_[pageIndex])[offset]];
+        u32 di = denseIndexOf(entity);
+        if (di == INVALID_INDEX || dense_[di] != entity) return nullptr;
+        return &components_[di];
     }
 
     /** @copydoc tryGet() */
     const T* tryGet(Entity entity) const {
-        if (!contains(entity)) return nullptr;
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        return &components_[(*pages_[pageIndex])[offset]];
+        u32 di = denseIndexOf(entity);
+        if (di == INVALID_INDEX || dense_[di] != entity) return nullptr;
+        return &components_[di];
     }
 
     // =========================================================================
@@ -249,8 +235,9 @@ public:
     T& emplace(Entity entity, Args&&... args) {
         ES_ASSERT(!contains(entity), "Entity already has component");
 
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
+        const u32 idx = entity.index();
+        const auto pageIndex = idx / SPARSE_PAGE_SIZE;
+        const auto offset = idx % SPARSE_PAGE_SIZE;
 
         if (pageIndex >= pages_.size()) {
             pages_.resize(pageIndex + 1);
@@ -258,10 +245,10 @@ public:
 
         if (!pages_[pageIndex]) {
             pages_[pageIndex] = std::make_unique<Page>();
-            std::fill(pages_[pageIndex]->begin(), pages_[pageIndex]->end(), INVALID_ENTITY);
+            std::fill(pages_[pageIndex]->begin(), pages_[pageIndex]->end(), INVALID_INDEX);
         }
 
-        (*pages_[pageIndex])[offset] = static_cast<Entity>(dense_.size());
+        (*pages_[pageIndex])[offset] = static_cast<u32>(dense_.size());
         dense_.push_back(entity);
         components_.emplace_back(std::forward<Args>(args)...);
 
@@ -279,21 +266,21 @@ public:
     void remove(Entity entity) override {
         if (!contains(entity)) return;
 
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        const auto last = dense_.back();
-        const auto index = (*pages_[pageIndex])[offset];
+        const u32 idx = entity.index();
+        const auto pageIndex = idx / SPARSE_PAGE_SIZE;
+        const auto offset = idx % SPARSE_PAGE_SIZE;
+        const Entity last = dense_.back();
+        const u32 denseIdx = (*pages_[pageIndex])[offset];
 
-        dense_[index] = last;
-        components_[index] = std::move(components_.back());
+        dense_[denseIdx] = last;
+        components_[denseIdx] = std::move(components_.back());
 
-        const auto lastPageIndex = last / SPARSE_PAGE_SIZE;
-        const auto lastOffset = last % SPARSE_PAGE_SIZE;
-        (*pages_[lastPageIndex])[lastOffset] = index;
+        const u32 lastIdx = last.index();
+        (*pages_[lastIdx / SPARSE_PAGE_SIZE])[lastIdx % SPARSE_PAGE_SIZE] = denseIdx;
 
         dense_.pop_back();
         components_.pop_back();
-        (*pages_[pageIndex])[offset] = INVALID_ENTITY;
+        (*pages_[pageIndex])[offset] = INVALID_INDEX;
     }
 
     // =========================================================================
@@ -324,17 +311,17 @@ public:
     void rebuildSparse() {
         pages_.clear();
         for (usize i = 0; i < dense_.size(); ++i) {
-            const Entity entity = dense_[i];
-            const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-            const auto offset = entity % SPARSE_PAGE_SIZE;
+            const u32 idx = dense_[i].index();
+            const auto pageIndex = idx / SPARSE_PAGE_SIZE;
+            const auto offset = idx % SPARSE_PAGE_SIZE;
             if (pageIndex >= pages_.size()) {
                 pages_.resize(pageIndex + 1);
             }
             if (!pages_[pageIndex]) {
                 pages_[pageIndex] = std::make_unique<Page>();
-                std::fill(pages_[pageIndex]->begin(), pages_[pageIndex]->end(), INVALID_ENTITY);
+                std::fill(pages_[pageIndex]->begin(), pages_[pageIndex]->end(), INVALID_INDEX);
             }
-            (*pages_[pageIndex])[offset] = static_cast<Entity>(i);
+            (*pages_[pageIndex])[offset] = static_cast<u32>(i);
         }
     }
 
@@ -391,12 +378,22 @@ public:
      */
     usize indexOf(Entity entity) const {
         ES_ASSERT(contains(entity), "Entity not in set");
-        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
-        const auto offset = entity % SPARSE_PAGE_SIZE;
-        return (*pages_[pageIndex])[offset];
+        return denseIndexOf(entity);
     }
 
 private:
+    /**
+     * @brief Looks up the dense array index for an entity
+     * @return Dense index, or INVALID_INDEX if page not allocated
+     */
+    u32 denseIndexOf(Entity entity) const {
+        const u32 idx = entity.index();
+        const auto pageIndex = idx / SPARSE_PAGE_SIZE;
+        const auto offset = idx % SPARSE_PAGE_SIZE;
+        if (pageIndex >= pages_.size() || !pages_[pageIndex]) return INVALID_INDEX;
+        return (*pages_[pageIndex])[offset];
+    }
+
     // =========================================================================
     // Data Members
     // =========================================================================
