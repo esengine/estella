@@ -37,6 +37,12 @@ export class RuntimeService {
     setApp(app: App): void {
         this.app_ = app;
         this.bridge_ = new EditorBridge(app, this.store_);
+
+        const ctx = getSharedRenderContext();
+        if (!ctx.initialized && app.wasmModule) {
+            ctx.init(app.wasmModule);
+        }
+
         for (const listener of this.appListeners_) {
             listener(app, this.bridge_!);
         }

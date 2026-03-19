@@ -58,6 +58,8 @@ export class App {
     private readonly resources_: ResourceStorage;
     private readonly systems_ = new Map<Schedule, SystemEntry[]>();
     private runner_: SystemRunner | null = null;
+    private systemCounter_ = 0;
+    private readonly templateToRuntime_ = new Map<symbol, symbol>();
 
     private running_ = false;
     private lastTime_ = 0;
@@ -168,8 +170,17 @@ export class App {
         system: SystemDef,
         options?: { runBefore?: string[]; runAfter?: string[]; runIf?: RunCondition }
     ): this {
+        const name = system._name || `System_${++this.systemCounter_}`;
+        const scoped: SystemDef = {
+            _id: Symbol(`System_${name}`),
+            _params: system._params,
+            _fn: system._fn,
+            _name: name,
+        };
+        this.templateToRuntime_.set(system._id, scoped._id);
+
         this.systems_.get(schedule)!.push({
-            system,
+            system: scoped,
             runBefore: options?.runBefore,
             runAfter: options?.runAfter,
             runIf: options?.runIf,
@@ -187,14 +198,19 @@ export class App {
     }
 
     removeSystem(systemId: symbol): boolean {
+        const runtimeId = this.templateToRuntime_.get(systemId) ?? systemId;
         let removed = false;
         for (const [schedule, entries] of this.systems_) {
-            const filtered = entries.filter(e => e.system._id !== systemId);
+            const filtered = entries.filter(e => e.system._id !== runtimeId);
             if (filtered.length !== entries.length) {
                 this.systems_.set(schedule, filtered);
                 this.sortedSystemsCache_.delete(schedule);
                 removed = true;
             }
+        }
+        if (removed) {
+            this.runner_?.evict(runtimeId);
+            this.templateToRuntime_.delete(systemId);
         }
         return removed;
     }
@@ -466,6 +482,13 @@ export class App {
         }
         this.world_.disconnectCpp();
 
+        for (const [, entries] of this.systems_) {
+            entries.length = 0;
+        }
+        this.sortedSystemsCache_.clear();
+        this.templateToRuntime_.clear();
+        this.systemCounter_ = 0;
+
         this.pipeline_ = null;
         this.runner_ = null;
         this.module_ = null;
@@ -476,6 +499,8 @@ export class App {
     // =========================================================================
 
     private async runFrame_(delta: number): Promise<void> {
+        this.runner_?.clearTimings();
+        this.phaseTimings_?.clear();
         this.eventRegistry_.swapAll();
         this.world_.advanceTick();
         this.updateTime(delta);
@@ -736,11 +761,8 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 }
 
 export function flushPendingSystems(app: App): void {
-    const pending = getDefaultContext().pendingSystems;
-    if (pending.length === 0) return;
-
-    for (const entry of pending) {
+    const drained = getDefaultContext().drainPendingSystems();
+    for (const entry of drained) {
         app.addSystemToSchedule(entry.schedule as Schedule, entry.system as SystemDef);
     }
-    pending.length = 0;
 }

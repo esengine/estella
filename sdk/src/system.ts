@@ -89,7 +89,7 @@ export interface SystemDef {
     readonly _name: string;
 }
 
-let systemCounter = 0;
+let templateCounter_ = 0;
 
 export interface SystemOptions {
     name?: string;
@@ -102,13 +102,13 @@ export function defineSystem<P extends readonly SystemParam[]>(
     fn: (...args: InferParams<P>) => void | Promise<void>,
     options?: SystemOptions
 ): SystemDef {
-    const id = ++systemCounter;
+    const tid = ++templateCounter_;
 
     return {
-        _id: Symbol(`System_${id}_${options?.name ?? ''}`),
+        _id: Symbol(`SystemTemplate_${tid}`),
         _params: params,
         _fn: fn as (...args: never[]) => void,
-        _name: options?.name ?? `System_${id}`
+        _name: options?.name ?? ''
     };
 }
 
@@ -159,6 +159,27 @@ export class SystemRunner {
 
     getTimings(): ReadonlyMap<string, number> | null {
         return this.timings_;
+    }
+
+    /** @brief Clear timing data for the current frame */
+    clearTimings(): void {
+        this.timings_?.clear();
+    }
+
+    /** @brief Remove cached state for a single system */
+    evict(systemId: symbol): void {
+        this.argsCache_.delete(systemId);
+        this.systemTicks_.delete(systemId);
+        this.queryCache_.delete(systemId);
+        this.removedCache_.delete(systemId);
+    }
+
+    /** @brief Clear all cached state */
+    reset(): void {
+        this.argsCache_.clear();
+        this.systemTicks_.clear();
+        this.queryCache_.clear();
+        this.removedCache_.clear();
     }
 
     run(system: SystemDef): void | Promise<void> {

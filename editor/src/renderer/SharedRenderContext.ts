@@ -97,9 +97,16 @@ export class SharedRenderContext {
         return mod._tl_getTime(result.handle);
     }
 
+    private initPromise_: Promise<boolean> | null = null;
+
     async init(module: ESEngineModule): Promise<boolean> {
         if (this.initialized_) return true;
+        if (this.initPromise_) return this.initPromise_;
+        this.initPromise_ = this.doInit_(module);
+        return this.initPromise_;
+    }
 
+    private async doInit_(module: ESEngineModule): Promise<boolean> {
         this.module_ = module;
 
         const canvas = document.createElement('canvas');
@@ -218,6 +225,12 @@ export class SharedRenderContext {
 
     setRenderCallback(callback: (() => void) | null): void {
         this.renderCallback_ = callback;
+        if (callback && this.standaloneRafId_) {
+            cancelAnimationFrame(this.standaloneRafId_);
+            this.standaloneRafId_ = null;
+        } else if (!callback && this.continuousRender_) {
+            this.scheduleStandaloneRender_();
+        }
     }
 
     setGameViewRenderer(renderer: GameViewRenderer | null): void {
@@ -289,15 +302,83 @@ export class SharedRenderContext {
 
     requestRender(): void {
         this.isDirty_ = true;
-        this.renderCallback_?.();
+        if (this.renderCallback_) {
+            this.renderCallback_();
+        } else if (this.continuousRender_) {
+            this.scheduleStandaloneRender_();
+        }
     }
 
     startContinuousRender(): void {
         this.continuousRender_ = true;
+        if (!this.renderCallback_) {
+            this.scheduleStandaloneRender_();
+        }
     }
 
     stopContinuousRender(): void {
         this.continuousRender_ = false;
+        if (this.standaloneRafId_) {
+            cancelAnimationFrame(this.standaloneRafId_);
+            this.standaloneRafId_ = null;
+        }
+    }
+
+    private standaloneRafId_: number | null = null;
+
+    private scheduleStandaloneRender_(): void {
+        if (this.standaloneRafId_ || this.renderCallback_) return;
+        this.standaloneRafId_ = requestAnimationFrame(() => {
+            this.standaloneRafId_ = null;
+            this.runStandaloneFrame_();
+            if (this.continuousRender_ && !this.renderCallback_) {
+                this.scheduleStandaloneRender_();
+            }
+        });
+    }
+
+    private frameTicked_ = false;
+
+    runFrame(): void {
+        if (this.frameTicked_) return;
+        this.frameTicked_ = true;
+
+        if (!this.initialized_ || !this.sceneManager_) return;
+        if (this.sceneManager_.isBusy) return;
+
+        try {
+            if (this.app_) {
+                if (this.playMode_) {
+                    const gr = this.gameViewRenderer_;
+                    if (gr && gr.visible) {
+                        gr.updateUICameraInfo(this);
+                    }
+                }
+
+                this.tickApp();
+            }
+
+            const gr = this.gameViewRenderer_;
+            if (gr && gr.visible) {
+                gr.renderAndCapture(this);
+            }
+        } catch (e) {
+            if (e instanceof WebAssembly.RuntimeError) {
+                console.warn('[SharedRenderContext] WASM error during frame:', (e as Error).message);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    resetFrameTick(): void {
+        this.frameTicked_ = false;
+    }
+
+    private runStandaloneFrame_(): void {
+        this.resetFrameTick();
+        this.runFrame();
+        this.firePostRenderCallback();
     }
 
     get isContinuousRender(): boolean {

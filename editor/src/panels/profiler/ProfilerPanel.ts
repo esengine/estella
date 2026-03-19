@@ -6,6 +6,7 @@ import type { PanelInstance } from '../PanelRegistry';
 import { FrameTimeline } from './FrameTimeline';
 import { PhaseWaterfall } from './PhaseWaterfall';
 import { SystemTable } from './SystemTable';
+import { icons } from '../../utils/icons';
 
 const enum Mode {
     Live,
@@ -57,13 +58,13 @@ export class ProfilerPanel implements PanelInstance {
         this.container_.innerHTML = `
             <div class="es-profiler-panel">
                 <div class="es-profiler-toolbar">
-                    <button class="es-profiler-btn es-profiler-btn-pause" title="Pause/Resume">▮▮</button>
-                    <button class="es-profiler-btn es-profiler-btn-clear" title="Clear">Clear</button>
+                    <button class="es-profiler-btn es-profiler-btn-pause" title="Pause/Resume">${icons.pause(14)}</button>
+                    <button class="es-profiler-btn es-profiler-btn-clear" title="Clear">${icons.eraser(14)} Clear</button>
                     <span class="es-profiler-fps-display">-- FPS / --ms</span>
                     <span class="es-profiler-toolbar-sep"></span>
-                    <button class="es-profiler-btn es-profiler-btn-prev" title="Previous frame" disabled>◀</button>
+                    <button class="es-profiler-btn es-profiler-btn-prev" title="Previous frame" disabled>${icons.chevronLeft(14)}</button>
                     <span class="es-profiler-frame-display">--</span>
-                    <button class="es-profiler-btn es-profiler-btn-next" title="Next frame" disabled>▶</button>
+                    <button class="es-profiler-btn es-profiler-btn-next" title="Next frame" disabled>${icons.chevronRight(14)}</button>
                 </div>
                 <div class="es-profiler-top">
                     <div class="es-profiler-timeline-wrap"></div>
@@ -177,7 +178,7 @@ export class ProfilerPanel implements PanelInstance {
         this.frozenSnapshots_ = this.frameHistory_.getAll();
         this.selectedIndex_ = Math.min(selectIndex, this.frozenSnapshots_.length - 1);
         this.mode_ = Mode.Paused;
-        this.btnPause_.textContent = '▶';
+        this.btnPause_.innerHTML = icons.play(14);
         this.btnPause_.classList.add('es-profiler-btn-active');
         this.scheduleRender();
     }
@@ -186,7 +187,7 @@ export class ProfilerPanel implements PanelInstance {
         this.mode_ = Mode.Live;
         this.selectedIndex_ = -1;
         this.frozenSnapshots_ = [];
-        this.btnPause_.textContent = '▮▮';
+        this.btnPause_.innerHTML = icons.pause(14);
         this.btnPause_.classList.remove('es-profiler-btn-active');
         this.scheduleRender();
     }
@@ -205,7 +206,7 @@ export class ProfilerPanel implements PanelInstance {
         this.frozenSnapshots_ = [];
         this.selectedIndex_ = -1;
         this.mode_ = Mode.Live;
-        this.btnPause_.textContent = '▮▮';
+        this.btnPause_.innerHTML = icons.pause(14);
         this.btnPause_.classList.remove('es-profiler-btn-active');
         this.fpsDisplay_.textContent = '-- FPS / --ms';
         this.frameDisplay_.textContent = '--';

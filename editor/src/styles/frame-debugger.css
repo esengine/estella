@@ -15,6 +15,7 @@
     background: var(--es-bg-secondary);
     border-bottom: 1px solid var(--es-border);
     flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .es-fd-btn {

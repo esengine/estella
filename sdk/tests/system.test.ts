@@ -116,9 +116,9 @@ describe('defineSystem', () => {
         expect(sys._name).toBe('MovementSystem');
     });
 
-    it('should auto-generate name when not provided', () => {
+    it('should default to empty name when not provided', () => {
         const sys = defineSystem([], () => {});
-        expect(sys._name).toMatch(/^System_\d+$/);
+        expect(sys._name).toBe('');
     });
 
     it('should create unique ids for different systems', () => {
@@ -156,6 +156,18 @@ describe('Global system registration', () => {
         addSystemToSchedule(Schedule.Last, sys);
         const pending = getDefaultContext().pendingSystems;
         expect(pending).toContainEqual({ schedule: Schedule.Last, system: sys });
+    });
+
+    it('drainPendingSystems should return entries and clear queue', () => {
+        const sys = defineSystem([], () => {});
+        addSystem(sys);
+        const ctx = getDefaultContext();
+        expect(ctx.pendingSystems.length).toBe(1);
+
+        const drained = ctx.drainPendingSystems();
+        expect(drained).toHaveLength(1);
+        expect(drained[0].system).toBe(sys);
+        expect(ctx.pendingSystems.length).toBe(0);
     });
 });
 
@@ -349,6 +361,34 @@ describe('SystemRunner', () => {
             const badParam = { _type: 'unknown_thing' } as any;
             const sys = defineSystem([badParam], () => {});
             expect(() => runner.run(sys)).toThrow('Unknown system parameter type');
+        });
+    });
+
+    describe('evict and reset', () => {
+        it('evict should clear cached state for a system', () => {
+            const fn = vi.fn();
+            const sys = defineSystem([], fn);
+            runner.run(sys);
+            expect(fn).toHaveBeenCalledOnce();
+
+            runner.evict(sys._id);
+            runner.run(sys);
+            expect(fn).toHaveBeenCalledTimes(2);
+        });
+
+        it('reset should clear all cached state', () => {
+            const fn1 = vi.fn();
+            const fn2 = vi.fn();
+            const sys1 = defineSystem([], fn1);
+            const sys2 = defineSystem([], fn2);
+            runner.run(sys1);
+            runner.run(sys2);
+
+            runner.reset();
+            runner.run(sys1);
+            runner.run(sys2);
+            expect(fn1).toHaveBeenCalledTimes(2);
+            expect(fn2).toHaveBeenCalledTimes(2);
         });
     });
 });
