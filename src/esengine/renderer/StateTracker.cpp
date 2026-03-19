@@ -1,5 +1,4 @@
 #include "StateTracker.hpp"
-#include "OpenGLHeaders.hpp"
 
 namespace esengine {
 
@@ -84,8 +83,8 @@ void StateTracker::beginStencilWrite(i32 refValue) {
     stencil_state_ = StencilState::Write;
     stencil_ref_ = refValue;
     device_.setStencilTest(true);
-    device_.setStencilFunc(GL_ALWAYS, refValue, 0xFF);
-    device_.setStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    device_.setStencilFunc(GfxStencilFunc::Always, refValue, 0xFF);
+    device_.setStencilOp(GfxStencilOp::Keep, GfxStencilOp::Keep, GfxStencilOp::Replace);
     device_.setColorMask(false, false, false, false);
     device_.setStencilMask(0xFF);
 }
@@ -100,8 +99,8 @@ void StateTracker::beginStencilTest(i32 refValue) {
     stencil_state_ = StencilState::Test;
     stencil_ref_ = refValue;
     device_.setStencilTest(true);
-    device_.setStencilFunc(GL_EQUAL, refValue, 0xFF);
-    device_.setStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    device_.setStencilFunc(GfxStencilFunc::Equal, refValue, 0xFF);
+    device_.setStencilOp(GfxStencilOp::Keep, GfxStencilOp::Keep, GfxStencilOp::Keep);
     device_.setStencilMask(0x00);
 }
 

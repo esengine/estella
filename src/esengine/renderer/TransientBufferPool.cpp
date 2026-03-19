@@ -1,5 +1,4 @@
 #include "TransientBufferPool.hpp"
-#include "OpenGLHeaders.hpp"
 #include "../core/Log.hpp"
 
 #include <cstring>
@@ -23,11 +22,11 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     ebo_ = device_.createBuffer();
 
     device_.bindVertexBuffer(vbo_);
-    device_.bufferData(GL_ARRAY_BUFFER, nullptr, vbo_capacity_, true);
+    device_.bufferData(GfxBufferTarget::Vertex, nullptr, vbo_capacity_, true);
     device_.bindVertexBuffer(0);
 
     device_.bindIndexBuffer(ebo_);
-    device_.bufferData(GL_ELEMENT_ARRAY_BUFFER, nullptr, ebo_capacity_ * sizeof(u16), true);
+    device_.bufferData(GfxBufferTarget::Index, nullptr, ebo_capacity_ * sizeof(u16), true);
     device_.bindIndexBuffer(0);
 
     for (auto layout : {LayoutId::Batch, LayoutId::Shape, LayoutId::MatSprite}) {
@@ -107,9 +106,9 @@ void TransientBufferPool::upload() {
     device_.bindVertexBuffer(vbo_);
     if (vertex_write_pos_ > vbo_capacity_) {
         vbo_capacity_ = vertex_write_pos_;
-        device_.bufferData(GL_ARRAY_BUFFER, vertex_staging_.data(), vbo_capacity_, true);
+        device_.bufferData(GfxBufferTarget::Vertex, vertex_staging_.data(), vbo_capacity_, true);
     } else {
-        device_.bufferSubData(GL_ARRAY_BUFFER, 0, vertex_staging_.data(), vertex_write_pos_);
+        device_.bufferSubData(GfxBufferTarget::Vertex, 0, vertex_staging_.data(), vertex_write_pos_);
     }
 
     device_.bindIndexBuffer(ebo_);
@@ -117,10 +116,10 @@ void TransientBufferPool::upload() {
     u32 eboCapBytes = ebo_capacity_ * sizeof(u16);
     if (eboBytes > eboCapBytes) {
         ebo_capacity_ = index_write_pos_;
-        device_.bufferData(GL_ELEMENT_ARRAY_BUFFER, index_staging_.data(),
+        device_.bufferData(GfxBufferTarget::Index, index_staging_.data(),
                             ebo_capacity_ * sizeof(u16), true);
     } else {
-        device_.bufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, index_staging_.data(), eboBytes);
+        device_.bufferSubData(GfxBufferTarget::Index, 0, index_staging_.data(), eboBytes);
     }
 }
 
@@ -143,33 +142,33 @@ void TransientBufferPool::setupLayoutVAO(LayoutId layout) {
         case LayoutId::Batch: {
             constexpr u32 STRIDE = 20;
             device_.enableVertexAttrib(0);
-            device_.vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+            device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
             device_.enableVertexAttrib(1);
-            device_.vertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, true, STRIDE, 8);
+            device_.vertexAttribPointer(1, 4, GfxDataType::UnsignedByte, true, STRIDE, 8);
             device_.enableVertexAttrib(2);
-            device_.vertexAttribPointer(2, 2, GL_FLOAT, false, STRIDE, 12);
+            device_.vertexAttribPointer(2, 2, GfxDataType::Float, false, STRIDE, 12);
             break;
         }
         case LayoutId::Shape: {
             constexpr u32 STRIDE = 48;
             device_.enableVertexAttrib(0);
-            device_.vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+            device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
             device_.enableVertexAttrib(1);
-            device_.vertexAttribPointer(1, 2, GL_FLOAT, false, STRIDE, 8);
+            device_.vertexAttribPointer(1, 2, GfxDataType::Float, false, STRIDE, 8);
             device_.enableVertexAttrib(2);
-            device_.vertexAttribPointer(2, 4, GL_FLOAT, false, STRIDE, 16);
+            device_.vertexAttribPointer(2, 4, GfxDataType::Float, false, STRIDE, 16);
             device_.enableVertexAttrib(3);
-            device_.vertexAttribPointer(3, 4, GL_FLOAT, false, STRIDE, 32);
+            device_.vertexAttribPointer(3, 4, GfxDataType::Float, false, STRIDE, 32);
             break;
         }
         case LayoutId::MatSprite: {
             constexpr u32 STRIDE = 32;
             device_.enableVertexAttrib(0);
-            device_.vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+            device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
             device_.enableVertexAttrib(1);
-            device_.vertexAttribPointer(1, 2, GL_FLOAT, false, STRIDE, 8);
+            device_.vertexAttribPointer(1, 2, GfxDataType::Float, false, STRIDE, 8);
             device_.enableVertexAttrib(2);
-            device_.vertexAttribPointer(2, 4, GL_FLOAT, false, STRIDE, 16);
+            device_.vertexAttribPointer(2, 4, GfxDataType::Float, false, STRIDE, 16);
             break;
         }
     }

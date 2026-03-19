@@ -1,5 +1,4 @@
 #include "ShapePlugin.hpp"
-#include "../OpenGLHeaders.hpp"
 #include "../RenderCommand.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
@@ -141,7 +140,7 @@ void ShapePlugin::customDraw(
 
     RenderCommand::getDevice()->drawElements(
         cmd.index_count,
-        GL_UNSIGNED_SHORT,
+        GfxDataType::UnsignedShort,
         static_cast<u32>(cmd.index_offset * sizeof(u16)));
 }
 

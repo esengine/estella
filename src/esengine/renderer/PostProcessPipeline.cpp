@@ -17,7 +17,7 @@
 #include "../core/Log.hpp"
 #include <algorithm>
 
-#include "OpenGLHeaders.hpp"
+#include "GfxEnums.hpp"
 
 namespace esengine {
 
@@ -258,12 +258,12 @@ void PostProcessPipeline::ensureScreenQuad() {
 
     u32 vbo = device->createBuffer();
     device->bindVertexBuffer(vbo);
-    device->bufferData(GL_ARRAY_BUFFER, vertices, static_cast<u32>(sizeof(vertices)), false);
+    device->bufferData(GfxBufferTarget::Vertex, vertices, static_cast<u32>(sizeof(vertices)), false);
 
     device->enableVertexAttrib(0);
-    device->vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+    device->vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
     device->enableVertexAttrib(1);
-    device->vertexAttribPointer(1, 2, GL_FLOAT, false, STRIDE, 2 * sizeof(f32));
+    device->vertexAttribPointer(1, 2, GfxDataType::Float, false, STRIDE, 2 * sizeof(f32));
 
     device->bindVertexArray(0);
 

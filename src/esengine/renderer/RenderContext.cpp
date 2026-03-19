@@ -14,7 +14,6 @@
 #include "ShaderEmbeds.generated.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
-#include "OpenGLHeaders.hpp"
 
 namespace esengine {
 
@@ -112,7 +111,7 @@ void RenderContext::initWhiteTexture() {
     whiteTextureId_ = device->createTexture();
 
     u32 whiteData = 0xFFFFFFFF;
-    device->texImage2D(whiteTextureId_, 1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, &whiteData);
+    device->texImage2D(whiteTextureId_, 1, 1, GfxPixelFormat::RGBA8, &whiteData);
     device->setTextureParams(whiteTextureId_, TextureFilter::Nearest, TextureFilter::Nearest,
                              TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
 

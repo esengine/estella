@@ -148,6 +148,7 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/ImmediateDraw.hpp
     src/esengine/renderer/BlendMode.hpp
     src/esengine/renderer/CustomGeometry.hpp
+    src/esengine/renderer/GfxEnums.hpp
     src/esengine/renderer/GfxDevice.hpp
     src/esengine/renderer/GLDevice.hpp
     src/esengine/renderer/StateTracker.hpp

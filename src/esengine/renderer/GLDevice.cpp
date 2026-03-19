@@ -46,6 +46,76 @@ void setCapability(GLenum cap, bool enabled) {
     }
 }
 
+GLenum toGLBufferTarget(GfxBufferTarget target) {
+    switch (target) {
+    case GfxBufferTarget::Vertex: return GL_ARRAY_BUFFER;
+    case GfxBufferTarget::Index:  return GL_ELEMENT_ARRAY_BUFFER;
+    default: return GL_ARRAY_BUFFER;
+    }
+}
+
+GLenum toGLDataType(GfxDataType type) {
+    switch (type) {
+    case GfxDataType::Float:         return GL_FLOAT;
+    case GfxDataType::Int:           return GL_INT;
+    case GfxDataType::UnsignedByte:  return GL_UNSIGNED_BYTE;
+    case GfxDataType::UnsignedShort: return GL_UNSIGNED_SHORT;
+    case GfxDataType::UnsignedInt:   return GL_UNSIGNED_INT;
+    default: return GL_FLOAT;
+    }
+}
+
+GLenum toGLStencilFunc(GfxStencilFunc func) {
+    switch (func) {
+    case GfxStencilFunc::Never:    return GL_NEVER;
+    case GfxStencilFunc::Less:     return GL_LESS;
+    case GfxStencilFunc::Equal:    return GL_EQUAL;
+    case GfxStencilFunc::LEqual:   return GL_LEQUAL;
+    case GfxStencilFunc::Greater:  return GL_GREATER;
+    case GfxStencilFunc::NotEqual: return GL_NOTEQUAL;
+    case GfxStencilFunc::GEqual:   return GL_GEQUAL;
+    case GfxStencilFunc::Always:   return GL_ALWAYS;
+    default: return GL_ALWAYS;
+    }
+}
+
+GLenum toGLStencilOp(GfxStencilOp op) {
+    switch (op) {
+    case GfxStencilOp::Keep:     return GL_KEEP;
+    case GfxStencilOp::Zero:     return GL_ZERO;
+    case GfxStencilOp::Replace:  return GL_REPLACE;
+    case GfxStencilOp::Incr:     return GL_INCR;
+    case GfxStencilOp::Decr:     return GL_DECR;
+    case GfxStencilOp::Invert:   return GL_INVERT;
+    case GfxStencilOp::IncrWrap: return GL_INCR_WRAP;
+    case GfxStencilOp::DecrWrap: return GL_DECR_WRAP;
+    default: return GL_KEEP;
+    }
+}
+
+struct GLPixelFormatInfo {
+    GLenum internalFormat;
+    GLenum format;
+    GLenum type;
+};
+
+GLPixelFormatInfo toGLPixelFormat(GfxPixelFormat fmt) {
+    switch (fmt) {
+    case GfxPixelFormat::RGB8:             return { GL_RGB8,              GL_RGB,             GL_UNSIGNED_BYTE };
+    case GfxPixelFormat::RGBA8:            return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
+    case GfxPixelFormat::DepthComponent24: return { GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT };
+    default:                               return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
+    }
+}
+
+GLenum toGLAttachment(GfxAttachment attachment) {
+    switch (attachment) {
+    case GfxAttachment::Color0: return GL_COLOR_ATTACHMENT0;
+    case GfxAttachment::Depth:  return GL_DEPTH_ATTACHMENT;
+    default: return GL_COLOR_ATTACHMENT0;
+    }
+}
+
 }  // namespace
 
 // =============================================================================
@@ -116,10 +186,6 @@ void GLDevice::setBlendMode(BlendMode mode) {
     }
 }
 
-void GLDevice::setBlendFunc(u32 srcFactor, u32 dstFactor, u32 srcAlphaFactor, u32 dstAlphaFactor) {
-    glBlendFuncSeparate(srcFactor, dstFactor, srcAlphaFactor, dstAlphaFactor);
-}
-
 // =============================================================================
 // Depth State
 // =============================================================================
@@ -140,12 +206,12 @@ void GLDevice::setStencilTest(bool enabled) {
     setCapability(GL_STENCIL_TEST, enabled);
 }
 
-void GLDevice::setStencilFunc(u32 func, i32 ref, u32 mask) {
-    glStencilFunc(func, ref, mask);
+void GLDevice::setStencilFunc(GfxStencilFunc func, i32 ref, u32 mask) {
+    glStencilFunc(toGLStencilFunc(func), ref, mask);
 }
 
-void GLDevice::setStencilOp(u32 sfail, u32 dpfail, u32 dppass) {
-    glStencilOp(sfail, dpfail, dppass);
+void GLDevice::setStencilOp(GfxStencilOp sfail, GfxStencilOp dpfail, GfxStencilOp dppass) {
+    glStencilOp(toGLStencilOp(sfail), toGLStencilOp(dpfail), toGLStencilOp(dppass));
 }
 
 void GLDevice::setStencilMask(u32 mask) {
@@ -253,12 +319,12 @@ void GLDevice::bindIndexBuffer(u32 bufferId) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferId);
 }
 
-void GLDevice::bufferData(u32 target, const void* data, u32 sizeBytes, bool dynamic) {
-    glBufferData(target, sizeBytes, data, dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+void GLDevice::bufferData(GfxBufferTarget target, const void* data, u32 sizeBytes, bool dynamic) {
+    glBufferData(toGLBufferTarget(target), sizeBytes, data, dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-void GLDevice::bufferSubData(u32 target, u32 offset, const void* data, u32 sizeBytes) {
-    glBufferSubData(target, offset, sizeBytes, data);
+void GLDevice::bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) {
+    glBufferSubData(toGLBufferTarget(target), offset, sizeBytes, data);
 }
 
 // =============================================================================
@@ -284,9 +350,9 @@ void GLDevice::enableVertexAttrib(u32 index) {
     glEnableVertexAttribArray(index);
 }
 
-void GLDevice::vertexAttribPointer(u32 index, i32 size, u32 type,
+void GLDevice::vertexAttribPointer(u32 index, i32 size, GfxDataType type,
                                    bool normalized, i32 stride, u32 offset) {
-    glVertexAttribPointer(index, size, type, normalized ? GL_TRUE : GL_FALSE,
+    glVertexAttribPointer(index, size, toGLDataType(type), normalized ? GL_TRUE : GL_FALSE,
                           stride, reinterpret_cast<const void*>(static_cast<uintptr_t>(offset)));
 }
 
@@ -298,8 +364,8 @@ void GLDevice::vertexAttribDivisor(u32 index, u32 divisor) {
 // Draw Calls
 // =============================================================================
 
-void GLDevice::drawElements(u32 indexCount, u32 indexType, u32 byteOffset) {
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), indexType,
+void GLDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) {
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                    reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)));
 }
 
@@ -307,8 +373,8 @@ void GLDevice::drawArrays(u32 first, u32 vertexCount) {
     glDrawArrays(GL_TRIANGLES, static_cast<GLint>(first), static_cast<GLsizei>(vertexCount));
 }
 
-void GLDevice::drawElementsInstanced(u32 indexCount, u32 indexType, u32 byteOffset, u32 instanceCount) {
-    glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(indexCount), indexType,
+void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) {
+    glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                             reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)),
                             static_cast<GLsizei>(instanceCount));
 }
@@ -329,21 +395,22 @@ void GLDevice::deleteTexture(u32 textureId) {
 }
 
 void GLDevice::texImage2D(u32 textureId, u32 width, u32 height,
-                          u32 internalFormat, u32 format, u32 type,
-                          const void* data) {
+                          GfxPixelFormat format, const void* data) {
+    auto gl = toGLPixelFormat(format);
     glBindTexture(GL_TEXTURE_2D, textureId);
-    glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(internalFormat),
+    glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(gl.internalFormat),
                  static_cast<GLsizei>(width), static_cast<GLsizei>(height),
-                 0, format, type, data);
+                 0, gl.format, gl.type, data);
 }
 
 void GLDevice::texSubImage2D(u32 textureId, i32 xoffset, i32 yoffset,
                              u32 width, u32 height,
-                             u32 format, u32 type, const void* data) {
+                             GfxPixelFormat format, const void* data) {
+    auto gl = toGLPixelFormat(format);
     glBindTexture(GL_TEXTURE_2D, textureId);
     glTexSubImage2D(GL_TEXTURE_2D, 0, xoffset, yoffset,
                     static_cast<GLsizei>(width), static_cast<GLsizei>(height),
-                    format, type, data);
+                    gl.format, gl.type, data);
 }
 
 void GLDevice::setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
@@ -383,9 +450,9 @@ void GLDevice::bindFramebuffer(u32 fboId) {
     glBindFramebuffer(GL_FRAMEBUFFER, fboId);
 }
 
-void GLDevice::framebufferTexture2D(u32 fboId, u32 attachment, u32 textureId) {
+void GLDevice::framebufferTexture2D(u32 fboId, GfxAttachment attachment, u32 textureId) {
     glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D, textureId, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, toGLAttachment(attachment), GL_TEXTURE_2D, textureId, 0);
 }
 
 bool GLDevice::checkFramebufferStatus() {
@@ -396,8 +463,9 @@ bool GLDevice::checkFramebufferStatus() {
 // Readback
 // =============================================================================
 
-void GLDevice::readPixels(i32 x, i32 y, u32 w, u32 h, u32 format, u32 type, void* data) {
-    glReadPixels(x, y, static_cast<GLsizei>(w), static_cast<GLsizei>(h), format, type, data);
+void GLDevice::readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) {
+    auto gl = toGLPixelFormat(format);
+    glReadPixels(x, y, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type, data);
 }
 
 // =============================================================================
