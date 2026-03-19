@@ -124,6 +124,41 @@ function ensureNinja(emsdkPath) {
     log(`ninja installed to ${ninjaPath}`);
 }
 
+function patchShellForSingleFile(emsdkPath) {
+    const shellPath = path.join(emsdkPath, 'upstream/emscripten/src/shell.js');
+    if (!fs.existsSync(shellPath)) {
+        log('Warning: shell.js not found, skipping patch');
+        return;
+    }
+
+    let content = fs.readFileSync(shellPath, 'utf8');
+    const marker = '// [ESEngine patched]';
+    if (content.includes(marker)) {
+        log('shell.js already patched');
+        return;
+    }
+
+    // In SINGLE_FILE mode all resources are inlined, scriptDirectory is unused.
+    // The original `new URL('.', _scriptName)` triggers a Chrome security
+    // warning under file:// protocol. Guard it with a SINGLE_FILE check.
+    const original = "scriptDirectory = new URL('.', _scriptName).href; // includes trailing slash";
+    const patched = [
+        marker,
+        '#if !SINGLE_FILE',
+        "    scriptDirectory = new URL('.', _scriptName).href; // includes trailing slash",
+        '#endif',
+    ].join('\n');
+
+    if (!content.includes(original)) {
+        log('Warning: scriptDirectory pattern not found in shell.js, skipping patch');
+        return;
+    }
+
+    content = content.replace(original, patched);
+    fs.writeFileSync(shellPath, content, 'utf8');
+    log('Patched shell.js: skip scriptDirectory detection in SINGLE_FILE mode');
+}
+
 function main() {
     const { emsdkPath, outputDir } = parseArgs();
 
@@ -133,6 +168,7 @@ function main() {
     }
 
     ensureNinja(emsdkPath);
+    patchShellForSingleFile(emsdkPath);
 
     const platform = getPlatform();
     const archiveName = `emsdk-${EMSDK_VERSION}-${platform}`;
