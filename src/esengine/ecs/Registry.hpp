@@ -20,6 +20,7 @@
 // Project includes
 #include "../core/Log.hpp"
 #include "../core/Types.hpp"
+#include "ComponentMask.hpp"
 #include "Entity.hpp"
 #include "SchemaComponent.hpp"
 #include "SparseSet.hpp"
@@ -60,8 +61,6 @@ namespace esengine::ecs {
  */
 class Registry {
 public:
-    static constexpr u32 MAX_TRACKED_COMPONENTS = 64;
-
     Registry() = default;
     ~Registry() = default;
 
@@ -95,11 +94,11 @@ public:
         if (entity >= entityValid_.size()) {
             entityValid_.resize(entity + 1, false);
             generations_.resize(entity + 1, 0);
-            component_masks_.resize(entity + 1, 0);
+            component_masks_.resize(entity + 1);
         }
         entityValid_[entity] = true;
         generations_[entity]++;
-        component_masks_[entity] = 0;
+        component_masks_[entity].reset();
         ++entity_count_;
 
         ES_LOG_TRACE("Created entity {}", entity);
@@ -133,11 +132,11 @@ public:
         if (entity >= entityValid_.size()) {
             entityValid_.resize(entity + 1, false);
             generations_.resize(entity + 1, 0);
-            component_masks_.resize(entity + 1, 0);
+            component_masks_.resize(entity + 1);
         }
         entityValid_[entity] = true;
         generations_[entity]++;
-        component_masks_[entity] = 0;
+        component_masks_[entity].reset();
         ++entity_count_;
 
         if (entity >= nextEntity_) {
@@ -162,23 +161,15 @@ public:
             callback(entity);
         }
 
-        u64 mask = component_masks_[entity];
-        while (mask != 0) {
-            u32 bit = static_cast<u32>(__builtin_ctzll(mask));
+        component_masks_[entity].forEachSet([&](u32 bit) {
             if (bit < pools_.size() && pools_[bit]) {
                 pools_[bit]->remove(entity);
             }
-            mask &= mask - 1;
-        }
-        for (usize i = MAX_TRACKED_COMPONENTS; i < pools_.size(); ++i) {
-            if (pools_[i]) {
-                pools_[i]->remove(entity);
-            }
-        }
+        });
 
         schemaRegistry_.removeAll(entity);
 
-        component_masks_[entity] = 0;
+        component_masks_[entity].reset();
         entityValid_[entity] = false;
         --entity_count_;
         recycled_.push(entity);
@@ -268,10 +259,7 @@ public:
         ES_ASSERT(valid(entity), "Invalid entity");
         auto& pool = assurePool<T>();
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        TypeId typeId = getTypeId<T>();
-        if (typeId < MAX_TRACKED_COMPONENTS) {
-            component_masks_[entity] |= (u64{1} << typeId);
-        }
+        component_masks_[entity].set(getTypeId<T>());
         return result;
     }
 
@@ -295,10 +283,7 @@ public:
             return pool.get(entity);
         }
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        TypeId typeId = getTypeId<T>();
-        if (typeId < MAX_TRACKED_COMPONENTS) {
-            component_masks_[entity] |= (u64{1} << typeId);
-        }
+        component_masks_[entity].set(getTypeId<T>());
         return result;
     }
 
@@ -314,9 +299,8 @@ public:
         auto* pool = getPool<T>();
         if (pool) {
             pool->remove(entity);
-            TypeId typeId = getTypeId<T>();
-            if (typeId < MAX_TRACKED_COMPONENTS && entity < component_masks_.size()) {
-                component_masks_[entity] &= ~(u64{1} << typeId);
+            if (entity < component_masks_.size()) {
+                component_masks_[entity].clear(getTypeId<T>());
             }
         }
     }
@@ -378,10 +362,7 @@ public:
             return pool.get(entity);
         }
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        TypeId typeId = getTypeId<T>();
-        if (typeId < MAX_TRACKED_COMPONENTS) {
-            component_masks_[entity] |= (u64{1} << typeId);
-        }
+        component_masks_[entity].set(getTypeId<T>());
         return result;
     }
 
@@ -643,7 +624,7 @@ private:
 
     std::vector<u8> entityValid_;
     std::vector<u32> generations_;
-    std::vector<u64> component_masks_;
+    std::vector<ComponentMask> component_masks_;
     std::queue<Entity> recycled_;
     Entity nextEntity_ = 0;
     usize entity_count_ = 0;

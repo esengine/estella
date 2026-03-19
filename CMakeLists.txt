@@ -34,7 +34,6 @@ add_subdirectory(third_party)
 # =============================================================================
 
 set(ESENGINE_SOURCES
-    src/esengine/core/Application.cpp
     src/esengine/core/Engine.cpp
     src/esengine/core/Log.cpp
     src/esengine/app/App.cpp
@@ -109,11 +108,12 @@ endif()
 set(ESENGINE_HEADERS
     src/esengine/ESEngine.hpp
     src/esengine/core/Types.hpp
-    src/esengine/core/Application.hpp
     src/esengine/core/Engine.hpp
     src/esengine/core/Log.hpp
     src/esengine/core/Reflection.hpp
+    src/esengine/core/ServiceRegistry.hpp
     src/esengine/ecs/Entity.hpp
+    src/esengine/ecs/ComponentMask.hpp
     src/esengine/ecs/Component.hpp
     src/esengine/ecs/System.hpp
     src/esengine/ecs/Registry.hpp

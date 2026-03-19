@@ -11,6 +11,10 @@
 
 #include "App.hpp"
 #include "../core/Log.hpp"
+#include "../platform/FileSystem.hpp"
+#include "../ecs/components/Canvas.hpp"
+
+#include <glm/gtc/matrix_transform.hpp>
 
 #ifdef ES_PLATFORM_WEB
 #include <emscripten.h>
@@ -70,10 +74,39 @@ App& App::addStartupSystem(SystemFn system) {
 void App::init() {
     if (initialized_) return;
 
+    Log::init();
     ES_LOG_INFO("App initializing...");
 
+    FileSystem::init();
+
     platform_ = Platform::create();
-    platform_->initialize(config_.width, config_.height);
+    if (!platform_->initialize(config_.width, config_.height)) {
+        ES_LOG_FATAL("Failed to initialize platform");
+        return;
+    }
+
+    platform_->setTouchCallback([this](TouchType type, const TouchPoint& point) {
+        input_.onTouchEvent(type, point);
+    });
+
+    platform_->setKeyCallback([this](KeyCode key, bool pressed) {
+        input_.onKeyEvent(key, pressed);
+    });
+
+    platform_->setScrollCallback([this](f32 deltaX, f32 deltaY, f32 x, f32 y) {
+        input_.onScrollEvent(deltaX, deltaY);
+        (void)x; (void)y;
+    });
+
+    platform_->setResizeCallback([this](u32 width, u32 height) {
+        config_.width = width;
+        config_.height = height;
+        if (renderer_) {
+            renderer_->setViewport(0, 0, width, height);
+        }
+    });
+
+    input_.init();
 
     resourceManager_.init();
 
@@ -81,6 +114,13 @@ void App::init() {
     renderContext_->init();
 
     renderer_ = makeUnique<Renderer>(*renderContext_);
+    renderer_->setViewport(0, 0, config_.width, config_.height);
+
+    services_.registerService<ecs::Registry>(&registry_);
+    services_.registerService<resource::ResourceManager>(&resourceManager_);
+    services_.registerService<Input>(&input_);
+    services_.registerService<RenderContext>(renderContext_.get());
+    services_.registerService<Renderer>(renderer_.get());
 
     for (auto& plugin : plugins_) {
         plugin->build(*this);
@@ -102,11 +142,20 @@ void App::shutdown() {
 
     resourceManager_.shutdown();
 
+    registry_.clear();
+
+    input_.shutdown();
+
     platform_->shutdown();
     platform_.reset();
 
+    services_.clear();
+
+    FileSystem::shutdown();
+
     initialized_ = false;
     ES_LOG_INFO("App shutdown complete");
+    Log::shutdown();
 }
 
 void App::run() {
@@ -166,10 +215,26 @@ void App::runFrame() {
     runSystems(Schedule::Update);
     runSystems(Schedule::PostUpdate);
 
+    auto canvasView = registry_.view<ecs::Canvas>();
+    if (!canvasView.empty()) {
+        auto entity = *canvasView.begin();
+        auto& canvas = registry_.get<ecs::Canvas>(entity);
+        renderer_->setClearColor(canvas.backgroundColor);
+    }
+
     renderer_->beginFrame();
+    renderer_->clear();
+
+    f32 w = static_cast<f32>(config_.width);
+    f32 h = static_cast<f32>(config_.height);
+    glm::mat4 projection = glm::ortho(0.0f, w, h, 0.0f, -1.0f, 1.0f);
+    renderer_->beginScene(projection);
+
     runSystems(Schedule::PreRender);
     runSystems(Schedule::Render);
     runSystems(Schedule::PostRender);
+
+    renderer_->endScene();
     renderer_->endFrame();
 
     platform_->swapBuffers();

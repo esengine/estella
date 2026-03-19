@@ -31,7 +31,8 @@ bool postprocess_init(u32 width, u32 height) {
     if (!g_initialized || !g_renderContext || !g_resourceManager) return false;
 
     if (!g_postProcessPipeline) {
-        ctx().setPostProcessPipeline(makeUnique<PostProcessPipeline>(*g_renderContext, *g_resourceManager));
+        ctx().services().registerOwned<PostProcessPipeline>(
+            makeUnique<PostProcessPipeline>(*g_renderContext, *g_resourceManager));
     }
 
     g_postProcessPipeline->init(width, height);
@@ -43,7 +44,7 @@ bool postprocess_init(u32 width, u32 height) {
 void postprocess_shutdown() {
     if (g_postProcessPipeline) {
         g_postProcessPipeline->shutdown();
-        ctx().setPostProcessPipeline(nullptr);
+        ctx().services().removeService<PostProcessPipeline>();
     }
 }
 

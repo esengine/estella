@@ -225,7 +225,7 @@ private:
     f64 lastFrameTime_ = 0.0;             ///< Time of last frame
     f64 deltaTime_ = 0.0;                 ///< Delta time between frames
 
-    bool running_ = false;                ///< Application running flag
+    bool running_ = false;                ///< Running state flag
     bool mousePressed_ = false;           ///< Mouse button state for touch emulation
     f64 mouseX_ = 0.0;                    ///< Current mouse X position
     f64 mouseY_ = 0.0;                    ///< Current mouse Y position
