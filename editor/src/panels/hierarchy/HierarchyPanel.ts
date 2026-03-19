@@ -40,6 +40,7 @@ export class HierarchyPanel implements HierarchyState {
     lastClickEntityId: number | null = null;
     lastClickTime: number = 0;
     playMode: boolean = false;
+    playModeSelectedId?: number | null;
     runtimeEntities?: HierarchyState['runtimeEntities'];
     private toolbar_: HTMLElement | null = null;
     private savedExpandedIds_: Set<number> | null = null;
