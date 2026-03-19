@@ -1,0 +1,88 @@
+---
+title: v0.12.3
+description: Estella v0.12.3 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.12.3 introduces packed Entity handles, a GfxDevice abstraction layer, manifest-driven toolchain sync, and real-time build progress streaming.
+</Aside>
+
+## Packed Entity
+
+`Entity` is now a 32-bit packed struct (20-bit index + 12-bit generation), replacing the raw `u32` alias. This enables generation-based lifetime validation while maintaining the same memory footprint.
+
+- `Entity::make(index, generation)` — construct from parts
+- `entity.index()` / `entity.generation()` / `entity.isValid()` — query
+- `entity.id()` / `Entity::fromRaw(u32)` — FFI serialization at the C++/JS boundary
+- `operator<<` support for logging
+- All Web bindings updated to use typed conversions instead of raw casts
+
+## World Context
+
+New `World` struct bundles `Registry`, `ServiceRegistry`, and `deltaTime` into a single object passed to all `System::update()` calls:
+
+```cpp
+void update(World& world) override {
+    auto& registry = world.registry;
+    auto& input = world.require<Input>();
+    f32 dt = world.deltaTime;
+}
+```
+
+Eliminates global state access patterns across all engine systems.
+
+## ServiceRegistry
+
+Centralized service locator replacing scattered singleton accessors in `EngineContext`. Systems access services through `World::require<T>()` instead of reaching into global state.
+
+## GfxDevice Abstraction
+
+New `GfxDevice` interface isolates all OpenGL calls behind `GLDevice`:
+
+- Strongly-typed `GfxEnums` replace raw GL constants (`GfxBlendFactor`, `GfxDataType`, `GfxTextureFormat`, etc.)
+- `SharedHandle` provides reference-counted resource management for textures, shaders, and framebuffers
+- Enables future graphics backend swaps (Vulkan, WebGPU) without touching rendering logic
+
+## Manifest-Driven Toolchain Sync
+
+Replaced the fragile incremental file sync with a hash-based full sync driven by `toolchain.manifest.json`:
+
+- Computes a content hash of all manifest-declared files (engine source, cmake modules, third-party libraries)
+- On change: clean-and-copy the entire toolchain directory, eliminating stale file issues
+- Build cache key now includes the engine source path, preventing debug/release cache collisions
+- `compute_source_hash` covers the entire `engine-src/` directory for reliable cache invalidation
+
+## Build Progress Streaming
+
+WASM compilation progress now streams to the editor's build panel in real time:
+
+- Ninja output (`[42/100] Building CXX object ...`) parsed for file counts and progress percentage
+- Compile stage transitions (Configure → Compile → Optimize) update the progress bar
+- Build log panel scrolls with live output
+- Error reporting merges stdout + stderr (last 30 lines), so compile errors are no longer silently lost
+
+## Toolchain Repair
+
+New "Repair" button in the toolchain panel downloads only missing tools (e.g. ninja) without reinstalling the full emsdk package. The `package-emsdk.js` script also auto-downloads ninja during packaging.
+
+## SDK Improvements
+
+- Expanded `App` lifecycle with pause/resume support
+- Improved `System` deltaTime handling with new tests
+- `ComponentMask` bitset-based component filtering for efficient archetype queries
+
+## UI Polish
+
+- Unified selected item styling to gold accent (`--es-selection-bg` + `--es-accent-gold`) across all editor panels
+- Selection indicator uses `box-shadow: inset` instead of `border-left` to avoid rounded corners
+
+## Bug Fixes
+
+- Fixed PlayMode entity synchronization during play mode transitions
+- Fixed hierarchy panel selection state persistence
+- Fixed Content Security Policy for production builds
+- Fixed Emscripten `scriptDirectory` detection triggering Chrome warnings in single-file playable builds
+- Fixed Toast overflow — long error messages truncated to 4 lines with "see build output" hint
+- Removed 5000+ build artifact files from git tracking (`desktop/src-tauri/toolchain/`)
