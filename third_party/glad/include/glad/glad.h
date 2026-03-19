@@ -600,6 +600,17 @@ int gladLoadGLLoader(GLADloadproc load);
  */
 int gladLoaderInitialized(void);
 
+/* Instancing (GL 3.1+ / GL_ARB_instanced_arrays) */
+#ifndef GL_VERTEX_ATTRIB_ARRAY_DIVISOR
+#define GL_VERTEX_ATTRIB_ARRAY_DIVISOR 0x88FE
+#endif
+typedef void (APIENTRYP PFNGLVERTEXATTRIBDIVISORPROC)(GLuint index, GLuint divisor);
+typedef void (APIENTRYP PFNGLDRAWELEMENTSINSTANCEDPROC)(GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount);
+extern PFNGLVERTEXATTRIBDIVISORPROC glad_glVertexAttribDivisor;
+extern PFNGLDRAWELEMENTSINSTANCEDPROC glad_glDrawElementsInstanced;
+#define glVertexAttribDivisor glad_glVertexAttribDivisor
+#define glDrawElementsInstanced glad_glDrawElementsInstanced
+
 #ifdef __cplusplus
 }
 #endif
