@@ -36,6 +36,7 @@ export interface HierarchyState {
     lastClickEntityId: number | null;
     lastClickTime: number;
     playMode: boolean;
+    playModeSelectedId?: number | null;
     runtimeEntities?: EntityData[];
     render(): void;
     renderVisibleRows(): void;

@@ -70,6 +70,7 @@ export class SharedRenderContext {
     private onInitCallbacks_: (() => void)[] = [];
     private postTickCallback_: (() => void) | null = null;
     private postRenderCallback_: (() => void) | null = null;
+    private postFrameCallbacks_: Array<() => void> = [];
 
     constructor() {
         this.pathResolver_ = new AssetPathResolver();
@@ -369,6 +370,10 @@ export class SharedRenderContext {
                 throw e;
             }
         }
+
+        for (const cb of this.postFrameCallbacks_) {
+            try { cb(); } catch (e) { console.warn('[SharedRenderContext] PostFrame callback error:', e); }
+        }
     }
 
     resetFrameTick(): void {
@@ -422,6 +427,14 @@ export class SharedRenderContext {
             this.postRenderCallback_ = null;
             cb();
         }
+    }
+
+    onPostFrame(callback: () => void): () => void {
+        this.postFrameCallbacks_.push(callback);
+        return () => {
+            const idx = this.postFrameCallbacks_.indexOf(callback);
+            if (idx !== -1) this.postFrameCallbacks_.splice(idx, 1);
+        };
     }
 
     tickApp(): void {

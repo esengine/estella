@@ -118,8 +118,11 @@ export class HierarchyPanel implements HierarchyState {
                 this.render();
             }
         }));
-        this.disposables_.add(pms.onSelectionChange(() => {
-            if (this.playMode) this.renderVisibleRows();
+        this.disposables_.add(pms.onSelectionChange((id) => {
+            if (this.playMode) {
+                this.playModeSelectedId = id;
+                this.renderVisibleRows();
+            }
         }));
     }
 
@@ -154,6 +157,17 @@ export class HierarchyPanel implements HierarchyState {
     private onStoreNotify(dirtyFlags?: ReadonlySet<DirtyFlag>): void {
         if (this.playMode) {
             if (dirtyFlags?.has('selection')) {
+                const sel = this.store.selectedEntity;
+                if (sel !== null) {
+                    const pms = getPlayModeService();
+                    const runtimeId = pms.editorToRuntimeId(sel as number);
+                    if (runtimeId !== null) {
+                        this.playModeSelectedId = runtimeId;
+                        pms.selectEntity(runtimeId);
+                    }
+                } else {
+                    this.playModeSelectedId = null;
+                }
                 this.renderVisibleRows();
             }
             return;
@@ -284,11 +298,16 @@ export class HierarchyPanel implements HierarchyState {
                 const row = target.closest('.es-hierarchy-row');
                 const item = row?.parentElement as HTMLElement;
                 if (!item?.classList.contains('es-hierarchy-item')) return;
-                const entityId = parseInt(item.dataset.entityId ?? '', 10);
-                if (!isNaN(entityId)) {
-                    this.store.selectEntity(entityId as Entity, 'replace');
+                const runtimeId = parseInt(item.dataset.entityId ?? '', 10);
+                if (!isNaN(runtimeId)) {
                     const pms = getPlayModeService();
-                    pms.selectEntity(entityId);
+                    pms.selectEntity(runtimeId);
+                    this.playModeSelectedId = runtimeId;
+                    const editorId = pms.runtimeToEditorId(runtimeId);
+                    if (editorId !== null) {
+                        this.store.selectEntity(editorId as Entity, 'replace');
+                    }
+                    this.renderVisibleRows();
                 }
                 return;
             }

@@ -162,7 +162,10 @@ export function renderSingleRow(state: HierarchyState, row: FlattenedRow, select
     const visibilityIcon = isVisible ? icons.eye(10) : icons.eyeOff(10);
 
     let itemClass = 'es-hierarchy-item';
-    if (state.store.selectedEntities.has(entity.id)) itemClass += ' es-selected';
+    const isSelected = inPlayMode
+        ? state.playModeSelectedId === entity.id
+        : state.store.selectedEntities.has(entity.id);
+    if (isSelected) itemClass += ' es-selected';
     if (!isVisible) itemClass += ' es-entity-hidden';
     if (entity.prefab?.isRoot) itemClass += ' es-prefab-root';
     else if (entity.prefab) itemClass += ' es-prefab-child';

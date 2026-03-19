@@ -244,6 +244,7 @@ export class World {
                 handleWasmError(e, `setParent(child=${child}, parent=${parent})`);
             }
         }
+        this.queries_.markStructuralChange();
     }
 
     removeParent(entity: Entity): void {
@@ -255,6 +256,7 @@ export class World {
                 handleWasmError(e, `removeParent(entity=${entity})`);
             }
         }
+        this.queries_.markStructuralChange();
     }
 
     // =========================================================================
