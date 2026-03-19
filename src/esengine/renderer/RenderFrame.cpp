@@ -1,5 +1,4 @@
 #include "RenderFrame.hpp"
-#include "OpenGLHeaders.hpp"
 #include "Shader.hpp"
 #include "ShaderEmbeds.generated.hpp"
 #include "../resource/ShaderParser.hpp"
@@ -281,8 +280,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     u32 pixelCount = width_ * height_ * 4;
     snapshot_pixels_.resize(pixelCount);
-    device_.readPixels(0, 0, width_, height_, GL_RGBA, GL_UNSIGNED_BYTE,
-                       snapshot_pixels_.data());
+    device_.readPixels(0, 0, width_, height_, GfxPixelFormat::RGBA8, snapshot_pixels_.data());
 
     rt->unbind();
 }

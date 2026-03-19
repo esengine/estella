@@ -11,7 +11,6 @@
 
 #include "CustomGeometry.hpp"
 
-#include "OpenGLHeaders.hpp"
 #include "RenderCommand.hpp"
 #include "../core/Log.hpp"
 
@@ -76,19 +75,20 @@ void CustomGeometry::bind() const {
         const auto& layout = vbo_->getLayout();
         u32 index = 0;
         for (const auto& attr : layout) {
-            GLenum glType = GL_FLOAT;
+            GfxDataType gfxType = GfxDataType::Float;
             switch (attr.type) {
             case ShaderDataType::Int:
             case ShaderDataType::Int2:
             case ShaderDataType::Int3:
             case ShaderDataType::Int4:
-                glType = GL_INT;
+                gfxType = GfxDataType::Int;
                 break;
             case ShaderDataType::Bool:
-                glType = GL_UNSIGNED_BYTE;
+            case ShaderDataType::UByte4N:
+                gfxType = GfxDataType::UnsignedByte;
                 break;
             default:
-                glType = GL_FLOAT;
+                gfxType = GfxDataType::Float;
                 break;
             }
             auto* device = RenderCommand::getDevice();
@@ -96,7 +96,7 @@ void CustomGeometry::bind() const {
             device->vertexAttribPointer(
                 index,
                 static_cast<i32>(shaderDataTypeComponentCount(attr.type)),
-                glType,
+                gfxType,
                 attr.normalized,
                 static_cast<i32>(layout.getStride()),
                 attr.offset

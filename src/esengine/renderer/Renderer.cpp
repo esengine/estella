@@ -19,15 +19,6 @@
 #include "../core/Log.hpp"
 #include "../resource/ResourceManager.hpp"
 
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
-
 #include <array>
 #include <cmath>
 #include <vector>
@@ -78,7 +69,7 @@ void RenderCommand::drawIndexed(const VertexArray& vao, u32 indexCount) {
     auto ib = vao.getIndexBuffer();
     u32 count = indexCount ? indexCount : (ib ? ib->getCount() : 0);
     if (count > 0 && ib) {
-        GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+        auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
         device_->drawElements(count, type, 0);
     }
 }
@@ -432,7 +423,7 @@ void BatchRenderer2D::flush() {
         auto ib = data_->vao->getIndexBuffer();
         if (ib) {
             ib->bind();
-            GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
             dev->drawElements(data_->indexCount, type, 0);
         }
         data_->drawCallCount++;

@@ -1,5 +1,4 @@
 #include "DrawList.hpp"
-#include "OpenGLHeaders.hpp"
 
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -104,7 +103,7 @@ void DrawList::execute(GfxDevice& device, StateTracker& state, TransientBufferPo
 
             device.drawElements(
                 cmd.index_count,
-                GL_UNSIGNED_SHORT,
+                GfxDataType::UnsignedShort,
                 static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u16)));
         }
 

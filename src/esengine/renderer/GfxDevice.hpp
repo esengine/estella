@@ -19,6 +19,7 @@
 
 #include "../core/Types.hpp"
 #include "BlendMode.hpp"
+#include "GfxEnums.hpp"
 #include "Texture.hpp"
 
 namespace esengine {
@@ -70,9 +71,6 @@ public:
     /** @brief Sets blend mode using predefined BlendMode */
     virtual void setBlendMode(BlendMode mode) = 0;
 
-    /** @brief Sets custom blend function (src, dst, srcAlpha, dstAlpha as GL enums) */
-    virtual void setBlendFunc(u32 srcFactor, u32 dstFactor, u32 srcAlphaFactor, u32 dstAlphaFactor) = 0;
-
     // =========================================================================
     // Depth State
     // =========================================================================
@@ -90,11 +88,11 @@ public:
     /** @brief Enables or disables stencil testing */
     virtual void setStencilTest(bool enabled) = 0;
 
-    /** @brief Sets stencil function (func, ref, mask as GL enums) */
-    virtual void setStencilFunc(u32 func, i32 ref, u32 mask) = 0;
+    /** @brief Sets stencil function */
+    virtual void setStencilFunc(GfxStencilFunc func, i32 ref, u32 mask) = 0;
 
-    /** @brief Sets stencil operations (sfail, dpfail, dppass as GL enums) */
-    virtual void setStencilOp(u32 sfail, u32 dpfail, u32 dppass) = 0;
+    /** @brief Sets stencil operations */
+    virtual void setStencilOp(GfxStencilOp sfail, GfxStencilOp dpfail, GfxStencilOp dppass) = 0;
 
     /** @brief Sets stencil write mask */
     virtual void setStencilMask(u32 mask) = 0;
@@ -170,17 +168,17 @@ public:
     /** @brief Deletes a buffer */
     virtual void deleteBuffer(u32 bufferId) = 0;
 
-    /** @brief Binds a buffer to GL_ARRAY_BUFFER */
+    /** @brief Binds a buffer to the vertex (array) target */
     virtual void bindVertexBuffer(u32 bufferId) = 0;
 
-    /** @brief Binds a buffer to GL_ELEMENT_ARRAY_BUFFER */
+    /** @brief Binds a buffer to the index (element) target */
     virtual void bindIndexBuffer(u32 bufferId) = 0;
 
-    /** @brief Uploads data to the currently bound buffer target */
-    virtual void bufferData(u32 target, const void* data, u32 sizeBytes, bool dynamic) = 0;
+    /** @brief Uploads data to a buffer target */
+    virtual void bufferData(GfxBufferTarget target, const void* data, u32 sizeBytes, bool dynamic) = 0;
 
-    /** @brief Updates a sub-region of the currently bound buffer */
-    virtual void bufferSubData(u32 target, u32 offset, const void* data, u32 sizeBytes) = 0;
+    /** @brief Updates a sub-region of a buffer target */
+    virtual void bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) = 0;
 
     // =========================================================================
     // VAO Operations
@@ -199,7 +197,7 @@ public:
     virtual void enableVertexAttrib(u32 index) = 0;
 
     /** @brief Configures a vertex attribute pointer */
-    virtual void vertexAttribPointer(u32 index, i32 size, u32 type,
+    virtual void vertexAttribPointer(u32 index, i32 size, GfxDataType type,
                                      bool normalized, i32 stride, u32 offset) = 0;
 
     /** @brief Sets vertex attribute divisor for instanced rendering */
@@ -209,14 +207,14 @@ public:
     // Draw Calls
     // =========================================================================
 
-    /** @brief Draws indexed primitives (GL_TRIANGLES) */
-    virtual void drawElements(u32 indexCount, u32 indexType, u32 byteOffset) = 0;
+    /** @brief Draws indexed triangles */
+    virtual void drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) = 0;
 
-    /** @brief Draws non-indexed primitives (GL_TRIANGLES) */
+    /** @brief Draws non-indexed triangles */
     virtual void drawArrays(u32 first, u32 vertexCount) = 0;
 
-    /** @brief Draws indexed primitives with instancing */
-    virtual void drawElementsInstanced(u32 indexCount, u32 indexType, u32 byteOffset, u32 instanceCount) = 0;
+    /** @brief Draws indexed triangles with instancing */
+    virtual void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) = 0;
 
     // =========================================================================
     // Texture Creation
@@ -230,13 +228,12 @@ public:
 
     /** @brief Allocates texture storage with optional initial data */
     virtual void texImage2D(u32 textureId, u32 width, u32 height,
-                            u32 internalFormat, u32 format, u32 type,
-                            const void* data) = 0;
+                            GfxPixelFormat format, const void* data) = 0;
 
     /** @brief Updates a sub-region of a texture */
     virtual void texSubImage2D(u32 textureId, i32 xoffset, i32 yoffset,
                                u32 width, u32 height,
-                               u32 format, u32 type, const void* data) = 0;
+                               GfxPixelFormat format, const void* data) = 0;
 
     /** @brief Sets texture filtering and wrap parameters */
     virtual void setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
@@ -262,7 +259,7 @@ public:
     virtual void bindFramebuffer(u32 fboId) = 0;
 
     /** @brief Attaches a texture to a framebuffer */
-    virtual void framebufferTexture2D(u32 fboId, u32 attachment, u32 textureId) = 0;
+    virtual void framebufferTexture2D(u32 fboId, GfxAttachment attachment, u32 textureId) = 0;
 
     /** @brief Checks framebuffer completeness */
     virtual bool checkFramebufferStatus() = 0;
@@ -272,7 +269,7 @@ public:
     // =========================================================================
 
     /** @brief Reads pixels from the current framebuffer */
-    virtual void readPixels(i32 x, i32 y, u32 w, u32 h, u32 format, u32 type, void* data) = 0;
+    virtual void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) = 0;
 
     // =========================================================================
     // Debug
