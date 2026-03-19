@@ -20,7 +20,8 @@
     "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "dockview-core": "^4.13.1",
-    "esengine": "workspace:*"
+    "esengine": "workspace:*",
+    "html2canvas": "^1.4.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
