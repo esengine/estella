@@ -29,10 +29,25 @@
     #include <glad/glad.h>
 #endif
 
-// GL error codes not present in all headers
+// GL constants not present in all headers / glad configurations
 #ifndef GL_CONTEXT_LOST
     #define GL_CONTEXT_LOST 0x0507
 #endif
 #ifndef GL_CONTEXT_LOST_WEBGL
     #define GL_CONTEXT_LOST_WEBGL 0x9242
+#endif
+#ifndef GL_INCR
+    #define GL_INCR      0x1E02
+#endif
+#ifndef GL_DECR
+    #define GL_DECR      0x1E03
+#endif
+#ifndef GL_INVERT
+    #define GL_INVERT    0x150A
+#endif
+#ifndef GL_INCR_WRAP
+    #define GL_INCR_WRAP 0x8507
+#endif
+#ifndef GL_DECR_WRAP
+    #define GL_DECR_WRAP 0x8508
 #endif

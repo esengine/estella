@@ -125,6 +125,10 @@ PFNGLRENDERBUFFERSTORAGEPROC glad_glRenderbufferStorage = NULL;
 PFNGLFRAMEBUFFERRENDERBUFFERPROC glad_glFramebufferRenderbuffer = NULL;
 PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer = NULL;
 
+/* Instancing */
+PFNGLVERTEXATTRIBDIVISORPROC glad_glVertexAttribDivisor = NULL;
+PFNGLDRAWELEMENTSINSTANCEDPROC glad_glDrawElementsInstanced = NULL;
+
 /* =============================================================================
  * Loader Implementation
  * =========================================================================== */
@@ -241,6 +245,10 @@ int gladLoadGLLoader(GLADloadproc load) {
     glad_glRenderbufferStorage = (PFNGLRENDERBUFFERSTORAGEPROC)load("glRenderbufferStorage");
     glad_glFramebufferRenderbuffer = (PFNGLFRAMEBUFFERRENDERBUFFERPROC)load("glFramebufferRenderbuffer");
     glad_glBlitFramebuffer = (PFNGLBLITFRAMEBUFFERPROC)load("glBlitFramebuffer");
+
+    /* Instancing (GL 3.1+) */
+    glad_glVertexAttribDivisor = (PFNGLVERTEXATTRIBDIVISORPROC)load("glVertexAttribDivisor");
+    glad_glDrawElementsInstanced = (PFNGLDRAWELEMENTSINSTANCEDPROC)load("glDrawElementsInstanced");
 
     /* Check critical functions */
     if (glad_glClear == NULL || glad_glViewport == NULL || glad_glGetString == NULL) {

@@ -329,13 +329,13 @@ void SpritePlugin::emitTiledQuads(
     i32 tilesX = static_cast<i32>(std::ceil(absSize.x / step.x));
 
     for (i32 iy = 0; iy < tilesY; ++iy) {
-        f32 ty = iy * step.y;
+        f32 ty = static_cast<f32>(iy) * step.y;
         f32 th = glm::min(tileSize.y, absSize.y - ty);
         if (th <= 0.0f) break;
         f32 vFrac = th / tileSize.y;
 
         for (i32 ix = 0; ix < tilesX; ++ix) {
-            f32 tx = ix * step.x;
+            f32 tx = static_cast<f32>(ix) * step.x;
             f32 tw = glm::min(tileSize.x, absSize.x - tx);
             if (tw <= 0.0f) break;
             f32 uFrac = tw / tileSize.x;
