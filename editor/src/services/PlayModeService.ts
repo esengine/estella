@@ -56,10 +56,21 @@ export class PlayModeService {
     private sharedWorld_: World | null = null;
     private entityNameMap_: Map<number, string> | null = null;
     private entitySceneDataMap_: Map<number, { type: string; data: Record<string, unknown> }[]> | null = null;
+    private lastWorldVersion_ = -1;
+    private editorToRuntimeMap_: Map<number, number> | null = null;
+    private runtimeToEditorMap_: Map<number, number> | null = null;
 
     get state(): PlayState { return this.state_; }
     get runtimeEntities(): RuntimeEntityData[] { return this.cachedEntities_; }
     get selectedEntityId(): number | null { return this.selectedEntityId_; }
+
+    editorToRuntimeId(editorId: number): number | null {
+        return this.editorToRuntimeMap_?.get(editorId) ?? null;
+    }
+
+    runtimeToEditorId(runtimeId: number): number | null {
+        return this.runtimeToEditorMap_?.get(runtimeId) ?? null;
+    }
 
     getRuntimeEntityData(entityId: number): EntityData | null {
         const re = this.cachedEntities_.find(e => e.entityId === entityId);
@@ -128,6 +139,9 @@ export class PlayModeService {
         this.sharedWorld_ = null;
         this.entityNameMap_ = null;
         this.entitySceneDataMap_ = null;
+        this.editorToRuntimeMap_ = null;
+        this.runtimeToEditorMap_ = null;
+        this.lastWorldVersion_ = -1;
 
         this.ejectUserScripts();
         await getSharedRenderContext().exitPlayMode(snapshot?.scene);
@@ -188,6 +202,7 @@ export class PlayModeService {
         if (parentId != null && world.valid(parentId as Entity)) {
             world.insert(entity, Parent, { entity: parentId as Entity });
         }
+        this.refreshEntityList_();
         return entity as number;
     }
 
@@ -198,6 +213,7 @@ export class PlayModeService {
             this.selectedEntityId_ = null;
             this.emitSelectionChange();
         }
+        this.refreshEntityList_();
     }
 
     addComponent(entityId: number, componentType: string, data?: Record<string, unknown>): void {
@@ -205,6 +221,7 @@ export class PlayModeService {
         const compDef = getComponent(componentType);
         if (!compDef) return;
         this.sharedWorld_.insert(entityId as Entity, compDef, data ?? {});
+        this.refreshEntityList_();
     }
 
     removeComponent(entityId: number, componentType: string): void {
@@ -212,11 +229,13 @@ export class PlayModeService {
         const compDef = getComponent(componentType);
         if (!compDef) return;
         this.sharedWorld_.remove(entityId as Entity, compDef);
+        this.refreshEntityList_();
     }
 
     renameEntity(entityId: number, name: string): void {
         if (!this.sharedWorld_ || !this.sharedWorld_.valid(entityId as Entity)) return;
         this.sharedWorld_.insert(entityId as Entity, Name, { value: name });
+        this.refreshEntityList_();
     }
 
     reparentEntity(entityId: number, newParentId: number | null): void {
@@ -226,6 +245,7 @@ export class PlayModeService {
         } else {
             this.sharedWorld_.remove(entityId as Entity, Parent);
         }
+        this.refreshEntityList_();
     }
 
     private registerProjectScenes(ctx: ReturnType<typeof getSharedRenderContext>): void {
@@ -292,6 +312,13 @@ export class PlayModeService {
         }
     }
 
+    private refreshEntityList_(): void {
+        if (!this.sharedWorld_) return;
+        this.lastWorldVersion_ = this.sharedWorld_.getWorldVersion();
+        this.cachedEntities_ = this.buildRuntimeEntityData(this.sharedWorld_);
+        this.emitEntityListUpdate();
+    }
+
     private buildRuntimeEntityData(world: import('esengine').World): RuntimeEntityData[] {
         const entities = world.getAllEntities();
         const result: RuntimeEntityData[] = [];
@@ -350,11 +377,15 @@ export class PlayModeService {
 
         this.entityNameMap_ = new Map();
         this.entitySceneDataMap_ = new Map();
+        this.editorToRuntimeMap_ = new Map();
+        this.runtimeToEditorMap_ = new Map();
         const sm = ctx.sceneManager_;
         if (sm) {
             const scene = getEditorStore().scene;
             const entityMap = sm.getEntityMap();
             for (const [editorId, ecsEntity] of entityMap) {
+                this.editorToRuntimeMap_.set(editorId, ecsEntity as number);
+                this.runtimeToEditorMap_.set(ecsEntity as number, editorId);
                 const ed = scene.entities.find(e => e.id === editorId);
                 if (ed) {
                     this.entityNameMap_.set(ecsEntity as number, ed.name);
@@ -363,24 +394,27 @@ export class PlayModeService {
             }
         }
 
+        this.lastWorldVersion_ = world.getWorldVersion();
         this.cachedEntities_ = this.buildRuntimeEntityData(world);
         this.emitEntityListUpdate();
-
-        const unsubSpawn = world.onSpawn((entity: Entity) => {
-            this.cachedEntities_ = this.buildRuntimeEntityData(world);
-            this.emitEntityListUpdate();
-        });
 
         const unsubDespawn = world.onDespawn((entity: Entity) => {
             if (this.selectedEntityId_ === (entity as number)) {
                 this.selectedEntityId_ = null;
                 this.emitSelectionChange();
             }
-            this.cachedEntities_ = this.buildRuntimeEntityData(world);
-            this.emitEntityListUpdate();
         });
 
-        this.sharedCleanups_.push(unsubSpawn, unsubDespawn);
+        const unsubPostFrame = ctx.onPostFrame(() => {
+            const version = world.getWorldVersion();
+            if (version !== this.lastWorldVersion_) {
+                this.lastWorldVersion_ = version;
+                this.cachedEntities_ = this.buildRuntimeEntityData(world);
+                this.emitEntityListUpdate();
+            }
+        });
+
+        this.sharedCleanups_.push(unsubDespawn, unsubPostFrame);
     }
 
     private emitStateChange(): void {
