@@ -21,7 +21,9 @@
 #include "core/Types.hpp"
 #include "core/Log.hpp"
 #include "core/Engine.hpp"
-#include "core/Application.hpp"
+
+// App Framework
+#include "app/App.hpp"
 
 // Math
 #include "math/Math.hpp"
@@ -67,35 +69,35 @@
 // =============================================================================
 
 /**
- * @brief Application entry point macro
- * @details Defines the appropriate entry point based on the target platform.
- *          - Web: Uses Emscripten exports for JavaScript interop
- *          - Native: Standard main() function
+ * @brief Entry point macro for App-based applications
  *
- * @param AppClass The user's Application-derived class
+ * @param SetupFunc A function void(esengine::App&) that configures the App
  *
  * @code
- * class MyGame : public esengine::Application {
- *     void onInit() override { ... }
- *     void onUpdate(f32 dt) override { ... }
- * };
- * ES_MAIN(MyGame)
+ * void setup(esengine::App& app) {
+ *     app.setConfig({.title = "My Game", .width = 1280, .height = 720});
+ *     app.addPlugin<MyPlugin>();
+ *     app.addSystem(esengine::Schedule::Update, myUpdateSystem);
+ * }
+ * ES_APP_MAIN(setup)
  * @endcode
  */
 #ifdef ES_PLATFORM_WEB
     #include <emscripten.h>
-    #define ES_MAIN(AppClass)                                   \
+    #define ES_APP_MAIN(SetupFunc)                              \
         extern "C" {                                            \
             EMSCRIPTEN_KEEPALIVE void es_app_init() {           \
-                static AppClass app;                            \
+                static esengine::App app;                       \
+                SetupFunc(app);                                 \
                 app.run();                                      \
             }                                                   \
         }
 #else
-    #define ES_MAIN(AppClass)                                   \
+    #define ES_APP_MAIN(SetupFunc)                              \
         int main(int argc, char** argv) {                       \
             (void)argc; (void)argv;                             \
-            AppClass app;                                       \
+            esengine::App app;                                  \
+            SetupFunc(app);                                     \
             app.run();                                          \
             return 0;                                           \
         }

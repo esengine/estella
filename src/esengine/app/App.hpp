@@ -12,6 +12,7 @@
 
 #include "Schedule.hpp"
 #include "../core/Types.hpp"
+#include "../core/ServiceRegistry.hpp"
 #include "../ecs/Registry.hpp"
 #include "../platform/Platform.hpp"
 #include "../platform/input/Input.hpp"
@@ -50,7 +51,7 @@ struct AppConfig {
 };
 
 // =============================================================================
-// Resources (Global Singletons)
+// Resources
 // =============================================================================
 
 struct Time {
@@ -117,13 +118,15 @@ public:
     Renderer& renderer() { return *renderer_; }
     RenderContext& renderContext() { return *renderContext_; }
 
+    ServiceRegistry& services() { return services_; }
+
     u32 width() const { return config_.width; }
     u32 height() const { return config_.height; }
 
     static App& get() { return *instance_; }
 
     // =========================================================================
-    // JS Interop (Web platform)
+    // JS Interop
     // =========================================================================
 
 #ifdef ES_PLATFORM_WEB
@@ -140,6 +143,7 @@ private:
     void runSystems(Schedule schedule);
 
     AppConfig config_;
+    ServiceRegistry services_;
 
     Unique<Platform> platform_;
     Input input_;

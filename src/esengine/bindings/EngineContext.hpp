@@ -15,6 +15,7 @@
 #include <emscripten/html5.h>
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
+#include "../core/ServiceRegistry.hpp"
 #include "../animation/TweenSystem.hpp"
 #include "MaterialCache.hpp"
 #ifdef ES_ENABLE_TIMELINE
@@ -42,7 +43,6 @@ namespace ecs {
 class TransformSystem;
 }
 
-
 #ifdef ES_ENABLE_SPINE
 namespace spine {
 class SpineResourceManager;
@@ -53,8 +53,8 @@ class SpineSystem;
 /**
  * @brief Centralized context for engine subsystems and state
  *
- * @details Replaces global variables in WebSDKEntry.cpp with a singleton
- *          context object. Provides controlled access to subsystems and state.
+ * @details Delegates subsystem storage to a ServiceRegistry.
+ *          Typed accessors are provided for backward compatibility.
  */
 class EngineContext {
 public:
@@ -67,27 +67,37 @@ public:
 
     void shutdown();
 
-    RenderContext* renderContext() { return renderContext_.get(); }
-    RenderFrame* renderFrame() { return renderFrame_.get(); }
-    ImmediateDraw* immediateDraw() { return immediateDraw_.get(); }
-    GeometryManager* geometryManager() { return geometryManager_.get(); }
+    ServiceRegistry& services() { return services_; }
+
+    // =========================================================================
+    // Subsystem Accessors
+    // =========================================================================
+
+    RenderContext* renderContext() { return services_.getService<RenderContext>(); }
+    RenderFrame* renderFrame() { return services_.getService<RenderFrame>(); }
+    ImmediateDraw* immediateDraw() { return services_.getService<ImmediateDraw>(); }
+    GeometryManager* geometryManager() { return services_.getService<GeometryManager>(); }
 #ifdef ES_ENABLE_POSTPROCESS
-    PostProcessPipeline* postProcessPipeline() { return postProcessPipeline_.get(); }
+    PostProcessPipeline* postProcessPipeline() { return services_.getService<PostProcessPipeline>(); }
 #endif
-    resource::ResourceManager* resourceManager() { return resourceManager_.get(); }
-    ecs::TransformSystem* transformSystem() { return transformSystem_.get(); }
-    animation::TweenSystem* tweenSystem() { return tweenSystem_.get(); }
+    resource::ResourceManager* resourceManager() { return services_.getService<resource::ResourceManager>(); }
+    ecs::TransformSystem* transformSystem() { return services_.getService<ecs::TransformSystem>(); }
+    animation::TweenSystem* tweenSystem() { return services_.getService<animation::TweenSystem>(); }
 #ifdef ES_ENABLE_TIMELINE
-    animation::TimelineSystem* timelineSystem() { return timelineSystem_.get(); }
+    animation::TimelineSystem* timelineSystem() { return services_.getService<animation::TimelineSystem>(); }
 #endif
 #ifdef ES_ENABLE_PARTICLES
-    particle::ParticleSystem* particleSystem() { return particleSystem_.get(); }
+    particle::ParticleSystem* particleSystem() { return services_.getService<particle::ParticleSystem>(); }
 #endif
 
 #ifdef ES_ENABLE_SPINE
-    spine::SpineResourceManager* spineResourceManager() { return spineResourceManager_.get(); }
-    spine::SpineSystem* spineSystem() { return spineSystem_.get(); }
+    spine::SpineResourceManager* spineResourceManager() { return services_.getService<spine::SpineResourceManager>(); }
+    spine::SpineSystem* spineSystem() { return services_.getService<spine::SpineSystem>(); }
 #endif
+
+    // =========================================================================
+    // State
+    // =========================================================================
 
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE webglContext() const { return webglContext_; }
     void setWebglContext(EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx) { webglContext_ = ctx; }
@@ -120,53 +130,12 @@ public:
     MaterialCache& materialCache() { return materialCache_; }
 
     void setInitialized(bool initialized) { initialized_ = initialized; }
-    void setRenderContext(Unique<RenderContext> ctx);
-    void setRenderFrame(Unique<RenderFrame> frame);
-    void setImmediateDraw(Unique<ImmediateDraw> draw);
-    void setGeometryManager(Unique<GeometryManager> mgr);
-#ifdef ES_ENABLE_POSTPROCESS
-    void setPostProcessPipeline(Unique<PostProcessPipeline> pipeline);
-#endif
-    void setResourceManager(Unique<resource::ResourceManager> mgr);
-    void setTransformSystem(Unique<ecs::TransformSystem> sys);
-    void setTweenSystem(Unique<animation::TweenSystem> sys);
-#ifdef ES_ENABLE_TIMELINE
-    void setTimelineSystem(Unique<animation::TimelineSystem> sys);
-#endif
-#ifdef ES_ENABLE_PARTICLES
-    void setParticleSystem(Unique<particle::ParticleSystem> sys);
-#endif
-
-#ifdef ES_ENABLE_SPINE
-    void setSpineResourceManager(Unique<spine::SpineResourceManager> mgr);
-    void setSpineSystem(Unique<spine::SpineSystem> sys);
-#endif
 
 private:
     EngineContext() = default;
     ~EngineContext() = default;
 
-    Unique<RenderContext> renderContext_;
-    Unique<RenderFrame> renderFrame_;
-    Unique<ImmediateDraw> immediateDraw_;
-    Unique<GeometryManager> geometryManager_;
-#ifdef ES_ENABLE_POSTPROCESS
-    Unique<PostProcessPipeline> postProcessPipeline_;
-#endif
-    Unique<resource::ResourceManager> resourceManager_;
-    Unique<ecs::TransformSystem> transformSystem_;
-    Unique<animation::TweenSystem> tweenSystem_;
-#ifdef ES_ENABLE_TIMELINE
-    Unique<animation::TimelineSystem> timelineSystem_;
-#endif
-#ifdef ES_ENABLE_PARTICLES
-    Unique<particle::ParticleSystem> particleSystem_;
-#endif
-
-#ifdef ES_ENABLE_SPINE
-    Unique<spine::SpineResourceManager> spineResourceManager_;
-    Unique<spine::SpineSystem> spineSystem_;
-#endif
+    ServiceRegistry services_;
 
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE webglContext_ = 0;
     bool initialized_ = false;

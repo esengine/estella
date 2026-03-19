@@ -41,67 +41,32 @@ EngineContext& EngineContext::instance() {
     return ctx;
 }
 
-void EngineContext::setRenderContext(Unique<RenderContext> ctx) { renderContext_ = std::move(ctx); }
-void EngineContext::setRenderFrame(Unique<RenderFrame> frame) { renderFrame_ = std::move(frame); }
-void EngineContext::setImmediateDraw(Unique<ImmediateDraw> draw) { immediateDraw_ = std::move(draw); }
-void EngineContext::setGeometryManager(Unique<GeometryManager> mgr) { geometryManager_ = std::move(mgr); }
-#ifdef ES_ENABLE_POSTPROCESS
-void EngineContext::setPostProcessPipeline(Unique<PostProcessPipeline> pipeline) { postProcessPipeline_ = std::move(pipeline); }
-#endif
-void EngineContext::setResourceManager(Unique<resource::ResourceManager> mgr) { resourceManager_ = std::move(mgr); }
-void EngineContext::setTransformSystem(Unique<ecs::TransformSystem> sys) { transformSystem_ = std::move(sys); }
-void EngineContext::setTweenSystem(Unique<animation::TweenSystem> sys) { tweenSystem_ = std::move(sys); }
-#ifdef ES_ENABLE_TIMELINE
-void EngineContext::setTimelineSystem(Unique<animation::TimelineSystem> sys) { timelineSystem_ = std::move(sys); }
-#endif
-#ifdef ES_ENABLE_PARTICLES
-void EngineContext::setParticleSystem(Unique<particle::ParticleSystem> sys) { particleSystem_ = std::move(sys); }
-#endif
-
-#ifdef ES_ENABLE_SPINE
-void EngineContext::setSpineResourceManager(Unique<spine::SpineResourceManager> mgr) { spineResourceManager_ = std::move(mgr); }
-void EngineContext::setSpineSystem(Unique<spine::SpineSystem> sys) { spineSystem_ = std::move(sys); }
-#endif
-
 void EngineContext::shutdown() {
     if (!initialized_) return;
 
-    geometryManager_.reset();
-
-    if (renderFrame_) {
-        renderFrame_->shutdown();
-        renderFrame_.reset();
+    if (auto* rf = renderFrame()) {
+        rf->shutdown();
     }
 
-    if (immediateDraw_) {
-        immediateDraw_->shutdown();
-        immediateDraw_.reset();
+    if (auto* id = immediateDraw()) {
+        id->shutdown();
     }
 
 #ifdef ES_ENABLE_SPINE
-    spineSystem_.reset();
-    if (spineResourceManager_) {
-        spineResourceManager_->shutdown();
-        spineResourceManager_.reset();
+    if (auto* srm = spineResourceManager()) {
+        srm->shutdown();
     }
 #endif
 
-#ifdef ES_ENABLE_TIMELINE
-    timelineSystem_.reset();
-#endif
-#ifdef ES_ENABLE_PARTICLES
-    particleSystem_.reset();
-#endif
-    tweenSystem_.reset();
-    transformSystem_.reset();
-    if (renderContext_) {
-        renderContext_->shutdown();
-        renderContext_.reset();
+    if (auto* rc = renderContext()) {
+        rc->shutdown();
     }
-    if (resourceManager_) {
-        resourceManager_->shutdown();
-        resourceManager_.reset();
+
+    if (auto* rm = resourceManager()) {
+        rm->shutdown();
     }
+
+    services_.clear();
 
     if (webglContext_ > 0) {
         emscripten_webgl_destroy_context(webglContext_);

@@ -197,35 +197,37 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
 }
 
 static void initSubsystems() {
+    auto& svc = ctx().services();
+
     auto resourceManager = makeUnique<resource::ResourceManager>();
     resourceManager->init();
-    ctx().setResourceManager(std::move(resourceManager));
+    svc.registerOwned<resource::ResourceManager>(std::move(resourceManager));
 
     auto renderContext = makeUnique<RenderContext>();
     renderContext->init();
-    ctx().setRenderContext(std::move(renderContext));
+    svc.registerOwned<RenderContext>(std::move(renderContext));
 
-    ctx().setTransformSystem(makeUnique<ecs::TransformSystem>());
-    ctx().setTweenSystem(makeUnique<animation::TweenSystem>());
+    svc.registerOwned<ecs::TransformSystem>(makeUnique<ecs::TransformSystem>());
+    svc.registerOwned<animation::TweenSystem>(makeUnique<animation::TweenSystem>());
 #ifdef ES_ENABLE_TIMELINE
-    ctx().setTimelineSystem(makeUnique<animation::TimelineSystem>());
+    svc.registerOwned<animation::TimelineSystem>(makeUnique<animation::TimelineSystem>());
 #endif
 #ifdef ES_ENABLE_PARTICLES
-    ctx().setParticleSystem(makeUnique<particle::ParticleSystem>());
+    svc.registerOwned<particle::ParticleSystem>(makeUnique<particle::ParticleSystem>());
 #endif
 
 #ifdef ES_ENABLE_SPINE
     auto spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
     spineResourceManager->init();
-    ctx().setSpineResourceManager(std::move(spineResourceManager));
-    ctx().setSpineSystem(makeUnique<spine::SpineSystem>(*g_spineResourceManager));
+    svc.registerOwned<spine::SpineResourceManager>(std::move(spineResourceManager));
+    svc.registerOwned<spine::SpineSystem>(makeUnique<spine::SpineSystem>(*g_spineResourceManager));
 #endif
 
     auto immediateDraw = makeUnique<ImmediateDraw>(*g_renderContext, *g_resourceManager);
     immediateDraw->init();
-    ctx().setImmediateDraw(std::move(immediateDraw));
+    svc.registerOwned<ImmediateDraw>(std::move(immediateDraw));
 
-    ctx().setGeometryManager(makeUnique<GeometryManager>());
+    svc.registerOwned<GeometryManager>(makeUnique<GeometryManager>());
 
     auto renderFrame = makeUnique<RenderFrame>(*g_renderContext, *g_resourceManager);
 
@@ -255,7 +257,7 @@ static void initSubsystems() {
     }
 #endif
     renderFrame->init(1280, 720);
-    ctx().setRenderFrame(std::move(renderFrame));
+    svc.registerOwned<RenderFrame>(std::move(renderFrame));
 
     ctx().setInitialized(true);
 
