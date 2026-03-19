@@ -8,8 +8,14 @@
 
 #include <glm/glm.hpp>
 #include <vector>
+#include <functional>
 
 namespace esengine {
+
+struct RenderFrameContext;
+
+using CustomDrawFn = std::function<void(const DrawCommand& cmd, StateTracker& state,
+                                        TransientBufferPool& buffers)>;
 
 class DrawList {
 public:
@@ -20,7 +26,8 @@ public:
 
     void execute(StateTracker& state, TransientBufferPool& buffers,
                  const glm::mat4& viewProjection,
-                 FrameCapture* capture = nullptr);
+                 FrameCapture* capture = nullptr,
+                 const CustomDrawFn& customDraw = nullptr);
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }

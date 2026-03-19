@@ -21,6 +21,7 @@ public:
     ) override;
 
     bool needsCustomDraw() const override { return true; }
+    bool handlesType(RenderType type) const override { return type == RenderType::Shape; }
     void customDraw(const DrawCommand& cmd,
                     StateTracker& state,
                     TransientBufferPool& buffers,

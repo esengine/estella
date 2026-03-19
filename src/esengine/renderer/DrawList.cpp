@@ -69,7 +69,8 @@ void DrawList::finalize() {
 
 void DrawList::execute(StateTracker& state, TransientBufferPool& buffers,
                        const glm::mat4& viewProjection,
-                       FrameCapture* capture) {
+                       FrameCapture* capture,
+                       const CustomDrawFn& customDraw) {
     u32 lastShader = 0;
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
@@ -103,13 +104,19 @@ void DrawList::execute(StateTracker& state, TransientBufferPool& buffers,
             state.bindTexture(slot, cmd.texture_ids[slot]);
         }
 
-        buffers.bindLayout(cmd.layout_id);
+        bool isCustom = (cmd.state_flags & CMD_STATE_CUSTOM_DRAW) != 0;
 
-        glDrawElements(GL_TRIANGLES,
-                       static_cast<GLsizei>(cmd.index_count),
-                       GL_UNSIGNED_SHORT,
-                       reinterpret_cast<void*>(
-                           static_cast<uintptr_t>(cmd.index_offset) * sizeof(u16)));
+        if (isCustom && customDraw) {
+            customDraw(cmd, state, buffers);
+        } else {
+            buffers.bindLayout(cmd.layout_id);
+
+            glDrawElements(GL_TRIANGLES,
+                           static_cast<GLsizei>(cmd.index_count),
+                           GL_UNSIGNED_SHORT,
+                           reinterpret_cast<void*>(
+                               static_cast<uintptr_t>(cmd.index_offset) * sizeof(u16)));
+        }
 
         if (capture && capture->isCapturing()) {
             capture->recordDrawCall(

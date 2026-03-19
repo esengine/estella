@@ -157,6 +157,7 @@ private:
     ClipState clip_state_;
     std::vector<std::unique_ptr<RenderTypePlugin>> plugins_;
 
+    RenderFrameContext makeContext();
     void buildClipState();
     u32 initBatchShader();
 };

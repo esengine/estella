@@ -16,6 +16,7 @@ static constexpr u32 MAX_CMD_TEXTURE_SLOTS = 8;
 static constexpr u16 CMD_STATE_SCISSOR       = 0x01;
 static constexpr u16 CMD_STATE_STENCIL_WRITE = 0x02;
 static constexpr u16 CMD_STATE_STENCIL_TEST  = 0x04;
+static constexpr u16 CMD_STATE_CUSTOM_DRAW   = 0x08;
 
 struct DrawCommand {
     u64 sort_key = 0;
