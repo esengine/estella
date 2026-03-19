@@ -11,20 +11,13 @@
 
 #include "PostProcessPipeline.hpp"
 #include "RenderContext.hpp"
-#include "RenderCommand.hpp"
+#include "RenderCommand.hpp"  // for RenderCommand::getDevice()
 #include "Shader.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../core/Log.hpp"
 #include <algorithm>
 
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
+#include "OpenGLHeaders.hpp"
 
 namespace esengine {
 
@@ -120,14 +113,13 @@ void PostProcessPipeline::shutdown() {
     passes_.clear();
     screenPasses_.clear();
 
-    if (screen_quad_vbo_ != 0) {
-        GLuint vbo = static_cast<GLuint>(screen_quad_vbo_);
-        glDeleteBuffers(1, &vbo);
+    auto* device = RenderCommand::getDevice();
+    if (screen_quad_vbo_ != 0 && device) {
+        device->deleteBuffer(screen_quad_vbo_);
         screen_quad_vbo_ = 0;
     }
-    if (screen_quad_vao_ != 0) {
-        GLuint vao = static_cast<GLuint>(screen_quad_vao_);
-        glDeleteVertexArrays(1, &vao);
+    if (screen_quad_vao_ != 0 && device) {
+        device->deleteVertexArray(screen_quad_vao_);
         screen_quad_vao_ = 0;
     }
 
@@ -251,38 +243,39 @@ PostProcessPass* PostProcessPipeline::findPass(const std::string& name) {
 void PostProcessPipeline::ensureScreenQuad() {
     if (screen_quad_vao_ != 0) return;
 
-    constexpr GLsizei STRIDE = 4 * static_cast<GLsizei>(sizeof(f32));
+    auto* device = RenderCommand::getDevice();
+
     f32 vertices[] = {
         -1.0f, -1.0f,  0.0f, 0.0f,
          3.0f, -1.0f,  2.0f, 0.0f,
         -1.0f,  3.0f,  0.0f, 2.0f,
     };
 
-    GLuint vao = 0, vbo = 0;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
+    constexpr i32 STRIDE = 4 * static_cast<i32>(sizeof(f32));
 
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(vertices)), vertices, GL_STATIC_DRAW);
+    u32 vao = device->createVertexArray();
+    device->bindVertexArray(vao);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE,
-                          reinterpret_cast<const void*>(0));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, STRIDE,
-                          reinterpret_cast<const void*>(2 * sizeof(f32)));
+    u32 vbo = device->createBuffer();
+    device->bindVertexBuffer(vbo);
+    device->bufferData(GL_ARRAY_BUFFER, vertices, static_cast<u32>(sizeof(vertices)), false);
 
-    glBindVertexArray(0);
+    device->enableVertexAttrib(0);
+    device->vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+    device->enableVertexAttrib(1);
+    device->vertexAttribPointer(1, 2, GL_FLOAT, false, STRIDE, 2 * sizeof(f32));
 
-    screen_quad_vao_ = static_cast<u32>(vao);
-    screen_quad_vbo_ = static_cast<u32>(vbo);
+    device->bindVertexArray(0);
+
+    screen_quad_vao_ = vao;
+    screen_quad_vbo_ = vbo;
 }
 
 void PostProcessPipeline::drawScreenQuad() {
     ensureScreenQuad();
-    glBindVertexArray(static_cast<GLuint>(screen_quad_vao_));
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    auto* device = RenderCommand::getDevice();
+    device->bindVertexArray(screen_quad_vao_);
+    device->drawArrays(0, 3);
 }
 
 void PostProcessPipeline::begin() {
@@ -291,9 +284,10 @@ void PostProcessPipeline::begin() {
     ensureFBOs();
     if (!fboOriginalCreated_) return;
 
+    auto* device = RenderCommand::getDevice();
     fboOriginal_->bind();
-    RenderCommand::setViewport(0, 0, width_, height_);
-    RenderCommand::clear();
+    device->setViewport(0, 0, width_, height_);
+    device->clear(true, true, false);
 
     inFrame_ = true;
     currentFBO_ = 0;
@@ -302,16 +296,18 @@ void PostProcessPipeline::begin() {
 void PostProcessPipeline::end() {
     if (!initialized_ || !inFrame_ || bypass_) return;
 
+    auto* device = RenderCommand::getDevice();
+
     u32 enabledCount = 0;
     for (const auto& pass : passes_) {
         if (pass.enabled) enabledCount++;
     }
 
-    RenderCommand::setDepthTest(false);
-    RenderCommand::setBlending(false);
-    glDisable(GL_SCISSOR_TEST);
-    glDisable(GL_STENCIL_TEST);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    device->setDepthTest(false);
+    device->setBlendEnabled(false);
+    device->setScissorTest(false);
+    device->setStencilTest(false);
+    device->setColorMask(true, true, true, true);
 
     sceneTexture_ = fboOriginal_->getColorAttachment();
     fboOriginal_->unbind();
@@ -322,16 +318,15 @@ void PostProcessPipeline::end() {
         u32 inputTexture = sceneTexture_;
         currentFBO_ = 0;
 
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, sceneTexture_);
-        glActiveTexture(GL_TEXTURE0);
+        device->bindTexture(1, sceneTexture_);
+        device->bindTexture(0, 0);
 
         for (const auto& pass : passes_) {
             if (!pass.enabled) continue;
 
             Framebuffer* targetFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
             targetFBO->bind();
-            RenderCommand::setViewport(0, 0, width_, height_);
+            device->setViewport(0, 0, width_, height_);
 
             renderPass(pass, inputTexture);
 
@@ -345,8 +340,8 @@ void PostProcessPipeline::end() {
         blitToOutput(inputTexture);
     }
 
-    RenderCommand::setBlending(true);
-    RenderCommand::setDepthTest(true);
+    device->setBlendEnabled(true);
+    device->setDepthTest(true);
     inFrame_ = false;
     output_target_fbo_ = 0;
 }
@@ -355,8 +350,8 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTextu
     Shader* shader = resourceManager_.getShader(pass.shader);
     if (!shader) return;
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, inputTexture);
+    auto* device = RenderCommand::getDevice();
+    device->bindTexture(0, inputTexture);
 
     shader->bind();
     shader->setUniform("u_texture", 0);
@@ -393,14 +388,14 @@ void PostProcessPipeline::blitToOutput(u32 texture) {
     Shader* shader = resourceManager_.getShader(blitShader_);
     if (!shader) return;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, output_target_fbo_);
+    auto* device = RenderCommand::getDevice();
+    device->bindFramebuffer(output_target_fbo_);
 
     if (output_vp_w_ > 0 && output_vp_h_ > 0) {
-        RenderCommand::setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
+        device->setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
     }
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    device->bindTexture(0, texture);
 
     shader->bind();
     shader->setUniform("u_texture", 0);
@@ -440,9 +435,10 @@ void PostProcessPipeline::beginScreenCapture() {
     ensureScreenFBO();
     if (!screenFBOCreated_) return;
 
+    auto* device = RenderCommand::getDevice();
     screenFBO_->bind();
-    RenderCommand::setViewport(0, 0, width_, height_);
-    RenderCommand::clear();
+    device->setViewport(0, 0, width_, height_);
+    device->clear(true, true, false);
 
     screenCaptureActive_ = true;
 }
@@ -457,6 +453,8 @@ void PostProcessPipeline::endScreenCapture() {
 void PostProcessPipeline::executeScreenPasses() {
     if (!initialized_ || !screenFBOCreated_) return;
 
+    auto* device = RenderCommand::getDevice();
+
     u32 enabledCount = 0;
     for (const auto& pass : screenPasses_) {
         if (pass.enabled) enabledCount++;
@@ -467,11 +465,11 @@ void PostProcessPipeline::executeScreenPasses() {
         return;
     }
 
-    RenderCommand::setDepthTest(false);
-    RenderCommand::setBlending(false);
-    glDisable(GL_SCISSOR_TEST);
-    glDisable(GL_STENCIL_TEST);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    device->setDepthTest(false);
+    device->setBlendEnabled(false);
+    device->setScissorTest(false);
+    device->setStencilTest(false);
+    device->setColorMask(true, true, true, true);
 
     ensureFBOs();
     if (!fbosCreated_) return;
@@ -481,16 +479,15 @@ void PostProcessPipeline::executeScreenPasses() {
     u32 inputTexture = sceneTexture_;
     u32 pingPong = 0;
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, sceneTexture_);
-    glActiveTexture(GL_TEXTURE0);
+    device->bindTexture(1, sceneTexture_);
+    device->bindTexture(0, 0);
 
     for (const auto& pass : screenPasses_) {
         if (!pass.enabled) continue;
 
         Framebuffer* targetFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
         targetFBO->bind();
-        RenderCommand::setViewport(0, 0, width_, height_);
+        device->setViewport(0, 0, width_, height_);
 
         renderPass(pass, inputTexture);
 
@@ -501,12 +498,12 @@ void PostProcessPipeline::executeScreenPasses() {
     Framebuffer* lastFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
     lastFBO->unbind();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    RenderCommand::setViewport(0, 0, width_, height_);
+    device->bindFramebuffer(0);
+    device->setViewport(0, 0, width_, height_);
     blitToOutput(inputTexture);
 
-    RenderCommand::setBlending(true);
-    RenderCommand::setDepthTest(true);
+    device->setBlendEnabled(true);
+    device->setDepthTest(true);
 }
 
 u32 PostProcessPipeline::addScreenPass(const std::string& name, resource::ShaderHandle shader) {

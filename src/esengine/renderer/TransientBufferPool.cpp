@@ -1,19 +1,15 @@
 #include "TransientBufferPool.hpp"
+#include "OpenGLHeaders.hpp"
 #include "../core/Log.hpp"
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
 
 #include <cstring>
 #include <algorithm>
 
 namespace esengine {
+
+TransientBufferPool::TransientBufferPool(GfxDevice& device)
+    : device_(device) {
+}
 
 void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     if (initialized_) return;
@@ -23,19 +19,19 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     vbo_capacity_ = initialVertexBytes;
     ebo_capacity_ = initialIndexCount;
 
-    glGenBuffers(1, &vbo_);
-    glGenBuffers(1, &ebo_);
+    vbo_ = device_.createBuffer();
+    ebo_ = device_.createBuffer();
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-    glBufferData(GL_ARRAY_BUFFER, vbo_capacity_, nullptr, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    device_.bindVertexBuffer(vbo_);
+    device_.bufferData(GL_ARRAY_BUFFER, nullptr, vbo_capacity_, true);
+    device_.bindVertexBuffer(0);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, ebo_capacity_ * sizeof(u16), nullptr, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    device_.bindIndexBuffer(ebo_);
+    device_.bufferData(GL_ELEMENT_ARRAY_BUFFER, nullptr, ebo_capacity_ * sizeof(u16), true);
+    device_.bindIndexBuffer(0);
 
-    for (u32 i = 0; i < LAYOUT_COUNT; ++i) {
-        setupLayoutVAO(static_cast<LayoutId>(i));
+    for (auto layout : {LayoutId::Batch, LayoutId::Shape, LayoutId::MatSprite}) {
+        setupLayoutVAO(layout);
     }
 
     vertex_write_pos_ = 0;
@@ -48,12 +44,12 @@ void TransientBufferPool::shutdown() {
 
     for (u32 i = 0; i < LAYOUT_COUNT; ++i) {
         if (vaos_[i]) {
-            glDeleteVertexArrays(1, &vaos_[i]);
+            device_.deleteVertexArray(vaos_[i]);
             vaos_[i] = 0;
         }
     }
-    if (vbo_) { glDeleteBuffers(1, &vbo_); vbo_ = 0; }
-    if (ebo_) { glDeleteBuffers(1, &ebo_); ebo_ = 0; }
+    if (vbo_) { device_.deleteBuffer(vbo_); vbo_ = 0; }
+    if (ebo_) { device_.deleteBuffer(ebo_); ebo_ = 0; }
 
     vertex_staging_.clear();
     index_staging_.clear();
@@ -108,79 +104,77 @@ u32 TransientBufferPool::appendIndices(const u16* data, u32 count) {
 void TransientBufferPool::upload() {
     if (vertex_write_pos_ == 0 && index_write_pos_ == 0) return;
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+    device_.bindVertexBuffer(vbo_);
     if (vertex_write_pos_ > vbo_capacity_) {
         vbo_capacity_ = vertex_write_pos_;
-        glBufferData(GL_ARRAY_BUFFER, vbo_capacity_, vertex_staging_.data(), GL_DYNAMIC_DRAW);
+        device_.bufferData(GL_ARRAY_BUFFER, vertex_staging_.data(), vbo_capacity_, true);
     } else {
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_write_pos_, vertex_staging_.data());
+        device_.bufferSubData(GL_ARRAY_BUFFER, 0, vertex_staging_.data(), vertex_write_pos_);
     }
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+    device_.bindIndexBuffer(ebo_);
     u32 eboBytes = index_write_pos_ * sizeof(u16);
     u32 eboCapBytes = ebo_capacity_ * sizeof(u16);
     if (eboBytes > eboCapBytes) {
         ebo_capacity_ = index_write_pos_;
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, ebo_capacity_ * sizeof(u16),
-                     index_staging_.data(), GL_DYNAMIC_DRAW);
+        device_.bufferData(GL_ELEMENT_ARRAY_BUFFER, index_staging_.data(),
+                            ebo_capacity_ * sizeof(u16), true);
     } else {
-        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboBytes, index_staging_.data());
+        device_.bufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, index_staging_.data(), eboBytes);
     }
 }
 
 void TransientBufferPool::bindLayout(LayoutId layout) {
     u32 idx = static_cast<u32>(layout);
     if (idx < LAYOUT_COUNT && vaos_[idx]) {
-        glBindVertexArray(vaos_[idx]);
+        device_.bindVertexArray(vaos_[idx]);
     }
 }
 
 void TransientBufferPool::setupLayoutVAO(LayoutId layout) {
     u32 idx = static_cast<u32>(layout);
-    glGenVertexArrays(1, &vaos_[idx]);
-    glBindVertexArray(vaos_[idx]);
+    vaos_[idx] = device_.createVertexArray();
+    device_.bindVertexArray(vaos_[idx]);
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+    device_.bindVertexBuffer(vbo_);
+    device_.bindIndexBuffer(ebo_);
 
     switch (layout) {
         case LayoutId::Batch: {
             constexpr u32 STRIDE = 20;
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, STRIDE, reinterpret_cast<void*>(8));
-            glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(12));
+            device_.enableVertexAttrib(0);
+            device_.vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+            device_.enableVertexAttrib(1);
+            device_.vertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, true, STRIDE, 8);
+            device_.enableVertexAttrib(2);
+            device_.vertexAttribPointer(2, 2, GL_FLOAT, false, STRIDE, 12);
             break;
         }
         case LayoutId::Shape: {
-            // ShapeVertex: vec2 pos + vec2 uv + vec4 color + vec4 shapeInfo = 48B
             constexpr u32 STRIDE = 48;
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(8));
-            glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(16));
-            glEnableVertexAttribArray(3);
-            glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(32));
+            device_.enableVertexAttrib(0);
+            device_.vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+            device_.enableVertexAttrib(1);
+            device_.vertexAttribPointer(1, 2, GL_FLOAT, false, STRIDE, 8);
+            device_.enableVertexAttrib(2);
+            device_.vertexAttribPointer(2, 4, GL_FLOAT, false, STRIDE, 16);
+            device_.enableVertexAttrib(3);
+            device_.vertexAttribPointer(3, 4, GL_FLOAT, false, STRIDE, 32);
             break;
         }
         case LayoutId::MatSprite: {
-            // MatSpriteVertex: vec2 pos + vec2 uv + vec4 color = 32B
             constexpr u32 STRIDE = 32;
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(8));
-            glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(16));
+            device_.enableVertexAttrib(0);
+            device_.vertexAttribPointer(0, 2, GL_FLOAT, false, STRIDE, 0);
+            device_.enableVertexAttrib(1);
+            device_.vertexAttribPointer(1, 2, GL_FLOAT, false, STRIDE, 8);
+            device_.enableVertexAttrib(2);
+            device_.vertexAttribPointer(2, 4, GL_FLOAT, false, STRIDE, 16);
             break;
         }
     }
 
-    glBindVertexArray(0);
+    device_.bindVertexArray(0);
 }
 
 void TransientBufferPool::growVertexBuffer(u32 requiredBytes) {

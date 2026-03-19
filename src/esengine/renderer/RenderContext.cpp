@@ -43,8 +43,9 @@ void RenderContext::shutdown() {
         return;
     }
 
-    if (whiteTextureId_ != 0) {
-        glDeleteTextures(1, &whiteTextureId_);
+    auto* device = RenderCommand::getDevice();
+    if (whiteTextureId_ != 0 && device) {
+        device->deleteTexture(whiteTextureId_);
         whiteTextureId_ = 0;
     }
 
@@ -59,9 +60,7 @@ void RenderContext::shutdown() {
 }
 
 void RenderContext::initQuadData() {
-    // Quad vertices with position and texture coordinates
     float vertices[] = {
-        // Position (x, y)  TexCoord (u, v)
         -0.5f, -0.5f,       0.0f, 0.0f,
          0.5f, -0.5f,       1.0f, 0.0f,
          0.5f,  0.5f,       1.0f, 1.0f,
@@ -109,16 +108,13 @@ void RenderContext::initShaders() {
 }
 
 void RenderContext::initWhiteTexture() {
-    glGenTextures(1, &whiteTextureId_);
-    glBindTexture(GL_TEXTURE_2D, whiteTextureId_);
+    auto* device = RenderCommand::getDevice();
+    whiteTextureId_ = device->createTexture();
 
     u32 whiteData = 0xFFFFFFFF;
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &whiteData);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    device->texImage2D(whiteTextureId_, 1, 1, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, &whiteData);
+    device->setTextureParams(whiteTextureId_, TextureFilter::Nearest, TextureFilter::Nearest,
+                             TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
 
     ES_LOG_DEBUG("White texture created (ID: {})", whiteTextureId_);
 }

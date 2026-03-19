@@ -35,34 +35,42 @@
 namespace esengine {
 
 // ========================================
-// RenderCommand Implementation
+// RenderCommand Implementation (GfxDevice proxy)
 // ========================================
 
-BlendMode RenderCommand::currentBlend_ = BlendMode::Normal;
+GfxDevice* RenderCommand::device_ = nullptr;
+
+void RenderCommand::setDevice(GfxDevice* device) {
+    device_ = device;
+}
+
+GfxDevice* RenderCommand::getDevice() {
+    return device_;
+}
 
 void RenderCommand::init() {
-    // Enable depth testing by default
-    glEnable(GL_DEPTH_TEST);
-
-    // Enable blending
-    glEnable(GL_BLEND);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    if (device_) {
+        device_->init();
+    }
 }
 
 void RenderCommand::shutdown() {
+    if (device_) {
+        device_->shutdown();
+    }
     ES_LOG_INFO("RenderCommand shutdown");
 }
 
 void RenderCommand::setViewport(i32 x, i32 y, u32 width, u32 height) {
-    glViewport(x, y, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+    device_->setViewport(x, y, width, height);
 }
 
 void RenderCommand::setClearColor(const glm::vec4& color) {
-    glClearColor(color.r, color.g, color.b, color.a);
+    device_->setClearColor(color.r, color.g, color.b, color.a);
 }
 
 void RenderCommand::clear() {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    device_->clear(true, true, false);
 }
 
 void RenderCommand::drawIndexed(const VertexArray& vao, u32 indexCount) {
@@ -71,85 +79,44 @@ void RenderCommand::drawIndexed(const VertexArray& vao, u32 indexCount) {
     u32 count = indexCount ? indexCount : (ib ? ib->getCount() : 0);
     if (count > 0 && ib) {
         GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), type, nullptr);
+        device_->drawElements(count, type, 0);
     }
 }
 
 void RenderCommand::drawArrays(u32 vertexCount) {
-    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
+    device_->drawArrays(0, vertexCount);
 }
 
 void RenderCommand::setDepthTest(bool enabled) {
-    if (enabled) {
-        glEnable(GL_DEPTH_TEST);
-    } else {
-        glDisable(GL_DEPTH_TEST);
-    }
+    device_->setDepthTest(enabled);
 }
 
 void RenderCommand::setDepthWrite(bool enabled) {
-    glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+    device_->setDepthWrite(enabled);
 }
 
 void RenderCommand::setBlending(bool enabled) {
-    if (enabled) {
-        glEnable(GL_BLEND);
-    } else {
-        glDisable(GL_BLEND);
-    }
+    device_->setBlendEnabled(enabled);
 }
 
 void RenderCommand::setBlendFunc() {
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-}
-
-void RenderCommand::resetBlendState() {
-    currentBlend_ = BlendMode::Normal;
+    device_->setBlendMode(BlendMode::Normal);
 }
 
 void RenderCommand::setBlendMode(BlendMode mode) {
-    if (mode == currentBlend_) return;
-    currentBlend_ = mode;
-    switch (mode) {
-        case BlendMode::Normal:
-            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case BlendMode::Additive:
-            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ONE);
-            break;
-        case BlendMode::Multiply:
-            glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case BlendMode::Screen:
-            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_COLOR, GL_ONE, GL_ONE_MINUS_SRC_COLOR);
-            break;
-        case BlendMode::PremultipliedAlpha:
-            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case BlendMode::PmaAdditive:
-            glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
-            break;
-    }
+    device_->setBlendMode(mode);
 }
 
 void RenderCommand::setCulling(bool enabled) {
-    if (enabled) {
-        glEnable(GL_CULL_FACE);
-    } else {
-        glDisable(GL_CULL_FACE);
-    }
+    device_->setCulling(enabled);
 }
 
 void RenderCommand::setCullFace(bool front) {
-    glCullFace(front ? GL_FRONT : GL_BACK);
+    device_->setCullFace(front);
 }
 
 void RenderCommand::setWireframe(bool enabled) {
-#ifndef ES_PLATFORM_WEB
-    glPolygonMode(GL_FRONT_AND_BACK, enabled ? GL_LINE : GL_FILL);
-#else
-    (void)enabled;
-#endif
+    device_->setWireframe(enabled);
 }
 
 // ========================================
@@ -388,9 +355,10 @@ void BatchRenderer2D::init() {
 
     if (batchShader && batchShader->isValid()) {
         batchShader->bind();
-        GLint texLoc = glGetUniformLocation(batchShader->getProgramId(), "u_texture");
+        auto* dev = RenderCommand::getDevice();
+        i32 texLoc = dev->getUniformLocation(batchShader->getProgramId(), "u_texture");
         if (texLoc >= 0) {
-            glUniform1i(texLoc, 0);
+            dev->setUniform1i(texLoc, 0);
         }
     } else {
         ES_LOG_ERROR("All batch shader variants FAILED!");
@@ -452,27 +420,27 @@ void BatchRenderer2D::flush() {
         data_->vbo->setDataRaw(data_->triVertices.data(), triBytes);
     }
 
-    data_->texSlots.bindAll();
+    data_->texSlots.bindAll(*RenderCommand::getDevice());
 
     shader->bind();
     shader->setUniform(data_->projectionLoc, data_->projection);
 
     data_->vao->bind();
 
+    auto* dev = RenderCommand::getDevice();
     if (hasQuads) {
         auto ib = data_->vao->getIndexBuffer();
         if (ib) {
             ib->bind();
             GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(data_->indexCount), type, nullptr);
+            dev->drawElements(data_->indexCount, type, 0);
         }
         data_->drawCallCount++;
     }
 
     if (hasTris) {
-        glDrawArrays(GL_TRIANGLES,
-                     static_cast<GLint>(data_->vertices.size()),
-                     static_cast<GLsizei>(data_->triVertices.size()));
+        dev->drawArrays(static_cast<u32>(data_->vertices.size()),
+                        static_cast<u32>(data_->triVertices.size()));
         data_->drawCallCount++;
     }
 

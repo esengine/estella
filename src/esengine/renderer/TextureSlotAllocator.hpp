@@ -1,15 +1,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
+#include "GfxDevice.hpp"
 
 #include <array>
 
@@ -50,10 +42,9 @@ public:
         return slot_count_ >= MaxSlots;
     }
 
-    void bindAll() const {
-        for (u32 i = 0; i < MaxSlots; ++i) {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, slots_[i]);
+    void bindAll(GfxDevice& device) const {
+        for (u32 i = 0; i < slot_count_; ++i) {
+            device.bindTexture(i, slots_[i]);
         }
     }
 

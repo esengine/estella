@@ -1,5 +1,6 @@
 #include "ShapePlugin.hpp"
 #include "../OpenGLHeaders.hpp"
+#include "../RenderCommand.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
@@ -138,10 +139,10 @@ void ShapePlugin::customDraw(
 
     buffers.bindLayout(LayoutId::Shape);
 
-    glDrawElements(GL_TRIANGLES,
-        static_cast<GLsizei>(cmd.index_count),
+    RenderCommand::getDevice()->drawElements(
+        cmd.index_count,
         GL_UNSIGNED_SHORT,
-        reinterpret_cast<const void*>(static_cast<uintptr_t>(cmd.index_offset * sizeof(u16))));
+        static_cast<u32>(cmd.index_offset * sizeof(u16)));
 }
 
 }  // namespace esengine

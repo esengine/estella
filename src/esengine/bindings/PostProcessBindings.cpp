@@ -4,6 +4,7 @@
 #include "PostProcessBindings.hpp"
 #include "EngineContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
+#include "../renderer/RenderCommand.hpp"
 #include "../renderer/PostProcessPipeline.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
@@ -36,7 +37,7 @@ bool postprocess_init(u32 width, u32 height) {
     }
 
     g_postProcessPipeline->init(width, height);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    RenderCommand::getDevice()->bindFramebuffer(0);
 
     return g_postProcessPipeline->isInitialized();
 }

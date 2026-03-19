@@ -3,6 +3,7 @@
 #include "GeometryBindings.hpp"
 #include "EngineContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
+#include "../renderer/RenderCommand.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../renderer/Buffer.hpp"
 #include "../renderer/RenderContext.hpp"
@@ -39,10 +40,11 @@ static void flushImmediateDrawIfActive() {
 
 static void restoreImmediateDrawState() {
     if (g_immediateDrawActive) {
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable(GL_BLEND);
-        glDisable(GL_DEPTH_TEST);
-        glActiveTexture(GL_TEXTURE0);
+        auto* dev = RenderCommand::getDevice();
+        dev->setBlendEnabled(true);
+        dev->setBlendMode(BlendMode::Normal);
+        dev->setDepthTest(false);
+        dev->bindTexture(0, 0);
     }
 }
 
@@ -145,10 +147,10 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
         if (ib) {
             GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(geom->getIndexCount()), type, nullptr);
+            RenderCommand::getDevice()->drawElements(geom->getIndexCount(), type, 0);
         }
     } else {
-        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(geom->getVertexCount()));
+        RenderCommand::getDevice()->drawArrays(0, geom->getVertexCount());
     }
 
     geom->unbind();
@@ -220,8 +222,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
             case 10: {
                 i32 slot = static_cast<i32>(uniforms[idx++]);
                 u32 textureId = static_cast<u32>(uniforms[idx++]);
-                glActiveTexture(GL_TEXTURE0 + slot);
-                glBindTexture(GL_TEXTURE_2D, textureId);
+                RenderCommand::getDevice()->bindTexture(static_cast<u32>(slot), textureId);
                 shader->setUniform(name, slot);
                 break;
             }
@@ -236,10 +237,10 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
         if (ib) {
             GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(geom->getIndexCount()), type, nullptr);
+            RenderCommand::getDevice()->drawElements(geom->getIndexCount(), type, 0);
         }
     } else {
-        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(geom->getVertexCount()));
+        RenderCommand::getDevice()->drawArrays(0, geom->getVertexCount());
     }
 
     geom->unbind();

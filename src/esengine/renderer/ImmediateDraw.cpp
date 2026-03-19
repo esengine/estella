@@ -11,18 +11,10 @@
 
 #include "ImmediateDraw.hpp"
 #include "Renderer.hpp"
+#include "RenderCommand.hpp"
 #include "RenderContext.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../core/Log.hpp"
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
 
 #include <glm/gtc/constants.hpp>
 #include <cmath>
@@ -71,9 +63,10 @@ void ImmediateDraw::shutdown() {
 void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     if (!initialized_) return;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_DEPTH_TEST);
+    auto* device = RenderCommand::getDevice();
+    device->setBlendEnabled(true);
+    device->setBlendMode(BlendMode::Normal);
+    device->setDepthTest(false);
 
     impl_->viewProjection = viewProjection;
     impl_->batcher->setProjection(viewProjection);
@@ -87,8 +80,9 @@ void ImmediateDraw::end() {
     if (!initialized_ || !inFrame_) return;
 
     impl_->batcher->endBatch();
-    glEnable(GL_DEPTH_TEST);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    auto* device = RenderCommand::getDevice();
+    device->setDepthTest(true);
+    device->setBlendMode(BlendMode::Normal);
     inFrame_ = false;
 }
 

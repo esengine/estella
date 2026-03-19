@@ -52,6 +52,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/RenderTarget.cpp
     src/esengine/renderer/ImmediateDraw.cpp
     src/esengine/renderer/CustomGeometry.cpp
+    src/esengine/renderer/GLDevice.cpp
     src/esengine/renderer/StateTracker.cpp
     src/esengine/renderer/TransientBufferPool.cpp
     src/esengine/renderer/DrawList.cpp
@@ -147,6 +148,8 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/ImmediateDraw.hpp
     src/esengine/renderer/BlendMode.hpp
     src/esengine/renderer/CustomGeometry.hpp
+    src/esengine/renderer/GfxDevice.hpp
+    src/esengine/renderer/GLDevice.hpp
     src/esengine/renderer/StateTracker.hpp
     src/esengine/renderer/TransientBufferPool.hpp
     src/esengine/renderer/DrawCommand.hpp

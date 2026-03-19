@@ -39,7 +39,7 @@ static void flushImmediateDrawIfActive() {
 void draw_begin(uintptr_t matrixPtr) {
     if (!g_initialized || !g_immediateDraw) return;
 
-    glViewport(0, 0, g_viewportWidth, g_viewportHeight);
+    RenderCommand::getDevice()->setViewport(0, 0, g_viewportWidth, g_viewportHeight);
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     ctx().setCurrentViewProjection(glm::make_mat4(matrixData));

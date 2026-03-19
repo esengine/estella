@@ -3,6 +3,7 @@
 #include "RendererBindings.hpp"
 #include "EngineContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
+#include "../renderer/RenderCommand.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderStage.hpp"
@@ -47,7 +48,7 @@ static u32 checkGLErrors(const char* context) {
     if (!g_glErrorCheckEnabled) return 0;
     u32 errorCount = 0;
     GLenum err;
-    while ((err = glGetError()) != GL_NO_ERROR) {
+    while ((err = static_cast<GLenum>(RenderCommand::getDevice()->getError())) != GL_NO_ERROR) {
         const char* errStr = "UNKNOWN";
         switch (err) {
             case GL_INVALID_ENUM: errStr = "INVALID_ENUM"; break;
@@ -302,10 +303,11 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     ctx().setViewport(static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
-    glViewport(0, 0, viewportWidth, viewportHeight);
+    auto* dev = RenderCommand::getDevice();
+    dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
     const auto& cc = ctx().clearColor();
-    glClearColor(cc.r, cc.g, cc.b, cc.a);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
+    dev->clear(true, true, false);
 
     glm::mat4 viewProjection = glm::mat4(1.0f);
 
@@ -364,10 +366,11 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
     ctx().setViewport(static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
-    glViewport(0, 0, viewportWidth, viewportHeight);
+    auto* dev = RenderCommand::getDevice();
+    dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
     const auto& cc = ctx().clearColor();
-    glClearColor(cc.r, cc.g, cc.b, cc.a);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
+    dev->clear(true, true, false);
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
@@ -568,23 +571,25 @@ void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
 }
 
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
-    glViewport(x, y, w, h);
+    RenderCommand::getDevice()->setViewport(x, y, static_cast<u32>(w), static_cast<u32>(h));
 }
 
 void renderer_setScissor(i32 x, i32 y, i32 w, i32 h, bool enable) {
+    auto* dev = RenderCommand::getDevice();
     if (enable) {
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(x, y, w, h);
+        dev->setScissorTest(true);
+        dev->setScissor(x, y, w, h);
     } else {
-        glDisable(GL_SCISSOR_TEST);
+        dev->setScissorTest(false);
     }
 }
 
 void renderer_clearBuffers(i32 flags) {
-    GLbitfield mask = 0;
-    if (flags & 1) mask |= GL_COLOR_BUFFER_BIT;
-    if (flags & 2) mask |= GL_DEPTH_BUFFER_BIT;
-    if (mask) glClear(mask);
+    bool color = (flags & 1) != 0;
+    bool depth = (flags & 2) != 0;
+    if (color || depth) {
+        RenderCommand::getDevice()->clear(color, depth, false);
+    }
 }
 
 void renderer_diagnose() {
@@ -639,7 +644,7 @@ void renderer_clearAllClipRects() {
 
 void renderer_clearStencil() {
     glClearStencil(0);
-    glClear(GL_STENCIL_BUFFER_BIT);
+    RenderCommand::getDevice()->clear(false, false, true);
 }
 
 void renderer_setEntityStencilMask(u32 entity, i32 refValue) {
@@ -669,7 +674,7 @@ void renderer_clearAllStencilMasks() {
 void gl_enableErrorCheck(bool enabled) {
     ctx().setGlErrorCheckEnabled(enabled);
     if (enabled) {
-        while (glGetError() != GL_NO_ERROR) {}
+        while (RenderCommand::getDevice()->getError() != 0) {}
         ES_LOG_INFO("[GL] Error checking enabled");
     }
 }
@@ -720,7 +725,7 @@ emscripten::val getChildEntities(ecs::Registry& registry, u32 entity) {
 }
 
 u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
-    return registry.generation(static_cast<Entity>(entity));
+    return Entity(entity).generation();
 }
 
 u32 registry_getSchemaPoolVersion(ecs::Registry& registry, u32 poolId) {

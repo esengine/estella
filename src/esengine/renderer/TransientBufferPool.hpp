@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "GfxDevice.hpp"
 
 #include <vector>
 #include <array>
@@ -17,6 +18,8 @@ static constexpr u32 LAYOUT_COUNT = 4;
 
 class TransientBufferPool {
 public:
+    explicit TransientBufferPool(GfxDevice& device);
+
     void init(u32 initialVertexBytes = 2 * 1024 * 1024,
               u32 initialIndexCount = 256 * 1024);
     void shutdown();
@@ -46,6 +49,8 @@ private:
     void setupLayoutVAO(LayoutId layout);
     void growVertexBuffer(u32 requiredBytes);
     void growIndexBuffer(u32 requiredCount);
+
+    GfxDevice& device_;
 
     std::array<u32, LAYOUT_COUNT> vaos_{};
     u32 vbo_ = 0;

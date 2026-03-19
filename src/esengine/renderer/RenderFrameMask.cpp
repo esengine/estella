@@ -5,15 +5,6 @@
 #include "../ecs/components/UIMask.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
-
 #include <glm/glm.hpp>
 
 #include <algorithm>
@@ -239,8 +230,7 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
 
     if (!stencilMasks.empty()) {
 #ifdef ES_PLATFORM_WEB
-        glClearStencil(0);
-        glClear(GL_STENCIL_BUFFER_BIT);
+        device_.clear(false, false, true);
 #endif
 
         std::vector<Entity> rootStencils;

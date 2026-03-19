@@ -1,17 +1,9 @@
 #include "RenderFrame.hpp"
+#include "OpenGLHeaders.hpp"
 #include "Shader.hpp"
 #include "ShaderEmbeds.generated.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -66,9 +58,12 @@ bool Frustum::intersectsAABB(const glm::vec3& center, const glm::vec3& halfExten
     return true;
 }
 
-RenderFrame::RenderFrame(RenderContext& context, resource::ResourceManager& resource_manager)
-    : context_(context)
-    , resource_manager_(resource_manager) {
+RenderFrame::RenderFrame(GfxDevice& device, RenderContext& context, resource::ResourceManager& resource_manager)
+    : device_(device)
+    , context_(context)
+    , resource_manager_(resource_manager)
+    , state_tracker_(device)
+    , pool_(device) {
 }
 
 RenderFrame::~RenderFrame() {
@@ -194,7 +189,7 @@ void RenderFrame::flush() {
         }
     };
 
-    draw_list_.execute(state_tracker_, pool_, view_projection_, &frame_capture_, customDrawFn);
+    draw_list_.execute(device_, state_tracker_, pool_, view_projection_, &frame_capture_, customDrawFn);
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
@@ -267,8 +262,8 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     rt->bind();
     state_tracker_.setViewport(0, 0, width_, height_);
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    device_.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    device_.clear(true, false, false);
 
     state_tracker_.reset();
     state_tracker_.setBlendEnabled(true);
@@ -277,7 +272,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     frame_capture_.setReplayMode(stopAtDrawCall + 1);
 
-    draw_list_.execute(state_tracker_, pool_, view_projection_, &frame_capture_);
+    draw_list_.execute(device_, state_tracker_, pool_, view_projection_, &frame_capture_);
 
     state_tracker_.setScissorEnabled(false);
     state_tracker_.endStencilTest();
@@ -286,8 +281,8 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     u32 pixelCount = width_ * height_ * 4;
     snapshot_pixels_.resize(pixelCount);
-    glReadPixels(0, 0, static_cast<GLsizei>(width_), static_cast<GLsizei>(height_),
-                 GL_RGBA, GL_UNSIGNED_BYTE, snapshot_pixels_.data());
+    device_.readPixels(0, 0, width_, height_, GL_RGBA, GL_UNSIGNED_BYTE,
+                       snapshot_pixels_.data());
 
     rt->unbind();
 }
@@ -422,9 +417,9 @@ u32 RenderFrame::initBatchShader() {
 
     if (shader && shader->isValid()) {
         shader->bind();
-        GLint texLoc = glGetUniformLocation(shader->getProgramId(), "u_texture");
+        i32 texLoc = device_.getUniformLocation(shader->getProgramId(), "u_texture");
         if (texLoc >= 0) {
-            glUniform1i(texLoc, 0);
+            device_.setUniform1i(texLoc, 0);
         }
         shader->unbind();
         return shader->getProgramId();

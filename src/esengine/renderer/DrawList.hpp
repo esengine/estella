@@ -2,6 +2,7 @@
 
 #include "../core/Types.hpp"
 #include "DrawCommand.hpp"
+#include "GfxDevice.hpp"
 #include "StateTracker.hpp"
 #include "TransientBufferPool.hpp"
 #include "FrameCapture.hpp"
@@ -24,7 +25,7 @@ public:
 
     void finalize();
 
-    void execute(StateTracker& state, TransientBufferPool& buffers,
+    void execute(GfxDevice& device, StateTracker& state, TransientBufferPool& buffers,
                  const glm::mat4& viewProjection,
                  FrameCapture* capture = nullptr,
                  const CustomDrawFn& customDraw = nullptr);
