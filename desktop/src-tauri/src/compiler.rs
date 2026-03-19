@@ -8,6 +8,12 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -197,7 +203,7 @@ fn validate_emsdk(emsdk_path: &Path) -> bool {
 
 fn get_emcc_version(emsdk_path: &Path) -> Option<String> {
     let emcc = find_emcc_in_emsdk(emsdk_path)?;
-    let output = std::process::Command::new(&emcc)
+    let output = silent_command(&emcc)
         .arg("--version")
         .env("EMSDK", emsdk_path)
         .env(
@@ -222,7 +228,7 @@ fn find_bundled_cmake(app: &AppHandle) -> Option<PathBuf> {
 
     // Bundled in resources
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let bundled = resource_dir.join("toolchain/cmake/bin").join(cmake_name);
+        let bundled = strip_unc_prefix(resource_dir.join("toolchain/cmake/bin").join(cmake_name));
         if bundled.exists() {
             return Some(bundled);
         }
@@ -242,7 +248,7 @@ fn find_bundled_cmake(app: &AppHandle) -> Option<PathBuf> {
 fn find_cmake(app: &AppHandle) -> Option<(PathBuf, String)> {
     // Prefer bundled cmake
     if let Some(bundled) = find_bundled_cmake(app) {
-        let output = std::process::Command::new(&bundled)
+        let output = silent_command(&bundled)
             .arg("--version")
             .output()
             .ok()?;
@@ -253,7 +259,7 @@ fn find_cmake(app: &AppHandle) -> Option<(PathBuf, String)> {
 
     // Fall back to system cmake
     let cmake = if cfg!(windows) { "cmake.exe" } else { "cmake" };
-    let output = std::process::Command::new(cmake)
+    let output = silent_command(cmake)
         .arg("--version")
         .output()
         .ok()?;
@@ -271,7 +277,7 @@ fn find_cmake(app: &AppHandle) -> Option<(PathBuf, String)> {
 
 fn find_python() -> Option<(PathBuf, String)> {
     for bin in &["python3", "python"] {
-        let output = std::process::Command::new(bin)
+        let output = silent_command(bin)
             .arg("--version")
             .output()
             .ok();
@@ -309,7 +315,7 @@ fn find_emsdk_python(emsdk_path: &Path) -> Option<(PathBuf, String)> {
             entry.path().join("bin").join("python3")
         };
         if python_bin.exists() {
-            let output = std::process::Command::new(&python_bin)
+            let output = silent_command(&python_bin)
                 .arg("--version")
                 .output()
                 .ok()?;
@@ -327,7 +333,7 @@ fn find_emsdk_python(emsdk_path: &Path) -> Option<(PathBuf, String)> {
 
 fn which_sync(bin: &str) -> Option<PathBuf> {
     let cmd = if cfg!(windows) { "where" } else { "which" };
-    let output = std::process::Command::new(cmd)
+    let output = silent_command(cmd)
         .arg(bin)
         .output()
         .ok()?;
@@ -340,6 +346,22 @@ fn which_sync(bin: &str) -> Option<PathBuf> {
     }
 }
 
+fn silent_command(program: &(impl AsRef<std::ffi::OsStr> + ?Sized)) -> std::process::Command {
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
+fn strip_unc_prefix(p: PathBuf) -> PathBuf {
+    let s = p.to_string_lossy();
+    if s.starts_with(r"\\?\") {
+        PathBuf::from(&s[4..])
+    } else {
+        p
+    }
+}
+
 fn resolve_engine_src(app: &AppHandle) -> Result<PathBuf, String> {
     // Bundled engine source in resources (release builds)
     let resource_dir = app
@@ -347,7 +369,7 @@ fn resolve_engine_src(app: &AppHandle) -> Result<PathBuf, String> {
         .resource_dir()
         .map_err(|e| format!("Failed to resolve resource dir: {}", e))?;
 
-    let engine_src = resource_dir.join("toolchain/engine-src");
+    let engine_src = strip_unc_prefix(resource_dir.join("toolchain/engine-src"));
     if engine_src.exists() {
         return Ok(engine_src);
     }
@@ -1222,6 +1244,8 @@ async fn run_command_streamed(
     let (program, full_args) = build_command_for_platform(cmd, args);
     let mut command = Command::new(&program);
     command.args(&full_args);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
     command
         .current_dir(cwd)
         .envs(env)
