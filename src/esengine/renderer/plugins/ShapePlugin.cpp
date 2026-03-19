@@ -113,6 +113,7 @@ void ShapePlugin::collect(
         cmd.entity = entity;
         cmd.type = RenderType::Shape;
         cmd.layer = shape.layer;
+        cmd.state_flags |= CMD_STATE_CUSTOM_DRAW;
 
         clips.applyTo(entity, cmd);
 

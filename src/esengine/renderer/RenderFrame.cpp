@@ -181,7 +181,20 @@ void RenderFrame::flush() {
 
     pool_.upload();
     draw_list_.finalize();
-    draw_list_.execute(state_tracker_, pool_, view_projection_, &frame_capture_);
+
+    auto ctx = makeContext();
+
+    auto customDrawFn = [this, &ctx](const DrawCommand& cmd, StateTracker& state,
+                                     TransientBufferPool& buffers) {
+        for (auto& plugin : plugins_) {
+            if (plugin->needsCustomDraw() && plugin->handlesType(cmd.type)) {
+                plugin->customDraw(cmd, state, buffers, ctx);
+                return;
+            }
+        }
+    };
+
+    draw_list_.execute(state_tracker_, pool_, view_projection_, &frame_capture_, customDrawFn);
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
@@ -359,10 +372,8 @@ void RenderFrame::buildClipState() {
     }
 }
 
-void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
-    buildClipState();
-
-    RenderFrameContext ctx{
+RenderFrameContext RenderFrame::makeContext() {
+    return {
         context_,
         resource_manager_,
         context_.getWhiteTextureId(),
@@ -370,6 +381,12 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
         current_stage_,
         view_projection_
     };
+}
+
+void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
+    buildClipState();
+
+    auto ctx = makeContext();
 
     for (auto& plugin : plugins_) {
         if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;

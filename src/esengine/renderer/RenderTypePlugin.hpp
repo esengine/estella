@@ -46,6 +46,7 @@ public:
     ) = 0;
 
     virtual bool needsCustomDraw() const { return false; }
+    virtual bool handlesType(RenderType type) const { (void)type; return false; }
     virtual void customDraw(const DrawCommand& cmd,
                             StateTracker& state,
                             TransientBufferPool& buffers,
