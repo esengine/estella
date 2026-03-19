@@ -13,6 +13,7 @@ export class BuiltinPropertySync {
     private store_: EditorStore;
     private renderCallback_: (() => void) | null = null;
     private incrementalSync_: IncrementalSync | null = null;
+    private assetFieldCache_ = new Map<string, Set<string>>();
 
     constructor(sceneManager: EditorSceneManager, store: EditorStore) {
         this.sceneManager_ = sceneManager;
@@ -32,6 +33,8 @@ export class BuiltinPropertySync {
 
         if (!this.store_.isEntityVisible(event.entity)) return true;
 
+        if (this.isAssetField_(event.componentType, event.propertyName)) return false;
+
         if (event.componentType === 'Transform') {
             return this.syncTransform_(event, entityData);
         }
@@ -48,6 +51,25 @@ export class BuiltinPropertySync {
         }
 
         return false;
+    }
+
+    private isAssetField_(componentType: string, propertyName: string): boolean {
+        let fields = this.assetFieldCache_.get(componentType);
+        if (fields === undefined) {
+            fields = new Set<string>();
+            const compDef = getComponent(componentType);
+            if (compDef) {
+                for (const af of compDef.assetFields) {
+                    fields.add(af.field);
+                }
+                if (compDef.spineFields) {
+                    fields.add(compDef.spineFields.skeletonField);
+                    fields.add(compDef.spineFields.atlasField);
+                }
+            }
+            this.assetFieldCache_.set(componentType, fields);
+        }
+        return fields.has(propertyName);
     }
 
     private syncTransform_(event: PropertyChangeEvent, entityData: EntityData): boolean {

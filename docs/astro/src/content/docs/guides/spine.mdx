@@ -327,6 +327,10 @@ manager.setPathConstraintMix(entity, 'path-follow', {
 
 Spine skeletons that use multiple atlas pages are automatically batched by the renderer. No additional configuration is needed — the C++ backend handles multi-texture setups transparently, keeping draw calls low even with complex multi-atlas characters.
 
+## Resource Cleanup
+
+Spine resources are automatically cleaned up when the owning entity is despawned. The engine calls `SpineManager.removeEntity()` via `onDespawn`, freeing the underlying WASM memory. You do not need to manually release Spine resources when destroying entities.
+
 <Aside type="tip">
   Spine rendering is handled by the C++ backend. The TypeScript side only sets component data — the engine handles loading, blending, and drawing automatically.
 </Aside>

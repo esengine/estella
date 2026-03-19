@@ -280,6 +280,10 @@ addSystem(defineSystem(
 ));
 ```
 
+## Resource Cleanup
+
+Timeline and tween resources attached to an entity are automatically cleaned up when the entity is despawned. The engine calls `_tl_destroy` to free C++ timeline objects and `Tween.cancelAll()` to cancel active tweens via `onDespawn`. You do not need to manually stop timelines or cancel tweens when destroying entities.
+
 ## Next Steps
 
 - [State Machine](/docs/guides/state-machine/) — drive timelines through state transitions

@@ -198,6 +198,10 @@ handle.cancel();
 Tween.cancelAll(entity);
 ```
 
+<Aside type="note">
+When an entity is despawned, all its active tweens are automatically cancelled via `Tween.cancelAll()`. You do not need to manually cancel tweens before destroying entities.
+</Aside>
+
 ## Custom Property Animation
 
 Use `Tween.value()` to animate any numeric value with a callback:

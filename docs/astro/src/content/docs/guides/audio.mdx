@@ -208,6 +208,10 @@ On WeChat, audio uses `wx.createInnerAudioContext()` instead of Web Audio API. K
 - **Game View** — a mute toggle button appears in the Game View toolbar
 - **Scene View** — audio systems are skipped in Scene View to avoid unwanted playback during editing
 
+## Resource Cleanup
+
+Audio handles are automatically stopped and released when the owning entity is despawned. You do not need to manually stop or clean up `AudioSource` playback when destroying entities.
+
 <Aside type="note">
 `playOnAwake` defers playback until the browser's `AudioContext` is running. Most browsers require a user interaction before allowing audio playback.
 </Aside>

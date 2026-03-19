@@ -143,6 +143,10 @@ addSystem(defineSystem(
   Commands are buffered and applied at the end of the current schedule stage, not immediately.
 </Aside>
 
+### Error Recovery
+
+If a component fails to deserialize during scene loading, all entities already created for that scene are automatically despawned. This prevents half-initialized entities from lingering in the world.
+
 ## Entity Visibility
 
 Entities have a `visible` property (default `true`). When set to `false` in the editor, the entity's components are skipped during scene loading — it exists in the hierarchy but has no runtime behaviour. Use this to keep reference entities in the scene file without spawning them.

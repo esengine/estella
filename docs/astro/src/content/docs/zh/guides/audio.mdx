@@ -208,6 +208,10 @@ import { AudioSource, AudioListener, AttenuationModel } from 'esengine';
 - **Game View** — Game View 工具栏中有静音切换按钮
 - **Scene View** — Scene View 中跳过音频系统，避免编辑时产生不必要的播放
 
+## 资源清理
+
+音频句柄会在所属实体被销毁时自动停止并释放。销毁实体时无需手动停止或清理 `AudioSource` 播放。
+
 <Aside type="note">
 `playOnAwake` 会延迟到浏览器的 `AudioContext` 激活后才播放。大多数浏览器要求用户交互后才允许音频播放。
 </Aside>

@@ -258,6 +258,10 @@ const despawnDead = defineSystem(
 
 `Commands` 的操作会在当前系统函数返回后统一刷新（flush），此时迭代已结束，修改不会影响正在进行的遍历。
 
+<Aside type="note">
+使用 `Mut` 查询时，引擎会在回写变更前验证实体是否仍然存在。这意味着在迭代过程中通过 `Commands` 销毁实体是安全的——已销毁实体的回写会被静默跳过，不会导致崩溃。
+</Aside>
+
 ## 下一步
 
 - [变更检测](/docs/zh/core-concepts/change-detection/) — 基于 tick 的 Added、Changed、Removed 追踪

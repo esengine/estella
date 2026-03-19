@@ -104,6 +104,8 @@ async function openEditor(container: HTMLElement, projectPath: string): Promise<
     const config = await loadProjectConfig(projectPath);
 
     await loadPhysicsFactory(editor);
+
+    checkForUpdate();
 }
 
 function loadUmdModule(url: string, globalName: string): Promise<any> {
@@ -202,7 +204,6 @@ async function init(): Promise<void> {
     }
 
     showLauncher(container);
-    checkForUpdate();
 }
 
 init().catch(console.error);

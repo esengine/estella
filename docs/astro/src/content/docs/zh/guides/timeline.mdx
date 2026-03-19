@@ -280,6 +280,10 @@ addSystem(defineSystem(
 ));
 ```
 
+## 资源清理
+
+实体被销毁时，附加在实体上的时间轴和补间资源会自动清理。引擎通过 `onDespawn` 调用 `_tl_destroy` 释放 C++ 时间轴对象，并调用 `Tween.cancelAll()` 取消活跃的补间动画。销毁实体时无需手动停止时间轴或取消补间。
+
 ## 下一步
 
 - [状态机](/docs/zh/guides/state-machine/) — 通过状态转换驱动时间轴

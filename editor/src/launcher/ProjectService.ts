@@ -11,6 +11,7 @@ import type {
 } from '../types/ProjectTypes';
 import { ENGINE_VERSION } from '../types/ProjectTypes';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
+import { createCanvasComponents } from '../panels/hierarchy/uiEntityUtils';
 import { SdkExportService } from '../sdk';
 import { EditorExportService } from '../extension/EditorExportService';
 import { getEditorContext } from '../context/EditorContext';
@@ -334,7 +335,7 @@ export async function openProject(
             return { success: false, error: 'Invalid project file format' };
         }
 
-        const projectDir = projectPath.replace(/\/[^/]+\.esproject$/, '');
+        const projectDir = projectPath.replace(/[/\\][^/\\]+\.esproject$/, '');
         const sdkService = new SdkExportService();
         await sdkService.exportToProject(projectDir);
 
@@ -358,7 +359,7 @@ export async function loadEditorLocalSettings(projectPath: string): Promise<Reco
     const fs = getNativeFS();
     if (!fs) return null;
 
-    const projectDir = projectPath.replace(/\/[^/]+\.esproject$/, '');
+    const projectDir = projectPath.replace(/[/\\][^/\\]+\.esproject$/, '');
     const settingsPath = joinPath(projectDir, '.esengine/settings.json');
     const content = await fs.readFile(settingsPath);
     if (!content) return null;
@@ -374,7 +375,7 @@ export async function saveEditorLocalSetting(projectPath: string, key: string, v
     const fs = getNativeFS();
     if (!fs) return;
 
-    const projectDir = projectPath.replace(/\/[^/]+\.esproject$/, '');
+    const projectDir = projectPath.replace(/[/\\][^/\\]+\.esproject$/, '');
     const settingsPath = joinPath(projectDir, '.esengine/settings.json');
 
     let settings: Record<string, unknown> = {};
@@ -505,26 +506,13 @@ function createDefaultScene(
                 name: 'Canvas',
                 parent: null,
                 children: [],
-                components: [
-                    {
-                        type: 'Transform',
-                        data: {
-                            position: { x: 0, y: 0, z: 0 },
-                            rotation: { x: 0, y: 0, z: 0, w: 1 },
-                            scale: { x: 1, y: 1, z: 1 },
-                        },
-                    },
-                    {
-                        type: 'Canvas',
-                        data: {
-                            designResolution: { x: designResolution.width, y: designResolution.height },
-                            pixelsPerUnit,
-                            scaleMode: 1,
-                            matchWidthOrHeight: 0.5,
-                            backgroundColor: { r: 0, g: 0, b: 0, a: 1 },
-                        },
-                    },
-                ],
+                components: createCanvasComponents({
+                    designResolution: { x: designResolution.width, y: designResolution.height },
+                    pixelsPerUnit,
+                    scaleMode: 1,
+                    matchWidthOrHeight: 0.5,
+                    backgroundColor: { r: 0, g: 0, b: 0, a: 1 },
+                }),
             },
         ],
     };
