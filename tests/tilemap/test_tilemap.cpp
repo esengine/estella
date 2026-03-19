@@ -6,105 +6,107 @@
 using namespace esengine;
 using namespace esengine::tilemap;
 
+static Entity E(u32 idx) { return Entity::make(idx, 1); }
+
 TEST_CASE("tilemap_init_layer") {
     TilemapSystem sys;
 
     SUBCASE("layer does not exist before init") {
-        CHECK_FALSE(sys.hasLayer(0));
+        CHECK_FALSE(sys.hasLayer(E(0)));
     }
 
     SUBCASE("layer exists after init") {
-        sys.initLayer(0, 10, 8, 32.0f, 32.0f);
-        CHECK(sys.hasLayer(0));
+        sys.initLayer(E(0), 10, 8, 32.0f, 32.0f);
+        CHECK(sys.hasLayer(E(0)));
     }
 
     SUBCASE("layer destroyed after destroy") {
-        sys.initLayer(0, 10, 8, 32.0f, 32.0f);
-        sys.destroyLayer(0);
-        CHECK_FALSE(sys.hasLayer(0));
+        sys.initLayer(E(0), 10, 8, 32.0f, 32.0f);
+        sys.destroyLayer(E(0));
+        CHECK_FALSE(sys.hasLayer(E(0)));
     }
 
     SUBCASE("multiple layers") {
-        sys.initLayer(1, 10, 10, 32.0f, 32.0f);
-        sys.initLayer(2, 20, 20, 16.0f, 16.0f);
-        CHECK(sys.hasLayer(1));
-        CHECK(sys.hasLayer(2));
-        sys.destroyLayer(1);
-        CHECK_FALSE(sys.hasLayer(1));
-        CHECK(sys.hasLayer(2));
+        sys.initLayer(E(1), 10, 10, 32.0f, 32.0f);
+        sys.initLayer(E(2), 20, 20, 16.0f, 16.0f);
+        CHECK(sys.hasLayer(E(1)));
+        CHECK(sys.hasLayer(E(2)));
+        sys.destroyLayer(E(1));
+        CHECK_FALSE(sys.hasLayer(E(1)));
+        CHECK(sys.hasLayer(E(2)));
     }
 }
 
 TEST_CASE("tilemap_set_get_tile") {
     TilemapSystem sys;
-    sys.initLayer(0, 10, 8, 32.0f, 32.0f);
+    sys.initLayer(E(0), 10, 8, 32.0f, 32.0f);
 
     SUBCASE("all tiles start empty") {
-        CHECK_EQ(sys.getTile(0, 0, 0), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 5, 3), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 9, 7), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 0, 0), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 5, 3), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 9, 7), EMPTY_TILE);
     }
 
     SUBCASE("set and get single tile") {
-        sys.setTile(0, 3, 4, 42);
-        CHECK_EQ(sys.getTile(0, 3, 4), 42);
-        CHECK_EQ(sys.getTile(0, 3, 3), EMPTY_TILE);
+        sys.setTile(E(0), 3, 4, 42);
+        CHECK_EQ(sys.getTile(E(0), 3, 4), 42);
+        CHECK_EQ(sys.getTile(E(0), 3, 3), EMPTY_TILE);
     }
 
     SUBCASE("overwrite tile") {
-        sys.setTile(0, 0, 0, 10);
-        sys.setTile(0, 0, 0, 20);
-        CHECK_EQ(sys.getTile(0, 0, 0), 20);
+        sys.setTile(E(0), 0, 0, 10);
+        sys.setTile(E(0), 0, 0, 20);
+        CHECK_EQ(sys.getTile(E(0), 0, 0), 20);
     }
 
     SUBCASE("out of bounds returns EMPTY_TILE") {
-        CHECK_EQ(sys.getTile(0, -1, 0), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 10, 0), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 0, 8), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 0, -1), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), -1, 0), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 10, 0), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 0, 8), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 0, -1), EMPTY_TILE);
     }
 
     SUBCASE("set out of bounds is no-op") {
-        sys.setTile(0, -1, 0, 99);
-        sys.setTile(0, 10, 0, 99);
-        CHECK_EQ(sys.getTile(0, 0, 0), EMPTY_TILE);
+        sys.setTile(E(0), -1, 0, 99);
+        sys.setTile(E(0), 10, 0, 99);
+        CHECK_EQ(sys.getTile(E(0), 0, 0), EMPTY_TILE);
     }
 
     SUBCASE("non-existent layer returns EMPTY_TILE") {
-        CHECK_EQ(sys.getTile(999, 0, 0), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(999), 0, 0), EMPTY_TILE);
     }
 }
 
 TEST_CASE("tilemap_fill_rect") {
     TilemapSystem sys;
-    sys.initLayer(0, 10, 8, 32.0f, 32.0f);
+    sys.initLayer(E(0), 10, 8, 32.0f, 32.0f);
 
     SUBCASE("fill 3x2 region") {
-        sys.fillRect(0, 2, 1, 3, 2, 5);
-        CHECK_EQ(sys.getTile(0, 2, 1), 5);
-        CHECK_EQ(sys.getTile(0, 3, 1), 5);
-        CHECK_EQ(sys.getTile(0, 4, 1), 5);
-        CHECK_EQ(sys.getTile(0, 2, 2), 5);
-        CHECK_EQ(sys.getTile(0, 3, 2), 5);
-        CHECK_EQ(sys.getTile(0, 4, 2), 5);
-        CHECK_EQ(sys.getTile(0, 1, 1), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 5, 1), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 2, 0), EMPTY_TILE);
-        CHECK_EQ(sys.getTile(0, 2, 3), EMPTY_TILE);
+        sys.fillRect(E(0), 2, 1, 3, 2, 5);
+        CHECK_EQ(sys.getTile(E(0), 2, 1), 5);
+        CHECK_EQ(sys.getTile(E(0), 3, 1), 5);
+        CHECK_EQ(sys.getTile(E(0), 4, 1), 5);
+        CHECK_EQ(sys.getTile(E(0), 2, 2), 5);
+        CHECK_EQ(sys.getTile(E(0), 3, 2), 5);
+        CHECK_EQ(sys.getTile(E(0), 4, 2), 5);
+        CHECK_EQ(sys.getTile(E(0), 1, 1), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 5, 1), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 2, 0), EMPTY_TILE);
+        CHECK_EQ(sys.getTile(E(0), 2, 3), EMPTY_TILE);
     }
 
     SUBCASE("fill clamps to bounds") {
-        sys.fillRect(0, 8, 6, 5, 5, 7);
-        CHECK_EQ(sys.getTile(0, 8, 6), 7);
-        CHECK_EQ(sys.getTile(0, 9, 7), 7);
-        CHECK_EQ(sys.getTile(0, 9, 6), 7);
-        CHECK_EQ(sys.getTile(0, 8, 7), 7);
+        sys.fillRect(E(0), 8, 6, 5, 5, 7);
+        CHECK_EQ(sys.getTile(E(0), 8, 6), 7);
+        CHECK_EQ(sys.getTile(E(0), 9, 7), 7);
+        CHECK_EQ(sys.getTile(E(0), 9, 6), 7);
+        CHECK_EQ(sys.getTile(E(0), 8, 7), 7);
     }
 }
 
 TEST_CASE("tilemap_set_tiles_bulk") {
     TilemapSystem sys;
-    sys.initLayer(0, 4, 3, 32.0f, 32.0f);
+    sys.initLayer(E(0), 4, 3, 32.0f, 32.0f);
 
     std::vector<u16> tiles = {
         1, 2, 3, 4,
@@ -112,27 +114,27 @@ TEST_CASE("tilemap_set_tiles_bulk") {
         9, 10, 11, 12
     };
 
-    sys.setTiles(0, tiles.data(), static_cast<u32>(tiles.size()));
+    sys.setTiles(E(0), tiles.data(), static_cast<u32>(tiles.size()));
 
-    CHECK_EQ(sys.getTile(0, 0, 0), 1);
-    CHECK_EQ(sys.getTile(0, 3, 0), 4);
-    CHECK_EQ(sys.getTile(0, 1, 1), EMPTY_TILE);
-    CHECK_EQ(sys.getTile(0, 3, 1), 8);
-    CHECK_EQ(sys.getTile(0, 0, 2), 9);
-    CHECK_EQ(sys.getTile(0, 3, 2), 12);
+    CHECK_EQ(sys.getTile(E(0), 0, 0), 1);
+    CHECK_EQ(sys.getTile(E(0), 3, 0), 4);
+    CHECK_EQ(sys.getTile(E(0), 1, 1), EMPTY_TILE);
+    CHECK_EQ(sys.getTile(E(0), 3, 1), 8);
+    CHECK_EQ(sys.getTile(E(0), 0, 2), 9);
+    CHECK_EQ(sys.getTile(E(0), 3, 2), 12);
 }
 
 TEST_CASE("tilemap_set_tiles_partial") {
     TilemapSystem sys;
-    sys.initLayer(0, 4, 3, 32.0f, 32.0f);
+    sys.initLayer(E(0), 4, 3, 32.0f, 32.0f);
 
     std::vector<u16> partial = {1, 2, 3};
-    sys.setTiles(0, partial.data(), static_cast<u32>(partial.size()));
+    sys.setTiles(E(0), partial.data(), static_cast<u32>(partial.size()));
 
-    CHECK_EQ(sys.getTile(0, 0, 0), 1);
-    CHECK_EQ(sys.getTile(0, 1, 0), 2);
-    CHECK_EQ(sys.getTile(0, 2, 0), 3);
-    CHECK_EQ(sys.getTile(0, 3, 0), EMPTY_TILE);
+    CHECK_EQ(sys.getTile(E(0), 0, 0), 1);
+    CHECK_EQ(sys.getTile(E(0), 1, 0), 2);
+    CHECK_EQ(sys.getTile(E(0), 2, 0), 3);
+    CHECK_EQ(sys.getTile(E(0), 3, 0), EMPTY_TILE);
 }
 
 TEST_CASE("tilemap_compute_visible_range") {
