@@ -19,6 +19,9 @@
 // Project includes
 #include "../core/Types.hpp"
 
+// Standard library
+#include <functional>
+
 namespace esengine::resource {
 
 // =============================================================================
@@ -101,6 +104,73 @@ private:
     IdType id_ = INVALID;
 };
 
+// =============================================================================
+// SharedHandle (RAII wrapper)
+// =============================================================================
+
+/**
+ * @brief RAII wrapper around Handle that auto-releases on destruction
+ *
+ * @details Calls a release function when the last SharedHandle copy is
+ *          destroyed. Use for scoped resource ownership. The underlying
+ *          Handle can be extracted with get() for hot-path access.
+ *
+ * @tparam T The resource type
+ *
+ * @code
+ * {
+ *     auto tex = SharedHandle<Texture>::make(
+ *         rm.loadTexture("player.png"),
+ *         [&rm](TextureHandle h) { rm.releaseTexture(h); });
+ *     // Use tex.get() ...
+ * } // auto-released here
+ * @endcode
+ */
+template<typename T>
+class SharedHandle {
+public:
+    using ReleaseFunc = std::function<void(Handle<T>)>;
+
+    SharedHandle() = default;
+
+    /** @brief Creates a SharedHandle that will auto-release */
+    static SharedHandle make(Handle<T> handle, ReleaseFunc release) {
+        SharedHandle sh;
+        if (handle.isValid()) {
+            sh.state_ = std::make_shared<State>(handle, std::move(release));
+        }
+        return sh;
+    }
+
+    /** @brief Gets the underlying raw handle (no ownership transfer) */
+    Handle<T> get() const { return state_ ? state_->handle : Handle<T>{}; }
+
+    /** @brief Checks if valid */
+    bool isValid() const { return state_ && state_->handle.isValid(); }
+    explicit operator bool() const { return isValid(); }
+
+    /** @brief Manually release (all copies become invalid) */
+    void reset() { state_.reset(); }
+
+private:
+    struct State {
+        Handle<T> handle;
+        ReleaseFunc release;
+
+        State(Handle<T> h, ReleaseFunc r) : handle(h), release(std::move(r)) {}
+        ~State() {
+            if (handle.isValid() && release) {
+                release(handle);
+            }
+        }
+
+        State(const State&) = delete;
+        State& operator=(const State&) = delete;
+    };
+
+    Shared<State> state_;
+};
+
 }  // namespace esengine::resource
 
 // =============================================================================
@@ -145,6 +215,15 @@ using SpineDataHandle = Handle<esengine::spine::SpineSkeletonData>;
 
 /** @brief Handle to a bitmap font resource */
 using BitmapFontHandle = Handle<esengine::text::BitmapFont>;
+
+/** @brief RAII handle to a shader resource */
+using SharedShaderHandle = SharedHandle<esengine::Shader>;
+
+/** @brief RAII handle to a texture resource */
+using SharedTextureHandle = SharedHandle<esengine::Texture>;
+
+/** @brief RAII handle to a bitmap font resource */
+using SharedBitmapFontHandle = SharedHandle<esengine::text::BitmapFont>;
 
 }  // namespace esengine::resource
 

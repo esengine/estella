@@ -72,12 +72,13 @@ public:
             return getOffset(entity);
         }
 
-        if (entity >= sparse_.size()) {
-            sparse_.resize(entity + 1, INVALID_ENTITY);
+        const u32 idx = entity.index();
+        if (idx >= sparse_.size()) {
+            sparse_.resize(idx + 1, INVALID_DENSE_INDEX);
         }
 
-        u32 index = static_cast<u32>(dense_.size());
-        sparse_[entity] = index;
+        u32 denseIdx = static_cast<u32>(dense_.size());
+        sparse_[idx] = denseIdx;
         dense_.push_back(entity);
 
         usize oldSize = data_.size();
@@ -97,16 +98,17 @@ public:
      */
     u32 getOffset(Entity entity) const {
         ES_ASSERT(contains(entity), "Entity does not have component");
-        return sparse_[entity] * stride_;
+        return sparse_[entity.index()] * stride_;
     }
 
     /**
      * @brief Checks if entity has this component
      */
     bool contains(Entity entity) const {
-        return entity < sparse_.size() &&
-               sparse_[entity] < dense_.size() &&
-               dense_[sparse_[entity]] == entity;
+        const u32 idx = entity.index();
+        return idx < sparse_.size() &&
+               sparse_[idx] < dense_.size() &&
+               dense_[sparse_[idx]] == entity;
     }
 
     /**
@@ -115,23 +117,23 @@ public:
     void remove(Entity entity) {
         if (!contains(entity)) return;
 
-        u32 index = sparse_[entity];
+        const u32 idx = entity.index();
+        u32 denseIdx = sparse_[idx];
         Entity lastEntity = dense_.back();
-        u32 lastIndex = static_cast<u32>(dense_.size() - 1);
+        u32 lastDenseIdx = static_cast<u32>(dense_.size() - 1);
 
-        // Swap data
-        if (index != lastIndex) {
-            u8* dstPtr = data_.data() + index * stride_;
-            u8* srcPtr = data_.data() + lastIndex * stride_;
+        if (denseIdx != lastDenseIdx) {
+            u8* dstPtr = data_.data() + denseIdx * stride_;
+            u8* srcPtr = data_.data() + lastDenseIdx * stride_;
             std::memcpy(dstPtr, srcPtr, stride_);
 
-            dense_[index] = lastEntity;
-            sparse_[lastEntity] = index;
+            dense_[denseIdx] = lastEntity;
+            sparse_[lastEntity.index()] = denseIdx;
         }
 
         dense_.pop_back();
         data_.resize(data_.size() - stride_);
-        sparse_[entity] = INVALID_ENTITY;
+        sparse_[idx] = INVALID_DENSE_INDEX;
     }
 
     // =========================================================================
@@ -186,8 +188,8 @@ private:
     u32 stride_;                    ///< Bytes per component
     u32 pool_version_ = 0;          ///< Incremented on potential reallocation
     std::vector<u8> data_;          ///< Contiguous component data
-    std::vector<u32> sparse_;       ///< Entity -> dense index
-    std::vector<Entity> dense_;     ///< Dense entity array
+    std::vector<u32> sparse_;       ///< Entity index -> dense index
+    std::vector<Entity> dense_;     ///< Dense entity array (packed entities)
 };
 
 // =============================================================================
@@ -228,7 +230,7 @@ public:
     /** @brief Gets pool ID by name */
     u32 getPoolId(const std::string& name) const {
         auto it = nameToId_.find(name);
-        return it != nameToId_.end() ? it->second : UINT32_MAX;
+        return it != nameToId_.end() ? it->second : INVALID_DENSE_INDEX;
     }
 
     /** @brief Gets pool by ID */

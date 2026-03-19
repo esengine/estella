@@ -197,7 +197,7 @@ public:
     static constexpr i32 EVENT_STRIDE = 4;
 
     struct NativeEventRecord {
-        Entity entity = 0;
+        Entity entity;
         std::string animationName;
         std::string eventName;
         std::string stringValue;

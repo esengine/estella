@@ -68,27 +68,28 @@ public:
 
     /** @brief Checks if entity has this component */
     bool contains(Entity entity) const {
-        return entity < sparse_.size() &&
-               sparse_[entity] < dense_.size() &&
-               dense_[sparse_[entity]] == entity;
+        const u32 idx = entity.index();
+        return idx < sparse_.size() &&
+               sparse_[idx] < dense_.size() &&
+               dense_[sparse_[idx]] == entity;
     }
 
     /** @brief Gets component data (must exist) */
     DynamicValue& get(Entity entity) {
         ES_ASSERT(contains(entity), "Entity does not have component");
-        return values_[sparse_[entity]];
+        return values_[sparse_[entity.index()]];
     }
 
     /** @brief Gets component data (const) */
     const DynamicValue& get(Entity entity) const {
         ES_ASSERT(contains(entity), "Entity does not have component");
-        return values_[sparse_[entity]];
+        return values_[sparse_[entity.index()]];
     }
 
     /** @brief Tries to get component data (returns nullptr if not found) */
     DynamicValue* tryGet(Entity entity) {
         if (!contains(entity)) return nullptr;
-        return &values_[sparse_[entity]];
+        return &values_[sparse_[entity.index()]];
     }
 
     // =========================================================================
@@ -99,11 +100,12 @@ public:
     void emplace(Entity entity, DynamicValue value) {
         ES_ASSERT(!contains(entity), "Entity already has component");
 
-        if (entity >= sparse_.size()) {
-            sparse_.resize(entity + 1, INVALID_ENTITY);
+        const u32 idx = entity.index();
+        if (idx >= sparse_.size()) {
+            sparse_.resize(idx + 1, INVALID_DENSE_INDEX);
         }
 
-        sparse_[entity] = static_cast<Entity>(dense_.size());
+        sparse_[idx] = static_cast<u32>(dense_.size());
         dense_.push_back(entity);
         values_.push_back(std::move(value));
     }
@@ -111,7 +113,7 @@ public:
     /** @brief Adds or replaces component data */
     void emplaceOrReplace(Entity entity, DynamicValue value) {
         if (contains(entity)) {
-            values_[sparse_[entity]] = std::move(value);
+            values_[sparse_[entity.index()]] = std::move(value);
         } else {
             emplace(entity, std::move(value));
         }
@@ -121,16 +123,17 @@ public:
     void remove(Entity entity) {
         if (!contains(entity)) return;
 
-        const auto last = dense_.back();
-        const auto index = sparse_[entity];
+        const u32 idx = entity.index();
+        const Entity last = dense_.back();
+        const u32 denseIdx = sparse_[idx];
 
-        dense_[index] = last;
-        std::swap(values_[index], values_.back());
-        sparse_[last] = index;
+        dense_[denseIdx] = last;
+        std::swap(values_[denseIdx], values_.back());
+        sparse_[last.index()] = denseIdx;
 
         dense_.pop_back();
         values_.pop_back();
-        sparse_[entity] = INVALID_ENTITY;
+        sparse_[idx] = INVALID_DENSE_INDEX;
     }
 
     // =========================================================================
@@ -149,8 +152,8 @@ public:
     const std::vector<Entity>& entities() const { return dense_; }
 
 private:
-    std::vector<Entity> sparse_;
-    std::vector<Entity> dense_;
+    std::vector<u32> sparse_;       ///< Entity index -> dense index
+    std::vector<Entity> dense_;     ///< Dense entity array (packed entities)
     std::vector<DynamicValue> values_;
 };
 
@@ -192,10 +195,10 @@ public:
         return id;
     }
 
-    /** @brief Gets component ID by name (returns UINT32_MAX if not found) */
+    /** @brief Gets component ID by name (returns INVALID_DENSE_INDEX if not found) */
     u32 getComponentId(const std::string& name) const {
         auto it = nameToId_.find(name);
-        return it != nameToId_.end() ? it->second : UINT32_MAX;
+        return it != nameToId_.end() ? it->second : INVALID_DENSE_INDEX;
     }
 
     /** @brief Gets component name by ID */
@@ -246,12 +249,12 @@ public:
 
     bool hasByName(Entity entity, const std::string& name) const {
         u32 id = getComponentId(name);
-        return id != UINT32_MAX && has(entity, id);
+        return id != INVALID_DENSE_INDEX && has(entity, id);
     }
 
     DynamicValue* getByName(Entity entity, const std::string& name) {
         u32 id = getComponentId(name);
-        if (id == UINT32_MAX) return nullptr;
+        if (id == INVALID_DENSE_INDEX) return nullptr;
         return pools_[id].tryGet(entity);
     }
 
@@ -262,7 +265,7 @@ public:
 
     void removeByName(Entity entity, const std::string& name) {
         u32 id = getComponentId(name);
-        if (id != UINT32_MAX) {
+        if (id != INVALID_DENSE_INDEX) {
             pools_[id].remove(entity);
         }
     }

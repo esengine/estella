@@ -72,7 +72,7 @@ struct TouchState {
  *          layer feeds events via onTouchEvent() and onKeyEvent().
  *
  * @code
- * Input& input = app.input();
+ * Input& input = app.require<Input>();
  *
  * // In game loop
  * input.update();

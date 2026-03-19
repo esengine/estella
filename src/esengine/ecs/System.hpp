@@ -18,6 +18,7 @@
 
 // Project includes
 #include "../core/Types.hpp"
+#include "../core/World.hpp"
 
 // Standard library
 #include <algorithm>
@@ -41,10 +42,10 @@ class Registry;
  * @code
  * class MovementSystem : public System {
  * public:
- *     void update(Registry& registry, f32 deltaTime) override {
- *         registry.each<Transform, Velocity>(
- *             [deltaTime](Entity e, Transform& t, Velocity& v) {
- *                 t.position += v.linear * deltaTime;
+ *     void update(World& world) override {
+ *         world.registry.each<Transform, Velocity>(
+ *             [&](Entity e, Transform& t, Velocity& v) {
+ *                 t.position += v.linear * world.deltaTime;
  *             });
  *     }
  * };
@@ -69,13 +70,12 @@ public:
 
     /**
      * @brief Called every frame to execute system logic
-     * @param registry Reference to the ECS registry
-     * @param deltaTime Time since last frame in seconds
+     * @param world The world context (registry, services, deltaTime)
      *
      * @details Pure virtual - must be overridden. This is where
      *          the main system logic goes.
      */
-    virtual void update(Registry& registry, f32 deltaTime) = 0;
+    virtual void update(World& world) = 0;
 
     /**
      * @brief Called once when the system is removed
@@ -213,10 +213,10 @@ public:
      * @details Calls update() on each enabled system in priority order.
      *          Disabled systems are skipped.
      */
-    void update(Registry& registry, f32 deltaTime) {
+    void update(World& world) {
         for (auto& system : systems_) {
             if (system->isEnabled()) {
-                system->update(registry, deltaTime);
+                system->update(world);
             }
         }
     }

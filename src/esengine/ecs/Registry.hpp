@@ -83,26 +83,15 @@ public:
      *          entities exist.
      */
     Entity create() {
-        Entity entity;
+        u32 index;
         if (!recycled_.empty()) {
-            entity = recycled_.front();
+            index = recycled_.front();
             recycled_.pop();
         } else {
-            entity = nextEntity_++;
+            index = next_index_++;
         }
 
-        if (entity >= entityValid_.size()) {
-            entityValid_.resize(entity + 1, false);
-            generations_.resize(entity + 1, 0);
-            component_masks_.resize(entity + 1);
-        }
-        entityValid_[entity] = true;
-        generations_[entity]++;
-        component_masks_[entity].reset();
-        ++entity_count_;
-
-        ES_LOG_TRACE("Created entity {}", entity);
-        return entity;
+        return activateIndex(index);
     }
 
     /**
@@ -120,31 +109,20 @@ public:
     }
 
     /**
-     * @brief Restores a previously destroyed entity with the same ID
-     * @param entity The entity ID to restore
-     * @return true if restored successfully, false if entity is already valid
+     * @brief Restores an entity at a specific index
+     * @param index The entity index to restore
+     * @return The newly created Entity, or INVALID_ENTITY if index is already alive
      */
-    bool restore(Entity entity) {
-        if (valid(entity)) {
-            return false;
+    Entity restore(u32 index) {
+        if (index < entityValid_.size() && entityValid_[index]) {
+            return INVALID_ENTITY;
         }
 
-        if (entity >= entityValid_.size()) {
-            entityValid_.resize(entity + 1, false);
-            generations_.resize(entity + 1, 0);
-            component_masks_.resize(entity + 1);
-        }
-        entityValid_[entity] = true;
-        generations_[entity]++;
-        component_masks_[entity].reset();
-        ++entity_count_;
-
-        if (entity >= nextEntity_) {
-            nextEntity_ = entity + 1;
+        if (index >= next_index_) {
+            next_index_ = index + 1;
         }
 
-        ES_LOG_TRACE("Restored entity {}", entity);
-        return true;
+        return activateIndex(index);
     }
 
     /**
@@ -157,11 +135,13 @@ public:
     void destroy(Entity entity) {
         if (!valid(entity)) return;
 
-        for (auto& callback : on_destroy_callbacks_) {
-            callback(entity);
+        const u32 idx = entity.index();
+
+        for (auto& entry : on_destroy_entries_) {
+            entry.callback(entity);
         }
 
-        component_masks_[entity].forEachSet([&](u32 bit) {
+        component_masks_[idx].forEachSet([&](u32 bit) {
             if (bit < pools_.size() && pools_[bit]) {
                 pools_[bit]->remove(entity);
             }
@@ -169,29 +149,27 @@ public:
 
         schemaRegistry_.removeAll(entity);
 
-        component_masks_[entity].reset();
-        entityValid_[entity] = false;
+        component_masks_[idx].reset();
+        entityValid_[idx] = false;
         --entity_count_;
-        recycled_.push(entity);
+        recycled_.push(idx);
 
-        ES_LOG_TRACE("Destroyed entity {}", entity);
+        ES_LOG_TRACE("Destroyed entity raw={} (index={})", entity.raw, idx);
     }
 
     using DestroyCallback = std::function<void(Entity)>;
 
     u32 onDestroy(DestroyCallback callback) {
         u32 id = next_callback_id_++;
-        on_destroy_callbacks_.emplace_back(std::move(callback));
-        on_destroy_callback_ids_.push_back(id);
+        on_destroy_entries_.push_back({id, std::move(callback)});
         return id;
     }
 
     void removeOnDestroy(u32 callbackId) {
-        for (usize i = 0; i < on_destroy_callback_ids_.size(); ++i) {
-            if (on_destroy_callback_ids_[i] == callbackId) {
+        for (usize i = 0; i < on_destroy_entries_.size(); ++i) {
+            if (on_destroy_entries_[i].id == callbackId) {
                 auto pos = static_cast<std::ptrdiff_t>(i);
-                on_destroy_callbacks_.erase(on_destroy_callbacks_.begin() + pos);
-                on_destroy_callback_ids_.erase(on_destroy_callback_ids_.begin() + pos);
+                on_destroy_entries_.erase(on_destroy_entries_.begin() + pos);
                 return;
             }
         }
@@ -200,26 +178,18 @@ public:
     /**
      * @brief Checks if an entity is currently valid
      * @param entity The entity to check
-     * @return True if the entity exists and is not destroyed
+     * @return True if the entity exists and generation matches
      */
     bool valid(Entity entity) const {
-        return entity < entityValid_.size() && entityValid_[entity];
+        const u32 idx = entity.index();
+        return idx < entityValid_.size() &&
+               entityValid_[idx] &&
+               generations_[idx] == entity.generation();
     }
 
-    bool valid(Entity entity, u32 generation) const {
-        return valid(entity) && entity < generations_.size() &&
-               generations_[entity] == generation;
-    }
-
-    u32 generation(Entity entity) const {
-        if (entity < generations_.size()) {
-            return generations_[entity];
-        }
-        return 0;
-    }
-
+    /** @brief Gets the packed u64 handle (for legacy/FFI compatibility) */
     u64 entityHandle(Entity entity) const {
-        return makeEntityHandle(entity, generation(entity));
+        return makeEntityHandle(entity.index(), entity.generation());
     }
 
     usize entityCount() const {
@@ -233,9 +203,9 @@ public:
      */
     template<typename Func>
     void forEachEntity(Func&& func) const {
-        for (Entity e = 0; e < entityValid_.size(); ++e) {
-            if (entityValid_[e]) {
-                func(e);
+        for (u32 i = 0; i < entityValid_.size(); ++i) {
+            if (entityValid_[i]) {
+                func(Entity::make(i, generations_[i]));
             }
         }
     }
@@ -259,7 +229,7 @@ public:
         ES_ASSERT(valid(entity), "Invalid entity");
         auto& pool = assurePool<T>();
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        component_masks_[entity].set(getTypeId<T>());
+        component_masks_[entity.index()].set(getTypeId<T>());
         return result;
     }
 
@@ -279,11 +249,12 @@ public:
         auto& pool = assurePool<T>();
 
         if (pool.contains(entity)) {
-            pool.get(entity) = T(std::forward<Args>(args)...);
-            return pool.get(entity);
+            auto& comp = pool.get(entity);
+            comp = T(std::forward<Args>(args)...);
+            return comp;
         }
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        component_masks_[entity].set(getTypeId<T>());
+        component_masks_[entity.index()].set(getTypeId<T>());
         return result;
     }
 
@@ -299,8 +270,9 @@ public:
         auto* pool = getPool<T>();
         if (pool) {
             pool->remove(entity);
-            if (entity < component_masks_.size()) {
-                component_masks_[entity].clear(getTypeId<T>());
+            const u32 idx = entity.index();
+            if (idx < component_masks_.size()) {
+                component_masks_[idx].clear(getTypeId<T>());
             }
         }
     }
@@ -362,7 +334,7 @@ public:
             return pool.get(entity);
         }
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        component_masks_[entity].set(getTypeId<T>());
+        component_masks_[entity.index()].set(getTypeId<T>());
         return result;
     }
 
@@ -449,7 +421,7 @@ public:
         generations_.clear();
         component_masks_.clear();
         while (!recycled_.empty()) recycled_.pop();
-        nextEntity_ = 0;
+        next_index_ = 0;
         entity_count_ = 0;
     }
 
@@ -618,6 +590,23 @@ private:
         return static_cast<const SparseSet<T>*>(pools_[typeId].get());
     }
 
+    /**
+     * @brief Activates an entity index: resizes arrays, bumps generation, returns packed Entity
+     */
+    Entity activateIndex(u32 index) {
+        if (index >= entityValid_.size()) {
+            entityValid_.resize(index + 1, false);
+            generations_.resize(index + 1, 0);
+            component_masks_.resize(index + 1);
+        }
+        entityValid_[index] = true;
+        generations_[index] = (generations_[index] + 1) & Entity::GEN_MASK;
+        if (generations_[index] == 0) generations_[index] = 1;
+        component_masks_[index].reset();
+        ++entity_count_;
+        return Entity::make(index, generations_[index]);
+    }
+
     // =========================================================================
     // Data Members
     // =========================================================================
@@ -625,8 +614,8 @@ private:
     std::vector<u8> entityValid_;
     std::vector<u32> generations_;
     std::vector<ComponentMask> component_masks_;
-    std::queue<Entity> recycled_;
-    Entity nextEntity_ = 0;
+    std::queue<u32> recycled_;      ///< Recycled entity indices
+    u32 next_index_ = 0;            ///< Next fresh entity index
     usize entity_count_ = 0;
 
     /** @brief Type-erased component pools indexed by TypeId */
@@ -635,9 +624,12 @@ private:
     /** @brief Schema component registry for script-defined components */
     SchemaRegistry schemaRegistry_;
 
-    /** @brief Entity destruction callbacks */
-    std::vector<DestroyCallback> on_destroy_callbacks_;
-    std::vector<u32> on_destroy_callback_ids_;
+    struct DestroyEntry {
+        u32 id;
+        DestroyCallback callback;
+    };
+
+    std::vector<DestroyEntry> on_destroy_entries_;
     u32 next_callback_id_ = 0;
 };
 

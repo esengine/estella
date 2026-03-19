@@ -111,17 +111,54 @@ constexpr Shared<T> makeShared(Args&&... args) {
 // =============================================================================
 
 /**
- * @brief Entity identifier type
- * @details Entities are simple integer IDs used as keys in the ECS system.
- *          Components are associated with entities via the Registry.
+ * @brief Entity identifier with packed index + generation
+ *
+ * @details Entities pack a 20-bit index and 12-bit generation into a single
+ *          u32. The generation detects stale references after an entity is
+ *          destroyed and its index recycled (ABA problem).
+ *
+ *          Layout: [generation(12) | index(20)]
+ *          - Max entities:    1,048,575 (2^20 - 1)
+ *          - Max generations: 4,095     (2^12 - 1) before wrap
  */
-using Entity = u32;
+struct Entity {
+    u32 raw;
 
-/**
- * @brief Invalid entity sentinel value
- * @details Used to represent null/invalid entity references
- */
-constexpr Entity INVALID_ENTITY = std::numeric_limits<Entity>::max();
+    static constexpr u32 INDEX_BITS = 20;
+    static constexpr u32 GEN_BITS = 12;
+    static constexpr u32 INDEX_MASK = (1u << INDEX_BITS) - 1;
+    static constexpr u32 GEN_MASK = (1u << GEN_BITS) - 1;
+    static constexpr u32 INVALID_RAW = 0xFFFFFFFF;
+
+    constexpr Entity() : raw(INVALID_RAW) {}
+    explicit constexpr Entity(u32 r) : raw(r) {}
+    explicit constexpr operator u32() const { return raw; }
+
+    /** @brief Gets the 20-bit entity index */
+    constexpr u32 index() const { return raw & INDEX_MASK; }
+
+    /** @brief Gets the 12-bit generation number */
+    constexpr u32 generation() const { return (raw >> INDEX_BITS) & GEN_MASK; }
+
+    /** @brief Checks if this is not the invalid sentinel */
+    constexpr bool isValid() const { return raw != INVALID_RAW; }
+
+    /** @brief Creates an Entity from index and generation */
+    static constexpr Entity make(u32 idx, u32 gen) {
+        return Entity(((gen & GEN_MASK) << INDEX_BITS) | (idx & INDEX_MASK));
+    }
+
+    constexpr bool operator==(Entity other) const { return raw == other.raw; }
+    constexpr bool operator!=(Entity other) const { return raw != other.raw; }
+};
+
+static_assert(sizeof(Entity) == sizeof(u32), "Entity must be 4 bytes for FFI and dense array performance");
+
+/** @brief Invalid entity sentinel value */
+constexpr Entity INVALID_ENTITY{};
+
+/** @brief Sentinel for empty sparse set slots */
+constexpr u32 INVALID_DENSE_INDEX = std::numeric_limits<u32>::max();
 
 // =============================================================================
 // Type ID System
@@ -243,3 +280,14 @@ template<typename T>
 using ConstSpan = std::span<const T>;
 
 }  // namespace esengine
+
+// =============================================================================
+// std::hash specialization
+// =============================================================================
+
+template<>
+struct std::hash<esengine::Entity> {
+    std::size_t operator()(esengine::Entity e) const noexcept {
+        return std::hash<esengine::u32>{}(e.raw);
+    }
+};
