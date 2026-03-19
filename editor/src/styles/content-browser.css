@@ -47,6 +47,7 @@
     padding: 4px 8px;
     background: var(--es-bg-secondary);
     border-bottom: 1px solid var(--es-border);
+    flex-wrap: wrap;
 }
 
 .es-content-browser-toolbar .es-content-search {

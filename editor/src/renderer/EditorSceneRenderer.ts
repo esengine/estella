@@ -335,16 +335,37 @@ export class EditorSceneRenderer {
         }
     }
 
-    render(width: number, height: number): void {
+    tickAndRenderGameView(sceneW: number, sceneH: number): void {
+        if (!this.context_.initialized || !this.sceneManager_) return;
+
+        if (sceneW > 0 && sceneH > 0) {
+            this.sceneManager_.setViewportSize(sceneW, sceneH);
+        }
+
+        if (!this.context_.isPlayMode && this.app_) {
+            const canvasRect = this.sceneManager_.getCanvasRect();
+            const uiCamera = this.app_.getResource(UICameraInfo);
+            if (canvasRect) {
+                uiCamera.worldLeft = canvasRect.left;
+                uiCamera.worldBottom = canvasRect.bottom;
+                uiCamera.worldRight = canvasRect.right;
+                uiCamera.worldTop = canvasRect.top;
+                uiCamera.valid = true;
+            } else {
+                uiCamera.valid = false;
+            }
+        }
+
+        this.context_.runFrame();
+        this.syncDerivedTransforms();
+    }
+
+    renderSceneView(width: number, height: number): void {
         if (!this.pipeline_ || !this.sceneManager_ || !this.context_.initialized) return;
         if (width <= 0 || height <= 0) return;
         if (this.sceneManager_.isBusy) return;
 
-        this.sceneManager_.setViewportSize(width, height);
-
         const bg = this.findCanvasBackgroundColor();
-        Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
-
         const canvasRect = this.sceneManager_.getCanvasRect();
         if (canvasRect) {
             this.camera_.orthoHalfHeight = (canvasRect.top - canvasRect.bottom) / 2;
@@ -354,39 +375,10 @@ export class EditorSceneRenderer {
 
         const matrix = this.camera_.getViewProjection(width, height);
         const elapsed = this.context_.elapsed;
-
         const cppReg = this.sceneManager_.registry;
         const registry = { _cpp: cppReg };
 
         try {
-            if (this.app_) {
-                if (this.context_.isPlayMode) {
-                    const gameRenderer = this.context_.gameViewRenderer;
-                    if (gameRenderer && gameRenderer.visible) {
-                        gameRenderer.updateUICameraInfo(this.context_);
-                    }
-                } else {
-                    const uiCamera = this.app_.getResource(UICameraInfo);
-                    if (canvasRect) {
-                        uiCamera.worldLeft = canvasRect.left;
-                        uiCamera.worldBottom = canvasRect.bottom;
-                        uiCamera.worldRight = canvasRect.right;
-                        uiCamera.worldTop = canvasRect.top;
-                        uiCamera.valid = true;
-                    } else {
-                        uiCamera.valid = false;
-                    }
-                }
-
-                this.context_.tickApp();
-                this.syncDerivedTransforms();
-            }
-
-            const gameRenderer = this.context_.gameViewRenderer;
-            if (gameRenderer && gameRenderer.visible) {
-                gameRenderer.renderAndCapture(this.context_);
-            }
-
             const ppCamera = this.findFirstPPCamera();
             if (ppCamera >= 0) {
                 PostProcess._applyForCamera(ppCamera);
@@ -409,11 +401,16 @@ export class EditorSceneRenderer {
             }
         } catch (e) {
             if (e instanceof WebAssembly.RuntimeError) {
-                console.warn('[EditorSceneRenderer] WASM error during render:', (e as Error).message);
+                console.warn('[EditorSceneRenderer] WASM error during scene render:', (e as Error).message);
             } else {
                 throw e;
             }
         }
+    }
+
+    render(width: number, height: number): void {
+        this.tickAndRenderGameView(width, height);
+        this.renderSceneView(width, height);
     }
 
     renderGameCamera(width: number, height: number, vpMatrix: Float32Array): void {

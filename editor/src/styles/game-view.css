@@ -7,12 +7,15 @@
 .es-gameview-tools {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .es-gameview-toolbar {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
+    padding: 4px 8px;
 }
 
 .es-gameview-controls {

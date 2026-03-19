@@ -14,7 +14,6 @@ export class ScriptInjector {
         this.app_ = app;
 
         const ctx = getDefaultContext();
-        const pendingBefore = ctx.pendingSystems.length;
 
         (window as any).__esengine_shim__ = { esengine };
 
@@ -34,14 +33,11 @@ export class ScriptInjector {
             console.error('[ScriptInjector] Failed to load user scripts:', e);
         }
 
-        const pending = ctx.pendingSystems;
-        if (pending.length > pendingBefore) {
-            for (let i = pendingBefore; i < pending.length; i++) {
-                const entry = pending[i];
-                app.addSystemToSchedule(entry.schedule as any, entry.system as any);
-                this.injectedSystemIds_.push((entry.system as any)._id);
-            }
-            pending.length = 0;
+        const drained = ctx.drainPendingSystems();
+        for (const entry of drained) {
+            const templateId = (entry.system as any)._id;
+            app.addSystemToSchedule(entry.schedule as any, entry.system as any);
+            this.injectedSystemIds_.push(templateId);
         }
     }
 

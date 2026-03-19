@@ -405,7 +405,10 @@ export class SceneViewPanel {
         this.webglInitPending_ = true;
 
         const sharedCtx = getSharedRenderContext();
-        const success = sharedCtx.initialized || await sharedCtx.init(this.app_.wasmModule);
+        if (!sharedCtx.initialized) {
+            await new Promise<void>(resolve => sharedCtx.onceInitialized(resolve));
+        }
+        const success = sharedCtx.initialized;
 
         if (success) {
             this.sceneRenderer_ = new EditorSceneRenderer(sharedCtx);
@@ -591,30 +594,35 @@ export class SceneViewPanel {
     }
 
     private render(): void {
+        const sharedCtx = getSharedRenderContext();
+        sharedCtx.resetFrameTick();
+
         if (this.useWebGL_ && this.sceneRenderer_) {
             const w = this.sceneViewportW_;
             const h = this.sceneViewportH_;
-            if (w === 0 || h === 0) return;
 
-            this.sceneRenderer_.camera.panX = this.camera_.panX;
-            this.sceneRenderer_.camera.panY = this.camera_.panY;
-            this.sceneRenderer_.camera.zoom = this.camera_.zoom;
+            this.sceneRenderer_.tickAndRenderGameView(w, h);
 
-            this.sceneRenderer_.render(w, h);
-            this.camera_.orthoHalfHeight = this.sceneRenderer_.camera.orthoHalfHeight;
+            if (w > 0 && h > 0) {
+                this.sceneRenderer_.camera.panX = this.camera_.panX;
+                this.sceneRenderer_.camera.panY = this.camera_.panY;
+                this.sceneRenderer_.camera.zoom = this.camera_.zoom;
 
-            const sharedCtx = getSharedRenderContext();
-            const webglCanvas = sharedCtx.webglCanvas_;
-            if (this.displayCanvas_ && webglCanvas) {
-                const dCtx = this.displayCanvas_.getContext('2d');
-                if (dCtx) {
-                    const srcY = webglCanvas.height - h;
-                    dCtx.clearRect(0, 0, this.displayCanvas_.width, this.displayCanvas_.height);
-                    dCtx.drawImage(webglCanvas, 0, srcY, w, h, 0, 0, w, h);
+                this.sceneRenderer_.renderSceneView(w, h);
+                this.camera_.orthoHalfHeight = this.sceneRenderer_.camera.orthoHalfHeight;
+
+                const webglCanvas = sharedCtx.webglCanvas_;
+                if (this.displayCanvas_ && webglCanvas) {
+                    const dCtx = this.displayCanvas_.getContext('2d');
+                    if (dCtx) {
+                        const srcY = webglCanvas.height - h;
+                        dCtx.clearRect(0, 0, this.displayCanvas_.width, this.displayCanvas_.height);
+                        dCtx.drawImage(webglCanvas, 0, srcY, w, h, 0, 0, w, h);
+                    }
                 }
-            }
 
-            this.renderOverlay();
+                this.renderOverlay();
+            }
         } else if (this.bridge_) {
             const w = this.canvas_.width;
             const h = this.canvas_.height;
@@ -625,7 +633,7 @@ export class SceneViewPanel {
             this.renderPreview();
         }
 
-        getSharedRenderContext().firePostRenderCallback();
+        sharedCtx.firePostRenderCallback();
     }
 
     // =========================================================================
