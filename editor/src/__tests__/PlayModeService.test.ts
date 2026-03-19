@@ -32,6 +32,7 @@ const { mockSceneManager, mockApp, mockAssetServer, SceneManagerSymbol, mockDbEn
             getComponentTypes: vi.fn(() => []),
             onSpawn: vi.fn(() => () => {}),
             onDespawn: vi.fn(() => () => {}),
+            getWorldVersion: vi.fn(() => 0),
         },
         tick: vi.fn(),
         setPaused: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('../renderer/SharedRenderContext', () => ({
         },
         enterPlayMode: vi.fn(),
         exitPlayMode: vi.fn().mockResolvedValue(undefined),
+        onPostFrame: vi.fn(() => () => {}),
     })),
 }));
 
