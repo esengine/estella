@@ -1188,7 +1188,7 @@
 }
 
 .es-addr-group-item.es-selected {
-    background: rgba(209, 154, 102, 0.25);
+    background: var(--es-selection-bg);
     border-left-color: var(--es-accent-gold);
     color: var(--es-accent-gold);
 }

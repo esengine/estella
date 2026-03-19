@@ -785,14 +785,13 @@
     gap: 8px;
     border-radius: 4px;
     margin: 1px 8px;
-    border-left: 2px solid transparent;
-    transition: background 100ms, border-color 100ms;
+    transition: background 100ms, box-shadow 100ms;
 }
 
 .es-component-item:hover,
 .es-component-item.es-highlighted {
-    background: var(--es-bg-hover);
-    border-left-color: var(--es-accent);
+    background: var(--es-selection-bg);
+    box-shadow: inset 3px 0 0 var(--es-accent-gold);
 }
 
 .es-component-icon {
@@ -806,11 +805,11 @@
 
 .es-component-item:hover .es-component-icon svg,
 .es-component-item.es-highlighted .es-component-icon svg {
-    stroke: var(--es-accent);
+    stroke: var(--es-accent-gold);
 }
 
 .es-component-item mark {
-    background: var(--es-accent);
+    background: var(--es-accent-gold);
     color: var(--es-bg-primary);
     border-radius: 2px;
     padding: 0 1px;
