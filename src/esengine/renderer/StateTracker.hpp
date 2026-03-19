@@ -2,6 +2,7 @@
 
 #include "../core/Types.hpp"
 #include "BlendMode.hpp"
+#include "GfxDevice.hpp"
 
 #include <array>
 
@@ -9,6 +10,8 @@ namespace esengine {
 
 class StateTracker {
 public:
+    explicit StateTracker(GfxDevice& device);
+
     void init();
     void reset();
 
@@ -36,9 +39,14 @@ public:
     void setCulling(bool enabled);
     void setCullFace(bool front);
 
+    /** @brief Gets the underlying graphics device */
+    GfxDevice& device() { return device_; }
+
     static constexpr u32 MAX_TEXTURE_SLOTS = 16;
 
 private:
+    GfxDevice& device_;
+
     BlendMode blend_mode_ = BlendMode::Normal;
     bool blend_enabled_ = true;
 

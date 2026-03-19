@@ -13,6 +13,8 @@
 #include "../core/Log.hpp"
 #include "../platform/FileSystem.hpp"
 #include "../ecs/components/Canvas.hpp"
+#include "../renderer/GLDevice.hpp"
+#include "../renderer/RenderCommand.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -24,24 +26,18 @@
 
 namespace esengine {
 
-App* App::instance_ = nullptr;
-
 // =============================================================================
 // Constructor / Destructor
 // =============================================================================
 
 App::App() : App(AppConfig{}) {}
 
-App::App(const AppConfig& config) : config_(config) {
-    ES_ASSERT(instance_ == nullptr, "Only one App instance allowed");
-    instance_ = this;
-}
+App::App(const AppConfig& config) : config_(config) {}
 
 App::~App() {
     if (initialized_) {
         shutdown();
     }
-    instance_ = nullptr;
 }
 
 // =============================================================================
@@ -58,8 +54,10 @@ App& App::addPlugin(Unique<Plugin> plugin) {
     return *this;
 }
 
-App& App::addSystem(Schedule schedule, SystemFn system) {
-    systems_[static_cast<usize>(schedule)].push_back(std::move(system));
+App& App::addSystem(Schedule schedule, SystemFn system, i32 priority) {
+    auto lambdaSys = makeUnique<LambdaSystem>(std::move(system));
+    lambdaSys->setPriority(priority);
+    system_groups_[static_cast<usize>(schedule)].addSystem(std::move(lambdaSys));
     return *this;
 }
 
@@ -110,20 +108,29 @@ void App::init() {
 
     resourceManager_.init();
 
+    gfxDevice_ = makeUnique<GLDevice>();
+    RenderCommand::setDevice(gfxDevice_.get());
+
     renderContext_ = makeUnique<RenderContext>();
     renderContext_->init();
 
     renderer_ = makeUnique<Renderer>(*renderContext_);
     renderer_->setViewport(0, 0, config_.width, config_.height);
 
+    services_.registerService<Platform>(platform_.get());
     services_.registerService<ecs::Registry>(&registry_);
     services_.registerService<resource::ResourceManager>(&resourceManager_);
     services_.registerService<Input>(&input_);
+    services_.registerService<GfxDevice>(gfxDevice_.get());
     services_.registerService<RenderContext>(renderContext_.get());
     services_.registerService<Renderer>(renderer_.get());
 
     for (auto& plugin : plugins_) {
         plugin->build(*this);
+    }
+
+    for (auto& group : system_groups_) {
+        group.init(registry_);
     }
 
     initialized_ = true;
@@ -135,10 +142,17 @@ void App::shutdown() {
 
     ES_LOG_INFO("App shutting down...");
 
+    for (auto& group : system_groups_) {
+        group.shutdown(registry_);
+    }
+
     renderer_.reset();
 
     renderContext_->shutdown();
     renderContext_.reset();
+
+    RenderCommand::setDevice(nullptr);
+    gfxDevice_.reset();
 
     resourceManager_.shutdown();
 
@@ -184,10 +198,9 @@ void App::quit() {
 }
 
 void App::runFrame() {
-    static f64 lastTime = 0.0;
     f64 currentTime = platform_->getTime();
-    f32 dt = static_cast<f32>(currentTime - lastTime);
-    lastTime = currentTime;
+    f32 dt = static_cast<f32>(currentTime - last_frame_time_);
+    last_frame_time_ = currentTime;
 
     if (dt > 0.1f) dt = 0.1f;
 
@@ -241,10 +254,8 @@ void App::runFrame() {
 }
 
 void App::runSystems(Schedule schedule) {
-    auto& systems = systems_[static_cast<usize>(schedule)];
-    for (auto& system : systems) {
-        system(registry_, time_.delta);
-    }
+    World world{registry_, services_, time_.delta};
+    system_groups_[static_cast<usize>(schedule)].update(world);
 }
 
 #ifdef ES_PLATFORM_WEB

@@ -12,11 +12,14 @@
 
 #include "Schedule.hpp"
 #include "../core/Types.hpp"
+#include "../core/World.hpp"
 #include "../core/ServiceRegistry.hpp"
 #include "../ecs/Registry.hpp"
+#include "../ecs/System.hpp"
 #include "../platform/Platform.hpp"
 #include "../platform/input/Input.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../renderer/GfxDevice.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/Renderer.hpp"
 
@@ -37,7 +40,7 @@ class Plugin;
 // Type Aliases
 // =============================================================================
 
-using SystemFn = std::function<void(ecs::Registry&, f32)>;
+using SystemFn = std::function<void(World&)>;
 
 // =============================================================================
 // App Configuration
@@ -95,7 +98,7 @@ public:
         return addPlugin(makeUnique<T>(std::forward<Args>(args)...));
     }
 
-    App& addSystem(Schedule schedule, SystemFn system);
+    App& addSystem(Schedule schedule, SystemFn system, i32 priority = 0);
     App& addStartupSystem(SystemFn system);
 
     // =========================================================================
@@ -109,21 +112,19 @@ public:
     // Accessors
     // =========================================================================
 
-    ecs::Registry& registry() { return registry_; }
-    const ecs::Registry& registry() const { return registry_; }
-
-    resource::ResourceManager& resources() { return resourceManager_; }
-    Input& input() { return input_; }
-    const Time& time() const { return time_; }
-    Renderer& renderer() { return *renderer_; }
-    RenderContext& renderContext() { return *renderContext_; }
+    /**
+     * @brief Convenience accessor via ServiceRegistry
+     * @tparam T The service type
+     * @return Reference to the service
+     */
+    template<typename T>
+    T& require() { return services_.require<T>(); }
 
     ServiceRegistry& services() { return services_; }
+    const Time& time() const { return time_; }
 
     u32 width() const { return config_.width; }
     u32 height() const { return config_.height; }
-
-    static App& get() { return *instance_; }
 
     // =========================================================================
     // JS Interop
@@ -142,6 +143,15 @@ private:
 
     void runSystems(Schedule schedule);
 
+    /** @brief Wraps a SystemFn lambda as a System for unified scheduling */
+    class LambdaSystem : public ecs::System {
+    public:
+        explicit LambdaSystem(SystemFn fn) : fn_(std::move(fn)) {}
+        void update(World& world) override { fn_(world); }
+    private:
+        SystemFn fn_;
+    };
+
     AppConfig config_;
     ServiceRegistry services_;
 
@@ -149,19 +159,19 @@ private:
     Input input_;
     ecs::Registry registry_;
     resource::ResourceManager resourceManager_;
+    Unique<GfxDevice> gfxDevice_;
     Unique<RenderContext> renderContext_;
     Unique<Renderer> renderer_;
 
     Time time_;
 
     std::vector<Unique<Plugin>> plugins_;
-    std::vector<SystemFn> systems_[SCHEDULE_COUNT];
+    ecs::SystemGroup system_groups_[SCHEDULE_COUNT];
 
     bool running_ = false;
     bool initialized_ = false;
     bool startupRan_ = false;
-
-    static App* instance_;
+    f64 last_frame_time_ = 0.0;
 };
 
 }  // namespace esengine

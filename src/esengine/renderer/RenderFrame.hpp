@@ -9,6 +9,7 @@
 #include "PostProcessPipeline.hpp"
 #endif
 #include "FrameCapture.hpp"
+#include "GfxDevice.hpp"
 #include "StateTracker.hpp"
 #include "TransientBufferPool.hpp"
 #include "DrawList.hpp"
@@ -51,7 +52,7 @@ public:
         u32 culled = 0;
     };
 
-    RenderFrame(RenderContext& context, resource::ResourceManager& resource_manager);
+    RenderFrame(GfxDevice& device, RenderContext& context, resource::ResourceManager& resource_manager);
     ~RenderFrame();
 
     RenderFrame(const RenderFrame&) = delete;
@@ -120,6 +121,7 @@ public:
     static constexpr u32 STAGE_COUNT = 4;
 
 private:
+    GfxDevice& device_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
     StateTracker state_tracker_;

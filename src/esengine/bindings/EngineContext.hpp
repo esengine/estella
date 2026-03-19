@@ -27,6 +27,7 @@
 
 namespace esengine {
 
+class GfxDevice;
 class RenderContext;
 class RenderFrame;
 class ImmediateDraw;
@@ -73,6 +74,7 @@ public:
     // Subsystem Accessors
     // =========================================================================
 
+    GfxDevice* gfxDevice() { return services_.getService<GfxDevice>(); }
     RenderContext* renderContext() { return services_.getService<RenderContext>(); }
     RenderFrame* renderFrame() { return services_.getService<RenderFrame>(); }
     ImmediateDraw* immediateDraw() { return services_.getService<ImmediateDraw>(); }

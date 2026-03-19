@@ -1,16 +1,7 @@
 #include "DrawList.hpp"
+#include "OpenGLHeaders.hpp"
 
 #include <glm/glm.hpp>
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
-
 #include <algorithm>
 
 namespace esengine {
@@ -67,7 +58,7 @@ void DrawList::finalize() {
     merged_draw_calls_ = writeIdx;
 }
 
-void DrawList::execute(StateTracker& state, TransientBufferPool& buffers,
+void DrawList::execute(GfxDevice& device, StateTracker& state, TransientBufferPool& buffers,
                        const glm::mat4& viewProjection,
                        FrameCapture* capture,
                        const CustomDrawFn& customDraw) {
@@ -77,9 +68,9 @@ void DrawList::execute(StateTracker& state, TransientBufferPool& buffers,
 
         if (cmd.shader_id != lastShader) {
             state.useProgram(cmd.shader_id);
-            GLint loc = glGetUniformLocation(cmd.shader_id, "u_projection");
+            i32 loc = device.getUniformLocation(cmd.shader_id, "u_projection");
             if (loc >= 0) {
-                glUniformMatrix4fv(loc, 1, GL_FALSE, &viewProjection[0][0]);
+                device.setUniformMat4(loc, &viewProjection[0][0]);
             }
             lastShader = cmd.shader_id;
         }
@@ -111,11 +102,10 @@ void DrawList::execute(StateTracker& state, TransientBufferPool& buffers,
         } else {
             buffers.bindLayout(cmd.layout_id);
 
-            glDrawElements(GL_TRIANGLES,
-                           static_cast<GLsizei>(cmd.index_count),
-                           GL_UNSIGNED_SHORT,
-                           reinterpret_cast<void*>(
-                               static_cast<uintptr_t>(cmd.index_offset) * sizeof(u16)));
+            device.drawElements(
+                cmd.index_count,
+                GL_UNSIGNED_SHORT,
+                static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u16)));
         }
 
         if (capture && capture->isCapturing()) {

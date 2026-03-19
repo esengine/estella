@@ -30,6 +30,8 @@
 #include "../ecs/UIFlexLayoutSystem.hpp"
 
 #include "../renderer/OpenGLHeaders.hpp"
+#include "../renderer/GLDevice.hpp"
+#include "../renderer/RenderCommand.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
@@ -203,6 +205,10 @@ static void initSubsystems() {
     resourceManager->init();
     svc.registerOwned<resource::ResourceManager>(std::move(resourceManager));
 
+    auto gfxDevice = makeUnique<GLDevice>();
+    RenderCommand::setDevice(gfxDevice.get());
+    svc.registerOwned<GfxDevice>(std::move(gfxDevice));
+
     auto renderContext = makeUnique<RenderContext>();
     renderContext->init();
     svc.registerOwned<RenderContext>(std::move(renderContext));
@@ -229,7 +235,7 @@ static void initSubsystems() {
 
     svc.registerOwned<GeometryManager>(makeUnique<GeometryManager>());
 
-    auto renderFrame = makeUnique<RenderFrame>(*g_renderContext, *g_resourceManager);
+    auto renderFrame = makeUnique<RenderFrame>(*ctx().gfxDevice(), *g_renderContext, *g_resourceManager);
 
     renderFrame->addPlugin(std::make_unique<SpritePlugin>());
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
@@ -262,8 +268,9 @@ static void initSubsystems() {
     ctx().setInitialized(true);
 
     const auto& cc = ctx().clearColor();
-    glClearColor(cc.r, cc.g, cc.b, cc.a);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    auto* dev = ctx().gfxDevice();
+    dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
+    dev->clear(true, true, false);
 }
 
 bool initRendererInternal(const char* canvasSelector) {

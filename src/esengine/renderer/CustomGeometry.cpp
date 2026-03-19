@@ -12,6 +12,7 @@
 #include "CustomGeometry.hpp"
 
 #include "OpenGLHeaders.hpp"
+#include "RenderCommand.hpp"
 #include "../core/Log.hpp"
 
 namespace esengine {
@@ -90,14 +91,15 @@ void CustomGeometry::bind() const {
                 glType = GL_FLOAT;
                 break;
             }
-            glEnableVertexAttribArray(index);
-            glVertexAttribPointer(
+            auto* device = RenderCommand::getDevice();
+            device->enableVertexAttrib(index);
+            device->vertexAttribPointer(
                 index,
-                static_cast<GLint>(shaderDataTypeComponentCount(attr.type)),
+                static_cast<i32>(shaderDataTypeComponentCount(attr.type)),
                 glType,
-                attr.normalized ? GL_TRUE : GL_FALSE,
-                static_cast<GLsizei>(layout.getStride()),
-                reinterpret_cast<const void*>(static_cast<uintptr_t>(attr.offset))
+                attr.normalized,
+                static_cast<i32>(layout.getStride()),
+                attr.offset
             );
             ++index;
         }
