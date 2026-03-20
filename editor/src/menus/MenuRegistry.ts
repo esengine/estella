@@ -18,6 +18,7 @@ export interface MenuItemDescriptor {
     enabled?: () => boolean;
     action: () => void;
     hidden?: boolean;
+    submenu?: string;
 }
 
 export interface StatusbarItemDescriptor {

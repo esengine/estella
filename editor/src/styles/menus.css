@@ -131,6 +131,39 @@
     background: var(--es-border);
 }
 
+.es-menu-submenu-container {
+    position: relative;
+}
+
+.es-menu-submenu-arrow {
+    margin-left: 12px;
+    font-size: 10px;
+    color: var(--es-text-secondary);
+    flex-shrink: 0;
+}
+
+.es-menu-submenu-trigger:hover .es-menu-submenu-arrow {
+    color: hsla(0, 0%, 100%, 0.8);
+}
+
+.es-menu-submenu-dropdown {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    min-width: 200px;
+    background: var(--es-bg-elevated);
+    border: 1px solid var(--es-border);
+    border-radius: var(--es-radius-md);
+    box-shadow: var(--es-shadow-md);
+    z-index: 1001;
+    padding: 4px 0;
+}
+
+.es-menu-submenu-container:hover > .es-menu-submenu-dropdown {
+    display: block;
+}
+
 .es-editor-menubar .es-btn-preview {
     display: flex;
     align-items: center;

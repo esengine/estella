@@ -162,76 +162,89 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
     });
 
     registerMenuItem({
+        id: 'view.panels', menu: 'view', label: 'Panels', order: 0,
+        action: () => {},
+    });
+    registerMenuItem({
         id: 'view.hierarchy', menu: 'view', label: 'Hierarchy', order: 0,
-        shortcut: 'Ctrl+Shift+H',
+        shortcut: 'Ctrl+Shift+H', submenu: 'view.panels',
         action: () => getNavigationService().togglePanel('hierarchy'),
     });
     registerMenuItem({
         id: 'view.inspector', menu: 'view', label: 'Inspector', order: 1,
-        shortcut: 'Ctrl+Shift+I',
+        shortcut: 'Ctrl+Shift+I', submenu: 'view.panels',
         action: () => getNavigationService().togglePanel('inspector'),
     });
     registerMenuItem({
-        id: 'view.toggle-bottom', menu: 'view', label: 'Toggle Bottom Panel',
-        shortcut: 'Ctrl+J', order: 1.5,
-        action: () => getNavigationService().toggleRegion('bottom'),
-    });
-    registerMenuItem({
         id: 'view.content-browser', menu: 'view', label: 'Content Browser',
-        shortcut: 'Ctrl+Space', order: 2,
+        shortcut: 'Ctrl+Space', order: 2, submenu: 'view.panels',
         action: () => getNavigationService().togglePanel('content-browser'),
     });
     registerMenuItem({
         id: 'view.output', menu: 'view', label: 'Output', order: 3,
+        submenu: 'view.panels',
         action: () => getNavigationService().togglePanel('output'),
     });
     registerMenuItem({
         id: 'view.game', menu: 'view', label: 'Game', order: 4,
+        submenu: 'view.panels',
         action: () => getNavigationService().showPanel('game'),
     });
     registerMenuItem({
-        id: 'view.profiler', menu: 'view', label: 'Profiler',
-        order: 5, separator: true,
-        action: () => getProfilerService()?.showProfilerWindow(),
-    });
-    registerMenuItem({
-        id: 'view.timeline', menu: 'view', label: 'Timeline',
-        order: 5.5,
+        id: 'view.timeline', menu: 'view', label: 'Timeline', order: 5,
+        submenu: 'view.panels',
         action: () => getNavigationService().togglePanel('timeline'),
     });
     registerMenuItem({
-        id: 'view.frame-debugger', menu: 'view', label: 'Frame Debugger',
-        order: 5.6,
-        action: () => getFrameDebuggerService()?.showFrameDebuggerWindow(),
-    });
-    registerMenuItem({
-        id: 'view.extensions', menu: 'view', label: 'Extensions',
-        order: 5.7,
-        action: () => getNavigationService().togglePanel('extensions'),
-    });
-    registerMenuItem({
         id: 'view.state-machine-graph', menu: 'view', label: 'State Machine',
-        order: 5.8,
+        order: 6, submenu: 'view.panels',
         action: () => getNavigationService().togglePanel('state-machine-graph'),
     });
     registerMenuItem({
+        id: 'view.extensions', menu: 'view', label: 'Extensions', order: 7,
+        submenu: 'view.panels',
+        action: () => getNavigationService().togglePanel('extensions'),
+    });
+    registerMenuItem({
         id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
-        order: 6,
+        order: 8, submenu: 'view.panels',
         action: () => showAddressableWindow(),
+    });
+
+    registerMenuItem({
+        id: 'view.layout', menu: 'view', label: 'Layout', order: 1,
+        action: () => {},
+    });
+    registerMenuItem({
+        id: 'view.toggle-bottom', menu: 'view', label: 'Toggle Bottom Panel',
+        shortcut: 'Ctrl+J', order: 0, submenu: 'view.layout',
+        action: () => getNavigationService().toggleRegion('bottom'),
     });
     registerMenuItem({
         id: 'view.toggle-sidebars', menu: 'view', label: 'Toggle Sidebars',
-        shortcut: 'Ctrl+\\', order: 5.9, separator: true,
+        shortcut: 'Ctrl+\\', order: 1, submenu: 'view.layout',
         action: () => getNavigationService().toggleAllSidebars(),
     });
     registerMenuItem({
         id: 'view.reset-layout', menu: 'view', label: 'Reset Layout',
-        order: 6,
+        order: 2, submenu: 'view.layout',
         action: () => getNavigationService().resetLayout(),
     });
+
+    registerMenuItem({
+        id: 'view.profiler', menu: 'view', label: 'Profiler',
+        order: 10, separator: true,
+        action: () => getProfilerService()?.showProfilerWindow(),
+    });
+    registerMenuItem({
+        id: 'view.frame-debugger', menu: 'view', label: 'Frame Debugger',
+        order: 11,
+        action: () => getFrameDebuggerService()?.showFrameDebuggerWindow(),
+    });
+
     registerMenuItem({
         id: 'view.reload-extensions', menu: 'view', label: 'Reload Extensions',
-        order: 10, separator: true,
+        order: 20, separator: true,
         action: async () => {
             const confirmed = await showConfirmDialog({
                 title: 'Reload Extensions',
@@ -243,12 +256,12 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
     });
     registerMenuItem({
         id: 'view.reload', menu: 'view', label: 'Reload',
-        shortcut: 'Ctrl+R', order: 20, separator: true,
+        shortcut: 'Ctrl+R', order: 21,
         action: () => window.location.reload(),
     });
     registerMenuItem({
         id: 'view.devtools', menu: 'view', label: 'Developer Tools',
-        shortcut: 'F12', order: 21,
+        shortcut: 'F12', order: 22,
         action: () => {
             const ctx = getEditorContext();
             ctx.invoke?.('toggle_devtools');
