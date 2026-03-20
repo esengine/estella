@@ -1,4 +1,6 @@
 import { showBuildSettingsDialog, BuildService } from '../builder';
+import { getBuildConfigService } from '../builder/BuildConfigService';
+import { showStatusBarMessage } from '../menus/builtinStatusbar';
 import { showSettingsDialog, ProjectSettingsSync } from '../settings';
 import { getEditorContext } from '../context/EditorContext';
 import { getAssetLibrary } from '../asset/AssetLibrary';
@@ -71,6 +73,34 @@ export class ProjectService {
             },
             onClose: () => {},
         });
+    }
+
+    async quickBuild(): Promise<void> {
+        if (!this.projectPath_) {
+            showStatusBarMessage('No project open');
+            return;
+        }
+
+        const configService = getBuildConfigService();
+        const config = configService.getActiveConfig();
+        if (!config) {
+            showStatusBarMessage('No build config — opening Build Settings');
+            this.showBuildSettings();
+            return;
+        }
+
+        showStatusBarMessage(`Building "${config.name}"...`);
+        const buildService = new BuildService(this.projectPath_);
+        try {
+            const result = await buildService.build(config);
+            if (result.success) {
+                showStatusBarMessage(`Build "${config.name}" succeeded`, 3000);
+            } else {
+                showStatusBarMessage(`Build "${config.name}" failed: ${result.error ?? 'unknown error'}`, 5000);
+            }
+        } catch (e) {
+            showStatusBarMessage(`Build error: ${e}`, 5000);
+        }
     }
 
     showSettings(): void {

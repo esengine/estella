@@ -55,8 +55,13 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
         action: () => getPreviewService().startPreview(),
     });
     registerMenuItem({
+        id: 'file.quick-build', menu: 'file', label: 'Build',
+        shortcut: 'Ctrl+B', order: 5, separator: true,
+        action: () => getProjectService().quickBuild(),
+    });
+    registerMenuItem({
         id: 'file.build-settings', menu: 'file', label: 'Build Settings...',
-        shortcut: 'Ctrl+Shift+B', order: 6, separator: true,
+        shortcut: 'Ctrl+Shift+B', order: 6,
         action: () => getProjectService().showBuildSettings(),
     });
 
