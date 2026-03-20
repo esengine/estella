@@ -12,7 +12,7 @@
 
 namespace esengine {
 
-static animation::TimelineSystem* tlSys() { return EngineContext::instance().timelineSystem(); }
+static animation::TimelineSystem* tlSys() { return EngineContext::instance().tryGet<animation::TimelineSystem>(); }
 
 // ---------------------------------------------------------------------------
 // Create / Destroy

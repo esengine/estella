@@ -1,40 +1,21 @@
-/**
- * @file    EngineContext.cpp
- * @brief   Implementation of centralized engine context
- *
- * @author  ESEngine Team
- * @date    2026
- *
- * @copyright Copyright (c) 2026 ESEngine Team
- *            Licensed under the MIT License.
- */
-
 #ifdef ES_PLATFORM_WEB
 
 #include "EngineContext.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
-#include "../renderer/CustomGeometry.hpp"
-#ifdef ES_ENABLE_POSTPROCESS
-#include "../renderer/PostProcessPipeline.hpp"
-#endif
 #include "../resource/ResourceManager.hpp"
-#include "../ecs/TransformSystem.hpp"
-#include "../animation/TweenSystem.hpp"
-#ifdef ES_ENABLE_TIMELINE
-#include "../animation/TimelineSystem.hpp"
-#endif
-#ifdef ES_ENABLE_PARTICLES
-#include "../particle/ParticleSystem.hpp"
-#endif
 #ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
-#include "../spine/SpineSystem.hpp"
 #endif
 #include <emscripten/html5.h>
 
 namespace esengine {
+
+EngineContext::EngineContext() {
+    services_.registerOwned<EngineState>(makeUnique<EngineState>());
+    state_ = services_.getService<EngineState>();
+}
 
 EngineContext& EngineContext::instance() {
     static EngineContext ctx;
@@ -42,39 +23,41 @@ EngineContext& EngineContext::instance() {
 }
 
 void EngineContext::shutdown() {
-    if (!initialized_) return;
+    if (!state_->initialized) return;
 
-    if (auto* rf = renderFrame()) {
+    if (auto* rf = tryGet<RenderFrame>()) {
         rf->shutdown();
     }
 
-    if (auto* id = immediateDraw()) {
+    if (auto* id = tryGet<ImmediateDraw>()) {
         id->shutdown();
     }
 
 #ifdef ES_ENABLE_SPINE
-    if (auto* srm = spineResourceManager()) {
+    if (auto* srm = tryGet<spine::SpineResourceManager>()) {
         srm->shutdown();
     }
 #endif
 
-    if (auto* rc = renderContext()) {
+    if (auto* rc = tryGet<RenderContext>()) {
         rc->shutdown();
     }
 
-    if (auto* rm = resourceManager()) {
+    if (auto* rm = tryGet<resource::ResourceManager>()) {
         rm->shutdown();
     }
 
+    auto webglCtx = state_->webgl_context;
+
+    services_.removeService<EngineState>();
     services_.clear();
 
-    if (webglContext_ > 0) {
-        emscripten_webgl_destroy_context(webglContext_);
-        webglContext_ = 0;
+    if (webglCtx > 0) {
+        emscripten_webgl_destroy_context(webglCtx);
     }
 
-    materialCache_.clear();
-    initialized_ = false;
+    services_.registerOwned<EngineState>(makeUnique<EngineState>());
+    state_ = services_.getService<EngineState>();
 }
 
 }  // namespace esengine
