@@ -267,8 +267,10 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'layer', type: 'i32', offset: 52 },
             { name: 'flipX', type: 'bool', offset: 56 },
             { name: 'flipY', type: 'bool', offset: 57 },
-            { name: 'material', type: 'u32', offset: 60 },
-            { name: 'enabled', type: 'bool', offset: 64 },
+            { name: 'tileSize', type: 'vec2', offset: 60 },
+            { name: 'tileSpacing', type: 'vec2', offset: 68 },
+            { name: 'material', type: 'u32', offset: 76 },
+            { name: 'enabled', type: 'bool', offset: 80 },
         ],
     },
     UIMask: {

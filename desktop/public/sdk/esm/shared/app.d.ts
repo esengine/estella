@@ -1,4 +1,4 @@
-import { T as TextureHandle, F as FontHandle, b as CppResourceManager, a as ESEngineModule, V as Vec2, E as Entity, C as CppRegistry, c as Vec3, d as Vec4, e as Color, Q as Quat } from './wasm.js';
+import { b as CppResourceManager, T as TextureHandle, F as FontHandle, a as ESEngineModule, V as Vec2, E as Entity, C as CppRegistry, c as Color, d as Vec3, Q as Quat, e as Vec4 } from './wasm.js';
 
 interface Backend {
     fetchBinary(path: string): Promise<ArrayBuffer>;
@@ -66,6 +66,10 @@ interface TextureResult {
 }
 interface SpineResult {
     skeletonHandle: number;
+}
+interface SpineLoadResult {
+    success: boolean;
+    error?: string;
 }
 interface MaterialResult {
     handle: number;
@@ -355,7 +359,7 @@ interface AssetsOptions {
     catalog?: Catalog;
     module: ESEngineModule;
 }
-interface AssetBundle$1 {
+interface AssetBundle {
     textures: Map<string, TextureResult>;
     materials: Map<string, MaterialResult>;
     spine: Map<string, SpineResult>;
@@ -400,7 +404,7 @@ declare class Assets {
     loadPrefab(ref: string): Promise<PrefabResult>;
     load<T>(type: string, ref: string): Promise<T>;
     getAtlasFrame(ref: string): AtlasFrameInfo | null;
-    loadByLabel(label: string): Promise<AssetBundle$1>;
+    loadByLabel(label: string): Promise<AssetBundle>;
     fetchJson<T = unknown>(ref: string): Promise<T>;
     fetchBinary(ref: string): Promise<ArrayBuffer>;
     fetchText(ref: string): Promise<string>;
@@ -434,7 +438,29 @@ interface PtrFieldDesc {
     readonly offset: number;
 }
 declare function readPtrField(f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, field: PtrFieldDesc): unknown;
-declare function writePtrField(f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, field: PtrFieldDesc, value: any): void;
+interface XY {
+    x: number;
+    y: number;
+}
+interface XYZ {
+    x: number;
+    y: number;
+    z: number;
+}
+interface XYZW {
+    x: number;
+    y: number;
+    z: number;
+    w: number;
+}
+interface RGBA {
+    r: number;
+    g: number;
+    b: number;
+    a: number;
+}
+type PtrFieldValue = number | boolean | XY | XYZ | XYZW | RGBA;
+declare function writePtrField(f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, field: PtrFieldDesc, value: PtrFieldValue | unknown): void;
 interface BuiltinMethods {
     add: (e: Entity, d: unknown) => void;
     get: (e: Entity) => unknown;
@@ -579,466 +605,6 @@ declare class World {
     markChanged(entity: Entity, component: AnyComponentDef): void;
 }
 
-/**
- * @file    blend.ts
- * @brief   Blend mode definitions for rendering
- */
-declare enum BlendMode {
-    Normal = 0,
-    Additive = 1,
-    Multiply = 2,
-    Screen = 3,
-    PremultipliedAlpha = 4
-}
-
-/**
- * @file    material.ts
- * @brief   Material and Shader API for custom rendering
- * @details Provides shader creation and material management for custom visual effects.
- */
-
-type ShaderHandle = number;
-type MaterialHandle = number;
-interface TextureRef {
-    __textureRef: true;
-    textureId: number;
-    slot?: number;
-}
-type UniformValue = number | Vec2 | Vec3 | Vec4 | number[] | TextureRef;
-declare function isTextureRef(v: UniformValue): v is TextureRef;
-interface MaterialOptions {
-    shader: ShaderHandle;
-    uniforms?: Record<string, UniformValue>;
-    blendMode?: BlendMode;
-    depthTest?: boolean;
-}
-interface MaterialAssetData {
-    version: string;
-    type: 'material';
-    shader: string;
-    blendMode: number;
-    depthTest: boolean;
-    properties: Record<string, unknown>;
-}
-interface MaterialData {
-    shader: ShaderHandle;
-    uniforms: Map<string, UniformValue>;
-    blendMode: BlendMode;
-    depthTest: boolean;
-    dirty_: boolean;
-    cachedBuffer_: Float32Array | null;
-    cachedIdx_: number;
-}
-declare function initMaterialAPI(wasmModule: ESEngineModule): void;
-declare function shutdownMaterialAPI(): void;
-declare const Material: {
-    /**
-     * Creates a shader from vertex and fragment source code.
-     * @param vertexSrc GLSL vertex shader source
-     * @param fragmentSrc GLSL fragment shader source
-     * @returns Shader handle, or 0 on failure
-     */
-    createShader(vertexSrc: string, fragmentSrc: string): ShaderHandle;
-    /**
-     * Releases a shader.
-     * @param shader Shader handle to release
-     */
-    releaseShader(shader: ShaderHandle): void;
-    /**
-     * Creates a material with a shader and optional settings.
-     * @param options Material creation options
-     * @returns Material handle
-     */
-    create(options: MaterialOptions): MaterialHandle;
-    /**
-     * Gets material data by handle.
-     * @param material Material handle
-     * @returns Material data or undefined
-     */
-    get(material: MaterialHandle): MaterialData | undefined;
-    /**
-     * Sets a uniform value on a material.
-     * @param material Material handle
-     * @param name Uniform name
-     * @param value Uniform value
-     */
-    setUniform(material: MaterialHandle, name: string, value: UniformValue): void;
-    /**
-     * Gets a uniform value from a material.
-     * @param material Material handle
-     * @param name Uniform name
-     * @returns Uniform value or undefined
-     */
-    getUniform(material: MaterialHandle, name: string): UniformValue | undefined;
-    /**
-     * Sets the blend mode for a material.
-     * @param material Material handle
-     * @param mode Blend mode
-     */
-    setBlendMode(material: MaterialHandle, mode: BlendMode): void;
-    /**
-     * Gets the blend mode of a material.
-     * @param material Material handle
-     * @returns Blend mode
-     */
-    getBlendMode(material: MaterialHandle): BlendMode;
-    /**
-     * Sets depth test enabled for a material.
-     * @param material Material handle
-     * @param enabled Whether depth test is enabled
-     */
-    setDepthTest(material: MaterialHandle, enabled: boolean): void;
-    /**
-     * Gets the shader handle for a material.
-     * @param material Material handle
-     * @returns Shader handle
-     */
-    getShader(material: MaterialHandle): ShaderHandle;
-    /**
-     * Releases a material (does not release the shader).
-     * @param material Material handle
-     */
-    release(material: MaterialHandle): void;
-    /**
-     * Checks if a material exists.
-     * @param material Material handle
-     * @returns True if material exists
-     */
-    isValid(material: MaterialHandle): boolean;
-    releaseAll(): void;
-    /**
-     * Creates a material from asset data.
-     * @param data Material asset data (properties object)
-     * @param shaderHandle Pre-loaded shader handle
-     * @returns Material handle
-     */
-    createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle): MaterialHandle;
-    /**
-     * Creates a material instance that shares the shader with source.
-     * @param source Source material handle
-     * @returns New material handle with copied settings
-     */
-    createInstance(source: MaterialHandle): MaterialHandle;
-    /**
-     * Exports material to serializable asset data.
-     * @param material Material handle
-     * @param shaderPath Shader file path for asset reference
-     * @returns Material asset data
-     */
-    toAssetData(material: MaterialHandle, shaderPath: string): MaterialAssetData | null;
-    /**
-     * Gets all uniforms from a material.
-     * @param material Material handle
-     * @returns Map of uniform names to values
-     */
-    getUniforms(material: MaterialHandle): Map<string, UniformValue>;
-    tex(textureId: number, slot?: number): TextureRef;
-};
-declare function registerMaterialCallback(): void;
-/**
- * Built-in ES 3.0 shader sources for SDK custom materials.
- * These use the batch renderer vertex layout (vec3 position + vec4 color + vec2 texCoord)
- * and are NOT duplicates of the .esshader files (which are ES 1.0 with different layouts).
- */
-declare const ShaderSources: {
-    SPRITE_VERTEX: string;
-    SPRITE_FRAGMENT: string;
-    COLOR_VERTEX: string;
-    COLOR_FRAGMENT: string;
-};
-
-/**
- * @file    MaterialLoader.ts
- * @brief   Material asset loading and caching
- */
-
-interface LoadedMaterial {
-    handle: MaterialHandle;
-    shaderHandle: ShaderHandle;
-    path: string;
-}
-interface ShaderLoader {
-    load(path: string): Promise<ShaderHandle>;
-    get(path: string): ShaderHandle | undefined;
-}
-declare class MaterialLoader {
-    private cache_;
-    private shaderLoader_;
-    private basePath_;
-    constructor(shaderLoader: ShaderLoader, basePath?: string);
-    load(path: string): Promise<LoadedMaterial>;
-    get(path: string): LoadedMaterial | undefined;
-    has(path: string): boolean;
-    release(path: string): void;
-    releaseAll(): void;
-    private loadInternal;
-    private resolvePath;
-    private resolveShaderPath;
-}
-
-interface ComponentData$1 {
-    type: string;
-    data: Record<string, unknown>;
-}
-interface PrefabData {
-    version: string;
-    name: string;
-    rootEntityId: number;
-    entities: PrefabEntityData[];
-    basePrefab?: string;
-    overrides?: PrefabOverride[];
-}
-interface PrefabEntityData {
-    prefabEntityId: number;
-    name: string;
-    parent: number | null;
-    children: number[];
-    components: ComponentData$1[];
-    visible: boolean;
-    nestedPrefab?: NestedPrefabRef;
-}
-interface NestedPrefabRef {
-    prefabPath: string;
-    overrides: PrefabOverride[];
-}
-interface PrefabOverride {
-    prefabEntityId: number;
-    type: 'property' | 'component_added' | 'component_removed' | 'name' | 'visibility';
-    componentType?: string;
-    propertyName?: string;
-    value?: unknown;
-    componentData?: ComponentData$1;
-}
-interface ProcessedEntity {
-    id: number;
-    prefabEntityId: number;
-    name: string;
-    parent: number | null;
-    children: number[];
-    components: ComponentData$1[];
-    visible: boolean;
-}
-interface FlattenContext {
-    allocateId: () => number;
-    loadPrefab: (path: string) => PrefabData | null;
-    visited?: Set<string>;
-    depth?: number;
-}
-interface FlattenResult {
-    entities: ProcessedEntity[];
-    rootId: number;
-}
-
-type AssetContentType = 'json' | 'text' | 'binary' | 'image' | 'audio';
-type AddressableAssetType = 'texture' | 'material' | 'spine' | 'bitmap-font' | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
-type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'tilemap' | 'timeline' | 'unknown';
-type AssetBuildTransform = (content: string, context: unknown) => string;
-interface AssetTypeEntry {
-    extensions: string[];
-    contentType: AssetContentType;
-    editorType: EditorAssetType;
-    addressableType: AddressableAssetType | null;
-    wechatPackInclude: boolean;
-    hasTransitiveDeps: boolean;
-    buildTransform?: AssetBuildTransform;
-}
-declare function getAssetTypeEntry(extensionOrPath: string): AssetTypeEntry | undefined;
-declare function getEditorType(path: string): EditorAssetType;
-declare function getAddressableType(path: string): AddressableAssetType | null;
-declare function getAddressableTypeByEditorType(editorType: string): AddressableAssetType | null;
-declare function isKnownAssetExtension(ext: string): boolean;
-declare function getAllAssetExtensions(): Set<string>;
-declare function looksLikeAssetPath(value: unknown): value is string;
-declare function getCustomExtensions(): string[];
-declare function getWeChatPackOptions(): Array<{
-    type: string;
-    value: string;
-}>;
-declare function getAssetMimeType(ext: string): string | undefined;
-declare function isCustomExtension(path: string): boolean;
-declare function toBuildPath(path: string): string;
-declare function registerAssetBuildTransform(editorType: EditorAssetType, transform: AssetBuildTransform): void;
-declare function getAssetBuildTransform(extensionOrPath: string): AssetBuildTransform | undefined;
-
-/**
- * @file    AssetServer.ts
- * @brief   Asset loading and caching system
- */
-
-interface TextureInfo {
-    handle: TextureHandle;
-    width: number;
-    height: number;
-}
-interface SliceBorder$1 {
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
-}
-interface SpineLoadResult {
-    success: boolean;
-    error?: string;
-}
-interface SpineDescriptor {
-    skeleton: string;
-    atlas: string;
-    baseUrl?: string;
-}
-interface FileLoadOptions {
-    baseUrl?: string;
-    noCache?: boolean;
-}
-
-interface AddressableResultMap {
-    texture: TextureInfo;
-    material: LoadedMaterial;
-    spine: SpineLoadResult;
-    'bitmap-font': FontHandle;
-    prefab: PrefabData;
-    json: unknown;
-    text: string;
-    binary: ArrayBuffer;
-    audio: ArrayBuffer;
-}
-interface AssetBundle {
-    textures: Map<string, TextureInfo>;
-    materials: Map<string, LoadedMaterial>;
-    spine: Map<string, SpineLoadResult>;
-    fonts: Map<string, FontHandle>;
-    prefabs: Map<string, PrefabData>;
-    json: Map<string, unknown>;
-    text: Map<string, string>;
-    binary: Map<string, ArrayBuffer>;
-}
-interface AddressableManifestAsset {
-    path: string;
-    address?: string;
-    type: AddressableAssetType;
-    size: number;
-    labels: string[];
-    metadata?: {
-        atlas?: string;
-        atlasPage?: number;
-        atlasFrame?: {
-            x: number;
-            y: number;
-            width: number;
-            height: number;
-        };
-    };
-}
-interface AddressableManifestGroup {
-    bundleMode: string;
-    labels: string[];
-    assets: Record<string, AddressableManifestAsset>;
-}
-interface AddressableManifest {
-    version: '2.0';
-    groups: Record<string, AddressableManifestGroup>;
-}
-declare class AssetServer {
-    baseUrl?: string;
-    private module_;
-    private textureCache_;
-    private shaderCache_;
-    private jsonCache_;
-    private textCache_;
-    private binaryCache_;
-    private loadedSpines_;
-    private virtualFSPaths_;
-    private materialLoader_;
-    private canvas_;
-    private ctx_;
-    private fontCache_;
-    private prefabCache_;
-    private embedded_;
-    private embeddedOnly_;
-    private addressableManifest_;
-    private addressIndex_;
-    private labelIndex_;
-    private groupAssets_;
-    private spineController_;
-    private spineSkeletons_;
-    private textureRefCounts_;
-    private assetRefResolver_;
-    constructor(module: ESEngineModule);
-    registerEmbeddedAssets(assets: Record<string, string>): void;
-    setEmbeddedOnly(value: boolean): void;
-    /**
-     * Load texture with vertical flip (for Sprite/UI).
-     * OpenGL UV origin is bottom-left, so standard images need flipping.
-     */
-    loadTexture(source: string): Promise<TextureInfo>;
-    /**
-     * Load texture without flip (for Spine).
-     * Spine runtime handles UV coordinates internally.
-     */
-    loadTextureRaw(source: string): Promise<TextureInfo>;
-    getTexture(source: string): TextureInfo | undefined;
-    hasTexture(source: string): boolean;
-    getTextureRefCount(source: string): number;
-    releaseTexture(source: string): void;
-    releaseAll(): void;
-    private cleanupVirtualFS;
-    setTextureMetadata(handle: TextureHandle, border: SliceBorder$1): void;
-    setTextureMetadataByPath(source: string, border: SliceBorder$1): boolean;
-    setSpineController(controller: SpineModuleController): void;
-    getSpineSkeletonHandle(skeletonPath: string, atlasPath: string): number | undefined;
-    loadSpine(skeletonPath: string, atlasPath: string, baseUrl?: string): Promise<SpineLoadResult>;
-    isSpineLoaded(skeletonPath: string, atlasPath: string): boolean;
-    releaseSpine(key: string): void;
-    loadBitmapFont(fontPath: string, baseUrl?: string): Promise<FontHandle>;
-    getFont(fontPath: string): FontHandle | undefined;
-    releaseFont(fontPath: string): void;
-    private loadBmfontAsset;
-    private loadFntFile;
-    setAssetRefResolver(resolver: (ref: string) => string | null): void;
-    loadPrefab(path: string, baseUrl?: string): Promise<PrefabData>;
-    private resolvePrefabRefs_;
-    loadMaterial(path: string, baseUrl?: string): Promise<LoadedMaterial>;
-    getMaterial(path: string, baseUrl?: string): LoadedMaterial | undefined;
-    hasMaterial(path: string, baseUrl?: string): boolean;
-    loadShader(path: string): Promise<ShaderHandle>;
-    loadJson<T = unknown>(path: string, options?: FileLoadOptions): Promise<T>;
-    loadText(path: string, options?: FileLoadOptions): Promise<string>;
-    loadBinary(path: string, options?: FileLoadOptions): Promise<ArrayBuffer>;
-    loadScene(world: World, sceneData: SceneData): Promise<Map<number, Entity>>;
-    loadAll(manifest: AddressableManifest): Promise<AssetBundle>;
-    setAddressableManifest(manifest: AddressableManifest): void;
-    resolveAddress(address: string): AddressableManifestAsset | undefined;
-    load<T extends AddressableAssetType = AddressableAssetType>(address: string): Promise<AddressableResultMap[T]>;
-    loadByLabel(label: string): Promise<AssetBundle>;
-    loadGroup(groupName: string): Promise<AssetBundle>;
-    private loadAddressableAsset;
-    private loadAddressableAssets;
-    private textureCacheKey;
-    private loadTextureWithFlip;
-    private loadTextureInternal;
-    private loadImage;
-    private loadImageFromSrc;
-    private createTextureFromImage;
-    private getWebGL2Context;
-    private createTextureWebGL2;
-    private createTextureFallback;
-    private unpremultiplyAlpha;
-    private loadShaderInternal;
-    private parseEsShader;
-    private decodeDataUrlText;
-    private decodeDataUrlBinary;
-    private isLocalPath;
-    private toLocalPath;
-    private getEmbedded;
-    private fetchJson;
-    private fetchText;
-    private fetchBinary;
-    private writeToVirtualFS;
-    private ensureVirtualDir;
-    private resolveUrl;
-    private nextPowerOf2;
-    private parseAtlasTextures;
-}
-
 interface SceneEntityData {
     id: number;
     name: string;
@@ -1068,17 +634,9 @@ interface SceneData {
     entities: SceneEntityData[];
     textureMetadata?: Record<string, TextureMetadata>;
 }
-interface LoadedSceneAssets {
-    textureUrls: Set<string>;
-    materialHandles: Set<number>;
-    fontPaths: Set<string>;
-    spineKeys: Set<string>;
-}
 interface SceneLoadOptions {
-    assetServer?: AssetServer;
     assets?: Assets;
     assetBaseUrl?: string;
-    collectAssets?: LoadedSceneAssets;
 }
 type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'timeline';
 declare function getComponentAssetFields(componentType: string): string[];
@@ -1093,7 +651,6 @@ declare function getComponentSpineFieldDescriptor(componentType: string): {
 declare function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void;
 declare function loadSceneData(world: World, sceneData: SceneData): Map<number, Entity>;
 declare function loadSceneWithAssets(world: World, sceneData: SceneData, options?: SceneLoadOptions): Promise<Map<number, Entity>>;
-
 declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void;
 declare function updateCameraAspectRatio(world: World, aspectRatio: number): void;
 declare function findEntityByName(world: World, name: string): Entity | null;
@@ -1744,6 +1301,174 @@ declare function registerDrawCallback(id: string, fn: DrawCallback, scene?: stri
 declare function unregisterDrawCallback(id: string): void;
 declare function clearDrawCallbacks(): void;
 
+/**
+ * @file    blend.ts
+ * @brief   Blend mode definitions for rendering
+ */
+declare enum BlendMode {
+    Normal = 0,
+    Additive = 1,
+    Multiply = 2,
+    Screen = 3,
+    PremultipliedAlpha = 4
+}
+
+/**
+ * @file    material.ts
+ * @brief   Material and Shader API for custom rendering
+ * @details Provides shader creation and material management for custom visual effects.
+ */
+
+type ShaderHandle = number;
+type MaterialHandle = number;
+interface TextureRef {
+    __textureRef: true;
+    textureId: number;
+    slot?: number;
+}
+type UniformValue = number | Vec2 | Vec3 | Vec4 | number[] | TextureRef;
+declare function isTextureRef(v: UniformValue): v is TextureRef;
+interface MaterialOptions {
+    shader: ShaderHandle;
+    uniforms?: Record<string, UniformValue>;
+    blendMode?: BlendMode;
+    depthTest?: boolean;
+}
+interface MaterialAssetData {
+    version: string;
+    type: 'material';
+    shader: string;
+    blendMode: number;
+    depthTest: boolean;
+    properties: Record<string, unknown>;
+}
+interface MaterialData {
+    shader: ShaderHandle;
+    uniforms: Map<string, UniformValue>;
+    blendMode: BlendMode;
+    depthTest: boolean;
+    dirty_: boolean;
+    cachedBuffer_: Float32Array | null;
+    cachedIdx_: number;
+}
+declare function initMaterialAPI(wasmModule: ESEngineModule): void;
+declare function shutdownMaterialAPI(): void;
+declare const Material: {
+    /**
+     * Creates a shader from vertex and fragment source code.
+     * @param vertexSrc GLSL vertex shader source
+     * @param fragmentSrc GLSL fragment shader source
+     * @returns Shader handle, or 0 on failure
+     */
+    createShader(vertexSrc: string, fragmentSrc: string): ShaderHandle;
+    /**
+     * Releases a shader.
+     * @param shader Shader handle to release
+     */
+    releaseShader(shader: ShaderHandle): void;
+    /**
+     * Creates a material with a shader and optional settings.
+     * @param options Material creation options
+     * @returns Material handle
+     */
+    create(options: MaterialOptions): MaterialHandle;
+    /**
+     * Gets material data by handle.
+     * @param material Material handle
+     * @returns Material data or undefined
+     */
+    get(material: MaterialHandle): MaterialData | undefined;
+    /**
+     * Sets a uniform value on a material.
+     * @param material Material handle
+     * @param name Uniform name
+     * @param value Uniform value
+     */
+    setUniform(material: MaterialHandle, name: string, value: UniformValue): void;
+    /**
+     * Gets a uniform value from a material.
+     * @param material Material handle
+     * @param name Uniform name
+     * @returns Uniform value or undefined
+     */
+    getUniform(material: MaterialHandle, name: string): UniformValue | undefined;
+    /**
+     * Sets the blend mode for a material.
+     * @param material Material handle
+     * @param mode Blend mode
+     */
+    setBlendMode(material: MaterialHandle, mode: BlendMode): void;
+    /**
+     * Gets the blend mode of a material.
+     * @param material Material handle
+     * @returns Blend mode
+     */
+    getBlendMode(material: MaterialHandle): BlendMode;
+    /**
+     * Sets depth test enabled for a material.
+     * @param material Material handle
+     * @param enabled Whether depth test is enabled
+     */
+    setDepthTest(material: MaterialHandle, enabled: boolean): void;
+    /**
+     * Gets the shader handle for a material.
+     * @param material Material handle
+     * @returns Shader handle
+     */
+    getShader(material: MaterialHandle): ShaderHandle;
+    /**
+     * Releases a material (does not release the shader).
+     * @param material Material handle
+     */
+    release(material: MaterialHandle): void;
+    /**
+     * Checks if a material exists.
+     * @param material Material handle
+     * @returns True if material exists
+     */
+    isValid(material: MaterialHandle): boolean;
+    releaseAll(): void;
+    /**
+     * Creates a material from asset data.
+     * @param data Material asset data (properties object)
+     * @param shaderHandle Pre-loaded shader handle
+     * @returns Material handle
+     */
+    createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle): MaterialHandle;
+    /**
+     * Creates a material instance that shares the shader with source.
+     * @param source Source material handle
+     * @returns New material handle with copied settings
+     */
+    createInstance(source: MaterialHandle): MaterialHandle;
+    /**
+     * Exports material to serializable asset data.
+     * @param material Material handle
+     * @param shaderPath Shader file path for asset reference
+     * @returns Material asset data
+     */
+    toAssetData(material: MaterialHandle, shaderPath: string): MaterialAssetData | null;
+    /**
+     * Gets all uniforms from a material.
+     * @param material Material handle
+     * @returns Map of uniform names to values
+     */
+    getUniforms(material: MaterialHandle): Map<string, UniformValue>;
+    tex(textureId: number, slot?: number): TextureRef;
+};
+declare function registerMaterialCallback(): void;
+/**
+ * Built-in ES 3.0 shader sources for SDK custom materials.
+ * These use the batch renderer vertex layout (vec3 position + vec4 color + vec2 texCoord)
+ * and are NOT duplicates of the .esshader files (which are ES 1.0 with different layouts).
+ */
+declare const ShaderSources: {
+    SPRITE_VERTEX: string;
+    SPRITE_FRAGMENT: string;
+    COLOR_VERTEX: string;
+    COLOR_FRAGMENT: string;
+};
+
 interface PassConfig {
     name: string;
     shader: ShaderHandle;
@@ -1860,6 +1585,8 @@ type PluginDependency = string | ResourceDef<any>;
 interface Plugin {
     name?: string;
     dependencies?: PluginDependency[];
+    before?: string[];
+    after?: string[];
     build(app: App): void;
     finish?(app: App): void;
     cleanup?(app?: App): void;
@@ -1970,5 +1697,5 @@ interface WebAppOptions {
 }
 declare function flushPendingSystems(app: App): void;
 
-export { Canvas as $, App as A, Added as D, BitmapText as U, World as W, BuiltinBridge as X, Camera as Y, Changed as a1, Children as a3, ClearFlags as a5, Commands as a6, CommandsInstance as a8, Name as aB, Parent as aE, ParticleEasing as aG, ParticleEmitter as aH, PostProcessVolume as aK, ProjectionType as aN, Query as aO, QueryInstance as aR, Removed as aT, RemovedQueryInstance as aV, RenderPipeline as aX, Res as aY, ResMut as a_, Disabled as aa, EmitterShape as ad, EntityCommands as ae, EventReader as ag, EventReaderInstance as ai, EventRegistry as aj, EventWriter as ak, EventWriterInstance as am, GetWorld as ao, LocalTransform as at, Material as av, MaterialLoader as ax, Mut as az, getComponentDefaults as b$, ResMutInstance as b0, ScaleMode as b2, SceneManager as b7, SceneManagerState as b8, SceneOwner as b9, Velocity as bB, WorldTransform as bE, addStartupSystem as bG, addSystem as bH, addSystemToSchedule as bI, clearDrawCallbacks as bJ, clearUserComponents as bK, defineComponent as bL, defineEvent as bM, defineResource as bN, defineSystem as bO, defineTag as bP, findEntityByName as bQ, flushPendingSystems as bR, getAddressableType as bS, getAddressableTypeByEditorType as bT, getAllAssetExtensions as bU, getAssetBuildTransform as bV, getAssetMimeType as bW, getAssetTypeEntry as bX, getComponent as bY, getComponentAssetFieldDescriptors as bZ, getComponentAssetFields as b_, Schedule as bc, ShaderSources as be, ShapeRenderer as bf, ShapeType as bh, SimulationSpace as bi, SpineAnimation as bk, Sprite as bo, SystemRunner as bt, Time as bw, Transform as by, SpineModuleController as c, getComponentSpineFieldDescriptor as c0, getCustomExtensions as c1, getEditorType as c2, getUserComponent as c3, getWeChatPackOptions as c4, initMaterialAPI as c5, isBuiltinComponent as c6, isCustomExtension as c7, isKnownAssetExtension as c8, isTextureRef as c9, loadComponent as ca, loadSceneData as cb, loadSceneWithAssets as cc, looksLikeAssetPath as cd, readPtrField as ce, registerAssetBuildTransform as cf, registerComponent as cg, registerDrawCallback as ch, registerMaterialCallback as ci, remapEntityFields as cj, shutdownMaterialAPI as ck, toBuildPath as cl, unregisterComponent as cm, unregisterDrawCallback as cn, updateCameraAspectRatio as co, wrapSceneSystem as cp, writePtrField as cq, createSpineFactories as e, loadSpineModule as l, Assets as m, AssetServer as n, PostProcessStack as o, wrapSpineModule as w, BlendMode as y };
-export type { BuiltinComponentDef as B, ConstraintList as C, AddedWrapper as E, FlattenContext as F, AddressableAssetType as G, AddressableManifestAsset as H, AddressableManifestGroup as I, AddressableResultMap as J, AssetBuildTransform as K, AssetBundle$1 as L, MaterialHandle as M, AssetContentType as N, AssetFieldType as O, Plugin as P, AssetTypeEntry as Q, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, BitmapTextData as V, CameraData as Z, CameraRenderParams as _, PathMixData as a, ResMutDescriptor as a$, CanvasData as a0, ChangedWrapper as a2, ChildrenData as a4, CommandsDescriptor as a7, ComponentData as a9, MutWrapper as aA, NameData as aC, NestedPrefabRef as aD, ParentData as aF, ParticleEmitterData as aI, PluginDependency as aJ, PostProcessVolumeData as aL, PrefabEntityData as aM, QueryBuilder as aP, QueryDescriptor as aQ, QueryResult as aS, RemovedQueryDescriptor as aU, RenderParams as aW, ResDescriptor as aZ, DrawCallback as ab, EditorAssetType as ac, EventDef as af, EventReaderDescriptor as ah, EventWriterDescriptor as al, FileLoadOptions as an, GetWorldDescriptor as ap, InferParam as aq, InferParams as ar, LoadedMaterial as as, LocalTransformData as au, MaterialAssetData as aw, MaterialOptions as ay, SpineEventCallback as b, RunCondition as b1, SceneComponentData as b3, SceneContext as b4, SceneEntityData as b5, SceneLoadOptions as b6, UniformValue as bA, VelocityData as bC, Viewport as bD, WorldTransformData as bF, SceneOwnerData as ba, SceneStatus as bb, ShaderLoader as bd, ShapeRendererData as bg, SliceBorder$1 as bj, SpineAnimationData as bl, SpineDescriptor as bm, SpineLoadResult as bn, SpriteData as bp, SystemDef as bq, SystemOptions as br, SystemParam as bs, TextureInfo as bu, TextureRef as bv, TimeData as bx, TransitionOptions as bz, SpineModuleFactory as d, RawSpineEvent as f, PrefabData as g, PrefabOverride as h, FlattenResult as i, ProcessedEntity as j, ComponentData$1 as k, ShaderHandle as p, ComponentDef as q, TransformData as r, AnyComponentDef as s, SceneData as t, SpineWasmModule as u, AddressableManifest as v, SceneConfig as x, WebAppOptions as z };
+export { EventReader as $, App as A, Canvas as F, Changed as H, Children as J, ClearFlags as L, Commands as N, CommandsInstance as Q, Disabled as V, World as W, EmitterShape as Y, EntityCommands as Z, EventReaderInstance as a1, EventRegistry as a2, EventWriter as a3, EventWriterInstance as a5, GetWorld as a6, RenderPipeline as aB, Res as aC, ResMut as aE, ResMutInstance as aG, ScaleMode as aI, SceneManager as aN, SceneManagerState as aO, SceneOwner as aP, Schedule as aS, ShaderSources as aT, ShapeRenderer as aU, ShapeType as aW, SimulationSpace as aX, SpineAnimation as aZ, LocalTransform as aa, Material as ac, Mut as af, Name as ah, Parent as aj, ParticleEasing as al, ParticleEmitter as am, PostProcessVolume as ap, ProjectionType as ar, Query as as, QueryInstance as av, Removed as ax, RemovedQueryInstance as az, Sprite as b0, SystemRunner as b5, Time as b8, initMaterialAPI as bA, isBuiltinComponent as bB, isTextureRef as bC, loadComponent as bD, loadSceneData as bE, loadSceneWithAssets as bF, readPtrField as bG, registerComponent as bH, registerDrawCallback as bI, registerMaterialCallback as bJ, remapEntityFields as bK, shutdownMaterialAPI as bL, unregisterComponent as bM, unregisterDrawCallback as bN, updateCameraAspectRatio as bO, wrapSceneSystem as bP, writePtrField as bQ, Transform as ba, Velocity as bd, WorldTransform as bg, addStartupSystem as bi, addSystem as bj, addSystemToSchedule as bk, clearDrawCallbacks as bl, clearUserComponents as bm, defineComponent as bn, defineEvent as bo, defineResource as bp, defineSystem as bq, defineTag as br, findEntityByName as bs, flushPendingSystems as bt, getComponent as bu, getComponentAssetFieldDescriptors as bv, getComponentAssetFields as bw, getComponentDefaults as bx, getComponentSpineFieldDescriptor as by, getUserComponent as bz, SpineModuleController as c, createSpineFactories as e, PostProcessStack as g, loadSpineModule as l, Assets as m, BlendMode as q, Added as s, BitmapText as v, wrapSpineModule as w, BuiltinBridge as y, Camera as z };
+export type { BuiltinComponentDef as B, ConstraintList as C, CameraData as D, CameraRenderParams as E, CanvasData as G, ChangedWrapper as I, ChildrenData as K, MaterialHandle as M, CommandsDescriptor as O, Plugin as P, ResourceDef as R, SpineWasmProvider as S, TransformMixData as T, ComponentData as U, DrawCallback as X, EventDef as _, PathMixData as a, SpineLoadResult as a$, EventReaderDescriptor as a0, EventWriterDescriptor as a4, GetWorldDescriptor as a7, InferParam as a8, InferParams as a9, RenderParams as aA, ResDescriptor as aD, ResMutDescriptor as aF, RunCondition as aH, SceneComponentData as aJ, SceneContext as aK, SceneEntityData as aL, SceneLoadOptions as aM, SceneOwnerData as aQ, SceneStatus as aR, ShapeRendererData as aV, SliceBorder as aY, SpineAnimationData as a_, LocalTransformData as ab, MaterialAssetData as ad, MaterialOptions as ae, MutWrapper as ag, NameData as ai, ParentData as ak, ParticleEmitterData as an, PluginDependency as ao, PostProcessVolumeData as aq, QueryBuilder as at, QueryDescriptor as au, QueryResult as aw, RemovedQueryDescriptor as ay, SpineEventCallback as b, SpriteData as b1, SystemDef as b2, SystemOptions as b3, SystemParam as b4, TextureResult as b6, TextureRef as b7, TimeData as b9, TransitionOptions as bb, UniformValue as bc, VelocityData as be, Viewport as bf, WorldTransformData as bh, SpineModuleFactory as d, RawSpineEvent as f, ShaderHandle as h, ComponentDef as i, TransformData as j, AnyComponentDef as k, SceneData as n, SpineWasmModule as o, SceneConfig as p, WebAppOptions as r, AddedWrapper as t, AssetFieldType as u, BitmapTextData as x };
