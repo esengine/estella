@@ -84,10 +84,10 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
                          f32 tintR, f32 tintG, f32 tintB, f32 tintA,
                          f32 opacity,
                          f32 parallaxX, f32 parallaxY) {
-    auto* frame = ctx().renderFrame();
+    auto* frame = ctx().tryGet<RenderFrame>();
     if (!frame) return;
 
-    auto* rm = ctx().resourceManager();
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
     if (!rm) return;
     auto texHandle = resource::TextureHandle(textureId);
     auto* tex = rm->getTexture(texHandle);

@@ -25,12 +25,12 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
-#define g_initialized (ctx().isInitialized())
-#define g_geometryManager (ctx().geometryManager())
-#define g_resourceManager (ctx().resourceManager())
-#define g_immediateDraw (ctx().immediateDraw())
-#define g_immediateDrawActive (ctx().immediateDrawActive())
-#define g_currentViewProjection (ctx().currentViewProjection())
+#define g_initialized (ctx().state().initialized)
+#define g_geometryManager (ctx().tryGet<GeometryManager>())
+#define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
+#define g_immediateDraw (ctx().tryGet<ImmediateDraw>())
+#define g_immediateDrawActive (ctx().state().immediate_draw_active)
+#define g_currentViewProjection (ctx().state().current_view_projection)
 
 static void flushImmediateDrawIfActive() {
     if (g_immediateDrawActive && g_immediateDraw) {

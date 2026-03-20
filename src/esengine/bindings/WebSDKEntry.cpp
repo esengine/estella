@@ -60,6 +60,9 @@
 #include "../ecs/components/Collider.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../animation/TweenSystem.hpp"
+#ifdef ES_ENABLE_TIMELINE
+#include "../animation/TimelineSystem.hpp"
+#endif
 #ifdef ES_ENABLE_PARTICLES
 #include "../particle/ParticleSystem.hpp"
 #endif
@@ -83,15 +86,15 @@ tilemap::TilemapSystem& getTilemapSystem();
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
-#define g_initialized (ctx().isInitialized())
-#define g_webglContext (ctx().webglContext())
-#define g_resourceManager (ctx().resourceManager())
+#define g_initialized (ctx().state().initialized)
+#define g_webglContext (ctx().state().webgl_context)
+#define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
 #ifdef ES_ENABLE_SPINE
-#define g_spineResourceManager (ctx().spineResourceManager())
+#define g_spineResourceManager (ctx().tryGet<spine::SpineResourceManager>())
 #endif
-#define g_renderContext (ctx().renderContext())
+#define g_renderContext (ctx().tryGet<RenderContext>())
 #ifdef ES_ENABLE_PARTICLES
-#define g_particleSystem (ctx().particleSystem())
+#define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
 #endif
 
 EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBlendModePtr, int outUniformBufPtr, int outUniformCountPtr), {
@@ -106,10 +109,10 @@ EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBl
     }
 });
 
-void clearMaterialCache() { ctx().materialCache().clear(); }
+void clearMaterialCache() { ctx().state().material_cache.clear(); }
 
 void invalidateMaterialCache(u32 materialId) {
-    ctx().materialCache().invalidate(materialId);
+    ctx().state().material_cache.invalidate(materialId);
 }
 
 bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
@@ -133,7 +136,7 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
         return false;
     }
 
-    auto& cache = ctx().materialCache();
+    auto& cache = ctx().state().material_cache;
     const auto* cached = cache.find(materialId);
     if (cached) {
         shaderId = cached->shaderId;
@@ -236,7 +239,7 @@ static void initSubsystems() {
 
     svc.registerOwned<GeometryManager>(makeUnique<GeometryManager>());
 
-    auto renderFrame = makeUnique<RenderFrame>(*ctx().gfxDevice(), *g_renderContext, *g_resourceManager);
+    auto renderFrame = makeUnique<RenderFrame>(ctx().require<GfxDevice>(), *g_renderContext, *g_resourceManager);
 
     renderFrame->addPlugin(std::make_unique<SpritePlugin>());
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
@@ -252,24 +255,24 @@ static void initSubsystems() {
 #ifdef ES_ENABLE_SPINE
     {
         auto spinePlugin = std::make_unique<SpinePlugin>();
-        spinePlugin->setSpineSystem(ctx().spineSystem());
+        spinePlugin->setSpineSystem(ctx().tryGet<spine::SpineSystem>());
         renderFrame->addPlugin(std::move(spinePlugin));
     }
 #endif
 #ifdef ES_ENABLE_PARTICLES
     {
         auto particlePlugin = std::make_unique<ParticlePlugin>();
-        particlePlugin->setParticleSystem(ctx().particleSystem());
+        particlePlugin->setParticleSystem(ctx().tryGet<particle::ParticleSystem>());
         renderFrame->addPlugin(std::move(particlePlugin));
     }
 #endif
     renderFrame->init(1280, 720);
     svc.registerOwned<RenderFrame>(std::move(renderFrame));
 
-    ctx().setInitialized(true);
+    ctx().state().initialized = true;
 
-    const auto& cc = ctx().clearColor();
-    auto* dev = ctx().gfxDevice();
+    const auto& cc = ctx().state().clear_color;
+    auto* dev = ctx().tryGet<GfxDevice>();
     dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
     dev->clear(true, true, false);
 }
@@ -295,7 +298,7 @@ bool initRendererInternal(const char* canvasSelector) {
         ES_LOG_ERROR("Failed to create WebGL2 context for '{}': {}", canvasSelector, webglCtx);
         return false;
     }
-    ctx().setWebglContext(webglCtx);
+    ctx().state().webgl_context = webglCtx;
 
     EMSCRIPTEN_RESULT result = emscripten_webgl_make_context_current(g_webglContext);
     if (result != EMSCRIPTEN_RESULT_SUCCESS) {
@@ -324,7 +327,7 @@ bool initRendererWithContext(int contextHandle) {
         return false;
     }
 
-    ctx().setWebglContext(contextHandle);
+    ctx().state().webgl_context = contextHandle;
 
     EMSCRIPTEN_RESULT result = emscripten_webgl_make_context_current(g_webglContext);
     if (result != EMSCRIPTEN_RESULT_SUCCESS) {
@@ -763,11 +766,11 @@ void setUIRectSize(ecs::Registry& registry, u32 entity, f32 w, f32 h) {
 
 void transform_update(ecs::Registry& registry) {
     esengine::World world{registry, ctx().services(), 0.0f};
-    if (ctx().transformSystem()) {
-        ctx().transformSystem()->update(world);
+    if (auto* ts = ctx().tryGet<ecs::TransformSystem>()) {
+        ts->update(world);
     } else {
-        ecs::TransformSystem ts;
-        ts.update(world);
+        ecs::TransformSystem fallback;
+        fallback.update(world);
     }
 }
 
@@ -831,7 +834,7 @@ u32 anim_createTween(ecs::Registry& registry, u32 entity, u32 targetProp,
                      f32 from, f32 to, f32 duration,
                      u32 easing, f32 delay,
                      u32 loopMode, i32 loopCount) {
-    auto* sys = ctx().tweenSystem();
+    auto* sys = ctx().tryGet<animation::TweenSystem>();
     if (!sys) {
         return INVALID_ENTITY.id();
     }
@@ -850,25 +853,25 @@ u32 anim_createTween(ecs::Registry& registry, u32 entity, u32 targetProp,
 }
 
 void anim_cancelTween(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* sys = ctx().tweenSystem()) {
+    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
         sys->cancelTween(registry, Entity::fromRaw(tweenEntity));
     }
 }
 
 void anim_cancelAllTweens(ecs::Registry& registry, u32 targetEntity) {
-    if (auto* sys = ctx().tweenSystem()) {
+    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
         sys->cancelAllTweens(registry, Entity::fromRaw(targetEntity));
     }
 }
 
 void anim_pauseTween(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* sys = ctx().tweenSystem()) {
+    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
         sys->pauseTween(registry, Entity::fromRaw(tweenEntity));
     }
 }
 
 void anim_resumeTween(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* sys = ctx().tweenSystem()) {
+    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
         sys->resumeTween(registry, Entity::fromRaw(tweenEntity));
     }
 }
@@ -891,7 +894,7 @@ void anim_setSequenceNext(ecs::Registry& registry, u32 tweenEntity, u32 nextEnti
 }
 
 void anim_updateTweens(ecs::Registry& registry, f32 deltaTime) {
-    if (auto* sys = ctx().tweenSystem()) {
+    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
         sys->update(registry, deltaTime);
     }
 }

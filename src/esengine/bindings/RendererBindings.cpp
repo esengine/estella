@@ -22,6 +22,9 @@
 #include "../spine/SpineResourceManager.hpp"
 #include "../spine/SpineSystem.hpp"
 #endif
+#ifdef ES_ENABLE_PARTICLES
+#include "../particle/ParticleSystem.hpp"
+#endif
 
 #include <emscripten/val.h>
 #include <glm/glm.hpp>
@@ -32,17 +35,17 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
-#define g_initialized (ctx().isInitialized())
-#define g_renderFrame (ctx().renderFrame())
-#define g_transformSystem (ctx().transformSystem())
-#define g_glErrorCheckEnabled (ctx().glErrorCheckEnabled())
-#define g_viewportWidth (ctx().viewportWidth())
-#define g_viewportHeight (ctx().viewportHeight())
+#define g_initialized (ctx().state().initialized)
+#define g_renderFrame (ctx().tryGet<RenderFrame>())
+#define g_transformSystem (ctx().tryGet<ecs::TransformSystem>())
+#define g_glErrorCheckEnabled (ctx().state().gl_error_check_enabled)
+#define g_viewportWidth (ctx().state().viewport_width)
+#define g_viewportHeight (ctx().state().viewport_height)
 #ifdef ES_ENABLE_SPINE
-#define g_spineSystem (ctx().spineSystem())
+#define g_spineSystem (ctx().tryGet<spine::SpineSystem>())
 #endif
 #ifdef ES_ENABLE_PARTICLES
-#define g_particleSystem (ctx().particleSystem())
+#define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
 #endif
 
 static u32 checkGLErrors(const char* context) {
@@ -287,7 +290,7 @@ bool spine_native_setPathConstraintMix(Entity entity, const std::string& name,
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {
     if (!g_initialized || !g_renderFrame) return;
 
-    if (auto* rm = ctx().resourceManager()) {
+    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         rm->update();
     }
 
@@ -298,16 +301,17 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
 
 #ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
-        g_spineSystem->update(registry, ctx().deltaTime());
+        g_spineSystem->update(registry, ctx().state().delta_time);
     }
 #endif
 
-    ctx().setViewport(static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
+    ctx().state().viewport_width = static_cast<u32>(viewportWidth);
+    ctx().state().viewport_height = static_cast<u32>(viewportHeight);
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
     auto* dev = RenderCommand::getDevice();
     dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
-    const auto& cc = ctx().clearColor();
+    const auto& cc = ctx().state().clear_color;
     dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
     dev->clear(true, true, false);
 
@@ -351,7 +355,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
                            uintptr_t matrixPtr) {
     if (!g_initialized || !g_renderFrame) return;
 
-    if (auto* rm = ctx().resourceManager()) {
+    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         rm->update();
     }
 
@@ -362,16 +366,17 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
 #ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
-        g_spineSystem->update(registry, ctx().deltaTime());
+        g_spineSystem->update(registry, ctx().state().delta_time);
     }
 #endif
 
-    ctx().setViewport(static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
+    ctx().state().viewport_width = static_cast<u32>(viewportWidth);
+    ctx().state().viewport_height = static_cast<u32>(viewportHeight);
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
     auto* dev = RenderCommand::getDevice();
     dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
-    const auto& cc = ctx().clearColor();
+    const auto& cc = ctx().state().clear_color;
     dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
     dev->clear(true, true, false);
 
@@ -385,18 +390,20 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
 void renderer_init(u32 width, u32 height) {
     if (!g_renderFrame) return;
-    ctx().setViewport(width, height);
+    ctx().state().viewport_width = width;
+    ctx().state().viewport_height = height;
     g_renderFrame->resize(width, height);
 }
 
 void renderer_resize(u32 width, u32 height) {
     if (!g_renderFrame) return;
-    ctx().setViewport(width, height);
+    ctx().state().viewport_width = width;
+    ctx().state().viewport_height = height;
     g_renderFrame->resize(width, height);
 }
 
 void renderer_beginFrame() {
-    ctx().setTransformsUpdated(false);
+    ctx().state().transforms_updated = false;
 }
 
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {
@@ -421,10 +428,10 @@ void renderer_end() {
 }
 
 static void ensureTransformsUpdated(ecs::Registry& registry) {
-    if (!ctx().transformsUpdated() && g_transformSystem) {
+    if (!ctx().state().transforms_updated && g_transformSystem) {
         esengine::World w{registry, ctx().services(), 0.0f};
         g_transformSystem->update(w);
-        ctx().setTransformsUpdated(true);
+        ctx().state().transforms_updated = true;
     }
 }
 
@@ -567,11 +574,11 @@ u32 renderer_getCulled() {
 }
 
 void renderer_setDeltaTime(f32 dt) {
-    ctx().setDeltaTime(dt);
+    ctx().state().delta_time = dt;
 }
 
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
-    ctx().setClearColor(glm::vec4(r, g, b, a));
+    ctx().state().clear_color = glm::vec4(r, g, b, a);
 }
 
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
@@ -676,7 +683,7 @@ void renderer_clearAllStencilMasks() {
 }
 
 void gl_enableErrorCheck(bool enabled) {
-    ctx().setGlErrorCheckEnabled(enabled);
+    ctx().state().gl_error_check_enabled = enabled;
     if (enabled) {
         while (RenderCommand::getDevice()->getError() != 0) {}
         ES_LOG_INFO("[GL] Error checking enabled");
@@ -685,9 +692,9 @@ void gl_enableErrorCheck(bool enabled) {
 
 u32 gl_checkErrors(const std::string& context) {
     bool prev = g_glErrorCheckEnabled;
-    ctx().setGlErrorCheckEnabled(true);
+    ctx().state().gl_error_check_enabled = true;
     u32 count = checkGLErrors(context.c_str());
-    ctx().setGlErrorCheckEnabled(prev);
+    ctx().state().gl_error_check_enabled = prev;
     if (count == 0 && prev) {
         ES_LOG_INFO("[GL] No errors at: {}", context);
     }

@@ -23,10 +23,10 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
-#define g_initialized (ctx().isInitialized())
-#define g_renderContext (ctx().renderContext())
-#define g_resourceManager (ctx().resourceManager())
-#define g_postProcessPipeline (ctx().postProcessPipeline())
+#define g_initialized (ctx().state().initialized)
+#define g_renderContext (ctx().tryGet<RenderContext>())
+#define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
+#define g_postProcessPipeline (ctx().tryGet<PostProcessPipeline>())
 
 bool postprocess_init(u32 width, u32 height) {
     if (!g_initialized || !g_renderContext || !g_resourceManager) return false;

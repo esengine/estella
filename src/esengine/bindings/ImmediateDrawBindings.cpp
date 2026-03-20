@@ -23,12 +23,12 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
-#define g_initialized (ctx().isInitialized())
-#define g_immediateDraw (ctx().immediateDraw())
-#define g_immediateDrawActive (ctx().immediateDrawActive())
-#define g_viewportWidth (ctx().viewportWidth())
-#define g_viewportHeight (ctx().viewportHeight())
-#define g_currentViewProjection (ctx().currentViewProjection())
+#define g_initialized (ctx().state().initialized)
+#define g_immediateDraw (ctx().tryGet<ImmediateDraw>())
+#define g_immediateDrawActive (ctx().state().immediate_draw_active)
+#define g_viewportWidth (ctx().state().viewport_width)
+#define g_viewportHeight (ctx().state().viewport_height)
+#define g_currentViewProjection (ctx().state().current_view_projection)
 
 static void flushImmediateDrawIfActive() {
     if (g_immediateDrawActive && g_immediateDraw) {
@@ -42,16 +42,16 @@ void draw_begin(uintptr_t matrixPtr) {
     RenderCommand::getDevice()->setViewport(0, 0, g_viewportWidth, g_viewportHeight);
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
-    ctx().setCurrentViewProjection(glm::make_mat4(matrixData));
+    ctx().state().current_view_projection = glm::make_mat4(matrixData);
     g_immediateDraw->begin(g_currentViewProjection);
-    ctx().setImmediateDrawActive(true);
+    ctx().state().immediate_draw_active = true;
 }
 
 void draw_end() {
     if (!g_initialized || !g_immediateDraw || !g_immediateDrawActive) return;
 
     g_immediateDraw->end();
-    ctx().setImmediateDrawActive(false);
+    ctx().state().immediate_draw_active = false;
 }
 
 void draw_line(f32 fromX, f32 fromY, f32 toX, f32 toY,
