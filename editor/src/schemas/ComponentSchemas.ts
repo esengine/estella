@@ -266,14 +266,10 @@ export function getDefaultComponentData(typeName: string): Record<string, unknow
 
 export function getInitialComponentData(typeName: string): Record<string, unknown> {
     const defaults = getDefaultComponentData(typeName);
-    try {
-        const schema = getEditorContainer().get(COMPONENT_SCHEMA, typeName);
-        const overrides = schema?.editorDefaults?.();
-        if (overrides) {
-            return { ...defaults, ...overrides };
-        }
-    } catch {
-        // EditorContainer may not be initialized yet (e.g. during project creation from launcher)
+    const schema = getEditorContainer().get(COMPONENT_SCHEMA, typeName);
+    const overrides = schema?.editorDefaults?.();
+    if (overrides) {
+        return { ...defaults, ...overrides };
     }
     return defaults;
 }
