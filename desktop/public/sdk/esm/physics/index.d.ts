@@ -1,4 +1,4 @@
-import { B as BuiltinComponentDef, q as ComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
+import { B as BuiltinComponentDef, i as ComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
 import { V as Vec2, E as Entity } from '../shared/wasm.js';
 
 interface RigidBodyData {

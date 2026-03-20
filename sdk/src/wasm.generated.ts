@@ -22,23 +22,48 @@ export interface VectorEntity {
 
 // Enums
 
+export enum AlignSelf {
+    Auto = 0,
+    Start = 1,
+    Center = 2,
+    End = 3,
+    Stretch = 4,
+}
+
+export enum EmitterShape {
+    Point = 0,
+    Circle = 1,
+    Rectangle = 2,
+    Cone = 3,
+}
+
+export enum SimulationSpace {
+    World = 0,
+    Local = 1,
+}
+
+export enum UIVisualType {
+    None = 0,
+    SolidColor = 1,
+    Image = 2,
+    NineSlice = 3,
+}
+
+export enum BodyType {
+    Static = 0,
+    Kinematic = 1,
+    Dynamic = 2,
+}
+
 export enum TextAlign {
     Left = 0,
     Center = 1,
     Right = 2,
 }
 
-export enum ProjectionType {
-    Perspective = 0,
-    Orthographic = 1,
-}
-
-export enum CanvasScaleMode {
-    FixedWidth = 0,
-    FixedHeight = 1,
-    Expand = 2,
-    Shrink = 3,
-    Match = 4,
+export enum MaskMode {
+    Scissor = 0,
+    Stencil = 1,
 }
 
 export enum FlexDirection {
@@ -78,14 +103,6 @@ export enum AlignContent {
     SpaceAround = 5,
 }
 
-export enum AlignSelf {
-    Auto = 0,
-    Start = 1,
-    Center = 2,
-    End = 3,
-    Stretch = 4,
-}
-
 export enum LayoutDirection {
     Horizontal = 0,
     Vertical = 1,
@@ -97,71 +114,43 @@ export enum ChildAlignment {
     End = 2,
 }
 
-export enum EmitterShape {
-    Point = 0,
-    Circle = 1,
-    Rectangle = 2,
-    Cone = 3,
+export enum CanvasScaleMode {
+    FixedWidth = 0,
+    FixedHeight = 1,
+    Expand = 2,
+    Shrink = 3,
+    Match = 4,
 }
 
-export enum SimulationSpace {
-    World = 0,
-    Local = 1,
-}
-
-export enum BodyType {
-    Static = 0,
-    Kinematic = 1,
-    Dynamic = 2,
-}
-
-export enum MaskMode {
-    Scissor = 0,
-    Stencil = 1,
-}
-
-export enum UIVisualType {
-    None = 0,
-    SolidColor = 1,
-    Image = 2,
-    NineSlice = 3,
+export enum ProjectionType {
+    Perspective = 0,
+    Orthographic = 1,
 }
 
 // Components
 
-export interface BitmapText {
-    text: string;
-    color: Vec4;
-    fontSize: number;
-    align: number;
-    spacing: number;
-    layer: number;
-    font: number;
-    enabled: boolean;
+export interface UIRect {
+    anchorMin: Vec2;
+    anchorMax: Vec2;
+    offsetMin: Vec2;
+    offsetMax: Vec2;
+    size: Vec2;
+    pivot: Vec2;
 }
 
-export interface Camera {
-    projectionType: number;
-    fov: number;
-    orthoSize: number;
-    nearPlane: number;
-    farPlane: number;
-    aspectRatio: number;
-    isActive: boolean;
-    priority: number;
-    viewportX: number;
-    viewportY: number;
-    viewportW: number;
-    viewportH: number;
-    clearFlags: number;
-}
-
-export interface Canvas {
-    designResolution: UVec2;
-    pixelsPerUnit: number;
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: Vec4;
+export interface FlexItem {
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: number;
+    order: number;
+    alignSelf: number;
+    margin: Padding;
+    minWidth: number;
+    minHeight: number;
+    maxWidth: number;
+    maxHeight: number;
+    widthPercent: number;
+    heightPercent: number;
 }
 
 export interface BoxCollider {
@@ -222,60 +211,6 @@ export interface FanLayout {
     direction: number;
 }
 
-export interface FlexContainer {
-    direction: number;
-    wrap: number;
-    justifyContent: number;
-    alignItems: number;
-    alignContent: number;
-    gap: Vec2;
-    padding: Padding;
-}
-
-export interface FlexItem {
-    flexGrow: number;
-    flexShrink: number;
-    flexBasis: number;
-    order: number;
-    alignSelf: number;
-    margin: Padding;
-    minWidth: number;
-    minHeight: number;
-    maxWidth: number;
-    maxHeight: number;
-    widthPercent: number;
-    heightPercent: number;
-}
-
-export interface GridLayout {
-    direction: number;
-    crossAxisCount: number;
-    itemSize: Vec2;
-    spacing: Vec2;
-}
-
-export interface Parent {
-    entity: number;
-}
-
-export interface Children {
-    entities: VectorEntity;
-}
-
-export interface Interactable {
-    enabled: boolean;
-    blockRaycast: boolean;
-    raycastTarget: boolean;
-}
-
-export interface LayoutGroup {
-    direction: number;
-    spacing: number;
-    padding: Padding;
-    childAlignment: number;
-    reverseOrder: boolean;
-}
-
 export interface ParticleEmitter {
     rate: number;
     burstCount: number;
@@ -320,31 +255,36 @@ export interface ParticleEmitter {
     enabled: boolean;
 }
 
-export interface RigidBody {
-    bodyType: number;
-    gravityScale: number;
-    linearDamping: number;
-    angularDamping: number;
-    fixedRotation: boolean;
-    bullet: boolean;
-    enabled: boolean;
+export interface Transform {
+    position: Vec3;
+    rotation: Quat;
+    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
 }
 
-export interface ScreenSpace {
-}
-
-export interface Selectable {
-    selected: boolean;
-    group: number;
-}
-
-export interface ShapeRenderer {
-    shapeType: number;
+export interface UIRenderer {
+    visualType: number;
+    texture: number;
     color: Vec4;
-    size: Vec2;
-    cornerRadius: number;
-    layer: number;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    sliceBorder: Vec4;
+    material: number;
     enabled: boolean;
+}
+
+export interface GridLayout {
+    direction: number;
+    crossAxisCount: number;
+    itemSize: Vec2;
+    spacing: Vec2;
+}
+
+export interface Velocity {
+    linear: Vec3;
+    angular: Vec3;
 }
 
 export interface SpineAnimation {
@@ -364,6 +304,40 @@ export interface SpineAnimation {
     enabled: boolean;
 }
 
+export interface Interactable {
+    enabled: boolean;
+    blockRaycast: boolean;
+    raycastTarget: boolean;
+}
+
+export interface UIInteraction {
+    hovered: boolean;
+    pressed: boolean;
+    justPressed: boolean;
+    justReleased: boolean;
+}
+
+export interface RigidBody {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    bullet: boolean;
+    enabled: boolean;
+}
+
+export interface BitmapText {
+    text: string;
+    color: Vec4;
+    fontSize: number;
+    align: number;
+    spacing: number;
+    layer: number;
+    font: number;
+    enabled: boolean;
+}
+
 export interface Sprite {
     texture: number;
     color: Vec4;
@@ -380,50 +354,76 @@ export interface Sprite {
     enabled: boolean;
 }
 
-export interface Transform {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
-    worldPosition: Vec3;
-    worldRotation: Quat;
-    worldScale: Vec3;
-}
-
-export interface UIInteraction {
-    hovered: boolean;
-    pressed: boolean;
-    justPressed: boolean;
-    justReleased: boolean;
-}
-
 export interface UIMask {
     enabled: boolean;
     mode: number;
 }
 
-export interface UIRect {
-    anchorMin: Vec2;
-    anchorMax: Vec2;
-    offsetMin: Vec2;
-    offsetMax: Vec2;
-    size: Vec2;
-    pivot: Vec2;
+export interface FlexContainer {
+    direction: number;
+    wrap: number;
+    justifyContent: number;
+    alignItems: number;
+    alignContent: number;
+    gap: Vec2;
+    padding: Padding;
 }
 
-export interface UIRenderer {
-    visualType: number;
-    texture: number;
+export interface Parent {
+    entity: number;
+}
+
+export interface Children {
+    entities: VectorEntity;
+}
+
+export interface ShapeRenderer {
+    shapeType: number;
     color: Vec4;
-    uvOffset: Vec2;
-    uvScale: Vec2;
-    sliceBorder: Vec4;
-    material: number;
+    size: Vec2;
+    cornerRadius: number;
+    layer: number;
     enabled: boolean;
 }
 
-export interface Velocity {
-    linear: Vec3;
-    angular: Vec3;
+export interface Selectable {
+    selected: boolean;
+    group: number;
+}
+
+export interface LayoutGroup {
+    direction: number;
+    spacing: number;
+    padding: Padding;
+    childAlignment: number;
+    reverseOrder: boolean;
+}
+
+export interface ScreenSpace {
+}
+
+export interface Canvas {
+    designResolution: UVec2;
+    pixelsPerUnit: number;
+    scaleMode: number;
+    matchWidthOrHeight: number;
+    backgroundColor: Vec4;
+}
+
+export interface Camera {
+    projectionType: number;
+    fov: number;
+    orthoSize: number;
+    nearPlane: number;
+    farPlane: number;
+    aspectRatio: number;
+    isActive: boolean;
+    priority: number;
+    viewportX: number;
+    viewportY: number;
+    viewportW: number;
+    viewportH: number;
+    clearFlags: number;
 }
 
 // Registry
@@ -433,18 +433,14 @@ export interface Registry {
     valid(entity: Entity): boolean;
     entityCount(): number;
 
-    hasBitmapText(entity: Entity): boolean;
-    getBitmapText(entity: Entity): BitmapText;
-    addBitmapText(entity: Entity, component: BitmapText): void;
-    removeBitmapText(entity: Entity): void;
-    hasCamera(entity: Entity): boolean;
-    getCamera(entity: Entity): Camera;
-    addCamera(entity: Entity, component: Camera): void;
-    removeCamera(entity: Entity): void;
-    hasCanvas(entity: Entity): boolean;
-    getCanvas(entity: Entity): Canvas;
-    addCanvas(entity: Entity, component: Canvas): void;
-    removeCanvas(entity: Entity): void;
+    hasUIRect(entity: Entity): boolean;
+    getUIRect(entity: Entity): UIRect;
+    addUIRect(entity: Entity, component: UIRect): void;
+    removeUIRect(entity: Entity): void;
+    hasFlexItem(entity: Entity): boolean;
+    getFlexItem(entity: Entity): FlexItem;
+    addFlexItem(entity: Entity, component: FlexItem): void;
+    removeFlexItem(entity: Entity): void;
     hasBoxCollider(entity: Entity): boolean;
     getBoxCollider(entity: Entity): BoxCollider;
     addBoxCollider(entity: Entity, component: BoxCollider): void;
@@ -465,18 +461,58 @@ export interface Registry {
     getFanLayout(entity: Entity): FanLayout;
     addFanLayout(entity: Entity, component: FanLayout): void;
     removeFanLayout(entity: Entity): void;
-    hasFlexContainer(entity: Entity): boolean;
-    getFlexContainer(entity: Entity): FlexContainer;
-    addFlexContainer(entity: Entity, component: FlexContainer): void;
-    removeFlexContainer(entity: Entity): void;
-    hasFlexItem(entity: Entity): boolean;
-    getFlexItem(entity: Entity): FlexItem;
-    addFlexItem(entity: Entity, component: FlexItem): void;
-    removeFlexItem(entity: Entity): void;
+    hasParticleEmitter(entity: Entity): boolean;
+    getParticleEmitter(entity: Entity): ParticleEmitter;
+    addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
+    removeParticleEmitter(entity: Entity): void;
+    hasTransform(entity: Entity): boolean;
+    getTransform(entity: Entity): Transform;
+    addTransform(entity: Entity, component: Transform): void;
+    removeTransform(entity: Entity): void;
+    hasUIRenderer(entity: Entity): boolean;
+    getUIRenderer(entity: Entity): UIRenderer;
+    addUIRenderer(entity: Entity, component: UIRenderer): void;
+    removeUIRenderer(entity: Entity): void;
     hasGridLayout(entity: Entity): boolean;
     getGridLayout(entity: Entity): GridLayout;
     addGridLayout(entity: Entity, component: GridLayout): void;
     removeGridLayout(entity: Entity): void;
+    hasVelocity(entity: Entity): boolean;
+    getVelocity(entity: Entity): Velocity;
+    addVelocity(entity: Entity, component: Velocity): void;
+    removeVelocity(entity: Entity): void;
+    hasSpineAnimation(entity: Entity): boolean;
+    getSpineAnimation(entity: Entity): SpineAnimation;
+    addSpineAnimation(entity: Entity, component: SpineAnimation): void;
+    removeSpineAnimation(entity: Entity): void;
+    hasInteractable(entity: Entity): boolean;
+    getInteractable(entity: Entity): Interactable;
+    addInteractable(entity: Entity, component: Interactable): void;
+    removeInteractable(entity: Entity): void;
+    hasUIInteraction(entity: Entity): boolean;
+    getUIInteraction(entity: Entity): UIInteraction;
+    addUIInteraction(entity: Entity, component: UIInteraction): void;
+    removeUIInteraction(entity: Entity): void;
+    hasRigidBody(entity: Entity): boolean;
+    getRigidBody(entity: Entity): RigidBody;
+    addRigidBody(entity: Entity, component: RigidBody): void;
+    removeRigidBody(entity: Entity): void;
+    hasBitmapText(entity: Entity): boolean;
+    getBitmapText(entity: Entity): BitmapText;
+    addBitmapText(entity: Entity, component: BitmapText): void;
+    removeBitmapText(entity: Entity): void;
+    hasSprite(entity: Entity): boolean;
+    getSprite(entity: Entity): Sprite;
+    addSprite(entity: Entity, component: Sprite): void;
+    removeSprite(entity: Entity): void;
+    hasUIMask(entity: Entity): boolean;
+    getUIMask(entity: Entity): UIMask;
+    addUIMask(entity: Entity, component: UIMask): void;
+    removeUIMask(entity: Entity): void;
+    hasFlexContainer(entity: Entity): boolean;
+    getFlexContainer(entity: Entity): FlexContainer;
+    addFlexContainer(entity: Entity, component: FlexContainer): void;
+    removeFlexContainer(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -485,66 +521,30 @@ export interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
-    hasInteractable(entity: Entity): boolean;
-    getInteractable(entity: Entity): Interactable;
-    addInteractable(entity: Entity, component: Interactable): void;
-    removeInteractable(entity: Entity): void;
-    hasLayoutGroup(entity: Entity): boolean;
-    getLayoutGroup(entity: Entity): LayoutGroup;
-    addLayoutGroup(entity: Entity, component: LayoutGroup): void;
-    removeLayoutGroup(entity: Entity): void;
-    hasParticleEmitter(entity: Entity): boolean;
-    getParticleEmitter(entity: Entity): ParticleEmitter;
-    addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
-    removeParticleEmitter(entity: Entity): void;
-    hasRigidBody(entity: Entity): boolean;
-    getRigidBody(entity: Entity): RigidBody;
-    addRigidBody(entity: Entity, component: RigidBody): void;
-    removeRigidBody(entity: Entity): void;
-    hasScreenSpace(entity: Entity): boolean;
-    getScreenSpace(entity: Entity): ScreenSpace;
-    addScreenSpace(entity: Entity, component: ScreenSpace): void;
-    removeScreenSpace(entity: Entity): void;
-    hasSelectable(entity: Entity): boolean;
-    getSelectable(entity: Entity): Selectable;
-    addSelectable(entity: Entity, component: Selectable): void;
-    removeSelectable(entity: Entity): void;
     hasShapeRenderer(entity: Entity): boolean;
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
     removeShapeRenderer(entity: Entity): void;
-    hasSpineAnimation(entity: Entity): boolean;
-    getSpineAnimation(entity: Entity): SpineAnimation;
-    addSpineAnimation(entity: Entity, component: SpineAnimation): void;
-    removeSpineAnimation(entity: Entity): void;
-    hasSprite(entity: Entity): boolean;
-    getSprite(entity: Entity): Sprite;
-    addSprite(entity: Entity, component: Sprite): void;
-    removeSprite(entity: Entity): void;
-    hasTransform(entity: Entity): boolean;
-    getTransform(entity: Entity): Transform;
-    addTransform(entity: Entity, component: Transform): void;
-    removeTransform(entity: Entity): void;
-    hasUIInteraction(entity: Entity): boolean;
-    getUIInteraction(entity: Entity): UIInteraction;
-    addUIInteraction(entity: Entity, component: UIInteraction): void;
-    removeUIInteraction(entity: Entity): void;
-    hasUIMask(entity: Entity): boolean;
-    getUIMask(entity: Entity): UIMask;
-    addUIMask(entity: Entity, component: UIMask): void;
-    removeUIMask(entity: Entity): void;
-    hasUIRect(entity: Entity): boolean;
-    getUIRect(entity: Entity): UIRect;
-    addUIRect(entity: Entity, component: UIRect): void;
-    removeUIRect(entity: Entity): void;
-    hasUIRenderer(entity: Entity): boolean;
-    getUIRenderer(entity: Entity): UIRenderer;
-    addUIRenderer(entity: Entity, component: UIRenderer): void;
-    removeUIRenderer(entity: Entity): void;
-    hasVelocity(entity: Entity): boolean;
-    getVelocity(entity: Entity): Velocity;
-    addVelocity(entity: Entity, component: Velocity): void;
-    removeVelocity(entity: Entity): void;
+    hasSelectable(entity: Entity): boolean;
+    getSelectable(entity: Entity): Selectable;
+    addSelectable(entity: Entity, component: Selectable): void;
+    removeSelectable(entity: Entity): void;
+    hasLayoutGroup(entity: Entity): boolean;
+    getLayoutGroup(entity: Entity): LayoutGroup;
+    addLayoutGroup(entity: Entity, component: LayoutGroup): void;
+    removeLayoutGroup(entity: Entity): void;
+    hasScreenSpace(entity: Entity): boolean;
+    getScreenSpace(entity: Entity): ScreenSpace;
+    addScreenSpace(entity: Entity, component: ScreenSpace): void;
+    removeScreenSpace(entity: Entity): void;
+    hasCanvas(entity: Entity): boolean;
+    getCanvas(entity: Entity): Canvas;
+    addCanvas(entity: Entity, component: Canvas): void;
+    removeCanvas(entity: Entity): void;
+    hasCamera(entity: Entity): boolean;
+    getCamera(entity: Entity): Camera;
+    addCamera(entity: Entity, component: Camera): void;
+    removeCamera(entity: Entity): void;
 
     // Hierarchy Utilities
     setParent(child: Entity, parent: Entity): void;
@@ -553,32 +553,32 @@ export interface Registry {
 // Module
 export interface ESEngineModule {
     Registry: new () => Registry;
-    BitmapText: new () => BitmapText;
-    Camera: new () => Camera;
-    Canvas: new () => Canvas;
+    UIRect: new () => UIRect;
+    FlexItem: new () => FlexItem;
     BoxCollider: new () => BoxCollider;
     CircleCollider: new () => CircleCollider;
     CapsuleCollider: new () => CapsuleCollider;
     SegmentCollider: new () => SegmentCollider;
     FanLayout: new () => FanLayout;
-    FlexContainer: new () => FlexContainer;
-    FlexItem: new () => FlexItem;
+    ParticleEmitter: new () => ParticleEmitter;
+    Transform: new () => Transform;
+    UIRenderer: new () => UIRenderer;
     GridLayout: new () => GridLayout;
+    Velocity: new () => Velocity;
+    SpineAnimation: new () => SpineAnimation;
+    Interactable: new () => Interactable;
+    UIInteraction: new () => UIInteraction;
+    RigidBody: new () => RigidBody;
+    BitmapText: new () => BitmapText;
+    Sprite: new () => Sprite;
+    UIMask: new () => UIMask;
+    FlexContainer: new () => FlexContainer;
     Parent: new () => Parent;
     Children: new () => Children;
-    Interactable: new () => Interactable;
-    LayoutGroup: new () => LayoutGroup;
-    ParticleEmitter: new () => ParticleEmitter;
-    RigidBody: new () => RigidBody;
-    ScreenSpace: new () => ScreenSpace;
-    Selectable: new () => Selectable;
     ShapeRenderer: new () => ShapeRenderer;
-    SpineAnimation: new () => SpineAnimation;
-    Sprite: new () => Sprite;
-    Transform: new () => Transform;
-    UIInteraction: new () => UIInteraction;
-    UIMask: new () => UIMask;
-    UIRect: new () => UIRect;
-    UIRenderer: new () => UIRenderer;
-    Velocity: new () => Velocity;
+    Selectable: new () => Selectable;
+    LayoutGroup: new () => LayoutGroup;
+    ScreenSpace: new () => ScreenSpace;
+    Canvas: new () => Canvas;
+    Camera: new () => Camera;
 }
