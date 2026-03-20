@@ -372,6 +372,7 @@ fn which_sync(bin: &str) -> Option<PathBuf> {
 }
 
 fn silent_command(program: &(impl AsRef<std::ffi::OsStr> + ?Sized)) -> std::process::Command {
+    #[allow(unused_mut)]
     let mut cmd = std::process::Command::new(program);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
