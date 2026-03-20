@@ -5,7 +5,7 @@
 
 import 'dockview-core/dist/styles/dockview.css';
 import '@esengine/editor/styles';
-import { createEditor, ProjectLauncher, LauncherBridge, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, getSettingsValue, type Editor } from '@esengine/editor';
+import { createEditor, ProjectLauncher, LauncherBridge, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, getSettingsValue, LoadingOverlay, type Editor } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -91,19 +91,41 @@ async function loadPhysicsFactory(editor: Editor): Promise<void> {
 
 async function openEditor(container: HTMLElement, projectPath: string): Promise<void> {
     const editor = createEditor(container, { projectPath });
-    console.log('ESEngine Editor opened project:', projectPath);
+    const overlay = new LoadingOverlay(container);
 
-    const module = await loadWasmModule();
-    if (module) {
-        const app: App = {
-            wasmModule: module,
-        } as App;
-        editor.setApp(app);
+    try {
+        overlay.setStatus('Loading engine...');
+        const [module] = await Promise.all([
+            loadWasmModule(),
+            loadProjectConfig(projectPath),
+        ]);
+
+        if (module) {
+            const app: App = {
+                wasmModule: module,
+            } as App;
+            editor.setApp(app);
+        }
+
+        overlay.setStatus('Loading physics...');
+        await loadPhysicsFactory(editor);
+
+        overlay.setStatus('Scanning assets...');
+        await editor.waitForAssetLibrary();
+
+        overlay.setStatus('Initializing scripts...');
+        await editor.waitForScripts();
+
+        overlay.setStatus('Restoring scene...');
+        await editor.waitForSceneRestore();
+
+        overlay.setStatus('Ready');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        overlay.dismiss();
+    } catch (e) {
+        overlay.setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`);
+        console.error('Editor initialization failed:', e);
     }
-
-    const config = await loadProjectConfig(projectPath);
-
-    await loadPhysicsFactory(editor);
 
     checkForUpdate();
 }
