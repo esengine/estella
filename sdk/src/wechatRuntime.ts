@@ -12,7 +12,7 @@ import { initRuntime } from './runtimeLoader';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformReadFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
-import type { AddressableManifest } from './asset/AssetServer';
+import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import { SpineManager, type SpineVersion } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';

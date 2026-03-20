@@ -14,7 +14,7 @@ import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { App } from './app';
 import type { Vec2 } from './types';
-import type { AddressableManifest } from './asset/AssetServer';
+import type { AddressableManifest } from './asset/AddressableManifest';
 import { Assets } from './asset/AssetPlugin';
 import { getAssetTypeEntry } from './assetTypes';
 import { SceneManager, type SceneConfig } from './sceneManager';

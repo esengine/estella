@@ -10,7 +10,8 @@ import type { NativeFS } from '../types/NativeFS';
 import type { SdkModuleLoader } from '../scripting/types';
 import { ScriptCompiler } from '../scripting/ScriptCompiler';
 import { joinPath } from '../utils/path';
-import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
+import { isUUID } from '../asset/AssetLibrary';
+import { getComponentAssetFields } from 'esengine';
 import { toBuildPath } from 'esengine';
 
 // =============================================================================
@@ -129,8 +130,8 @@ export function resolveSceneUUIDs(sceneData: Record<string, unknown>, artifact: 
             }
         }
         for (const comp of entity.components || []) {
-            const refFields = getComponentRefFields(comp.type);
-            if (!refFields || !comp.data) continue;
+            const refFields = getComponentAssetFields(comp.type);
+            if (refFields.length === 0 || !comp.data) continue;
             for (const field of refFields) {
                 const value = comp.data[field];
                 if (typeof value === 'string' && isUUID(value)) {

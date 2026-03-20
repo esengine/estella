@@ -4,7 +4,8 @@
  */
 
 import type { AssetDatabase } from './AssetDatabase';
-import { isUUID, getComponentRefFields } from './AssetDatabase';
+import { isUUID } from './AssetDatabase';
+import { getComponentAssetFields } from 'esengine';
 import { looksLikeAssetPath } from './AssetTypes';
 import { joinPath, isAbsolutePath, getDirName } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
@@ -40,11 +41,11 @@ export function registerRefScanner(scanner: AssetRefScanner): void {
 function getScanner(componentType: string): AssetRefScanner | undefined {
     const custom = customScanners.find(s => s.componentType === componentType);
     if (custom) return custom;
-    const fields = getComponentRefFields(componentType);
-    if (!fields) return undefined;
+    const fields = getComponentAssetFields(componentType);
+    if (fields.length === 0) return undefined;
     return {
         componentType,
-        extractRefs: (d) => fields.map(f => d[f] as string).filter(Boolean),
+        extractRefs: (d) => fields.map((f: string) => d[f] as string).filter(Boolean),
     };
 }
 

@@ -17,6 +17,11 @@ import {
     type SceneComponentData,
 } from '../src/scene';
 import type { Entity } from '../src/types';
+import { discoverSceneAssets } from '../src/asset/discoverAssets';
+import { getAssetFields, initBuiltinAssetFields } from '../src/asset/AssetFieldRegistry';
+import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+
+initBuiltinAssetFields();
 
 const Transform = defineBuiltin('Transform', {
     position: { x: 0, y: 0, z: 0 },
@@ -58,6 +63,7 @@ describe('Scene', () => {
         const module = createMockModule();
         world = new World();
         world.connectCpp(module.getRegistry(), module);
+        initResourceManager(module.getResourceManager());
     });
 
     // =========================================================================
@@ -484,19 +490,107 @@ describe('Scene', () => {
     // =========================================================================
 
     describe('loadSceneWithAssets', () => {
-        function createMockAssetServer() {
+        let nextTextureHandle: number;
+        let nextMaterialHandle: number;
+        let nextFontHandle: number;
+
+        beforeEach(() => {
+            nextTextureHandle = 100;
+            nextMaterialHandle = 200;
+            nextFontHandle = 300;
+        });
+
+        function createMockAssets(overrides?: {
+            textureHandleMap?: Map<string, number>;
+            materialHandleMap?: Map<string, number>;
+            fontHandleMap?: Map<string, number>;
+            failTextures?: Set<string>;
+            failMaterials?: Set<string>;
+            failFonts?: Set<string>;
+            failSpines?: Set<string>;
+        }) {
+            const preloadSceneAssets = vi.fn().mockImplementation(async (sceneData: SceneData) => {
+                const discovered = discoverSceneAssets(sceneData);
+
+                const textureHandles = new Map<string, number>();
+                const materialHandles = new Map<string, number>();
+                const fontHandles = new Map<string, number>();
+
+                const texturePaths = discovered.byType.get('texture') ?? new Set<string>();
+                for (const path of texturePaths) {
+                    if (overrides?.failTextures?.has(path)) {
+                        console.warn(`[Assets] Failed to load texture: ${path}`, new Error('load failed'));
+                        textureHandles.set(path, 0);
+                    } else {
+                        const handle = overrides?.textureHandleMap?.get(path) ?? nextTextureHandle++;
+                        textureHandles.set(path, handle);
+                    }
+                }
+
+                const materialPaths = discovered.byType.get('material') ?? new Set<string>();
+                for (const path of materialPaths) {
+                    if (overrides?.failMaterials?.has(path)) {
+                        console.warn(`[Assets] Failed to load material: ${path}`, new Error('load failed'));
+                        materialHandles.set(path, 0);
+                    } else {
+                        const handle = overrides?.materialHandleMap?.get(path) ?? nextMaterialHandle++;
+                        materialHandles.set(path, handle);
+                    }
+                }
+
+                const fontPaths = discovered.byType.get('font') ?? new Set<string>();
+                for (const path of fontPaths) {
+                    if (overrides?.failFonts?.has(path)) {
+                        console.warn(`[Assets] Failed to load font: ${path}`, new Error('load failed'));
+                        fontHandles.set(path, 0);
+                    } else {
+                        const handle = overrides?.fontHandleMap?.get(path) ?? nextFontHandle++;
+                        fontHandles.set(path, handle);
+                    }
+                }
+
+                for (const pair of discovered.spines) {
+                    const key = `${pair.skeleton}:${pair.atlas}`;
+                    if (overrides?.failSpines?.has(key)) {
+                        console.warn(`[Assets] Failed to load spine: ${pair.skeleton}`, new Error('load failed'));
+                    }
+                }
+
+                return { textureHandles, materialHandles, fontHandles, releaseCallbacks: [] };
+            });
+
+            const resolveSceneAssetPaths = vi.fn().mockImplementation(
+                (sceneData: SceneData, result: { textureHandles: Map<string, number>; materialHandles: Map<string, number>; fontHandles: Map<string, number> }) => {
+                    for (const entity of sceneData.entities) {
+                        for (const comp of entity.components) {
+                            const fields = getAssetFields(comp.type) as { field: string; type: string }[];
+                            for (const { field, type } of fields) {
+                                const value = comp.data[field];
+                                if (typeof value !== 'string' || !value) continue;
+                                switch (type) {
+                                    case 'texture':
+                                        comp.data[field] = result.textureHandles.get(value) ?? 0;
+                                        break;
+                                    case 'material':
+                                        comp.data[field] = result.materialHandles.get(value) ?? 0;
+                                        break;
+                                    case 'font':
+                                        comp.data[field] = result.fontHandles.get(value) ?? 0;
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                },
+            );
+
             return {
-                baseUrl: '/default-base',
-                loadTexture: vi.fn().mockResolvedValue({ handle: 1 }),
-                loadMaterial: vi.fn().mockResolvedValue({ handle: 2 }),
-                loadBitmapFont: vi.fn().mockResolvedValue(3),
-                loadSpine: vi.fn().mockResolvedValue({ success: true }),
-                loadJson: vi.fn(),
-                setTextureMetadataByPath: vi.fn(),
+                preloadSceneAssets,
+                resolveSceneAssetPaths,
             } as any;
         }
 
-        it('should load scene without assets when no assetServer', async () => {
+        it('should load scene without assets when no assets option', async () => {
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'NoAssets',
@@ -514,7 +608,9 @@ describe('Scene', () => {
         });
 
         it('should preload textures and replace path with handle', async () => {
-            const assetServer = createMockAssetServer();
+            const mockAssets = createMockAssets({
+                textureHandleMap: new Map([['hero.png', 42]]),
+            });
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'WithTexture',
@@ -529,19 +625,18 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, {
-                assetServer,
-                assetBaseUrl: '/game',
-            });
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(assetServer.loadTexture).toHaveBeenCalledWith('/game/hero.png');
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
             const entity = world.getEntitiesWithComponents([Sprite])[0];
             const sprite = world.get(entity, Sprite);
-            expect(sprite.texture).toBe(1);
+            expect(sprite.texture).toBe(42);
         });
 
-        it('should preload materials', async () => {
-            const assetServer = createMockAssetServer();
+        it('should preload materials and replace path with handle', async () => {
+            const mockAssets = createMockAssets({
+                materialHandleMap: new Map([['custom.mat', 55]]),
+            });
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'WithMaterial',
@@ -556,12 +651,20 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(assetServer.loadMaterial).toHaveBeenCalledWith('custom.mat', '/default-base');
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
+            const entity = world.getEntitiesWithComponents([Sprite])[0];
+            const sprite = world.get(entity, Sprite);
+            expect(sprite.material).toBe(55);
         });
 
-        it('should preload bitmap fonts', async () => {
-            const assetServer = createMockAssetServer();
+        it('should preload bitmap fonts and replace path with handle', async () => {
+            const mockAssets = createMockAssets({
+                fontHandleMap: new Map([['arial.fnt', 77]]),
+            });
+
+            defineBuiltin('BitmapText', { font: 0, text: '' });
+
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'WithFont',
@@ -576,15 +679,13 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, {
-                assetServer,
-                assetBaseUrl: '/assets',
-            });
-            expect(assetServer.loadBitmapFont).toHaveBeenCalledWith('arial.fnt', '/assets');
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
         });
 
-        it('should preload spine assets', async () => {
-            const assetServer = createMockAssetServer();
+        it('should call preloadSceneAssets for spine assets', async () => {
+            const mockAssets = createMockAssets();
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'WithSpine',
@@ -604,124 +705,15 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(assetServer.loadSpine).toHaveBeenCalledWith(
-                'hero.skel', 'hero.atlas', '/default-base',
-            );
-        });
-
-        it('should preload anim-clip assets and register clips', async () => {
-            const assetServer = createMockAssetServer();
-            assetServer.loadJson.mockResolvedValue({
-                fps: 12,
-                loop: true,
-                frames: [
-                    { texture: 'frame1.png', duration: 100 },
-                    { texture: 'frame2.png', duration: 100 },
-                ],
-            });
-
-            const AnimComp = defineComponent('TestSpriteAnimatorScene', {
-                clip: 'walk.esanim',
-                playing: true,
-                speed: 1,
-            }, { assetFields: [{ field: 'clip', type: 'anim-clip' }] });
-
-            const sceneData: SceneData = {
-                version: '1.0',
-                name: 'WithAnimClip',
-                entities: [{
-                    id: 0,
-                    name: 'AnimEntity',
-                    parent: null,
-                    children: [],
-                    components: [
-                        { type: 'TestSpriteAnimatorScene', data: { clip: 'walk.esanim', playing: true, speed: 1 } },
-                    ],
-                }],
-            };
-
-            await loadSceneWithAssets(world, sceneData, {
-                assetServer,
-                assetBaseUrl: '/game',
-            });
-
-            expect(assetServer.loadJson).toHaveBeenCalledWith('walk.esanim');
-            expect(assetServer.loadTexture).toHaveBeenCalledWith('/game/frame1.png');
-            expect(assetServer.loadTexture).toHaveBeenCalledWith('/game/frame2.png');
-        });
-
-        it('should handle anim-clip load failure gracefully', async () => {
-            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const assetServer = createMockAssetServer();
-            assetServer.loadJson.mockRejectedValue(new Error('404'));
-
-            const AnimComp2 = defineComponent('TestSpriteAnimatorScene2', { clip: 'x' }, {
-                assetFields: [{ field: 'clip', type: 'anim-clip' }],
-            });
-
-            const sceneData: SceneData = {
-                version: '1.0',
-                name: 'FailedAnimClip',
-                entities: [{
-                    id: 0,
-                    name: 'Entity',
-                    parent: null,
-                    children: [],
-                    components: [
-                        { type: 'TestSpriteAnimatorScene2', data: { clip: 'bad.esanim' } },
-                    ],
-                }],
-            };
-
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(warnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Failed to load animation clip'),
-                expect.any(Error),
-            );
-            warnSpy.mockRestore();
-        });
-
-        it('should handle anim-clip texture load failure gracefully', async () => {
-            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const assetServer = createMockAssetServer();
-            assetServer.loadJson.mockResolvedValue({
-                fps: 12,
-                loop: true,
-                frames: [{ texture: 'bad.png', duration: 100 }],
-            });
-            assetServer.loadTexture.mockRejectedValue(new Error('texture 404'));
-
-            const AnimComp3 = defineComponent('TestSpriteAnimatorScene3', { clip: 'x' }, {
-                assetFields: [{ field: 'clip', type: 'anim-clip' }],
-            });
-
-            const sceneData: SceneData = {
-                version: '1.0',
-                name: 'FailedAnimTexture',
-                entities: [{
-                    id: 0,
-                    name: 'Entity',
-                    parent: null,
-                    children: [],
-                    components: [
-                        { type: 'TestSpriteAnimatorScene3', data: { clip: 'walk.esanim' } },
-                    ],
-                }],
-            };
-
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(warnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Failed to load anim texture'),
-                expect.any(Error),
-            );
-            warnSpy.mockRestore();
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
         });
 
         it('should handle texture load failure gracefully', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const assetServer = createMockAssetServer();
-            assetServer.loadTexture.mockRejectedValue(new Error('404'));
+            const mockAssets = createMockAssets({
+                failTextures: new Set(['missing.png']),
+            });
 
             const sceneData: SceneData = {
                 version: '1.0',
@@ -737,18 +729,23 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
             expect(warnSpy).toHaveBeenCalledWith(
                 expect.stringContaining('Failed to load texture'),
                 expect.any(Error),
             );
+            const entity = world.getEntitiesWithComponents([Sprite])[0];
+            const sprite = world.get(entity, Sprite);
+            expect(sprite.texture).toBe(0);
             warnSpy.mockRestore();
         });
 
         it('should handle material load failure gracefully', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const assetServer = createMockAssetServer();
-            assetServer.loadMaterial.mockRejectedValue(new Error('404'));
+            const mockAssets = createMockAssets({
+                failMaterials: new Set(['bad.mat']),
+            });
 
             const sceneData: SceneData = {
                 version: '1.0',
@@ -764,18 +761,23 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
             expect(warnSpy).toHaveBeenCalledWith(
                 expect.stringContaining('Failed to load material'),
                 expect.any(Error),
             );
+            const entity = world.getEntitiesWithComponents([Sprite])[0];
+            const sprite = world.get(entity, Sprite);
+            expect(sprite.material).toBe(0);
             warnSpy.mockRestore();
         });
 
         it('should handle font load failure gracefully', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const assetServer = createMockAssetServer();
-            assetServer.loadBitmapFont.mockRejectedValue(new Error('404'));
+            const mockAssets = createMockAssets({
+                failFonts: new Set(['bad.fnt']),
+            });
 
             const sceneData: SceneData = {
                 version: '1.0',
@@ -791,9 +793,10 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
             expect(warnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Failed to load bitmap font'),
+                expect.stringContaining('Failed to load font'),
                 expect.any(Error),
             );
             warnSpy.mockRestore();
@@ -801,8 +804,9 @@ describe('Scene', () => {
 
         it('should warn on failed spine load', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const assetServer = createMockAssetServer();
-            assetServer.loadSpine.mockResolvedValue({ success: false, error: 'file not found' });
+            const mockAssets = createMockAssets({
+                failSpines: new Set(['bad.skel:bad.atlas']),
+            });
 
             const sceneData: SceneData = {
                 version: '1.0',
@@ -819,82 +823,19 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
             expect(warnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Failed to load Spine'),
+                expect.stringContaining('Failed to load spine'),
+                expect.any(Error),
             );
             warnSpy.mockRestore();
         });
 
-        it('should collect loaded assets when collectAssets provided', async () => {
-            const assetServer = createMockAssetServer();
-            assetServer.loadMaterial.mockResolvedValue({ handle: 5 });
-            const collectAssets = {
-                textureUrls: new Set<string>(),
-                materialHandles: new Set<number>(),
-                fontPaths: new Set<string>(),
-                spineKeys: new Set<string>(),
-            };
-
-            const sceneData: SceneData = {
-                version: '1.0',
-                name: 'Collect',
-                entities: [{
-                    id: 0,
-                    name: 'Entity',
-                    parent: null,
-                    children: [],
-                    components: [
-                        { type: 'Sprite', data: { texture: 'hero.png', material: 'custom.mat' } },
-                        { type: 'BitmapText', data: { font: 'arial.fnt' } },
-                        { type: 'SpineAnimation', data: { skeletonPath: 's.skel', atlasPath: 's.atlas', material: 0 } },
-                    ],
-                }],
-            };
-
-            await loadSceneWithAssets(world, sceneData, {
-                assetServer,
-                assetBaseUrl: '/assets',
-                collectAssets,
+        it('should apply textureMetadata sliceBorder via applyTextureMetadata', async () => {
+            const mockAssets = createMockAssets({
+                textureHandleMap: new Map([['border.png', 10]]),
             });
 
-            expect(collectAssets.textureUrls.size).toBeGreaterThan(0);
-            expect(collectAssets.materialHandles.has(5)).toBe(true);
-            expect(collectAssets.fontPaths.has('arial.fnt')).toBe(true);
-            expect(collectAssets.spineKeys.size).toBe(1);
-        });
-
-        it('should not collect material handle 0 (failed)', async () => {
-            const assetServer = createMockAssetServer();
-            assetServer.loadMaterial.mockRejectedValue(new Error('fail'));
-            vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const collectAssets = {
-                textureUrls: new Set<string>(),
-                materialHandles: new Set<number>(),
-                fontPaths: new Set<string>(),
-                spineKeys: new Set<string>(),
-            };
-
-            const sceneData: SceneData = {
-                version: '1.0',
-                name: 'FailCollect',
-                entities: [{
-                    id: 0,
-                    name: 'Entity',
-                    parent: null,
-                    children: [],
-                    components: [
-                        { type: 'Sprite', data: { texture: 0, material: 'bad.mat' } },
-                    ],
-                }],
-            };
-
-            await loadSceneWithAssets(world, sceneData, { assetServer, collectAssets });
-            expect(collectAssets.materialHandles.has(0)).toBe(false);
-        });
-
-        it('should apply textureMetadata sliceBorder', async () => {
-            const assetServer = createMockAssetServer();
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'WithMetadata',
@@ -916,71 +857,14 @@ describe('Scene', () => {
                 },
             };
 
-            await loadSceneWithAssets(world, sceneData, {
-                assetServer,
-                assetBaseUrl: '/game',
-            });
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(assetServer.setTextureMetadataByPath).toHaveBeenCalledWith(
-                '/game/border.png',
-                { left: 10, right: 10, top: 5, bottom: 5 },
-            );
-        });
-
-        it('should handle data: URL textures without base URL prefix', async () => {
-            const assetServer = createMockAssetServer();
-            const dataUrl = 'data:image/png;base64,abc123';
-            const sceneData: SceneData = {
-                version: '1.0',
-                name: 'DataUrl',
-                entities: [{
-                    id: 0,
-                    name: 'Entity',
-                    parent: null,
-                    children: [],
-                    components: [
-                        { type: 'Sprite', data: { texture: dataUrl, material: 0 } },
-                    ],
-                }],
-            };
-
-            await loadSceneWithAssets(world, sceneData, {
-                assetServer,
-                assetBaseUrl: '/game',
-            });
-
-            expect(assetServer.loadTexture).toHaveBeenCalledWith(dataUrl);
-        });
-
-        it('should deduplicate spine assets with same key', async () => {
-            const assetServer = createMockAssetServer();
-            const sceneData: SceneData = {
-                version: '1.0',
-                name: 'DupeSpine',
-                entities: [
-                    {
-                        id: 0, name: 'Spine1', parent: null, children: [],
-                        components: [{
-                            type: 'SpineAnimation',
-                            data: { skeletonPath: 's.skel', atlasPath: 's.atlas', material: 0 },
-                        }],
-                    },
-                    {
-                        id: 1, name: 'Spine2', parent: null, children: [],
-                        components: [{
-                            type: 'SpineAnimation',
-                            data: { skeletonPath: 's.skel', atlasPath: 's.atlas', material: 0 },
-                        }],
-                    },
-                ],
-            };
-
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(assetServer.loadSpine).toHaveBeenCalledTimes(1);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
+            expect(mockAssets.resolveSceneAssetPaths).toHaveBeenCalled();
         });
 
         it('should skip invisible entities during asset preloading', async () => {
-            const assetServer = createMockAssetServer();
+            const mockAssets = createMockAssets();
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'InvisibleAssets',
@@ -996,49 +880,62 @@ describe('Scene', () => {
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(assetServer.loadTexture).not.toHaveBeenCalled();
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
+            const result = await mockAssets.preloadSceneAssets.mock.results[0].value;
+            expect(result.textureHandles.size).toBe(0);
         });
 
-        it('should use assetServer.baseUrl when assetBaseUrl not provided', async () => {
-            const assetServer = createMockAssetServer();
+        it('should replace multiple asset fields on the same component', async () => {
+            const mockAssets = createMockAssets({
+                textureHandleMap: new Map([['hero.png', 11]]),
+                materialHandleMap: new Map([['glow.mat', 22]]),
+            });
+
             const sceneData: SceneData = {
                 version: '1.0',
-                name: 'DefaultBase',
+                name: 'MultiField',
                 entities: [{
                     id: 0,
                     name: 'Entity',
                     parent: null,
                     children: [],
                     components: [
-                        { type: 'Sprite', data: { texture: 'hero.png', material: 0 } },
+                        { type: 'Sprite', data: { texture: 'hero.png', material: 'glow.mat' } },
                     ],
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(assetServer.loadTexture).toHaveBeenCalledWith('/default-base/hero.png');
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
+            const entity = world.getEntitiesWithComponents([Sprite])[0];
+            const sprite = world.get(entity, Sprite);
+            expect(sprite.texture).toBe(11);
+            expect(sprite.material).toBe(22);
         });
 
-        it('should use / prefix when no baseUrl at all', async () => {
-            const assetServer = createMockAssetServer();
-            assetServer.baseUrl = undefined;
+        it('should not modify numeric asset values (already handles)', async () => {
+            const mockAssets = createMockAssets();
             const sceneData: SceneData = {
                 version: '1.0',
-                name: 'NoBase',
+                name: 'NumericAsset',
                 entities: [{
                     id: 0,
                     name: 'Entity',
                     parent: null,
                     children: [],
                     components: [
-                        { type: 'Sprite', data: { texture: 'hero.png', material: 0 } },
+                        { type: 'Sprite', data: { texture: 5, material: 0 } },
                     ],
                 }],
             };
 
-            await loadSceneWithAssets(world, sceneData, { assetServer });
-            expect(assetServer.loadTexture).toHaveBeenCalledWith('/hero.png');
+            await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
+
+            const entity = world.getEntitiesWithComponents([Sprite])[0];
+            const sprite = world.get(entity, Sprite);
+            expect(sprite.texture).toBe(5);
+            expect(sprite.material).toBe(0);
         });
     });
 

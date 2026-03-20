@@ -6,10 +6,8 @@
 import { World } from './world';
 import { Entity, INVALID_ENTITY } from './types';
 import { getComponent, Name, Camera } from './component';
-import type { AssetServer } from './asset/AssetServer';
-import { getAssetHandlers, type AssetFieldHandler } from './asset/AssetHandlerRegistry';
 import { discoverSceneAssets } from './asset/discoverAssets';
-import './asset/builtinAssetHandlers';
+import { requireResourceManager } from './resourceManager';
 
 // =============================================================================
 // Types
@@ -50,17 +48,15 @@ export interface SceneData {
 }
 
 export interface LoadedSceneAssets {
-    textureUrls: Set<string>;
+    texturePaths: Set<string>;
     materialHandles: Set<number>;
     fontPaths: Set<string>;
     spineKeys: Set<string>;
 }
 
 export interface SceneLoadOptions {
-    assetServer?: AssetServer;
     assets?: import('./asset/Assets').Assets;
     assetBaseUrl?: string;
-    collectAssets?: LoadedSceneAssets;
 }
 
 // =============================================================================
@@ -208,101 +204,19 @@ export async function loadSceneWithAssets(
         const assets = options.assets;
         const result = await assets.preloadSceneAssets(sceneData);
         assets.resolveSceneAssetPaths(sceneData, result);
-        return spawnAndLoadEntities(world, sceneData);
+        applyTextureMetadata(sceneData, result.textureHandles);
     }
-
-    const assetServer = options?.assetServer;
-    const baseUrl = options?.assetBaseUrl ?? assetServer?.baseUrl;
-    const texturePathToUrl = new Map<string, string>();
-
-    if (assetServer) {
-        await preloadSceneAssets(sceneData, assetServer, baseUrl, texturePathToUrl, options?.collectAssets);
-    }
-
-    const entityMap = spawnAndLoadEntities(world, sceneData);
-
-    if (assetServer && sceneData.textureMetadata) {
-        for (const [texturePath, metadata] of Object.entries(sceneData.textureMetadata)) {
-            const url = texturePathToUrl.get(texturePath);
-            if (url && metadata.sliceBorder) {
-                assetServer.setTextureMetadataByPath(url, metadata.sliceBorder);
-            }
-        }
-    }
-
-    return entityMap;
+    return spawnAndLoadEntities(world, sceneData);
 }
 
-export { type AssetFieldHandler } from './asset/AssetHandlerRegistry';
-
-async function preloadSceneAssets(
-    sceneData: SceneData,
-    assetServer: AssetServer,
-    baseUrl: string | undefined,
-    texturePathToUrl: Map<string, string>,
-    collectAssets?: LoadedSceneAssets,
-): Promise<void> {
-    const handlers = getAssetHandlers();
-    const discovered = discoverSceneAssets(sceneData);
-    const assetPaths = discovered.byType;
-    const spines = discovered.spines;
-
-    const assetHandles = new Map<string, Map<string, number>>();
-    const loadPromises = [...handlers.entries()].map(async ([type, handler]) => {
-        const paths = assetPaths.get(type);
-        if (!paths || paths.size === 0) return;
-        const handles = await handler.load(paths, assetServer, baseUrl, texturePathToUrl);
-        assetHandles.set(type, handles);
-    });
-
-    const spinePromises = spines.map(async (spine) => {
-        const result = await assetServer.loadSpine(spine.skeleton, spine.atlas, baseUrl);
-        if (!result.success) {
-            console.warn(`Failed to load Spine: ${result.error}`);
-        }
-    });
-
-    await Promise.all([...loadPromises, ...spinePromises]);
-
-    if (collectAssets) {
-        for (const url of texturePathToUrl.values()) {
-            collectAssets.textureUrls.add(url);
-        }
-        const materialHandles = assetHandles.get('material');
-        if (materialHandles) {
-            for (const handle of materialHandles.values()) {
-                if (handle > 0) collectAssets.materialHandles.add(handle);
-            }
-        }
-        const fontPaths = assetPaths.get('font');
-        if (fontPaths) {
-            for (const path of fontPaths) {
-                collectAssets.fontPaths.add(path);
-            }
-        }
-        for (const spine of spines) {
-            collectAssets.spineKeys.add(`${spine.skeleton}:${spine.atlas}`);
-        }
-    }
-
-    for (const entityData of sceneData.entities) {
-        if (entityData.visible === false) continue;
-
-        for (const compData of entityData.components) {
-            const comp = getComponent(compData.type);
-            if (!comp || comp.assetFields.length === 0) continue;
-
-            const data = compData.data as Record<string, unknown>;
-            for (const desc of comp.assetFields) {
-                const handles = assetHandles.get(desc.type);
-                if (!handles) continue;
-                const value = data[desc.field];
-                if (typeof value !== 'string' || !value) continue;
-                const handle = handles.get(value);
-                if (handle !== undefined) {
-                    data[desc.field] = handle;
-                }
-            }
+function applyTextureMetadata(sceneData: SceneData, textureHandles: Map<string, number>): void {
+    if (!sceneData.textureMetadata) return;
+    const rm = requireResourceManager();
+    for (const [path, metadata] of Object.entries(sceneData.textureMetadata)) {
+        const handle = textureHandles.get(path);
+        if (handle && metadata.sliceBorder) {
+            const b = metadata.sliceBorder;
+            rm.setTextureMetadata(handle, b.left, b.right, b.top, b.bottom);
         }
     }
 }

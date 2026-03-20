@@ -8,7 +8,7 @@ import { type AssetDatabase, isUUID } from '../asset/AssetDatabase';
 import { normalizePath, joinPath, isAbsolutePath, getFileExtension, getDirName } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
 import { looksLikeAssetPath } from '../asset/AssetTypes';
-import { getComponentRefFields } from '../asset/AssetDatabase';
+import { getComponentAssetFields } from 'esengine';
 import { getAssetTypeEntry } from 'esengine';
 import { parseAtlasTextures } from '../asset/importers/SpineAtlasParser';
 
@@ -165,8 +165,8 @@ export class AssetReferenceCollector {
             for (const comp of entity.components || []) {
                 if (!comp.data) continue;
 
-                const refFields = getComponentRefFields(comp.type);
-                if (refFields) {
+                const refFields = getComponentAssetFields(comp.type);
+                if (refFields.length > 0) {
                     for (const field of refFields) {
                         const value = comp.data[field];
                         if (typeof value !== 'string') continue;
@@ -249,8 +249,8 @@ export class AssetReferenceCollector {
 
                 for (const comp of entity.components || []) {
                     if (!comp.data) continue;
-                    const refFields = getComponentRefFields(comp.type);
-                    if (!refFields) continue;
+                    const refFields = getComponentAssetFields(comp.type);
+                    if (refFields.length === 0) continue;
                     for (const field of refFields) {
                         const value = comp.data[field];
                         if (typeof value !== 'string') continue;

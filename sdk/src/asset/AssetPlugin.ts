@@ -3,7 +3,6 @@ import { defineResource } from '../resource';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { initBuiltinAssetFields } from './AssetFieldRegistry';
-import { initBuiltinAssetHandlers } from './builtinAssetHandlers';
 
 export type AssetsData = AssetsClass;
 
@@ -23,7 +22,6 @@ export class AssetPlugin implements Plugin {
         }
 
         initBuiltinAssetFields();
-        initBuiltinAssetHandlers();
 
         const assets = AssetsClass.create({
             backend: new HttpBackend({ baseUrl: '' }),

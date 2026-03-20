@@ -10,7 +10,8 @@ import type { NativeFS } from '../types/NativeFS';
 import { BuildProgressReporter } from './BuildProgress';
 import { AssetExportConfigService, BuildAssetCollector } from './AssetCollector';
 import { TextureAtlasPacker, type AtlasResult } from './TextureAtlas';
-import { AssetLibrary, isUUID, getComponentRefFields } from '../asset/AssetLibrary';
+import { AssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { getComponentAssetFields } from 'esengine';
 import { type TextureImporterSettings, getEffectiveImporter } from '../asset/ImporterTypes';
 import { BuildCache } from './BuildCache';
 import { getAssetType, toAddressableType } from '../asset/AssetTypes';
@@ -266,8 +267,8 @@ function resolveSceneUUIDs(sceneData: Record<string, unknown>, assetLibrary: Ass
     for (const entity of entities) {
         for (const comp of entity.components || []) {
             if (!comp.data) continue;
-            const refFields = getComponentRefFields(comp.type);
-            if (!refFields) continue;
+            const refFields = getComponentAssetFields(comp.type);
+            if (refFields.length === 0) continue;
             for (const field of refFields) {
                 const value = comp.data[field];
                 if (typeof value === 'string' && isUUID(value)) {
@@ -315,8 +316,8 @@ function embedTextureImporterSettings(sceneData: Record<string, unknown>, assetL
 
     for (const entity of entities) {
         for (const comp of entity.components || []) {
-            const refFields = getComponentRefFields(comp.type);
-            if (!refFields || !comp.data) continue;
+            const refFields = getComponentAssetFields(comp.type);
+            if (refFields.length === 0 || !comp.data) continue;
             for (const field of refFields) {
                 const value = comp.data[field];
                 if (typeof value !== 'string' || !value) continue;
