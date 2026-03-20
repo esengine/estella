@@ -63,6 +63,7 @@ set(ESENGINE_SOURCES
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
+    src/esengine/ecs/UILayoutSystem.cpp
 )
 
 if(ES_ENABLE_POSTPROCESS)
@@ -533,6 +534,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
     if(ES_ENABLE_BOX2D)
         add_executable(physics_module
             src/esengine/bindings/PhysicsModuleEntry.cpp
+            src/esengine/bindings/PhysicsContext.cpp
+            src/esengine/bindings/PhysicsShapes.cpp
+            src/esengine/bindings/PhysicsJoints.cpp
+            src/esengine/bindings/PhysicsQueries.cpp
         )
         target_link_libraries(physics_module PRIVATE box2d)
         target_include_directories(physics_module PRIVATE
@@ -571,6 +576,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
     if(ES_ENABLE_BOX2D AND ES_BUILD_SIDE_MODULE)
         add_executable(physics_side_module
             src/esengine/bindings/PhysicsModuleEntry.cpp
+            src/esengine/bindings/PhysicsContext.cpp
+            src/esengine/bindings/PhysicsShapes.cpp
+            src/esengine/bindings/PhysicsJoints.cpp
+            src/esengine/bindings/PhysicsQueries.cpp
         )
         target_link_libraries(physics_side_module PRIVATE box2d)
         target_include_directories(physics_side_module PRIVATE
