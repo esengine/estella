@@ -29,6 +29,8 @@ import { formatSize } from './BuildProgress';
 import { discoverProjectScenes } from './SceneDiscovery';
 import { createDefaultHook } from './BuildHooks';
 import type { BuildHook, BuildHookPhase, BuildHookType, CopyFilesConfig, RunCommandConfig } from '../types/BuildTypes';
+import { getDefaultTemplate, getTemplateRelPath, getTemplatePlaceholderDocs } from './templates';
+import { joinPath, getParentDir } from '../utils/path';
 
 // =============================================================================
 // Types
@@ -540,6 +542,7 @@ export class BuildSettingsDialog {
                            value="${s.ctaUrl || ''}" placeholder="https://play.google.com/store/apps/...">
                 </div>
                 ` : ''}
+                ${this.renderTemplateSection('playable', s.templatePath)}
             `;
         } else if (config.platform === 'wechat' && config.wechatSettings) {
             const s = config.wechatSettings;
@@ -574,6 +577,7 @@ export class BuildSettingsDialog {
                         <button class="es-btn" data-action="browse-output">...</button>
                     </div>
                 </div>
+                ${this.renderTemplateSection('wechat', s.templatePath)}
             `;
         }
 
@@ -587,6 +591,40 @@ export class BuildSettingsDialog {
                 </div>
                 <div class="es-build-collapse-content">
                     ${settingsHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    private renderTemplateSection(platform: BuildPlatform, templatePath?: string): string {
+        const defaultRelPath = getTemplateRelPath(platform);
+        const placeholders = getTemplatePlaceholderDocs(platform);
+        const sectionKey = `template-ref-${platform}`;
+        const isRefExpanded = this.expandedSections_.has(sectionKey);
+        const placeholderRows = placeholders.map(p =>
+            `<tr><td style="font-family:monospace;white-space:nowrap;padding:2px 8px 2px 0">{{${p.key}}}</td><td style="padding:2px 0">${p.description}</td></tr>`
+        ).join('');
+
+        return `
+            <div class="es-build-field" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+                <label class="es-build-label">Custom Template</label>
+                <div class="es-build-path-row">
+                    <input type="text" class="es-input" id="${platform}-template-path"
+                           value="${templatePath || ''}" placeholder="${defaultRelPath}">
+                </div>
+                <div style="display:flex;gap:4px;margin-top:4px">
+                    <button class="es-btn es-btn-small" data-action="export-template" data-platform="${platform}">Export Default</button>
+                    <button class="es-btn es-btn-small" data-action="open-template" data-platform="${platform}">Open</button>
+                    <button class="es-btn es-btn-small" data-action="reset-template" data-platform="${platform}">Reset</button>
+                </div>
+            </div>
+            <div class="es-build-collapse ${isRefExpanded ? 'es-expanded' : ''}" data-section="${sectionKey}" style="margin-top:4px">
+                <div class="es-build-collapse-header">
+                    ${isRefExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
+                    <span>Placeholders Reference</span>
+                </div>
+                <div style="display:${isRefExpanded ? 'block' : 'none'};padding:8px;font-size:11px" data-template-ref-content="${platform}">
+                    <table style="width:100%">${placeholderRows}</table>
                 </div>
             </div>
         `;
@@ -764,10 +802,14 @@ export class BuildSettingsDialog {
                         this.expandedSections_.add(section);
                         collapse.classList.add('es-expanded');
                     }
+                    const expanded = this.expandedSections_.has(section);
                     const chevron = collapseHeader.querySelector('svg');
                     if (chevron) {
-                        const expanded = this.expandedSections_.has(section);
                         chevron.outerHTML = expanded ? icons.chevronDown(12) : icons.chevronRight(12);
+                    }
+                    const inlineContent = collapse.querySelector('[data-template-ref-content]') as HTMLElement;
+                    if (inlineContent) {
+                        inlineContent.style.display = expanded ? 'block' : 'none';
                     }
                 }
                 return;
@@ -1033,6 +1075,30 @@ export class BuildSettingsDialog {
                     fs?.openFolder(this.toolchainStatus_.emsdk_path);
                 }
                 break;
+
+            case 'export-template': {
+                const platform = element.dataset.platform as BuildPlatform;
+                if (platform) {
+                    await this.handleExportTemplate(platform);
+                }
+                break;
+            }
+
+            case 'open-template': {
+                const platform = element.dataset.platform as BuildPlatform;
+                if (platform && config) {
+                    await this.handleOpenTemplate(platform, config);
+                }
+                break;
+            }
+
+            case 'reset-template': {
+                const platform = element.dataset.platform as BuildPlatform;
+                if (platform && config) {
+                    await this.handleResetTemplate(platform, config);
+                }
+                break;
+            }
         }
     }
 
@@ -1076,6 +1142,8 @@ export class BuildSettingsDialog {
                 this.render();
             } else if (id === 'playable-cta-url') {
                 config.playableSettings.ctaUrl = target.value;
+            } else if (id === 'playable-template-path') {
+                config.playableSettings.templatePath = target.value || undefined;
             }
         }
 
@@ -1090,6 +1158,8 @@ export class BuildSettingsDialog {
                 config.wechatSettings.bundleMode = target.value as 'subpackage' | 'single' | 'singleFile';
             } else if (id === 'wechat-output') {
                 config.wechatSettings.outputDir = target.value;
+            } else if (id === 'wechat-template-path') {
+                config.wechatSettings.templatePath = target.value || undefined;
             }
         }
 
@@ -1658,6 +1728,71 @@ export class BuildSettingsDialog {
         } catch (err) {
             console.error('Failed to preview output:', err);
         }
+    }
+
+    // =========================================================================
+    // Template Management
+    // =========================================================================
+
+    private async handleExportTemplate(platform: BuildPlatform): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const projectDir = this.getProjectDir();
+        const relPath = getTemplateRelPath(platform);
+        const absPath = joinPath(projectDir, relPath);
+
+        if (await fs.exists(absPath)) {
+            showToast({ title: `Template already exists: ${relPath}`, type: 'info' });
+            return;
+        }
+
+        await fs.createDirectory(getParentDir(absPath));
+        const ok = await fs.writeFile(absPath, getDefaultTemplate(platform));
+        if (ok) {
+            showSuccessToast(`Exported to ${relPath}`);
+        } else {
+            showErrorToast('Failed to export template');
+        }
+    }
+
+    private async handleOpenTemplate(platform: BuildPlatform, config: BuildConfig): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const projectDir = this.getProjectDir();
+        const customPath = platform === 'playable'
+            ? config.playableSettings?.templatePath
+            : config.wechatSettings?.templatePath;
+        const relPath = customPath || getTemplateRelPath(platform);
+        const absPath = joinPath(projectDir, relPath);
+
+        if (!await fs.exists(absPath)) {
+            showToast({ title: `Template not found: ${relPath}. Export it first.`, type: 'info' });
+            return;
+        }
+
+        await fs.openFolder(getParentDir(absPath));
+    }
+
+    private async handleResetTemplate(platform: BuildPlatform, config: BuildConfig): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const projectDir = this.getProjectDir();
+        const absPath = joinPath(projectDir, getTemplateRelPath(platform));
+
+        await fs.removeFile(absPath);
+
+        if (platform === 'playable' && config.playableSettings) {
+            config.playableSettings.templatePath = undefined;
+        } else if (platform === 'wechat' && config.wechatSettings) {
+            config.wechatSettings.templatePath = undefined;
+        }
+
+        await this.saveSettings();
+        this.render();
+        showSuccessToast('Template reset to default');
     }
 
     // =========================================================================

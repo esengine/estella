@@ -10,7 +10,7 @@ import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
 import { joinPath, getFileExtension, isAbsolutePath, getParentDir, normalizePath, getProjectDir } from '../utils/path';
 import { arrayBufferToBase64, generateAddressableManifest, generateCatalog } from './ArtifactBuilder';
-import { PLAYABLE_HTML_TEMPLATE } from './templates';
+import { renderTemplate, loadTemplate } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
 import {
@@ -20,6 +20,7 @@ import {
     resolveSceneUUIDs,
     generatePhysicsConfig,
 } from './EmitterUtils';
+
 
 // =============================================================================
 // PlayableEmitter
@@ -122,14 +123,16 @@ export class PlayableEmitter implements PlatformEmitter {
             const catalogJson = JSON.stringify(generateCatalog(artifact));
             assets.set('catalog.json', `data:application/json;base64,${btoa(catalogJson)}`);
 
-            // 7. Assemble HTML
+            // 7. Load template + assemble HTML
             progress.setCurrentTask('Assembling HTML...', 50);
-            const html = this.assembleHTML(
+            const template = await loadTemplate(fs, projectDir, context.config.playableSettings?.templatePath, 'playable');
+            const sections = this.prepareSections(
                 wasmSdk, gameCode, allScenes, startupSceneName, assets,
                 spineModules,
                 physicsJsSource, physicsWasmBase64,
                 context, manifestJson
             );
+            const html = renderTemplate(template, sections);
             progress.log('info', `HTML assembled: ${html.length} bytes`);
 
             // 8. Write output
@@ -314,14 +317,14 @@ const __plugins = [${pluginList}];
         await scan(assetsDir, 'assets');
     }
 
-    private assembleHTML(
+    private prepareSections(
         wasmSdk: string, gameCode: string,
         allScenes: Array<{ name: string; data: string }>, startupScene: string,
         assets: Map<string, string>,
         spineModules: Array<{ version: string; js: string; wasmBase64: string }>,
         physicsJs: string, physicsWasmBase64: string,
         context: BuildContext, manifestJson: string
-    ): string {
+    ): Record<string, string> {
         const entries: string[] = [];
         for (const [path, dataUrl] of assets) {
             entries.push(`"${path}":"${dataUrl}"`);
@@ -346,46 +349,36 @@ const __plugins = [${pluginList}];
             physicsScript = `<script>\nvar __PHYSICS_WASM_B64__="${physicsWasmBase64}";\n${physicsJs}\n</script>`;
         }
 
-        const physicsConfig = generatePhysicsConfig(context);
-
         const enableCTA = context.config.playableSettings?.enableBuiltinCTA ?? false;
         const ctaUrl = JSON.stringify(context.config.playableSettings?.ctaUrl || '');
 
-        const ctaStyle = enableCTA
-            ? '#cta{position:fixed;bottom:5%;left:50%;transform:translateX(-50%);padding:12px 32px;font-size:18px;font-weight:bold;color:#fff;background:#ff4444;border:none;border-radius:8px;cursor:pointer;z-index:999;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.3)}\n#cta:active{transform:translateX(-50%) scale(0.95)}'
-            : '';
-        const ctaHtml = enableCTA
-            ? '<button id="cta" style="display:none">Install Now</button>'
-            : '';
-        const ctaScript = enableCTA
-            ? `function installCTA(){\n  if(typeof mraid!=='undefined'&&mraid.open){mraid.open(${ctaUrl})}\n  else{window.open(${ctaUrl},'_blank')}\n}\ndocument.getElementById('cta').addEventListener('click',installCTA);`
-            : '';
-        const ctaShow = enableCTA
-            ? "document.getElementById('cta').style.display='block';"
-            : '';
+        const sceneItems = allScenes.map(s => `{name:${JSON.stringify(s.name)},data:${s.data}}`);
 
-        const runtimeConfigCode = this.generateRuntimeConfigCode(context);
-        const runtimeAppConfigCode = this.generateRuntimeAppConfigCode(context);
-
-        return PLAYABLE_HTML_TEMPLATE
-            .replace('{{WASM_SDK}}', () => wasmSdk)
-            .replace('{{SPINE_SCRIPT}}', () => spineScript)
-            .replace('{{PHYSICS_SCRIPT}}', () => physicsScript)
-            .replace('{{GAME_CODE}}', () => gameCode)
-            .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
-            .replace('{{SCENES_DATA}}', () => {
-                const items = allScenes.map(s => `{name:${JSON.stringify(s.name)},data:${s.data}}`);
-                return `[${items.join(',')}]`;
-            })
-            .replace('{{STARTUP_SCENE}}', () => startupScene)
-            .replace('{{PHYSICS_CONFIG}}', () => physicsConfig)
-            .replace('{{MANIFEST}}', () => manifestJson)
-            .replace('{{RUNTIME_CONFIG}}', () => runtimeConfigCode)
-            .replace('{{RUNTIME_APP_CONFIG}}', () => runtimeAppConfigCode)
-            .replace('{{CTA_STYLE}}', () => ctaStyle)
-            .replace('{{CTA_HTML}}', () => ctaHtml)
-            .replace('{{CTA_SCRIPT}}', () => ctaScript)
-            .replace('{{CTA_SHOW}}', () => ctaShow);
+        return {
+            WASM_SDK: wasmSdk,
+            SPINE_SCRIPT: spineScript,
+            PHYSICS_SCRIPT: physicsScript,
+            GAME_CODE: gameCode,
+            ASSETS_MAP: `{${entries.join(',')}}`,
+            SCENES_DATA: `[${sceneItems.join(',')}]`,
+            STARTUP_SCENE: startupScene,
+            PHYSICS_CONFIG: generatePhysicsConfig(context),
+            MANIFEST: manifestJson,
+            RUNTIME_CONFIG: this.generateRuntimeConfigCode(context),
+            RUNTIME_APP_CONFIG: this.generateRuntimeAppConfigCode(context),
+            CTA_STYLE: enableCTA
+                ? '#cta{position:fixed;bottom:5%;left:50%;transform:translateX(-50%);padding:12px 32px;font-size:18px;font-weight:bold;color:#fff;background:#ff4444;border:none;border-radius:8px;cursor:pointer;z-index:999;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.3)}\n#cta:active{transform:translateX(-50%) scale(0.95)}'
+                : '',
+            CTA_HTML: enableCTA
+                ? '<button id="cta" style="display:none">Install Now</button>'
+                : '',
+            CTA_SCRIPT: enableCTA
+                ? `function installCTA(){\n  if(typeof mraid!=='undefined'&&mraid.open){mraid.open(${ctaUrl})}\n  else{window.open(${ctaUrl},'_blank')}\n}\ndocument.getElementById('cta').addEventListener('click',installCTA);`
+                : '',
+            CTA_SHOW: enableCTA
+                ? "document.getElementById('cta').style.display='block';"
+                : '',
+        };
     }
 
     private generateRuntimeConfigCode(context: BuildContext): string {

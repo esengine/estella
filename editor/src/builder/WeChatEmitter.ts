@@ -11,7 +11,7 @@ import { getEditorContext } from '../context/EditorContext';
 import { joinPath, getProjectDir } from '../utils/path';
 import { resolveShaderPath } from '../utils/shader';
 import { generateAddressableManifest, generateCatalog } from './ArtifactBuilder';
-import { generateWeChatGameJs } from './templates';
+import { prepareWeChatSections, renderTemplate, loadTemplate } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getWeChatPackOptions, getAssetTypeEntry, toBuildPath } from 'esengine';
 import {
@@ -19,6 +19,7 @@ import {
     compileUserScripts,
     generatePhysicsConfig,
 } from './EmitterUtils';
+
 
 // =============================================================================
 // WeChatEmitter
@@ -242,7 +243,7 @@ export class WeChatEmitter implements PlatformEmitter {
         const physicsConfig = generatePhysicsConfig(context);
 
         const spineEnabled = context.config.engineModules?.spine !== false;
-        const gameJs = generateWeChatGameJs({
+        const sections = prepareWeChatSections({
             userCode,
             firstSceneName,
             allSceneNames,
@@ -251,6 +252,9 @@ export class WeChatEmitter implements PlatformEmitter {
             physicsConfig,
             runtimeConfig: context.runtimeConfig,
         });
+
+        const template = await loadTemplate(fs, projectDir, context.config.wechatSettings?.templatePath, 'wechat');
+        const gameJs = renderTemplate(template, sections);
 
         await fs.writeFile(joinPath(outputDir, 'game.js'), gameJs);
         await this.copyWeChatSdk(fs, outputDir, context, artifact);

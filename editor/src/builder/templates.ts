@@ -4,6 +4,9 @@
  */
 
 import type { RuntimeBuildConfig } from './BuildService';
+import type { BuildPlatform } from '../types/BuildTypes';
+import type { NativeFS } from '../types/NativeFS';
+import { joinPath, isAbsolutePath, normalizePath } from '../utils/path';
 
 // =============================================================================
 // Playable HTML Template
@@ -76,6 +79,29 @@ window.fetch=function(u,o){var d=typeof u==='string'&&__PA__[u];return d?_fetch.
 // WeChat game.js Template
 // =============================================================================
 
+export const WECHAT_GAMEJS_TEMPLATE = `var ESEngineModule = require('./esengine.js');
+var SDK = require('./sdk.js');
+globalThis.__esengine_sdk = SDK;
+
+{{USER_CODE}}
+
+(async function() {
+    try {
+        await SDK.initWeChatRuntime({
+            engineFactory: ESEngineModule,
+            sceneNames: {{SCENE_NAMES}},
+            firstScene: {{FIRST_SCENE}},
+            runtimeConfig: {{RUNTIME_CONFIG}},
+            physicsConfig: {{PHYSICS_CONFIG}},
+            {{SPINE_FACTORIES}}
+            {{PHYSICS_FACTORY}}
+        });
+    } catch (err) {
+        console.error('[ESEngine] Runtime init error:', err);
+    }
+})();
+`;
+
 export interface WeChatGameJsParams {
     userCode: string;
     firstSceneName: string;
@@ -86,10 +112,8 @@ export interface WeChatGameJsParams {
     runtimeConfig?: RuntimeBuildConfig;
 }
 
-export function generateWeChatGameJs(params: WeChatGameJsParams): string {
+export function prepareWeChatSections(params: WeChatGameJsParams): Record<string, string> {
     const { userCode, firstSceneName, allSceneNames, spineVersions, hasPhysics, physicsConfig, runtimeConfig } = params;
-
-    const runtimeConfigJson = runtimeConfig ? JSON.stringify(runtimeConfig) : 'undefined';
 
     const nonNativeVersions = spineVersions.filter(v => v !== '4.2');
     let spineFactoriesCode = '';
@@ -101,27 +125,112 @@ export function generateWeChatGameJs(params: WeChatGameJsParams): string {
         spineFactoriesCode = `spineFactories: {${entries.join(', ')}},`;
     }
 
-    return `
-var ESEngineModule = require('./esengine.js');
-var SDK = require('./sdk.js');
-globalThis.__esengine_sdk = SDK;
+    return {
+        USER_CODE: userCode,
+        SCENE_NAMES: JSON.stringify(allSceneNames),
+        FIRST_SCENE: JSON.stringify(firstSceneName),
+        RUNTIME_CONFIG: runtimeConfig ? JSON.stringify(runtimeConfig) : 'undefined',
+        PHYSICS_CONFIG: physicsConfig,
+        SPINE_FACTORIES: spineFactoriesCode,
+        PHYSICS_FACTORY: hasPhysics ? "physicsFactory: require('./physics.js')," : '',
+    };
+}
 
-${userCode}
+export function generateWeChatGameJs(params: WeChatGameJsParams): string {
+    const sections = prepareWeChatSections(params);
+    return renderTemplate(WECHAT_GAMEJS_TEMPLATE, sections);
+}
 
-(async function() {
-    try {
-        await SDK.initWeChatRuntime({
-            engineFactory: ESEngineModule,
-            sceneNames: ${JSON.stringify(allSceneNames)},
-            firstScene: ${JSON.stringify(firstSceneName)},
-            runtimeConfig: ${runtimeConfigJson},
-            physicsConfig: ${physicsConfig},
-            ${spineFactoriesCode}
-            ${hasPhysics ? "physicsFactory: require('./physics.js')," : ''}
-        });
-    } catch (err) {
-        console.error('[ESEngine] Runtime init error:', err);
+// =============================================================================
+// Shared template rendering
+// =============================================================================
+
+export function renderTemplate(template: string, sections: Record<string, string>): string {
+    return template.replace(/\{\{(\w+)\}\}/g, (match, key) =>
+        key in sections ? sections[key] : match
+    );
+}
+
+// =============================================================================
+// Shared template loading (3-level fallback)
+// =============================================================================
+
+export async function loadTemplate(
+    fs: NativeFS,
+    projectDir: string,
+    customPath: string | undefined,
+    platform: BuildPlatform,
+): Promise<string> {
+    if (customPath) {
+        const absPath = isAbsolutePath(customPath)
+            ? normalizePath(customPath)
+            : joinPath(projectDir, customPath);
+        const content = await fs.readFile(absPath);
+        if (content) return content;
     }
-})();
-`;
+
+    const projectTemplatePath = joinPath(projectDir, TEMPLATE_REL_PATHS[platform]);
+    const content = await fs.readFile(projectTemplatePath);
+    if (content) return content;
+
+    return DEFAULT_TEMPLATES[platform];
+}
+
+// =============================================================================
+// Template export utilities
+// =============================================================================
+
+const TEMPLATE_REL_PATHS: Record<BuildPlatform, string> = {
+    playable: '.esengine/templates/playable.html',
+    wechat: '.esengine/templates/wechat-game.js',
+};
+
+const DEFAULT_TEMPLATES: Record<BuildPlatform, string> = {
+    playable: PLAYABLE_HTML_TEMPLATE,
+    wechat: WECHAT_GAMEJS_TEMPLATE,
+};
+
+export function getTemplateRelPath(platform: BuildPlatform): string {
+    return TEMPLATE_REL_PATHS[platform];
+}
+
+export function getDefaultTemplate(platform: BuildPlatform): string {
+    return DEFAULT_TEMPLATES[platform];
+}
+
+export interface PlaceholderDoc {
+    key: string;
+    description: string;
+}
+
+const PLAYABLE_PLACEHOLDER_DOCS: PlaceholderDoc[] = [
+    { key: 'WASM_SDK', description: 'Compiled WASM engine JS module' },
+    { key: 'SPINE_SCRIPT', description: 'Spine animation module <script> tags' },
+    { key: 'PHYSICS_SCRIPT', description: 'Physics module <script> tag' },
+    { key: 'GAME_CODE', description: 'Compiled user scripts (IIFE)' },
+    { key: 'ASSETS_MAP', description: 'JS object mapping asset paths to data URIs' },
+    { key: 'SCENES_DATA', description: 'Array of scene JSON objects' },
+    { key: 'STARTUP_SCENE', description: 'Name of the first scene to load' },
+    { key: 'PHYSICS_CONFIG', description: 'Physics configuration JSON' },
+    { key: 'MANIFEST', description: 'Addressable asset manifest JSON' },
+    { key: 'RUNTIME_CONFIG', description: 'RuntimeConfig property assignments' },
+    { key: 'RUNTIME_APP_CONFIG', description: 'App-level config calls (maxDeltaTime, etc.)' },
+    { key: 'CTA_STYLE', description: 'CSS for built-in CTA button' },
+    { key: 'CTA_HTML', description: 'HTML for built-in CTA button element' },
+    { key: 'CTA_SCRIPT', description: 'JS click handler for CTA button' },
+    { key: 'CTA_SHOW', description: 'JS to show CTA button after init' },
+];
+
+const WECHAT_PLACEHOLDER_DOCS: PlaceholderDoc[] = [
+    { key: 'USER_CODE', description: 'Compiled user scripts' },
+    { key: 'SCENE_NAMES', description: 'JSON array of scene names' },
+    { key: 'FIRST_SCENE', description: 'JSON string of first scene name' },
+    { key: 'RUNTIME_CONFIG', description: 'Runtime config JSON object' },
+    { key: 'PHYSICS_CONFIG', description: 'Physics config JSON string' },
+    { key: 'SPINE_FACTORIES', description: 'Spine factory require() entries' },
+    { key: 'PHYSICS_FACTORY', description: 'Physics factory require() entry' },
+];
+
+export function getTemplatePlaceholderDocs(platform: BuildPlatform): PlaceholderDoc[] {
+    return platform === 'playable' ? PLAYABLE_PLACEHOLDER_DOCS : WECHAT_PLACEHOLDER_DOCS;
 }
