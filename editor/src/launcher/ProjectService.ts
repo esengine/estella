@@ -11,7 +11,7 @@ import type {
 } from '../types/ProjectTypes';
 import { ENGINE_VERSION } from '../types/ProjectTypes';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
-import { createCanvasComponents } from '../panels/hierarchy/uiEntityUtils';
+import { createCanvasComponentData } from '../panels/hierarchy/uiEntityUtils';
 import { SdkExportService } from '../sdk';
 import { EditorExportService } from '../extension/EditorExportService';
 import { getEditorContext } from '../context/EditorContext';
@@ -506,7 +506,7 @@ function createDefaultScene(
                 name: 'Canvas',
                 parent: null,
                 children: [],
-                components: createCanvasComponents({
+                components: createCanvasComponentData({
                     designResolution: { x: designResolution.width, y: designResolution.height },
                     pixelsPerUnit,
                     scaleMode: 1,
