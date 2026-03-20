@@ -478,6 +478,7 @@ export {
     type SceneEntityData,
     type SceneComponentData,
     type SceneLoadOptions,
+    type SceneLoadProgressCallback,
     type SliceBorder,
 } from './scene';
 

@@ -254,7 +254,10 @@ export class Assets {
     // Scene Asset Preloading
     // =========================================================================
 
-    async preloadSceneAssets(sceneData: SceneData): Promise<SceneAssetResult> {
+    async preloadSceneAssets(
+        sceneData: SceneData,
+        onProgress?: (loaded: number, total: number) => void,
+    ): Promise<SceneAssetResult> {
         const discovered = discoverSceneAssets(sceneData);
         const texturePaths = discovered.byType.get('texture') ?? new Set<string>();
         const materialPaths = discovered.byType.get('material') ?? new Set<string>();
@@ -270,24 +273,33 @@ export class Assets {
         const fontHandles = new Map<string, number>();
         const releaseCallbacks: ReleaseCallback[] = [];
 
+        let loadedCount = 0;
+
+        const trackProgress = (p: Promise<void>): Promise<void> =>
+            p.then(() => { onProgress?.(++loadedCount, totalCount); });
+
         const loadHandles = (
             paths: Set<string>, loader: (p: string) => Promise<{ handle: number }>,
             handles: Map<string, number>, label: string,
         ): Promise<void>[] =>
             [...paths].map(path =>
-                loader(path).then(r => { handles.set(path, r.handle); }).catch(e => {
-                    console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
-                    handles.set(path, 0);
-                }),
+                trackProgress(
+                    loader(path).then(r => { handles.set(path, r.handle); }).catch(e => {
+                        console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
+                        handles.set(path, 0);
+                    }),
+                ),
             );
 
         const loadFireAndForget = (
             paths: Set<string>, loader: (p: string) => Promise<unknown>, label: string,
         ): Promise<void>[] =>
             [...paths].map(path =>
-                loader(path).then(() => {}).catch(e => {
-                    console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
-                }),
+                trackProgress(
+                    loader(path).then(() => {}).catch(e => {
+                        console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
+                    }),
+                ),
             );
 
         const promises: Promise<void>[] = [
@@ -295,15 +307,20 @@ export class Assets {
             ...loadHandles(materialPaths, p => this.loadMaterial(p), materialHandles, 'material'),
             ...loadHandles(fontPaths, p => this.loadFont(p), fontHandles, 'font'),
             ...spinePairs.map(pair =>
-                this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
-                    console.warn(`[Assets] Failed to load spine: ${pair.skeleton}`, e);
-                }),
+                trackProgress(
+                    this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
+                        console.warn(`[Assets] Failed to load spine: ${pair.skeleton}`, e);
+                    }),
+                ),
             ),
             ...loadFireAndForget(animClipPaths, p => this.loadAnimClip(p), 'anim-clip'),
             ...loadFireAndForget(tilemapPaths, p => this.loadTilemap(p), 'tilemap'),
             ...loadFireAndForget(timelinePaths, p => this.loadTimeline(p), 'timeline'),
             ...loadFireAndForget(audioPaths, p => this.loadAudio(p), 'audio'),
         ];
+
+        const totalCount = promises.length;
+        onProgress?.(0, totalCount);
 
         await Promise.all(promises);
 

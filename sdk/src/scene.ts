@@ -54,10 +54,13 @@ export interface LoadedSceneAssets {
     spineKeys: Set<string>;
 }
 
+export type SceneLoadProgressCallback = (loaded: number, total: number) => void;
+
 export interface SceneLoadOptions {
     assets?: import('./asset/Assets').Assets;
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
+    onProgress?: SceneLoadProgressCallback;
 }
 
 // =============================================================================
@@ -203,7 +206,7 @@ export async function loadSceneWithAssets(
 ): Promise<Map<number, Entity>> {
     if (options?.assets) {
         const assets = options.assets;
-        const result = await assets.preloadSceneAssets(sceneData);
+        const result = await assets.preloadSceneAssets(sceneData, options.onProgress);
         assets.resolveSceneAssetPaths(sceneData, result);
         applyTextureMetadata(sceneData, result.textureHandles);
         if (options.collectAssets) {
