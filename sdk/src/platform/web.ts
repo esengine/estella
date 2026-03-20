@@ -149,28 +149,59 @@ class WebPlatformAdapter implements PlatformAdapter {
         const onMouseUp = (e: Event) => {
             callbacks.onPointerUp((e as MouseEvent).button);
         };
+        let primaryTouchId: number | null = null;
+
         const onTouchStart = (e: Event) => {
             e.preventDefault();
-            const touch = (e as TouchEvent).touches[0];
-            if (touch) {
-                const rect = (el as HTMLElement).getBoundingClientRect();
-                callbacks.onPointerDown(0, touch.clientX - rect.left, touch.clientY - rect.top);
+            const te = e as TouchEvent;
+            const rect = (el as HTMLElement).getBoundingClientRect();
+            for (let i = 0; i < te.changedTouches.length; i++) {
+                const touch = te.changedTouches[i];
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                callbacks.onTouchStart?.(touch.identifier, x, y);
+                if (primaryTouchId === null) {
+                    primaryTouchId = touch.identifier;
+                    callbacks.onPointerDown(0, x, y);
+                }
             }
         };
         const onTouchMove = (e: Event) => {
             e.preventDefault();
-            const touch = (e as TouchEvent).touches[0];
-            if (touch) {
-                const rect = (el as HTMLElement).getBoundingClientRect();
-                callbacks.onPointerMove(touch.clientX - rect.left, touch.clientY - rect.top);
+            const te = e as TouchEvent;
+            const rect = (el as HTMLElement).getBoundingClientRect();
+            for (let i = 0; i < te.changedTouches.length; i++) {
+                const touch = te.changedTouches[i];
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                callbacks.onTouchMove?.(touch.identifier, x, y);
+                if (touch.identifier === primaryTouchId) {
+                    callbacks.onPointerMove(x, y);
+                }
             }
         };
         const onTouchEnd = (e: Event) => {
             e.preventDefault();
-            callbacks.onPointerUp(0);
+            const te = e as TouchEvent;
+            for (let i = 0; i < te.changedTouches.length; i++) {
+                const touch = te.changedTouches[i];
+                callbacks.onTouchEnd?.(touch.identifier);
+                if (touch.identifier === primaryTouchId) {
+                    primaryTouchId = null;
+                    callbacks.onPointerUp(0);
+                }
+            }
         };
-        const onTouchCancel = () => {
-            callbacks.onPointerUp(0);
+        const onTouchCancel = (e: Event) => {
+            const te = e as TouchEvent;
+            for (let i = 0; i < te.changedTouches.length; i++) {
+                const touch = te.changedTouches[i];
+                callbacks.onTouchCancel?.(touch.identifier);
+                if (touch.identifier === primaryTouchId) {
+                    primaryTouchId = null;
+                    callbacks.onPointerUp(0);
+                }
+            }
         };
         const onWheel = (e: Event) => {
             const we = e as WheelEvent;

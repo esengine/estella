@@ -49,6 +49,10 @@ export interface InputEventCallbacks {
     onPointerDown(button: number, x: number, y: number): void;
     onPointerUp(button: number): void;
     onWheel(deltaX: number, deltaY: number): void;
+    onTouchStart?(id: number, x: number, y: number): void;
+    onTouchMove?(id: number, x: number, y: number): void;
+    onTouchEnd?(id: number): void;
+    onTouchCancel?(id: number): void;
 }
 
 // =============================================================================
