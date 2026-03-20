@@ -32,6 +32,7 @@ export interface PlayableSettings {
     outputPath: string;
     enableBuiltinCTA: boolean;
     ctaUrl: string;
+    templatePath?: string;
 }
 
 export interface WeChatSubpackage {
@@ -49,6 +50,7 @@ export interface WeChatSettings {
     subpackages?: WeChatSubpackage[];
     workers?: string;
     openDataContext?: string;
+    templatePath?: string;
 }
 
 // =============================================================================
