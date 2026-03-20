@@ -4,8 +4,13 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import { PluginName } from '../systemLabels';
 
 export class UIRenderOrderPlugin implements Plugin {
-    name = 'uiRenderOrder';
+    name = PluginName.UIRenderOrder;
     dependencies = [PluginName.UILayout];
+    after = [
+        PluginName.Text, PluginName.Image, PluginName.UIMask,
+        PluginName.UIInteraction, PluginName.ScrollView,
+        PluginName.CollectionView, PluginName.LayoutGroup,
+    ];
 
     build(app: App): void {
         const world = app.world;

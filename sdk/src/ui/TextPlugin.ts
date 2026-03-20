@@ -13,7 +13,7 @@ import { parseRichText } from './RichTextParser';
 import { SystemLabel, PluginName } from '../systemLabels';
 
 export class TextPlugin implements Plugin {
-    name = 'text';
+    name = PluginName.Text;
     dependencies = [PluginName.UILayout];
 
     build(app: App): void {

@@ -31,6 +31,8 @@ export type PluginDependency = string | ResourceDef<any>;
 export interface Plugin {
     name?: string;
     dependencies?: PluginDependency[];
+    before?: string[];
+    after?: string[];
     build(app: App): void;
     finish?(app: App): void;
     cleanup?(app?: App): void;
@@ -555,29 +557,67 @@ export class App {
         const nameToIndex = new Map<string, number>();
         for (let i = 0; i < plugins.length; i++) {
             const name = plugins[i].name;
-            if (name) nameToIndex.set(name, i);
+            if (name) {
+                if (nameToIndex.has(name)) {
+                    console.warn(`[ESEngine] Duplicate plugin name "${name}" at indices ${nameToIndex.get(name)} and ${i}`);
+                }
+                nameToIndex.set(name, i);
+            }
+        }
+
+        const edges = new Map<number, Set<number>>();
+        for (let i = 0; i < plugins.length; i++) {
+            edges.set(i, new Set());
+        }
+
+        for (let i = 0; i < plugins.length; i++) {
+            const plugin = plugins[i];
+            if (plugin.dependencies) {
+                for (const dep of plugin.dependencies) {
+                    if (typeof dep !== 'string') continue;
+                    const depIndex = nameToIndex.get(dep);
+                    if (depIndex !== undefined) {
+                        edges.get(i)!.add(depIndex);
+                    }
+                }
+            }
+            if (plugin.after) {
+                for (const target of plugin.after) {
+                    const targetIndex = nameToIndex.get(target);
+                    if (targetIndex !== undefined) {
+                        edges.get(i)!.add(targetIndex);
+                    }
+                }
+            }
+            if (plugin.before) {
+                for (const target of plugin.before) {
+                    const targetIndex = nameToIndex.get(target);
+                    if (targetIndex !== undefined) {
+                        edges.get(targetIndex)!.add(i);
+                    }
+                }
+            }
         }
 
         const sorted: Plugin[] = [];
         const visited = new Set<number>();
         const visiting = new Set<number>();
+        const path: number[] = [];
 
         const visit = (index: number): void => {
             if (visited.has(index)) return;
             if (visiting.has(index)) {
-                throw new Error(`Circular plugin dependency detected involving "${plugins[index].name ?? index}"`);
+                const cycleStart = path.indexOf(index);
+                const cycle = path.slice(cycleStart).concat(index);
+                const names = cycle.map(i => plugins[i].name ?? `<index ${i}>`);
+                throw new Error(`Circular plugin dependency: ${names.join(' -> ')}`);
             }
             visiting.add(index);
-            const deps = plugins[index].dependencies;
-            if (deps) {
-                for (const dep of deps) {
-                    if (typeof dep !== 'string') continue;
-                    const depIndex = nameToIndex.get(dep);
-                    if (depIndex !== undefined) {
-                        visit(depIndex);
-                    }
-                }
+            path.push(index);
+            for (const dep of edges.get(index)!) {
+                visit(dep);
             }
+            path.pop();
             visiting.delete(index);
             visited.add(index);
             sorted.push(plugins[index]);

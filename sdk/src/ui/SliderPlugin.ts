@@ -80,7 +80,7 @@ function syncHandleRect(
 }
 
 export class SliderPlugin implements Plugin {
-    name = 'slider';
+    name = PluginName.Slider;
     dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {

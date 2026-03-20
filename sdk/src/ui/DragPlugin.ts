@@ -71,7 +71,7 @@ function applyConstraints(
 }
 
 export class DragPlugin implements Plugin {
-    name = 'drag';
+    name = PluginName.Drag;
     dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {

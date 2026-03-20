@@ -20,7 +20,7 @@ import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstan
 import { SystemLabel, PluginName } from '../systemLabels';
 
 export class TextInputPlugin implements Plugin {
-    name = 'textInput';
+    name = PluginName.TextInput;
     dependencies = [PluginName.Focus];
 
     private cleanupListeners_: (() => void) | null = null;

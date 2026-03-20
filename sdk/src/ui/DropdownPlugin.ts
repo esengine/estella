@@ -32,7 +32,7 @@ interface DropdownState {
 }
 
 export class DropdownPlugin implements Plugin {
-    name = 'dropdown';
+    name = PluginName.Dropdown;
     dependencies = [PluginName.UIInteraction];
 
     private cleanup_: (() => void) | null = null;

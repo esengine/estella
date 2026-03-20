@@ -16,7 +16,7 @@ import { UIEvents, UIEventQueue } from './UIEvents';
 import { PluginName } from '../systemLabels';
 
 export class FocusPlugin implements Plugin {
-    name = 'focus';
+    name = PluginName.Focus;
     dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {
