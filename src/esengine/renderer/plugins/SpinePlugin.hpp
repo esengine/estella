@@ -21,14 +21,7 @@ public:
 
     void setSpineSystem(spine::SpineSystem* system) { spine_system_ = system; }
 
-    void collect(
-        ecs::Registry& registry,
-        const Frustum& frustum,
-        const ClipState& clips,
-        TransientBufferPool& buffers,
-        DrawList& draw_list,
-        RenderFrameContext& ctx
-    ) override;
+    void collect(RenderCollectContext& ctx) override;
 
 private:
     u32 getTextureId(void* spineTexture, RenderFrameContext& ctx);

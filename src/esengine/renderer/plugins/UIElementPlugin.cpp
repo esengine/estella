@@ -14,14 +14,13 @@ void UIElementPlugin::init(RenderFrameContext& ctx) {
     batch_shader_id_ = ctx.batch_shader_id;
 }
 
-void UIElementPlugin::collect(
-    ecs::Registry& registry,
-    const Frustum& frustum,
-    const ClipState& clips,
-    TransientBufferPool& buffers,
-    DrawList& draw_list,
-    RenderFrameContext& ctx
-) {
+void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
+    auto& registry = collect_ctx.registry;
+    auto& frustum = collect_ctx.frustum;
+    auto& clips = collect_ctx.clip_state;
+    auto& buffers = collect_ctx.buffer_pool;
+    auto& draw_list = collect_ctx.draw_list;
+    auto& ctx = collect_ctx.frame_context;
     auto uiView = registry.view<ecs::Transform, ecs::UIRenderer, ecs::UIRect>();
 
     for (auto entity : uiView) {

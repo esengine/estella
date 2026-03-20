@@ -9,6 +9,7 @@ import type { CppRegistry, ESEngineModule } from '../wasm';
 import { validateComponentData, formatValidationErrors } from '../validation';
 import { handleWasmError } from '../wasmError';
 import { PTR_LAYOUTS } from '../ptrLayouts.generated';
+import { PTR_ACCESSORS } from './ptrAccessors.generated';
 
 // =============================================================================
 // Color conversion helpers
@@ -76,6 +77,11 @@ export function readPtrField(
     }
 }
 
+interface XY { x: number; y: number }
+interface XYZ { x: number; y: number; z: number }
+interface XYZW { x: number; y: number; z: number; w: number }
+interface RGBA { r: number; g: number; b: number; a: number }
+
 export function fillPtrFields(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, fields: readonly PtrFieldDesc[], target: Record<string, unknown>,
@@ -91,23 +97,23 @@ export function fillPtrFields(
             case 'bool':  target[field.name] = u8[byteOff] !== 0; break;
             case 'u8':    target[field.name] = u8[byteOff]; break;
             case 'vec2': {
-                const v = target[field.name] as any;
+                const v = target[field.name] as XY;
                 v.x = f32[idx]; v.y = f32[idx + 1];
                 break;
             }
             case 'vec3': {
-                const v = target[field.name] as any;
+                const v = target[field.name] as XYZ;
                 v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2];
                 break;
             }
             case 'vec4':
             case 'quat': {
-                const v = target[field.name] as any;
+                const v = target[field.name] as XYZW;
                 v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2]; v.w = f32[idx + 3];
                 break;
             }
             case 'color': {
-                const v = target[field.name] as any;
+                const v = target[field.name] as RGBA;
                 v.r = f32[idx]; v.g = f32[idx + 1]; v.b = f32[idx + 2]; v.a = f32[idx + 3];
                 break;
             }
@@ -130,23 +136,25 @@ export function createPreallocatedResult(fields: readonly PtrFieldDesc[]): Recor
     return obj;
 }
 
+export type PtrFieldValue = number | boolean | XY | XYZ | XYZW | RGBA;
+
 export function writePtrField(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, field: PtrFieldDesc, value: any,
+    ptr: number, field: PtrFieldDesc, value: PtrFieldValue | unknown,
 ): void {
     const byteOff = ptr + field.offset;
     const idx = byteOff >> 2;
     switch (field.type) {
-        case 'f32':   f32[idx] = value; break;
-        case 'i32':   u32[idx] = value | 0; break;
-        case 'u32':   u32[idx] = value; break;
+        case 'f32':   f32[idx] = value as number; break;
+        case 'i32':   u32[idx] = (value as number) | 0; break;
+        case 'u32':   u32[idx] = value as number; break;
         case 'bool':  u8[byteOff] = value ? 1 : 0; break;
-        case 'u8':    u8[byteOff] = value; break;
-        case 'vec2':  f32[idx] = value.x; f32[idx + 1] = value.y; break;
-        case 'vec3':  f32[idx] = value.x; f32[idx + 1] = value.y; f32[idx + 2] = value.z; break;
+        case 'u8':    u8[byteOff] = value as number; break;
+        case 'vec2': { const v = value as XY; f32[idx] = v.x; f32[idx + 1] = v.y; break; }
+        case 'vec3': { const v = value as XYZ; f32[idx] = v.x; f32[idx + 1] = v.y; f32[idx + 2] = v.z; break; }
         case 'vec4':
-        case 'quat':  f32[idx] = value.x; f32[idx + 1] = value.y; f32[idx + 2] = value.z; f32[idx + 3] = value.w; break;
-        case 'color': f32[idx] = value.r; f32[idx + 1] = value.g; f32[idx + 2] = value.b; f32[idx + 3] = value.a; break;
+        case 'quat': { const v = value as XYZW; f32[idx] = v.x; f32[idx + 1] = v.y; f32[idx + 2] = v.z; f32[idx + 3] = v.w; break; }
+        case 'color': { const v = value as RGBA; f32[idx] = v.r; f32[idx + 1] = v.g; f32[idx + 2] = v.b; f32[idx + 3] = v.a; break; }
     }
 }
 
@@ -330,41 +338,38 @@ export class BuiltinBridge {
     resolvePtrFn(cppName: string): ((entity: Entity) => number) | null {
         const layout = PTR_LAYOUTS[cppName];
         if (!layout) return null;
-        const fn = (this.module_ as any)[layout.ptrFn] as ((r: any, e: number) => number) | undefined;
+        const mod = this.module_ as Record<string, unknown> | null;
+        if (!mod) return null;
+        const fn = mod[layout.ptrFn] as ((r: CppRegistry, e: number) => number) | undefined;
         if (!fn) return null;
         const reg = this.cppRegistry_!;
         return (e: Entity) => fn(reg, e);
     }
 
     resolvePtrSetter(cppName: string): ((entity: Entity, data: unknown) => void) | null {
-        const layout = PTR_LAYOUTS[cppName];
-        if (!layout) return null;
+        const accessor = PTR_ACCESSORS[cppName];
+        if (!accessor) return null;
         const getPtrFn = this.resolvePtrFn(cppName);
         if (!getPtrFn) return null;
         const mod = this.module_!;
-        const fields = layout.fields;
         return (e: Entity, data: unknown) => {
             const ptr = getPtrFn(e);
             if (!ptr) return;
-            const d = data as any;
-            for (let i = 0; i < fields.length; i++) {
-                writePtrField(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, fields[i], d[fields[i].name]);
-            }
+            accessor.write(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, data);
         };
     }
 
     resolvePtrGetter(cppName: string): ((entity: Entity) => unknown) | null {
-        const layout = PTR_LAYOUTS[cppName];
-        if (!layout) return null;
+        const accessor = PTR_ACCESSORS[cppName];
+        if (!accessor) return null;
         const getPtrFn = this.resolvePtrFn(cppName);
         if (!getPtrFn) return null;
         const mod = this.module_!;
-        const fields = layout.fields;
-        const cached = createPreallocatedResult(fields);
+        const cached = accessor.create();
         return (e: Entity) => {
             const ptr = getPtrFn(e);
             if (!ptr) return null;
-            fillPtrFields(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, fields, cached);
+            accessor.fill(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, cached);
             return cached;
         };
     }

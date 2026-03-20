@@ -11,14 +11,7 @@ public:
     void init(RenderFrameContext& ctx) override;
     void shutdown() override {}
 
-    void collect(
-        ecs::Registry& registry,
-        const Frustum& frustum,
-        const ClipState& clips,
-        TransientBufferPool& buffers,
-        DrawList& draw_list,
-        RenderFrameContext& ctx
-    ) override;
+    void collect(RenderCollectContext& ctx) override;
 
 private:
     static constexpr u16 QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };

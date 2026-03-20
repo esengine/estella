@@ -15,14 +15,7 @@ public:
 
     void setParticleSystem(particle::ParticleSystem* system) { particle_system_ = system; }
 
-    void collect(
-        ecs::Registry& registry,
-        const Frustum& frustum,
-        const ClipState& clips,
-        TransientBufferPool& buffers,
-        DrawList& draw_list,
-        RenderFrameContext& ctx
-    ) override;
+    void collect(RenderCollectContext& ctx) override;
 
 private:
     particle::ParticleSystem* particle_system_ = nullptr;

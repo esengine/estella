@@ -219,14 +219,12 @@ void SpinePlugin::emitMeshAttachment(
     emitBatch(textureId, blend, buffers, draw_list, clips, entity, layer, depth, ctx);
 }
 
-void SpinePlugin::collect(
-    ecs::Registry& registry,
-    const Frustum& /* frustum */,
-    const ClipState& clips,
-    TransientBufferPool& buffers,
-    DrawList& draw_list,
-    RenderFrameContext& ctx
-) {
+void SpinePlugin::collect(RenderCollectContext& collect_ctx) {
+    auto& registry = collect_ctx.registry;
+    auto& clips = collect_ctx.clip_state;
+    auto& buffers = collect_ctx.buffer_pool;
+    auto& draw_list = collect_ctx.draw_list;
+    auto& ctx = collect_ctx.frame_context;
     if (!spine_system_) return;
 
     auto view = registry.view<ecs::SpineAnimation>();

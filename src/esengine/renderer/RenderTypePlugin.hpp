@@ -27,6 +27,15 @@ struct RenderFrameContext {
     glm::mat4 view_projection{1.0f};
 };
 
+struct RenderCollectContext {
+    ecs::Registry& registry;
+    const Frustum& frustum;
+    const ClipState& clip_state;
+    TransientBufferPool& buffer_pool;
+    DrawList& draw_list;
+    RenderFrameContext& frame_context;
+};
+
 class RenderTypePlugin {
 public:
     virtual ~RenderTypePlugin() = default;
@@ -36,14 +45,7 @@ public:
 
     virtual u32 skipFlag() const { return 0; }
 
-    virtual void collect(
-        ecs::Registry& registry,
-        const Frustum& frustum,
-        const ClipState& clips,
-        TransientBufferPool& buffers,
-        DrawList& draw_list,
-        RenderFrameContext& ctx
-    ) = 0;
+    virtual void collect(RenderCollectContext& ctx) = 0;
 
     virtual bool needsCustomDraw() const { return false; }
     virtual bool handlesType(RenderType type) const { (void)type; return false; }
