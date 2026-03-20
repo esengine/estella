@@ -634,9 +634,16 @@ interface SceneData {
     entities: SceneEntityData[];
     textureMetadata?: Record<string, TextureMetadata>;
 }
+interface LoadedSceneAssets {
+    texturePaths: Set<string>;
+    materialHandles: Set<number>;
+    fontPaths: Set<string>;
+    spineKeys: Set<string>;
+}
 interface SceneLoadOptions {
     assets?: Assets;
     assetBaseUrl?: string;
+    collectAssets?: LoadedSceneAssets;
 }
 type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'timeline';
 declare function getComponentAssetFields(componentType: string): string[];

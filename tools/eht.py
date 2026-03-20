@@ -105,6 +105,10 @@ class TypeSystem:
         t = self.clean_type(cpp_type)
         return 'Handle' in t or t.startswith('resource::')
 
+    def is_entity(self, cpp_type: str) -> bool:
+        t = self.clean_type(cpp_type)
+        return t == 'Entity'
+
     def is_vector(self, cpp_type: str) -> bool:
         t = self.clean_type(cpp_type)
         return t in self.VECTOR_TYPES
@@ -117,15 +121,19 @@ class TypeSystem:
             return True
         return any(skip in t for skip in self.SKIP_TYPES)
 
+    def is_entity_vector(self, cpp_type: str) -> bool:
+        t = self.clean_type(cpp_type)
+        return t in self.VECTOR_TYPES and 'Entity' in t
+
     def needs_wrapper(self, comp: Component) -> bool:
         for prop in comp.properties:
-            if self.is_enum(prop.cpp_type) or self.is_handle(prop.cpp_type):
+            if self.is_enum(prop.cpp_type) or self.is_handle(prop.cpp_type) or self.is_entity(prop.cpp_type) or self.is_entity_vector(prop.cpp_type):
                 return True
         return False
 
     def get_js_type(self, cpp_type: str) -> str:
         t = self.clean_type(cpp_type)
-        if self.is_handle(t):
+        if self.is_handle(t) or self.is_entity(t):
             return 'u32'
         if self.is_enum(t):
             return 'i32'
@@ -402,8 +410,13 @@ class EmbindGenerator:
                 t = self.types.clean_type(prop.cpp_type)
                 if self.types.is_handle(t):
                     lines.append(f'    c.{prop.name} = {t}(js.{prop.name});')
+                elif self.types.is_entity(t):
+                    lines.append(f'    c.{prop.name} = Entity(js.{prop.name});')
                 elif self.types.is_enum(t):
                     lines.append(f'    c.{prop.name} = static_cast<{t}>(js.{prop.name});')
+                elif t in self.types.VECTOR_TYPES and self.types.VECTOR_TYPES[t][0] == 'u32' and 'Entity' in t:
+                    lines.append(f'    c.{prop.name}.reserve(js.{prop.name}.size());')
+                    lines.append(f'    for (auto v : js.{prop.name}) c.{prop.name}.push_back(Entity(v));')
                 else:
                     lines.append(f'    c.{prop.name} = js.{prop.name};')
             lines.append('    return c;')
@@ -416,10 +429,16 @@ class EmbindGenerator:
             for prop in comp.properties:
                 if self.types.is_skip(prop.cpp_type):
                     continue
+                t = self.types.clean_type(prop.cpp_type)
                 if self.types.is_handle(prop.cpp_type):
                     lines.append(f'    js.{prop.name} = c.{prop.name}.id();')
+                elif self.types.is_entity(prop.cpp_type):
+                    lines.append(f'    js.{prop.name} = static_cast<u32>(c.{prop.name});')
                 elif self.types.is_enum(prop.cpp_type):
                     lines.append(f'    js.{prop.name} = static_cast<i32>(c.{prop.name});')
+                elif t in self.types.VECTOR_TYPES and self.types.VECTOR_TYPES[t][0] == 'u32' and 'Entity' in t:
+                    lines.append(f'    js.{prop.name}.reserve(c.{prop.name}.size());')
+                    lines.append(f'    for (auto e : c.{prop.name}) js.{prop.name}.push_back(static_cast<u32>(e));')
                 else:
                     lines.append(f'    js.{prop.name} = c.{prop.name};')
             lines.append('    return js;')

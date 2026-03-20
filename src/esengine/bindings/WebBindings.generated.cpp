@@ -577,6 +577,40 @@ FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
     return js;
 }
 
+struct ParentJS {
+    u32 entity;
+};
+
+esengine::ecs::Parent parentFromJS(const ParentJS& js) {
+    esengine::ecs::Parent c;
+    c.entity = Entity(js.entity);
+    return c;
+}
+
+ParentJS parentToJS(const esengine::ecs::Parent& c) {
+    ParentJS js;
+    js.entity = static_cast<u32>(c.entity);
+    return js;
+}
+
+struct ChildrenJS {
+    std::vector<u32> entities;
+};
+
+esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
+    esengine::ecs::Children c;
+    c.entities.reserve(js.entities.size());
+    for (auto v : js.entities) c.entities.push_back(Entity(v));
+    return c;
+}
+
+ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
+    ChildrenJS js;
+    js.entities.reserve(c.entities.size());
+    for (auto e : c.entities) js.entities.push_back(static_cast<u32>(e));
+    return js;
+}
+
 struct LayoutGroupJS {
     i32 direction;
     f32 spacing;
@@ -908,11 +942,11 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("gap", &FlexContainerJS::gap)
         .field("padding", &FlexContainerJS::padding);
 
-    value_object<esengine::ecs::Parent>("Parent")
-        .field("entity", &esengine::ecs::Parent::entity);
+    value_object<ParentJS>("Parent")
+        .field("entity", &ParentJS::entity);
 
-    value_object<esengine::ecs::Children>("Children")
-        .field("entities", &esengine::ecs::Children::entities);
+    value_object<ChildrenJS>("Children")
+        .field("entities", &ChildrenJS::entities);
 
     value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
         .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
@@ -1395,16 +1429,15 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("hasParent", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
         }))
-        .function("getParent", optional_override([](Registry& r, u32 e) -> esengine::ecs::Parent& {
+        .function("getParent", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::Parent s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return s_dummy;
-            return r.get<esengine::ecs::Parent>(entity);
-        }), allow_raw_pointers())
-        .function("addParent", optional_override([](Registry& r, u32 e, const esengine::ecs::Parent& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return ParentJS{};
+            return parentToJS(r.get<esengine::ecs::Parent>(entity));
+        }))
+        .function("addParent", optional_override([](Registry& r, u32 e, const ParentJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Parent>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::Parent>(entity, parentFromJS(js));
         }))
         .function("removeParent", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
@@ -1416,16 +1449,15 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("hasChildren", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Children>(static_cast<Entity>(e));
         }))
-        .function("getChildren", optional_override([](Registry& r, u32 e) -> esengine::ecs::Children& {
+        .function("getChildren", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::Children s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return s_dummy;
-            return r.get<esengine::ecs::Children>(entity);
-        }), allow_raw_pointers())
-        .function("addChildren", optional_override([](Registry& r, u32 e, const esengine::ecs::Children& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return ChildrenJS{};
+            return childrenToJS(r.get<esengine::ecs::Children>(entity));
+        }))
+        .function("addChildren", optional_override([](Registry& r, u32 e, const ChildrenJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Children>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::Children>(entity, childrenFromJS(js));
         }))
         .function("removeChildren", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
