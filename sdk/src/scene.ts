@@ -8,6 +8,7 @@ import { Entity, INVALID_ENTITY } from './types';
 import { getComponent, Name, Camera } from './component';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import { requireResourceManager } from './resourceManager';
+import { validateComponentData, formatValidationErrors } from './validation';
 
 // =============================================================================
 // Types
@@ -249,6 +250,11 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
     }
     const comp = getComponent(compData.type);
     if (comp) {
+        const errors = validateComponentData(compData.type, comp._default as Record<string, unknown>, compData.data);
+        if (errors.length > 0) {
+            const context = entityName ? ` (entity "${entityName}")` : '';
+            console.warn(formatValidationErrors(compData.type + context, errors));
+        }
         world.insert(entity, comp, compData.data);
     } else {
         const context = entityName ? ` on entity "${entityName}"` : '';
