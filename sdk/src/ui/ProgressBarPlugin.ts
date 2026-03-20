@@ -9,7 +9,7 @@ import { applyDirectionalFill, withChildEntity } from './uiHelpers';
 import { SystemLabel, PluginName } from '../systemLabels';
 
 export class ProgressBarPlugin implements Plugin {
-    name = 'progressBar';
+    name = PluginName.ProgressBar;
     dependencies = [PluginName.UILayout];
 
     build(app: App): void {

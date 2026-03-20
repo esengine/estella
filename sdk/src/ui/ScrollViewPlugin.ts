@@ -69,7 +69,7 @@ interface ScrollState {
 }
 
 export class ScrollViewPlugin implements Plugin {
-    name = 'scrollView';
+    name = PluginName.ScrollView;
     dependencies = [PluginName.UILayout];
 
     private cleanup_: (() => void) | null = null;

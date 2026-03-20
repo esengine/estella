@@ -4,7 +4,7 @@ import { LayoutGroup } from './LayoutGroup';
 import { PluginName } from '../systemLabels';
 
 export class LayoutGroupPlugin implements Plugin {
-    name = 'layoutGroup';
+    name = PluginName.LayoutGroup;
     dependencies = [PluginName.UILayout];
 
     build(_app: App): void {

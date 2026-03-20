@@ -18,7 +18,7 @@ function getCachedComponentDef(name: string): AnyComponentDef | null {
 }
 
 export class DataBindingPlugin implements Plugin {
-    name = 'dataBinding';
+    name = PluginName.DataBinding;
     dependencies = [PluginName.Text, PluginName.Image];
 
     build(app: App): void {

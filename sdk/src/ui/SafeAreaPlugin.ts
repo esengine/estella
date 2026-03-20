@@ -61,7 +61,7 @@ function getSafeAreaInsets(): SafeAreaInsets {
 }
 
 export class SafeAreaPlugin implements Plugin {
-    name = 'safeArea';
+    name = PluginName.SafeArea;
     dependencies = [PluginName.UILayout];
 
     build(app: App): void {

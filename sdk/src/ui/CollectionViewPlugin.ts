@@ -31,7 +31,7 @@ export function getCollectionState(entity: Entity): CollectionState | null {
 }
 
 export class CollectionViewPlugin implements Plugin {
-    name = 'collectionView';
+    name = PluginName.CollectionView;
     dependencies = [PluginName.UILayout];
 
     private states_: Map<Entity, CollectionState> | null = null;

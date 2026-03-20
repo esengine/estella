@@ -35,7 +35,7 @@ function setRendererEnabled(world: import('../world').World, entity: Entity, ena
 }
 
 export class TogglePlugin implements Plugin {
-    name = 'toggle';
+    name = PluginName.Toggle;
     dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {

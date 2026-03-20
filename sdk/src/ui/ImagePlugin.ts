@@ -12,7 +12,7 @@ import { getEffectiveWidth, getEffectiveHeight, ensureUIRenderer } from './uiHel
 import { SystemLabel, PluginName } from '../systemLabels';
 
 export class ImagePlugin implements Plugin {
-    name = 'image';
+    name = PluginName.Image;
     dependencies = [PluginName.UILayout];
 
     build(app: App): void {

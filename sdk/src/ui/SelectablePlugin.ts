@@ -10,7 +10,7 @@ import { UIEvents, UIEventQueue } from './UIEvents';
 import { PluginName } from '../systemLabels';
 
 export class SelectablePlugin implements Plugin {
-    name = 'selectable';
+    name = PluginName.Selectable;
     dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {

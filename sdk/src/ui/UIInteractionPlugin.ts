@@ -50,7 +50,7 @@ function emitWithBubbling(
 }
 
 export class UIInteractionPlugin implements Plugin {
-    name = 'uiInteraction';
+    name = PluginName.UIInteraction;
     dependencies = [PluginName.UILayout];
 
     build(app: App): void {
