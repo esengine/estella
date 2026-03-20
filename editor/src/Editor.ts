@@ -83,6 +83,10 @@ export class Editor {
     private multiWindowService_!: MultiWindowService;
     private mcpBridge_: McpBridge | null = null;
 
+    private assetLibraryReady_: Promise<void> = Promise.resolve();
+    private scriptsReady_: Promise<void> = Promise.resolve();
+    private sceneRestoreReady_: Promise<void> = Promise.resolve();
+
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
         this.projectPath_ = options?.projectPath ?? null;
@@ -130,11 +134,13 @@ export class Editor {
         if (this.projectPath_) {
             this.extensionService_.setupEditorGlobals();
             const assetReady = this.projectService_.initializeAssetLibrary();
+            this.assetLibraryReady_ = assetReady;
             this.sceneService_.setAssetLibraryReady(assetReady);
             const scriptsReady = this.initializeAllScripts_();
+            this.scriptsReady_ = scriptsReady;
             this.sceneService_.setScriptsReady(scriptsReady);
             this.projectService_.initProjectSettingsSync();
-            this.sceneService_.restoreLastScene();
+            this.sceneRestoreReady_ = this.sceneService_.restoreLastScene();
         }
     }
 
@@ -168,6 +174,18 @@ export class Editor {
 
     onSpineVersionChange(handler: (version: string) => void): void {
         this.spineService_.onSpineVersionChange(handler);
+    }
+
+    waitForAssetLibrary(): Promise<void> {
+        return this.assetLibraryReady_;
+    }
+
+    waitForScripts(): Promise<void> {
+        return this.scriptsReady_;
+    }
+
+    waitForSceneRestore(): Promise<void> {
+        return this.sceneRestoreReady_;
     }
 
     // =========================================================================
