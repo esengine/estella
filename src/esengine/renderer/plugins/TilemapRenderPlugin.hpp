@@ -19,14 +19,7 @@ public:
 
     void setTilemapSystem(tilemap::TilemapSystem* system) { tilemap_system_ = system; }
 
-    void collect(
-        ecs::Registry& registry,
-        const Frustum& frustum,
-        const ClipState& clips,
-        TransientBufferPool& buffers,
-        DrawList& draw_list,
-        RenderFrameContext& ctx
-    ) override;
+    void collect(RenderCollectContext& ctx) override;
 
 private:
     struct ChunkCache {

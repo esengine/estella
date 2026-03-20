@@ -90,14 +90,12 @@ void TilemapRenderPlugin::rebuildChunk(
     }
 }
 
-void TilemapRenderPlugin::collect(
-    ecs::Registry& registry,
-    const Frustum& /* frustum */,
-    const ClipState& clips,
-    TransientBufferPool& buffers,
-    DrawList& draw_list,
-    RenderFrameContext& ctx
-) {
+void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
+    auto& registry = collect_ctx.registry;
+    auto& clips = collect_ctx.clip_state;
+    auto& buffers = collect_ctx.buffer_pool;
+    auto& draw_list = collect_ctx.draw_list;
+    auto& ctx = collect_ctx.frame_context;
     if (!tilemap_system_) return;
 
     const auto& layers = tilemap_system_->allLayers();

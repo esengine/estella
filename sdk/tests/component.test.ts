@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     defineComponent,
+    defineBuiltin,
     defineTag,
     getComponent,
     getUserComponent,
     getComponentDefaults,
     clearUserComponents,
+    unregisterComponent,
 } from '../src/component';
 
 describe('Component Registry', () => {
@@ -166,6 +168,38 @@ describe('Component Registry', () => {
 
             expect(defaults1).not.toBe(defaults2);
             expect(defaults1).toEqual(defaults2);
+        });
+    });
+
+    describe('name collision detection', () => {
+        it('should throw when defineComponent collides with a builtin', () => {
+            expect(() => defineComponent('Transform', { x: 0 })).toThrow(
+                /Component name collision.*"Transform".*builtin/
+            );
+        });
+
+        it('should throw when defineTag collides with a builtin', () => {
+            expect(() => defineTag('Sprite')).toThrow(
+                /Component name collision.*"Sprite".*builtin/
+            );
+        });
+
+        it('should throw when defineBuiltin collides with a user component', () => {
+            defineComponent('MyCustom', { v: 1 });
+            try {
+                expect(() => defineBuiltin('MyCustom', { v: 2 })).toThrow(
+                    /Component name collision.*"MyCustom".*user/
+                );
+            } finally {
+                unregisterComponent('MyCustom');
+            }
+        });
+
+        it('should allow idempotent re-registration of the same builtin', () => {
+            const first = defineBuiltin('TestBuiltin', { a: 1 });
+            const second = defineBuiltin('TestBuiltin', { a: 1 });
+            expect(first).toBe(second);
+            unregisterComponent('TestBuiltin');
         });
     });
 

@@ -381,9 +381,10 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
 
     auto ctx = makeContext();
 
+    RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx};
     for (auto& plugin : plugins_) {
         if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;
-        plugin->collect(registry, frustum_, clip_state_, pool_, draw_list_, ctx);
+        plugin->collect(collectCtx);
     }
 }
 

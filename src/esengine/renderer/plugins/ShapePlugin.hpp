@@ -11,14 +11,7 @@ public:
     void init(RenderFrameContext& ctx) override;
     void shutdown() override;
 
-    void collect(
-        ecs::Registry& registry,
-        const Frustum& frustum,
-        const ClipState& clips,
-        TransientBufferPool& buffers,
-        DrawList& draw_list,
-        RenderFrameContext& ctx
-    ) override;
+    void collect(RenderCollectContext& ctx) override;
 
     bool needsCustomDraw() const override { return true; }
     bool handlesType(RenderType type) const override { return type == RenderType::Shape; }

@@ -123,8 +123,15 @@ export function defineComponent<T extends object>(
     defaults: T,
     metadata?: ComponentMetadata,
 ): ComponentDef<T> {
-    const existing = componentRegistry.get(name) ?? getComponentRegistry().get(name);
-    if (existing) return existing as ComponentDef<T>;
+    const userExisting = getComponentRegistry().get(name);
+    if (userExisting) return userExisting as ComponentDef<T>;
+
+    const globalExisting = componentRegistry.get(name);
+    if (globalExisting) {
+        throw new Error(
+            `Component name collision: user component "${name}" conflicts with an existing ${globalExisting._builtin ? 'builtin' : 'user'} component of the same name`
+        );
+    }
 
     const def = createComponentDef(name, defaults, metadata);
     getComponentRegistry().set(name, def);
@@ -134,8 +141,15 @@ export function defineComponent<T extends object>(
 }
 
 export function defineTag(name: string): ComponentDef<{}> {
-    const existing = componentRegistry.get(name) ?? getComponentRegistry().get(name);
-    if (existing) return existing as ComponentDef<{}>;
+    const userExisting = getComponentRegistry().get(name);
+    if (userExisting) return userExisting as ComponentDef<{}>;
+
+    const globalExisting = componentRegistry.get(name);
+    if (globalExisting) {
+        throw new Error(
+            `Component name collision: tag "${name}" conflicts with an existing ${globalExisting._builtin ? 'builtin' : 'user'} component of the same name`
+        );
+    }
 
     const def = createComponentDef(name, {});
     getComponentRegistry().set(name, def);
@@ -227,6 +241,14 @@ function detectColorKeys(defaults: unknown): readonly string[] {
 }
 
 export function defineBuiltin<T>(name: string, defaults: T, metadata?: ComponentMetadata): BuiltinComponentDef<T> {
+    const existing = componentRegistry.get(name);
+    if (existing) {
+        if (existing._builtin) return existing as BuiltinComponentDef<T>;
+        throw new Error(
+            `Component name collision: builtin component "${name}" conflicts with an existing user component of the same name`
+        );
+    }
+
     const meta = COMPONENT_META[name];
     const def: BuiltinComponentDef<T> = {
         _id: Symbol(`Builtin_${name}`),
