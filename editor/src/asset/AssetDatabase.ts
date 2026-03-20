@@ -3,6 +3,7 @@
  * @brief   Unified asset metadata center with UUID mapping, labels, addresses, and groups
  */
 
+import { getComponentAssetFields } from 'esengine';
 import type { SceneData } from '../types/SceneTypes';
 import type { TextureMetadata } from '../types/TextureMetadata';
 import { joinPath, getFileExtension } from '../utils/path';
@@ -504,8 +505,8 @@ export class AssetDatabase {
 
     private async migrateComponentRefs(comp: { type: string; data: Record<string, unknown> }): Promise<boolean> {
         let changed = false;
-        const refs = getComponentRefFields(comp.type);
-        if (!refs || !comp.data) return false;
+        const refs = getComponentAssetFields(comp.type);
+        if (refs.length === 0 || !comp.data) return false;
 
         for (const field of refs) {
             const value = comp.data[field];
@@ -519,8 +520,8 @@ export class AssetDatabase {
     }
 
     private resolveComponentRefs(comp: { type: string; data: Record<string, unknown> }): void {
-        const refs = getComponentRefFields(comp.type);
-        if (!refs || !comp.data) return;
+        const refs = getComponentAssetFields(comp.type);
+        if (refs.length === 0 || !comp.data) return;
 
         for (const field of refs) {
             const value = comp.data[field];
@@ -535,15 +536,6 @@ export class AssetDatabase {
 }
 
 // =============================================================================
-// Component → Asset Reference Field Registry
-// =============================================================================
-
-import { getComponentAssetFields } from 'esengine';
-
-export function getComponentRefFields(componentType: string): string[] | undefined {
-    const fields = getComponentAssetFields(componentType);
-    return fields.length > 0 ? fields : undefined;
-}
 
 // =============================================================================
 // Singleton

@@ -13,6 +13,11 @@ export interface SpineResult {
     skeletonHandle: number;
 }
 
+export interface SpineLoadResult {
+    success: boolean;
+    error?: string;
+}
+
 export interface MaterialResult {
     handle: number;
     shaderHandle: number;

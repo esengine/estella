@@ -8,7 +8,7 @@ import type { ESEngineModule } from './wasm';
 import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetProvider } from './runtimeLoader';
 import { Assets } from './asset/AssetPlugin';
-import type { AddressableManifest } from './asset/AssetServer';
+import type { AddressableManifest } from './asset/AddressableManifest';
 import type { Vec2 } from './types';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import { SpineManager, type SpineVersion } from './spine/SpineManager';

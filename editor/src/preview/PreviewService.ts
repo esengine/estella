@@ -12,7 +12,7 @@ import { getEditorContext } from '../context/EditorContext';
 import { getAssetLibrary } from '../asset/AssetLibrary';
 import { getProjectDir } from '../utils/path';
 import { deserializePrefab, convertPrefabAssetRefs } from '../prefab/PrefabSerializer';
-import { isUUID, getComponentRefFields } from '../asset';
+import { isUUID } from '../asset';
 
 // =============================================================================
 // Types

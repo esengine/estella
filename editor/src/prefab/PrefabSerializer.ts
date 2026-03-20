@@ -8,7 +8,8 @@ import type { PrefabData, PrefabEntityData } from '../types/PrefabTypes';
 import { cloneComponents } from 'esengine';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
-import { getGlobalPathResolver, getAssetDatabase, isUUID, getComponentRefFields } from '../asset';
+import { getGlobalPathResolver, getAssetDatabase, isUUID } from '../asset';
+import { getComponentAssetFields } from 'esengine';
 import { stripComponentDefaults, mergeComponentDefaults } from '../io/sparse';
 
 // =============================================================================
@@ -190,8 +191,8 @@ function convertAssetRefsInComponents(
     converter: AssetRefConverter
 ): ComponentData[] {
     return components.map(c => {
-        const fields = getComponentRefFields(c.type);
-        if (!fields || !c.data) return { type: c.type, data: { ...c.data } };
+        const fields = getComponentAssetFields(c.type);
+        if (fields.length === 0 || !c.data) return { type: c.type, data: { ...c.data } };
 
         const data = { ...c.data };
         for (const field of fields) {
@@ -279,8 +280,8 @@ async function migratePrefab(prefab: PrefabData): Promise<boolean> {
 
     for (const entity of prefab.entities) {
         for (const comp of entity.components) {
-            const fields = getComponentRefFields(comp.type);
-            if (!fields || !comp.data) continue;
+            const fields = getComponentAssetFields(comp.type);
+            if (fields.length === 0 || !comp.data) continue;
             for (const field of fields) {
                 const value = comp.data[field];
                 if (typeof value === 'string' && value && !isUUID(value)) {

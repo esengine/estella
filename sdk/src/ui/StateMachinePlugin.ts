@@ -29,7 +29,6 @@ import {
 import type { UploadResult } from '../timeline/TimelineUploader';
 import type { ESEngineModule } from '../wasm';
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
-import type { AssetServer } from '../asset/AssetServer';
 import { EntityStateMap } from './uiHelpers';
 import { SystemLabel, PluginName } from '../systemLabels';
 import {
@@ -495,7 +494,7 @@ function processLayer(
 }
 
 export class StateMachinePlugin implements Plugin {
-    name = 'stateMachine';
+    name = PluginName.StateMachine;
     dependencies = [PluginName.UIInteraction];
 
     build(app: App): void {

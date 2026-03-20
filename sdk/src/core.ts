@@ -435,24 +435,18 @@ export {
 // =============================================================================
 
 export {
-    AssetServer,
     AsyncCache,
     Assets,
     AssetPlugin,
     assetPlugin,
     MaterialLoader,
     AssetRefCounter,
-    type TextureInfo,
-    type SliceBorder,
-    type SpineLoadResult,
-    type SpineDescriptor,
-    type FileLoadOptions,
-    type AssetBundle,
-    type AddressableResultMap,
     type AddressableManifest,
     type AddressableManifestGroup,
     type AddressableManifestAsset,
     type AssetsData,
+    type TextureInfo,
+    type SpineLoadResult,
     type LoadedMaterial,
     type ShaderLoader,
     type AssetRefInfo,
@@ -477,12 +471,9 @@ export {
     type SceneEntityData,
     type SceneComponentData,
     type SceneLoadOptions,
+    type SliceBorder,
 } from './scene';
 
-export {
-    registerAssetHandler,
-    type AssetFieldHandler,
-} from './asset/AssetHandlerRegistry';
 
 // =============================================================================
 // Scene Manager

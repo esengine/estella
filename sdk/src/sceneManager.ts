@@ -5,7 +5,8 @@
 
 import type { App } from './app';
 import type { Entity, Color } from './types';
-import type { SceneData, SceneLoadOptions, LoadedSceneAssets } from './scene';
+import type { SceneData, SceneLoadOptions } from './scene';
+import { discoverSceneAssets } from './asset/discoverAssets';
 import type { SystemDef } from './system';
 import { Material } from './material';
 import type { DrawCallback } from './customDraw';
@@ -89,7 +90,9 @@ class SceneInstance {
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessBindings = new Map<Entity, PostProcessStack>();
     readonly savedEnabled = new Map<Entity, Map<AnyComponentDef, boolean>>();
-    loadedAssets: LoadedSceneAssets | null = null;
+    loadedTextures: Set<string> | null = null;
+    loadedMaterials: Set<number> | null = null;
+    loadedFonts: Set<string> | null = null;
     status: SceneStatus = 'loading';
 
     constructor(config: SceneConfig) {
@@ -484,20 +487,19 @@ export class SceneManagerState {
         sceneData: SceneData | undefined,
     ): Promise<void> {
         if (sceneData) {
-            const collectAssets: LoadedSceneAssets = {
-                textureUrls: new Set(),
-                materialHandles: new Set(),
-                fontPaths: new Set(),
-                spineKeys: new Set(),
-            };
-            const loadOptions: SceneLoadOptions = { collectAssets };
+            const loadOptions: SceneLoadOptions = {};
             if (this.app_.hasResource(Assets)) {
                 loadOptions.assets = this.app_.getResource(Assets);
             }
+
+            const discovered = discoverSceneAssets(sceneData);
+            instance.loadedTextures = discovered.byType.get('texture') ?? new Set();
+            instance.loadedMaterials = new Set();
+            instance.loadedFonts = discovered.byType.get('font') ?? new Set();
+
             const entityMap = await loadSceneWithAssets(
                 this.app_.world, sceneData, loadOptions
             );
-            instance.loadedAssets = collectAssets;
 
             for (const entity of entityMap.values()) {
                 instance.entities.add(entity);
@@ -522,30 +524,31 @@ export class SceneManagerState {
     }
 
     private releaseSceneAssets_(instance: SceneInstance): void {
-        const assets = instance.loadedAssets;
-        if (!assets) return;
-
-        const assetServer = this.app_.hasResource(Assets)
+        const assetsRes = this.app_.hasResource(Assets)
             ? this.app_.getResource(Assets)
             : null;
 
-        if (assetServer) {
-            for (const url of assets.textureUrls) {
-                assetServer.releaseTexture(url);
+        if (assetsRes && instance.loadedTextures) {
+            for (const path of instance.loadedTextures) {
+                assetsRes.releaseTexture(path);
             }
         }
 
-        for (const handle of assets.materialHandles) {
-            Material.release(handle);
-        }
-
-        if (assetServer) {
-            for (const fontPath of assets.fontPaths) {
-                assetServer.releaseFont(fontPath);
+        if (instance.loadedMaterials) {
+            for (const handle of instance.loadedMaterials) {
+                Material.release(handle);
             }
         }
 
-        instance.loadedAssets = null;
+        if (assetsRes && instance.loadedFonts) {
+            for (const path of instance.loadedFonts) {
+                assetsRes.releaseFont(path);
+            }
+        }
+
+        instance.loadedTextures = null;
+        instance.loadedMaterials = null;
+        instance.loadedFonts = null;
     }
 
     pause(name: string): void {

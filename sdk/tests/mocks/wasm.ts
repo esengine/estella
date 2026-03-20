@@ -117,6 +117,7 @@ export function createMockModule(): ESEngineModule {
         getTextureSize: () => ({ width: 100, height: 100 }),
         loadBitmapFont: () => 1,
         releaseBitmapFont: () => {},
+        setTextureMetadata: () => {},
     };
 
     return {
