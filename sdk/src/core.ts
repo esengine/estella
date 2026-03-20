@@ -147,6 +147,7 @@ export {
     InputState,
     InputPlugin,
     inputPlugin,
+    type TouchPoint,
 } from './input';
 
 // =============================================================================

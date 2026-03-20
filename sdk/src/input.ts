@@ -3,6 +3,12 @@ import { defineSystem, Schedule } from './system';
 import type { App, Plugin } from './app';
 import { getPlatform } from './platform';
 
+export interface TouchPoint {
+    id: number;
+    x: number;
+    y: number;
+}
+
 export class InputState {
     keysDown = new Set<string>();
     keysPressed = new Set<string>();
@@ -14,6 +20,10 @@ export class InputState {
     mouseButtonsReleased = new Set<number>();
     scrollDeltaX = 0;
     scrollDeltaY = 0;
+
+    touches = new Map<number, TouchPoint>();
+    touchesStarted = new Map<number, TouchPoint>();
+    touchesEnded = new Set<number>();
 
     isKeyDown(key: string): boolean {
         return this.keysDown.has(key);
@@ -47,6 +57,22 @@ export class InputState {
         return { x: this.scrollDeltaX, y: this.scrollDeltaY };
     }
 
+    getTouches(): TouchPoint[] {
+        return [...this.touches.values()];
+    }
+
+    getTouchCount(): number {
+        return this.touches.size;
+    }
+
+    getTouch(id: number): TouchPoint | null {
+        return this.touches.get(id) ?? null;
+    }
+
+    isTouchActive(id: number): boolean {
+        return this.touches.has(id);
+    }
+
     clearFrameState(): void {
         this.keysPressed.clear();
         this.keysReleased.clear();
@@ -54,6 +80,8 @@ export class InputState {
         this.mouseButtonsReleased.clear();
         this.scrollDeltaX = 0;
         this.scrollDeltaY = 0;
+        this.touchesStarted.clear();
+        this.touchesEnded.clear();
     }
 }
 
@@ -100,6 +128,28 @@ export class InputPlugin implements Plugin {
             onWheel(deltaX, deltaY) {
                 state.scrollDeltaX += deltaX;
                 state.scrollDeltaY += deltaY;
+            },
+            onTouchStart(id, x, y) {
+                const point = { id, x, y };
+                state.touches.set(id, point);
+                state.touchesStarted.set(id, point);
+            },
+            onTouchMove(id, x, y) {
+                const existing = state.touches.get(id);
+                if (existing) {
+                    existing.x = x;
+                    existing.y = y;
+                } else {
+                    state.touches.set(id, { id, x, y });
+                }
+            },
+            onTouchEnd(id) {
+                state.touches.delete(id);
+                state.touchesEnded.add(id);
+            },
+            onTouchCancel(id) {
+                state.touches.delete(id);
+                state.touchesEnded.add(id);
             },
         }, this.target_ ?? undefined);
 

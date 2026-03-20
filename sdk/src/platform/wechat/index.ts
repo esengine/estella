@@ -94,20 +94,32 @@ class WeChatPlatformAdapter implements PlatformAdapter {
             wx.onKeyUp(onKeyUp);
         }
 
+        let primaryTouchId: number | null = null;
+
         const onTouchStart = (res: TouchResult) => {
-            for (const touch of res.touches) {
-                callbacks.onPointerDown(touch.identifier, touch.clientX, touch.clientY);
+            for (const touch of res.changedTouches) {
+                callbacks.onTouchStart?.(touch.identifier, touch.clientX, touch.clientY);
+                if (primaryTouchId === null) {
+                    primaryTouchId = touch.identifier;
+                    callbacks.onPointerDown(0, touch.clientX, touch.clientY);
+                }
             }
         };
         const onTouchMove = (res: TouchResult) => {
-            const touch = res.touches[0];
-            if (touch) {
-                callbacks.onPointerMove(touch.clientX, touch.clientY);
+            for (const touch of res.changedTouches) {
+                callbacks.onTouchMove?.(touch.identifier, touch.clientX, touch.clientY);
+                if (touch.identifier === primaryTouchId) {
+                    callbacks.onPointerMove(touch.clientX, touch.clientY);
+                }
             }
         };
         const onTouchEnd = (res: TouchResult) => {
             for (const touch of res.changedTouches) {
-                callbacks.onPointerUp(touch.identifier);
+                callbacks.onTouchEnd?.(touch.identifier);
+                if (touch.identifier === primaryTouchId) {
+                    primaryTouchId = null;
+                    callbacks.onPointerUp(0);
+                }
             }
         };
 
