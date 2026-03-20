@@ -5,7 +5,7 @@
 
 import type { App } from './app';
 import type { Entity, Color } from './types';
-import type { SceneData, SceneLoadOptions } from './scene';
+import type { SceneData, SceneLoadOptions, LoadedSceneAssets } from './scene';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import type { SystemDef } from './system';
 import { Material } from './material';
@@ -487,15 +487,22 @@ export class SceneManagerState {
         sceneData: SceneData | undefined,
     ): Promise<void> {
         if (sceneData) {
-            const loadOptions: SceneLoadOptions = {};
-            if (this.app_.hasResource(Assets)) {
-                loadOptions.assets = this.app_.getResource(Assets);
-            }
-
             const discovered = discoverSceneAssets(sceneData);
             instance.loadedTextures = discovered.byType.get('texture') ?? new Set();
             instance.loadedMaterials = new Set();
             instance.loadedFonts = discovered.byType.get('font') ?? new Set();
+
+            const collectAssets: LoadedSceneAssets = {
+                texturePaths: instance.loadedTextures,
+                materialHandles: instance.loadedMaterials,
+                fontPaths: instance.loadedFonts,
+                spineKeys: new Set(),
+            };
+
+            const loadOptions: SceneLoadOptions = { collectAssets };
+            if (this.app_.hasResource(Assets)) {
+                loadOptions.assets = this.app_.getResource(Assets);
+            }
 
             const entityMap = await loadSceneWithAssets(
                 this.app_.world, sceneData, loadOptions

@@ -57,6 +57,7 @@ export interface LoadedSceneAssets {
 export interface SceneLoadOptions {
     assets?: import('./asset/Assets').Assets;
     assetBaseUrl?: string;
+    collectAssets?: LoadedSceneAssets;
 }
 
 // =============================================================================
@@ -205,6 +206,11 @@ export async function loadSceneWithAssets(
         const result = await assets.preloadSceneAssets(sceneData);
         assets.resolveSceneAssetPaths(sceneData, result);
         applyTextureMetadata(sceneData, result.textureHandles);
+        if (options.collectAssets) {
+            for (const handle of result.materialHandles.values()) {
+                if (handle) options.collectAssets.materialHandles.add(handle);
+            }
+        }
     }
     return spawnAndLoadEntities(world, sceneData);
 }

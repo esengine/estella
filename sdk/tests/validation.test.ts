@@ -6,7 +6,7 @@ describe('Component Data Validation', () => {
     let world: World;
 
     const Position = defineComponent('Position', { x: 0, y: 0 });
-    const Velocity = defineComponent('Velocity', { dx: 0, dy: 0 });
+    const Velocity = defineComponent('Movement', { dx: 0, dy: 0 });
     const Health = defineComponent('Health', {
         value: 100,
         max: 100,
