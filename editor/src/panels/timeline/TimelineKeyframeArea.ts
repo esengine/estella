@@ -2,7 +2,6 @@ import type { TimelineState } from './TimelineState';
 import {
     RULER_HEIGHT,
     TRACK_HEIGHT,
-    KEYFRAME_SIZE,
     MIN_PIXELS_PER_SECOND,
     MAX_PIXELS_PER_SECOND,
 } from './TimelineState';
@@ -43,178 +42,61 @@ import {
     ReorderAnimFrameCommand,
     ResizeAnimFrameCommand,
 } from './TimelineTrackCommands';
-import { isUUID, getAssetLibrary } from '../../asset/AssetDatabase';
+import {
+    kfKey,
+    type KeyframeHit,
+    type SpineClipHit,
+    type AudioEventHit,
+    type ActivationRangeHit,
+    type MarkerHit,
+    type CustomEventHit,
+    type SpriteAnimHit,
+    type AnimFrameHit,
+    type TimelineAssetData,
+    type TimelineCustomEvent,
+    type AnimFrameData,
+    type KeyframeSelectionCallback,
+    type NonPropertyHit,
+} from './TimelineTypes';
+import {
+    drawRuler,
+    drawTracks,
+    drawPlayhead,
+    drawDurationEnd,
+    drawRubberBand,
+    type TimelineRenderContext,
+} from './TimelineRenderer';
+import {
+    hitTestKeyframe,
+    hitTestNonPropertyTrack,
+    collectKeyframesInRect,
+    getTrackAtY,
+} from './TimelineHitTest';
 
-const RULER_BG = '#1e1e1e';
-const RULER_TEXT = '#888888';
-const RULER_LINE = '#333333';
-const TRACK_BG_EVEN = '#252525';
-const TRACK_BG_ODD = '#2a2a2a';
-const TRACK_SELECTED_BG = '#2c3e50';
-const KEYFRAME_COLOR = '#e5c07b';
-const KEYFRAME_SELECTED = '#61afef';
-const PLAYHEAD_COLOR = '#e06c75';
-const SPINE_CLIP_COLOR = 'rgba(97, 175, 239, 0.3)';
-const SPINE_CLIP_BORDER = '#61afef';
-const ACTIVATION_COLOR = 'rgba(152, 195, 121, 0.3)';
-const ACTIVATION_BORDER = '#98c379';
-const AUDIO_EVENT_COLOR = '#d19a66';
-const CHANNEL_BG = '#1e1e1e';
-const KEYFRAME_HIT_RADIUS = 6;
-const EDGE_RESIZE_ZONE = 8;
+export type {
+    TimelineAssetData,
+    TimelineKeyframe,
+    TimelineChannel,
+    TimelineSpineClip,
+    TimelineAudioEvent,
+    TimelineCustomEvent,
+    TimelineActivationRange,
+    TimelineMarker,
+    AnimFrameData,
+    TimelineTrackData,
+    TimelinePanelHost,
+    SelectedKeyframeInfo,
+    SelectionSummary,
+    KeyframeSelectionCallback,
+} from './TimelineTypes';
+
 const FRAME_STEP = 1 / 60;
-const RUBBERBAND_COLOR = 'rgba(97, 175, 239, 0.2)';
-const RUBBERBAND_BORDER = 'rgba(97, 175, 239, 0.6)';
-const MARKER_COLOR = '#c678dd';
-const CUSTOM_EVENT_COLOR = '#56b6c2';
-const SPRITE_ANIM_COLOR = 'rgba(229, 192, 123, 0.3)';
-const SPRITE_ANIM_BORDER = '#e5c07b';
-const DURATION_LINE_COLOR = '#e5c07b';
-const BEYOND_DURATION_COLOR = 'rgba(0, 0, 0, 0.2)';
-const ANIM_FRAME_COLORS = ['#61afef', '#c678dd', '#e5c07b', '#98c379', '#d19a66', '#56b6c2', '#e06c75'];
-const ANIM_FRAME_BORDER = '#ffffff30';
-
-interface SpineClipHit {
-    trackIndex: number;
-    clipIndex: number;
-    zone: 'body' | 'resize';
-}
-
-interface AudioEventHit {
-    trackIndex: number;
-    eventIndex: number;
-}
-
-interface ActivationRangeHit {
-    trackIndex: number;
-    rangeIndex: number;
-    zone: 'body' | 'left' | 'right';
-}
-
-interface MarkerHit {
-    trackIndex: number;
-    markerIndex: number;
-}
-
-interface CustomEventHit {
-    trackIndex: number;
-    eventIndex: number;
-}
-
-interface SpriteAnimHit {
-    trackIndex: number;
-}
-
-interface AnimFrameHit {
-    trackIndex: number;
-    frameIndex: number;
-    zone: 'body' | 'resize';
-}
-
-export interface TimelineAssetData {
-    tracks: TimelineTrackData[];
-    duration: number;
-}
-
-export interface TimelineKeyframe {
-    time: number;
-    value: number;
-    inTangent?: number;
-    outTangent?: number;
-    interpolation?: string;
-}
-
-export interface TimelineChannel {
-    property: string;
-    keyframes: TimelineKeyframe[];
-}
-
-export interface TimelineSpineClip {
-    start: number;
-    duration: number;
-    animation: string;
-}
-
-export interface TimelineAudioEvent {
-    time: number;
-    clip: string;
-}
-
-export interface TimelineCustomEvent {
-    time: number;
-    name: string;
-    payload: Record<string, unknown>;
-}
-
-export interface TimelineActivationRange {
-    start: number;
-    end: number;
-}
-
-export interface TimelineMarker {
-    time: number;
-    name: string;
-}
-
-export interface AnimFrameData {
-    texture: string;
-    duration?: number;
-    thumbnailUrl?: string;
-}
-
-export interface TimelineTrackData {
-    type: string;
-    name: string;
-    childPath?: string;
-    component?: string;
-    channels?: TimelineChannel[];
-    clips?: TimelineSpineClip[];
-    events?: (TimelineAudioEvent | TimelineCustomEvent)[];
-    ranges?: TimelineActivationRange[];
-    markers?: TimelineMarker[];
-    clip?: string;
-    startTime?: number;
-    animFrames?: AnimFrameData[];
-}
-
-interface KeyframeHit {
-    trackIndex: number;
-    channelIndex: number;
-    keyframeIndex: number;
-    time: number;
-}
-
-export interface TimelinePanelHost {
-    get assetData(): TimelineAssetData | null;
-    executeCommand(cmd: import('../../commands/Command').Command): void;
-    onAssetDataChanged(): void;
-    readPropertyValue(trackIndex: number, channelIndex: number): number;
-}
-
-export interface SelectedKeyframeInfo {
-    trackIndex: number;
-    channelIndex: number;
-    keyframeIndex: number;
-    time: number;
-    value: number;
-}
-
-export interface SelectionSummary {
-    count: number;
-    single: SelectedKeyframeInfo | null;
-}
-
-export type KeyframeSelectionCallback = (summary: SelectionSummary) => void;
-
-function kfKey(trackIndex: number, channelIndex: number, keyframeIndex: number): string {
-    return `${trackIndex}:${channelIndex}:${keyframeIndex}`;
-}
 
 export class TimelineKeyframeArea {
     private canvas_: HTMLCanvasElement;
     private ctx_: CanvasRenderingContext2D;
     private state_: TimelineState;
-    private host_: TimelinePanelHost | null;
+    private host_: import('./TimelineTypes').TimelinePanelHost | null;
     private assetData_: TimelineAssetData | null = null;
     private unsub_: (() => void) | null = null;
     private resizeObserver_: ResizeObserver | null = null;
@@ -225,7 +107,7 @@ export class TimelineKeyframeArea {
     private clipboard_: { channelIndex: number; relativeTime: number; value: number; inTangent: number; outTangent: number }[] = [];
     private frameImageCache_: Map<string, HTMLImageElement> | null = null;
 
-    constructor(container: HTMLElement, state: TimelineState, host?: TimelinePanelHost) {
+    constructor(container: HTMLElement, state: TimelineState, host?: import('./TimelineTypes').TimelinePanelHost) {
         this.state_ = state;
         this.host_ = host ?? null;
 
@@ -271,7 +153,7 @@ export class TimelineKeyframeArea {
         this.notifySelectionChange();
     }
 
-    private selectNpItem(npHit: { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit | MarkerHit | CustomEventHit | SpriteAnimHit | AnimFrameHit }): void {
+    private selectNpItem(npHit: NonPropertyHit): void {
         this.selectedKeyframes_.clear();
         const hit = npHit.hit;
         let itemIndex = -1;
@@ -383,6 +265,24 @@ export class TimelineKeyframeArea {
         this.draw();
     }
 
+    private createRenderContext(): TimelineRenderContext {
+        return {
+            state: this.state_,
+            assetData: this.assetData_,
+            canvasWidth: this.canvas_.clientWidth,
+            isKeyframeSelected: (ti, ci, ki) => this.isKeyframeSelected(ti, ci, ki),
+            isNpItemSelected: (type, ti, ii) => this.isNpItemSelected(type, ti, ii),
+            frameImageCache: this.frameImageCache_,
+            setFrameImageCache: (cache) => { this.frameImageCache_ = cache; },
+            requestRedraw: () => this.draw(),
+        };
+    }
+
+    private isNpItemSelected(type: string, trackIndex: number, itemIndex: number): boolean {
+        const sel = this.selectedNpItem_;
+        return sel != null && sel.type === type && sel.trackIndex === trackIndex && sel.itemIndex === itemIndex;
+    }
+
     draw(): void {
         const ctx = this.ctx_;
         const w = this.canvas_.clientWidth;
@@ -392,849 +292,12 @@ export class TimelineKeyframeArea {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, w, h);
 
-        this.drawRuler(ctx, w);
-        this.drawTracks(ctx, w, h);
-        this.drawDurationEnd(ctx, w, h);
-        this.drawPlayhead(ctx, w, h);
-        this.drawRubberBand(ctx);
-    }
-
-    private drawRuler(ctx: CanvasRenderingContext2D, width: number): void {
-        ctx.fillStyle = RULER_BG;
-        ctx.fillRect(0, 0, width, RULER_HEIGHT);
-
-        ctx.strokeStyle = RULER_LINE;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, RULER_HEIGHT - 0.5);
-        ctx.lineTo(width, RULER_HEIGHT - 0.5);
-        ctx.stroke();
-
-        const pps = this.state_.pixelsPerSecond;
-        const startTime = this.state_.scrollX / pps;
-        const endTime = startTime + width / pps;
-
-        const step = this.calculateRulerStep(pps);
-        const firstTick = Math.floor(startTime / step) * step;
-
-        ctx.fillStyle = RULER_TEXT;
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-
-        for (let t = firstTick; t <= endTime; t += step) {
-            const x = this.state_.timeToX(t);
-            if (x < -50 || x > width + 50) continue;
-
-            ctx.strokeStyle = RULER_LINE;
-            ctx.beginPath();
-            ctx.moveTo(Math.round(x) + 0.5, RULER_HEIGHT - 8);
-            ctx.lineTo(Math.round(x) + 0.5, RULER_HEIGHT);
-            ctx.stroke();
-
-            ctx.fillText(this.state_.formatTime(Math.max(0, t)), x, RULER_HEIGHT - 10);
-
-            const subStep = step / 5;
-            for (let st = t + subStep; st < t + step - subStep / 2; st += subStep) {
-                const sx = this.state_.timeToX(st);
-                if (sx < 0 || sx > width) continue;
-                ctx.strokeStyle = RULER_LINE;
-                ctx.beginPath();
-                ctx.moveTo(Math.round(sx) + 0.5, RULER_HEIGHT - 4);
-                ctx.lineTo(Math.round(sx) + 0.5, RULER_HEIGHT);
-                ctx.stroke();
-            }
-        }
-    }
-
-    private calculateRulerStep(pps: number): number {
-        const minPixelsBetweenLabels = 80;
-        const steps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60];
-        for (const s of steps) {
-            if (s * pps >= minPixelsBetweenLabels) return s;
-        }
-        return 60;
-    }
-
-    private drawTracks(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-        const tracks = this.state_.tracks;
-        let y = RULER_HEIGHT;
-
-        for (let i = 0; i < tracks.length; i++) {
-            if (y > height) break;
-            const track = tracks[i];
-
-            const bg = track.index === this.state_.selectedTrackIndex
-                ? TRACK_SELECTED_BG
-                : i % 2 === 0 ? TRACK_BG_EVEN : TRACK_BG_ODD;
-
-            ctx.fillStyle = bg;
-            ctx.fillRect(0, y, width, TRACK_HEIGHT);
-
-            ctx.strokeStyle = RULER_LINE;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(0, y + TRACK_HEIGHT - 0.5);
-            ctx.lineTo(width, y + TRACK_HEIGHT - 0.5);
-            ctx.stroke();
-
-            this.drawTrackContent(ctx, track, y, width);
-            y += TRACK_HEIGHT;
-
-            if (track.expanded && track.channelCount > 0) {
-                const assetTrack = this.assetData_?.tracks[track.index];
-                const channels = (assetTrack as any)?.channels ?? [];
-                for (let c = 0; c < track.channelCount; c++) {
-                    if (y > height) break;
-                    ctx.fillStyle = CHANNEL_BG;
-                    ctx.fillRect(0, y, width, TRACK_HEIGHT);
-
-                    ctx.strokeStyle = RULER_LINE;
-                    ctx.beginPath();
-                    ctx.moveTo(0, y + TRACK_HEIGHT - 0.5);
-                    ctx.lineTo(width, y + TRACK_HEIGHT - 0.5);
-                    ctx.stroke();
-
-                    const channel = channels[c];
-                    if (channel) {
-                        this.drawKeyframes(ctx, channel.keyframes, y, track.index, c);
-                    }
-                    y += TRACK_HEIGHT;
-                }
-            }
-        }
-    }
-
-    private drawTrackContent(
-        ctx: CanvasRenderingContext2D,
-        track: { type: string; index: number },
-        y: number,
-        width: number,
-    ): void {
-        if (!this.assetData_) return;
-        const assetTrack = this.assetData_.tracks[track.index];
-        if (!assetTrack) return;
-
-        switch (assetTrack.type) {
-            case 'property':
-                if (!track.type) break;
-                for (let c = 0; c < (assetTrack.channels ?? []).length; c++) {
-                    this.drawKeyframes(ctx, assetTrack.channels![c].keyframes, y, track.index, c);
-                }
-                break;
-
-            case 'spine':
-                this.drawSpineClips(ctx, assetTrack.clips ?? [], y, width);
-                break;
-
-            case 'spriteAnim':
-                if (assetTrack.startTime != null) {
-                    this.drawSpriteAnimClip(ctx, assetTrack.startTime, assetTrack.clip ?? '', y, width);
-                }
-                break;
-
-            case 'audio':
-                this.drawAudioEvents(ctx, assetTrack.events ?? [], y);
-                break;
-
-            case 'activation':
-                this.drawActivationRanges(ctx, assetTrack.ranges ?? [], y, width);
-                break;
-
-            case 'marker':
-                this.drawMarkers(ctx, assetTrack.markers ?? [], y, track.index);
-                break;
-
-            case 'customEvent':
-                this.drawCustomEvents(ctx, (assetTrack.events ?? []) as TimelineCustomEvent[], y, track.index);
-                break;
-
-            case 'animFrames':
-                this.drawAnimFrames(ctx, assetTrack.animFrames ?? [], y, width, track.index);
-                break;
-        }
-    }
-
-    private isNpItemSelected(type: string, trackIndex: number, itemIndex: number): boolean {
-        const sel = this.selectedNpItem_;
-        return sel != null && sel.type === type && sel.trackIndex === trackIndex && sel.itemIndex === itemIndex;
-    }
-
-    private drawCustomEvents(
-        ctx: CanvasRenderingContext2D,
-        events: TimelineCustomEvent[],
-        y: number,
-        trackIndex: number,
-    ): void {
-        for (let i = 0; i < events.length; i++) {
-            const event = events[i];
-            const x = this.state_.timeToX(event.time);
-            const selected = this.isNpItemSelected('customEvent', trackIndex, i);
-
-            ctx.fillStyle = selected ? KEYFRAME_SELECTED : CUSTOM_EVENT_COLOR;
-            ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
-
-            ctx.beginPath();
-            ctx.arc(x, y + 6, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            if (selected) {
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.arc(x, y + 6, 5.5, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-
-            ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(event.name, x + 6, y + TRACK_HEIGHT / 2 + 3);
-        }
-    }
-
-    private drawMarkers(
-        ctx: CanvasRenderingContext2D,
-        markers: { time: number; name: string }[],
-        y: number,
-        trackIndex: number,
-    ): void {
-        for (let i = 0; i < markers.length; i++) {
-            const marker = markers[i];
-            const x = this.state_.timeToX(marker.time);
-            const selected = this.isNpItemSelected('marker', trackIndex, i);
-
-            ctx.fillStyle = selected ? KEYFRAME_SELECTED : MARKER_COLOR;
-            ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
-
-            ctx.beginPath();
-            ctx.moveTo(x - 5, y + 2);
-            ctx.lineTo(x + 5, y + 2);
-            ctx.lineTo(x, y + 8);
-            ctx.closePath();
-            ctx.fill();
-
-            if (selected) {
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(x - 6.5, y + 1);
-                ctx.lineTo(x + 6.5, y + 1);
-                ctx.lineTo(x, y + 9.5);
-                ctx.closePath();
-                ctx.stroke();
-            }
-
-            ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(marker.name, x + 6, y + TRACK_HEIGHT / 2 + 3);
-        }
-    }
-
-    private drawAnimFrames(
-        ctx: CanvasRenderingContext2D,
-        frames: AnimFrameData[],
-        y: number,
-        width: number,
-        trackIndex: number,
-    ): void {
-        if (frames.length === 0) return;
-        const fps = this.state_.animClipFps;
-        const defaultDur = 1 / fps;
-        let time = 0;
-
-        for (let i = 0; i < frames.length; i++) {
-            const frame = frames[i];
-            const dur = frame.duration ?? defaultDur;
-            const x1 = this.state_.timeToX(time);
-            const x2 = this.state_.timeToX(time + dur);
-            const fw = x2 - x1;
-
-            if (x2 >= 0 && x1 <= width) {
-                const color = ANIM_FRAME_COLORS[i % ANIM_FRAME_COLORS.length];
-                const selected = this.isNpItemSelected('animFrames', trackIndex, i);
-
-                ctx.fillStyle = selected ? color : color + '60';
-                ctx.fillRect(x1, y + 1, fw, TRACK_HEIGHT - 2);
-
-                ctx.strokeStyle = selected ? '#ffffff' : ANIM_FRAME_BORDER;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x1 + 0.5, y + 1.5, fw - 1, TRACK_HEIGHT - 3);
-
-                if (frame.thumbnailUrl && fw > 20) {
-                    let img = this.frameImageCache_?.get(frame.thumbnailUrl);
-                    if (!img) {
-                        img = new Image();
-                        img.src = frame.thumbnailUrl;
-                        if (!this.frameImageCache_) this.frameImageCache_ = new Map();
-                        this.frameImageCache_.set(frame.thumbnailUrl, img);
-                        img.onload = () => this.draw();
-                    }
-                    if (img.complete && img.naturalWidth > 0) {
-                        const imgH = TRACK_HEIGHT - 4;
-                        const imgW = Math.min(imgH, fw - 2);
-                        ctx.drawImage(img, x1 + 1, y + 2, imgW, imgH);
-                    }
-                }
-
-                if (fw > 30) {
-                    ctx.fillStyle = selected ? '#ffffff' : '#cccccc';
-                    ctx.font = '9px monospace';
-                    ctx.textAlign = 'left';
-                    const label = String(i).padStart(2, '0');
-                    const textX = frame.thumbnailUrl && fw > 20 ? x1 + TRACK_HEIGHT - 2 : x1 + 4;
-                    ctx.fillText(label, textX, y + TRACK_HEIGHT / 2 + 3);
-
-                    const durMs = Math.round(dur * 1000);
-                    const durLabel = durMs + 'ms';
-                    ctx.fillStyle = selected ? 'rgba(255,255,255,0.6)' : 'rgba(200,200,200,0.5)';
-                    ctx.textAlign = 'right';
-                    ctx.fillText(durLabel, x2 - 4, y + TRACK_HEIGHT / 2 + 3);
-                    ctx.textAlign = 'left';
-                }
-
-                if (fw > 4) {
-                    ctx.fillStyle = selected ? 'rgba(255,255,255,0.4)' : 'rgba(200,200,200,0.25)';
-                    ctx.fillRect(x2 - 3, y + 3, 2, TRACK_HEIGHT - 6);
-                }
-            }
-            time += dur;
-        }
-    }
-
-    private drawKeyframes(
-        ctx: CanvasRenderingContext2D,
-        keyframes: { time: number }[],
-        y: number,
-        trackIndex: number,
-        channelIndex: number,
-    ): void {
-        const cy = y + TRACK_HEIGHT / 2;
-        const half = KEYFRAME_SIZE / 2;
-
-        for (let ki = 0; ki < keyframes.length; ki++) {
-            const kf = keyframes[ki];
-            const x = this.state_.timeToX(kf.time);
-            if (x < -KEYFRAME_SIZE || x > this.canvas_.clientWidth + KEYFRAME_SIZE) continue;
-
-            const isSelected = this.isKeyframeSelected(trackIndex, channelIndex, ki);
-
-            ctx.fillStyle = isSelected ? KEYFRAME_SELECTED : KEYFRAME_COLOR;
-            ctx.beginPath();
-            ctx.moveTo(x, cy - half);
-            ctx.lineTo(x + half, cy);
-            ctx.lineTo(x, cy + half);
-            ctx.lineTo(x - half, cy);
-            ctx.closePath();
-            ctx.fill();
-        }
-    }
-
-    private drawSpineClips(
-        ctx: CanvasRenderingContext2D,
-        clips: { start: number; duration: number; animation: string }[],
-        y: number,
-        _width: number,
-    ): void {
-        const clipY = y + 3;
-        const clipH = TRACK_HEIGHT - 6;
-
-        for (const clip of clips) {
-            const x1 = this.state_.timeToX(clip.start);
-            const x2 = this.state_.timeToX(clip.start + clip.duration);
-            const w = x2 - x1;
-            if (w < 1) continue;
-
-            ctx.fillStyle = SPINE_CLIP_COLOR;
-            ctx.fillRect(x1, clipY, w, clipH);
-            ctx.strokeStyle = SPINE_CLIP_BORDER;
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x1 + 0.5, clipY + 0.5, w - 1, clipH - 1);
-
-            ctx.fillStyle = '#cccccc';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            const textX = Math.max(x1 + 4, 4);
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(x1, clipY, w, clipH);
-            ctx.clip();
-            ctx.fillText(clip.animation, textX, clipY + clipH / 2 + 3);
-            ctx.restore();
-        }
-    }
-
-    private drawSpriteAnimClip(
-        ctx: CanvasRenderingContext2D,
-        startTime: number,
-        clipName: string,
-        y: number,
-        width: number,
-    ): void {
-        const x1 = this.state_.timeToX(startTime);
-        const x2 = Math.min(this.state_.timeToX(this.state_.duration), width);
-        const clipY = y + 3;
-        const clipH = TRACK_HEIGHT - 6;
-
-        if (x2 > x1) {
-            ctx.fillStyle = SPRITE_ANIM_COLOR;
-            ctx.fillRect(x1, clipY, x2 - x1, clipH);
-            ctx.strokeStyle = SPRITE_ANIM_BORDER;
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x1 + 0.5, clipY + 0.5, x2 - x1 - 1, clipH - 1);
-        }
-
-        ctx.fillStyle = SPRITE_ANIM_BORDER;
-        ctx.fillRect(x1 - 1, y + 2, 3, TRACK_HEIGHT - 4);
-
-        if (clipName) {
-            const resolvedPath = isUUID(clipName)
-                ? (getAssetLibrary().getPath(clipName) ?? clipName)
-                : clipName;
-            const displayName = resolvedPath.includes('/')
-                ? resolvedPath.slice(resolvedPath.lastIndexOf('/') + 1)
-                : resolvedPath;
-            ctx.fillStyle = '#cccccc';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            const textX = Math.max(x1 + 6, 6);
-            ctx.save();
-            if (x2 > x1) {
-                ctx.beginPath();
-                ctx.rect(x1, clipY, x2 - x1, clipH);
-                ctx.clip();
-            }
-            ctx.fillText(displayName, textX, clipY + clipH / 2 + 3);
-            ctx.restore();
-        }
-    }
-
-    private drawAudioEvents(
-        ctx: CanvasRenderingContext2D,
-        events: { time: number; clip?: string }[],
-        y: number,
-    ): void {
-        for (const event of events) {
-            const x = this.state_.timeToX(event.time);
-            ctx.fillStyle = AUDIO_EVENT_COLOR;
-            ctx.fillRect(x - 1, y + 2, 3, TRACK_HEIGHT - 4);
-
-            ctx.beginPath();
-            ctx.moveTo(x - 4, y + 2);
-            ctx.lineTo(x + 4, y + 2);
-            ctx.lineTo(x, y + 8);
-            ctx.closePath();
-            ctx.fill();
-
-            if (event.clip) {
-                const clipPath = isUUID(event.clip)
-                    ? (getAssetLibrary().getPath(event.clip) ?? event.clip)
-                    : event.clip;
-                const label = clipPath.includes('/')
-                    ? clipPath.slice(clipPath.lastIndexOf('/') + 1)
-                    : clipPath;
-                ctx.fillStyle = '#aaaaaa';
-                ctx.font = '9px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText(label, x + 6, y + TRACK_HEIGHT / 2 + 3);
-            }
-        }
-    }
-
-    private drawActivationRanges(
-        ctx: CanvasRenderingContext2D,
-        ranges: { start: number; end: number }[],
-        y: number,
-        _width: number,
-    ): void {
-        const rangeY = y + 4;
-        const rangeH = TRACK_HEIGHT - 8;
-
-        for (const range of ranges) {
-            const x1 = this.state_.timeToX(range.start);
-            const x2 = this.state_.timeToX(range.end);
-            const w = x2 - x1;
-            if (w < 1) continue;
-
-            ctx.fillStyle = ACTIVATION_COLOR;
-            ctx.fillRect(x1, rangeY, w, rangeH);
-            ctx.strokeStyle = ACTIVATION_BORDER;
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x1 + 0.5, rangeY + 0.5, w - 1, rangeH - 1);
-        }
-    }
-
-    private drawPlayhead(ctx: CanvasRenderingContext2D, _width: number, height: number): void {
-        const x = this.state_.timeToX(this.state_.playheadTime);
-        if (x < -10 || x > this.canvas_.clientWidth + 10) return;
-
-        ctx.strokeStyle = PLAYHEAD_COLOR;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(Math.round(x) + 0.5, 0);
-        ctx.lineTo(Math.round(x) + 0.5, height);
-        ctx.stroke();
-
-        ctx.fillStyle = PLAYHEAD_COLOR;
-        ctx.beginPath();
-        ctx.moveTo(x - 5, 0);
-        ctx.lineTo(x + 5, 0);
-        ctx.lineTo(x, 8);
-        ctx.closePath();
-        ctx.fill();
-    }
-
-    private drawDurationEnd(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-        const x = this.state_.timeToX(this.state_.duration);
-        if (x < 0) return;
-
-        if (x < width) {
-            ctx.strokeStyle = DURATION_LINE_COLOR;
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath();
-            ctx.moveTo(Math.round(x) + 0.5, RULER_HEIGHT);
-            ctx.lineTo(Math.round(x) + 0.5, height);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
-
-        const overlayX = Math.max(x, 0);
-        if (overlayX < width) {
-            ctx.fillStyle = BEYOND_DURATION_COLOR;
-            ctx.fillRect(overlayX, RULER_HEIGHT, width - overlayX, height - RULER_HEIGHT);
-        }
-    }
-
-    private drawRubberBand(ctx: CanvasRenderingContext2D): void {
-        if (!this.rubberBand_) return;
-        const rb = this.rubberBand_;
-        const x = Math.min(rb.startX, rb.endX);
-        const y = Math.min(rb.startY, rb.endY);
-        const w = Math.abs(rb.endX - rb.startX);
-        const h = Math.abs(rb.endY - rb.startY);
-
-        ctx.fillStyle = RUBBERBAND_COLOR;
-        ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = RUBBERBAND_BORDER;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-    }
-
-    private hitTestKeyframe(x: number, y: number): KeyframeHit | null {
-        if (!this.assetData_) return null;
-
-        const tracks = this.state_.tracks;
-        let rowY = RULER_HEIGHT;
-
-        for (let i = 0; i < tracks.length; i++) {
-            const track = tracks[i];
-            const assetTrack = this.assetData_.tracks[track.index];
-
-            if (assetTrack?.type === 'property' && assetTrack.channels) {
-                if (y >= rowY && y < rowY + TRACK_HEIGHT) {
-                    const hit = this.hitTestChannelKeyframes(assetTrack.channels, x, rowY, track.index);
-                    if (hit) return hit;
-                }
-            }
-            rowY += TRACK_HEIGHT;
-
-            if (track.expanded && track.channelCount > 0 && assetTrack?.type === 'property') {
-                for (let c = 0; c < track.channelCount; c++) {
-                    if (y >= rowY && y < rowY + TRACK_HEIGHT) {
-                        const channel = assetTrack.channels?.[c];
-                        if (channel) {
-                            const hit = this.hitTestSingleChannel(channel.keyframes, x, rowY, track.index, c);
-                            if (hit) return hit;
-                        }
-                    }
-                    rowY += TRACK_HEIGHT;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private hitTestChannelKeyframes(
-        channels: { keyframes: { time: number }[] }[],
-        x: number,
-        rowY: number,
-        trackIndex: number,
-    ): KeyframeHit | null {
-        for (let c = 0; c < channels.length; c++) {
-            const hit = this.hitTestSingleChannel(channels[c].keyframes, x, rowY, trackIndex, c);
-            if (hit) return hit;
-        }
-        return null;
-    }
-
-    private hitTestSingleChannel(
-        keyframes: { time: number }[],
-        x: number,
-        rowY: number,
-        trackIndex: number,
-        channelIndex: number,
-    ): KeyframeHit | null {
-        const cy = rowY + TRACK_HEIGHT / 2;
-
-        for (let ki = 0; ki < keyframes.length; ki++) {
-            const kf = keyframes[ki];
-            const kx = this.state_.timeToX(kf.time);
-            const dx = x - kx;
-            const dy = (rowY + TRACK_HEIGHT / 2) - cy;
-
-            if (Math.abs(dx) <= KEYFRAME_HIT_RADIUS && Math.abs(dy) <= KEYFRAME_HIT_RADIUS) {
-                return { trackIndex, channelIndex, keyframeIndex: ki, time: kf.time };
-            }
-        }
-        return null;
-    }
-
-    private hitTestSpineClip(x: number, y: number, trackIndex: number, rowY: number): SpineClipHit | null {
-        if (!this.assetData_) return null;
-        const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'spine' || !track.clips) return null;
-        if (y < rowY || y >= rowY + TRACK_HEIGHT) return null;
-
-        for (let i = 0; i < track.clips.length; i++) {
-            const clip = track.clips[i];
-            const x1 = this.state_.timeToX(clip.start);
-            const x2 = this.state_.timeToX(clip.start + clip.duration);
-            if (x >= x1 && x <= x2) {
-                const zone = (x2 - x) <= EDGE_RESIZE_ZONE ? 'resize' : 'body';
-                return { trackIndex, clipIndex: i, zone };
-            }
-        }
-        return null;
-    }
-
-    private hitTestAudioEvent(x: number, y: number, trackIndex: number, rowY: number): AudioEventHit | null {
-        if (!this.assetData_) return null;
-        const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'audio' || !track.events) return null;
-        if (y < rowY || y >= rowY + TRACK_HEIGHT) return null;
-
-        for (let i = 0; i < track.events.length; i++) {
-            const ex = this.state_.timeToX(track.events[i].time);
-            if (Math.abs(x - ex) <= KEYFRAME_HIT_RADIUS) {
-                return { trackIndex, eventIndex: i };
-            }
-        }
-        return null;
-    }
-
-    private hitTestActivationRange(x: number, y: number, trackIndex: number, rowY: number): ActivationRangeHit | null {
-        if (!this.assetData_) return null;
-        const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'activation' || !track.ranges) return null;
-        if (y < rowY || y >= rowY + TRACK_HEIGHT) return null;
-
-        for (let i = 0; i < track.ranges.length; i++) {
-            const range = track.ranges[i];
-            const x1 = this.state_.timeToX(range.start);
-            const x2 = this.state_.timeToX(range.end);
-            if (x >= x1 && x <= x2) {
-                const zone = (x - x1) <= EDGE_RESIZE_ZONE ? 'left'
-                    : (x2 - x) <= EDGE_RESIZE_ZONE ? 'right'
-                    : 'body';
-                return { trackIndex, rangeIndex: i, zone };
-            }
-        }
-        return null;
-    }
-
-    private hitTestMarker(x: number, trackIndex: number): MarkerHit | null {
-        if (!this.assetData_) return null;
-        const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'marker' || !track.markers) return null;
-
-        for (let i = 0; i < track.markers.length; i++) {
-            const mx = this.state_.timeToX(track.markers[i].time);
-            if (Math.abs(x - mx) <= KEYFRAME_HIT_RADIUS) {
-                return { trackIndex, markerIndex: i };
-            }
-        }
-        return null;
-    }
-
-    private hitTestCustomEvent(x: number, trackIndex: number): CustomEventHit | null {
-        if (!this.assetData_) return null;
-        const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'customEvent' || !track.events) return null;
-
-        for (let i = 0; i < track.events.length; i++) {
-            const ex = this.state_.timeToX(track.events[i].time);
-            if (Math.abs(x - ex) <= KEYFRAME_HIT_RADIUS) {
-                return { trackIndex, eventIndex: i };
-            }
-        }
-        return null;
-    }
-
-    private hitTestSpriteAnim(x: number, trackIndex: number): SpriteAnimHit | null {
-        if (!this.assetData_) return null;
-        const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'spriteAnim' || track.startTime == null) return null;
-
-        const sx = this.state_.timeToX(track.startTime);
-        if (Math.abs(x - sx) <= KEYFRAME_HIT_RADIUS) {
-            return { trackIndex };
-        }
-        return null;
-    }
-
-    private hitTestAnimFrame(x: number, trackIndex: number): AnimFrameHit | null {
-        if (!this.assetData_) return null;
-        const track = this.assetData_.tracks[trackIndex];
-        if (!track || track.type !== 'animFrames' || !track.animFrames) return null;
-
-        const fps = this.state_.animClipFps;
-        const defaultDur = 1 / fps;
-        let time = 0;
-
-        for (let i = 0; i < track.animFrames.length; i++) {
-            const dur = (track.animFrames[i] as AnimFrameData).duration ?? defaultDur;
-            const x1 = this.state_.timeToX(time);
-            const x2 = this.state_.timeToX(time + dur);
-
-            if (x >= x1 && x <= x2) {
-                const zone = (x2 - x) <= EDGE_RESIZE_ZONE ? 'resize' : 'body';
-                return { trackIndex, frameIndex: i, zone };
-            }
-            time += dur;
-        }
-        return null;
-    }
-
-    private hitTestNonPropertyTrack(x: number, y: number): { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit | MarkerHit | CustomEventHit | SpriteAnimHit | AnimFrameHit } | null {
-        if (!this.assetData_) return null;
-
-        const tracks = this.state_.tracks;
-        let rowY = RULER_HEIGHT;
-
-        for (let i = 0; i < tracks.length; i++) {
-            const track = tracks[i];
-            const assetTrack = this.assetData_.tracks[track.index];
-
-            if (y >= rowY && y < rowY + TRACK_HEIGHT && assetTrack) {
-                if (assetTrack.type === 'spine') {
-                    const hit = this.hitTestSpineClip(x, y, track.index, rowY);
-                    if (hit) return { type: 'spine', hit };
-                } else if (assetTrack.type === 'audio') {
-                    const hit = this.hitTestAudioEvent(x, y, track.index, rowY);
-                    if (hit) return { type: 'audio', hit };
-                } else if (assetTrack.type === 'activation') {
-                    const hit = this.hitTestActivationRange(x, y, track.index, rowY);
-                    if (hit) return { type: 'activation', hit };
-                } else if (assetTrack.type === 'marker') {
-                    const hit = this.hitTestMarker(x, track.index);
-                    if (hit) return { type: 'marker', hit };
-                } else if (assetTrack.type === 'customEvent') {
-                    const hit = this.hitTestCustomEvent(x, track.index);
-                    if (hit) return { type: 'customEvent', hit };
-                } else if (assetTrack.type === 'spriteAnim') {
-                    const hit = this.hitTestSpriteAnim(x, track.index);
-                    if (hit) return { type: 'spriteAnim', hit };
-                } else if (assetTrack.type === 'animFrames') {
-                    const hit = this.hitTestAnimFrame(x, track.index);
-                    if (hit) return { type: 'animFrames', hit };
-                }
-            }
-            rowY += TRACK_HEIGHT;
-
-            if (track.expanded && track.channelCount > 0) {
-                rowY += track.channelCount * TRACK_HEIGHT;
-            }
-        }
-        return null;
-    }
-
-    private collectKeyframesInRect(
-        x1: number, y1: number, x2: number, y2: number,
-    ): KeyframeHit[] {
-        if (!this.assetData_) return [];
-
-        const minX = Math.min(x1, x2);
-        const maxX = Math.max(x1, x2);
-        const minY = Math.min(y1, y2);
-        const maxY = Math.max(y1, y2);
-        const hits: KeyframeHit[] = [];
-
-        const tracks = this.state_.tracks;
-        let rowY = RULER_HEIGHT;
-
-        for (let i = 0; i < tracks.length; i++) {
-            const track = tracks[i];
-            const assetTrack = this.assetData_.tracks[track.index];
-
-            if (assetTrack?.type === 'property' && assetTrack.channels) {
-                if (rowY + TRACK_HEIGHT > minY && rowY < maxY) {
-                    for (let c = 0; c < assetTrack.channels.length; c++) {
-                        this.collectChannelKeyframesInRange(
-                            assetTrack.channels[c].keyframes, minX, maxX,
-                            track.index, c, hits,
-                        );
-                    }
-                }
-            }
-            rowY += TRACK_HEIGHT;
-
-            if (track.expanded && track.channelCount > 0 && assetTrack?.type === 'property') {
-                for (let c = 0; c < track.channelCount; c++) {
-                    if (rowY + TRACK_HEIGHT > minY && rowY < maxY) {
-                        const channel = assetTrack.channels?.[c];
-                        if (channel) {
-                            this.collectChannelKeyframesInRange(
-                                channel.keyframes, minX, maxX,
-                                track.index, c, hits,
-                            );
-                        }
-                    }
-                    rowY += TRACK_HEIGHT;
-                }
-            }
-        }
-
-        return hits;
-    }
-
-    private collectChannelKeyframesInRange(
-        keyframes: { time: number }[],
-        minX: number, maxX: number,
-        trackIndex: number, channelIndex: number,
-        out: KeyframeHit[],
-    ): void {
-        for (let ki = 0; ki < keyframes.length; ki++) {
-            const kx = this.state_.timeToX(keyframes[ki].time);
-            if (kx >= minX && kx <= maxX) {
-                out.push({ trackIndex, channelIndex, keyframeIndex: ki, time: keyframes[ki].time });
-            }
-        }
-    }
-
-    private getTrackAtY(y: number): { trackIndex: number; channelIndex: number; isChannel: boolean } | null {
-        const tracks = this.state_.tracks;
-        let rowY = RULER_HEIGHT;
-
-        for (let i = 0; i < tracks.length; i++) {
-            const track = tracks[i];
-
-            if (y >= rowY && y < rowY + TRACK_HEIGHT) {
-                return { trackIndex: track.index, channelIndex: -1, isChannel: false };
-            }
-            rowY += TRACK_HEIGHT;
-
-            if (track.expanded && track.channelCount > 0) {
-                for (let c = 0; c < track.channelCount; c++) {
-                    if (y >= rowY && y < rowY + TRACK_HEIGHT) {
-                        return { trackIndex: track.index, channelIndex: c, isChannel: true };
-                    }
-                    rowY += TRACK_HEIGHT;
-                }
-            }
-        }
-        return null;
+        const rc = this.createRenderContext();
+        drawRuler(ctx, w, rc);
+        drawTracks(ctx, w, h, rc);
+        drawDurationEnd(ctx, w, h, rc);
+        drawPlayhead(ctx, w, h, rc);
+        drawRubberBand(ctx, this.rubberBand_);
     }
 
     private onMouseDown(e: MouseEvent): void {
@@ -1253,7 +316,7 @@ export class TimelineKeyframeArea {
             return;
         }
 
-        const hit = this.hitTestKeyframe(x, y);
+        const hit = hitTestKeyframe(x, y, this.state_, this.assetData_);
 
         if (hit) {
             const key = kfKey(hit.trackIndex, hit.channelIndex, hit.keyframeIndex);
@@ -1274,7 +337,7 @@ export class TimelineKeyframeArea {
             return;
         }
 
-        const npHit = this.hitTestNonPropertyTrack(x, y);
+        const npHit = hitTestNonPropertyTrack(x, y, this.state_, this.assetData_);
         if (npHit) {
             this.clearSelection();
             this.selectNpItem(npHit);
@@ -1302,7 +365,7 @@ export class TimelineKeyframeArea {
         }
         this.draw();
 
-        const trackInfo = this.getTrackAtY(y);
+        const trackInfo = getTrackAtY(y, this.state_);
         if (trackInfo) {
             this.state_.selectedTrackIndex = trackInfo.trackIndex;
             this.state_.notify();
@@ -1638,7 +701,7 @@ export class TimelineKeyframeArea {
             const h = Math.abs(rb.endY - rb.startY);
 
             if (w > 3 || h > 3) {
-                const hits = this.collectKeyframesInRect(rb.startX, rb.startY, rb.endX, rb.endY);
+                const hits = collectKeyframesInRect(rb.startX, rb.startY, rb.endX, rb.endY, this.state_, this.assetData_);
                 if (!isAdditive) {
                     this.selectedKeyframes_.clear();
                 }
@@ -1665,13 +728,13 @@ export class TimelineKeyframeArea {
 
         if (y < RULER_HEIGHT) return;
 
-        const hit = this.hitTestKeyframe(x, y);
+        const hit = hitTestKeyframe(x, y, this.state_, this.assetData_);
         if (hit) return;
 
-        const npHit = this.hitTestNonPropertyTrack(x, y);
+        const npHit = hitTestNonPropertyTrack(x, y, this.state_, this.assetData_);
         if (npHit) return;
 
-        const trackInfo = this.getTrackAtY(y);
+        const trackInfo = getTrackAtY(y, this.state_);
         if (!trackInfo) return;
 
         const assetTrack = this.assetData_.tracks[trackInfo.trackIndex];
@@ -1970,8 +1033,8 @@ export class TimelineKeyframeArea {
         const y = e.clientY - rect.top;
         if (y < RULER_HEIGHT) return;
 
-        const hit = this.hitTestKeyframe(x, y);
-        const trackInfo = this.getTrackAtY(y);
+        const hit = hitTestKeyframe(x, y, this.state_, this.assetData_);
+        const trackInfo = getTrackAtY(y, this.state_);
 
         const menu = document.createElement('div');
         menu.className = 'es-timeline-dropdown';
@@ -1979,7 +1042,7 @@ export class TimelineKeyframeArea {
         menu.style.left = `${e.clientX}px`;
         menu.style.top = `${e.clientY}px`;
 
-        const npHit = this.hitTestNonPropertyTrack(x, y);
+        const npHit = hitTestNonPropertyTrack(x, y, this.state_, this.assetData_);
 
         if (hit) {
             const key = kfKey(hit.trackIndex, hit.channelIndex, hit.keyframeIndex);
@@ -2079,7 +1142,7 @@ export class TimelineKeyframeArea {
 
     private buildNonPropertyContextMenu(
         menu: HTMLElement,
-        npHit: { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit | MarkerHit | CustomEventHit | SpriteAnimHit | AnimFrameHit },
+        npHit: NonPropertyHit,
     ): void {
         if (!this.assetData_ || !this.host_) return;
 
@@ -2405,7 +1468,7 @@ export class TimelineKeyframeArea {
             return;
         }
 
-        const npHit = this.hitTestNonPropertyTrack(x, y);
+        const npHit = hitTestNonPropertyTrack(x, y, this.state_, this.assetData_);
         if (npHit) {
             if (npHit.type === 'animFrames' && (npHit.hit as AnimFrameHit).zone === 'resize') {
                 this.canvas_.style.cursor = 'ew-resize';

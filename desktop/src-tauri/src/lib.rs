@@ -3,7 +3,9 @@
 mod bridge_server;
 mod compiler;
 mod embedded_assets;
+mod engine_sync;
 mod preview_server;
+mod toolchain;
 
 use bridge_server::BridgeServer;
 use preview_server::PreviewServer;
@@ -324,10 +326,10 @@ pub fn run() {
             get_embedded_asset,
             check_update,
             install_update,
-            compiler::get_toolchain_status,
-            compiler::set_emsdk_path,
-            compiler::install_emsdk,
-            compiler::repair_toolchain,
+            toolchain::get_toolchain_status,
+            toolchain::set_emsdk_path,
+            toolchain::install_emsdk,
+            toolchain::repair_toolchain,
             compiler::compile_wasm,
             compiler::clear_build_cache,
         ])
