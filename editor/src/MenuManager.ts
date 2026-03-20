@@ -1,4 +1,5 @@
 import { getAllMenus, getMenuItems, getAllStatusbarItems } from './menus';
+import type { MenuItemDescriptor } from './menus/MenuRegistry';
 import { ShortcutManager } from './menus/ShortcutManager';
 import { getPanelsByPosition } from './panels/PanelRegistry';
 import { icons } from './utils/icons';
@@ -58,23 +59,64 @@ export class MenuManager {
         }
     }
 
+    private buildMenuItemHTML(item: MenuItemDescriptor): string {
+        const parts: string[] = [];
+        if (item.separator) {
+            parts.push('<div class="es-menu-divider"></div>');
+        }
+        parts.push(`<div class="es-menu-item" data-action="${item.id}">`);
+        parts.push(`<span class="es-menu-item-text">${item.label}</span>`);
+        if (item.shortcut) {
+            parts.push(`<span class="es-menu-item-shortcut">${item.shortcut}</span>`);
+        }
+        parts.push('</div>');
+        return parts.join('');
+    }
+
+    private buildSubmenuHTML(submenuId: string, items: MenuItemDescriptor[], allItems: MenuItemDescriptor[]): string {
+        const children = allItems.filter(i => !i.hidden && i.submenu === submenuId);
+        const trigger = items.find(i => i.id === submenuId);
+        if (!trigger || children.length === 0) return '';
+
+        const parts: string[] = [];
+        if (trigger.separator) {
+            parts.push('<div class="es-menu-divider"></div>');
+        }
+        parts.push(`<div class="es-menu-submenu-container">`);
+        parts.push(`<div class="es-menu-item es-menu-submenu-trigger" data-submenu="${submenuId}">`);
+        parts.push(`<span class="es-menu-item-text">${trigger.label}</span>`);
+        parts.push('<span class="es-menu-submenu-arrow">\u25B8</span>');
+        parts.push('</div>');
+        parts.push(`<div class="es-menu-submenu-dropdown" data-submenu-for="${submenuId}">`);
+        for (const child of children) {
+            parts.push(this.buildMenuItemHTML(child));
+        }
+        parts.push('</div>');
+        parts.push('</div>');
+        return parts.join('');
+    }
+
     buildMenuBarHTML(): string {
         const menus = getAllMenus();
         return menus.map(menu => {
-            const items = getMenuItems(menu.id).filter(i => !i.hidden);
-            const itemsHTML = items.map(item => {
-                const parts: string[] = [];
-                if (item.separator) {
-                    parts.push('<div class="es-menu-divider"></div>');
+            const allItems = getMenuItems(menu.id);
+            const visibleItems = allItems.filter(i => !i.hidden);
+
+            const submenuIds = new Set<string>();
+            for (const item of visibleItems) {
+                if (item.submenu) {
+                    submenuIds.add(item.submenu);
                 }
-                parts.push(`<div class="es-menu-item" data-action="${item.id}">`);
-                parts.push(`<span class="es-menu-item-text">${item.label}</span>`);
-                if (item.shortcut) {
-                    parts.push(`<span class="es-menu-item-shortcut">${item.shortcut}</span>`);
-                }
-                parts.push('</div>');
-                return parts.join('');
-            }).join('');
+            }
+
+            const itemsHTML = visibleItems
+                .filter(i => !i.submenu)
+                .map(item => {
+                    if (submenuIds.has(item.id)) {
+                        return this.buildSubmenuHTML(item.id, visibleItems, allItems);
+                    }
+                    return this.buildMenuItemHTML(item);
+                }).join('');
 
             return `
                 <div class="es-menu" data-menu="${menu.id}">
@@ -154,6 +196,7 @@ export class MenuManager {
             if (!menuItem) return;
 
             if (menuItem.classList.contains('es-disabled')) return;
+            if (menuItem.classList.contains('es-menu-submenu-trigger')) return;
 
             const actionId = menuItem.dataset.action;
             if (!actionId) return;
