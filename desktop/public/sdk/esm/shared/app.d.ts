@@ -404,7 +404,7 @@ declare class Assets {
     loadPrefab(ref: string): Promise<PrefabResult>;
     load<T>(type: string, ref: string): Promise<T>;
     getAtlasFrame(ref: string): AtlasFrameInfo | null;
-    loadByLabel(label: string): Promise<AssetBundle>;
+    loadByLabel(label: string, onProgress?: (loaded: number, total: number) => void): Promise<AssetBundle>;
     fetchJson<T = unknown>(ref: string): Promise<T>;
     fetchBinary(ref: string): Promise<ArrayBuffer>;
     fetchText(ref: string): Promise<string>;

@@ -185,7 +185,10 @@ export class Assets {
     // Label Batch Load
     // =========================================================================
 
-    async loadByLabel(label: string): Promise<AssetBundle> {
+    async loadByLabel(
+        label: string,
+        onProgress?: (loaded: number, total: number) => void,
+    ): Promise<AssetBundle> {
         const paths = this.catalog.getByLabel(label);
         const bundle: AssetBundle = {
             textures: new Map(),
@@ -194,34 +197,44 @@ export class Assets {
             fonts: new Map(),
         };
 
+        let loadedCount = 0;
         const promises: Promise<void>[] = [];
+
+        const track = (p: Promise<void>): Promise<void> =>
+            p.then(() => { onProgress?.(++loadedCount, totalCount); })
+             .catch(() => { onProgress?.(++loadedCount, totalCount); });
+
         for (const path of paths) {
             const entry = this.catalog.getEntry(path);
             if (!entry) continue;
 
             switch (entry.type) {
                 case 'texture':
-                    promises.push(
+                    promises.push(track(
                         this.loadTexture(path).then(r => { bundle.textures.set(path, r); }),
-                    );
+                    ));
                     break;
                 case 'material':
-                    promises.push(
+                    promises.push(track(
                         this.loadMaterial(path).then(r => { bundle.materials.set(path, r); }),
-                    );
+                    ));
                     break;
                 case 'spine':
-                    promises.push(
+                    promises.push(track(
                         this.loadSpine(path).then(r => { bundle.spine.set(path, r); }),
-                    );
+                    ));
                     break;
                 case 'font':
-                    promises.push(
+                    promises.push(track(
                         this.loadFont(path).then(r => { bundle.fonts.set(path, r); }),
-                    );
+                    ));
                     break;
             }
         }
+
+        const totalCount = promises.length;
+        onProgress?.(0, totalCount);
+        loadedCount = 0;
 
         await Promise.allSettled(promises);
         return bundle;
