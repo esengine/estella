@@ -24,6 +24,7 @@ export interface SpriteAnimClip {
     frames: SpriteAnimFrame[];
     fps: number;
     loop: boolean;
+    labels?: Record<string, number>;
 }
 
 // =============================================================================
@@ -127,4 +128,35 @@ export function spriteAnimatorSystemUpdate(world: World, deltaTime: number): voi
             world.insert(entity, SpriteAnimator, animator);
         }
     }
+}
+
+// =============================================================================
+// Goto Frame / Label
+// =============================================================================
+
+export function spriteAnimatorGotoFrame(
+    animator: SpriteAnimatorData,
+    frameIndex: number,
+    andPlay: boolean = true,
+): void {
+    const clip = clipRegistry.get(animator.clip);
+    if (!clip || clip.frames.length === 0) return;
+
+    animator.currentFrame = Math.max(0, Math.min(frameIndex, clip.frames.length - 1));
+    animator.frameTimer = 0;
+    animator.playing = andPlay;
+}
+
+export function spriteAnimatorGotoLabel(
+    animator: SpriteAnimatorData,
+    label: string,
+    andPlay: boolean = true,
+): void {
+    const clip = clipRegistry.get(animator.clip);
+    if (!clip || !clip.labels) return;
+
+    const frameIndex = clip.labels[label];
+    if (frameIndex === undefined) return;
+
+    spriteAnimatorGotoFrame(animator, frameIndex, andPlay);
 }

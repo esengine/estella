@@ -2629,6 +2629,7 @@ interface SpriteAnimClip {
     frames: SpriteAnimFrame[];
     fps: number;
     loop: boolean;
+    labels?: Record<string, number>;
 }
 declare function registerAnimClip(clip: SpriteAnimClip): void;
 declare function unregisterAnimClip(name: string): void;
