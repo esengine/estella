@@ -56,7 +56,7 @@ export interface RuntimeBuildConfig {
 }
 
 const CANVAS_SCALE_MODE_MAP: Record<string, number> = {
-    FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4,
+    FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4, ShowAll: 2, NoBorder: 3,
 };
 
 export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void }, config: RuntimeBuildConfig): void {
