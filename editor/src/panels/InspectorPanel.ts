@@ -142,13 +142,17 @@ export class InspectorPanel {
         if (this.playMode_) return;
         if (this.locked_) {
             if (this.currentEntity_ !== null) {
-                if (this.needsStructureRebuild(this.currentEntity_)) {
+                const entityData = this.store_.getEntityData(this.currentEntity_ as number);
+                if (!entityData) {
+                    this.locked_ = false;
+                    this.updateLockButton();
+                } else if (this.needsStructureRebuild(this.currentEntity_)) {
                     this.rebuildEntityStructure(this.currentEntity_);
                 } else {
                     this.updateEditors();
                 }
             }
-            return;
+            if (this.locked_) return;
         }
 
         const selectedEntities = Array.from(this.store_.selectedEntities);

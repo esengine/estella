@@ -1,6 +1,5 @@
 import { showBuildSettingsDialog, BuildService } from '../builder';
 import { getBuildConfigService } from '../builder/BuildConfigService';
-import { showStatusBarMessage } from '../menus/builtinStatusbar';
 import { showSettingsDialog, ProjectSettingsSync } from '../settings';
 import { getEditorContext } from '../context/EditorContext';
 import { getAssetLibrary } from '../asset/AssetLibrary';
@@ -75,31 +74,33 @@ export class ProjectService {
         });
     }
 
-    async quickBuild(): Promise<void> {
+    async quickBuild(notify?: (msg: string, durationMs?: number) => void): Promise<void> {
+        const show = notify ?? ((msg: string) => console.log(`[Build] ${msg}`));
+
         if (!this.projectPath_) {
-            showStatusBarMessage('No project open');
+            show('No project open');
             return;
         }
 
         const configService = getBuildConfigService();
         const config = configService.getActiveConfig();
         if (!config) {
-            showStatusBarMessage('No build config — opening Build Settings');
+            show('No build config — opening Build Settings');
             this.showBuildSettings();
             return;
         }
 
-        showStatusBarMessage(`Building "${config.name}"...`);
+        show(`Building "${config.name}"...`);
         const buildService = new BuildService(this.projectPath_);
         try {
             const result = await buildService.build(config);
             if (result.success) {
-                showStatusBarMessage(`Build "${config.name}" succeeded`, 3000);
+                show(`Build "${config.name}" succeeded`, 3000);
             } else {
-                showStatusBarMessage(`Build "${config.name}" failed: ${result.error ?? 'unknown error'}`, 5000);
+                show(`Build "${config.name}" failed: ${result.error ?? 'unknown error'}`, 5000);
             }
         } catch (e) {
-            showStatusBarMessage(`Build error: ${e}`, 5000);
+            show(`Build error: ${e}`, 5000);
         }
     }
 
