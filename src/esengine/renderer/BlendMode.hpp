@@ -24,6 +24,9 @@ enum class BlendMode : u8 {
     Screen = 3,     // One, OneMinusSrcColor (lighten)
     PremultipliedAlpha = 4,  // One, OneMinusSrcAlpha (premultiplied alpha)
     PmaAdditive = 5, // One, One (additive with premultiplied alpha source)
+    Lighten = 6,    // GL_MAX blend equation (take brighter pixel)
+    Darken = 7,     // GL_MIN blend equation (take darker pixel)
+    Overlay = 8,    // Screen on light, Multiply on dark (requires shader)
 };
 
 }  // namespace esengine

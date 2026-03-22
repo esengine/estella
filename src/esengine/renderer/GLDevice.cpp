@@ -183,6 +183,21 @@ void GLDevice::setBlendMode(BlendMode mode) {
     case BlendMode::PmaAdditive:
         glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
         break;
+    case BlendMode::Lighten:
+        glBlendEquation(GL_MAX);
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
+        break;
+    case BlendMode::Darken:
+        glBlendEquation(GL_MIN);
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
+        break;
+    case BlendMode::Overlay:
+        glBlendFuncSeparate(GL_DST_COLOR, GL_SRC_COLOR, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        break;
+    }
+
+    if (mode != BlendMode::Lighten && mode != BlendMode::Darken) {
+        glBlendEquation(GL_FUNC_ADD);
     }
 }
 
