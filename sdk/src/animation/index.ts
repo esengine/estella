@@ -31,6 +31,8 @@ export {
     type SpriteAnimatorData,
     type SpriteAnimClip,
     type SpriteAnimFrame,
+    spriteAnimatorGotoFrame,
+    spriteAnimatorGotoLabel,
 } from './SpriteAnimator';
 
 export {
