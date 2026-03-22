@@ -719,7 +719,7 @@ export class TimelineKeyframeArea {
         document.addEventListener('mouseup', onUp);
     }
 
-    private onDoubleClick(e: MouseEvent): void {
+    private async onDoubleClick(e: MouseEvent): Promise<void> {
         if (!this.assetData_ || !this.host_) return;
 
         const rect = this.canvas_.getBoundingClientRect();
@@ -756,18 +756,30 @@ export class TimelineKeyframeArea {
                 break;
             }
             case 'spine': {
+                const animName = await showInputDialog({
+                    title: 'Spine Animation',
+                    defaultValue: 'idle',
+                    placeholder: 'Animation name',
+                });
+                if (animName == null) return;
                 const cmd = new AddSpineClipCommand(
                     this.assetData_, trackInfo.trackIndex,
-                    { start: time, duration: 1, animation: 'idle' },
+                    { start: time, duration: 1, animation: animName },
                     () => this.host_!.onAssetDataChanged(),
                 );
                 this.host_.executeCommand(cmd);
                 break;
             }
             case 'audio': {
+                const clipPath = await showInputDialog({
+                    title: 'Audio Clip',
+                    defaultValue: '',
+                    placeholder: 'Audio asset path or UUID',
+                });
+                if (clipPath == null) return;
                 const cmd = new AddAudioEventCommand(
                     this.assetData_, trackInfo.trackIndex,
-                    { time, clip: '' },
+                    { time, clip: clipPath },
                     () => this.host_!.onAssetDataChanged(),
                 );
                 this.host_.executeCommand(cmd);
