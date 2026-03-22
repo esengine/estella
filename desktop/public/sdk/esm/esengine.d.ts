@@ -1283,6 +1283,7 @@ interface TextSegment {
     bold: boolean;
     italic: boolean;
     color: Color | null;
+    fontSize: number | null;
 }
 type ImageValign = 'baseline' | 'middle' | 'top' | 'bottom';
 interface ImageSegment {

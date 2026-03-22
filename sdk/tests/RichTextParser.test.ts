@@ -58,9 +58,9 @@ describe('parseRichText – <img> tag', () => {
     it('ignores surrounding text styles on <img>', () => {
         const runs = parseRichText('<b>HP<img src="heart" width=16 height=16/>100</b>');
         expect(runs).toHaveLength(3);
-        expect(runs[0]).toEqual({ type: 'text', text: 'HP', bold: true, italic: false, color: null });
+        expect(runs[0]).toEqual({ type: 'text', text: 'HP', bold: true, italic: false, color: null, fontSize: null });
         expect(runs[1]).toMatchObject({ type: 'image', src: 'heart', width: 16, height: 16, valign: 'baseline' });
-        expect(runs[2]).toEqual({ type: 'text', text: '100', bold: true, italic: false, color: null });
+        expect(runs[2]).toEqual({ type: 'text', text: '100', bold: true, italic: false, color: null, fontSize: null });
     });
 
     it('handles consecutive <img> tags', () => {
@@ -73,9 +73,9 @@ describe('parseRichText – <img> tag', () => {
     it('handles mixed text and images', () => {
         const runs = parseRichText('Score: <img src="coin" width=16 height=16/>999');
         expect(runs).toHaveLength(3);
-        expect(runs[0]).toEqual({ type: 'text', text: 'Score: ', bold: false, italic: false, color: null });
+        expect(runs[0]).toEqual({ type: 'text', text: 'Score: ', bold: false, italic: false, color: null, fontSize: null });
         expect(runs[1]).toMatchObject({ type: 'image', src: 'coin' });
-        expect(runs[2]).toEqual({ type: 'text', text: '999', bold: false, italic: false, color: null });
+        expect(runs[2]).toEqual({ type: 'text', text: '999', bold: false, italic: false, color: null, fontSize: null });
     });
 
     it('treats <img> without src as literal text', () => {
@@ -97,5 +97,38 @@ describe('parseRichText – <img> tag', () => {
         expect(runs[0]).toMatchObject({ type: 'text', text: 'red', color: { r: 1, g: 0, b: 0, a: 1 } });
         expect(runs[1]).toMatchObject({ type: 'image', src: 'x' });
         expect(runs[2]).toMatchObject({ type: 'text', text: 'text', color: { r: 1, g: 0, b: 0, a: 1 } });
+    });
+});
+
+describe('parseRichText – <font> tag', () => {
+    it('parses <font size=24> tag', () => {
+        const runs = parseRichText('<font size=24>big</font> normal');
+        expect(runs).toHaveLength(2);
+        expect(runs[0]).toMatchObject({ type: 'text', text: 'big', fontSize: 24 });
+        expect(runs[1]).toMatchObject({ type: 'text', text: ' normal', fontSize: null });
+    });
+
+    it('supports quoted size value', () => {
+        const runs = parseRichText('<font size="16">small</font>');
+        expect(runs).toHaveLength(1);
+        expect(runs[0]).toMatchObject({ type: 'text', text: 'small', fontSize: 16 });
+    });
+
+    it('nests inside color', () => {
+        const runs = parseRichText('<color=#FF0000><font size=20>red big</font></color>');
+        expect(runs).toHaveLength(1);
+        expect(runs[0]).toMatchObject({
+            type: 'text', text: 'red big', fontSize: 20,
+            color: { r: 1, g: 0, b: 0, a: 1 },
+        });
+    });
+
+    it('ignores invalid size', () => {
+        const runs = parseRichText('<font size=abc>text</font>');
+        expect(runs.length).toBeGreaterThanOrEqual(1);
+        const textRuns = runs.filter(r => r.type === 'text');
+        const fullText = textRuns.map(r => (r as any).text).join('');
+        expect(fullText).toContain('<font size=abc>');
+        expect(fullText).toContain('text');
     });
 });

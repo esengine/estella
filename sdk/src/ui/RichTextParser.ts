@@ -6,6 +6,7 @@ export interface TextSegment {
     bold: boolean;
     italic: boolean;
     color: Color | null;
+    fontSize: number | null;
 }
 
 export type ImageValign = 'baseline' | 'middle' | 'top' | 'bottom';
@@ -30,9 +31,11 @@ interface StyleFrame {
     bold: boolean;
     italic: boolean;
     color: Color | null;
+    fontSize: number | null;
 }
 
 const TAG_COLOR_RE = /^color=(#[0-9a-fA-F]{6,8})$/;
+const TAG_FONT_SIZE_RE = /^font\s+size=(?:"(\d+)"|(\d+))$/;
 
 function parseHexColor(hex: string): Color | null {
     if (hex.length !== 7 && hex.length !== 9) return null;
@@ -46,7 +49,7 @@ function parseHexColor(hex: string): Color | null {
 
 function emitTextRun(runs: RichTextRun[], text: string, style: StyleFrame): void {
     if (text.length === 0) return;
-    runs.push({ type: 'text', text, bold: style.bold, italic: style.italic, color: style.color });
+    runs.push({ type: 'text', text, bold: style.bold, italic: style.italic, color: style.color, fontSize: style.fontSize });
 }
 
 const IMG_ATTR_RE = /(\w+)\s*=\s*(?:"([^"]*)"|(\S+))/g;
@@ -85,7 +88,7 @@ export function parseRichText(input: string): RichTextRun[] {
     const runs: RichTextRun[] = [];
     if (!input) return runs;
 
-    const stack: StyleFrame[] = [{ bold: false, italic: false, color: null }];
+    const stack: StyleFrame[] = [{ bold: false, italic: false, color: null, fontSize: null }];
     let buffer = '';
     let i = 0;
 
@@ -114,7 +117,7 @@ export function parseRichText(input: string): RichTextRun[] {
             emitTextRun(runs, buffer, current);
             buffer = '';
             stack.push({ ...current, italic: true });
-        } else if (tagContent === '/b' || tagContent === '/i' || tagContent === '/color') {
+        } else if (tagContent === '/b' || tagContent === '/i' || tagContent === '/color' || tagContent === '/font') {
             emitTextRun(runs, buffer, current);
             buffer = '';
             if (stack.length > 1) stack.pop();
@@ -132,10 +135,17 @@ export function parseRichText(input: string): RichTextRun[] {
         } else {
             const colorMatch = tagContent.match(TAG_COLOR_RE);
             const parsed = colorMatch ? parseHexColor(colorMatch[1]) : null;
+            const fontSizeMatch = tagContent.match(TAG_FONT_SIZE_RE);
+            const parsedSize = fontSizeMatch ? parseInt(fontSizeMatch[1] ?? fontSizeMatch[2], 10) : NaN;
+
             if (parsed) {
                 emitTextRun(runs, buffer, current);
                 buffer = '';
                 stack.push({ ...current, color: parsed });
+            } else if (!isNaN(parsedSize) && parsedSize > 0) {
+                emitTextRun(runs, buffer, current);
+                buffer = '';
+                stack.push({ ...current, fontSize: parsedSize });
             } else {
                 buffer += input.slice(i, closeIdx + 1);
                 i = closeIdx + 1;
