@@ -293,6 +293,8 @@ export const ScaleMode = {
     Expand: 2,
     Shrink: 3,
     Match: 4,
+    ShowAll: 2,
+    NoBorder: 3,
 } as const;
 
 export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];

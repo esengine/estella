@@ -747,6 +747,8 @@ declare const ScaleMode: {
     readonly Expand: 2;
     readonly Shrink: 3;
     readonly Match: 4;
+    readonly ShowAll: 2;
+    readonly NoBorder: 3;
 };
 type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 interface TransformData {
