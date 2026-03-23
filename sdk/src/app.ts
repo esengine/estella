@@ -69,6 +69,7 @@ export class App {
     private fixedAccumulator_ = 0;
     private maxDeltaTime_ = 0.25;
     private maxFixedSteps_ = 8;
+    private targetFrameInterval_ = 0;
 
     private module_: ESEngineModule | null = null;
     private pipeline_: RenderPipeline | null = null;
@@ -337,6 +338,14 @@ export class App {
         this.play_speed_ = Math.max(0.1, Math.min(4.0, speed));
     }
 
+    setTargetFrameRate(fps: number): void {
+        this.targetFrameInterval_ = fps > 0 ? 1000 / fps : 0;
+    }
+
+    getTargetFrameRate(): number {
+        return this.targetFrameInterval_ > 0 ? 1000 / this.targetFrameInterval_ : 0;
+    }
+
     getPlaySpeed(): number {
         return this.play_speed_;
     }
@@ -456,6 +465,12 @@ export class App {
 
         const currentTime = platformNow();
         const deltaMs = currentTime - this.lastTime_;
+
+        if (this.targetFrameInterval_ > 0 && deltaMs < this.targetFrameInterval_) {
+            requestAnimationFrame(this.mainLoop);
+            return;
+        }
+
         this.lastTime_ = currentTime;
 
         const rawDelta = Math.min(deltaMs / 1000, this.maxDeltaTime_);

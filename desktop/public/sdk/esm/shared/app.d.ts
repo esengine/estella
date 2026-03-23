@@ -1616,6 +1616,7 @@ declare class App {
     private fixedAccumulator_;
     private maxDeltaTime_;
     private maxFixedSteps_;
+    private targetFrameInterval_;
     private module_;
     private pipeline_;
     private spineInitPromise_?;
@@ -1672,6 +1673,8 @@ declare class App {
     isPaused(): boolean;
     stepFrame(): void;
     setPlaySpeed(speed: number): void;
+    setTargetFrameRate(fps: number): void;
+    getTargetFrameRate(): number;
     getPlaySpeed(): number;
     enableStats(): this;
     getSystemTimings(): ReadonlyMap<string, number> | null;
