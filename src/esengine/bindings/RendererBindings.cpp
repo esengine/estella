@@ -832,6 +832,18 @@ u32 renderer_getSnapshotHeight() {
     return g_renderFrame->getSnapshotHeight();
 }
 
+void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 wrapS, i32 wrapT) {
+    auto* device = RenderCommand::getDevice();
+    if (!device) return;
+    device->setTextureParams(
+        textureId,
+        static_cast<TextureFilter>(minFilter),
+        static_cast<TextureFilter>(magFilter),
+        static_cast<TextureWrap>(wrapS),
+        static_cast<TextureWrap>(wrapT)
+    );
+}
+
 }  // namespace esengine
 
 #endif  // ES_PLATFORM_WEB

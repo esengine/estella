@@ -643,6 +643,7 @@ interface ESEngineModule {
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
     renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
     renderer_clearBuffers(flags: number): void;
+    renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
     renderer_setEntityClipRect(entity: number, x: number, y: number, w: number, h: number): void;
     renderer_clearEntityClipRect(entity: number): void;
     renderer_clearAllClipRects(): void;

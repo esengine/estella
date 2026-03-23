@@ -143,6 +143,8 @@ u32 renderer_getSnapshotSize();
 u32 renderer_getSnapshotWidth();
 u32 renderer_getSnapshotHeight();
 
+void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 wrapS, i32 wrapT);
+
 i32 registry_getCanvasEntity(ecs::Registry& registry);
 emscripten::val registry_getCameraEntities(ecs::Registry& registry);
 emscripten::val getChildEntities(ecs::Registry& registry, u32 entity);

@@ -189,6 +189,12 @@ export { ScreenInfo, ScreenOrientation } from './screen';
 export { GameSocket, WeChatSocket, createSocket, type GameSocketOptions, type SocketReadyState } from './net';
 
 // =============================================================================
+// Texture
+// =============================================================================
+
+export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams } from './textureParams';
+
+// =============================================================================
 // Camera
 // =============================================================================
 
