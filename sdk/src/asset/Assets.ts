@@ -357,6 +357,12 @@ export class Assets {
                             if (atlasInfo) {
                                 comp.data['uvOffset'] = { x: atlasInfo.uvOffset[0], y: atlasInfo.uvOffset[1] };
                                 comp.data['uvScale'] = { x: atlasInfo.uvScale[0], y: atlasInfo.uvScale[1] };
+                                if (atlasInfo.trim) {
+                                    comp.data['_trimOffsetX'] = atlasInfo.trim.offsetX;
+                                    comp.data['_trimOffsetY'] = atlasInfo.trim.offsetY;
+                                    comp.data['_trimSourceW'] = atlasInfo.trim.sourceW;
+                                    comp.data['_trimSourceH'] = atlasInfo.trim.sourceH;
+                                }
                             }
                             break;
                         }
