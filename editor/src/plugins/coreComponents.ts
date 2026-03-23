@@ -106,6 +106,15 @@ export const coreComponentsPlugin: EditorPlugin = {
                 showFrustum: { group: 'Debug' },
             },
         });
+
+        defineSchema('CacheAsBitmap', {
+            category: 'builtin',
+            overrides: {
+                width: { min: 1, max: 4096, step: 1 },
+                height: { min: 1, max: 4096, step: 1 },
+                dirty: { displayName: 'Invalidate', tooltip: 'Mark cache as dirty to re-render on next frame' },
+            },
+        });
     },
 };
 

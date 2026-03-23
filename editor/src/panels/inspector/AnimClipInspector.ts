@@ -6,12 +6,19 @@ import { getAssetDatabase, isUUID } from '../../asset/AssetDatabase';
 import { AssetType } from '../../constants/AssetTypes';
 import { showAssetPicker } from '../../ui/asset-picker';
 
+interface AnimClipEvent {
+    frame: number;
+    name: string;
+    data?: unknown;
+}
+
 interface AnimClipAssetData {
     version: string;
     type: 'animation-clip';
     fps?: number;
     loop?: boolean;
     frames: { texture: string; duration?: number }[];
+    events?: AnimClipEvent[];
 }
 
 const MIN_FPS = 1;
@@ -22,6 +29,13 @@ interface FrameInfo {
     displayPath: string;
     thumbnailUrl: string | null;
     duration?: number;
+}
+
+interface AnimClipState {
+    fps: number;
+    loop: boolean;
+    frames: FrameInfo[];
+    events: AnimClipEvent[];
 }
 
 function resolveTexturePath(ref: string): string {
@@ -54,10 +68,11 @@ export async function renderAnimClipInspector(container: HTMLElement, path: stri
         duration: f.duration,
     }));
 
-    const state = {
+    const state: AnimClipState = {
         fps: data.fps ?? 12,
         loop: data.loop ?? true,
         frames,
+        events: (data.events ?? []),
     };
 
     renderSection(section, state, path);
@@ -66,7 +81,7 @@ export async function renderAnimClipInspector(container: HTMLElement, path: stri
 
 function renderSection(
     section: HTMLElement,
-    state: { fps: number; loop: boolean; frames: FrameInfo[] },
+    state: AnimClipState,
     filePath: string,
 ): void {
     section.innerHTML = `
@@ -98,6 +113,13 @@ function renderSection(
             </div>
             <div class="es-animclip-drop-zone">
                 Drop images here to add frames
+            </div>
+            <div class="es-property-row es-animclip-events-header" style="margin-top:8px">
+                <label class="es-property-label">Events (${state.events.length})</label>
+                <button class="es-btn es-btn-sm es-animclip-add-event-btn">${icons.plus(12)} Add</button>
+            </div>
+            <div class="es-animclip-event-list">
+                ${renderEventList(state.events, state.frames.length)}
             </div>
         </div>
     `;
@@ -142,6 +164,7 @@ function renderSection(
 
     setupDeleteButtons(section, state, filePath);
     setupDropZone(section, state, filePath);
+    setupEventButtons(section, state, filePath);
 }
 
 function renderFrameList(frames: FrameInfo[]): string {
@@ -167,9 +190,28 @@ function renderFrameList(frames: FrameInfo[]): string {
     `).join('');
 }
 
+function renderEventList(events: AnimClipEvent[], frameCount: number): string {
+    if (events.length === 0) {
+        return '<div class="es-animclip-empty">No events</div>';
+    }
+
+    const maxFrame = Math.max(0, frameCount - 1);
+    return events.map((evt, i) => `
+        <div class="es-animclip-event" data-event-index="${i}" style="display:flex;align-items:center;gap:4px;padding:2px 0">
+            <input type="number" class="es-animclip-event-frame" data-event-index="${i}" min="0" max="${maxFrame}" step="1"
+                value="${evt.frame}" title="Frame index" style="width:48px">
+            <input type="text" class="es-animclip-event-name" data-event-index="${i}"
+                value="${evt.name}" placeholder="event name" title="Event name" style="flex:1;min-width:0">
+            <button class="es-btn es-btn-icon es-animclip-delete-event-btn" data-event-index="${i}" title="Remove event">
+                ${icons.x(12)}
+            </button>
+        </div>
+    `).join('');
+}
+
 function setupDeleteButtons(
     section: HTMLElement,
-    state: { fps: number; loop: boolean; frames: FrameInfo[] },
+    state: AnimClipState,
     filePath: string,
 ): void {
     const buttons = section.querySelectorAll('.es-animclip-delete-btn');
@@ -200,9 +242,55 @@ function setupDeleteButtons(
     });
 }
 
+function setupEventButtons(
+    section: HTMLElement,
+    state: AnimClipState,
+    filePath: string,
+): void {
+    const addEventBtn = section.querySelector('.es-animclip-add-event-btn');
+    addEventBtn?.addEventListener('click', async () => {
+        state.events.push({ frame: 0, name: '' });
+        await save(state, filePath);
+        renderSection(section, state, filePath);
+        loadThumbnails(section, state, filePath);
+    });
+
+    const deleteEventBtns = section.querySelectorAll('.es-animclip-delete-event-btn');
+    deleteEventBtns.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const index = parseInt((btn as HTMLElement).dataset.eventIndex!, 10);
+            state.events.splice(index, 1);
+            await save(state, filePath);
+            renderSection(section, state, filePath);
+            loadThumbnails(section, state, filePath);
+        });
+    });
+
+    const frameInputs = section.querySelectorAll('.es-animclip-event-frame');
+    frameInputs.forEach(input => {
+        input.addEventListener('change', async () => {
+            const el = input as HTMLInputElement;
+            const index = parseInt(el.dataset.eventIndex!, 10);
+            state.events[index].frame = parseInt(el.value, 10) || 0;
+            await save(state, filePath);
+        });
+    });
+
+    const nameInputs = section.querySelectorAll('.es-animclip-event-name');
+    nameInputs.forEach(input => {
+        input.addEventListener('change', async () => {
+            const el = input as HTMLInputElement;
+            const index = parseInt(el.dataset.eventIndex!, 10);
+            state.events[index].name = el.value.trim();
+            await save(state, filePath);
+        });
+    });
+}
+
 function setupDropZone(
     section: HTMLElement,
-    state: { fps: number; loop: boolean; frames: FrameInfo[] },
+    state: AnimClipState,
     filePath: string,
 ): void {
     const dropZone = section.querySelector('.es-animclip-drop-zone')!;
@@ -259,7 +347,7 @@ function setupDropZone(
 
 async function loadThumbnails(
     section: HTMLElement,
-    state: { fps: number; loop: boolean; frames: FrameInfo[] },
+    state: AnimClipState,
     _filePath: string,
 ): Promise<void> {
     const fs = getNativeFS();
@@ -291,7 +379,7 @@ async function loadThumbnails(
 }
 
 async function save(
-    state: { fps: number; loop: boolean; frames: FrameInfo[] },
+    state: AnimClipState,
     filePath: string,
 ): Promise<void> {
     const data: AnimClipAssetData = {
@@ -305,6 +393,10 @@ async function save(
             return entry;
         }),
     };
+
+    if (state.events.length > 0) {
+        data.events = state.events.filter(e => e.name.length > 0);
+    }
 
     const platform = getPlatformAdapter();
     await platform.writeTextFile(filePath, JSON.stringify(data, null, 2));

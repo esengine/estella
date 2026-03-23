@@ -42,6 +42,8 @@ const TextSchema: ComponentSchema = {
             ],
         },
         { name: 'lineHeight', type: 'number', min: 0.5, max: 3, step: 0.1 },
+        { name: 'bold', type: 'boolean' },
+        { name: 'italic', type: 'boolean' },
         { name: 'strokeColor', type: 'color' },
         { name: 'strokeWidth', type: 'number', min: 0, max: 20, step: 0.5 },
         { name: 'shadowColor', type: 'color' },

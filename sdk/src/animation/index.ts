@@ -31,14 +31,26 @@ export {
     type SpriteAnimatorData,
     type SpriteAnimClip,
     type SpriteAnimFrame,
+    type SpriteAnimEvent,
+    type SpriteAnimEventHandler,
     spriteAnimatorGotoFrame,
     spriteAnimatorGotoLabel,
+    onAnimEvent,
+    onAnimEventGlobal,
+    removeAnimEventListeners,
 } from './SpriteAnimator';
 
 export {
     AnimationPlugin,
     animationPlugin,
 } from './AnimationPlugin';
+
+export {
+    TweenGroup,
+    TweenSequence,
+    TweenCompose,
+    tweenCompositionManager,
+} from './TweenGroup';
 
 export {
     parseAnimClipData,

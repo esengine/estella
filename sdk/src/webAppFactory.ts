@@ -8,6 +8,8 @@ import { particlePlugin } from './particle';
 import { tilemapPlugin } from './tilemap';
 import { postProcessPlugin } from './postprocess';
 import { timelinePlugin } from './timeline';
+import { timerPlugin } from './timer';
+import { lifecyclePlugin } from './lifecycle';
 import { SpinePlugin } from './spine';
 import type { SpineWasmProvider } from './spine';
 
@@ -41,7 +43,7 @@ export interface CreateWebAppOptions extends WebAppOptions {
     spineProvider?: SpineWasmProvider;
 }
 
-const basePlugins = [animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
+const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     const spinePlugin = new SpinePlugin(options?.spineProvider);

@@ -19,12 +19,21 @@ export interface SpriteAnimFrame {
     uvScale?: { x: number; y: number };
 }
 
+export interface SpriteAnimEvent {
+    frame: number;
+    name: string;
+    data?: unknown;
+}
+
+export type SpriteAnimEventHandler = (event: SpriteAnimEvent, entity: Entity) => void;
+
 export interface SpriteAnimClip {
     name: string;
     frames: SpriteAnimFrame[];
     fps: number;
     loop: boolean;
     labels?: Record<string, number>;
+    events?: SpriteAnimEvent[];
 }
 
 // =============================================================================
@@ -47,6 +56,71 @@ export function getAnimClip(name: string): SpriteAnimClip | undefined {
 
 export function clearAnimClips(): void {
     clipRegistry.clear();
+}
+
+// =============================================================================
+// Frame Event Listeners
+// =============================================================================
+
+const animEventListeners = new Map<Entity, SpriteAnimEventHandler[]>();
+const globalAnimEventListeners: SpriteAnimEventHandler[] = [];
+
+export function onAnimEvent(entity: Entity, handler: SpriteAnimEventHandler): () => void {
+    let list = animEventListeners.get(entity);
+    if (!list) {
+        list = [];
+        animEventListeners.set(entity, list);
+    }
+    list.push(handler);
+    return () => {
+        const arr = animEventListeners.get(entity);
+        if (arr) {
+            const idx = arr.indexOf(handler);
+            if (idx >= 0) arr.splice(idx, 1);
+            if (arr.length === 0) animEventListeners.delete(entity);
+        }
+    };
+}
+
+export function onAnimEventGlobal(handler: SpriteAnimEventHandler): () => void {
+    globalAnimEventListeners.push(handler);
+    return () => {
+        const idx = globalAnimEventListeners.indexOf(handler);
+        if (idx >= 0) globalAnimEventListeners.splice(idx, 1);
+    };
+}
+
+export function removeAnimEventListeners(entity: Entity): void {
+    animEventListeners.delete(entity);
+}
+
+function fireAnimEvents(entity: Entity, clip: SpriteAnimClip, prevFrame: number, newFrame: number): void {
+    if (!clip.events || clip.events.length === 0) return;
+
+    for (const evt of clip.events) {
+        if (shouldFireEvent(evt.frame, prevFrame, newFrame, clip.frames.length, clip.loop)) {
+            const listeners = animEventListeners.get(entity);
+            if (listeners) {
+                for (const handler of listeners) {
+                    handler(evt, entity);
+                }
+            }
+            for (const handler of globalAnimEventListeners) {
+                handler(evt, entity);
+            }
+        }
+    }
+}
+
+export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, totalFrames: number, loop: boolean): boolean {
+    if (prevFrame === newFrame && eventFrame === newFrame) return true;
+    if (newFrame > prevFrame) {
+        return eventFrame > prevFrame && eventFrame <= newFrame;
+    }
+    if (loop && newFrame < prevFrame) {
+        return eventFrame > prevFrame || eventFrame <= newFrame;
+    }
+    return false;
 }
 
 // =============================================================================
@@ -93,6 +167,7 @@ export function spriteAnimatorSystemUpdate(world: World, deltaTime: number): voi
         const frameDuration = currentFrame?.duration ?? 1.0 / (clip.fps * animator.speed);
 
         const needsInitialApply = animator.frameTimer === 0 && animator.currentFrame === 0;
+        const prevFrame = animator.currentFrame;
 
         animator.frameTimer += deltaTime;
 
@@ -111,6 +186,10 @@ export function spriteAnimatorSystemUpdate(world: World, deltaTime: number): voi
             }
 
             frameChanged = true;
+        }
+
+        if (frameChanged) {
+            fireAnimEvents(entity, clip, prevFrame, animator.currentFrame);
         }
 
         if (frameChanged && world.has(entity, Sprite)) {
