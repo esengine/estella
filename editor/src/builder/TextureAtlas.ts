@@ -20,6 +20,10 @@ export interface AtlasFrame {
     y: number;
     width: number;
     height: number;
+    sourceWidth?: number;
+    sourceHeight?: number;
+    trimOffsetX?: number;
+    trimOffsetY?: number;
 }
 
 export interface AtlasPage {
@@ -180,6 +184,54 @@ class MaxRectsBin {
 // TextureAtlasPacker
 // =============================================================================
 
+interface TrimResult {
+    trimX: number;
+    trimY: number;
+    trimW: number;
+    trimH: number;
+}
+
+async function detectTrimBounds(data: Uint8Array, width: number, height: number): Promise<TrimResult | null> {
+    try {
+        const blob = new Blob([data.buffer as ArrayBuffer]);
+        const bitmap = await createImageBitmap(blob);
+        const canvas = new OffscreenCanvas(width, height);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+
+        let minX = width, minY = height, maxX = 0, maxY = 0;
+        let hasOpaque = false;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const alpha = pixels[(y * width + x) * 4 + 3];
+                if (alpha > 0) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                    hasOpaque = true;
+                }
+            }
+        }
+
+        if (!hasOpaque) return null;
+
+        const trimW = maxX - minX + 1;
+        const trimH = maxY - minY + 1;
+
+        if (trimW >= width && trimH >= height) return null;
+
+        return { trimX: minX, trimY: minY, trimW, trimH };
+    } catch {
+        return null;
+    }
+}
+
 function isPackableImage(path: string): boolean {
     const ext = path.split('.').pop()?.toLowerCase() ?? '';
     return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
@@ -221,7 +273,7 @@ export class TextureAtlasPacker {
         const nineSliceTextures = this.collectNineSliceTextures(sceneDataList, eligiblePaths);
         const nonAtlasTextures = this.collectNonAtlasCapableTextures(sceneDataList);
 
-        const images: Array<{ path: string; width: number; height: number; data: Uint8Array }> = [];
+        const images: Array<{ path: string; width: number; height: number; data: Uint8Array; sourceWidth: number; sourceHeight: number; trimX: number; trimY: number }> = [];
 
         for (const relPath of eligiblePaths) {
             if (spineTextures.has(relPath) || nineSliceTextures.has(relPath) || nonAtlasTextures.has(relPath)) continue;
@@ -248,7 +300,12 @@ export class TextureAtlasPacker {
 
             if (size.width > texMaxSize / 2 || size.height > texMaxSize / 2) continue;
 
-            images.push({ path: relPath, width: size.width, height: size.height, data });
+            const trim = await detectTrimBounds(data, size.width, size.height);
+            if (trim) {
+                images.push({ path: relPath, width: trim.trimW, height: trim.trimH, data, sourceWidth: size.width, sourceHeight: size.height, trimX: trim.trimX, trimY: trim.trimY });
+            } else {
+                images.push({ path: relPath, width: size.width, height: size.height, data, sourceWidth: size.width, sourceHeight: size.height, trimX: 0, trimY: 0 });
+            }
         }
 
         if (images.length === 0) return result;
@@ -293,15 +350,25 @@ export class TextureAtlasPacker {
 
                 const blob = new Blob([imgInfo.data.buffer as ArrayBuffer]);
                 const bitmap = await createImageBitmap(blob);
-                ctx.drawImage(bitmap, rect.x, rect.y);
+                const imgMeta2 = images.find(i => i.path === rect.id);
+                if (imgMeta2 && (imgMeta2.trimX > 0 || imgMeta2.trimY > 0)) {
+                    ctx.drawImage(bitmap, imgMeta2.trimX, imgMeta2.trimY, rect.width, rect.height, rect.x, rect.y, rect.width, rect.height);
+                } else {
+                    ctx.drawImage(bitmap, rect.x, rect.y);
+                }
                 bitmap.close();
 
+                const imgMeta = images.find(i => i.path === rect.id);
                 const frame: AtlasFrame = {
                     path: rect.id,
                     x: rect.x,
                     y: rect.y,
                     width: rect.width,
                     height: rect.height,
+                    sourceWidth: imgMeta?.sourceWidth,
+                    sourceHeight: imgMeta?.sourceHeight,
+                    trimOffsetX: imgMeta?.trimX,
+                    trimOffsetY: imgMeta?.trimY,
                 };
                 frames.push(frame);
 

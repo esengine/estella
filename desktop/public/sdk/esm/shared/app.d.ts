@@ -17,6 +17,12 @@ interface AtlasFrameInfo {
     };
     uvOffset: [number, number];
     uvScale: [number, number];
+    trim?: {
+        sourceW: number;
+        sourceH: number;
+        offsetX: number;
+        offsetY: number;
+    };
 }
 interface CatalogEntry {
     type: string;
@@ -30,6 +36,12 @@ interface CatalogEntry {
     uv?: {
         offset: [number, number];
         scale: [number, number];
+    };
+    trim?: {
+        sourceW: number;
+        sourceH: number;
+        offsetX: number;
+        offsetY: number;
     };
     deps?: string[];
     buildPath?: string;

@@ -3,6 +3,7 @@ export interface AtlasFrameInfo {
     frame: { x: number; y: number; w: number; h: number };
     uvOffset: [number, number];
     uvScale: [number, number];
+    trim?: { sourceW: number; sourceH: number; offsetX: number; offsetY: number };
 }
 
 export interface CatalogEntry {
@@ -10,6 +11,7 @@ export interface CatalogEntry {
     atlas?: string;
     frame?: { x: number; y: number; w: number; h: number };
     uv?: { offset: [number, number]; scale: [number, number] };
+    trim?: { sourceW: number; sourceH: number; offsetX: number; offsetY: number };
     deps?: string[];
     buildPath?: string;
 }
@@ -66,6 +68,7 @@ export class Catalog {
             frame: entry.frame,
             uvOffset: entry.uv.offset,
             uvScale: entry.uv.scale,
+            trim: entry.trim,
         };
     }
 
