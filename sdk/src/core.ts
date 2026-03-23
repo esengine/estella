@@ -174,6 +174,7 @@ export { Graphics } from './graphics';
 
 export { setEntityVisible, isEntityVisible, setEntityActive, isEntityActive } from './entityUtils';
 export { CacheBitmap, type BitmapCache } from './cacheBitmap';
+export { pointInHitArea, type HitAreaShape } from './hitArea';
 
 // =============================================================================
 // Screen
