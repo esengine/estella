@@ -695,6 +695,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getSnapshotSize", &esengine::renderer_getSnapshotSize);
     emscripten::function("renderer_getSnapshotWidth", &esengine::renderer_getSnapshotWidth);
     emscripten::function("renderer_getSnapshotHeight", &esengine::renderer_getSnapshotHeight);
+    emscripten::function("renderer_setTextureParams", &esengine::renderer_setTextureParams);
 }
 
 // =============================================================================

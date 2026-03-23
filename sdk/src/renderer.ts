@@ -137,6 +137,10 @@ export const Renderer = {
         module?.renderer_clearBuffers(flags);
     },
 
+    setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {
+        module?.renderer_setTextureParams?.(textureId, minFilter, magFilter, wrapS, wrapT);
+    },
+
     measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number } {
         if (!module) return { width: 0, height: 0 };
         return requireResourceManager().measureBitmapText(fontHandle, text, fontSize, spacing);
