@@ -183,6 +183,12 @@ export { pointInHitArea, type HitAreaShape } from './hitArea';
 export { ScreenInfo, ScreenOrientation } from './screen';
 
 // =============================================================================
+// Network
+// =============================================================================
+
+export { GameSocket, WeChatSocket, createSocket, type GameSocketOptions, type SocketReadyState } from './net';
+
+// =============================================================================
 // Camera
 // =============================================================================
 
