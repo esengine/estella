@@ -162,6 +162,12 @@ export { GestureDetector, type SwipeDirection } from './gesture';
 
 export { Filters } from './filters';
 
+export {
+    SpriteFilter,
+    type OutlineFilterOptions,
+    type DropShadowFilterOptions,
+} from './spriteFilter';
+
 // =============================================================================
 // Graphics
 // =============================================================================
@@ -174,6 +180,14 @@ export { Graphics } from './graphics';
 
 export { setEntityVisible, isEntityVisible, setEntityActive, isEntityActive } from './entityUtils';
 export { CacheBitmap, type BitmapCache } from './cacheBitmap';
+export {
+    CacheAsBitmap,
+    getCacheForEntity,
+    setCacheForEntity,
+    removeCacheForEntity,
+    clearAllCaches,
+    type CacheAsBitmapData,
+} from './cacheAsBitmap';
 export { pointInHitArea, type HitAreaShape } from './hitArea';
 
 // =============================================================================
@@ -823,9 +837,17 @@ export {
     type SpriteAnimatorData,
     type SpriteAnimClip,
     type SpriteAnimFrame,
+    type SpriteAnimEvent,
+    type SpriteAnimEventHandler,
     parseAnimClipData,
     extractAnimClipTexturePaths,
     type AnimClipAssetData,
+    onAnimEvent,
+    onAnimEventGlobal,
+    removeAnimEventListeners,
+    TweenGroup,
+    TweenSequence,
+    TweenCompose,
 } from './animation';
 
 // =============================================================================
@@ -918,6 +940,30 @@ export {
 } from './stats';
 
 export { StatsOverlay, type StatsPosition } from './stats-overlay';
+
+// =============================================================================
+// Timer
+// =============================================================================
+
+export {
+    TimerManager,
+    TimerHandle,
+    TimerRes,
+    timerPlugin,
+} from './timer';
+
+// =============================================================================
+// Lifecycle
+// =============================================================================
+
+export {
+    LifecycleManager,
+    Lifecycle,
+    lifecyclePlugin,
+    type LifecycleEvent,
+    type LifecycleListener,
+    type LifecyclePluginOptions,
+} from './lifecycle';
 
 // =============================================================================
 // Playable Runtime

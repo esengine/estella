@@ -79,7 +79,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
 
         bool hasTiling = sprite.tileSize.x > 0.0f && sprite.tileSize.y > 0.0f;
 
-        u32 shaderId = batch_shader_id_;
+        u32 shaderId = (sprite.material != 0) ? sprite.material : batch_shader_id_;
         BlendMode blend = BlendMode::Normal;
 
         if (hasTiling) {

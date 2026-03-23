@@ -22,7 +22,14 @@ function registerUISchemas(): void {
     defineSchema('UIMask', {
         category: 'ui',
         overrides: {
-            mode: { type: 'enum', options: [{ label: 'Scissor', value: 0 }, { label: 'Stencil', value: 1 }] },
+            mode: { type: 'enum', options: [
+                { label: 'Scissor', value: 0 },
+                { label: 'Stencil', value: 1 },
+                { label: 'Alpha', value: 2 },
+            ] },
+            maskTexture: { type: 'texture', displayName: 'Mask Texture',
+                visibleWhen: { field: 'mode', equals: 2 } },
+            inverted: { displayName: 'Inverted' },
         },
     });
 

@@ -12,11 +12,16 @@ import { requireResourceManager } from '../resourceManager';
 import { wrapText, nextPowerOf2, colorToRgba } from './uiHelpers';
 import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RATIO, TEXT_ASCENT_RATIO } from './uiConstants';
 import { parseRichText } from './RichTextParser';
-import { createFontSet, layoutRichText, measureLayoutWidth, type LayoutLine } from './RichTextLayout';
+import { createFontSet, fontIndex, layoutRichText, measureLayoutWidth, type LayoutLine } from './RichTextLayout';
 import type { ImageResolver } from './ImageResolver';
 
 interface SizedRect {
     size: { x: number; y: number };
+}
+
+function buildFontString(text: TextData): string {
+    const set = createFontSet(text.fontSize, text.fontFamily);
+    return set.fonts[fontIndex(text.bold, text.italic)];
 }
 
 // =============================================================================
@@ -121,7 +126,7 @@ export class TextRenderer {
             }
             measuredHeight = Math.ceil(totalH);
         } else {
-            ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+            ctx.font = buildFontString(text);
             plainLines = wrapText(ctx, text.content, shouldWrap ? containerWidth : 0);
             measuredWidth = Math.ceil(this.measureWidth(plainLines));
             measuredHeight = Math.ceil(plainLines.length * lineHeightPx);
@@ -289,7 +294,7 @@ export class TextRenderer {
                 }
             }
         } else {
-            ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+            ctx.font = buildFontString(text);
             ctx.textAlign = this.mapAlign(text.align);
             ctx.fillStyle = colorToRgba(text.color);
             let y = startY;
