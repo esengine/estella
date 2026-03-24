@@ -26,6 +26,7 @@ import { corePanelsPlugin } from './corePanels';
 import { coreMenusPlugin, coreStatusbarPlugin } from './coreMenus';
 import { dataBindingPlugin } from './dataBinding';
 import { collectionViewEditorPlugin } from './collectionView';
+import { aiSettingsPlugin } from './aiSettings';
 
 export {
     assetInfraPlugin,
@@ -54,6 +55,7 @@ export {
     coreStatusbarPlugin,
     dataBindingPlugin,
     collectionViewEditorPlugin,
+    aiSettingsPlugin,
 };
 
 export const builtinPlugins: EditorPlugin[] = [
@@ -82,4 +84,5 @@ export const builtinPlugins: EditorPlugin[] = [
     coreMenusPlugin,
     dataBindingPlugin,
     collectionViewEditorPlugin,
+    aiSettingsPlugin,
 ];

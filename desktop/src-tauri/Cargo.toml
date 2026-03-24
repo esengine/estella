@@ -27,10 +27,12 @@ open = "5"
 urlencoding = "2"
 zip = "2"
 url = "2"
-reqwest = { version = "0.12", features = ["stream"] }
+reqwest = { version = "0.12", features = ["stream", "multipart", "json"] }
+base64 = "0.22"
 futures-util = "0.3"
 flate2 = "1"
 tar = "0.4"
+tauri-plugin-clipboard-manager = "2.3.2"
 
 [profile.release]
 panic = "abort"

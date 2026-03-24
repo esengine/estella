@@ -27,7 +27,8 @@
     "esbuild-wasm": "^0.27.2",
     "esengine": "workspace:*",
     "html2canvas": "^1.4.1",
-    "lucide": "^0.563.0"
+    "lucide": "^0.563.0",
+    "marked": "^17.0.5"
   },
   "devDependencies": {
     "@rollup/plugin-alias": "^6.0.0",

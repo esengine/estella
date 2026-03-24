@@ -1,5 +1,6 @@
 //! ESEngine Editor Library
 
+mod ai_proxy;
 mod bridge_server;
 mod compiler;
 mod embedded_assets;
@@ -307,6 +308,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             preview_server: Mutex::new(None),
@@ -332,6 +334,8 @@ pub fn run() {
             toolchain::repair_toolchain,
             compiler::compile_wasm,
             compiler::clear_build_cache,
+            ai_proxy::ai_generate_image,
+            ai_proxy::ai_chat_stream,
         ])
         .setup(|app| {
             let state = app.state::<AppState>();

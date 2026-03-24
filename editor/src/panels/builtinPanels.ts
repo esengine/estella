@@ -13,6 +13,7 @@ import { FrameDebuggerPanel } from './frameDebugger/FrameDebuggerPanel';
 import { ExtensionsPanel } from './ExtensionsPanel';
 import { StateMachineGraphPanel } from './state-machine-graph/StateMachineGraphPanel';
 import { TilePalettePanel } from './tile-palette/TilePalettePanel';
+import { AIChatPanel } from './ai-chat/AIChatPanel';
 import { icons } from '../utils/icons';
 import { getEditorStore } from '../store';
 import { getSceneService } from '../services';
@@ -159,5 +160,15 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         defaultVisible: false,
         order: 4,
         factory: (c) => ({ instance: new ExtensionsPanel(c) }),
+    });
+
+    registerPanel({
+        id: 'ai-chat',
+        title: 'AI Assistant',
+        icon: icons.zap(PANEL_ICON_SIZE),
+        position: 'bottom',
+        defaultVisible: false,
+        order: 7,
+        factory: (c) => ({ instance: new AIChatPanel(c) }),
     });
 }

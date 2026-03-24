@@ -39,9 +39,13 @@ export class ShortcutManager {
         const alt = e.altKey;
         const key = e.key === ' ' ? 'space' : e.key.toLowerCase();
 
-        const inTextInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-        if (inTextInput && !ctrl && !alt) {
-            return false;
+        const inTextInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
+            || (e.target instanceof HTMLElement && e.target.isContentEditable);
+        if (inTextInput) {
+            if (!ctrl && !alt) return false;
+            if (ctrl && !shift && !alt && (key === 'c' || key === 'v' || key === 'x' || key === 'a' || key === 'z')) {
+                return false;
+            }
         }
 
         for (const binding of this.bindings_) {
