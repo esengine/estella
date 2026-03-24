@@ -7,6 +7,7 @@ import { EditorContainer, setEditorContainer, getEditorContainer } from './conta
 import { icons } from './utils/icons';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { setEditorInstance } from './context/EditorContext';
+import { showContextMenu } from './ui/ContextMenu';
 import { showToast, showErrorToast } from './ui/Toast';
 import { installGlobalErrorHandler } from './error/GlobalErrorHandler';
 import { EditorLogger, createConsoleHandler, createToastHandler } from './logging';
@@ -82,6 +83,10 @@ export class Editor {
     private projectService_!: ProjectService;
     private multiWindowService_!: MultiWindowService;
     private mcpBridge_: McpBridge | null = null;
+
+    get mcpBridge(): McpBridge | null {
+        return this.mcpBridge_;
+    }
 
     private assetLibraryReady_: Promise<void> = Promise.resolve();
     private scriptsReady_: Promise<void> = Promise.resolve();
@@ -313,7 +318,22 @@ export class Editor {
 
         setEditorInstance(this);
 
-        this.contextMenuHandler_ = (e) => { e.preventDefault(); };
+        this.contextMenuHandler_ = (e) => {
+            const target = e.target as HTMLElement;
+            const tag = target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) {
+                e.preventDefault();
+                this.showTextEditContextMenu_(target, e as MouseEvent);
+                return;
+            }
+            const selection = window.getSelection()?.toString();
+            if (selection) {
+                e.preventDefault();
+                this.showSelectionContextMenu_(selection, e as MouseEvent);
+                return;
+            }
+            e.preventDefault();
+        };
         this.container_.addEventListener('contextmenu', this.contextMenuHandler_);
 
         const previewUrlEl = this.container_.querySelector('.es-preview-url');
@@ -340,6 +360,100 @@ export class Editor {
             this.updateSceneNameDisplay_();
         });
         this.outputService_.installConsoleCapture();
+    }
+
+    private showTextEditContextMenu_(target: HTMLElement, e: MouseEvent): void {
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+        const inputEl = isInput ? target as HTMLInputElement | HTMLTextAreaElement : null;
+
+        const hasSelection = inputEl
+            ? (inputEl.selectionStart !== inputEl.selectionEnd)
+            : !!window.getSelection()?.toString();
+
+        const focusTarget = () => {
+            if (inputEl) inputEl.focus();
+        };
+
+        showContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            items: [
+                {
+                    label: 'Cut',
+                    shortcut: 'Ctrl+X',
+                    disabled: !hasSelection || (inputEl?.readOnly ?? false),
+                    onClick: async () => {
+                        if (inputEl && inputEl.selectionStart !== inputEl.selectionEnd) {
+                            const text = inputEl.value.substring(inputEl.selectionStart!, inputEl.selectionEnd!);
+                            await writeClipboard_(text);
+                            focusTarget();
+                            const s = inputEl.selectionStart!;
+                            inputEl.setRangeText('', inputEl.selectionStart!, inputEl.selectionEnd!, 'end');
+                            inputEl.selectionStart = inputEl.selectionEnd = s;
+                            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    },
+                },
+                {
+                    label: 'Copy',
+                    shortcut: 'Ctrl+C',
+                    disabled: !hasSelection,
+                    onClick: async () => {
+                        if (inputEl && inputEl.selectionStart !== inputEl.selectionEnd) {
+                            const text = inputEl.value.substring(inputEl.selectionStart!, inputEl.selectionEnd!);
+                            await writeClipboard_(text);
+                        } else {
+                            const sel = window.getSelection()?.toString();
+                            if (sel) await writeClipboard_(sel);
+                        }
+                    },
+                },
+                {
+                    label: 'Paste',
+                    shortcut: 'Ctrl+V',
+                    disabled: inputEl?.readOnly ?? false,
+                    onClick: async () => {
+                        if (!inputEl || inputEl.readOnly) return;
+                        const text = await readClipboard_();
+                        if (!text) return;
+                        focusTarget();
+                        const start = inputEl.selectionStart ?? 0;
+                        const end = inputEl.selectionEnd ?? 0;
+                        inputEl.setRangeText(text, start, end, 'end');
+                        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    },
+                },
+                { label: '', separator: true },
+                {
+                    label: 'Select All',
+                    shortcut: 'Ctrl+A',
+                    onClick: () => {
+                        if (inputEl) {
+                            inputEl.focus();
+                            inputEl.select();
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
+    private showSelectionContextMenu_(selection: string, e: MouseEvent): void {
+        showContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            items: [
+                {
+                    label: 'Copy',
+                    shortcut: 'Ctrl+C',
+                    onClick: async () => {
+                        await writeClipboard_(selection);
+                    },
+                },
+            ],
+        });
     }
 
     private updateSceneNameDisplay_(): void {
@@ -399,4 +513,23 @@ export class Editor {
 
 export function createEditor(container: HTMLElement, options?: EditorOptions): Editor {
     return new Editor(container, options);
+}
+
+async function readClipboard_(): Promise<string> {
+    try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const result = await invoke<string>('plugin:clipboard-manager|read_text');
+        return result ?? '';
+    } catch {
+        try { return await navigator.clipboard.readText(); } catch { return ''; }
+    }
+}
+
+async function writeClipboard_(text: string): Promise<void> {
+    try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('plugin:clipboard-manager|write_text', { text });
+    } catch {
+        try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+    }
 }

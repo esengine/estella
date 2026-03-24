@@ -215,6 +215,11 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
         order: 8, submenu: 'view.panels',
         action: () => showAddressableWindow(),
     });
+    registerMenuItem({
+        id: 'view.ai-chat', menu: 'view', label: 'AI Assistant',
+        order: 9, submenu: 'view.panels',
+        action: () => getNavigationService().togglePanel('ai-chat'),
+    });
 
     registerMenuItem({
         id: 'view.layout', menu: 'view', label: 'Layout', order: 1,

@@ -154,6 +154,7 @@ export class McpBridge {
             case 'instantiateTemplate': return this.instantiateTemplate_(params);
             case 'buildProject': return this.buildProject_(params);
             case 'listBuildConfigs': return this.listBuildConfigs_();
+            case 'generateSprite': return this.generateSprite_(params);
             default: throw new Error(`Unknown method: ${method}`);
         }
     }
@@ -1015,6 +1016,7 @@ export class McpBridge {
         const assetType = params.type as string;
         const name = params.name as string;
         const dir = params.dir as string | undefined;
+        const customContent = params.content as string | undefined;
         if (!assetType || !name) throw new Error('type and name are required');
 
         const parentDir = dir ? `${projectDir}/${dir}` : `${projectDir}/assets`;
@@ -1061,6 +1063,10 @@ export class McpBridge {
                 throw new Error(`Unknown asset type: ${assetType}. Supported: material, scene, shader, anim-clip, timeline, bitmap-font`);
         }
 
+        if (customContent) {
+            content = customContent;
+        }
+
         const filePath = `${parentDir}/${fileName}`;
         await fs.writeFile(filePath, content);
 
@@ -1091,6 +1097,53 @@ export class McpBridge {
         try { await fs.removeFile(metaPath); } catch { /* meta may not exist */ }
         db.unregister(entry.path);
         return { ok: true, deleted: entry.path };
+    }
+
+    async executeTool(method: string, params: Record<string, unknown>): Promise<unknown> {
+        return this.dispatch_(method, params);
+    }
+
+    private async generateSprite_(params: Record<string, unknown>): Promise<unknown> {
+        const fs = getEditorContext().fs;
+        if (!fs) throw new Error('File system not available');
+        if (!this.projectPath_) throw new Error('No project path');
+
+        const prompt = params.prompt as string;
+        if (!prompt) throw new Error('prompt is required');
+
+        let apiKey = getSettingsValue<string>('ai.imageApiKey');
+        let provider = getSettingsValue<string>('ai.imageProvider') ?? 'stability';
+        const baseUrl = getSettingsValue<string>('ai.claudeBaseUrl') ?? '';
+
+        if (!apiKey && baseUrl) {
+            apiKey = getSettingsValue<string>('ai.claudeApiKey');
+            provider = 'openai';
+        }
+        if (!apiKey) throw new Error('API key not configured. Set Claude API Key or Image API Key in Settings > AI.');
+
+        const width = params.width as number | undefined;
+        const height = params.height as number | undefined;
+        const filename = (params.filename as string) ?? `generated_${Date.now()}.png`;
+
+        const imageModel = getSettingsValue<string>('ai.imageModel') ?? 'gpt-5.4-nano';
+
+        const { invoke } = await import('@tauri-apps/api/core');
+        const bytes = await invoke<number[]>('ai_generate_image', {
+            apiKey, prompt, provider, width, height,
+            baseUrl: baseUrl || null,
+            imageModel,
+        });
+
+        const projectDir = this.projectPath_.replace(/\/[^/]+$/, '');
+        const assetsDir = `${projectDir}/assets`;
+        const filePath = `${assetsDir}/${filename}`;
+        await fs.writeBinaryFile(filePath, new Uint8Array(bytes));
+
+        const relativePath = `assets/${filename}`;
+        const db = getAssetDatabase();
+        const uuid = await db.ensureMeta(relativePath);
+
+        return { ok: true, path: relativePath, uuid };
     }
 
     private async renameAsset_(params: Record<string, unknown>): Promise<unknown> {

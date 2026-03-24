@@ -38,7 +38,7 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar): void 
     const registerStatusbarItem = (d: StatusbarItemDescriptor) => registrar.provide(STATUSBAR_ITEM, d.id, d);
 
     const leftPanels = getPanelsByPosition('left');
-    const PERMANENT_BOTTOM_PANELS = new Set(['content-browser', 'output']);
+    const PERMANENT_BOTTOM_PANELS = new Set(['content-browser', 'output', 'ai-chat']);
     const bottomPanels = getPanelsByPosition('bottom').filter(p => PERMANENT_BOTTOM_PANELS.has(p.id));
     const rightPanels = getPanelsByPosition('right');
 
