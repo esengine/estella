@@ -126,6 +126,9 @@ jobs:
     - name: Type-check Editor
       run: pnpm exec tsc --noEmit -p editor/tsconfig.json
 
+    - name: Type-check Examples
+      run: node build-tools/cli.js check-examples
+
     - name: Run SDK tests
       run: pnpm --filter ./sdk exec vitest run
 
