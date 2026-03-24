@@ -15,6 +15,7 @@ import { startWatch } from './tasks/watch.js';
 import { BuildManifest } from './manifest.js';
 import { handleBuildError } from './utils/errorHelp.js';
 import { zipExamples } from './tasks/examples.js';
+import { checkExamples } from './tasks/check-examples.js';
 
 program
     .name('esengine-build')
@@ -200,6 +201,16 @@ program
         const startTime = Date.now();
         await zipExamples(config.paths.root);
         logger.printTime(Date.now() - startTime);
+    });
+
+program
+    .command('check-examples')
+    .description('Type-check all example projects against current SDK types')
+    .action(async () => {
+        logger.header('Check Examples');
+        const startTime = Date.now();
+        await checkExamples(config.paths.root);
+        logger.printTime(startTime);
     });
 
 program
