@@ -29,6 +29,20 @@
     #include <glad/glad.h>
 #endif
 
+// GL blend equation constants/functions not present in all glad configurations
+#ifndef GL_FUNC_ADD
+    #define GL_FUNC_ADD 0x8006
+#endif
+#ifndef GL_MIN
+    #define GL_MIN 0x8007
+#endif
+#ifndef GL_MAX
+    #define GL_MAX 0x8008
+#endif
+#ifndef GL_BLEND_EQUATION
+    #define GL_BLEND_EQUATION 0x8009
+#endif
+
 // GL constants not present in all headers / glad configurations
 #ifndef GL_CONTEXT_LOST
     #define GL_CONTEXT_LOST 0x0507
