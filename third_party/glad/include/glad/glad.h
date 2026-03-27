@@ -376,6 +376,8 @@ GLAPI PFNGLENABLEPROC glad_glEnable;
 GLAPI PFNGLDISABLEPROC glad_glDisable;
 GLAPI PFNGLBLENDFUNCPROC glad_glBlendFunc;
 GLAPI PFNGLBLENDFUNCSEPARATEPROC glad_glBlendFuncSeparate;
+typedef void (APIENTRYP PFNGLBLENDEQUATIONPROC)(GLenum mode);
+GLAPI PFNGLBLENDEQUATIONPROC glad_glBlendEquation;
 GLAPI PFNGLDEPTHFUNCPROC glad_glDepthFunc;
 GLAPI PFNGLCULLFACEPROC glad_glCullFace;
 GLAPI PFNGLFRONTFACEPROC glad_glFrontFace;
@@ -486,6 +488,7 @@ GLAPI PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer;
 #define glDisable glad_glDisable
 #define glBlendFunc glad_glBlendFunc
 #define glBlendFuncSeparate glad_glBlendFuncSeparate
+#define glBlendEquation glad_glBlendEquation
 #define glDepthFunc glad_glDepthFunc
 #define glCullFace glad_glCullFace
 #define glFrontFace glad_glFrontFace
