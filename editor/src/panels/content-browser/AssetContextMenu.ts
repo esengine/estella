@@ -14,6 +14,7 @@ import { getNativeFS } from './ContentBrowserTypes';
 import { AssetType } from '../../constants/AssetTypes';
 import { getGlobalPathResolver, getAssetDatabase } from '../../asset';
 import { createVariantPrefab, serializePrefab } from '../../prefab';
+import { showSpritesheetSplitDialog } from './SpritesheetSplitDialog';
 
 export function showAssetContextMenu(state: ContentBrowserState, e: MouseEvent, path: string, type: AssetItem['type']): void {
     const fs = getNativeFS();
@@ -49,6 +50,14 @@ export function showAssetContextMenu(state: ContentBrowserState, e: MouseEvent, 
             label: 'Create Variant',
             icon: icons.copy(14),
             onClick: () => createVariantFromPrefab(state, path),
+        });
+    }
+
+    if (type === AssetType.IMAGE) {
+        items.splice(items.length - 1, 0, {
+            label: 'Split Spritesheet',
+            icon: icons.grid(14),
+            onClick: () => showSpritesheetSplitDialog(state, path),
         });
     }
 

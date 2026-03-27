@@ -1433,6 +1433,73 @@
 }
 
 /* =============================================================================
+ * Spritesheet Split Dialog
+ * ============================================================================= */
+
+.es-spritesheet-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.es-spritesheet-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+}
+
+.es-spritesheet-canvas {
+    display: block;
+    image-rendering: pixelated;
+}
+
+.es-spritesheet-size-label {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}
+
+.es-spritesheet-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.es-spritesheet-grid-row {
+    display: flex;
+    gap: 12px;
+}
+
+.es-spritesheet-grid-row .es-spritesheet-field {
+    flex: 1;
+}
+
+.es-spritesheet-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.es-spritesheet-label {
+    font-size: 12px;
+    color: var(--es-text-secondary);
+}
+
+.es-spritesheet-field input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.es-spritesheet-info {
+    font-size: 12px;
+    color: var(--es-text-secondary);
+    padding: 6px 0;
+}
+
+/* =============================================================================
  * Shortcut Help Dialog
  * ============================================================================= */
 
