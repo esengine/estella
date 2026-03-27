@@ -627,7 +627,7 @@ describe('Scene', () => {
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
             const entity = world.getEntitiesWithComponents([Sprite])[0];
             const sprite = world.get(entity, Sprite);
             expect(sprite.texture).toBe(42);
@@ -681,7 +681,7 @@ describe('Scene', () => {
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
         });
 
         it('should call preloadSceneAssets for spine assets', async () => {
@@ -706,7 +706,7 @@ describe('Scene', () => {
             };
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
         });
 
         it('should handle texture load failure gracefully', async () => {
@@ -859,7 +859,7 @@ describe('Scene', () => {
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
             expect(mockAssets.resolveSceneAssetPaths).toHaveBeenCalled();
         });
 
