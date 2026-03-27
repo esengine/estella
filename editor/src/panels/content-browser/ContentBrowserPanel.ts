@@ -41,6 +41,8 @@ export class ContentBrowserPanel implements ContentBrowserState {
     private disposables_ = new DisposableStore();
     private refreshing_ = false;
     private refreshPending_ = false;
+    private lastRefreshTime_ = 0;
+    private refreshTimer_: ReturnType<typeof setTimeout> | null = null;
     private thumbnailCache_ = new ThumbnailCache();
     private disposeNavReg_: (() => void) | null = null;
     private treeVisible_ = localStorage.getItem('esengine.cb.treeVisible') !== 'false';
@@ -191,11 +193,26 @@ export class ContentBrowserPanel implements ContentBrowserState {
     }
 
     async refresh(): Promise<void> {
+        const THROTTLE_MS = 500;
+
         if (this.refreshing_) {
             this.refreshPending_ = true;
             return;
         }
+
+        const elapsed = Date.now() - this.lastRefreshTime_;
+        if (elapsed < THROTTLE_MS) {
+            if (!this.refreshTimer_) {
+                this.refreshTimer_ = setTimeout(() => {
+                    this.refreshTimer_ = null;
+                    this.refresh();
+                }, THROTTLE_MS - elapsed);
+            }
+            return;
+        }
+
         this.refreshing_ = true;
+        this.lastRefreshTime_ = Date.now();
         try {
             if (this.rootFolder && this.projectPath) {
                 this.rootFolder.loaded = false;
