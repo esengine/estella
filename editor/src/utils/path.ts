@@ -56,6 +56,7 @@ export function isTransientFile(path: string): boolean {
     if (name === '.DS_Store' || name === 'Thumbs.db') return true;
     if (name.startsWith('.')) return true;
     if (name.endsWith('~') || name.endsWith('.swp') || name.endsWith('.bak')) return true;
+    if (name.endsWith('.meta')) return true;
     if (TRANSIENT_PATTERN.test(name)) return true;
     return false;
 }

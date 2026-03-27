@@ -460,6 +460,8 @@ export class AssetDatabase {
 
         const entries = await this.fs_.listDirectoryDetailed(absolutePath);
 
+        const pendingMetas: string[] = [];
+
         for (const entry of entries) {
             const childAbsolute = joinPath(absolutePath, entry.name);
             const childRelative = `${relativePath}/${entry.name}`;
@@ -492,9 +494,17 @@ export class AssetDatabase {
                 if (ASSET_EXTENSIONS.has(ext)) {
                     const metaAbsolute = `${childAbsolute}.meta`;
                     if (!await this.fs_.exists(metaAbsolute)) {
-                        await this.ensureMeta(childRelative);
+                        pendingMetas.push(childRelative);
                     }
                 }
+            }
+        }
+
+        const META_BATCH_SIZE = 50;
+        for (let i = 0; i < pendingMetas.length; i++) {
+            await this.ensureMeta(pendingMetas[i]);
+            if (i > 0 && i % META_BATCH_SIZE === 0) {
+                await new Promise(r => setTimeout(r, 0));
             }
         }
     }
