@@ -35,9 +35,14 @@ public:
 
     u32 capacity() const { return capacity_; }
     u32 aliveCount() const { return alive_count_; }
+    std::vector<Particle>& particles() { return particles_; }
+    const std::vector<Particle>& particles() const { return particles_; }
 
     void forEachAlive(const std::function<void(Particle&)>& fn);
     void forEachAlive(const std::function<void(const Particle&)>& fn) const;
+
+    /** @brief Deallocate a particle by its pool index */
+    void deallocateByIndex(u32 index);
 
 private:
     std::vector<Particle> particles_;

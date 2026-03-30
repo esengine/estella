@@ -325,6 +325,15 @@ class ValueTweenManager {
                 }
             }
         }
+
+        for (const [id, entry] of this.entries_) {
+            if (
+                entry.state === TweenState.Completed ||
+                entry.state === TweenState.Cancelled
+            ) {
+                this.entries_.delete(id);
+            }
+        }
     }
 
     pause(id: number): void {

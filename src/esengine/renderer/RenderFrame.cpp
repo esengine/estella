@@ -37,8 +37,10 @@ void Frustum::extractFromMatrix(const glm::mat4& vp) {
 
     for (u32 i = 0; i < 6; ++i) {
         f32 len = glm::length(planes[i].normal);
-        planes[i].normal /= len;
-        planes[i].distance /= len;
+        if (len > 1e-7f) {
+            planes[i].normal /= len;
+            planes[i].distance /= len;
+        }
     }
 }
 

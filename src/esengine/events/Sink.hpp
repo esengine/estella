@@ -68,8 +68,11 @@ public:
      */
     [[nodiscard]] Connection connect(Callback callback) {
         CallbackId id = signal_->connect(std::move(callback));
-        return Connection(id, [signal = signal_](CallbackId callbackId) {
-            signal->disconnect(callbackId);
+        Weak<bool> weak = signal_->alive_;
+        return Connection(id, [signal = signal_, weak](CallbackId callbackId) {
+            if (weak.lock()) {
+                signal->disconnect(callbackId);
+            }
         });
     }
 
@@ -131,8 +134,11 @@ public:
 
     [[nodiscard]] Connection connect(Callback callback) {
         CallbackId id = signal_->connect(std::move(callback));
-        return Connection(id, [signal = signal_](CallbackId callbackId) {
-            signal->disconnect(callbackId);
+        Weak<bool> weak = signal_->alive_;
+        return Connection(id, [signal = signal_, weak](CallbackId callbackId) {
+            if (weak.lock()) {
+                signal->disconnect(callbackId);
+            }
         });
     }
 

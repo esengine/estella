@@ -7,7 +7,7 @@ export class Audio {
     private static bufferCache_ = new Map<string, AudioBufferHandle>();
     private static bgmHandle_: AudioHandle | null = null;
     private static bgmVolume_ = 1.0;
-    private static fadeAnimId_ = 0;
+    private static fadeAnimIds_ = new Set<number>();
     private static disposed_ = false;
     private static assetResolver_: ((url: string) => ArrayBuffer | null) | null = null;
     static baseUrl = '';
@@ -19,10 +19,10 @@ export class Audio {
         this.bgmHandle_ = null;
         this.bgmVolume_ = 1.0;
         this.disposed_ = false;
-        if (this.fadeAnimId_) {
-            cancelAnimationFrame(this.fadeAnimId_);
-            this.fadeAnimId_ = 0;
+        for (const id of this.fadeAnimIds_) {
+            cancelAnimationFrame(id);
         }
+        this.fadeAnimIds_.clear();
     }
 
     static setAssetResolver(resolver: (url: string) => ArrayBuffer | null): void {
@@ -201,10 +201,10 @@ export class Audio {
 
     static dispose(): void {
         this.disposed_ = true;
-        if (this.fadeAnimId_) {
-            cancelAnimationFrame(this.fadeAnimId_);
-            this.fadeAnimId_ = 0;
+        for (const id of this.fadeAnimIds_) {
+            cancelAnimationFrame(id);
         }
+        this.fadeAnimIds_.clear();
         if (this.bgmHandle_) {
             this.bgmHandle_.stop();
             this.bgmHandle_ = null;
@@ -220,33 +220,39 @@ export class Audio {
     private static fadeIn(handle: AudioHandle, duration: number, targetVolume: number): void {
         handle.setVolume(0);
         const startTime = performance.now();
+        let animId = 0;
         const tick = () => {
             const elapsed = (performance.now() - startTime) / 1000;
             const t = Math.min(elapsed / duration, 1);
             handle.setVolume(t * targetVolume);
             if (t < 1 && handle.isPlaying) {
-                this.fadeAnimId_ = requestAnimationFrame(tick);
+                animId = requestAnimationFrame(tick);
+                this.fadeAnimIds_.add(animId);
             } else {
-                this.fadeAnimId_ = 0;
+                this.fadeAnimIds_.delete(animId);
             }
         };
-        this.fadeAnimId_ = requestAnimationFrame(tick);
+        animId = requestAnimationFrame(tick);
+        this.fadeAnimIds_.add(animId);
     }
 
     private static fadeOut(handle: AudioHandle, duration: number, startVolume: number): void {
         const startTime = performance.now();
+        let animId = 0;
         const tick = () => {
             const elapsed = (performance.now() - startTime) / 1000;
             const t = Math.min(elapsed / duration, 1);
             handle.setVolume(startVolume * (1 - t));
             if (t < 1 && handle.isPlaying) {
-                this.fadeAnimId_ = requestAnimationFrame(tick);
+                animId = requestAnimationFrame(tick);
+                this.fadeAnimIds_.add(animId);
             } else {
                 handle.stop();
-                this.fadeAnimId_ = 0;
+                this.fadeAnimIds_.delete(animId);
             }
         };
-        this.fadeAnimId_ = requestAnimationFrame(tick);
+        animId = requestAnimationFrame(tick);
+        this.fadeAnimIds_.add(animId);
     }
 
     private static createDeferredHandle(): AudioHandle & { resolve(real: AudioHandle): void } {

@@ -18,6 +18,16 @@
     #include <glad/glad.h>
 #endif
 
+#ifndef GL_DEPTH_STENCIL
+    #define GL_DEPTH_STENCIL 0x84F9
+#endif
+#ifndef GL_UNSIGNED_INT_24_8
+    #define GL_UNSIGNED_INT_24_8 0x84FA
+#endif
+#ifndef GL_DEPTH_STENCIL_ATTACHMENT
+    #define GL_DEPTH_STENCIL_ATTACHMENT 0x821A
+#endif
+
 namespace esengine {
 
 // =============================================================================
@@ -118,13 +128,13 @@ bool Framebuffer::initialize() {
     if (spec_.depthStencil) {
         glGenTextures(1, &depthAttachment_);
         glBindTexture(GL_TEXTURE_2D, depthAttachment_);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, spec_.width, spec_.height, 0,
-                     GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, spec_.width, spec_.height, 0,
+                     GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                               GL_TEXTURE_2D, depthAttachment_, 0);
     }
 

@@ -105,13 +105,14 @@ u64 LoaderJobQueue::submit(LoadJob job) {
         activeJobIds_.insert(jobId);
     }
 
+    ES_LOG_DEBUG("LoaderJobQueue: Submitted job {} for '{}'", jobId, job.path);
+
     {
         std::lock_guard<std::mutex> lock(pendingMutex_);
         pendingJobs_.push(std::move(job));
     }
     pendingCondition_.notify_one();
 
-    ES_LOG_DEBUG("LoaderJobQueue: Submitted job {} for '{}'", jobId, job.path);
     return jobId;
 }
 
@@ -186,7 +187,7 @@ void LoaderJobQueue::workerThread() {
                 continue;
             }
 
-            job = std::move(const_cast<LoadJob&>(pendingJobs_.top()));
+            job = pendingJobs_.top();
             pendingJobs_.pop();
         }
 

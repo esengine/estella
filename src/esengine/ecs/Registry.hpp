@@ -84,13 +84,15 @@ public:
      */
     Entity create() {
         u32 index;
-        if (!recycled_.empty()) {
+        while (!recycled_.empty()) {
             index = recycled_.front();
             recycled_.pop();
-        } else {
-            index = next_index_++;
+            if (index < entityValid_.size() && entityValid_[index]) {
+                continue;
+            }
+            return activateIndex(index);
         }
-
+        index = next_index_++;
         return activateIndex(index);
     }
 
@@ -594,6 +596,7 @@ private:
      * @brief Activates an entity index: resizes arrays, bumps generation, returns packed Entity
      */
     Entity activateIndex(u32 index) {
+        ES_ASSERT(index <= Entity::INDEX_MASK, "Entity index overflow (20-bit limit exceeded)");
         if (index >= entityValid_.size()) {
             entityValid_.resize(index + 1, false);
             generations_.resize(index + 1, 0);

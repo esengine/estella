@@ -220,13 +220,14 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
     auto colorEasing = static_cast<EasingType>(emitter.colorEasing);
     i32 totalFrames = emitter.spriteColumns * emitter.spriteRows;
 
-    dead_particles_.clear();
+    dead_particle_indices_.clear();
 
     state.pool.forEachAlive([&](Particle& p) {
         p.age += dt;
 
         if (p.age >= p.lifetime) {
-            dead_particles_.push_back(&p);
+            u32 idx = static_cast<u32>(&p - &state.pool.particles()[0]);
+            dead_particle_indices_.push_back(idx);
             return;
         }
 
@@ -246,9 +247,9 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         f32 colorT = applyEasing(colorEasing, t);
         p.color = math::lerp(p.start_color, p.end_color, colorT);
 
-        if (totalFrames > 1) {
+        if (totalFrames > 1 && emitter.spriteFPS > 0.0f) {
             f32 frameDuration = 1.0f / emitter.spriteFPS;
-            u16 frame = static_cast<u16>(p.age / frameDuration);
+            u16 frame = static_cast<u16>(std::min(p.age / frameDuration, static_cast<f32>(totalFrames - 1)));
             if (emitter.spriteLoop) {
                 frame = frame % static_cast<u16>(totalFrames);
             } else {
@@ -258,8 +259,8 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         }
     });
 
-    for (auto* p : dead_particles_) {
-        state.pool.deallocate(p);
+    for (u32 idx : dead_particle_indices_) {
+        state.pool.deallocateByIndex(idx);
     }
 }
 
