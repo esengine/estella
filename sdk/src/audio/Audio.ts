@@ -94,10 +94,10 @@ export class Audio {
         crossFade?: number;
     }): void {
         const play = (buffer: AudioBufferHandle) => {
-            if (this.fadeAnimId_) {
-                cancelAnimationFrame(this.fadeAnimId_);
-                this.fadeAnimId_ = 0;
+            for (const id of this.fadeAnimIds_) {
+                cancelAnimationFrame(id);
             }
+            this.fadeAnimIds_.clear();
 
             const targetVolume = config?.volume ?? 1.0;
             const oldVolume = this.bgmVolume_;
@@ -138,10 +138,10 @@ export class Audio {
     }
 
     static stopAll(): void {
-        if (this.fadeAnimId_) {
-            cancelAnimationFrame(this.fadeAnimId_);
-            this.fadeAnimId_ = 0;
+        for (const id of this.fadeAnimIds_) {
+            cancelAnimationFrame(id);
         }
+        this.fadeAnimIds_.clear();
         if (this.bgmHandle_) {
             this.bgmHandle_.stop();
             this.bgmHandle_ = null;
@@ -150,10 +150,10 @@ export class Audio {
 
     static stopBGM(fadeOut?: number): void {
         if (!this.bgmHandle_) return;
-        if (this.fadeAnimId_) {
-            cancelAnimationFrame(this.fadeAnimId_);
-            this.fadeAnimId_ = 0;
+        for (const id of this.fadeAnimIds_) {
+            cancelAnimationFrame(id);
         }
+        this.fadeAnimIds_.clear();
         if (fadeOut && fadeOut > 0) {
             const handle = this.bgmHandle_;
             this.bgmHandle_ = null;
