@@ -237,7 +237,7 @@ public:
      * @return Count of non-freed resources
      */
     usize size() const override {
-        return entries_.size() - freeList_.size();
+        return entries_.size() - freeList_.size() - 1;
     }
 
     /**
@@ -247,6 +247,7 @@ public:
         entries_.clear();
         freeList_.clear();
         pathToId_.clear();
+        entries_.push_back({nullptr, 0, "", 0});
     }
 
     /**

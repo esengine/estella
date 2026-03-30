@@ -77,14 +77,14 @@ public:
     void publish(Args... args) {
         if (publishing_) {
             for (const auto& [id, callback] : callbacks_) {
-                if (callback) {
+                if (callback && !isPendingRemove(id)) {
                     callback(args...);
                 }
             }
         } else {
             publishing_ = true;
             for (const auto& [id, callback] : callbacks_) {
-                if (callback) {
+                if (callback && !isPendingRemove(id)) {
                     callback(args...);
                 }
             }
@@ -142,6 +142,13 @@ private:
     /**
      * @brief Process pending add/remove operations after publishing
      */
+    bool isPendingRemove(CallbackId id) const {
+        for (auto removedId : pendingRemoves_) {
+            if (removedId == id) return true;
+        }
+        return false;
+    }
+
     void processPendingOperations() {
         for (auto id : pendingRemoves_) {
             callbacks_.erase(id);
@@ -154,6 +161,7 @@ private:
         pendingAdds_.clear();
     }
 
+    Shared<bool> alive_ = makeShared<bool>(true);
     std::unordered_map<CallbackId, Callback> callbacks_;
     std::vector<std::pair<CallbackId, Callback>> pendingAdds_;
     std::vector<CallbackId> pendingRemoves_;
@@ -196,7 +204,7 @@ public:
 
         publishing_ = true;
         for (const auto& [id, callback] : callbacks_) {
-            if (callback) {
+            if (callback && !isPendingRemove(id)) {
                 results.push_back(callback(args...));
             }
         }
@@ -215,7 +223,7 @@ public:
     Ret publishFirst(Ret defaultValue, Args... args) {
         publishing_ = true;
         for (const auto& [id, callback] : callbacks_) {
-            if (callback) {
+            if (callback && !isPendingRemove(id)) {
                 Ret result = callback(args...);
                 if (result != defaultValue) {
                     publishing_ = false;
@@ -258,6 +266,13 @@ private:
         }
     }
 
+    bool isPendingRemove(CallbackId id) const {
+        for (auto removedId : pendingRemoves_) {
+            if (removedId == id) return true;
+        }
+        return false;
+    }
+
     void processPendingOperations() {
         for (auto id : pendingRemoves_) {
             callbacks_.erase(id);
@@ -270,6 +285,7 @@ private:
         pendingAdds_.clear();
     }
 
+    Shared<bool> alive_ = makeShared<bool>(true);
     std::unordered_map<CallbackId, Callback> callbacks_;
     std::vector<std::pair<CallbackId, Callback>> pendingAdds_;
     std::vector<CallbackId> pendingRemoves_;

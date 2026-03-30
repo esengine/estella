@@ -43,6 +43,15 @@ void ParticlePool::clear() {
     alive_count_ = 0;
 }
 
+void ParticlePool::deallocateByIndex(u32 index) {
+    if (index >= particles_.size() || !particles_[index].alive) {
+        return;
+    }
+    particles_[index].alive = false;
+    free_list_.push_back(index);
+    alive_count_--;
+}
+
 void ParticlePool::forEachAlive(const std::function<void(Particle&)>& fn) {
     for (auto& p : particles_) {
         if (p.alive) {

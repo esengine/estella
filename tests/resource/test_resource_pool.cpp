@@ -15,7 +15,7 @@ struct DummyResource {
 using DummyHandle = esengine::resource::Handle<DummyResource>;
 using DummyPool = esengine::resource::ResourcePool<DummyResource>;
 
-constexpr esengine::usize SENTINEL_SIZE = 1;
+constexpr esengine::usize SENTINEL_SIZE = 0;
 
 }  // namespace test
 

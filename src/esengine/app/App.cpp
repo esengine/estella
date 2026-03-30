@@ -133,6 +133,7 @@ void App::init() {
         group.init(registry_);
     }
 
+    last_frame_time_ = platform_->getTime();
     initialized_ = true;
     ES_LOG_INFO("App initialized");
 }

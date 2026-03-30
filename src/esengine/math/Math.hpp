@@ -191,8 +191,8 @@ inline bool approxEqual(const glm::vec3& a, const glm::vec3& b, float epsilon = 
  * @param far Far plane distance
  * @return Orthographic projection matrix
  */
-inline glm::mat4 ortho(float left, float right, float bottom, float top, float near, float far) {
-    return glm::ortho(left, right, bottom, top, near, far);
+inline glm::mat4 ortho(float left, float right, float bottom, float top, float nearPlane, float farPlane) {
+    return glm::ortho(left, right, bottom, top, nearPlane, farPlane);
 }
 
 /**
@@ -203,8 +203,8 @@ inline glm::mat4 ortho(float left, float right, float bottom, float top, float n
  * @param far Far plane distance
  * @return Perspective projection matrix
  */
-inline glm::mat4 perspective(float fov, float aspect, float near, float far) {
-    return glm::perspective(fov, aspect, near, far);
+inline glm::mat4 perspective(float fov, float aspect, float nearPlane, float farPlane) {
+    return glm::perspective(fov, aspect, nearPlane, farPlane);
 }
 
 /**

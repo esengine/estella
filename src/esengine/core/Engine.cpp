@@ -67,13 +67,9 @@ bool Engine::hasWebGL2() {
 }
 
 u32 Engine::getMaxTextureSize() {
-#ifdef ES_PLATFORM_WEB
     GLint maxSize = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
-    return static_cast<u32>(maxSize);
-#else
-    return 2048;  // Default fallback
-#endif
+    return (maxSize > 0) ? static_cast<u32>(maxSize) : 2048;
 }
 
 }  // namespace esengine

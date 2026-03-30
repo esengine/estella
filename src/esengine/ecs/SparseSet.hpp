@@ -269,8 +269,16 @@ public:
         const u32 idx = entity.index();
         const auto pageIndex = idx / SPARSE_PAGE_SIZE;
         const auto offset = idx % SPARSE_PAGE_SIZE;
-        const Entity last = dense_.back();
         const u32 denseIdx = (*pages_[pageIndex])[offset];
+
+        if (denseIdx == static_cast<u32>(dense_.size()) - 1) {
+            dense_.pop_back();
+            components_.pop_back();
+            (*pages_[pageIndex])[offset] = INVALID_INDEX;
+            return;
+        }
+
+        const Entity last = dense_.back();
 
         dense_[denseIdx] = last;
         components_[denseIdx] = std::move(components_.back());

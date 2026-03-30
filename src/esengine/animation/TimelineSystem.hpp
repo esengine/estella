@@ -107,6 +107,7 @@ private:
     std::vector<TimelineEvent> pendingEvents_;
     std::vector<CustomPropertyResult> pendingCustomProperties_;
     std::vector<std::string> stringPool_;
+    std::unordered_map<std::string, i32> stringPoolIndex_;
 
     static const std::string EMPTY_STRING;
 };

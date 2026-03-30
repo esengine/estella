@@ -106,7 +106,18 @@ function createComponentDef<T extends object>(
                 const result = { ...defaultsRec };
                 for (const k of keyInfo.objectKeys) result[k] = { ...(defaultsRec[k] as object) };
                 for (const k of keyInfo.arrayKeys) result[k] = (defaultsRec[k] as unknown[]).slice();
-                if (data) Object.assign(result, data);
+                if (data) {
+                    const dataRec = data as Record<string, unknown>;
+                    for (const k of Object.keys(dataRec)) {
+                        if (dataRec[k] !== undefined) {
+                            if (keyInfo.objectKeys.includes(k) && typeof dataRec[k] === 'object' && dataRec[k] !== null && !Array.isArray(dataRec[k])) {
+                                Object.assign(result[k] as object, dataRec[k]);
+                            } else {
+                                result[k] = dataRec[k];
+                            }
+                        }
+                    }
+                }
                 return result as T;
             }
             return data ? { ...defaults, ...data } : { ...defaults };

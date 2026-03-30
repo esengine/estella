@@ -162,6 +162,10 @@ f32 TimelineSystem::evaluateChannel(const TimelineChannel& channel, f32 time) {
 
 f32 TimelineSystem::applyWrapMode(f32 time, f32 duration, TimelineWrapMode mode, bool& stopped) {
     stopped = false;
+    if (duration <= 0.0f) {
+        stopped = true;
+        return 0.0f;
+    }
     if (time < 0.0f) return 0.0f;
     if (time < duration) return time;
 
@@ -403,8 +407,14 @@ i32 TimelineSystem::evaluateAt(
 // ---------------------------------------------------------------------------
 
 i32 TimelineSystem::addEventString(const std::string& str) {
+    auto it = stringPoolIndex_.find(str);
+    if (it != stringPoolIndex_.end()) {
+        return it->second;
+    }
+    i32 idx = static_cast<i32>(stringPool_.size());
     stringPool_.push_back(str);
-    return static_cast<i32>(stringPool_.size()) - 1;
+    stringPoolIndex_[str] = idx;
+    return idx;
 }
 
 const std::string& TimelineSystem::getEventString(i32 index) const {
@@ -436,6 +446,7 @@ void TimelineSystem::clearPendingResults() {
     pendingEvents_.clear();
     pendingCustomProperties_.clear();
     stringPool_.clear();
+    stringPoolIndex_.clear();
 }
 
 // ---------------------------------------------------------------------------

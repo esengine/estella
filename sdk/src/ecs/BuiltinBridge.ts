@@ -359,6 +359,10 @@ export class BuiltinBridge {
         };
     }
 
+    /**
+     * Returns a getter that reads C++ component data into a shared preallocated object.
+     * WARNING: The returned object is reused across calls — copy it if you need to retain the values.
+     */
     resolvePtrGetter(cppName: string): ((entity: Entity) => unknown) | null {
         const accessor = PTR_ACCESSORS[cppName];
         if (!accessor) return null;

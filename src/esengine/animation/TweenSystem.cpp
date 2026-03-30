@@ -21,11 +21,17 @@ void TweenSystem::update(ecs::Registry& registry, f32 deltaTime) {
 
         if (tween.delay > 0.0f) {
             tween.delay -= deltaTime;
-            continue;
+            if (tween.delay > 0.0f) {
+                continue;
+            }
+            deltaTime = -tween.delay;
+            tween.delay = 0.0f;
         }
 
         tween.elapsed += deltaTime;
-        f32 rawT = glm::clamp(tween.elapsed / tween.duration, 0.0f, 1.0f);
+        f32 rawT = (tween.duration > 0.0f)
+            ? glm::clamp(tween.elapsed / tween.duration, 0.0f, 1.0f)
+            : 1.0f;
         f32 easedT = evaluateEasing(tween, rawT);
         f32 value = glm::mix(tween.from_value, tween.to_value, easedT);
 
