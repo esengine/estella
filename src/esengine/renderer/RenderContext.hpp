@@ -67,9 +67,12 @@ struct RenderContextStats {
  * context.shutdown();
  * @endcode
  */
+class GfxDevice;
+
 class RenderContext {
 public:
-    RenderContext() = default;
+    explicit RenderContext(GfxDevice& device);
+    RenderContext() = delete;
     ~RenderContext();
 
     // Non-copyable
@@ -169,6 +172,7 @@ private:
     Unique<Shader> extMeshShader_;
     u32 whiteTextureId_ = 0;
 
+    GfxDevice& device_;
     bool initialized_ = false;
 };
 

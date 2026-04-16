@@ -141,7 +141,7 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     shader->setUniform("u_projection", g_currentViewProjection);
     shader->setUniform("u_model", transform);
 
-    geom->bind();
+    geom->bind(ctx().require<GfxDevice>());
 
     if (geom->hasIndices()) {
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
@@ -231,7 +231,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
         }
     }
 
-    geom->bind();
+    geom->bind(ctx().require<GfxDevice>());
 
     if (geom->hasIndices()) {
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;

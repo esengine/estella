@@ -12,7 +12,7 @@
 
 #include "Renderer.hpp"
 #include "BatchVertex.hpp"
-#include "RenderCommand.hpp"
+#include "GfxDevice.hpp"
 #include "TextureSlotAllocator.hpp"
 #include "ShaderEmbeds.generated.hpp"
 #include "../resource/ShaderParser.hpp"
@@ -114,8 +114,8 @@ void RenderCommand::setWireframe(bool enabled) {
 // Renderer Implementation
 // ========================================
 
-Renderer::Renderer(RenderContext& context)
-    : context_(context) {
+Renderer::Renderer(GfxDevice& device, RenderContext& context)
+    : device_(device), context_(context) {
 }
 
 void Renderer::beginFrame() {
@@ -127,15 +127,15 @@ void Renderer::endFrame() {
 }
 
 void Renderer::setViewport(i32 x, i32 y, u32 width, u32 height) {
-    RenderCommand::setViewport(x, y, width, height);
+    device_.setViewport(x, y, width, height);
 }
 
 void Renderer::setClearColor(const glm::vec4& color) {
-    RenderCommand::setClearColor(color);
+    device_.setClearColor(color.r, color.g, color.b, color.a);
 }
 
 void Renderer::clear() {
-    RenderCommand::clear();
+    device_.clear(true, true, false);
 }
 
 void Renderer::beginScene(const glm::mat4& viewProjection) {
@@ -151,7 +151,13 @@ void Renderer::submit(const Shader& shader, const VertexArray& vao, const glm::m
     shader.setUniform("u_projection", context_.viewProjection());
     shader.setUniform("u_model", transform);
 
-    RenderCommand::drawIndexed(vao);
+    vao.bind();
+    auto ib = vao.getIndexBuffer();
+    u32 count = ib ? ib->getCount() : 0;
+    if (count > 0 && ib) {
+        auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
+        device_.drawElements(count, type, 0);
+    }
 
     context_.stats().drawCalls++;
 }
@@ -173,7 +179,15 @@ void Renderer::drawQuad(const glm::vec3& position, const glm::vec2& size, const 
     shader->setUniform("u_model", transform);
     shader->setUniform("u_color", color);
 
-    RenderCommand::drawIndexed(*vao);
+    vao->bind();
+    {
+        auto ib = vao->getIndexBuffer();
+        u32 cnt = ib ? ib->getCount() : 0;
+        if (cnt > 0 && ib) {
+            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
+            device_.drawElements(cnt, type, 0);
+        }
+    }
 
     context_.stats().drawCalls++;
     context_.stats().triangleCount += 2;
@@ -201,7 +215,15 @@ void Renderer::drawQuad(const glm::vec3& position, const glm::vec2& size,
     shader->setUniform("u_color", tintColor);
     shader->setUniform("u_texture", 0);
 
-    RenderCommand::drawIndexed(*vao);
+    vao->bind();
+    {
+        auto ib = vao->getIndexBuffer();
+        u32 cnt = ib ? ib->getCount() : 0;
+        if (cnt > 0 && ib) {
+            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
+            device_.drawElements(cnt, type, 0);
+        }
+    }
 
     context_.stats().drawCalls++;
     context_.stats().triangleCount += 2;
@@ -272,9 +294,11 @@ struct BatchRenderer2D::BatchData {
     bool initialized = false;
 };
 
-BatchRenderer2D::BatchRenderer2D(RenderContext& context,
+BatchRenderer2D::BatchRenderer2D(GfxDevice& device,
+                                 RenderContext& context,
                                  resource::ResourceManager& resource_manager)
     : data_(makeUnique<BatchData>())
+    , device_(device)
     , context_(context)
     , resource_manager_(resource_manager) {
 }
@@ -346,10 +370,9 @@ void BatchRenderer2D::init() {
 
     if (batchShader && batchShader->isValid()) {
         batchShader->bind();
-        auto* dev = RenderCommand::getDevice();
-        i32 texLoc = dev->getUniformLocation(batchShader->getProgramId(), "u_texture");
+        i32 texLoc = device_.getUniformLocation(batchShader->getProgramId(), "u_texture");
         if (texLoc >= 0) {
-            dev->setUniform1i(texLoc, 0);
+            device_.setUniform1i(texLoc, 0);
         }
     } else {
         ES_LOG_ERROR("All batch shader variants FAILED!");
@@ -411,26 +434,25 @@ void BatchRenderer2D::flush() {
         data_->vbo->setDataRaw(data_->triVertices.data(), triBytes);
     }
 
-    data_->texSlots.bindAll(*RenderCommand::getDevice());
+    data_->texSlots.bindAll(device_);
 
     shader->bind();
     shader->setUniform(data_->projectionLoc, data_->projection);
 
     data_->vao->bind();
 
-    auto* dev = RenderCommand::getDevice();
     if (hasQuads) {
         auto ib = data_->vao->getIndexBuffer();
         if (ib) {
             ib->bind();
             auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
-            dev->drawElements(data_->indexCount, type, 0);
+            device_.drawElements(data_->indexCount, type, 0);
         }
         data_->drawCallCount++;
     }
 
     if (hasTris) {
-        dev->drawArrays(static_cast<u32>(data_->vertices.size()),
+        device_.drawArrays(static_cast<u32>(data_->vertices.size()),
                         static_cast<u32>(data_->triVertices.size()));
         data_->drawCallCount++;
     }

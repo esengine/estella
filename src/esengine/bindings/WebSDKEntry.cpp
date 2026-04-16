@@ -210,10 +210,10 @@ static void initSubsystems() {
     svc.registerOwned<resource::ResourceManager>(std::move(resourceManager));
 
     auto gfxDevice = makeUnique<GLDevice>();
-    RenderCommand::setDevice(gfxDevice.get());
+    auto* gfxDevicePtr = gfxDevice.get();
     svc.registerOwned<GfxDevice>(std::move(gfxDevice));
 
-    auto renderContext = makeUnique<RenderContext>();
+    auto renderContext = makeUnique<RenderContext>(*gfxDevicePtr);
     renderContext->init();
     svc.registerOwned<RenderContext>(std::move(renderContext));
 
@@ -233,7 +233,7 @@ static void initSubsystems() {
     svc.registerOwned<spine::SpineSystem>(makeUnique<spine::SpineSystem>(*g_spineResourceManager));
 #endif
 
-    auto immediateDraw = makeUnique<ImmediateDraw>(*g_renderContext, *g_resourceManager);
+    auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *g_renderContext, *g_resourceManager);
     immediateDraw->init();
     svc.registerOwned<ImmediateDraw>(std::move(immediateDraw));
 

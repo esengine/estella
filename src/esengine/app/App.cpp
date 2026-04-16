@@ -109,12 +109,11 @@ void App::init() {
     resourceManager_.init();
 
     gfxDevice_ = makeUnique<GLDevice>();
-    RenderCommand::setDevice(gfxDevice_.get());
 
-    renderContext_ = makeUnique<RenderContext>();
+    renderContext_ = makeUnique<RenderContext>(*gfxDevice_);
     renderContext_->init();
 
-    renderer_ = makeUnique<Renderer>(*renderContext_);
+    renderer_ = makeUnique<Renderer>(*gfxDevice_, *renderContext_);
     renderer_->setViewport(0, 0, config_.width, config_.height);
 
     services_.registerService<Platform>(platform_.get());
@@ -152,7 +151,6 @@ void App::shutdown() {
     renderContext_->shutdown();
     renderContext_.reset();
 
-    RenderCommand::setDevice(nullptr);
     gfxDevice_.reset();
 
     resourceManager_.shutdown();

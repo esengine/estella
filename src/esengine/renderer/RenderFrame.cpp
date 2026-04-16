@@ -78,7 +78,7 @@ void RenderFrame::init(u32 width, u32 height) {
     state_tracker_.init();
 
 #ifdef ES_ENABLE_POSTPROCESS
-    post_process_ = makeUnique<PostProcessPipeline>(context_, resource_manager_);
+    post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_);
     post_process_->init(width, height);
 #endif
 

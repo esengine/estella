@@ -11,7 +11,7 @@
 
 #include "PostProcessPipeline.hpp"
 #include "RenderContext.hpp"
-#include "RenderCommand.hpp"  // for RenderCommand::getDevice()
+#include "GfxDevice.hpp"
 #include "Shader.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../core/Log.hpp"
@@ -47,9 +47,11 @@ void main() {
 }
 )";
 
-PostProcessPipeline::PostProcessPipeline(RenderContext& context,
+PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
+                                         RenderContext& context,
                                          resource::ResourceManager& resourceManager)
-    : context_(context)
+    : device_(device)
+    , context_(context)
     , resourceManager_(resourceManager) {
 }
 
@@ -113,7 +115,7 @@ void PostProcessPipeline::shutdown() {
     passes_.clear();
     screenPasses_.clear();
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
     if (screen_quad_vbo_ != 0 && device) {
         device->deleteBuffer(screen_quad_vbo_);
         screen_quad_vbo_ = 0;
@@ -243,7 +245,7 @@ PostProcessPass* PostProcessPipeline::findPass(const std::string& name) {
 void PostProcessPipeline::ensureScreenQuad() {
     if (screen_quad_vao_ != 0) return;
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
 
     f32 vertices[] = {
         -1.0f, -1.0f,  0.0f, 0.0f,
@@ -273,7 +275,7 @@ void PostProcessPipeline::ensureScreenQuad() {
 
 void PostProcessPipeline::drawScreenQuad() {
     ensureScreenQuad();
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
     device->bindVertexArray(screen_quad_vao_);
     device->drawArrays(0, 3);
 }
@@ -284,7 +286,7 @@ void PostProcessPipeline::begin() {
     ensureFBOs();
     if (!fboOriginalCreated_) return;
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
     fboOriginal_->bind();
     device->setViewport(0, 0, width_, height_);
     device->clear(true, true, false);
@@ -296,7 +298,7 @@ void PostProcessPipeline::begin() {
 void PostProcessPipeline::end() {
     if (!initialized_ || !inFrame_ || bypass_) return;
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
 
     u32 enabledCount = 0;
     for (const auto& pass : passes_) {
@@ -350,7 +352,7 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTextu
     Shader* shader = resourceManager_.getShader(pass.shader);
     if (!shader) return;
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
     device->bindTexture(0, inputTexture);
 
     shader->bind();
@@ -388,7 +390,7 @@ void PostProcessPipeline::blitToOutput(u32 texture) {
     Shader* shader = resourceManager_.getShader(blitShader_);
     if (!shader) return;
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
     device->bindFramebuffer(output_target_fbo_);
 
     if (output_vp_w_ > 0 && output_vp_h_ > 0) {
@@ -435,7 +437,7 @@ void PostProcessPipeline::beginScreenCapture() {
     ensureScreenFBO();
     if (!screenFBOCreated_) return;
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
     screenFBO_->bind();
     device->setViewport(0, 0, width_, height_);
     device->clear(true, true, false);
@@ -453,7 +455,7 @@ void PostProcessPipeline::endScreenCapture() {
 void PostProcessPipeline::executeScreenPasses() {
     if (!initialized_ || !screenFBOCreated_) return;
 
-    auto* device = RenderCommand::getDevice();
+    auto* device = &device_;
 
     u32 enabledCount = 0;
     for (const auto& pass : screenPasses_) {

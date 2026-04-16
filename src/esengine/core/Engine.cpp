@@ -1,6 +1,6 @@
 /**
  * @file    Engine.cpp
- * @brief   Engine singleton implementation
+ * @brief   Engine static utility implementation
  * @details Provides platform detection and GPU capability queries.
  *
  * @author  ESEngine Team
@@ -28,11 +28,6 @@
 #endif
 
 namespace esengine {
-
-Engine& Engine::get() {
-    static Engine instance;
-    return instance;
-}
 
 const char* Engine::getPlatformName() {
 #ifdef ES_PLATFORM_WXGAME

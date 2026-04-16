@@ -70,10 +70,11 @@ using RendererStats = RenderContextStats;
 class Renderer {
 public:
     /**
-     * @brief Constructs a renderer with the given context
+     * @brief Constructs a renderer with the given device and context
+     * @param device Reference to the graphics device
      * @param context Reference to the rendering context
      */
-    explicit Renderer(RenderContext& context);
+    Renderer(GfxDevice& device, RenderContext& context);
 
     ~Renderer() = default;
 
@@ -218,6 +219,7 @@ public:
     RenderContext& getContext() { return context_; }
 
 private:
+    GfxDevice& device_;
     RenderContext& context_;
 };
 
@@ -248,10 +250,11 @@ class BatchRenderer2D {
 public:
     /**
      * @brief Constructs a batch renderer
+     * @param device Graphics device
      * @param context Render context for shared resources
      * @param resource_manager Resource manager for shader loading
      */
-    BatchRenderer2D(RenderContext& context, resource::ResourceManager& resource_manager);
+    BatchRenderer2D(GfxDevice& device, RenderContext& context, resource::ResourceManager& resource_manager);
 
     ~BatchRenderer2D();
 
@@ -416,6 +419,7 @@ public:
 private:
     struct BatchData;
     Unique<BatchData> data_;
+    GfxDevice& device_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
     FlushCallback flush_callback_ = nullptr;
