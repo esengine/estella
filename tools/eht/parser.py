@@ -99,7 +99,7 @@ class CppParser:
     def _validate_annotations(self, comp_name: str, prop_name: str, cpp_type: str,
                               annotations: Dict[str, str], filepath: Path) -> None:
         """Validate annotation usage and emit warnings for likely mistakes."""
-        known_annotations = {'animatable', 'anim_override', 'asset', 'entity_ref'}
+        known_annotations = {'animatable', 'anim_override', 'asset', 'entity_ref', 'readonly'}
 
         for key in annotations:
             if key not in known_annotations and '=' not in key:
