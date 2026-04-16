@@ -37,7 +37,6 @@ set(ESENGINE_SOURCES
     src/esengine/core/Engine.cpp
     src/esengine/core/EstellaContext.cpp
     src/esengine/core/Log.cpp
-    src/esengine/app/App.cpp
     src/esengine/resource/ResourceManager.cpp
     src/esengine/resource/ShaderParser.cpp
     src/esengine/renderer/RenderContext.cpp
@@ -142,7 +141,6 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/Buffer.hpp
     src/esengine/renderer/Texture.hpp
     src/esengine/renderer/Framebuffer.hpp
-    src/esengine/renderer/RenderCommand.hpp
     src/esengine/renderer/RenderStage.hpp
     src/esengine/renderer/RenderItem.hpp
     src/esengine/renderer/RenderTarget.hpp

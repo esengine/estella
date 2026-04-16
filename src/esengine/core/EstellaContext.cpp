@@ -25,6 +25,7 @@
 #ifdef ES_ENABLE_TILEMAP
 #include "../renderer/plugins/TilemapRenderPlugin.hpp"
 #include "../tilemap/TilemapSystem.hpp"
+#include "../tilemap/TiledMapLoader.hpp"
 #endif
 #ifdef ES_ENABLE_SPINE
 #include "../renderer/plugins/SpinePlugin.hpp"
@@ -120,6 +121,11 @@ void EstellaContext::initSubsystems() {
 
     services_.registerOwned<GeometryManager>(makeUnique<GeometryManager>());
 
+#ifdef ES_ENABLE_TILEMAP
+    services_.registerOwned<tilemap::TilemapSystem>(makeUnique<tilemap::TilemapSystem>());
+    services_.registerOwned<tilemap::TiledMapLoader>(makeUnique<tilemap::TiledMapLoader>());
+#endif
+
     auto renderFrame = makeUnique<RenderFrame>(*gfxDevicePtr, *rc, *rm);
     renderFrame->addPlugin(std::make_unique<SpritePlugin>());
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
@@ -129,8 +135,7 @@ void EstellaContext::initSubsystems() {
 #ifdef ES_ENABLE_TILEMAP
     {
         auto tilemapPlugin = std::make_unique<TilemapRenderPlugin>();
-        auto* ts = services_.getService<tilemap::TilemapSystem>();
-        if (ts) tilemapPlugin->setTilemapSystem(ts);
+        tilemapPlugin->setTilemapSystem(services_.getService<tilemap::TilemapSystem>());
         renderFrame->addPlugin(std::move(tilemapPlugin));
     }
 #endif

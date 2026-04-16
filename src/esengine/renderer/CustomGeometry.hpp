@@ -17,6 +17,8 @@
 
 namespace esengine {
 
+class GfxDevice;
+
 /**
  * @brief Custom geometry for user-defined mesh rendering
  *
