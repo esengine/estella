@@ -3,7 +3,7 @@
 #include "GeometryBindings.hpp"
 #include "EngineContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
-#include "../renderer/RenderCommand.hpp"
+#include "../renderer/GfxDevice.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../renderer/Buffer.hpp"
 #include "../renderer/RenderContext.hpp"
@@ -25,6 +25,7 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
+#define g_device (ctx().tryGet<GfxDevice>())
 #define g_initialized (ctx().state().initialized)
 #define g_geometryManager (ctx().tryGet<GeometryManager>())
 #define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
@@ -40,7 +41,7 @@ static void flushImmediateDrawIfActive() {
 
 static void restoreImmediateDrawState() {
     if (g_immediateDrawActive) {
-        auto* dev = RenderCommand::getDevice();
+        auto* dev = g_device;
         dev->setBlendEnabled(true);
         dev->setBlendMode(BlendMode::Normal);
         dev->setDepthTest(false);
@@ -147,10 +148,10 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
         if (ib) {
             auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
-            RenderCommand::getDevice()->drawElements(geom->getIndexCount(), type, 0);
+            g_device->drawElements(geom->getIndexCount(), type, 0);
         }
     } else {
-        RenderCommand::getDevice()->drawArrays(0, geom->getVertexCount());
+        g_device->drawArrays(0, geom->getVertexCount());
     }
 
     geom->unbind();
@@ -222,7 +223,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
             case 10: {
                 i32 slot = static_cast<i32>(uniforms[idx++]);
                 u32 textureId = static_cast<u32>(uniforms[idx++]);
-                RenderCommand::getDevice()->bindTexture(static_cast<u32>(slot), textureId);
+                g_device->bindTexture(static_cast<u32>(slot), textureId);
                 shader->setUniform(name, slot);
                 break;
             }
@@ -237,10 +238,10 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
         auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
         if (ib) {
             auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
-            RenderCommand::getDevice()->drawElements(geom->getIndexCount(), type, 0);
+            g_device->drawElements(geom->getIndexCount(), type, 0);
         }
     } else {
-        RenderCommand::getDevice()->drawArrays(0, geom->getVertexCount());
+        g_device->drawArrays(0, geom->getVertexCount());
     }
 
     geom->unbind();

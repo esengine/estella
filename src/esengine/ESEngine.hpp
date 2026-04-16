@@ -44,7 +44,6 @@
 #include "renderer/Buffer.hpp"
 #include "renderer/Shader.hpp"
 #include "renderer/Texture.hpp"
-#include "renderer/RenderCommand.hpp"
 #include "renderer/Renderer.hpp"
 
 // Platform

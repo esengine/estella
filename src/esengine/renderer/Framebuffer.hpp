@@ -72,7 +72,7 @@ struct FramebufferSpec {
  *
  * // Render to texture
  * fbo->bind();
- * RenderCommand::clear();
+ * device.clear(true, true, false);
  * // ... render scene ...
  * fbo->unbind();
  *

@@ -4,7 +4,7 @@
 #include "PostProcessBindings.hpp"
 #include "EngineContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
-#include "../renderer/RenderCommand.hpp"
+#include "../renderer/GfxDevice.hpp"
 #include "../renderer/PostProcessPipeline.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
@@ -23,6 +23,7 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
+#define g_device (ctx().tryGet<GfxDevice>())
 #define g_initialized (ctx().state().initialized)
 #define g_renderContext (ctx().tryGet<RenderContext>())
 #define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
@@ -37,7 +38,7 @@ bool postprocess_init(u32 width, u32 height) {
     }
 
     g_postProcessPipeline->init(width, height);
-    RenderCommand::getDevice()->bindFramebuffer(0);
+    g_device->bindFramebuffer(0);
 
     return g_postProcessPipeline->isInitialized();
 }
