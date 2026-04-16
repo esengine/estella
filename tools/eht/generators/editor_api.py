@@ -60,11 +60,20 @@ class EditorAPIGenerator:
         lines.extend(sorted(headers))
 
         lines.extend([
+            '#include <glm/gtc/quaternion.hpp>',
             '',
             'using namespace esengine;',
             'using namespace esengine::ecs;',
             '',
             'namespace {',
+            '',
+            '// Euler (degrees) ↔ Quaternion conversion helpers',
+            'inline glm::vec3 quatToEulerDeg(const glm::quat& q) {',
+            '    return glm::degrees(glm::eulerAngles(q));',
+            '}',
+            'inline glm::quat eulerDegToQuat(const glm::vec3& deg) {',
+            '    return glm::quat(glm::radians(deg));',
+            '}',
             '',
         ])
         return lines
@@ -142,7 +151,9 @@ class EditorAPIGenerator:
             if is_color_field(prop, self.types):
                 fields.append((prop.name, 'color', comp.name))
             elif t == 'glm::quat':
-                # Quaternion: expose only rotation.z as a single float (2D rotation angle)
+                # Quaternion: expose as Euler angles X/Y/Z (degrees) in editor
+                fields.append((f'{prop.name}.x', 'float', comp.name))
+                fields.append((f'{prop.name}.y', 'float', comp.name))
                 fields.append((f'{prop.name}.z', 'float', comp.name))
             elif len(subs) == 1 and subs[0][0] == '':
                 fields.append((prop.name, editor_type, comp.name))
@@ -254,8 +265,8 @@ class EditorAPIGenerator:
             t = self.types.clean_type(prop.cpp_type)
 
             if t == 'glm::quat':
-                # Only rotation.z for editor
-                float_fields.append((f'{prop.name}.z', f'{prop.name}.z'))
+                # Quaternion: handled separately via euler conversion
+                continue
             else:
                 subs = get_sub_components(prop, self.types)
                 if len(subs) == 1 and subs[0][0] == '':
@@ -265,6 +276,11 @@ class EditorAPIGenerator:
                     for label, member in subs:
                         float_fields.append((f'{prop.name}.{label}', f'{prop.name}.{member}'))
         return float_fields
+
+    def _collect_quat_fields(self, comp: Component) -> list:
+        """Collect quat property names that should be exposed as euler X/Y/Z."""
+        return [p.name for p in comp.properties
+                if not self._is_readonly(p) and self.types.clean_type(p.cpp_type) == 'glm::quat']
 
     def _gen_set_float(self) -> List[str]:
         lines = [
@@ -281,7 +297,8 @@ class EditorAPIGenerator:
                 continue
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
             float_fields = self._collect_float_fields(comp)
-            if not float_fields:
+            quat_fields = self._collect_quat_fields(comp)
+            if not float_fields and not quat_fields:
                 continue
 
             cond = 'if' if first_comp else '} else if'
@@ -290,9 +307,22 @@ class EditorAPIGenerator:
             lines.append(f'        if (!reg.has<{full}>(entity)) return false;')
             lines.append(f'        auto& c = reg.get<{full}>(entity);')
 
-            for i, (key, cpp_path) in enumerate(float_fields):
-                prefix = 'if' if i == 0 else 'else if'
+            idx = 0
+            for key, cpp_path in float_fields:
+                prefix = 'if' if idx == 0 else 'else if'
                 lines.append(f'        {prefix} (field == "{key}") {{ c.{cpp_path} = value; }}')
+                idx += 1
+
+            # Quaternion fields: set euler angle then convert to quaternion
+            for qname in quat_fields:
+                for axis in ['x', 'y', 'z']:
+                    prefix = 'if' if idx == 0 else 'else if'
+                    lines.append(f'        {prefix} (field == "{qname}.{axis}") {{')
+                    lines.append(f'            auto euler = quatToEulerDeg(c.{qname});')
+                    lines.append(f'            euler.{axis} = value;')
+                    lines.append(f'            c.{qname} = eulerDegToQuat(euler);')
+                    lines.append(f'        }}')
+                    idx += 1
 
             lines.append('        else { return false; }')
             lines.append('        return true;')
@@ -321,7 +351,8 @@ class EditorAPIGenerator:
                 continue
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
             float_fields = self._collect_float_fields(comp)
-            if not float_fields:
+            quat_fields = self._collect_quat_fields(comp)
+            if not float_fields and not quat_fields:
                 continue
 
             cond = 'if' if first_comp else '} else if'
@@ -330,9 +361,18 @@ class EditorAPIGenerator:
             lines.append(f'        if (!reg.has<{full}>(entity)) return 0.0f;')
             lines.append(f'        const auto& c = reg.get<{full}>(entity);')
 
-            for i, (key, cpp_path) in enumerate(float_fields):
-                prefix = 'if' if i == 0 else 'else if'
+            idx = 0
+            for key, cpp_path in float_fields:
+                prefix = 'if' if idx == 0 else 'else if'
                 lines.append(f'        {prefix} (field == "{key}") {{ return c.{cpp_path}; }}')
+                idx += 1
+
+            # Quaternion fields: convert to euler and return axis
+            for qname in quat_fields:
+                for axis in ['x', 'y', 'z']:
+                    prefix = 'if' if idx == 0 else 'else if'
+                    lines.append(f'        {prefix} (field == "{qname}.{axis}") {{ return quatToEulerDeg(c.{qname}).{axis}; }}')
+                    idx += 1
 
 
         if not first_comp:

@@ -34,11 +34,20 @@
 #include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/Velocity.hpp"
+#include <glm/gtc/quaternion.hpp>
 
 using namespace esengine;
 using namespace esengine::ecs;
 
 namespace {
+
+// Euler (degrees) ↔ Quaternion conversion helpers
+inline glm::vec3 quatToEulerDeg(const glm::quat& q) {
+    return glm::degrees(glm::eulerAngles(q));
+}
+inline glm::quat eulerDegToQuat(const glm::vec3& deg) {
+    return glm::quat(glm::radians(deg));
+}
 
 // ── Component Name List ──
 
@@ -358,6 +367,8 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"position.x","type":"float","group":"Transform"},
   {"key":"position.y","type":"float","group":"Transform"},
   {"key":"position.z","type":"float","group":"Transform"},
+  {"key":"rotation.x","type":"float","group":"Transform"},
+  {"key":"rotation.y","type":"float","group":"Transform"},
   {"key":"rotation.z","type":"float","group":"Transform"},
   {"key":"scale.x","type":"float","group":"Transform"},
   {"key":"scale.y","type":"float","group":"Transform"},
@@ -853,10 +864,24 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         if (field == "position.x") { c.position.x = value; }
         else if (field == "position.y") { c.position.y = value; }
         else if (field == "position.z") { c.position.z = value; }
-        else if (field == "rotation.z") { c.rotation.z = value; }
         else if (field == "scale.x") { c.scale.x = value; }
         else if (field == "scale.y") { c.scale.y = value; }
         else if (field == "scale.z") { c.scale.z = value; }
+        else if (field == "rotation.x") {
+            auto euler = quatToEulerDeg(c.rotation);
+            euler.x = value;
+            c.rotation = eulerDegToQuat(euler);
+        }
+        else if (field == "rotation.y") {
+            auto euler = quatToEulerDeg(c.rotation);
+            euler.y = value;
+            c.rotation = eulerDegToQuat(euler);
+        }
+        else if (field == "rotation.z") {
+            auto euler = quatToEulerDeg(c.rotation);
+            euler.z = value;
+            c.rotation = eulerDegToQuat(euler);
+        }
         else { return false; }
         return true;
     } else if (comp == "UIRect") {
@@ -1084,10 +1109,12 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "position.x") { return c.position.x; }
         else if (field == "position.y") { return c.position.y; }
         else if (field == "position.z") { return c.position.z; }
-        else if (field == "rotation.z") { return c.rotation.z; }
         else if (field == "scale.x") { return c.scale.x; }
         else if (field == "scale.y") { return c.scale.y; }
         else if (field == "scale.z") { return c.scale.z; }
+        else if (field == "rotation.x") { return quatToEulerDeg(c.rotation).x; }
+        else if (field == "rotation.y") { return quatToEulerDeg(c.rotation).y; }
+        else if (field == "rotation.z") { return quatToEulerDeg(c.rotation).z; }
     } else if (comp == "UIRect") {
         if (!reg.has<esengine::ecs::UIRect>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::UIRect>(entity);
