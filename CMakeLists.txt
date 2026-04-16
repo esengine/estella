@@ -221,6 +221,7 @@ list(APPEND ESENGINE_HEADERS
 )
 
 set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
+set(GENERATED_EDITOR_API "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/EditorAPI.generated.cpp")
 set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm.generated.ts")
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
@@ -349,6 +350,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         src/esengine/bindings/ImmediateDrawBindings.cpp
         src/esengine/bindings/GeometryBindings.cpp
         ${GENERATED_WEB_BINDINGS}
+        ${GENERATED_EDITOR_API}
     )
     if(ES_ENABLE_POSTPROCESS)
         list(APPEND SDK_BINDING_SOURCES src/esengine/bindings/PostProcessBindings.cpp)

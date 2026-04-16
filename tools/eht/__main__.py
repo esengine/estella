@@ -7,7 +7,7 @@ from pathlib import Path
 from .parser import CppParser
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
-    AnimTargetGenerator, PtrLayoutGenerator,
+    AnimTargetGenerator, PtrLayoutGenerator, EditorAPIGenerator,
 )
 
 
@@ -43,6 +43,12 @@ def main() -> int:
     if not cpp_parser.components:
         print("Warning: No components found!")
         return 1
+
+    # ── C++ Editor API ──
+    editor_api_path = args.output / 'EditorAPI.generated.cpp'
+    print(f"Generating: {editor_api_path}")
+    editor_gen = EditorAPIGenerator(cpp_parser.components, cpp_parser.enums)
+    editor_api_path.write_text(editor_gen.generate(), encoding='utf-8')
 
     # ── C++ Embind Bindings ──
     args.output.mkdir(parents=True, exist_ok=True)
