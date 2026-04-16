@@ -358,23 +358,10 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"position.x","type":"float","group":"Transform"},
   {"key":"position.y","type":"float","group":"Transform"},
   {"key":"position.z","type":"float","group":"Transform"},
-  {"key":"rotation.w","type":"float","group":"Transform"},
-  {"key":"rotation.x","type":"float","group":"Transform"},
-  {"key":"rotation.y","type":"float","group":"Transform"},
   {"key":"rotation.z","type":"float","group":"Transform"},
   {"key":"scale.x","type":"float","group":"Transform"},
   {"key":"scale.y","type":"float","group":"Transform"},
-  {"key":"scale.z","type":"float","group":"Transform"},
-  {"key":"worldPosition.x","type":"float","group":"Transform"},
-  {"key":"worldPosition.y","type":"float","group":"Transform"},
-  {"key":"worldPosition.z","type":"float","group":"Transform"},
-  {"key":"worldRotation.w","type":"float","group":"Transform"},
-  {"key":"worldRotation.x","type":"float","group":"Transform"},
-  {"key":"worldRotation.y","type":"float","group":"Transform"},
-  {"key":"worldRotation.z","type":"float","group":"Transform"},
-  {"key":"worldScale.x","type":"float","group":"Transform"},
-  {"key":"worldScale.y","type":"float","group":"Transform"},
-  {"key":"worldScale.z","type":"float","group":"Transform"}
+  {"key":"scale.z","type":"float","group":"Transform"}
         ])JSON";
     } else if (name == "UIInteraction") {
         return R"JSON([
@@ -660,11 +647,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
     if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
         auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "color.r") { c.color.r = value; }
-        else if (field == "color.g") { c.color.g = value; }
-        else if (field == "color.b") { c.color.b = value; }
-        else if (field == "color.a") { c.color.a = value; }
-        else if (field == "fontSize") { c.fontSize = value; }
+        if (field == "fontSize") { c.fontSize = value; }
         else if (field == "spacing") { c.spacing = value; }
         else { return false; }
         return true;
@@ -687,10 +670,6 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         auto& c = reg.get<esengine::ecs::Canvas>(entity);
         if (field == "pixelsPerUnit") { c.pixelsPerUnit = value; }
         else if (field == "matchWidthOrHeight") { c.matchWidthOrHeight = value; }
-        else if (field == "backgroundColor.r") { c.backgroundColor.r = value; }
-        else if (field == "backgroundColor.g") { c.backgroundColor.g = value; }
-        else if (field == "backgroundColor.b") { c.backgroundColor.b = value; }
-        else if (field == "backgroundColor.a") { c.backgroundColor.a = value; }
         else { return false; }
         return true;
     } else if (comp == "BoxCollider") {
@@ -818,14 +797,6 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "startSizeMax") { c.startSizeMax = value; }
         else if (field == "endSizeMin") { c.endSizeMin = value; }
         else if (field == "endSizeMax") { c.endSizeMax = value; }
-        else if (field == "startColor.r") { c.startColor.r = value; }
-        else if (field == "startColor.g") { c.startColor.g = value; }
-        else if (field == "startColor.b") { c.startColor.b = value; }
-        else if (field == "startColor.a") { c.startColor.a = value; }
-        else if (field == "endColor.r") { c.endColor.r = value; }
-        else if (field == "endColor.g") { c.endColor.g = value; }
-        else if (field == "endColor.b") { c.endColor.b = value; }
-        else if (field == "endColor.a") { c.endColor.a = value; }
         else if (field == "rotationMin") { c.rotationMin = value; }
         else if (field == "rotationMax") { c.rotationMax = value; }
         else if (field == "angularVelocityMin") { c.angularVelocityMin = value; }
@@ -847,11 +818,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
         auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
-        if (field == "color.r") { c.color.r = value; }
-        else if (field == "color.g") { c.color.g = value; }
-        else if (field == "color.b") { c.color.b = value; }
-        else if (field == "color.a") { c.color.a = value; }
-        else if (field == "size.x") { c.size.x = value; }
+        if (field == "size.x") { c.size.x = value; }
         else if (field == "size.y") { c.size.y = value; }
         else if (field == "cornerRadius") { c.cornerRadius = value; }
         else { return false; }
@@ -860,21 +827,13 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
         auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
         if (field == "timeScale") { c.timeScale = value; }
-        else if (field == "color.r") { c.color.r = value; }
-        else if (field == "color.g") { c.color.g = value; }
-        else if (field == "color.b") { c.color.b = value; }
-        else if (field == "color.a") { c.color.a = value; }
         else if (field == "skeletonScale") { c.skeletonScale = value; }
         else { return false; }
         return true;
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
         auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "color.r") { c.color.r = value; }
-        else if (field == "color.g") { c.color.g = value; }
-        else if (field == "color.b") { c.color.b = value; }
-        else if (field == "color.a") { c.color.a = value; }
-        else if (field == "size.x") { c.size.x = value; }
+        if (field == "size.x") { c.size.x = value; }
         else if (field == "size.y") { c.size.y = value; }
         else if (field == "pivot.x") { c.pivot.x = value; }
         else if (field == "pivot.y") { c.pivot.y = value; }
@@ -894,23 +853,10 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         if (field == "position.x") { c.position.x = value; }
         else if (field == "position.y") { c.position.y = value; }
         else if (field == "position.z") { c.position.z = value; }
-        else if (field == "rotation.w") { c.rotation.w = value; }
-        else if (field == "rotation.x") { c.rotation.x = value; }
-        else if (field == "rotation.y") { c.rotation.y = value; }
         else if (field == "rotation.z") { c.rotation.z = value; }
         else if (field == "scale.x") { c.scale.x = value; }
         else if (field == "scale.y") { c.scale.y = value; }
         else if (field == "scale.z") { c.scale.z = value; }
-        else if (field == "worldPosition.x") { c.worldPosition.x = value; }
-        else if (field == "worldPosition.y") { c.worldPosition.y = value; }
-        else if (field == "worldPosition.z") { c.worldPosition.z = value; }
-        else if (field == "worldRotation.w") { c.worldRotation.w = value; }
-        else if (field == "worldRotation.x") { c.worldRotation.x = value; }
-        else if (field == "worldRotation.y") { c.worldRotation.y = value; }
-        else if (field == "worldRotation.z") { c.worldRotation.z = value; }
-        else if (field == "worldScale.x") { c.worldScale.x = value; }
-        else if (field == "worldScale.y") { c.worldScale.y = value; }
-        else if (field == "worldScale.z") { c.worldScale.z = value; }
         else { return false; }
         return true;
     } else if (comp == "UIRect") {
@@ -933,11 +879,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
     } else if (comp == "UIRenderer") {
         if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
         auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
-        if (field == "color.r") { c.color.r = value; }
-        else if (field == "color.g") { c.color.g = value; }
-        else if (field == "color.b") { c.color.b = value; }
-        else if (field == "color.a") { c.color.a = value; }
-        else if (field == "uvOffset.x") { c.uvOffset.x = value; }
+        if (field == "uvOffset.x") { c.uvOffset.x = value; }
         else if (field == "uvOffset.y") { c.uvOffset.y = value; }
         else if (field == "uvScale.x") { c.uvScale.x = value; }
         else if (field == "uvScale.y") { c.uvScale.y = value; }
@@ -970,11 +912,7 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
     if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "color.r") { return c.color.r; }
-        else if (field == "color.g") { return c.color.g; }
-        else if (field == "color.b") { return c.color.b; }
-        else if (field == "color.a") { return c.color.a; }
-        else if (field == "fontSize") { return c.fontSize; }
+        if (field == "fontSize") { return c.fontSize; }
         else if (field == "spacing") { return c.spacing; }
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return 0.0f;
@@ -993,10 +931,6 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         const auto& c = reg.get<esengine::ecs::Canvas>(entity);
         if (field == "pixelsPerUnit") { return c.pixelsPerUnit; }
         else if (field == "matchWidthOrHeight") { return c.matchWidthOrHeight; }
-        else if (field == "backgroundColor.r") { return c.backgroundColor.r; }
-        else if (field == "backgroundColor.g") { return c.backgroundColor.g; }
-        else if (field == "backgroundColor.b") { return c.backgroundColor.b; }
-        else if (field == "backgroundColor.a") { return c.backgroundColor.a; }
     } else if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
@@ -1104,14 +1038,6 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "startSizeMax") { return c.startSizeMax; }
         else if (field == "endSizeMin") { return c.endSizeMin; }
         else if (field == "endSizeMax") { return c.endSizeMax; }
-        else if (field == "startColor.r") { return c.startColor.r; }
-        else if (field == "startColor.g") { return c.startColor.g; }
-        else if (field == "startColor.b") { return c.startColor.b; }
-        else if (field == "startColor.a") { return c.startColor.a; }
-        else if (field == "endColor.r") { return c.endColor.r; }
-        else if (field == "endColor.g") { return c.endColor.g; }
-        else if (field == "endColor.b") { return c.endColor.b; }
-        else if (field == "endColor.a") { return c.endColor.a; }
         else if (field == "rotationMin") { return c.rotationMin; }
         else if (field == "rotationMax") { return c.rotationMax; }
         else if (field == "angularVelocityMin") { return c.angularVelocityMin; }
@@ -1129,30 +1055,18 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
-        if (field == "color.r") { return c.color.r; }
-        else if (field == "color.g") { return c.color.g; }
-        else if (field == "color.b") { return c.color.b; }
-        else if (field == "color.a") { return c.color.a; }
-        else if (field == "size.x") { return c.size.x; }
+        if (field == "size.x") { return c.size.x; }
         else if (field == "size.y") { return c.size.y; }
         else if (field == "cornerRadius") { return c.cornerRadius; }
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
         if (field == "timeScale") { return c.timeScale; }
-        else if (field == "color.r") { return c.color.r; }
-        else if (field == "color.g") { return c.color.g; }
-        else if (field == "color.b") { return c.color.b; }
-        else if (field == "color.a") { return c.color.a; }
         else if (field == "skeletonScale") { return c.skeletonScale; }
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "color.r") { return c.color.r; }
-        else if (field == "color.g") { return c.color.g; }
-        else if (field == "color.b") { return c.color.b; }
-        else if (field == "color.a") { return c.color.a; }
-        else if (field == "size.x") { return c.size.x; }
+        if (field == "size.x") { return c.size.x; }
         else if (field == "size.y") { return c.size.y; }
         else if (field == "pivot.x") { return c.pivot.x; }
         else if (field == "pivot.y") { return c.pivot.y; }
@@ -1170,23 +1084,10 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "position.x") { return c.position.x; }
         else if (field == "position.y") { return c.position.y; }
         else if (field == "position.z") { return c.position.z; }
-        else if (field == "rotation.w") { return c.rotation.w; }
-        else if (field == "rotation.x") { return c.rotation.x; }
-        else if (field == "rotation.y") { return c.rotation.y; }
         else if (field == "rotation.z") { return c.rotation.z; }
         else if (field == "scale.x") { return c.scale.x; }
         else if (field == "scale.y") { return c.scale.y; }
         else if (field == "scale.z") { return c.scale.z; }
-        else if (field == "worldPosition.x") { return c.worldPosition.x; }
-        else if (field == "worldPosition.y") { return c.worldPosition.y; }
-        else if (field == "worldPosition.z") { return c.worldPosition.z; }
-        else if (field == "worldRotation.w") { return c.worldRotation.w; }
-        else if (field == "worldRotation.x") { return c.worldRotation.x; }
-        else if (field == "worldRotation.y") { return c.worldRotation.y; }
-        else if (field == "worldRotation.z") { return c.worldRotation.z; }
-        else if (field == "worldScale.x") { return c.worldScale.x; }
-        else if (field == "worldScale.y") { return c.worldScale.y; }
-        else if (field == "worldScale.z") { return c.worldScale.z; }
     } else if (comp == "UIRect") {
         if (!reg.has<esengine::ecs::UIRect>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::UIRect>(entity);
@@ -1205,11 +1106,7 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
     } else if (comp == "UIRenderer") {
         if (!reg.has<esengine::ecs::UIRenderer>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
-        if (field == "color.r") { return c.color.r; }
-        else if (field == "color.g") { return c.color.g; }
-        else if (field == "color.b") { return c.color.b; }
-        else if (field == "color.a") { return c.color.a; }
-        else if (field == "uvOffset.x") { return c.uvOffset.x; }
+        if (field == "uvOffset.x") { return c.uvOffset.x; }
         else if (field == "uvOffset.y") { return c.uvOffset.y; }
         else if (field == "uvScale.x") { return c.uvScale.x; }
         else if (field == "uvScale.y") { return c.uvScale.y; }

@@ -47,13 +47,13 @@ struct Transform {
     ES_PROPERTY(animatable, anim_override)
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(readonly)
     glm::vec3 worldPosition{0.0f, 0.0f, 0.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(readonly)
     glm::quat worldRotation{1.0f, 0.0f, 0.0f, 0.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(readonly)
     glm::vec3 worldScale{1.0f, 1.0f, 1.0f};
 
     glm::mat4 cachedMatrix_{1.0f};

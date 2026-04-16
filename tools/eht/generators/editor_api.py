@@ -122,30 +122,34 @@ class EditorAPIGenerator:
         ])
         return lines
 
+    def _is_readonly(self, prop) -> bool:
+        return 'readonly' in prop.annotations
+
     def _get_all_fields(self, comp: Component) -> list:
         """Get all editable fields as (key, editor_type, group) tuples."""
         fields = []
         for prop in comp.properties:
+            if self._is_readonly(prop):
+                continue
+
             editor_type = get_editor_type(prop, self.types)
             if editor_type == 'skip':
                 continue
 
+            t = self.types.clean_type(prop.cpp_type)
             subs = get_sub_components(prop, self.types)
-            if len(subs) == 1 and subs[0][0] == '':
-                # Scalar field
+
+            if is_color_field(prop, self.types):
+                fields.append((prop.name, 'color', comp.name))
+            elif t == 'glm::quat':
+                # Quaternion: expose only rotation.z as a single float (2D rotation angle)
+                fields.append((f'{prop.name}.z', 'float', comp.name))
+            elif len(subs) == 1 and subs[0][0] == '':
                 fields.append((prop.name, editor_type, comp.name))
             else:
-                # Expanded sub-fields (vec2/3/4, quat, padding, color)
-                sub_type = 'float'
-                t = self.types.clean_type(prop.cpp_type)
-                if t == 'glm::uvec2':
-                    sub_type = 'int'
-                if is_color_field(prop, self.types):
-                    # Color fields are handled as a unit, not expanded
-                    fields.append((prop.name, 'color', comp.name))
-                else:
-                    for label, _ in subs:
-                        fields.append((f'{prop.name}.{label}', sub_type, comp.name))
+                sub_type = 'int' if t == 'glm::uvec2' else 'float'
+                for label, _ in subs:
+                    fields.append((f'{prop.name}.{label}', sub_type, comp.name))
 
         return fields
 
@@ -238,6 +242,30 @@ class EditorAPIGenerator:
         ])
         return lines
 
+    def _collect_float_fields(self, comp: Component) -> list:
+        """Collect (key, cpp_path) for all float-settable fields, skipping readonly."""
+        float_fields = []
+        for prop in comp.properties:
+            if self._is_readonly(prop):
+                continue
+            editor_type = get_editor_type(prop, self.types)
+            if editor_type == 'skip':
+                continue
+            t = self.types.clean_type(prop.cpp_type)
+
+            if t == 'glm::quat':
+                # Only rotation.z for editor
+                float_fields.append((f'{prop.name}.z', f'{prop.name}.z'))
+            else:
+                subs = get_sub_components(prop, self.types)
+                if len(subs) == 1 and subs[0][0] == '':
+                    if editor_type == 'float':
+                        float_fields.append((prop.name, prop.name))
+                elif not is_color_field(prop, self.types) and t != 'glm::uvec2':
+                    for label, member in subs:
+                        float_fields.append((f'{prop.name}.{label}', f'{prop.name}.{member}'))
+        return float_fields
+
     def _gen_set_float(self) -> List[str]:
         lines = [
             '// ── Set Float Property ──',
@@ -252,24 +280,7 @@ class EditorAPIGenerator:
             if not comp.properties:
                 continue
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
-
-            # Collect float-settable fields
-            float_fields = []
-            for prop in comp.properties:
-                editor_type = get_editor_type(prop, self.types)
-                if editor_type == 'skip':
-                    continue
-                t = self.types.clean_type(prop.cpp_type)
-
-                subs = get_sub_components(prop, self.types)
-                if len(subs) == 1 and subs[0][0] == '':
-                    if editor_type == 'float':
-                        float_fields.append((prop.name, prop.name))
-                else:
-                    if t != 'glm::uvec2':  # uvec2 subs are int, not float
-                        for label, member in subs:
-                            float_fields.append((f'{prop.name}.{label}', f'{prop.name}.{member}'))
-
+            float_fields = self._collect_float_fields(comp)
             if not float_fields:
                 continue
 
@@ -280,10 +291,8 @@ class EditorAPIGenerator:
             lines.append(f'        auto& c = reg.get<{full}>(entity);')
 
             for i, (key, cpp_path) in enumerate(float_fields):
-                if i == 0:
-                    lines.append(f'        if (field == "{key}") {{ c.{cpp_path} = value; }}')
-                else:
-                    lines.append(f'        else if (field == "{key}") {{ c.{cpp_path} = value; }}')
+                prefix = 'if' if i == 0 else 'else if'
+                lines.append(f'        {prefix} (field == "{key}") {{ c.{cpp_path} = value; }}')
 
             lines.append('        else { return false; }')
             lines.append('        return true;')
@@ -311,23 +320,7 @@ class EditorAPIGenerator:
             if not comp.properties:
                 continue
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
-
-            float_fields = []
-            for prop in comp.properties:
-                editor_type = get_editor_type(prop, self.types)
-                if editor_type == 'skip':
-                    continue
-                t = self.types.clean_type(prop.cpp_type)
-
-                subs = get_sub_components(prop, self.types)
-                if len(subs) == 1 and subs[0][0] == '':
-                    if editor_type == 'float':
-                        float_fields.append((prop.name, prop.name))
-                else:
-                    if t != 'glm::uvec2':
-                        for label, member in subs:
-                            float_fields.append((f'{prop.name}.{label}', f'{prop.name}.{member}'))
-
+            float_fields = self._collect_float_fields(comp)
             if not float_fields:
                 continue
 
@@ -338,10 +331,8 @@ class EditorAPIGenerator:
             lines.append(f'        const auto& c = reg.get<{full}>(entity);')
 
             for i, (key, cpp_path) in enumerate(float_fields):
-                if i == 0:
-                    lines.append(f'        if (field == "{key}") {{ return c.{cpp_path}; }}')
-                else:
-                    lines.append(f'        else if (field == "{key}") {{ return c.{cpp_path}; }}')
+                prefix = 'if' if i == 0 else 'else if'
+                lines.append(f'        {prefix} (field == "{key}") {{ return c.{cpp_path}; }}')
 
 
         if not first_comp:
@@ -370,6 +361,8 @@ class EditorAPIGenerator:
 
             int_fields = []
             for prop in comp.properties:
+                if self._is_readonly(prop):
+                    continue
                 editor_type = get_editor_type(prop, self.types)
                 t = self.types.clean_type(prop.cpp_type)
                 if editor_type in ('int', 'enum'):
@@ -426,6 +419,8 @@ class EditorAPIGenerator:
 
             int_fields = []
             for prop in comp.properties:
+                if self._is_readonly(prop):
+                    continue
                 editor_type = get_editor_type(prop, self.types)
                 t = self.types.clean_type(prop.cpp_type)
                 if editor_type in ('int', 'enum'):
@@ -474,7 +469,7 @@ class EditorAPIGenerator:
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
 
             bool_fields = [(p.name, p.name) for p in comp.properties
-                           if get_editor_type(p, self.types) == 'bool']
+                           if get_editor_type(p, self.types) == 'bool' and not self._is_readonly(p)]
 
             if not bool_fields:
                 continue
@@ -517,7 +512,7 @@ class EditorAPIGenerator:
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
 
             bool_fields = [(p.name, p.name) for p in comp.properties
-                           if get_editor_type(p, self.types) == 'bool']
+                           if get_editor_type(p, self.types) == 'bool' and not self._is_readonly(p)]
 
             if not bool_fields:
                 continue
