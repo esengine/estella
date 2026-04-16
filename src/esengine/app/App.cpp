@@ -14,7 +14,7 @@
 #include "../platform/FileSystem.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../renderer/GLDevice.hpp"
-#include "../renderer/RenderCommand.hpp"
+#include "../renderer/GfxDevice.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 

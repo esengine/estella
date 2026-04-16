@@ -31,7 +31,6 @@
 
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GLDevice.hpp"
-#include "../renderer/RenderCommand.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"

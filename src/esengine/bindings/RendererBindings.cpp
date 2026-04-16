@@ -3,7 +3,7 @@
 #include "RendererBindings.hpp"
 #include "EngineContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
-#include "../renderer/RenderCommand.hpp"
+#include "../renderer/GfxDevice.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderStage.hpp"
@@ -35,6 +35,7 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
+#define g_device (ctx().tryGet<GfxDevice>())
 #define g_initialized (ctx().state().initialized)
 #define g_renderFrame (ctx().tryGet<RenderFrame>())
 #define g_transformSystem (ctx().tryGet<ecs::TransformSystem>())
@@ -52,7 +53,7 @@ static u32 checkGLErrors(const char* context) {
     if (!g_glErrorCheckEnabled) return 0;
     u32 errorCount = 0;
     GLenum err;
-    while ((err = static_cast<GLenum>(RenderCommand::getDevice()->getError())) != GL_NO_ERROR) {
+    while ((err = static_cast<GLenum>(g_device->getError())) != GL_NO_ERROR) {
         const char* errStr = "UNKNOWN";
         switch (err) {
             case GL_INVALID_ENUM: errStr = "INVALID_ENUM"; break;
@@ -309,7 +310,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     ctx().state().viewport_height = static_cast<u32>(viewportHeight);
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
-    auto* dev = RenderCommand::getDevice();
+    auto* dev = g_device;
     dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
     const auto& cc = ctx().state().clear_color;
     dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
@@ -374,7 +375,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
     ctx().state().viewport_height = static_cast<u32>(viewportHeight);
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
-    auto* dev = RenderCommand::getDevice();
+    auto* dev = g_device;
     dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
     const auto& cc = ctx().state().clear_color;
     dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
@@ -582,11 +583,11 @@ void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
 }
 
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
-    RenderCommand::getDevice()->setViewport(x, y, static_cast<u32>(w), static_cast<u32>(h));
+    g_device->setViewport(x, y, static_cast<u32>(w), static_cast<u32>(h));
 }
 
 void renderer_setScissor(i32 x, i32 y, i32 w, i32 h, bool enable) {
-    auto* dev = RenderCommand::getDevice();
+    auto* dev = g_device;
     if (enable) {
         dev->setScissorTest(true);
         dev->setScissor(x, y, w, h);
@@ -599,7 +600,7 @@ void renderer_clearBuffers(i32 flags) {
     bool color = (flags & 1) != 0;
     bool depth = (flags & 2) != 0;
     if (color || depth) {
-        RenderCommand::getDevice()->clear(color, depth, false);
+        g_device->clear(color, depth, false);
     }
 }
 
@@ -655,7 +656,7 @@ void renderer_clearAllClipRects() {
 
 void renderer_clearStencil() {
     glClearStencil(0);
-    RenderCommand::getDevice()->clear(false, false, true);
+    g_device->clear(false, false, true);
 }
 
 void renderer_setEntityStencilMask(u32 entity, i32 refValue) {
@@ -685,7 +686,7 @@ void renderer_clearAllStencilMasks() {
 void gl_enableErrorCheck(bool enabled) {
     ctx().state().gl_error_check_enabled = enabled;
     if (enabled) {
-        while (RenderCommand::getDevice()->getError() != 0) {}
+        while (g_device->getError() != 0) {}
         ES_LOG_INFO("[GL] Error checking enabled");
     }
 }
@@ -833,7 +834,7 @@ u32 renderer_getSnapshotHeight() {
 }
 
 void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 wrapS, i32 wrapT) {
-    auto* device = RenderCommand::getDevice();
+    auto* device = g_device;
     if (!device) return;
     device->setTextureParams(
         textureId,

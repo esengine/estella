@@ -477,7 +477,7 @@ private:
  *
  * // Rendering
  * vao->bind();
- * RenderCommand::drawIndexed(*vao);
+ * device.drawElements(ebo->getCount(), GfxDataType::UnsignedShort, 0);
  * @endcode
  */
 class VertexArray {

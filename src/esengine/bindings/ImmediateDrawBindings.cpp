@@ -3,7 +3,7 @@
 #include "ImmediateDrawBindings.hpp"
 #include "EngineContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
-#include "../renderer/RenderCommand.hpp"
+#include "../renderer/GfxDevice.hpp"
 #include "../renderer/BlendMode.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
@@ -23,6 +23,7 @@ namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
+#define g_device (ctx().tryGet<GfxDevice>())
 #define g_initialized (ctx().state().initialized)
 #define g_immediateDraw (ctx().tryGet<ImmediateDraw>())
 #define g_immediateDrawActive (ctx().state().immediate_draw_active)
@@ -39,7 +40,7 @@ static void flushImmediateDrawIfActive() {
 void draw_begin(uintptr_t matrixPtr) {
     if (!g_initialized || !g_immediateDraw) return;
 
-    RenderCommand::getDevice()->setViewport(0, 0, g_viewportWidth, g_viewportHeight);
+    g_device->setViewport(0, 0, g_viewportWidth, g_viewportHeight);
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     ctx().state().current_view_projection = glm::make_mat4(matrixData);
@@ -163,12 +164,12 @@ u32 draw_getPrimitiveCount() {
 
 void draw_setBlendMode(i32 mode) {
     flushImmediateDrawIfActive();
-    RenderCommand::setBlendMode(static_cast<BlendMode>(mode));
+    g_device->setBlendMode(static_cast<BlendMode>(mode));
 }
 
 void draw_setDepthTest(bool enabled) {
     flushImmediateDrawIfActive();
-    RenderCommand::setDepthTest(enabled);
+    g_device->setDepthTest(enabled);
 }
 
 }  // namespace esengine
