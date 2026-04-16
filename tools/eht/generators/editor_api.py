@@ -114,11 +114,17 @@ class EditorAPIGenerator:
             lines.append(f'        return R"JSON([')
 
             fields = self._get_all_fields(comp)
-            for i, (key, editor_type, group) in enumerate(fields):
+            for i, (key, editor_type, group, enum_values) in enumerate(fields):
                 comma = ',' if i < len(fields) - 1 else ''
-                lines.append(
-                    f'  {{"key":"{key}","type":"{editor_type}","group":"{group}"}}{comma}'
-                )
+                if enum_values:
+                    vals_json = '","'.join(enum_values)
+                    lines.append(
+                        f'  {{"key":"{key}","type":"{editor_type}","group":"{group}","values":["{vals_json}"]}}{comma}'
+                    )
+                else:
+                    lines.append(
+                        f'  {{"key":"{key}","type":"{editor_type}","group":"{group}"}}{comma}'
+                    )
 
             lines.append(f'        ])JSON";')
 
@@ -135,7 +141,7 @@ class EditorAPIGenerator:
         return 'readonly' in prop.annotations
 
     def _get_all_fields(self, comp: Component) -> list:
-        """Get all editable fields as (key, editor_type, group) tuples."""
+        """Get all editable fields as (key, editor_type, group, enum_values) tuples."""
         fields = []
         for prop in comp.properties:
             if self._is_readonly(prop):
@@ -147,20 +153,22 @@ class EditorAPIGenerator:
 
             t = self.types.clean_type(prop.cpp_type)
             subs = get_sub_components(prop, self.types)
+            enum_values = self.types.get_enum_values(t) if editor_type == 'enum' else []
 
             if is_color_field(prop, self.types):
-                fields.append((prop.name, 'color', comp.name))
+                for ch in ['r', 'g', 'b', 'a']:
+                    fields.append((f'{prop.name}.{ch}', 'color', comp.name, []))
             elif t == 'glm::quat':
                 # Quaternion: expose as Euler angles X/Y/Z (degrees) in editor
-                fields.append((f'{prop.name}.x', 'float', comp.name))
-                fields.append((f'{prop.name}.y', 'float', comp.name))
-                fields.append((f'{prop.name}.z', 'float', comp.name))
+                fields.append((f'{prop.name}.x', 'float', comp.name, []))
+                fields.append((f'{prop.name}.y', 'float', comp.name, []))
+                fields.append((f'{prop.name}.z', 'float', comp.name, []))
             elif len(subs) == 1 and subs[0][0] == '':
-                fields.append((prop.name, editor_type, comp.name))
+                fields.append((prop.name, editor_type, comp.name, enum_values))
             else:
                 sub_type = 'int' if t == 'glm::uvec2' else 'float'
                 for label, _ in subs:
-                    fields.append((f'{prop.name}.{label}', sub_type, comp.name))
+                    fields.append((f'{prop.name}.{label}', sub_type, comp.name, []))
 
         return fields
 
@@ -272,7 +280,7 @@ class EditorAPIGenerator:
                 if len(subs) == 1 and subs[0][0] == '':
                     if editor_type == 'float':
                         float_fields.append((prop.name, prop.name))
-                elif not is_color_field(prop, self.types) and t != 'glm::uvec2':
+                elif t != 'glm::uvec2':
                     for label, member in subs:
                         float_fields.append((f'{prop.name}.{label}', f'{prop.name}.{member}'))
         return float_fields

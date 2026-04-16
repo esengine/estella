@@ -48,6 +48,13 @@ class TypeSystem:
     def is_enum(self, cpp_type: str) -> bool:
         return self.clean_type(cpp_type) in self.enum_names
 
+    def get_enum_values(self, cpp_type: str) -> List[str]:
+        t = self.clean_type(cpp_type)
+        for e in self.enums:
+            if e.name == t or f'{e.namespace}::{e.name}' == t:
+                return e.values
+        return []
+
     def is_handle(self, cpp_type: str) -> bool:
         t = self.clean_type(cpp_type)
         return 'Handle' in t or t.startswith('resource::')
