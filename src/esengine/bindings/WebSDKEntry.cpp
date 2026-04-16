@@ -298,10 +298,7 @@ static_assert(offsetof(ecs::Camera, farPlane) == 16);
 static_assert(offsetof(ecs::Camera, aspectRatio) == 20);
 static_assert(offsetof(ecs::Camera, isActive) == 24);
 static_assert(offsetof(ecs::Camera, priority) == 28);
-static_assert(offsetof(ecs::Camera, viewportX) == 32);
-static_assert(offsetof(ecs::Camera, viewportY) == 36);
-static_assert(offsetof(ecs::Camera, viewportW) == 40);
-static_assert(offsetof(ecs::Camera, viewportH) == 44);
+static_assert(offsetof(ecs::Camera, viewport) == 32);
 static_assert(offsetof(ecs::Camera, clearFlags) == 48);
 
 int getCameraPtr(ecs::Registry& r, u32 e) {

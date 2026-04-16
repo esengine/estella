@@ -17,6 +17,7 @@
 
 #include "../../core/Types.hpp"
 #include "../../core/Reflection.hpp"
+#include "../../math/Math.hpp"
 
 namespace esengine::ecs {
 
@@ -31,6 +32,17 @@ ES_ENUM()
 enum class ProjectionType : u8 {
     Perspective,
     Orthographic
+};
+
+/**
+ * @brief Camera clear flags
+ */
+ES_ENUM()
+enum class ClearFlags : u8 {
+    Nothing,
+    Color,
+    Depth,
+    ColorAndDepth
 };
 
 // =============================================================================
@@ -86,17 +98,12 @@ struct Camera {
     ES_PROPERTY()
     i32 priority{0};
 
+    /** @brief Viewport rectangle (x, y, width, height) in normalized coords */
     ES_PROPERTY()
-    f32 viewportX{0.0f};
-    ES_PROPERTY()
-    f32 viewportY{0.0f};
-    ES_PROPERTY()
-    f32 viewportW{1.0f};
-    ES_PROPERTY()
-    f32 viewportH{1.0f};
+    glm::vec4 viewport{0.0f, 0.0f, 1.0f, 1.0f};
 
     ES_PROPERTY()
-    i32 clearFlags{3};
+    ClearFlags clearFlags{ClearFlags::ColorAndDepth};
 
     Camera() = default;
 };
