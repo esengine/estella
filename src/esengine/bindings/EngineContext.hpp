@@ -4,10 +4,16 @@
 
 #include "../core/Types.hpp"
 #include "../core/ServiceRegistry.hpp"
-#include "EngineState.hpp"
+#include "../core/EstellaContext.hpp"
 
 namespace esengine {
 
+/**
+ * @brief Legacy singleton wrapper around EstellaContext
+ * @details Provides backward compatibility for binding files that use ctx().
+ *          Internally delegates to an owned EstellaContext instance.
+ *          Will be removed once all bindings switch to direct context access.
+ */
 class EngineContext {
 public:
     static EngineContext& instance();
@@ -15,25 +21,26 @@ public:
     EngineContext(const EngineContext&) = delete;
     EngineContext& operator=(const EngineContext&) = delete;
 
-    void shutdown();
+    EstellaContext& context() { return context_; }
 
-    ServiceRegistry& services() { return services_; }
-
-    template<typename T>
-    T& require() { return services_.require<T>(); }
+    ServiceRegistry& services() { return context_.services(); }
 
     template<typename T>
-    T* tryGet() { return services_.getService<T>(); }
+    T& require() { return context_.require<T>(); }
 
-    EngineState& state() { return *state_; }
-    const EngineState& state() const { return *state_; }
+    template<typename T>
+    T* tryGet() { return context_.tryGet<T>(); }
+
+    EngineState& state() { return context_.state(); }
+    const EngineState& state() const { return context_.state(); }
+
+    void shutdown() { context_.shutdown(); }
 
 private:
-    EngineContext();
+    EngineContext() = default;
     ~EngineContext() = default;
 
-    ServiceRegistry services_;
-    EngineState* state_ = nullptr;
+    EstellaContext context_;
 };
 
 }  // namespace esengine

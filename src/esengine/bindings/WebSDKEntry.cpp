@@ -30,25 +30,11 @@
 #include "../ecs/UIFlexLayoutSystem.hpp"
 
 #include "../renderer/OpenGLHeaders.hpp"
-#include "../renderer/GLDevice.hpp"
+#include "../renderer/GfxDevice.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
 #include "../renderer/CustomGeometry.hpp"
-#include "../renderer/plugins/SpritePlugin.hpp"
-#include "../renderer/plugins/UIElementPlugin.hpp"
-#include "../renderer/plugins/TextPlugin.hpp"
-#include "../renderer/plugins/ShapePlugin.hpp"
-#ifdef ES_ENABLE_PARTICLES
-#include "../renderer/plugins/ParticlePlugin.hpp"
-#endif
-#ifdef ES_ENABLE_TILEMAP
-#include "../renderer/plugins/TilemapRenderPlugin.hpp"
-#include "../tilemap/TilemapSystem.hpp"
-#endif
-#ifdef ES_ENABLE_SPINE
-#include "../renderer/plugins/SpinePlugin.hpp"
-#endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../core/World.hpp"
@@ -79,14 +65,9 @@ static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte 
 
 namespace esengine {
 
-#ifdef ES_ENABLE_TILEMAP
-tilemap::TilemapSystem& getTilemapSystem();
-#endif
-
 static EngineContext& ctx() { return EngineContext::instance(); }
 
 #define g_initialized (ctx().state().initialized)
-#define g_webglContext (ctx().state().webgl_context)
 #define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
 #ifdef ES_ENABLE_SPINE
 #define g_spineResourceManager (ctx().tryGet<spine::SpineResourceManager>())
@@ -201,81 +182,6 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
     return true;
 }
 
-static void initSubsystems() {
-    auto& svc = ctx().services();
-
-    auto resourceManager = makeUnique<resource::ResourceManager>();
-    resourceManager->init();
-    svc.registerOwned<resource::ResourceManager>(std::move(resourceManager));
-
-    auto gfxDevice = makeUnique<GLDevice>();
-    auto* gfxDevicePtr = gfxDevice.get();
-    svc.registerOwned<GfxDevice>(std::move(gfxDevice));
-
-    auto renderContext = makeUnique<RenderContext>(*gfxDevicePtr);
-    renderContext->init();
-    svc.registerOwned<RenderContext>(std::move(renderContext));
-
-    svc.registerOwned<ecs::TransformSystem>(makeUnique<ecs::TransformSystem>());
-    svc.registerOwned<animation::TweenSystem>(makeUnique<animation::TweenSystem>());
-#ifdef ES_ENABLE_TIMELINE
-    svc.registerOwned<animation::TimelineSystem>(makeUnique<animation::TimelineSystem>());
-#endif
-#ifdef ES_ENABLE_PARTICLES
-    svc.registerOwned<particle::ParticleSystem>(makeUnique<particle::ParticleSystem>());
-#endif
-
-#ifdef ES_ENABLE_SPINE
-    auto spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
-    spineResourceManager->init();
-    svc.registerOwned<spine::SpineResourceManager>(std::move(spineResourceManager));
-    svc.registerOwned<spine::SpineSystem>(makeUnique<spine::SpineSystem>(*g_spineResourceManager));
-#endif
-
-    auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *g_renderContext, *g_resourceManager);
-    immediateDraw->init();
-    svc.registerOwned<ImmediateDraw>(std::move(immediateDraw));
-
-    svc.registerOwned<GeometryManager>(makeUnique<GeometryManager>());
-
-    auto renderFrame = makeUnique<RenderFrame>(ctx().require<GfxDevice>(), *g_renderContext, *g_resourceManager);
-
-    renderFrame->addPlugin(std::make_unique<SpritePlugin>());
-    renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
-    renderFrame->addPlugin(std::make_unique<TextPlugin>());
-    renderFrame->addPlugin(std::make_unique<ShapePlugin>());
-#ifdef ES_ENABLE_TILEMAP
-    {
-        auto tilemapPlugin = std::make_unique<TilemapRenderPlugin>();
-        tilemapPlugin->setTilemapSystem(&getTilemapSystem());
-        renderFrame->addPlugin(std::move(tilemapPlugin));
-    }
-#endif
-#ifdef ES_ENABLE_SPINE
-    {
-        auto spinePlugin = std::make_unique<SpinePlugin>();
-        spinePlugin->setSpineSystem(ctx().tryGet<spine::SpineSystem>());
-        renderFrame->addPlugin(std::move(spinePlugin));
-    }
-#endif
-#ifdef ES_ENABLE_PARTICLES
-    {
-        auto particlePlugin = std::make_unique<ParticlePlugin>();
-        particlePlugin->setParticleSystem(ctx().tryGet<particle::ParticleSystem>());
-        renderFrame->addPlugin(std::move(particlePlugin));
-    }
-#endif
-    renderFrame->init(1280, 720);
-    svc.registerOwned<RenderFrame>(std::move(renderFrame));
-
-    ctx().state().initialized = true;
-
-    const auto& cc = ctx().state().clear_color;
-    auto* dev = ctx().tryGet<GfxDevice>();
-    dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
-    dev->clear(true, true, false);
-}
-
 bool initRendererInternal(const char* canvasSelector) {
     if (g_initialized) return true;
 
@@ -297,18 +203,9 @@ bool initRendererInternal(const char* canvasSelector) {
         ES_LOG_ERROR("Failed to create WebGL2 context for '{}': {}", canvasSelector, webglCtx);
         return false;
     }
-    ctx().state().webgl_context = webglCtx;
-
-    EMSCRIPTEN_RESULT result = emscripten_webgl_make_context_current(g_webglContext);
-    if (result != EMSCRIPTEN_RESULT_SUCCESS) {
-        ES_LOG_ERROR("Failed to make WebGL context current: {}", result);
-        return false;
-    }
 
     ES_LOG_INFO("WebGL2 context created for '{}'", canvasSelector);
-
-    initSubsystems();
-    return true;
+    return ctx().context().init(static_cast<int>(webglCtx));
 }
 
 void initRenderer() {
@@ -326,18 +223,7 @@ bool initRendererWithContext(int contextHandle) {
         return false;
     }
 
-    ctx().state().webgl_context = contextHandle;
-
-    EMSCRIPTEN_RESULT result = emscripten_webgl_make_context_current(g_webglContext);
-    if (result != EMSCRIPTEN_RESULT_SUCCESS) {
-        ES_LOG_ERROR("Failed to make WebGL context current: {}", result);
-        return false;
-    }
-
-    ES_LOG_INFO("WebGL context set from external handle: {}", contextHandle);
-
-    initSubsystems();
-    return true;
+    return ctx().context().init(contextHandle);
 }
 
 void shutdownRenderer() {
