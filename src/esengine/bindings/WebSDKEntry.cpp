@@ -16,6 +16,7 @@
 #include <emscripten/html5.h>
 
 #include "EngineContext.hpp"
+#include "ActiveContext.hpp"
 #include "ResourceManagerBindings.hpp"
 #include "RendererBindings.hpp"
 #include "ImmediateDrawBindings.hpp"
@@ -65,7 +66,8 @@ static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte 
 
 namespace esengine {
 
-static EngineContext& ctx() { return EngineContext::instance(); }
+static EngineContext& legacyCtx() { return EngineContext::instance(); }
+static EstellaContext& ctx() { return activeCtx(); }
 
 #define g_initialized (ctx().state().initialized)
 #define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
@@ -205,7 +207,8 @@ bool initRendererInternal(const char* canvasSelector) {
     }
 
     ES_LOG_INFO("WebGL2 context created for '{}'", canvasSelector);
-    return ctx().context().init(static_cast<int>(webglCtx));
+    g_activeContext = &legacyCtx().context();
+    return g_activeContext->init(static_cast<int>(webglCtx));
 }
 
 void initRenderer() {
@@ -223,11 +226,15 @@ bool initRendererWithContext(int contextHandle) {
         return false;
     }
 
-    return ctx().context().init(contextHandle);
+    g_activeContext = &legacyCtx().context();
+    return g_activeContext->init(contextHandle);
 }
 
 void shutdownRenderer() {
-    ctx().shutdown();
+    if (g_activeContext) {
+        g_activeContext->shutdown();
+        g_activeContext = nullptr;
+    }
 }
 
 resource::ResourceManager* getResourceManager() {

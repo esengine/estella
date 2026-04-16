@@ -2,7 +2,7 @@
 #ifdef ES_ENABLE_POSTPROCESS
 
 #include "PostProcessBindings.hpp"
-#include "EngineContext.hpp"
+#include "ActiveContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/PostProcessPipeline.hpp"
@@ -21,7 +21,7 @@
 
 namespace esengine {
 
-static EngineContext& ctx() { return EngineContext::instance(); }
+static EstellaContext& ctx() { return activeCtx(); }
 
 #define g_device (ctx().tryGet<GfxDevice>())
 #define g_initialized (ctx().state().initialized)
