@@ -85,3 +85,4 @@ design/
 # Toolchain (downloaded by build-tools/toolchain/package.js)
 desktop/src-tauri/toolchain/
 !desktop/src-tauri/toolchain/.gitkeep
+__pycache__/
