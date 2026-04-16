@@ -33,7 +33,7 @@ bool postprocess_init(u32 width, u32 height) {
 
     if (!g_postProcessPipeline) {
         ctx().services().registerOwned<PostProcessPipeline>(
-            makeUnique<PostProcessPipeline>(*g_renderContext, *g_resourceManager));
+            makeUnique<PostProcessPipeline>(ctx().require<GfxDevice>(), *g_renderContext, *g_resourceManager));
     }
 
     g_postProcessPipeline->init(width, height);

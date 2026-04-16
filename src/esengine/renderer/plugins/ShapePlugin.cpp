@@ -1,5 +1,4 @@
 #include "ShapePlugin.hpp"
-#include "../RenderCommand.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
@@ -137,7 +136,7 @@ void ShapePlugin::customDraw(
 
     buffers.bindLayout(LayoutId::Shape);
 
-    RenderCommand::getDevice()->drawElements(
+    state.device().drawElements(
         cmd.index_count,
         GfxDataType::UnsignedShort,
         static_cast<u32>(cmd.index_offset * sizeof(u16)));

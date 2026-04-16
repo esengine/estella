@@ -78,16 +78,6 @@ struct EngineVersion {
 class Engine {
 public:
     // =========================================================================
-    // Instance Access
-    // =========================================================================
-
-    /**
-     * @brief Gets the engine singleton instance
-     * @return Reference to the engine instance
-     */
-    static Engine& get();
-
-    // =========================================================================
     // Engine Information
     // =========================================================================
 
@@ -137,13 +127,7 @@ public:
      */
     static u32 getMaxTextureSize();
 
-private:
-    Engine() = default;
-    ~Engine() = default;
-
-    // Non-copyable
-    Engine(const Engine&) = delete;
-    Engine& operator=(const Engine&) = delete;
+    Engine() = delete;
 };
 
 }  // namespace esengine

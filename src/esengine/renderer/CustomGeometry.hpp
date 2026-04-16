@@ -67,7 +67,7 @@ public:
     /**
      * @brief Binds the geometry for rendering
      */
-    void bind() const;
+    void bind(GfxDevice& device) const;
 
     /**
      * @brief Unbinds the geometry

@@ -11,7 +11,7 @@
 
 #include "ImmediateDraw.hpp"
 #include "Renderer.hpp"
-#include "RenderCommand.hpp"
+#include "GfxDevice.hpp"
 #include "RenderContext.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../core/Log.hpp"
@@ -26,9 +26,11 @@ struct ImmediateDraw::Impl {
     glm::mat4 viewProjection{1.0f};
 };
 
-ImmediateDraw::ImmediateDraw(RenderContext& context,
+ImmediateDraw::ImmediateDraw(GfxDevice& device,
+                             RenderContext& context,
                              resource::ResourceManager& resource_manager)
     : impl_(makeUnique<Impl>())
+    , device_(device)
     , context_(context)
     , resource_manager_(resource_manager) {
 }
@@ -42,7 +44,7 @@ ImmediateDraw::~ImmediateDraw() {
 void ImmediateDraw::init() {
     if (initialized_) return;
 
-    impl_->batcher = makeUnique<BatchRenderer2D>(context_, resource_manager_);
+    impl_->batcher = makeUnique<BatchRenderer2D>(device_, context_, resource_manager_);
     impl_->batcher->init();
 
     initialized_ = true;
@@ -63,10 +65,9 @@ void ImmediateDraw::shutdown() {
 void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     if (!initialized_) return;
 
-    auto* device = RenderCommand::getDevice();
-    device->setBlendEnabled(true);
-    device->setBlendMode(BlendMode::Normal);
-    device->setDepthTest(false);
+    device_.setBlendEnabled(true);
+    device_.setBlendMode(BlendMode::Normal);
+    device_.setDepthTest(false);
 
     impl_->viewProjection = viewProjection;
     impl_->batcher->setProjection(viewProjection);
@@ -80,9 +81,8 @@ void ImmediateDraw::end() {
     if (!initialized_ || !inFrame_) return;
 
     impl_->batcher->endBatch();
-    auto* device = RenderCommand::getDevice();
-    device->setDepthTest(true);
-    device->setBlendMode(BlendMode::Normal);
+    device_.setDepthTest(true);
+    device_.setBlendMode(BlendMode::Normal);
     inFrame_ = false;
 }
 

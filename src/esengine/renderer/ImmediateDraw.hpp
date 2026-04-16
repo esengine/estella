@@ -22,6 +22,7 @@
 
 namespace esengine {
 
+class GfxDevice;
 class RenderContext;
 class BatchRenderer2D;
 
@@ -55,7 +56,7 @@ public:
      * @param context Render context for shared resources
      * @param resource_manager Resource manager for shader/texture access
      */
-    ImmediateDraw(RenderContext& context, resource::ResourceManager& resource_manager);
+    ImmediateDraw(GfxDevice& device, RenderContext& context, resource::ResourceManager& resource_manager);
     ~ImmediateDraw();
 
     ImmediateDraw(const ImmediateDraw&) = delete;
@@ -240,6 +241,7 @@ private:
     struct Impl;
     Unique<Impl> impl_;
 
+    GfxDevice& device_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
 

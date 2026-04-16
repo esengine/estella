@@ -22,6 +22,7 @@
 
 namespace esengine {
 
+class GfxDevice;
 class RenderContext;
 
 namespace resource {
@@ -47,7 +48,7 @@ struct PostProcessPass {
  */
 class PostProcessPipeline {
 public:
-    PostProcessPipeline(RenderContext& context, resource::ResourceManager& resourceManager);
+    PostProcessPipeline(GfxDevice& device, RenderContext& context, resource::ResourceManager& resourceManager);
     ~PostProcessPipeline();
 
     PostProcessPipeline(const PostProcessPipeline&) = delete;
@@ -222,6 +223,7 @@ private:
     void renderPass(const PostProcessPass& pass, u32 inputTexture);
     void blitToOutput(u32 texture);
 
+    GfxDevice& device_;
     RenderContext& context_;
     resource::ResourceManager& resourceManager_;
 

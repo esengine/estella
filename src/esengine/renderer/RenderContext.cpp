@@ -10,12 +10,16 @@
  */
 
 #include "RenderContext.hpp"
-#include "RenderCommand.hpp"
+#include "GfxDevice.hpp"
 #include "ShaderEmbeds.generated.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 
 namespace esengine {
+
+RenderContext::RenderContext(GfxDevice& device)
+    : device_(device) {
+}
 
 RenderContext::~RenderContext() {
     if (initialized_) {
@@ -29,7 +33,7 @@ void RenderContext::init() {
         return;
     }
 
-    RenderCommand::init();
+    device_.init();
     initQuadData();
     initShaders();
     initWhiteTexture();
@@ -42,9 +46,8 @@ void RenderContext::shutdown() {
         return;
     }
 
-    auto* device = RenderCommand::getDevice();
-    if (whiteTextureId_ != 0 && device) {
-        device->deleteTexture(whiteTextureId_);
+    if (whiteTextureId_ != 0) {
+        device_.deleteTexture(whiteTextureId_);
         whiteTextureId_ = 0;
     }
 
@@ -53,7 +56,7 @@ void RenderContext::shutdown() {
     textureShader_.reset();
     extMeshShader_.reset();
 
-    RenderCommand::shutdown();
+    device_.shutdown();
     initialized_ = false;
     ES_LOG_INFO("RenderContext shutdown");
 }
@@ -107,12 +110,11 @@ void RenderContext::initShaders() {
 }
 
 void RenderContext::initWhiteTexture() {
-    auto* device = RenderCommand::getDevice();
-    whiteTextureId_ = device->createTexture();
+    whiteTextureId_ = device_.createTexture();
 
     u32 whiteData = 0xFFFFFFFF;
-    device->texImage2D(whiteTextureId_, 1, 1, GfxPixelFormat::RGBA8, &whiteData);
-    device->setTextureParams(whiteTextureId_, TextureFilter::Nearest, TextureFilter::Nearest,
+    device_.texImage2D(whiteTextureId_, 1, 1, GfxPixelFormat::RGBA8, &whiteData);
+    device_.setTextureParams(whiteTextureId_, TextureFilter::Nearest, TextureFilter::Nearest,
                              TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
 
     ES_LOG_DEBUG("White texture created (ID: {})", whiteTextureId_);

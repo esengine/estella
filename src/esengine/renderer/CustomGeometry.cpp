@@ -11,7 +11,7 @@
 
 #include "CustomGeometry.hpp"
 
-#include "RenderCommand.hpp"
+#include "GfxDevice.hpp"
 #include "../core/Log.hpp"
 
 namespace esengine {
@@ -63,7 +63,7 @@ void CustomGeometry::updateVertices(const f32* vertices, u32 vertexCount, u32 of
     }
 }
 
-void CustomGeometry::bind() const {
+void CustomGeometry::bind(GfxDevice& device) const {
     if (!vao_) return;
 
     vao_->bind();
@@ -91,9 +91,8 @@ void CustomGeometry::bind() const {
                 gfxType = GfxDataType::Float;
                 break;
             }
-            auto* device = RenderCommand::getDevice();
-            device->enableVertexAttrib(index);
-            device->vertexAttribPointer(
+            device.enableVertexAttrib(index);
+            device.vertexAttribPointer(
                 index,
                 static_cast<i32>(shaderDataTypeComponentCount(attr.type)),
                 gfxType,
