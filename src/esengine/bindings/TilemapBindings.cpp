@@ -22,56 +22,57 @@
 
 namespace esengine {
 
-static tilemap::TilemapSystem s_tilemapSystem;
-
-tilemap::TilemapSystem& getTilemapSystem() {
-    return s_tilemapSystem;
-}
-static tilemap::TiledMapLoader s_tiledLoader;
-
 static EstellaContext& ctx() { return activeCtx(); }
+
+static tilemap::TilemapSystem& getTilemapSystem() {
+    return ctx().require<tilemap::TilemapSystem>();
+}
+
+static tilemap::TiledMapLoader& getTiledLoader() {
+    return ctx().require<tilemap::TiledMapLoader>();
+}
 
 void tilemap_initLayer(u32 entity, u32 width, u32 height,
                        f32 tileWidth, f32 tileHeight) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    s_tilemapSystem.initLayer(e, width, height, tileWidth, tileHeight);
+    getTilemapSystem().initLayer(e, width, height, tileWidth, tileHeight);
 }
 
 void tilemap_destroyLayer(u32 entity) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    s_tilemapSystem.destroyLayer(e);
+    getTilemapSystem().destroyLayer(e);
 }
 
 void tilemap_setTile(u32 entity, i32 x, i32 y, u32 tileId) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
-    s_tilemapSystem.setTile(e, x, y, static_cast<u16>(tileId));
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    getTilemapSystem().setTile(e, x, y, static_cast<u16>(tileId));
 }
 
 u32 tilemap_getTile(u32 entity, i32 x, i32 y) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return 0;
-    return s_tilemapSystem.getTile(e, x, y);
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return 0;
+    return getTilemapSystem().getTile(e, x, y);
 }
 
 void tilemap_fillRect(u32 entity, i32 x, i32 y,
                       u32 w, u32 h, u32 tileId) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
-    s_tilemapSystem.fillRect(e, x, y, w, h, static_cast<u16>(tileId));
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    getTilemapSystem().fillRect(e, x, y, w, h, static_cast<u16>(tileId));
 }
 
 void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
     const auto* tiles = reinterpret_cast<const u16*>(tilesPtr);
-    s_tilemapSystem.setTiles(e, tiles, count);
+    getTilemapSystem().setTiles(e, tiles, count);
 }
 
 bool tilemap_hasLayer(u32 entity) {
-    return s_tilemapSystem.hasLayer(Entity::fromRaw(entity));
+    return getTilemapSystem().hasLayer(Entity::fromRaw(entity));
 }
 
 void tilemap_submitLayer(u32 entity, u32 textureId,
@@ -95,7 +96,7 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
     u32 glTextureId = tex->getId();
 
     auto layerEntity = Entity::fromRaw(entity);
-    const auto* layerData = s_tilemapSystem.getLayerData(layerEntity);
+    const auto* layerData = getTilemapSystem().getLayerData(layerEntity);
     if (!layerData) return;
 
     glm::vec4 finalColor(tintR, tintG, tintB, tintA * opacity);
@@ -157,21 +158,21 @@ void tilemap_setRenderProps(u32 entity, u32 textureHandle, u32 tilesetColumns,
                             f32 uvTileW, f32 uvTileH,
                             i32 sortLayer, f32 depth,
                             f32 parallaxX, f32 parallaxY) {
-    s_tilemapSystem.setRenderProps(Entity::fromRaw(entity),
+    getTilemapSystem().setRenderProps(Entity::fromRaw(entity),
         textureHandle, tilesetColumns, uvTileW, uvTileH,
         sortLayer, depth, parallaxX, parallaxY);
 }
 
 void tilemap_setTint(u32 entity, f32 r, f32 g, f32 b, f32 a, f32 opacity) {
-    s_tilemapSystem.setTint(Entity::fromRaw(entity), r, g, b, a, opacity);
+    getTilemapSystem().setTint(Entity::fromRaw(entity), r, g, b, a, opacity);
 }
 
 void tilemap_setVisible(u32 entity, bool visible) {
-    s_tilemapSystem.setVisible(Entity::fromRaw(entity), visible);
+    getTilemapSystem().setVisible(Entity::fromRaw(entity), visible);
 }
 
 void tilemap_setOriginEntity(u32 layerKey, u32 originEntity) {
-    s_tilemapSystem.setOriginEntity(Entity::fromRaw(layerKey),
+    getTilemapSystem().setOriginEntity(Entity::fromRaw(layerKey),
                                     Entity::fromRaw(originEntity));
 }
 
@@ -179,83 +180,83 @@ void tilemap_setOriginEntity(u32 layerKey, u32 originEntity) {
 
 u32 tiled_loadMap(uintptr_t dataPtr, u32 dataSize) {
     const auto* data = reinterpret_cast<const char*>(dataPtr);
-    return s_tiledLoader.loadFromMemory(data, dataSize);
+    return getTiledLoader().loadFromMemory(data, dataSize);
 }
 
 void tiled_freeMap(u32 handle) {
-    s_tiledLoader.freeMap(handle);
+    getTiledLoader().freeMap(handle);
 }
 
 u32 tiled_getExternalTilesetCount(u32 handle) {
-    return s_tiledLoader.getExternalTilesetCount(handle);
+    return getTiledLoader().getExternalTilesetCount(handle);
 }
 
 std::string tiled_getExternalTilesetSource(u32 handle, u32 index) {
-    return s_tiledLoader.getExternalTilesetSource(handle, index);
+    return getTiledLoader().getExternalTilesetSource(handle, index);
 }
 
 bool tiled_loadExternalTileset(u32 handle, u32 index,
                                 uintptr_t dataPtr, u32 dataSize) {
     const auto* data = reinterpret_cast<const char*>(dataPtr);
-    return s_tiledLoader.loadExternalTileset(handle, index, data, dataSize);
+    return getTiledLoader().loadExternalTileset(handle, index, data, dataSize);
 }
 
 bool tiled_finalize(u32 handle) {
-    return s_tiledLoader.finalize(handle);
+    return getTiledLoader().finalize(handle);
 }
 
 u32 tiled_getMapWidth(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? map->width : 0;
 }
 
 u32 tiled_getMapHeight(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? map->height : 0;
 }
 
 u32 tiled_getMapTileWidth(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? map->tile_width : 0;
 }
 
 u32 tiled_getMapTileHeight(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? map->tile_height : 0;
 }
 
 u32 tiled_getLayerCount(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? static_cast<u32>(map->layers.size()) : 0;
 }
 
 std::string tiled_getLayerName(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return "";
     return map->layers[index].name;
 }
 
 u32 tiled_getLayerWidth(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 0;
     return map->layers[index].width;
 }
 
 u32 tiled_getLayerHeight(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 0;
     return map->layers[index].height;
 }
 
 bool tiled_getLayerVisible(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return false;
     return map->layers[index].visible;
 }
 
 u32 tiled_getLayerTiles(u32 handle, u32 index,
                          uintptr_t outPtr, u32 maxCount) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 0;
 
     const auto& tiles = map->layers[index].tiles;
@@ -266,65 +267,65 @@ u32 tiled_getLayerTiles(u32 handle, u32 index,
 }
 
 u32 tiled_getTilesetCount(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? static_cast<u32>(map->tilesets.size()) : 0;
 }
 
 std::string tiled_getTilesetName(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->tilesets.size()) return "";
     return map->tilesets[index].name;
 }
 
 std::string tiled_getTilesetImage(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->tilesets.size()) return "";
     return map->tilesets[index].image;
 }
 
 u32 tiled_getTilesetTileWidth(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->tilesets.size()) return 0;
     return map->tilesets[index].tile_width;
 }
 
 u32 tiled_getTilesetTileHeight(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->tilesets.size()) return 0;
     return map->tilesets[index].tile_height;
 }
 
 u32 tiled_getTilesetColumns(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->tilesets.size()) return 0;
     return map->tilesets[index].columns;
 }
 
 u32 tiled_getTilesetTileCount(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->tilesets.size()) return 0;
     return map->tilesets[index].tile_count;
 }
 
 u32 tiled_getObjectGroupCount(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? static_cast<u32>(map->object_groups.size()) : 0;
 }
 
 std::string tiled_getObjectGroupName(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->object_groups.size()) return "";
     return map->object_groups[index].name;
 }
 
 u32 tiled_getObjectCount(u32 handle, u32 groupIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     return static_cast<u32>(map->object_groups[groupIndex].objects.size());
 }
 
 f32 tiled_getObjectX(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return 0;
@@ -332,7 +333,7 @@ f32 tiled_getObjectX(u32 handle, u32 groupIndex, u32 objIndex) {
 }
 
 f32 tiled_getObjectY(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return 0;
@@ -340,7 +341,7 @@ f32 tiled_getObjectY(u32 handle, u32 groupIndex, u32 objIndex) {
 }
 
 f32 tiled_getObjectWidth(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return 0;
@@ -348,7 +349,7 @@ f32 tiled_getObjectWidth(u32 handle, u32 groupIndex, u32 objIndex) {
 }
 
 f32 tiled_getObjectHeight(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return 0;
@@ -356,7 +357,7 @@ f32 tiled_getObjectHeight(u32 handle, u32 groupIndex, u32 objIndex) {
 }
 
 f32 tiled_getObjectRotation(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return 0;
@@ -364,7 +365,7 @@ f32 tiled_getObjectRotation(u32 handle, u32 groupIndex, u32 objIndex) {
 }
 
 bool tiled_getObjectEllipse(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return false;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return false;
@@ -372,7 +373,7 @@ bool tiled_getObjectEllipse(u32 handle, u32 groupIndex, u32 objIndex) {
 }
 
 bool tiled_getObjectPoint(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return false;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return false;
@@ -380,7 +381,7 @@ bool tiled_getObjectPoint(u32 handle, u32 groupIndex, u32 objIndex) {
 }
 
 u32 tiled_getObjectVertexCount(u32 handle, u32 groupIndex, u32 objIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return 0;
@@ -389,7 +390,7 @@ u32 tiled_getObjectVertexCount(u32 handle, u32 groupIndex, u32 objIndex) {
 
 u32 tiled_getObjectVertices(u32 handle, u32 groupIndex, u32 objIndex,
                              uintptr_t outPtr, u32 maxFloats) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || groupIndex >= map->object_groups.size()) return 0;
     const auto& grp = map->object_groups[groupIndex];
     if (objIndex >= grp.objects.size()) return 0;
@@ -401,25 +402,25 @@ u32 tiled_getObjectVertices(u32 handle, u32 groupIndex, u32 objIndex,
 }
 
 f32 tiled_getLayerOpacity(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 1.0f;
     return map->layers[index].opacity;
 }
 
 u32 tiled_getLayerTintColor(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 0;
     return map->layers[index].tint_color;
 }
 
 f32 tiled_getLayerParallaxX(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 1.0f;
     return map->layers[index].parallax_x;
 }
 
 f32 tiled_getLayerParallaxY(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 1.0f;
     return map->layers[index].parallax_y;
 }
@@ -427,36 +428,36 @@ f32 tiled_getLayerParallaxY(u32 handle, u32 index) {
 void tilemap_initInfiniteLayer(u32 entity, f32 tileWidth, f32 tileHeight) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    s_tilemapSystem.initInfiniteLayer(e, tileWidth, tileHeight);
+    getTilemapSystem().initInfiniteLayer(e, tileWidth, tileHeight);
 }
 
 void tilemap_setChunkTiles(u32 entity, i32 chunkX, i32 chunkY,
                             uintptr_t tilesPtr, u32 width, u32 height) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
     const auto* tiles = reinterpret_cast<const u16*>(tilesPtr);
-    s_tilemapSystem.setChunkTiles(e, chunkX, chunkY, tiles, width, height);
+    getTilemapSystem().setChunkTiles(e, chunkX, chunkY, tiles, width, height);
 }
 
 bool tiled_isMapInfinite(u32 handle) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     return map ? map->infinite : false;
 }
 
 bool tiled_isLayerInfinite(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return false;
     return map->layers[index].infinite;
 }
 
 u32 tiled_getLayerChunkCount(u32 handle, u32 index) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->layers.size()) return 0;
     return static_cast<u32>(map->layers[index].chunks.size());
 }
 
 i32 tiled_getLayerChunkX(u32 handle, u32 layerIndex, u32 chunkIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || layerIndex >= map->layers.size()) return 0;
     const auto& chunks = map->layers[layerIndex].chunks;
     if (chunkIndex >= chunks.size()) return 0;
@@ -464,7 +465,7 @@ i32 tiled_getLayerChunkX(u32 handle, u32 layerIndex, u32 chunkIndex) {
 }
 
 i32 tiled_getLayerChunkY(u32 handle, u32 layerIndex, u32 chunkIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || layerIndex >= map->layers.size()) return 0;
     const auto& chunks = map->layers[layerIndex].chunks;
     if (chunkIndex >= chunks.size()) return 0;
@@ -472,7 +473,7 @@ i32 tiled_getLayerChunkY(u32 handle, u32 layerIndex, u32 chunkIndex) {
 }
 
 u32 tiled_getLayerChunkWidth(u32 handle, u32 layerIndex, u32 chunkIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || layerIndex >= map->layers.size()) return 0;
     const auto& chunks = map->layers[layerIndex].chunks;
     if (chunkIndex >= chunks.size()) return 0;
@@ -480,7 +481,7 @@ u32 tiled_getLayerChunkWidth(u32 handle, u32 layerIndex, u32 chunkIndex) {
 }
 
 u32 tiled_getLayerChunkHeight(u32 handle, u32 layerIndex, u32 chunkIndex) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || layerIndex >= map->layers.size()) return 0;
     const auto& chunks = map->layers[layerIndex].chunks;
     if (chunkIndex >= chunks.size()) return 0;
@@ -489,7 +490,7 @@ u32 tiled_getLayerChunkHeight(u32 handle, u32 layerIndex, u32 chunkIndex) {
 
 u32 tiled_getLayerChunkTiles(u32 handle, u32 layerIndex, u32 chunkIndex,
                               uintptr_t outPtr, u32 maxCount) {
-    const auto* map = s_tiledLoader.getMap(handle);
+    const auto* map = getTiledLoader().getMap(handle);
     if (!map || layerIndex >= map->layers.size()) return 0;
     const auto& chunks = map->layers[layerIndex].chunks;
     if (chunkIndex >= chunks.size()) return 0;
@@ -503,38 +504,38 @@ u32 tiled_getLayerChunkTiles(u32 handle, u32 layerIndex, u32 chunkIndex,
 void tilemap_setTileAnimation(u32 entity, u32 tileId,
                                uintptr_t framesPtr, u32 frameCount) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
     const auto* data = reinterpret_cast<const u32*>(framesPtr);
     std::vector<tilemap::AnimFrame> frames(frameCount);
     for (u32 i = 0; i < frameCount; i++) {
         frames[i].tile_id = static_cast<u16>(data[i * 2]);
         frames[i].duration_ms = static_cast<u16>(data[i * 2 + 1]);
     }
-    s_tilemapSystem.setTileAnimation(e, static_cast<u16>(tileId),
+    getTilemapSystem().setTileAnimation(e, static_cast<u16>(tileId),
                                      frames.data(), frameCount);
 }
 
 void tilemap_advanceAnimations(u32 entity, f32 dtMs) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    s_tilemapSystem.advanceAnimations(e, dtMs);
+    getTilemapSystem().advanceAnimations(e, dtMs);
 }
 
 void tilemap_setTileProperty(u32 entity, u32 tileId,
                               const std::string& key, const std::string& value) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return;
-    s_tilemapSystem.setTileProperty(e, static_cast<u16>(tileId), key, value);
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    getTilemapSystem().setTileProperty(e, static_cast<u16>(tileId), key, value);
 }
 
 std::string tilemap_getTileProperty(u32 entity, i32 x, i32 y,
                                      const std::string& key) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !s_tilemapSystem.hasLayer(e)) return "";
-    u16 raw = s_tilemapSystem.getTile(e, x, y);
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return "";
+    u16 raw = getTilemapSystem().getTile(e, x, y);
     u16 tileId = raw & tilemap::TILE_ID_MASK;
     if (tileId == tilemap::EMPTY_TILE) return "";
-    const char* val = s_tilemapSystem.getTileProperty(e, tileId, key);
+    const char* val = getTilemapSystem().getTileProperty(e, tileId, key);
     return val ? std::string(val) : "";
 }
 
@@ -542,19 +543,19 @@ void tilemap_flipTile(u32 entity, i32 x, i32 y,
                        bool flipH, bool flipV, bool flipD) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    s_tilemapSystem.flipTile(e, x, y, flipH, flipV, flipD);
+    getTilemapSystem().flipTile(e, x, y, flipH, flipV, flipD);
 }
 
 void tilemap_rotateTile(u32 entity, i32 x, i32 y, i32 degrees) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    s_tilemapSystem.rotateTile(e, x, y, degrees);
+    getTilemapSystem().rotateTile(e, x, y, degrees);
 }
 
 void tilemap_setGridType(u32 entity, u32 type) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    s_tilemapSystem.setGridType(e, static_cast<tilemap::GridType>(type));
+    getTilemapSystem().setGridType(e, static_cast<tilemap::GridType>(type));
 }
 
 static f32 s_coordBuffer[2] = {};
@@ -562,7 +563,7 @@ static f32 s_coordBuffer[2] = {};
 uintptr_t tilemap_tileToWorld(u32 entity, i32 tx, i32 ty,
                                f32 originX, f32 originY) {
     auto e = Entity::fromRaw(entity);
-    s_tilemapSystem.tileToWorld(e, tx, ty, originX, originY,
+    getTilemapSystem().tileToWorld(e, tx, ty, originX, originY,
                                 s_coordBuffer[0], s_coordBuffer[1]);
     return reinterpret_cast<uintptr_t>(s_coordBuffer);
 }
@@ -571,7 +572,7 @@ uintptr_t tilemap_worldToTile(u32 entity, f32 wx, f32 wy,
                                f32 originX, f32 originY) {
     auto e = Entity::fromRaw(entity);
     i32 tx, ty;
-    s_tilemapSystem.worldToTile(e, wx, wy, originX, originY, tx, ty);
+    getTilemapSystem().worldToTile(e, wx, wy, originX, originY, tx, ty);
     s_coordBuffer[0] = static_cast<f32>(tx);
     s_coordBuffer[1] = static_cast<f32>(ty);
     return reinterpret_cast<uintptr_t>(s_coordBuffer);

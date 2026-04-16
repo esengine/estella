@@ -84,42 +84,21 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
 // =============================================================================
 
 EMSCRIPTEN_BINDINGS(esengine_enums) {
-    enum_<esengine::ecs::AlignSelf>("AlignSelf")
-        .value("Auto", esengine::ecs::AlignSelf::Auto)
-        .value("Start", esengine::ecs::AlignSelf::Start)
-        .value("Center", esengine::ecs::AlignSelf::Center)
-        .value("End", esengine::ecs::AlignSelf::End)
-        .value("Stretch", esengine::ecs::AlignSelf::Stretch);
-
-    enum_<esengine::ecs::EmitterShape>("EmitterShape")
-        .value("Point", esengine::ecs::EmitterShape::Point)
-        .value("Circle", esengine::ecs::EmitterShape::Circle)
-        .value("Rectangle", esengine::ecs::EmitterShape::Rectangle)
-        .value("Cone", esengine::ecs::EmitterShape::Cone);
-
-    enum_<esengine::ecs::SimulationSpace>("SimulationSpace")
-        .value("World", esengine::ecs::SimulationSpace::World)
-        .value("Local", esengine::ecs::SimulationSpace::Local);
-
-    enum_<esengine::ecs::UIVisualType>("UIVisualType")
-        .value("None", esengine::ecs::UIVisualType::None)
-        .value("SolidColor", esengine::ecs::UIVisualType::SolidColor)
-        .value("Image", esengine::ecs::UIVisualType::Image)
-        .value("NineSlice", esengine::ecs::UIVisualType::NineSlice);
-
-    enum_<esengine::ecs::BodyType>("BodyType")
-        .value("Static", esengine::ecs::BodyType::Static)
-        .value("Kinematic", esengine::ecs::BodyType::Kinematic)
-        .value("Dynamic", esengine::ecs::BodyType::Dynamic);
-
     enum_<esengine::ecs::TextAlign>("TextAlign")
         .value("Left", esengine::ecs::TextAlign::Left)
         .value("Center", esengine::ecs::TextAlign::Center)
         .value("Right", esengine::ecs::TextAlign::Right);
 
-    enum_<esengine::ecs::MaskMode>("MaskMode")
-        .value("Scissor", esengine::ecs::MaskMode::Scissor)
-        .value("Stencil", esengine::ecs::MaskMode::Stencil);
+    enum_<esengine::ecs::ProjectionType>("ProjectionType")
+        .value("Perspective", esengine::ecs::ProjectionType::Perspective)
+        .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
+
+    enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
+        .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
+        .value("FixedHeight", esengine::ecs::CanvasScaleMode::FixedHeight)
+        .value("Expand", esengine::ecs::CanvasScaleMode::Expand)
+        .value("Shrink", esengine::ecs::CanvasScaleMode::Shrink)
+        .value("Match", esengine::ecs::CanvasScaleMode::Match);
 
     enum_<esengine::ecs::FlexDirection>("FlexDirection")
         .value("Row", esengine::ecs::FlexDirection::Row)
@@ -153,6 +132,13 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("SpaceBetween", esengine::ecs::AlignContent::SpaceBetween)
         .value("SpaceAround", esengine::ecs::AlignContent::SpaceAround);
 
+    enum_<esengine::ecs::AlignSelf>("AlignSelf")
+        .value("Auto", esengine::ecs::AlignSelf::Auto)
+        .value("Start", esengine::ecs::AlignSelf::Start)
+        .value("Center", esengine::ecs::AlignSelf::Center)
+        .value("End", esengine::ecs::AlignSelf::End)
+        .value("Stretch", esengine::ecs::AlignSelf::Stretch);
+
     enum_<esengine::ecs::LayoutDirection>("LayoutDirection")
         .value("Horizontal", esengine::ecs::LayoutDirection::Horizontal)
         .value("Vertical", esengine::ecs::LayoutDirection::Vertical);
@@ -162,22 +148,187 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Center", esengine::ecs::ChildAlignment::Center)
         .value("End", esengine::ecs::ChildAlignment::End);
 
-    enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
-        .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
-        .value("FixedHeight", esengine::ecs::CanvasScaleMode::FixedHeight)
-        .value("Expand", esengine::ecs::CanvasScaleMode::Expand)
-        .value("Shrink", esengine::ecs::CanvasScaleMode::Shrink)
-        .value("Match", esengine::ecs::CanvasScaleMode::Match);
+    enum_<esengine::ecs::EmitterShape>("EmitterShape")
+        .value("Point", esengine::ecs::EmitterShape::Point)
+        .value("Circle", esengine::ecs::EmitterShape::Circle)
+        .value("Rectangle", esengine::ecs::EmitterShape::Rectangle)
+        .value("Cone", esengine::ecs::EmitterShape::Cone);
 
-    enum_<esengine::ecs::ProjectionType>("ProjectionType")
-        .value("Perspective", esengine::ecs::ProjectionType::Perspective)
-        .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
+    enum_<esengine::ecs::SimulationSpace>("SimulationSpace")
+        .value("World", esengine::ecs::SimulationSpace::World)
+        .value("Local", esengine::ecs::SimulationSpace::Local);
+
+    enum_<esengine::ecs::BodyType>("BodyType")
+        .value("Static", esengine::ecs::BodyType::Static)
+        .value("Kinematic", esengine::ecs::BodyType::Kinematic)
+        .value("Dynamic", esengine::ecs::BodyType::Dynamic);
+
+    enum_<esengine::ecs::MaskMode>("MaskMode")
+        .value("Scissor", esengine::ecs::MaskMode::Scissor)
+        .value("Stencil", esengine::ecs::MaskMode::Stencil);
+
+    enum_<esengine::ecs::UIVisualType>("UIVisualType")
+        .value("None", esengine::ecs::UIVisualType::None)
+        .value("SolidColor", esengine::ecs::UIVisualType::SolidColor)
+        .value("Image", esengine::ecs::UIVisualType::Image)
+        .value("NineSlice", esengine::ecs::UIVisualType::NineSlice);
 
 }
 
 // =============================================================================
 // Components
 // =============================================================================
+
+struct BitmapTextJS {
+    std::string text;
+    glm::vec4 color;
+    f32 fontSize;
+    i32 align;
+    f32 spacing;
+    i32 layer;
+    u32 font;
+    bool enabled;
+};
+
+esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
+    esengine::ecs::BitmapText c;
+    c.text = js.text;
+    c.color = js.color;
+    c.fontSize = js.fontSize;
+    c.align = static_cast<TextAlign>(js.align);
+    c.spacing = js.spacing;
+    c.layer = js.layer;
+    c.font = resource::BitmapFontHandle(js.font);
+    c.enabled = js.enabled;
+    return c;
+}
+
+BitmapTextJS bitmaptextToJS(const esengine::ecs::BitmapText& c) {
+    BitmapTextJS js;
+    js.text = c.text;
+    js.color = c.color;
+    js.fontSize = c.fontSize;
+    js.align = static_cast<i32>(c.align);
+    js.spacing = c.spacing;
+    js.layer = c.layer;
+    js.font = c.font.id();
+    js.enabled = c.enabled;
+    return js;
+}
+
+struct CameraJS {
+    i32 projectionType;
+    f32 fov;
+    f32 orthoSize;
+    f32 nearPlane;
+    f32 farPlane;
+    f32 aspectRatio;
+    bool isActive;
+    i32 priority;
+    f32 viewportX;
+    f32 viewportY;
+    f32 viewportW;
+    f32 viewportH;
+    i32 clearFlags;
+};
+
+esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
+    esengine::ecs::Camera c;
+    c.projectionType = static_cast<ProjectionType>(js.projectionType);
+    c.fov = js.fov;
+    c.orthoSize = js.orthoSize;
+    c.nearPlane = js.nearPlane;
+    c.farPlane = js.farPlane;
+    c.aspectRatio = js.aspectRatio;
+    c.isActive = js.isActive;
+    c.priority = js.priority;
+    c.viewportX = js.viewportX;
+    c.viewportY = js.viewportY;
+    c.viewportW = js.viewportW;
+    c.viewportH = js.viewportH;
+    c.clearFlags = js.clearFlags;
+    return c;
+}
+
+CameraJS cameraToJS(const esengine::ecs::Camera& c) {
+    CameraJS js;
+    js.projectionType = static_cast<i32>(c.projectionType);
+    js.fov = c.fov;
+    js.orthoSize = c.orthoSize;
+    js.nearPlane = c.nearPlane;
+    js.farPlane = c.farPlane;
+    js.aspectRatio = c.aspectRatio;
+    js.isActive = c.isActive;
+    js.priority = c.priority;
+    js.viewportX = c.viewportX;
+    js.viewportY = c.viewportY;
+    js.viewportW = c.viewportW;
+    js.viewportH = c.viewportH;
+    js.clearFlags = c.clearFlags;
+    return js;
+}
+
+struct CanvasJS {
+    glm::uvec2 designResolution;
+    f32 pixelsPerUnit;
+    i32 scaleMode;
+    f32 matchWidthOrHeight;
+    glm::vec4 backgroundColor;
+};
+
+esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
+    esengine::ecs::Canvas c;
+    c.designResolution = js.designResolution;
+    c.pixelsPerUnit = js.pixelsPerUnit;
+    c.scaleMode = static_cast<CanvasScaleMode>(js.scaleMode);
+    c.matchWidthOrHeight = js.matchWidthOrHeight;
+    c.backgroundColor = js.backgroundColor;
+    return c;
+}
+
+CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
+    CanvasJS js;
+    js.designResolution = c.designResolution;
+    js.pixelsPerUnit = c.pixelsPerUnit;
+    js.scaleMode = static_cast<i32>(c.scaleMode);
+    js.matchWidthOrHeight = c.matchWidthOrHeight;
+    js.backgroundColor = c.backgroundColor;
+    return js;
+}
+
+struct FlexContainerJS {
+    i32 direction;
+    i32 wrap;
+    i32 justifyContent;
+    i32 alignItems;
+    i32 alignContent;
+    glm::vec2 gap;
+    Padding padding;
+};
+
+esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
+    esengine::ecs::FlexContainer c;
+    c.direction = static_cast<FlexDirection>(js.direction);
+    c.wrap = static_cast<FlexWrap>(js.wrap);
+    c.justifyContent = static_cast<JustifyContent>(js.justifyContent);
+    c.alignItems = static_cast<AlignItems>(js.alignItems);
+    c.alignContent = static_cast<AlignContent>(js.alignContent);
+    c.gap = js.gap;
+    c.padding = js.padding;
+    return c;
+}
+
+FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
+    FlexContainerJS js;
+    js.direction = static_cast<i32>(c.direction);
+    js.wrap = static_cast<i32>(c.wrap);
+    js.justifyContent = static_cast<i32>(c.justifyContent);
+    js.alignItems = static_cast<i32>(c.alignItems);
+    js.alignContent = static_cast<i32>(c.alignContent);
+    js.gap = c.gap;
+    js.padding = c.padding;
+    return js;
+}
 
 struct FlexItemJS {
     f32 flexGrow;
@@ -225,6 +376,68 @@ FlexItemJS flexitemToJS(const esengine::ecs::FlexItem& c) {
     js.maxHeight = c.maxHeight;
     js.widthPercent = c.widthPercent;
     js.heightPercent = c.heightPercent;
+    return js;
+}
+
+struct ParentJS {
+    u32 entity;
+};
+
+esengine::ecs::Parent parentFromJS(const ParentJS& js) {
+    esengine::ecs::Parent c;
+    c.entity = Entity(js.entity);
+    return c;
+}
+
+ParentJS parentToJS(const esengine::ecs::Parent& c) {
+    ParentJS js;
+    js.entity = static_cast<u32>(c.entity);
+    return js;
+}
+
+struct ChildrenJS {
+    std::vector<u32> entities;
+};
+
+esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
+    esengine::ecs::Children c;
+    c.entities.reserve(js.entities.size());
+    for (auto v : js.entities) c.entities.push_back(Entity(v));
+    return c;
+}
+
+ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
+    ChildrenJS js;
+    js.entities.reserve(c.entities.size());
+    for (auto e : c.entities) js.entities.push_back(static_cast<u32>(e));
+    return js;
+}
+
+struct LayoutGroupJS {
+    i32 direction;
+    f32 spacing;
+    Padding padding;
+    i32 childAlignment;
+    bool reverseOrder;
+};
+
+esengine::ecs::LayoutGroup layoutgroupFromJS(const LayoutGroupJS& js) {
+    esengine::ecs::LayoutGroup c;
+    c.direction = static_cast<LayoutDirection>(js.direction);
+    c.spacing = js.spacing;
+    c.padding = js.padding;
+    c.childAlignment = static_cast<ChildAlignment>(js.childAlignment);
+    c.reverseOrder = js.reverseOrder;
+    return c;
+}
+
+LayoutGroupJS layoutgroupToJS(const esengine::ecs::LayoutGroup& c) {
+    LayoutGroupJS js;
+    js.direction = static_cast<i32>(c.direction);
+    js.spacing = c.spacing;
+    js.padding = c.padding;
+    js.childAlignment = static_cast<i32>(c.childAlignment);
+    js.reverseOrder = c.reverseOrder;
     return js;
 }
 
@@ -364,43 +577,6 @@ ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
     return js;
 }
 
-struct UIRendererJS {
-    i32 visualType;
-    u32 texture;
-    glm::vec4 color;
-    glm::vec2 uvOffset;
-    glm::vec2 uvScale;
-    glm::vec4 sliceBorder;
-    u32 material;
-    bool enabled;
-};
-
-esengine::ecs::UIRenderer uirendererFromJS(const UIRendererJS& js) {
-    esengine::ecs::UIRenderer c;
-    c.visualType = static_cast<UIVisualType>(js.visualType);
-    c.texture = resource::TextureHandle(js.texture);
-    c.color = js.color;
-    c.uvOffset = js.uvOffset;
-    c.uvScale = js.uvScale;
-    c.sliceBorder = js.sliceBorder;
-    c.material = js.material;
-    c.enabled = js.enabled;
-    return c;
-}
-
-UIRendererJS uirendererToJS(const esengine::ecs::UIRenderer& c) {
-    UIRendererJS js;
-    js.visualType = static_cast<i32>(c.visualType);
-    js.texture = c.texture.id();
-    js.color = c.color;
-    js.uvOffset = c.uvOffset;
-    js.uvScale = c.uvScale;
-    js.sliceBorder = c.sliceBorder;
-    js.material = c.material;
-    js.enabled = c.enabled;
-    return js;
-}
-
 struct RigidBodyJS {
     i32 bodyType;
     f32 gravityScale;
@@ -431,43 +607,6 @@ RigidBodyJS rigidbodyToJS(const esengine::ecs::RigidBody& c) {
     js.angularDamping = c.angularDamping;
     js.fixedRotation = c.fixedRotation;
     js.bullet = c.bullet;
-    js.enabled = c.enabled;
-    return js;
-}
-
-struct BitmapTextJS {
-    std::string text;
-    glm::vec4 color;
-    f32 fontSize;
-    i32 align;
-    f32 spacing;
-    i32 layer;
-    u32 font;
-    bool enabled;
-};
-
-esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
-    esengine::ecs::BitmapText c;
-    c.text = js.text;
-    c.color = js.color;
-    c.fontSize = js.fontSize;
-    c.align = static_cast<TextAlign>(js.align);
-    c.spacing = js.spacing;
-    c.layer = js.layer;
-    c.font = resource::BitmapFontHandle(js.font);
-    c.enabled = js.enabled;
-    return c;
-}
-
-BitmapTextJS bitmaptextToJS(const esengine::ecs::BitmapText& c) {
-    BitmapTextJS js;
-    js.text = c.text;
-    js.color = c.color;
-    js.fontSize = c.fontSize;
-    js.align = static_cast<i32>(c.align);
-    js.spacing = c.spacing;
-    js.layer = c.layer;
-    js.font = c.font.id();
     js.enabled = c.enabled;
     return js;
 }
@@ -543,206 +682,77 @@ UIMaskJS uimaskToJS(const esengine::ecs::UIMask& c) {
     return js;
 }
 
-struct FlexContainerJS {
-    i32 direction;
-    i32 wrap;
-    i32 justifyContent;
-    i32 alignItems;
-    i32 alignContent;
-    glm::vec2 gap;
-    Padding padding;
+struct UIRendererJS {
+    i32 visualType;
+    u32 texture;
+    glm::vec4 color;
+    glm::vec2 uvOffset;
+    glm::vec2 uvScale;
+    glm::vec4 sliceBorder;
+    u32 material;
+    bool enabled;
 };
 
-esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
-    esengine::ecs::FlexContainer c;
-    c.direction = static_cast<FlexDirection>(js.direction);
-    c.wrap = static_cast<FlexWrap>(js.wrap);
-    c.justifyContent = static_cast<JustifyContent>(js.justifyContent);
-    c.alignItems = static_cast<AlignItems>(js.alignItems);
-    c.alignContent = static_cast<AlignContent>(js.alignContent);
-    c.gap = js.gap;
-    c.padding = js.padding;
+esengine::ecs::UIRenderer uirendererFromJS(const UIRendererJS& js) {
+    esengine::ecs::UIRenderer c;
+    c.visualType = static_cast<UIVisualType>(js.visualType);
+    c.texture = resource::TextureHandle(js.texture);
+    c.color = js.color;
+    c.uvOffset = js.uvOffset;
+    c.uvScale = js.uvScale;
+    c.sliceBorder = js.sliceBorder;
+    c.material = js.material;
+    c.enabled = js.enabled;
     return c;
 }
 
-FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
-    FlexContainerJS js;
-    js.direction = static_cast<i32>(c.direction);
-    js.wrap = static_cast<i32>(c.wrap);
-    js.justifyContent = static_cast<i32>(c.justifyContent);
-    js.alignItems = static_cast<i32>(c.alignItems);
-    js.alignContent = static_cast<i32>(c.alignContent);
-    js.gap = c.gap;
-    js.padding = c.padding;
-    return js;
-}
-
-struct ParentJS {
-    u32 entity;
-};
-
-esengine::ecs::Parent parentFromJS(const ParentJS& js) {
-    esengine::ecs::Parent c;
-    c.entity = Entity(js.entity);
-    return c;
-}
-
-ParentJS parentToJS(const esengine::ecs::Parent& c) {
-    ParentJS js;
-    js.entity = static_cast<u32>(c.entity);
-    return js;
-}
-
-struct ChildrenJS {
-    std::vector<u32> entities;
-};
-
-esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
-    esengine::ecs::Children c;
-    c.entities.reserve(js.entities.size());
-    for (auto v : js.entities) c.entities.push_back(Entity(v));
-    return c;
-}
-
-ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
-    ChildrenJS js;
-    js.entities.reserve(c.entities.size());
-    for (auto e : c.entities) js.entities.push_back(static_cast<u32>(e));
-    return js;
-}
-
-struct LayoutGroupJS {
-    i32 direction;
-    f32 spacing;
-    Padding padding;
-    i32 childAlignment;
-    bool reverseOrder;
-};
-
-esengine::ecs::LayoutGroup layoutgroupFromJS(const LayoutGroupJS& js) {
-    esengine::ecs::LayoutGroup c;
-    c.direction = static_cast<LayoutDirection>(js.direction);
-    c.spacing = js.spacing;
-    c.padding = js.padding;
-    c.childAlignment = static_cast<ChildAlignment>(js.childAlignment);
-    c.reverseOrder = js.reverseOrder;
-    return c;
-}
-
-LayoutGroupJS layoutgroupToJS(const esengine::ecs::LayoutGroup& c) {
-    LayoutGroupJS js;
-    js.direction = static_cast<i32>(c.direction);
-    js.spacing = c.spacing;
-    js.padding = c.padding;
-    js.childAlignment = static_cast<i32>(c.childAlignment);
-    js.reverseOrder = c.reverseOrder;
-    return js;
-}
-
-struct CanvasJS {
-    glm::uvec2 designResolution;
-    f32 pixelsPerUnit;
-    i32 scaleMode;
-    f32 matchWidthOrHeight;
-    glm::vec4 backgroundColor;
-};
-
-esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
-    esengine::ecs::Canvas c;
-    c.designResolution = js.designResolution;
-    c.pixelsPerUnit = js.pixelsPerUnit;
-    c.scaleMode = static_cast<CanvasScaleMode>(js.scaleMode);
-    c.matchWidthOrHeight = js.matchWidthOrHeight;
-    c.backgroundColor = js.backgroundColor;
-    return c;
-}
-
-CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
-    CanvasJS js;
-    js.designResolution = c.designResolution;
-    js.pixelsPerUnit = c.pixelsPerUnit;
-    js.scaleMode = static_cast<i32>(c.scaleMode);
-    js.matchWidthOrHeight = c.matchWidthOrHeight;
-    js.backgroundColor = c.backgroundColor;
-    return js;
-}
-
-struct CameraJS {
-    i32 projectionType;
-    f32 fov;
-    f32 orthoSize;
-    f32 nearPlane;
-    f32 farPlane;
-    f32 aspectRatio;
-    bool isActive;
-    i32 priority;
-    f32 viewportX;
-    f32 viewportY;
-    f32 viewportW;
-    f32 viewportH;
-    i32 clearFlags;
-};
-
-esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
-    esengine::ecs::Camera c;
-    c.projectionType = static_cast<ProjectionType>(js.projectionType);
-    c.fov = js.fov;
-    c.orthoSize = js.orthoSize;
-    c.nearPlane = js.nearPlane;
-    c.farPlane = js.farPlane;
-    c.aspectRatio = js.aspectRatio;
-    c.isActive = js.isActive;
-    c.priority = js.priority;
-    c.viewportX = js.viewportX;
-    c.viewportY = js.viewportY;
-    c.viewportW = js.viewportW;
-    c.viewportH = js.viewportH;
-    c.clearFlags = js.clearFlags;
-    return c;
-}
-
-CameraJS cameraToJS(const esengine::ecs::Camera& c) {
-    CameraJS js;
-    js.projectionType = static_cast<i32>(c.projectionType);
-    js.fov = c.fov;
-    js.orthoSize = c.orthoSize;
-    js.nearPlane = c.nearPlane;
-    js.farPlane = c.farPlane;
-    js.aspectRatio = c.aspectRatio;
-    js.isActive = c.isActive;
-    js.priority = c.priority;
-    js.viewportX = c.viewportX;
-    js.viewportY = c.viewportY;
-    js.viewportW = c.viewportW;
-    js.viewportH = c.viewportH;
-    js.clearFlags = c.clearFlags;
+UIRendererJS uirendererToJS(const esengine::ecs::UIRenderer& c) {
+    UIRendererJS js;
+    js.visualType = static_cast<i32>(c.visualType);
+    js.texture = c.texture.id();
+    js.color = c.color;
+    js.uvOffset = c.uvOffset;
+    js.uvScale = c.uvScale;
+    js.sliceBorder = c.sliceBorder;
+    js.material = c.material;
+    js.enabled = c.enabled;
     return js;
 }
 
 EMSCRIPTEN_BINDINGS(esengine_components) {
     register_vector<u32>("VectorEntity");
 
-    value_object<esengine::ecs::UIRect>("UIRect")
-        .field("anchorMin", &esengine::ecs::UIRect::anchorMin)
-        .field("anchorMax", &esengine::ecs::UIRect::anchorMax)
-        .field("offsetMin", &esengine::ecs::UIRect::offsetMin)
-        .field("offsetMax", &esengine::ecs::UIRect::offsetMax)
-        .field("size", &esengine::ecs::UIRect::size)
-        .field("pivot", &esengine::ecs::UIRect::pivot);
+    value_object<BitmapTextJS>("BitmapText")
+        .field("text", &BitmapTextJS::text)
+        .field("color", &BitmapTextJS::color)
+        .field("fontSize", &BitmapTextJS::fontSize)
+        .field("align", &BitmapTextJS::align)
+        .field("spacing", &BitmapTextJS::spacing)
+        .field("layer", &BitmapTextJS::layer)
+        .field("font", &BitmapTextJS::font)
+        .field("enabled", &BitmapTextJS::enabled);
 
-    value_object<FlexItemJS>("FlexItem")
-        .field("flexGrow", &FlexItemJS::flexGrow)
-        .field("flexShrink", &FlexItemJS::flexShrink)
-        .field("flexBasis", &FlexItemJS::flexBasis)
-        .field("order", &FlexItemJS::order)
-        .field("alignSelf", &FlexItemJS::alignSelf)
-        .field("margin", &FlexItemJS::margin)
-        .field("minWidth", &FlexItemJS::minWidth)
-        .field("minHeight", &FlexItemJS::minHeight)
-        .field("maxWidth", &FlexItemJS::maxWidth)
-        .field("maxHeight", &FlexItemJS::maxHeight)
-        .field("widthPercent", &FlexItemJS::widthPercent)
-        .field("heightPercent", &FlexItemJS::heightPercent);
+    value_object<CameraJS>("Camera")
+        .field("projectionType", &CameraJS::projectionType)
+        .field("fov", &CameraJS::fov)
+        .field("orthoSize", &CameraJS::orthoSize)
+        .field("nearPlane", &CameraJS::nearPlane)
+        .field("farPlane", &CameraJS::farPlane)
+        .field("aspectRatio", &CameraJS::aspectRatio)
+        .field("isActive", &CameraJS::isActive)
+        .field("priority", &CameraJS::priority)
+        .field("viewportX", &CameraJS::viewportX)
+        .field("viewportY", &CameraJS::viewportY)
+        .field("viewportW", &CameraJS::viewportW)
+        .field("viewportH", &CameraJS::viewportH)
+        .field("clearFlags", &CameraJS::clearFlags);
+
+    value_object<CanvasJS>("Canvas")
+        .field("designResolution", &CanvasJS::designResolution)
+        .field("pixelsPerUnit", &CanvasJS::pixelsPerUnit)
+        .field("scaleMode", &CanvasJS::scaleMode)
+        .field("matchWidthOrHeight", &CanvasJS::matchWidthOrHeight)
+        .field("backgroundColor", &CanvasJS::backgroundColor);
 
     value_object<esengine::ecs::BoxCollider>("BoxCollider")
         .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
@@ -797,6 +807,53 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("cardSpacing", &esengine::ecs::FanLayout::cardSpacing)
         .field("direction", &esengine::ecs::FanLayout::direction);
 
+    value_object<FlexContainerJS>("FlexContainer")
+        .field("direction", &FlexContainerJS::direction)
+        .field("wrap", &FlexContainerJS::wrap)
+        .field("justifyContent", &FlexContainerJS::justifyContent)
+        .field("alignItems", &FlexContainerJS::alignItems)
+        .field("alignContent", &FlexContainerJS::alignContent)
+        .field("gap", &FlexContainerJS::gap)
+        .field("padding", &FlexContainerJS::padding);
+
+    value_object<FlexItemJS>("FlexItem")
+        .field("flexGrow", &FlexItemJS::flexGrow)
+        .field("flexShrink", &FlexItemJS::flexShrink)
+        .field("flexBasis", &FlexItemJS::flexBasis)
+        .field("order", &FlexItemJS::order)
+        .field("alignSelf", &FlexItemJS::alignSelf)
+        .field("margin", &FlexItemJS::margin)
+        .field("minWidth", &FlexItemJS::minWidth)
+        .field("minHeight", &FlexItemJS::minHeight)
+        .field("maxWidth", &FlexItemJS::maxWidth)
+        .field("maxHeight", &FlexItemJS::maxHeight)
+        .field("widthPercent", &FlexItemJS::widthPercent)
+        .field("heightPercent", &FlexItemJS::heightPercent);
+
+    value_object<esengine::ecs::GridLayout>("GridLayout")
+        .field("direction", &esengine::ecs::GridLayout::direction)
+        .field("crossAxisCount", &esengine::ecs::GridLayout::crossAxisCount)
+        .field("itemSize", &esengine::ecs::GridLayout::itemSize)
+        .field("spacing", &esengine::ecs::GridLayout::spacing);
+
+    value_object<ParentJS>("Parent")
+        .field("entity", &ParentJS::entity);
+
+    value_object<ChildrenJS>("Children")
+        .field("entities", &ChildrenJS::entities);
+
+    value_object<esengine::ecs::Interactable>("Interactable")
+        .field("enabled", &esengine::ecs::Interactable::enabled)
+        .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
+        .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
+
+    value_object<LayoutGroupJS>("LayoutGroup")
+        .field("direction", &LayoutGroupJS::direction)
+        .field("spacing", &LayoutGroupJS::spacing)
+        .field("padding", &LayoutGroupJS::padding)
+        .field("childAlignment", &LayoutGroupJS::childAlignment)
+        .field("reverseOrder", &LayoutGroupJS::reverseOrder);
+
     value_object<ParticleEmitterJS>("ParticleEmitter")
         .field("rate", &ParticleEmitterJS::rate)
         .field("burstCount", &ParticleEmitterJS::burstCount)
@@ -840,33 +897,28 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("simulationSpace", &ParticleEmitterJS::simulationSpace)
         .field("enabled", &ParticleEmitterJS::enabled);
 
-    value_object<esengine::ecs::Transform>("Transform")
-        .field("position", &esengine::ecs::Transform::position)
-        .field("rotation", &esengine::ecs::Transform::rotation)
-        .field("scale", &esengine::ecs::Transform::scale)
-        .field("worldPosition", &esengine::ecs::Transform::worldPosition)
-        .field("worldRotation", &esengine::ecs::Transform::worldRotation)
-        .field("worldScale", &esengine::ecs::Transform::worldScale);
+    value_object<RigidBodyJS>("RigidBody")
+        .field("bodyType", &RigidBodyJS::bodyType)
+        .field("gravityScale", &RigidBodyJS::gravityScale)
+        .field("linearDamping", &RigidBodyJS::linearDamping)
+        .field("angularDamping", &RigidBodyJS::angularDamping)
+        .field("fixedRotation", &RigidBodyJS::fixedRotation)
+        .field("bullet", &RigidBodyJS::bullet)
+        .field("enabled", &RigidBodyJS::enabled);
 
-    value_object<UIRendererJS>("UIRenderer")
-        .field("visualType", &UIRendererJS::visualType)
-        .field("texture", &UIRendererJS::texture)
-        .field("color", &UIRendererJS::color)
-        .field("uvOffset", &UIRendererJS::uvOffset)
-        .field("uvScale", &UIRendererJS::uvScale)
-        .field("sliceBorder", &UIRendererJS::sliceBorder)
-        .field("material", &UIRendererJS::material)
-        .field("enabled", &UIRendererJS::enabled);
+    value_object<esengine::ecs::ScreenSpace>("ScreenSpace");
 
-    value_object<esengine::ecs::GridLayout>("GridLayout")
-        .field("direction", &esengine::ecs::GridLayout::direction)
-        .field("crossAxisCount", &esengine::ecs::GridLayout::crossAxisCount)
-        .field("itemSize", &esengine::ecs::GridLayout::itemSize)
-        .field("spacing", &esengine::ecs::GridLayout::spacing);
+    value_object<esengine::ecs::Selectable>("Selectable")
+        .field("selected", &esengine::ecs::Selectable::selected)
+        .field("group", &esengine::ecs::Selectable::group);
 
-    value_object<esengine::ecs::Velocity>("Velocity")
-        .field("linear", &esengine::ecs::Velocity::linear)
-        .field("angular", &esengine::ecs::Velocity::angular);
+    value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
+        .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
+        .field("color", &esengine::ecs::ShapeRenderer::color)
+        .field("size", &esengine::ecs::ShapeRenderer::size)
+        .field("cornerRadius", &esengine::ecs::ShapeRenderer::cornerRadius)
+        .field("layer", &esengine::ecs::ShapeRenderer::layer)
+        .field("enabled", &esengine::ecs::ShapeRenderer::enabled);
 
     value_object<esengine::ecs::SpineAnimation>("SpineAnimation")
         .field("skeletonPath", &esengine::ecs::SpineAnimation::skeletonPath)
@@ -884,36 +936,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("material", &esengine::ecs::SpineAnimation::material)
         .field("enabled", &esengine::ecs::SpineAnimation::enabled);
 
-    value_object<esengine::ecs::Interactable>("Interactable")
-        .field("enabled", &esengine::ecs::Interactable::enabled)
-        .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
-        .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
-
-    value_object<esengine::ecs::UIInteraction>("UIInteraction")
-        .field("hovered", &esengine::ecs::UIInteraction::hovered)
-        .field("pressed", &esengine::ecs::UIInteraction::pressed)
-        .field("justPressed", &esengine::ecs::UIInteraction::justPressed)
-        .field("justReleased", &esengine::ecs::UIInteraction::justReleased);
-
-    value_object<RigidBodyJS>("RigidBody")
-        .field("bodyType", &RigidBodyJS::bodyType)
-        .field("gravityScale", &RigidBodyJS::gravityScale)
-        .field("linearDamping", &RigidBodyJS::linearDamping)
-        .field("angularDamping", &RigidBodyJS::angularDamping)
-        .field("fixedRotation", &RigidBodyJS::fixedRotation)
-        .field("bullet", &RigidBodyJS::bullet)
-        .field("enabled", &RigidBodyJS::enabled);
-
-    value_object<BitmapTextJS>("BitmapText")
-        .field("text", &BitmapTextJS::text)
-        .field("color", &BitmapTextJS::color)
-        .field("fontSize", &BitmapTextJS::fontSize)
-        .field("align", &BitmapTextJS::align)
-        .field("spacing", &BitmapTextJS::spacing)
-        .field("layer", &BitmapTextJS::layer)
-        .field("font", &BitmapTextJS::font)
-        .field("enabled", &BitmapTextJS::enabled);
-
     value_object<SpriteJS>("Sprite")
         .field("texture", &SpriteJS::texture)
         .field("color", &SpriteJS::color)
@@ -929,67 +951,45 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("material", &SpriteJS::material)
         .field("enabled", &SpriteJS::enabled);
 
+    value_object<esengine::ecs::Transform>("Transform")
+        .field("position", &esengine::ecs::Transform::position)
+        .field("rotation", &esengine::ecs::Transform::rotation)
+        .field("scale", &esengine::ecs::Transform::scale)
+        .field("worldPosition", &esengine::ecs::Transform::worldPosition)
+        .field("worldRotation", &esengine::ecs::Transform::worldRotation)
+        .field("worldScale", &esengine::ecs::Transform::worldScale);
+
+    value_object<esengine::ecs::UIInteraction>("UIInteraction")
+        .field("hovered", &esengine::ecs::UIInteraction::hovered)
+        .field("pressed", &esengine::ecs::UIInteraction::pressed)
+        .field("justPressed", &esengine::ecs::UIInteraction::justPressed)
+        .field("justReleased", &esengine::ecs::UIInteraction::justReleased);
+
     value_object<UIMaskJS>("UIMask")
         .field("enabled", &UIMaskJS::enabled)
         .field("mode", &UIMaskJS::mode);
 
-    value_object<FlexContainerJS>("FlexContainer")
-        .field("direction", &FlexContainerJS::direction)
-        .field("wrap", &FlexContainerJS::wrap)
-        .field("justifyContent", &FlexContainerJS::justifyContent)
-        .field("alignItems", &FlexContainerJS::alignItems)
-        .field("alignContent", &FlexContainerJS::alignContent)
-        .field("gap", &FlexContainerJS::gap)
-        .field("padding", &FlexContainerJS::padding);
+    value_object<esengine::ecs::UIRect>("UIRect")
+        .field("anchorMin", &esengine::ecs::UIRect::anchorMin)
+        .field("anchorMax", &esengine::ecs::UIRect::anchorMax)
+        .field("offsetMin", &esengine::ecs::UIRect::offsetMin)
+        .field("offsetMax", &esengine::ecs::UIRect::offsetMax)
+        .field("size", &esengine::ecs::UIRect::size)
+        .field("pivot", &esengine::ecs::UIRect::pivot);
 
-    value_object<ParentJS>("Parent")
-        .field("entity", &ParentJS::entity);
+    value_object<UIRendererJS>("UIRenderer")
+        .field("visualType", &UIRendererJS::visualType)
+        .field("texture", &UIRendererJS::texture)
+        .field("color", &UIRendererJS::color)
+        .field("uvOffset", &UIRendererJS::uvOffset)
+        .field("uvScale", &UIRendererJS::uvScale)
+        .field("sliceBorder", &UIRendererJS::sliceBorder)
+        .field("material", &UIRendererJS::material)
+        .field("enabled", &UIRendererJS::enabled);
 
-    value_object<ChildrenJS>("Children")
-        .field("entities", &ChildrenJS::entities);
-
-    value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
-        .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
-        .field("color", &esengine::ecs::ShapeRenderer::color)
-        .field("size", &esengine::ecs::ShapeRenderer::size)
-        .field("cornerRadius", &esengine::ecs::ShapeRenderer::cornerRadius)
-        .field("layer", &esengine::ecs::ShapeRenderer::layer)
-        .field("enabled", &esengine::ecs::ShapeRenderer::enabled);
-
-    value_object<esengine::ecs::Selectable>("Selectable")
-        .field("selected", &esengine::ecs::Selectable::selected)
-        .field("group", &esengine::ecs::Selectable::group);
-
-    value_object<LayoutGroupJS>("LayoutGroup")
-        .field("direction", &LayoutGroupJS::direction)
-        .field("spacing", &LayoutGroupJS::spacing)
-        .field("padding", &LayoutGroupJS::padding)
-        .field("childAlignment", &LayoutGroupJS::childAlignment)
-        .field("reverseOrder", &LayoutGroupJS::reverseOrder);
-
-    value_object<esengine::ecs::ScreenSpace>("ScreenSpace");
-
-    value_object<CanvasJS>("Canvas")
-        .field("designResolution", &CanvasJS::designResolution)
-        .field("pixelsPerUnit", &CanvasJS::pixelsPerUnit)
-        .field("scaleMode", &CanvasJS::scaleMode)
-        .field("matchWidthOrHeight", &CanvasJS::matchWidthOrHeight)
-        .field("backgroundColor", &CanvasJS::backgroundColor);
-
-    value_object<CameraJS>("Camera")
-        .field("projectionType", &CameraJS::projectionType)
-        .field("fov", &CameraJS::fov)
-        .field("orthoSize", &CameraJS::orthoSize)
-        .field("nearPlane", &CameraJS::nearPlane)
-        .field("farPlane", &CameraJS::farPlane)
-        .field("aspectRatio", &CameraJS::aspectRatio)
-        .field("isActive", &CameraJS::isActive)
-        .field("priority", &CameraJS::priority)
-        .field("viewportX", &CameraJS::viewportX)
-        .field("viewportY", &CameraJS::viewportY)
-        .field("viewportW", &CameraJS::viewportW)
-        .field("viewportH", &CameraJS::viewportH)
-        .field("clearFlags", &CameraJS::clearFlags);
+    value_object<esengine::ecs::Velocity>("Velocity")
+        .field("linear", &esengine::ecs::Velocity::linear)
+        .field("angular", &esengine::ecs::Velocity::angular);
 
 }
 
@@ -1011,45 +1011,64 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("entityCount", &Registry::entityCount)
 
-        // UIRect
-        .function("hasUIRect", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::UIRect>(static_cast<Entity>(e));
+        // BitmapText
+        .function("hasBitmapText", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::BitmapText>(static_cast<Entity>(e));
         }))
-        .function("getUIRect", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIRect& {
+        .function("getBitmapText", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::UIRect s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return s_dummy;
-            return r.get<esengine::ecs::UIRect>(entity);
-        }), allow_raw_pointers())
-        .function("addUIRect", optional_override([](Registry& r, u32 e, const esengine::ecs::UIRect& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::BitmapText>(entity)) return BitmapTextJS{};
+            return bitmaptextToJS(r.get<esengine::ecs::BitmapText>(entity));
+        }))
+        .function("addBitmapText", optional_override([](Registry& r, u32 e, const BitmapTextJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::UIRect>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::BitmapText>(entity, bitmaptextFromJS(js));
         }))
-        .function("removeUIRect", optional_override([](Registry& r, u32 e) {
+        .function("removeBitmapText", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return;
-            r.remove<esengine::ecs::UIRect>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::BitmapText>(entity)) return;
+            r.remove<esengine::ecs::BitmapText>(entity);
         }))
 
-        // FlexItem
-        .function("hasFlexItem", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::FlexItem>(static_cast<Entity>(e));
+        // Camera
+        .function("hasCamera", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Camera>(static_cast<Entity>(e));
         }))
-        .function("getFlexItem", optional_override([](Registry& r, u32 e) {
+        .function("getCamera", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return FlexItemJS{};
-            return flexitemToJS(r.get<esengine::ecs::FlexItem>(entity));
+            if (!r.valid(entity) || !r.has<esengine::ecs::Camera>(entity)) return CameraJS{};
+            return cameraToJS(r.get<esengine::ecs::Camera>(entity));
         }))
-        .function("addFlexItem", optional_override([](Registry& r, u32 e, const FlexItemJS& js) {
+        .function("addCamera", optional_override([](Registry& r, u32 e, const CameraJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::FlexItem>(entity, flexitemFromJS(js));
+            r.emplaceOrReplace<esengine::ecs::Camera>(entity, cameraFromJS(js));
         }))
-        .function("removeFlexItem", optional_override([](Registry& r, u32 e) {
+        .function("removeCamera", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return;
-            r.remove<esengine::ecs::FlexItem>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Camera>(entity)) return;
+            r.remove<esengine::ecs::Camera>(entity);
+        }))
+
+        // Canvas
+        .function("hasCanvas", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Canvas>(static_cast<Entity>(e));
+        }))
+        .function("getCanvas", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Canvas>(entity)) return CanvasJS{};
+            return canvasToJS(r.get<esengine::ecs::Canvas>(entity));
+        }))
+        .function("addCanvas", optional_override([](Registry& r, u32 e, const CanvasJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Canvas>(entity, canvasFromJS(js));
+        }))
+        .function("removeCanvas", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Canvas>(entity)) return;
+            r.remove<esengine::ecs::Canvas>(entity);
         }))
 
         // BoxCollider
@@ -1157,67 +1176,44 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::FanLayout>(entity);
         }))
 
-        // ParticleEmitter
-        .function("hasParticleEmitter", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
+        // FlexContainer
+        .function("hasFlexContainer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
         }))
-        .function("getParticleEmitter", optional_override([](Registry& r, u32 e) {
+        .function("getFlexContainer", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleEmitter>(entity)) return ParticleEmitterJS{};
-            return particleemitterToJS(r.get<esengine::ecs::ParticleEmitter>(entity));
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexContainer>(entity)) return FlexContainerJS{};
+            return flexcontainerToJS(r.get<esengine::ecs::FlexContainer>(entity));
         }))
-        .function("addParticleEmitter", optional_override([](Registry& r, u32 e, const ParticleEmitterJS& js) {
+        .function("addFlexContainer", optional_override([](Registry& r, u32 e, const FlexContainerJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::ParticleEmitter>(entity, particleemitterFromJS(js));
+            r.emplaceOrReplace<esengine::ecs::FlexContainer>(entity, flexcontainerFromJS(js));
         }))
-        .function("removeParticleEmitter", optional_override([](Registry& r, u32 e) {
+        .function("removeFlexContainer", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleEmitter>(entity)) return;
-            r.remove<esengine::ecs::ParticleEmitter>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexContainer>(entity)) return;
+            r.remove<esengine::ecs::FlexContainer>(entity);
         }))
 
-        // Transform
-        .function("hasTransform", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Transform>(static_cast<Entity>(e));
+        // FlexItem
+        .function("hasFlexItem", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::FlexItem>(static_cast<Entity>(e));
         }))
-        .function("getTransform", optional_override([](Registry& r, u32 e) -> esengine::ecs::Transform& {
+        .function("getFlexItem", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::Transform s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return s_dummy;
-            auto& t = r.get<esengine::ecs::Transform>(entity);
-            t.ensureDecomposed();
-            return t;
-        }), allow_raw_pointers())
-        .function("addTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::Transform& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return FlexItemJS{};
+            return flexitemToJS(r.get<esengine::ecs::FlexItem>(entity));
+        }))
+        .function("addFlexItem", optional_override([](Registry& r, u32 e, const FlexItemJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Transform>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::FlexItem>(entity, flexitemFromJS(js));
         }))
-        .function("removeTransform", optional_override([](Registry& r, u32 e) {
+        .function("removeFlexItem", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return;
-            r.remove<esengine::ecs::Transform>(entity);
-        }))
-
-        // UIRenderer
-        .function("hasUIRenderer", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
-        }))
-        .function("getUIRenderer", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return UIRendererJS{};
-            return uirendererToJS(r.get<esengine::ecs::UIRenderer>(entity));
-        }))
-        .function("addUIRenderer", optional_override([](Registry& r, u32 e, const UIRendererJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::UIRenderer>(entity, uirendererFromJS(js));
-        }))
-        .function("removeUIRenderer", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return;
-            r.remove<esengine::ecs::UIRenderer>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return;
+            r.remove<esengine::ecs::FlexItem>(entity);
         }))
 
         // GridLayout
@@ -1239,190 +1235,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::GridLayout>(entity)) return;
             r.remove<esengine::ecs::GridLayout>(entity);
-        }))
-
-        // Velocity
-        .function("hasVelocity", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Velocity>(static_cast<Entity>(e));
-        }))
-        .function("getVelocity", optional_override([](Registry& r, u32 e) -> esengine::ecs::Velocity& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::Velocity s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::Velocity>(entity)) return s_dummy;
-            return r.get<esengine::ecs::Velocity>(entity);
-        }), allow_raw_pointers())
-        .function("addVelocity", optional_override([](Registry& r, u32 e, const esengine::ecs::Velocity& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Velocity>(entity, c);
-        }))
-        .function("removeVelocity", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Velocity>(entity)) return;
-            r.remove<esengine::ecs::Velocity>(entity);
-        }))
-
-        // SpineAnimation
-        .function("hasSpineAnimation", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
-        }))
-        .function("getSpineAnimation", optional_override([](Registry& r, u32 e) -> esengine::ecs::SpineAnimation& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::SpineAnimation s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::SpineAnimation>(entity)) return s_dummy;
-            return r.get<esengine::ecs::SpineAnimation>(entity);
-        }), allow_raw_pointers())
-        .function("addSpineAnimation", optional_override([](Registry& r, u32 e, const esengine::ecs::SpineAnimation& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::SpineAnimation>(entity, c);
-        }))
-        .function("removeSpineAnimation", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::SpineAnimation>(entity)) return;
-            r.remove<esengine::ecs::SpineAnimation>(entity);
-        }))
-
-        // Interactable
-        .function("hasInteractable", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Interactable>(static_cast<Entity>(e));
-        }))
-        .function("getInteractable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Interactable& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::Interactable s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::Interactable>(entity)) return s_dummy;
-            return r.get<esengine::ecs::Interactable>(entity);
-        }), allow_raw_pointers())
-        .function("addInteractable", optional_override([](Registry& r, u32 e, const esengine::ecs::Interactable& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Interactable>(entity, c);
-        }))
-        .function("removeInteractable", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Interactable>(entity)) return;
-            r.remove<esengine::ecs::Interactable>(entity);
-        }))
-
-        // UIInteraction
-        .function("hasUIInteraction", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
-        }))
-        .function("getUIInteraction", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIInteraction& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::UIInteraction s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIInteraction>(entity)) return s_dummy;
-            return r.get<esengine::ecs::UIInteraction>(entity);
-        }), allow_raw_pointers())
-        .function("addUIInteraction", optional_override([](Registry& r, u32 e, const esengine::ecs::UIInteraction& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::UIInteraction>(entity, c);
-        }))
-        .function("removeUIInteraction", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIInteraction>(entity)) return;
-            r.remove<esengine::ecs::UIInteraction>(entity);
-        }))
-
-        // RigidBody
-        .function("hasRigidBody", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::RigidBody>(static_cast<Entity>(e));
-        }))
-        .function("getRigidBody", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return RigidBodyJS{};
-            return rigidbodyToJS(r.get<esengine::ecs::RigidBody>(entity));
-        }))
-        .function("addRigidBody", optional_override([](Registry& r, u32 e, const RigidBodyJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::RigidBody>(entity, rigidbodyFromJS(js));
-        }))
-        .function("removeRigidBody", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return;
-            r.remove<esengine::ecs::RigidBody>(entity);
-        }))
-
-        // BitmapText
-        .function("hasBitmapText", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::BitmapText>(static_cast<Entity>(e));
-        }))
-        .function("getBitmapText", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::BitmapText>(entity)) return BitmapTextJS{};
-            return bitmaptextToJS(r.get<esengine::ecs::BitmapText>(entity));
-        }))
-        .function("addBitmapText", optional_override([](Registry& r, u32 e, const BitmapTextJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::BitmapText>(entity, bitmaptextFromJS(js));
-        }))
-        .function("removeBitmapText", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::BitmapText>(entity)) return;
-            r.remove<esengine::ecs::BitmapText>(entity);
-        }))
-
-        // Sprite
-        .function("hasSprite", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Sprite>(static_cast<Entity>(e));
-        }))
-        .function("getSprite", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return SpriteJS{};
-            return spriteToJS(r.get<esengine::ecs::Sprite>(entity));
-        }))
-        .function("addSprite", optional_override([](Registry& r, u32 e, const SpriteJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Sprite>(entity, spriteFromJS(js));
-        }))
-        .function("removeSprite", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return;
-            r.remove<esengine::ecs::Sprite>(entity);
-        }))
-
-        // UIMask
-        .function("hasUIMask", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::UIMask>(static_cast<Entity>(e));
-        }))
-        .function("getUIMask", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIMask>(entity)) return UIMaskJS{};
-            return uimaskToJS(r.get<esengine::ecs::UIMask>(entity));
-        }))
-        .function("addUIMask", optional_override([](Registry& r, u32 e, const UIMaskJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::UIMask>(entity, uimaskFromJS(js));
-        }))
-        .function("removeUIMask", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIMask>(entity)) return;
-            r.remove<esengine::ecs::UIMask>(entity);
-        }))
-
-        // FlexContainer
-        .function("hasFlexContainer", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
-        }))
-        .function("getFlexContainer", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FlexContainer>(entity)) return FlexContainerJS{};
-            return flexcontainerToJS(r.get<esengine::ecs::FlexContainer>(entity));
-        }))
-        .function("addFlexContainer", optional_override([](Registry& r, u32 e, const FlexContainerJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::FlexContainer>(entity, flexcontainerFromJS(js));
-        }))
-        .function("removeFlexContainer", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FlexContainer>(entity)) return;
-            r.remove<esengine::ecs::FlexContainer>(entity);
         }))
 
         // Parent
@@ -1465,46 +1277,25 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Children>(entity);
         }))
 
-        // ShapeRenderer
-        .function("hasShapeRenderer", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+        // Interactable
+        .function("hasInteractable", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Interactable>(static_cast<Entity>(e));
         }))
-        .function("getShapeRenderer", optional_override([](Registry& r, u32 e) -> esengine::ecs::ShapeRenderer& {
+        .function("getInteractable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Interactable& {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::ShapeRenderer s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::ShapeRenderer>(entity)) return s_dummy;
-            return r.get<esengine::ecs::ShapeRenderer>(entity);
+            static esengine::ecs::Interactable s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Interactable>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Interactable>(entity);
         }), allow_raw_pointers())
-        .function("addShapeRenderer", optional_override([](Registry& r, u32 e, const esengine::ecs::ShapeRenderer& c) {
+        .function("addInteractable", optional_override([](Registry& r, u32 e, const esengine::ecs::Interactable& c) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::ShapeRenderer>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::Interactable>(entity, c);
         }))
-        .function("removeShapeRenderer", optional_override([](Registry& r, u32 e) {
+        .function("removeInteractable", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::ShapeRenderer>(entity)) return;
-            r.remove<esengine::ecs::ShapeRenderer>(entity);
-        }))
-
-        // Selectable
-        .function("hasSelectable", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Selectable>(static_cast<Entity>(e));
-        }))
-        .function("getSelectable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Selectable& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::Selectable s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return s_dummy;
-            return r.get<esengine::ecs::Selectable>(entity);
-        }), allow_raw_pointers())
-        .function("addSelectable", optional_override([](Registry& r, u32 e, const esengine::ecs::Selectable& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Selectable>(entity, c);
-        }))
-        .function("removeSelectable", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return;
-            r.remove<esengine::ecs::Selectable>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Interactable>(entity)) return;
+            r.remove<esengine::ecs::Interactable>(entity);
         }))
 
         // LayoutGroup
@@ -1525,6 +1316,46 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::LayoutGroup>(entity)) return;
             r.remove<esengine::ecs::LayoutGroup>(entity);
+        }))
+
+        // ParticleEmitter
+        .function("hasParticleEmitter", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
+        }))
+        .function("getParticleEmitter", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleEmitter>(entity)) return ParticleEmitterJS{};
+            return particleemitterToJS(r.get<esengine::ecs::ParticleEmitter>(entity));
+        }))
+        .function("addParticleEmitter", optional_override([](Registry& r, u32 e, const ParticleEmitterJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ParticleEmitter>(entity, particleemitterFromJS(js));
+        }))
+        .function("removeParticleEmitter", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleEmitter>(entity)) return;
+            r.remove<esengine::ecs::ParticleEmitter>(entity);
+        }))
+
+        // RigidBody
+        .function("hasRigidBody", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::RigidBody>(static_cast<Entity>(e));
+        }))
+        .function("getRigidBody", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return RigidBodyJS{};
+            return rigidbodyToJS(r.get<esengine::ecs::RigidBody>(entity));
+        }))
+        .function("addRigidBody", optional_override([](Registry& r, u32 e, const RigidBodyJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::RigidBody>(entity, rigidbodyFromJS(js));
+        }))
+        .function("removeRigidBody", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return;
+            r.remove<esengine::ecs::RigidBody>(entity);
         }))
 
         // ScreenSpace
@@ -1548,44 +1379,213 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::ScreenSpace>(entity);
         }))
 
-        // Canvas
-        .function("hasCanvas", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Canvas>(static_cast<Entity>(e));
+        // Selectable
+        .function("hasSelectable", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Selectable>(static_cast<Entity>(e));
         }))
-        .function("getCanvas", optional_override([](Registry& r, u32 e) {
+        .function("getSelectable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Selectable& {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Canvas>(entity)) return CanvasJS{};
-            return canvasToJS(r.get<esengine::ecs::Canvas>(entity));
-        }))
-        .function("addCanvas", optional_override([](Registry& r, u32 e, const CanvasJS& js) {
+            static esengine::ecs::Selectable s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Selectable>(entity);
+        }), allow_raw_pointers())
+        .function("addSelectable", optional_override([](Registry& r, u32 e, const esengine::ecs::Selectable& c) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Canvas>(entity, canvasFromJS(js));
+            r.emplaceOrReplace<esengine::ecs::Selectable>(entity, c);
         }))
-        .function("removeCanvas", optional_override([](Registry& r, u32 e) {
+        .function("removeSelectable", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Canvas>(entity)) return;
-            r.remove<esengine::ecs::Canvas>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return;
+            r.remove<esengine::ecs::Selectable>(entity);
         }))
 
-        // Camera
-        .function("hasCamera", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Camera>(static_cast<Entity>(e));
+        // ShapeRenderer
+        .function("hasShapeRenderer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
         }))
-        .function("getCamera", optional_override([](Registry& r, u32 e) {
+        .function("getShapeRenderer", optional_override([](Registry& r, u32 e) -> esengine::ecs::ShapeRenderer& {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Camera>(entity)) return CameraJS{};
-            return cameraToJS(r.get<esengine::ecs::Camera>(entity));
-        }))
-        .function("addCamera", optional_override([](Registry& r, u32 e, const CameraJS& js) {
+            static esengine::ecs::ShapeRenderer s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::ShapeRenderer>(entity)) return s_dummy;
+            return r.get<esengine::ecs::ShapeRenderer>(entity);
+        }), allow_raw_pointers())
+        .function("addShapeRenderer", optional_override([](Registry& r, u32 e, const esengine::ecs::ShapeRenderer& c) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Camera>(entity, cameraFromJS(js));
+            r.emplaceOrReplace<esengine::ecs::ShapeRenderer>(entity, c);
         }))
-        .function("removeCamera", optional_override([](Registry& r, u32 e) {
+        .function("removeShapeRenderer", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Camera>(entity)) return;
-            r.remove<esengine::ecs::Camera>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ShapeRenderer>(entity)) return;
+            r.remove<esengine::ecs::ShapeRenderer>(entity);
+        }))
+
+        // SpineAnimation
+        .function("hasSpineAnimation", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+        }))
+        .function("getSpineAnimation", optional_override([](Registry& r, u32 e) -> esengine::ecs::SpineAnimation& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::SpineAnimation s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::SpineAnimation>(entity)) return s_dummy;
+            return r.get<esengine::ecs::SpineAnimation>(entity);
+        }), allow_raw_pointers())
+        .function("addSpineAnimation", optional_override([](Registry& r, u32 e, const esengine::ecs::SpineAnimation& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::SpineAnimation>(entity, c);
+        }))
+        .function("removeSpineAnimation", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::SpineAnimation>(entity)) return;
+            r.remove<esengine::ecs::SpineAnimation>(entity);
+        }))
+
+        // Sprite
+        .function("hasSprite", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Sprite>(static_cast<Entity>(e));
+        }))
+        .function("getSprite", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return SpriteJS{};
+            return spriteToJS(r.get<esengine::ecs::Sprite>(entity));
+        }))
+        .function("addSprite", optional_override([](Registry& r, u32 e, const SpriteJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Sprite>(entity, spriteFromJS(js));
+        }))
+        .function("removeSprite", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return;
+            r.remove<esengine::ecs::Sprite>(entity);
+        }))
+
+        // Transform
+        .function("hasTransform", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Transform>(static_cast<Entity>(e));
+        }))
+        .function("getTransform", optional_override([](Registry& r, u32 e) -> esengine::ecs::Transform& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Transform s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return s_dummy;
+            auto& t = r.get<esengine::ecs::Transform>(entity);
+            t.ensureDecomposed();
+            return t;
+        }), allow_raw_pointers())
+        .function("addTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::Transform& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Transform>(entity, c);
+        }))
+        .function("removeTransform", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return;
+            r.remove<esengine::ecs::Transform>(entity);
+        }))
+
+        // UIInteraction
+        .function("hasUIInteraction", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
+        }))
+        .function("getUIInteraction", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIInteraction& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::UIInteraction s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIInteraction>(entity)) return s_dummy;
+            return r.get<esengine::ecs::UIInteraction>(entity);
+        }), allow_raw_pointers())
+        .function("addUIInteraction", optional_override([](Registry& r, u32 e, const esengine::ecs::UIInteraction& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIInteraction>(entity, c);
+        }))
+        .function("removeUIInteraction", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIInteraction>(entity)) return;
+            r.remove<esengine::ecs::UIInteraction>(entity);
+        }))
+
+        // UIMask
+        .function("hasUIMask", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIMask>(static_cast<Entity>(e));
+        }))
+        .function("getUIMask", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIMask>(entity)) return UIMaskJS{};
+            return uimaskToJS(r.get<esengine::ecs::UIMask>(entity));
+        }))
+        .function("addUIMask", optional_override([](Registry& r, u32 e, const UIMaskJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIMask>(entity, uimaskFromJS(js));
+        }))
+        .function("removeUIMask", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIMask>(entity)) return;
+            r.remove<esengine::ecs::UIMask>(entity);
+        }))
+
+        // UIRect
+        .function("hasUIRect", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIRect>(static_cast<Entity>(e));
+        }))
+        .function("getUIRect", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIRect& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::UIRect s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return s_dummy;
+            return r.get<esengine::ecs::UIRect>(entity);
+        }), allow_raw_pointers())
+        .function("addUIRect", optional_override([](Registry& r, u32 e, const esengine::ecs::UIRect& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIRect>(entity, c);
+        }))
+        .function("removeUIRect", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return;
+            r.remove<esengine::ecs::UIRect>(entity);
+        }))
+
+        // UIRenderer
+        .function("hasUIRenderer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
+        }))
+        .function("getUIRenderer", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return UIRendererJS{};
+            return uirendererToJS(r.get<esengine::ecs::UIRenderer>(entity));
+        }))
+        .function("addUIRenderer", optional_override([](Registry& r, u32 e, const UIRendererJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIRenderer>(entity, uirendererFromJS(js));
+        }))
+        .function("removeUIRenderer", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return;
+            r.remove<esengine::ecs::UIRenderer>(entity);
+        }))
+
+        // Velocity
+        .function("hasVelocity", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Velocity>(static_cast<Entity>(e));
+        }))
+        .function("getVelocity", optional_override([](Registry& r, u32 e) -> esengine::ecs::Velocity& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Velocity s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Velocity>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Velocity>(entity);
+        }), allow_raw_pointers())
+        .function("addVelocity", optional_override([](Registry& r, u32 e, const esengine::ecs::Velocity& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Velocity>(entity, c);
+        }))
+        .function("removeVelocity", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Velocity>(entity)) return;
+            r.remove<esengine::ecs::Velocity>(entity);
         }))
 
         // Hierarchy Utilities
