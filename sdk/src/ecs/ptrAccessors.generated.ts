@@ -66,10 +66,7 @@ export interface CameraPtrData {
     aspectRatio: number;
     isActive: boolean;
     priority: number;
-    viewportX: number;
-    viewportY: number;
-    viewportW: number;
-    viewportH: number;
+    viewport: Vec4;
     clearFlags: number;
 }
 
@@ -85,11 +82,8 @@ export function fillCamera(
     out.aspectRatio = f32[(ptr + 20) >> 2];
     out.isActive = u8[ptr + 24] !== 0;
     out.priority = u32[(ptr + 28) >> 2] | 0;
-    out.viewportX = f32[(ptr + 32) >> 2];
-    out.viewportY = f32[(ptr + 36) >> 2];
-    out.viewportW = f32[(ptr + 40) >> 2];
-    out.viewportH = f32[(ptr + 44) >> 2];
-    out.clearFlags = u32[(ptr + 48) >> 2] | 0;
+    const viewport_ = out.viewport; viewport_.x = f32[(ptr + 32) >> 2]; viewport_.y = f32[((ptr + 32) >> 2) + 1]; viewport_.z = f32[((ptr + 32) >> 2) + 2]; viewport_.w = f32[((ptr + 32) >> 2) + 3];
+    out.clearFlags = u8[ptr + 48];
 }
 
 export function writeCamera(
@@ -104,11 +98,8 @@ export function writeCamera(
     f32[(ptr + 20) >> 2] = data.aspectRatio;
     u8[ptr + 24] = data.isActive ? 1 : 0;
     u32[(ptr + 28) >> 2] = data.priority | 0;
-    f32[(ptr + 32) >> 2] = data.viewportX;
-    f32[(ptr + 36) >> 2] = data.viewportY;
-    f32[(ptr + 40) >> 2] = data.viewportW;
-    f32[(ptr + 44) >> 2] = data.viewportH;
-    u32[(ptr + 48) >> 2] = data.clearFlags | 0;
+    f32[(ptr + 32) >> 2] = data.viewport.x; f32[((ptr + 32) >> 2) + 1] = data.viewport.y; f32[((ptr + 32) >> 2) + 2] = data.viewport.z; f32[((ptr + 32) >> 2) + 3] = data.viewport.w;
+    u8[ptr + 48] = data.clearFlags;
 }
 
 export function createCameraData(): CameraPtrData {
@@ -121,10 +112,7 @@ export function createCameraData(): CameraPtrData {
         aspectRatio: 0,
         isActive: false,
         priority: 0,
-        viewportX: 0,
-        viewportY: 0,
-        viewportW: 0,
-        viewportH: 0,
+        viewport: { x: 0, y: 0, z: 0, w: 0 },
         clearFlags: 0,
     };
 }

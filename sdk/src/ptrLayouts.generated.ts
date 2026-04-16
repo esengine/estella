@@ -41,11 +41,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'aspectRatio', type: 'f32', offset: 20 },
             { name: 'isActive', type: 'bool', offset: 24 },
             { name: 'priority', type: 'i32', offset: 28 },
-            { name: 'viewportX', type: 'f32', offset: 32 },
-            { name: 'viewportY', type: 'f32', offset: 36 },
-            { name: 'viewportW', type: 'f32', offset: 40 },
-            { name: 'viewportH', type: 'f32', offset: 44 },
-            { name: 'clearFlags', type: 'i32', offset: 48 },
+            { name: 'viewport', type: 'vec4', offset: 32 },
+            { name: 'clearFlags', type: 'u8', offset: 48 },
         ],
     },
     Canvas: {

@@ -33,6 +33,13 @@ export enum ProjectionType {
     Orthographic = 1,
 }
 
+export enum ClearFlags {
+    Nothing = 0,
+    Color = 1,
+    Depth = 2,
+    ColorAndDepth = 3,
+}
+
 export enum CanvasScaleMode {
     FixedWidth = 0,
     FixedHeight = 1,
@@ -149,10 +156,7 @@ export interface Camera {
     aspectRatio: number;
     isActive: boolean;
     priority: number;
-    viewportX: number;
-    viewportY: number;
-    viewportW: number;
-    viewportH: number;
+    viewport: Vec4;
     clearFlags: number;
 }
 

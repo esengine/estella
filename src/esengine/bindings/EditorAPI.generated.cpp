@@ -89,9 +89,12 @@ std::string editor_getComponentSchema(const std::string& name) {
     if (name == "BitmapText") {
         return R"JSON([
   {"key":"text","type":"string","group":"BitmapText"},
-  {"key":"color","type":"color","group":"BitmapText"},
+  {"key":"color.r","type":"color","group":"BitmapText"},
+  {"key":"color.g","type":"color","group":"BitmapText"},
+  {"key":"color.b","type":"color","group":"BitmapText"},
+  {"key":"color.a","type":"color","group":"BitmapText"},
   {"key":"fontSize","type":"float","group":"BitmapText"},
-  {"key":"align","type":"enum","group":"BitmapText"},
+  {"key":"align","type":"enum","group":"BitmapText","values":["Left","Center","Right"]},
   {"key":"spacing","type":"float","group":"BitmapText"},
   {"key":"layer","type":"int","group":"BitmapText"},
   {"key":"font","type":"asset","group":"BitmapText"},
@@ -99,7 +102,7 @@ std::string editor_getComponentSchema(const std::string& name) {
         ])JSON";
     } else if (name == "Camera") {
         return R"JSON([
-  {"key":"projectionType","type":"enum","group":"Camera"},
+  {"key":"projectionType","type":"enum","group":"Camera","values":["Perspective","Orthographic"]},
   {"key":"fov","type":"float","group":"Camera"},
   {"key":"orthoSize","type":"float","group":"Camera"},
   {"key":"nearPlane","type":"float","group":"Camera"},
@@ -107,20 +110,23 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"aspectRatio","type":"float","group":"Camera"},
   {"key":"isActive","type":"bool","group":"Camera"},
   {"key":"priority","type":"int","group":"Camera"},
-  {"key":"viewportX","type":"float","group":"Camera"},
-  {"key":"viewportY","type":"float","group":"Camera"},
-  {"key":"viewportW","type":"float","group":"Camera"},
-  {"key":"viewportH","type":"float","group":"Camera"},
-  {"key":"clearFlags","type":"int","group":"Camera"}
+  {"key":"viewport.x","type":"float","group":"Camera"},
+  {"key":"viewport.y","type":"float","group":"Camera"},
+  {"key":"viewport.z","type":"float","group":"Camera"},
+  {"key":"viewport.w","type":"float","group":"Camera"},
+  {"key":"clearFlags","type":"enum","group":"Camera","values":["Nothing","Color","Depth","ColorAndDepth"]}
         ])JSON";
     } else if (name == "Canvas") {
         return R"JSON([
   {"key":"designResolution.x","type":"int","group":"Canvas"},
   {"key":"designResolution.y","type":"int","group":"Canvas"},
   {"key":"pixelsPerUnit","type":"float","group":"Canvas"},
-  {"key":"scaleMode","type":"enum","group":"Canvas"},
+  {"key":"scaleMode","type":"enum","group":"Canvas","values":["FixedWidth","FixedHeight","Expand","Shrink","Match"]},
   {"key":"matchWidthOrHeight","type":"float","group":"Canvas"},
-  {"key":"backgroundColor","type":"color","group":"Canvas"}
+  {"key":"backgroundColor.r","type":"color","group":"Canvas"},
+  {"key":"backgroundColor.g","type":"color","group":"Canvas"},
+  {"key":"backgroundColor.b","type":"color","group":"Canvas"},
+  {"key":"backgroundColor.a","type":"color","group":"Canvas"}
         ])JSON";
     } else if (name == "BoxCollider") {
         return R"JSON([
@@ -188,11 +194,11 @@ std::string editor_getComponentSchema(const std::string& name) {
         ])JSON";
     } else if (name == "FlexContainer") {
         return R"JSON([
-  {"key":"direction","type":"enum","group":"FlexContainer"},
-  {"key":"wrap","type":"enum","group":"FlexContainer"},
-  {"key":"justifyContent","type":"enum","group":"FlexContainer"},
-  {"key":"alignItems","type":"enum","group":"FlexContainer"},
-  {"key":"alignContent","type":"enum","group":"FlexContainer"},
+  {"key":"direction","type":"enum","group":"FlexContainer","values":["Row","Column","RowReverse","ColumnReverse"]},
+  {"key":"wrap","type":"enum","group":"FlexContainer","values":["NoWrap","Wrap"]},
+  {"key":"justifyContent","type":"enum","group":"FlexContainer","values":["Start","Center","End","SpaceBetween","SpaceAround","SpaceEvenly"]},
+  {"key":"alignItems","type":"enum","group":"FlexContainer","values":["Start","Center","End","Stretch"]},
+  {"key":"alignContent","type":"enum","group":"FlexContainer","values":["Start","Center","End","Stretch","SpaceBetween","SpaceAround"]},
   {"key":"gap.x","type":"float","group":"FlexContainer"},
   {"key":"gap.y","type":"float","group":"FlexContainer"},
   {"key":"padding.left","type":"float","group":"FlexContainer"},
@@ -206,7 +212,7 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"flexShrink","type":"float","group":"FlexItem"},
   {"key":"flexBasis","type":"float","group":"FlexItem"},
   {"key":"order","type":"int","group":"FlexItem"},
-  {"key":"alignSelf","type":"enum","group":"FlexItem"},
+  {"key":"alignSelf","type":"enum","group":"FlexItem","values":["Auto","Start","Center","End","Stretch"]},
   {"key":"margin.left","type":"float","group":"FlexItem"},
   {"key":"margin.top","type":"float","group":"FlexItem"},
   {"key":"margin.right","type":"float","group":"FlexItem"},
@@ -243,13 +249,13 @@ std::string editor_getComponentSchema(const std::string& name) {
         ])JSON";
     } else if (name == "LayoutGroup") {
         return R"JSON([
-  {"key":"direction","type":"enum","group":"LayoutGroup"},
+  {"key":"direction","type":"enum","group":"LayoutGroup","values":["Horizontal","Vertical"]},
   {"key":"spacing","type":"float","group":"LayoutGroup"},
   {"key":"padding.left","type":"float","group":"LayoutGroup"},
   {"key":"padding.top","type":"float","group":"LayoutGroup"},
   {"key":"padding.right","type":"float","group":"LayoutGroup"},
   {"key":"padding.bottom","type":"float","group":"LayoutGroup"},
-  {"key":"childAlignment","type":"enum","group":"LayoutGroup"},
+  {"key":"childAlignment","type":"enum","group":"LayoutGroup","values":["Start","Center","End"]},
   {"key":"reverseOrder","type":"bool","group":"LayoutGroup"}
         ])JSON";
     } else if (name == "ParticleEmitter") {
@@ -277,8 +283,14 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"endSizeMin","type":"float","group":"ParticleEmitter"},
   {"key":"endSizeMax","type":"float","group":"ParticleEmitter"},
   {"key":"sizeEasing","type":"int","group":"ParticleEmitter"},
-  {"key":"startColor","type":"color","group":"ParticleEmitter"},
-  {"key":"endColor","type":"color","group":"ParticleEmitter"},
+  {"key":"startColor.r","type":"color","group":"ParticleEmitter"},
+  {"key":"startColor.g","type":"color","group":"ParticleEmitter"},
+  {"key":"startColor.b","type":"color","group":"ParticleEmitter"},
+  {"key":"startColor.a","type":"color","group":"ParticleEmitter"},
+  {"key":"endColor.r","type":"color","group":"ParticleEmitter"},
+  {"key":"endColor.g","type":"color","group":"ParticleEmitter"},
+  {"key":"endColor.b","type":"color","group":"ParticleEmitter"},
+  {"key":"endColor.a","type":"color","group":"ParticleEmitter"},
   {"key":"colorEasing","type":"int","group":"ParticleEmitter"},
   {"key":"rotationMin","type":"float","group":"ParticleEmitter"},
   {"key":"rotationMax","type":"float","group":"ParticleEmitter"},
@@ -300,7 +312,7 @@ std::string editor_getComponentSchema(const std::string& name) {
         ])JSON";
     } else if (name == "RigidBody") {
         return R"JSON([
-  {"key":"bodyType","type":"enum","group":"RigidBody"},
+  {"key":"bodyType","type":"enum","group":"RigidBody","values":["Static","Kinematic","Dynamic"]},
   {"key":"gravityScale","type":"float","group":"RigidBody"},
   {"key":"linearDamping","type":"float","group":"RigidBody"},
   {"key":"angularDamping","type":"float","group":"RigidBody"},
@@ -316,7 +328,10 @@ std::string editor_getComponentSchema(const std::string& name) {
     } else if (name == "ShapeRenderer") {
         return R"JSON([
   {"key":"shapeType","type":"int","group":"ShapeRenderer"},
-  {"key":"color","type":"color","group":"ShapeRenderer"},
+  {"key":"color.r","type":"color","group":"ShapeRenderer"},
+  {"key":"color.g","type":"color","group":"ShapeRenderer"},
+  {"key":"color.b","type":"color","group":"ShapeRenderer"},
+  {"key":"color.a","type":"color","group":"ShapeRenderer"},
   {"key":"size.x","type":"float","group":"ShapeRenderer"},
   {"key":"size.y","type":"float","group":"ShapeRenderer"},
   {"key":"cornerRadius","type":"float","group":"ShapeRenderer"},
@@ -334,7 +349,10 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"playing","type":"bool","group":"SpineAnimation"},
   {"key":"flipX","type":"bool","group":"SpineAnimation"},
   {"key":"flipY","type":"bool","group":"SpineAnimation"},
-  {"key":"color","type":"color","group":"SpineAnimation"},
+  {"key":"color.r","type":"color","group":"SpineAnimation"},
+  {"key":"color.g","type":"color","group":"SpineAnimation"},
+  {"key":"color.b","type":"color","group":"SpineAnimation"},
+  {"key":"color.a","type":"color","group":"SpineAnimation"},
   {"key":"layer","type":"int","group":"SpineAnimation"},
   {"key":"skeletonScale","type":"float","group":"SpineAnimation"},
   {"key":"material","type":"asset","group":"SpineAnimation"},
@@ -343,7 +361,10 @@ std::string editor_getComponentSchema(const std::string& name) {
     } else if (name == "Sprite") {
         return R"JSON([
   {"key":"texture","type":"asset","group":"Sprite"},
-  {"key":"color","type":"color","group":"Sprite"},
+  {"key":"color.r","type":"color","group":"Sprite"},
+  {"key":"color.g","type":"color","group":"Sprite"},
+  {"key":"color.b","type":"color","group":"Sprite"},
+  {"key":"color.a","type":"color","group":"Sprite"},
   {"key":"size.x","type":"float","group":"Sprite"},
   {"key":"size.y","type":"float","group":"Sprite"},
   {"key":"pivot.x","type":"float","group":"Sprite"},
@@ -384,7 +405,7 @@ std::string editor_getComponentSchema(const std::string& name) {
     } else if (name == "UIMask") {
         return R"JSON([
   {"key":"enabled","type":"bool","group":"UIMask"},
-  {"key":"mode","type":"enum","group":"UIMask"}
+  {"key":"mode","type":"enum","group":"UIMask","values":["Scissor","Stencil"]}
         ])JSON";
     } else if (name == "UIRect") {
         return R"JSON([
@@ -403,9 +424,12 @@ std::string editor_getComponentSchema(const std::string& name) {
         ])JSON";
     } else if (name == "UIRenderer") {
         return R"JSON([
-  {"key":"visualType","type":"enum","group":"UIRenderer"},
+  {"key":"visualType","type":"enum","group":"UIRenderer","values":["None","SolidColor","Image","NineSlice"]},
   {"key":"texture","type":"asset","group":"UIRenderer"},
-  {"key":"color","type":"color","group":"UIRenderer"},
+  {"key":"color.r","type":"color","group":"UIRenderer"},
+  {"key":"color.g","type":"color","group":"UIRenderer"},
+  {"key":"color.b","type":"color","group":"UIRenderer"},
+  {"key":"color.a","type":"color","group":"UIRenderer"},
   {"key":"uvOffset.x","type":"float","group":"UIRenderer"},
   {"key":"uvOffset.y","type":"float","group":"UIRenderer"},
   {"key":"uvScale.x","type":"float","group":"UIRenderer"},
@@ -658,7 +682,11 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
     if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
         auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "fontSize") { c.fontSize = value; }
+        if (field == "color.r") { c.color.r = value; }
+        else if (field == "color.g") { c.color.g = value; }
+        else if (field == "color.b") { c.color.b = value; }
+        else if (field == "color.a") { c.color.a = value; }
+        else if (field == "fontSize") { c.fontSize = value; }
         else if (field == "spacing") { c.spacing = value; }
         else { return false; }
         return true;
@@ -670,10 +698,10 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "nearPlane") { c.nearPlane = value; }
         else if (field == "farPlane") { c.farPlane = value; }
         else if (field == "aspectRatio") { c.aspectRatio = value; }
-        else if (field == "viewportX") { c.viewportX = value; }
-        else if (field == "viewportY") { c.viewportY = value; }
-        else if (field == "viewportW") { c.viewportW = value; }
-        else if (field == "viewportH") { c.viewportH = value; }
+        else if (field == "viewport.x") { c.viewport.x = value; }
+        else if (field == "viewport.y") { c.viewport.y = value; }
+        else if (field == "viewport.z") { c.viewport.z = value; }
+        else if (field == "viewport.w") { c.viewport.w = value; }
         else { return false; }
         return true;
     } else if (comp == "Canvas") {
@@ -681,6 +709,10 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         auto& c = reg.get<esengine::ecs::Canvas>(entity);
         if (field == "pixelsPerUnit") { c.pixelsPerUnit = value; }
         else if (field == "matchWidthOrHeight") { c.matchWidthOrHeight = value; }
+        else if (field == "backgroundColor.r") { c.backgroundColor.r = value; }
+        else if (field == "backgroundColor.g") { c.backgroundColor.g = value; }
+        else if (field == "backgroundColor.b") { c.backgroundColor.b = value; }
+        else if (field == "backgroundColor.a") { c.backgroundColor.a = value; }
         else { return false; }
         return true;
     } else if (comp == "BoxCollider") {
@@ -808,6 +840,14 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "startSizeMax") { c.startSizeMax = value; }
         else if (field == "endSizeMin") { c.endSizeMin = value; }
         else if (field == "endSizeMax") { c.endSizeMax = value; }
+        else if (field == "startColor.r") { c.startColor.r = value; }
+        else if (field == "startColor.g") { c.startColor.g = value; }
+        else if (field == "startColor.b") { c.startColor.b = value; }
+        else if (field == "startColor.a") { c.startColor.a = value; }
+        else if (field == "endColor.r") { c.endColor.r = value; }
+        else if (field == "endColor.g") { c.endColor.g = value; }
+        else if (field == "endColor.b") { c.endColor.b = value; }
+        else if (field == "endColor.a") { c.endColor.a = value; }
         else if (field == "rotationMin") { c.rotationMin = value; }
         else if (field == "rotationMax") { c.rotationMax = value; }
         else if (field == "angularVelocityMin") { c.angularVelocityMin = value; }
@@ -829,7 +869,11 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
         auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
-        if (field == "size.x") { c.size.x = value; }
+        if (field == "color.r") { c.color.r = value; }
+        else if (field == "color.g") { c.color.g = value; }
+        else if (field == "color.b") { c.color.b = value; }
+        else if (field == "color.a") { c.color.a = value; }
+        else if (field == "size.x") { c.size.x = value; }
         else if (field == "size.y") { c.size.y = value; }
         else if (field == "cornerRadius") { c.cornerRadius = value; }
         else { return false; }
@@ -838,13 +882,21 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
         auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
         if (field == "timeScale") { c.timeScale = value; }
+        else if (field == "color.r") { c.color.r = value; }
+        else if (field == "color.g") { c.color.g = value; }
+        else if (field == "color.b") { c.color.b = value; }
+        else if (field == "color.a") { c.color.a = value; }
         else if (field == "skeletonScale") { c.skeletonScale = value; }
         else { return false; }
         return true;
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
         auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "size.x") { c.size.x = value; }
+        if (field == "color.r") { c.color.r = value; }
+        else if (field == "color.g") { c.color.g = value; }
+        else if (field == "color.b") { c.color.b = value; }
+        else if (field == "color.a") { c.color.a = value; }
+        else if (field == "size.x") { c.size.x = value; }
         else if (field == "size.y") { c.size.y = value; }
         else if (field == "pivot.x") { c.pivot.x = value; }
         else if (field == "pivot.y") { c.pivot.y = value; }
@@ -904,7 +956,11 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
     } else if (comp == "UIRenderer") {
         if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
         auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
-        if (field == "uvOffset.x") { c.uvOffset.x = value; }
+        if (field == "color.r") { c.color.r = value; }
+        else if (field == "color.g") { c.color.g = value; }
+        else if (field == "color.b") { c.color.b = value; }
+        else if (field == "color.a") { c.color.a = value; }
+        else if (field == "uvOffset.x") { c.uvOffset.x = value; }
         else if (field == "uvOffset.y") { c.uvOffset.y = value; }
         else if (field == "uvScale.x") { c.uvScale.x = value; }
         else if (field == "uvScale.y") { c.uvScale.y = value; }
@@ -937,7 +993,11 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
     if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "fontSize") { return c.fontSize; }
+        if (field == "color.r") { return c.color.r; }
+        else if (field == "color.g") { return c.color.g; }
+        else if (field == "color.b") { return c.color.b; }
+        else if (field == "color.a") { return c.color.a; }
+        else if (field == "fontSize") { return c.fontSize; }
         else if (field == "spacing") { return c.spacing; }
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return 0.0f;
@@ -947,15 +1007,19 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "nearPlane") { return c.nearPlane; }
         else if (field == "farPlane") { return c.farPlane; }
         else if (field == "aspectRatio") { return c.aspectRatio; }
-        else if (field == "viewportX") { return c.viewportX; }
-        else if (field == "viewportY") { return c.viewportY; }
-        else if (field == "viewportW") { return c.viewportW; }
-        else if (field == "viewportH") { return c.viewportH; }
+        else if (field == "viewport.x") { return c.viewport.x; }
+        else if (field == "viewport.y") { return c.viewport.y; }
+        else if (field == "viewport.z") { return c.viewport.z; }
+        else if (field == "viewport.w") { return c.viewport.w; }
     } else if (comp == "Canvas") {
         if (!reg.has<esengine::ecs::Canvas>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::Canvas>(entity);
         if (field == "pixelsPerUnit") { return c.pixelsPerUnit; }
         else if (field == "matchWidthOrHeight") { return c.matchWidthOrHeight; }
+        else if (field == "backgroundColor.r") { return c.backgroundColor.r; }
+        else if (field == "backgroundColor.g") { return c.backgroundColor.g; }
+        else if (field == "backgroundColor.b") { return c.backgroundColor.b; }
+        else if (field == "backgroundColor.a") { return c.backgroundColor.a; }
     } else if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
@@ -1063,6 +1127,14 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "startSizeMax") { return c.startSizeMax; }
         else if (field == "endSizeMin") { return c.endSizeMin; }
         else if (field == "endSizeMax") { return c.endSizeMax; }
+        else if (field == "startColor.r") { return c.startColor.r; }
+        else if (field == "startColor.g") { return c.startColor.g; }
+        else if (field == "startColor.b") { return c.startColor.b; }
+        else if (field == "startColor.a") { return c.startColor.a; }
+        else if (field == "endColor.r") { return c.endColor.r; }
+        else if (field == "endColor.g") { return c.endColor.g; }
+        else if (field == "endColor.b") { return c.endColor.b; }
+        else if (field == "endColor.a") { return c.endColor.a; }
         else if (field == "rotationMin") { return c.rotationMin; }
         else if (field == "rotationMax") { return c.rotationMax; }
         else if (field == "angularVelocityMin") { return c.angularVelocityMin; }
@@ -1080,18 +1152,30 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
-        if (field == "size.x") { return c.size.x; }
+        if (field == "color.r") { return c.color.r; }
+        else if (field == "color.g") { return c.color.g; }
+        else if (field == "color.b") { return c.color.b; }
+        else if (field == "color.a") { return c.color.a; }
+        else if (field == "size.x") { return c.size.x; }
         else if (field == "size.y") { return c.size.y; }
         else if (field == "cornerRadius") { return c.cornerRadius; }
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
         if (field == "timeScale") { return c.timeScale; }
+        else if (field == "color.r") { return c.color.r; }
+        else if (field == "color.g") { return c.color.g; }
+        else if (field == "color.b") { return c.color.b; }
+        else if (field == "color.a") { return c.color.a; }
         else if (field == "skeletonScale") { return c.skeletonScale; }
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "size.x") { return c.size.x; }
+        if (field == "color.r") { return c.color.r; }
+        else if (field == "color.g") { return c.color.g; }
+        else if (field == "color.b") { return c.color.b; }
+        else if (field == "color.a") { return c.color.a; }
+        else if (field == "size.x") { return c.size.x; }
         else if (field == "size.y") { return c.size.y; }
         else if (field == "pivot.x") { return c.pivot.x; }
         else if (field == "pivot.y") { return c.pivot.y; }
@@ -1133,7 +1217,11 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
     } else if (comp == "UIRenderer") {
         if (!reg.has<esengine::ecs::UIRenderer>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
-        if (field == "uvOffset.x") { return c.uvOffset.x; }
+        if (field == "color.r") { return c.color.r; }
+        else if (field == "color.g") { return c.color.g; }
+        else if (field == "color.b") { return c.color.b; }
+        else if (field == "color.a") { return c.color.a; }
+        else if (field == "uvOffset.x") { return c.uvOffset.x; }
         else if (field == "uvOffset.y") { return c.uvOffset.y; }
         else if (field == "uvScale.x") { return c.uvScale.x; }
         else if (field == "uvScale.y") { return c.uvScale.y; }
@@ -1171,7 +1259,7 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         auto& c = reg.get<esengine::ecs::Camera>(entity);
         if (field == "projectionType") { c.projectionType = static_cast<ProjectionType>(value); }
         else if (field == "priority") { c.priority = static_cast<i32>(value); }
-        else if (field == "clearFlags") { c.clearFlags = static_cast<i32>(value); }
+        else if (field == "clearFlags") { c.clearFlags = static_cast<ClearFlags>(value); }
         else { return false; }
         return true;
     } else if (comp == "Canvas") {

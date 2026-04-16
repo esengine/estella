@@ -91,6 +91,12 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Perspective", esengine::ecs::ProjectionType::Perspective)
         .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
 
+    enum_<esengine::ecs::ClearFlags>("ClearFlags")
+        .value("Nothing", esengine::ecs::ClearFlags::Nothing)
+        .value("Color", esengine::ecs::ClearFlags::Color)
+        .value("Depth", esengine::ecs::ClearFlags::Depth)
+        .value("ColorAndDepth", esengine::ecs::ClearFlags::ColorAndDepth);
+
     enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
         .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
         .value("FixedHeight", esengine::ecs::CanvasScaleMode::FixedHeight)
@@ -223,10 +229,7 @@ struct CameraJS {
     f32 aspectRatio;
     bool isActive;
     i32 priority;
-    f32 viewportX;
-    f32 viewportY;
-    f32 viewportW;
-    f32 viewportH;
+    glm::vec4 viewport;
     i32 clearFlags;
 };
 
@@ -240,11 +243,8 @@ esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
     c.aspectRatio = js.aspectRatio;
     c.isActive = js.isActive;
     c.priority = js.priority;
-    c.viewportX = js.viewportX;
-    c.viewportY = js.viewportY;
-    c.viewportW = js.viewportW;
-    c.viewportH = js.viewportH;
-    c.clearFlags = js.clearFlags;
+    c.viewport = js.viewport;
+    c.clearFlags = static_cast<ClearFlags>(js.clearFlags);
     return c;
 }
 
@@ -258,11 +258,8 @@ CameraJS cameraToJS(const esengine::ecs::Camera& c) {
     js.aspectRatio = c.aspectRatio;
     js.isActive = c.isActive;
     js.priority = c.priority;
-    js.viewportX = c.viewportX;
-    js.viewportY = c.viewportY;
-    js.viewportW = c.viewportW;
-    js.viewportH = c.viewportH;
-    js.clearFlags = c.clearFlags;
+    js.viewport = c.viewport;
+    js.clearFlags = static_cast<i32>(c.clearFlags);
     return js;
 }
 
@@ -739,10 +736,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("aspectRatio", &CameraJS::aspectRatio)
         .field("isActive", &CameraJS::isActive)
         .field("priority", &CameraJS::priority)
-        .field("viewportX", &CameraJS::viewportX)
-        .field("viewportY", &CameraJS::viewportY)
-        .field("viewportW", &CameraJS::viewportW)
-        .field("viewportH", &CameraJS::viewportH)
+        .field("viewport", &CameraJS::viewport)
         .field("clearFlags", &CameraJS::clearFlags);
 
     value_object<CanvasJS>("Canvas")
