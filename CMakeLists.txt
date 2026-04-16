@@ -35,6 +35,7 @@ add_subdirectory(third_party)
 
 set(ESENGINE_SOURCES
     src/esengine/core/Engine.cpp
+    src/esengine/core/EstellaContext.cpp
     src/esengine/core/Log.cpp
     src/esengine/app/App.cpp
     src/esengine/resource/ResourceManager.cpp

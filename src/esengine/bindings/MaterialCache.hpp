@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef ES_PLATFORM_WEB
-
 #include "../core/Types.hpp"
 #include <unordered_map>
 #include <vector>
@@ -41,5 +39,3 @@ private:
 };
 
 }  // namespace esengine
-
-#endif  // ES_PLATFORM_WEB

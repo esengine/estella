@@ -1,8 +1,5 @@
 #pragma once
 
-#ifdef ES_PLATFORM_WEB
-
-#include <emscripten/html5.h>
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
 #include "MaterialCache.hpp"
@@ -10,7 +7,7 @@
 namespace esengine {
 
 struct EngineState {
-    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE webgl_context = 0;
+    int webgl_context = 0;
     bool initialized = false;
     bool immediate_draw_active = false;
     bool gl_error_check_enabled = true;
@@ -24,5 +21,3 @@ struct EngineState {
 };
 
 }  // namespace esengine
-
-#endif  // ES_PLATFORM_WEB
