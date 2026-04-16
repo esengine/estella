@@ -9,111 +9,163 @@ interface Vec3 { x: number; y: number; z: number; }
 interface Vec4 { x: number; y: number; z: number; w: number; }
 interface Color { r: number; g: number; b: number; a: number; }
 
-export interface UIRectPtrData {
-    anchorMin: Vec2;
-    anchorMax: Vec2;
-    offsetMin: Vec2;
-    offsetMax: Vec2;
-    size: Vec2;
-    pivot: Vec2;
+export interface BitmapTextPtrData {
+    color: Color;
+    fontSize: number;
+    align: number;
+    spacing: number;
+    layer: number;
+    font: number;
+    enabled: boolean;
 }
 
-export function fillUIRect(
+export function fillBitmapText(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: UIRectPtrData,
+    ptr: number, out: BitmapTextPtrData,
 ): void {
-    const anchorMin_ = out.anchorMin; anchorMin_.x = f32[ptr >> 2]; anchorMin_.y = f32[(ptr >> 2) + 1];
-    const anchorMax_ = out.anchorMax; anchorMax_.x = f32[(ptr + 8) >> 2]; anchorMax_.y = f32[((ptr + 8) >> 2) + 1];
-    const offsetMin_ = out.offsetMin; offsetMin_.x = f32[(ptr + 16) >> 2]; offsetMin_.y = f32[((ptr + 16) >> 2) + 1];
-    const offsetMax_ = out.offsetMax; offsetMax_.x = f32[(ptr + 24) >> 2]; offsetMax_.y = f32[((ptr + 24) >> 2) + 1];
-    const size_ = out.size; size_.x = f32[(ptr + 32) >> 2]; size_.y = f32[((ptr + 32) >> 2) + 1];
-    const pivot_ = out.pivot; pivot_.x = f32[(ptr + 40) >> 2]; pivot_.y = f32[((ptr + 40) >> 2) + 1];
+    const color_ = out.color; color_.r = f32[ptr >> 2]; color_.g = f32[(ptr >> 2) + 1]; color_.b = f32[(ptr >> 2) + 2]; color_.a = f32[(ptr >> 2) + 3];
+    out.fontSize = f32[(ptr + 16) >> 2];
+    out.align = u8[ptr + 20];
+    out.spacing = f32[(ptr + 24) >> 2];
+    out.layer = u32[(ptr + 28) >> 2] | 0;
+    out.font = u32[(ptr + 32) >> 2];
+    out.enabled = u8[ptr + 36] !== 0;
 }
 
-export function writeUIRect(
+export function writeBitmapText(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: UIRectPtrData,
+    ptr: number, data: BitmapTextPtrData,
 ): void {
-    f32[ptr >> 2] = data.anchorMin.x; f32[(ptr >> 2) + 1] = data.anchorMin.y;
-    f32[(ptr + 8) >> 2] = data.anchorMax.x; f32[((ptr + 8) >> 2) + 1] = data.anchorMax.y;
-    f32[(ptr + 16) >> 2] = data.offsetMin.x; f32[((ptr + 16) >> 2) + 1] = data.offsetMin.y;
-    f32[(ptr + 24) >> 2] = data.offsetMax.x; f32[((ptr + 24) >> 2) + 1] = data.offsetMax.y;
-    f32[(ptr + 32) >> 2] = data.size.x; f32[((ptr + 32) >> 2) + 1] = data.size.y;
-    f32[(ptr + 40) >> 2] = data.pivot.x; f32[((ptr + 40) >> 2) + 1] = data.pivot.y;
+    f32[ptr >> 2] = data.color.r; f32[(ptr >> 2) + 1] = data.color.g; f32[(ptr >> 2) + 2] = data.color.b; f32[(ptr >> 2) + 3] = data.color.a;
+    f32[(ptr + 16) >> 2] = data.fontSize;
+    u8[ptr + 20] = data.align;
+    f32[(ptr + 24) >> 2] = data.spacing;
+    u32[(ptr + 28) >> 2] = data.layer | 0;
+    u32[(ptr + 32) >> 2] = data.font;
+    u8[ptr + 36] = data.enabled ? 1 : 0;
 }
 
-export function createUIRectData(): UIRectPtrData {
+export function createBitmapTextData(): BitmapTextPtrData {
     return {
-        anchorMin: { x: 0, y: 0 },
-        anchorMax: { x: 0, y: 0 },
-        offsetMin: { x: 0, y: 0 },
-        offsetMax: { x: 0, y: 0 },
-        size: { x: 0, y: 0 },
-        pivot: { x: 0, y: 0 },
+        color: { r: 0, g: 0, b: 0, a: 0 },
+        fontSize: 0,
+        align: 0,
+        spacing: 0,
+        layer: 0,
+        font: 0,
+        enabled: false,
     };
 }
 
-export interface FlexItemPtrData {
-    flexGrow: number;
-    flexShrink: number;
-    flexBasis: number;
-    order: number;
-    alignSelf: number;
-    minWidth: number;
-    minHeight: number;
-    maxWidth: number;
-    maxHeight: number;
-    widthPercent: number;
-    heightPercent: number;
+export interface CameraPtrData {
+    projectionType: number;
+    fov: number;
+    orthoSize: number;
+    nearPlane: number;
+    farPlane: number;
+    aspectRatio: number;
+    isActive: boolean;
+    priority: number;
+    viewportX: number;
+    viewportY: number;
+    viewportW: number;
+    viewportH: number;
+    clearFlags: number;
 }
 
-export function fillFlexItem(
+export function fillCamera(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: FlexItemPtrData,
+    ptr: number, out: CameraPtrData,
 ): void {
-    out.flexGrow = f32[ptr >> 2];
-    out.flexShrink = f32[(ptr + 4) >> 2];
-    out.flexBasis = f32[(ptr + 8) >> 2];
-    out.order = u32[(ptr + 12) >> 2] | 0;
-    out.alignSelf = u8[ptr + 16];
-    out.minWidth = f32[(ptr + 20) >> 2];
-    out.minHeight = f32[(ptr + 24) >> 2];
-    out.maxWidth = f32[(ptr + 28) >> 2];
-    out.maxHeight = f32[(ptr + 32) >> 2];
-    out.widthPercent = f32[(ptr + 36) >> 2];
-    out.heightPercent = f32[(ptr + 40) >> 2];
+    out.projectionType = u8[ptr];
+    out.fov = f32[(ptr + 4) >> 2];
+    out.orthoSize = f32[(ptr + 8) >> 2];
+    out.nearPlane = f32[(ptr + 12) >> 2];
+    out.farPlane = f32[(ptr + 16) >> 2];
+    out.aspectRatio = f32[(ptr + 20) >> 2];
+    out.isActive = u8[ptr + 24] !== 0;
+    out.priority = u32[(ptr + 28) >> 2] | 0;
+    out.viewportX = f32[(ptr + 32) >> 2];
+    out.viewportY = f32[(ptr + 36) >> 2];
+    out.viewportW = f32[(ptr + 40) >> 2];
+    out.viewportH = f32[(ptr + 44) >> 2];
+    out.clearFlags = u32[(ptr + 48) >> 2] | 0;
 }
 
-export function writeFlexItem(
+export function writeCamera(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: FlexItemPtrData,
+    ptr: number, data: CameraPtrData,
 ): void {
-    f32[ptr >> 2] = data.flexGrow;
-    f32[(ptr + 4) >> 2] = data.flexShrink;
-    f32[(ptr + 8) >> 2] = data.flexBasis;
-    u32[(ptr + 12) >> 2] = data.order | 0;
-    u8[ptr + 16] = data.alignSelf;
-    f32[(ptr + 20) >> 2] = data.minWidth;
-    f32[(ptr + 24) >> 2] = data.minHeight;
-    f32[(ptr + 28) >> 2] = data.maxWidth;
-    f32[(ptr + 32) >> 2] = data.maxHeight;
-    f32[(ptr + 36) >> 2] = data.widthPercent;
-    f32[(ptr + 40) >> 2] = data.heightPercent;
+    u8[ptr] = data.projectionType;
+    f32[(ptr + 4) >> 2] = data.fov;
+    f32[(ptr + 8) >> 2] = data.orthoSize;
+    f32[(ptr + 12) >> 2] = data.nearPlane;
+    f32[(ptr + 16) >> 2] = data.farPlane;
+    f32[(ptr + 20) >> 2] = data.aspectRatio;
+    u8[ptr + 24] = data.isActive ? 1 : 0;
+    u32[(ptr + 28) >> 2] = data.priority | 0;
+    f32[(ptr + 32) >> 2] = data.viewportX;
+    f32[(ptr + 36) >> 2] = data.viewportY;
+    f32[(ptr + 40) >> 2] = data.viewportW;
+    f32[(ptr + 44) >> 2] = data.viewportH;
+    u32[(ptr + 48) >> 2] = data.clearFlags | 0;
 }
 
-export function createFlexItemData(): FlexItemPtrData {
+export function createCameraData(): CameraPtrData {
     return {
-        flexGrow: 0,
-        flexShrink: 0,
-        flexBasis: 0,
-        order: 0,
-        alignSelf: 0,
-        minWidth: 0,
-        minHeight: 0,
-        maxWidth: 0,
-        maxHeight: 0,
-        widthPercent: 0,
-        heightPercent: 0,
+        projectionType: 0,
+        fov: 0,
+        orthoSize: 0,
+        nearPlane: 0,
+        farPlane: 0,
+        aspectRatio: 0,
+        isActive: false,
+        priority: 0,
+        viewportX: 0,
+        viewportY: 0,
+        viewportW: 0,
+        viewportH: 0,
+        clearFlags: 0,
+    };
+}
+
+export interface CanvasPtrData {
+    designResolution: Vec2;
+    pixelsPerUnit: number;
+    scaleMode: number;
+    matchWidthOrHeight: number;
+    backgroundColor: Color;
+}
+
+export function fillCanvas(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: CanvasPtrData,
+): void {
+    const designResolution_ = out.designResolution; designResolution_.x = f32[ptr >> 2]; designResolution_.y = f32[(ptr >> 2) + 1];
+    out.pixelsPerUnit = f32[(ptr + 8) >> 2];
+    out.scaleMode = u8[ptr + 12];
+    out.matchWidthOrHeight = f32[(ptr + 16) >> 2];
+    const backgroundColor_ = out.backgroundColor; backgroundColor_.r = f32[(ptr + 20) >> 2]; backgroundColor_.g = f32[((ptr + 20) >> 2) + 1]; backgroundColor_.b = f32[((ptr + 20) >> 2) + 2]; backgroundColor_.a = f32[((ptr + 20) >> 2) + 3];
+}
+
+export function writeCanvas(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: CanvasPtrData,
+): void {
+    f32[ptr >> 2] = data.designResolution.x; f32[(ptr >> 2) + 1] = data.designResolution.y;
+    f32[(ptr + 8) >> 2] = data.pixelsPerUnit;
+    u8[ptr + 12] = data.scaleMode;
+    f32[(ptr + 16) >> 2] = data.matchWidthOrHeight;
+    f32[(ptr + 20) >> 2] = data.backgroundColor.r; f32[((ptr + 20) >> 2) + 1] = data.backgroundColor.g; f32[((ptr + 20) >> 2) + 2] = data.backgroundColor.b; f32[((ptr + 20) >> 2) + 3] = data.backgroundColor.a;
+}
+
+export function createCanvasData(): CanvasPtrData {
+    return {
+        designResolution: { x: 0, y: 0 },
+        pixelsPerUnit: 0,
+        scaleMode: 0,
+        matchWidthOrHeight: 0,
+        backgroundColor: { r: 0, g: 0, b: 0, a: 0 },
     };
 }
 
@@ -389,6 +441,218 @@ export function createFanLayoutData(): FanLayoutPtrData {
     };
 }
 
+export interface FlexContainerPtrData {
+    direction: number;
+    wrap: number;
+    justifyContent: number;
+    alignItems: number;
+    alignContent: number;
+    gap: Vec2;
+}
+
+export function fillFlexContainer(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: FlexContainerPtrData,
+): void {
+    out.direction = u8[ptr];
+    out.wrap = u8[ptr + 1];
+    out.justifyContent = u8[ptr + 2];
+    out.alignItems = u8[ptr + 3];
+    out.alignContent = u8[ptr + 4];
+    const gap_ = out.gap; gap_.x = f32[(ptr + 8) >> 2]; gap_.y = f32[((ptr + 8) >> 2) + 1];
+}
+
+export function writeFlexContainer(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: FlexContainerPtrData,
+): void {
+    u8[ptr] = data.direction;
+    u8[ptr + 1] = data.wrap;
+    u8[ptr + 2] = data.justifyContent;
+    u8[ptr + 3] = data.alignItems;
+    u8[ptr + 4] = data.alignContent;
+    f32[(ptr + 8) >> 2] = data.gap.x; f32[((ptr + 8) >> 2) + 1] = data.gap.y;
+}
+
+export function createFlexContainerData(): FlexContainerPtrData {
+    return {
+        direction: 0,
+        wrap: 0,
+        justifyContent: 0,
+        alignItems: 0,
+        alignContent: 0,
+        gap: { x: 0, y: 0 },
+    };
+}
+
+export interface FlexItemPtrData {
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: number;
+    order: number;
+    alignSelf: number;
+    minWidth: number;
+    minHeight: number;
+    maxWidth: number;
+    maxHeight: number;
+    widthPercent: number;
+    heightPercent: number;
+}
+
+export function fillFlexItem(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: FlexItemPtrData,
+): void {
+    out.flexGrow = f32[ptr >> 2];
+    out.flexShrink = f32[(ptr + 4) >> 2];
+    out.flexBasis = f32[(ptr + 8) >> 2];
+    out.order = u32[(ptr + 12) >> 2] | 0;
+    out.alignSelf = u8[ptr + 16];
+    out.minWidth = f32[(ptr + 20) >> 2];
+    out.minHeight = f32[(ptr + 24) >> 2];
+    out.maxWidth = f32[(ptr + 28) >> 2];
+    out.maxHeight = f32[(ptr + 32) >> 2];
+    out.widthPercent = f32[(ptr + 36) >> 2];
+    out.heightPercent = f32[(ptr + 40) >> 2];
+}
+
+export function writeFlexItem(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: FlexItemPtrData,
+): void {
+    f32[ptr >> 2] = data.flexGrow;
+    f32[(ptr + 4) >> 2] = data.flexShrink;
+    f32[(ptr + 8) >> 2] = data.flexBasis;
+    u32[(ptr + 12) >> 2] = data.order | 0;
+    u8[ptr + 16] = data.alignSelf;
+    f32[(ptr + 20) >> 2] = data.minWidth;
+    f32[(ptr + 24) >> 2] = data.minHeight;
+    f32[(ptr + 28) >> 2] = data.maxWidth;
+    f32[(ptr + 32) >> 2] = data.maxHeight;
+    f32[(ptr + 36) >> 2] = data.widthPercent;
+    f32[(ptr + 40) >> 2] = data.heightPercent;
+}
+
+export function createFlexItemData(): FlexItemPtrData {
+    return {
+        flexGrow: 0,
+        flexShrink: 0,
+        flexBasis: 0,
+        order: 0,
+        alignSelf: 0,
+        minWidth: 0,
+        minHeight: 0,
+        maxWidth: 0,
+        maxHeight: 0,
+        widthPercent: 0,
+        heightPercent: 0,
+    };
+}
+
+export interface GridLayoutPtrData {
+    direction: number;
+    crossAxisCount: number;
+    itemSize: Vec2;
+    spacing: Vec2;
+}
+
+export function fillGridLayout(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: GridLayoutPtrData,
+): void {
+    out.direction = u32[ptr >> 2] | 0;
+    out.crossAxisCount = u32[(ptr + 4) >> 2] | 0;
+    const itemSize_ = out.itemSize; itemSize_.x = f32[(ptr + 8) >> 2]; itemSize_.y = f32[((ptr + 8) >> 2) + 1];
+    const spacing_ = out.spacing; spacing_.x = f32[(ptr + 16) >> 2]; spacing_.y = f32[((ptr + 16) >> 2) + 1];
+}
+
+export function writeGridLayout(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: GridLayoutPtrData,
+): void {
+    u32[ptr >> 2] = data.direction | 0;
+    u32[(ptr + 4) >> 2] = data.crossAxisCount | 0;
+    f32[(ptr + 8) >> 2] = data.itemSize.x; f32[((ptr + 8) >> 2) + 1] = data.itemSize.y;
+    f32[(ptr + 16) >> 2] = data.spacing.x; f32[((ptr + 16) >> 2) + 1] = data.spacing.y;
+}
+
+export function createGridLayoutData(): GridLayoutPtrData {
+    return {
+        direction: 0,
+        crossAxisCount: 0,
+        itemSize: { x: 0, y: 0 },
+        spacing: { x: 0, y: 0 },
+    };
+}
+
+export interface InteractablePtrData {
+    enabled: boolean;
+    blockRaycast: boolean;
+    raycastTarget: boolean;
+}
+
+export function fillInteractable(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: InteractablePtrData,
+): void {
+    out.enabled = u8[ptr] !== 0;
+    out.blockRaycast = u8[ptr + 1] !== 0;
+    out.raycastTarget = u8[ptr + 2] !== 0;
+}
+
+export function writeInteractable(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: InteractablePtrData,
+): void {
+    u8[ptr] = data.enabled ? 1 : 0;
+    u8[ptr + 1] = data.blockRaycast ? 1 : 0;
+    u8[ptr + 2] = data.raycastTarget ? 1 : 0;
+}
+
+export function createInteractableData(): InteractablePtrData {
+    return {
+        enabled: false,
+        blockRaycast: false,
+        raycastTarget: false,
+    };
+}
+
+export interface LayoutGroupPtrData {
+    direction: number;
+    spacing: number;
+    childAlignment: number;
+    reverseOrder: boolean;
+}
+
+export function fillLayoutGroup(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: LayoutGroupPtrData,
+): void {
+    out.direction = u8[ptr];
+    out.spacing = f32[(ptr + 4) >> 2];
+    out.childAlignment = u8[ptr + 8];
+    out.reverseOrder = u8[ptr + 9] !== 0;
+}
+
+export function writeLayoutGroup(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: LayoutGroupPtrData,
+): void {
+    u8[ptr] = data.direction;
+    f32[(ptr + 4) >> 2] = data.spacing;
+    u8[ptr + 8] = data.childAlignment;
+    u8[ptr + 9] = data.reverseOrder ? 1 : 0;
+}
+
+export function createLayoutGroupData(): LayoutGroupPtrData {
+    return {
+        direction: 0,
+        spacing: 0,
+        childAlignment: 0,
+        reverseOrder: false,
+    };
+}
+
 export interface ParticleEmitterPtrData {
     rate: number;
     burstCount: number;
@@ -573,163 +837,123 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
     };
 }
 
-export interface TransformPtrData {
-    position: Vec3;
-    rotation: Vec4;
-    scale: Vec3;
-    worldPosition: Vec3;
-    worldRotation: Vec4;
-    worldScale: Vec3;
-}
-
-export function fillTransform(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: TransformPtrData,
-): void {
-    const position_ = out.position; position_.x = f32[ptr >> 2]; position_.y = f32[(ptr >> 2) + 1]; position_.z = f32[(ptr >> 2) + 2];
-    const rotation_ = out.rotation; rotation_.x = f32[(ptr + 12) >> 2]; rotation_.y = f32[((ptr + 12) >> 2) + 1]; rotation_.z = f32[((ptr + 12) >> 2) + 2]; rotation_.w = f32[((ptr + 12) >> 2) + 3];
-    const scale_ = out.scale; scale_.x = f32[(ptr + 28) >> 2]; scale_.y = f32[((ptr + 28) >> 2) + 1]; scale_.z = f32[((ptr + 28) >> 2) + 2];
-    const worldPosition_ = out.worldPosition; worldPosition_.x = f32[(ptr + 40) >> 2]; worldPosition_.y = f32[((ptr + 40) >> 2) + 1]; worldPosition_.z = f32[((ptr + 40) >> 2) + 2];
-    const worldRotation_ = out.worldRotation; worldRotation_.x = f32[(ptr + 52) >> 2]; worldRotation_.y = f32[((ptr + 52) >> 2) + 1]; worldRotation_.z = f32[((ptr + 52) >> 2) + 2]; worldRotation_.w = f32[((ptr + 52) >> 2) + 3];
-    const worldScale_ = out.worldScale; worldScale_.x = f32[(ptr + 68) >> 2]; worldScale_.y = f32[((ptr + 68) >> 2) + 1]; worldScale_.z = f32[((ptr + 68) >> 2) + 2];
-}
-
-export function writeTransform(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: TransformPtrData,
-): void {
-    f32[ptr >> 2] = data.position.x; f32[(ptr >> 2) + 1] = data.position.y; f32[(ptr >> 2) + 2] = data.position.z;
-    f32[(ptr + 12) >> 2] = data.rotation.x; f32[((ptr + 12) >> 2) + 1] = data.rotation.y; f32[((ptr + 12) >> 2) + 2] = data.rotation.z; f32[((ptr + 12) >> 2) + 3] = data.rotation.w;
-    f32[(ptr + 28) >> 2] = data.scale.x; f32[((ptr + 28) >> 2) + 1] = data.scale.y; f32[((ptr + 28) >> 2) + 2] = data.scale.z;
-    f32[(ptr + 40) >> 2] = data.worldPosition.x; f32[((ptr + 40) >> 2) + 1] = data.worldPosition.y; f32[((ptr + 40) >> 2) + 2] = data.worldPosition.z;
-    f32[(ptr + 52) >> 2] = data.worldRotation.x; f32[((ptr + 52) >> 2) + 1] = data.worldRotation.y; f32[((ptr + 52) >> 2) + 2] = data.worldRotation.z; f32[((ptr + 52) >> 2) + 3] = data.worldRotation.w;
-    f32[(ptr + 68) >> 2] = data.worldScale.x; f32[((ptr + 68) >> 2) + 1] = data.worldScale.y; f32[((ptr + 68) >> 2) + 2] = data.worldScale.z;
-}
-
-export function createTransformData(): TransformPtrData {
-    return {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0, w: 0 },
-        scale: { x: 0, y: 0, z: 0 },
-        worldPosition: { x: 0, y: 0, z: 0 },
-        worldRotation: { x: 0, y: 0, z: 0, w: 0 },
-        worldScale: { x: 0, y: 0, z: 0 },
-    };
-}
-
-export interface UIRendererPtrData {
-    visualType: number;
-    texture: number;
-    color: Color;
-    uvOffset: Vec2;
-    uvScale: Vec2;
-    sliceBorder: Vec4;
-    material: number;
+export interface RigidBodyPtrData {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    bullet: boolean;
     enabled: boolean;
 }
 
-export function fillUIRenderer(
+export function fillRigidBody(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: UIRendererPtrData,
+    ptr: number, out: RigidBodyPtrData,
 ): void {
-    out.visualType = u8[ptr];
-    out.texture = u32[(ptr + 4) >> 2];
-    const color_ = out.color; color_.r = f32[(ptr + 8) >> 2]; color_.g = f32[((ptr + 8) >> 2) + 1]; color_.b = f32[((ptr + 8) >> 2) + 2]; color_.a = f32[((ptr + 8) >> 2) + 3];
-    const uvOffset_ = out.uvOffset; uvOffset_.x = f32[(ptr + 24) >> 2]; uvOffset_.y = f32[((ptr + 24) >> 2) + 1];
-    const uvScale_ = out.uvScale; uvScale_.x = f32[(ptr + 32) >> 2]; uvScale_.y = f32[((ptr + 32) >> 2) + 1];
-    const sliceBorder_ = out.sliceBorder; sliceBorder_.x = f32[(ptr + 40) >> 2]; sliceBorder_.y = f32[((ptr + 40) >> 2) + 1]; sliceBorder_.z = f32[((ptr + 40) >> 2) + 2]; sliceBorder_.w = f32[((ptr + 40) >> 2) + 3];
-    out.material = u32[(ptr + 56) >> 2];
-    out.enabled = u8[ptr + 60] !== 0;
+    out.bodyType = u8[ptr];
+    out.gravityScale = f32[(ptr + 4) >> 2];
+    out.linearDamping = f32[(ptr + 8) >> 2];
+    out.angularDamping = f32[(ptr + 12) >> 2];
+    out.fixedRotation = u8[ptr + 16] !== 0;
+    out.bullet = u8[ptr + 17] !== 0;
+    out.enabled = u8[ptr + 18] !== 0;
 }
 
-export function writeUIRenderer(
+export function writeRigidBody(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: UIRendererPtrData,
+    ptr: number, data: RigidBodyPtrData,
 ): void {
-    u8[ptr] = data.visualType;
-    u32[(ptr + 4) >> 2] = data.texture;
-    f32[(ptr + 8) >> 2] = data.color.r; f32[((ptr + 8) >> 2) + 1] = data.color.g; f32[((ptr + 8) >> 2) + 2] = data.color.b; f32[((ptr + 8) >> 2) + 3] = data.color.a;
-    f32[(ptr + 24) >> 2] = data.uvOffset.x; f32[((ptr + 24) >> 2) + 1] = data.uvOffset.y;
-    f32[(ptr + 32) >> 2] = data.uvScale.x; f32[((ptr + 32) >> 2) + 1] = data.uvScale.y;
-    f32[(ptr + 40) >> 2] = data.sliceBorder.x; f32[((ptr + 40) >> 2) + 1] = data.sliceBorder.y; f32[((ptr + 40) >> 2) + 2] = data.sliceBorder.z; f32[((ptr + 40) >> 2) + 3] = data.sliceBorder.w;
-    u32[(ptr + 56) >> 2] = data.material;
-    u8[ptr + 60] = data.enabled ? 1 : 0;
+    u8[ptr] = data.bodyType;
+    f32[(ptr + 4) >> 2] = data.gravityScale;
+    f32[(ptr + 8) >> 2] = data.linearDamping;
+    f32[(ptr + 12) >> 2] = data.angularDamping;
+    u8[ptr + 16] = data.fixedRotation ? 1 : 0;
+    u8[ptr + 17] = data.bullet ? 1 : 0;
+    u8[ptr + 18] = data.enabled ? 1 : 0;
 }
 
-export function createUIRendererData(): UIRendererPtrData {
+export function createRigidBodyData(): RigidBodyPtrData {
     return {
-        visualType: 0,
-        texture: 0,
-        color: { r: 0, g: 0, b: 0, a: 0 },
-        uvOffset: { x: 0, y: 0 },
-        uvScale: { x: 0, y: 0 },
-        sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
-        material: 0,
+        bodyType: 0,
+        gravityScale: 0,
+        linearDamping: 0,
+        angularDamping: 0,
+        fixedRotation: false,
+        bullet: false,
         enabled: false,
     };
 }
 
-export interface GridLayoutPtrData {
-    direction: number;
-    crossAxisCount: number;
-    itemSize: Vec2;
-    spacing: Vec2;
+export interface SelectablePtrData {
+    selected: boolean;
+    group: number;
 }
 
-export function fillGridLayout(
+export function fillSelectable(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: GridLayoutPtrData,
+    ptr: number, out: SelectablePtrData,
 ): void {
-    out.direction = u32[ptr >> 2] | 0;
-    out.crossAxisCount = u32[(ptr + 4) >> 2] | 0;
-    const itemSize_ = out.itemSize; itemSize_.x = f32[(ptr + 8) >> 2]; itemSize_.y = f32[((ptr + 8) >> 2) + 1];
-    const spacing_ = out.spacing; spacing_.x = f32[(ptr + 16) >> 2]; spacing_.y = f32[((ptr + 16) >> 2) + 1];
+    out.selected = u8[ptr] !== 0;
+    out.group = u32[(ptr + 4) >> 2] | 0;
 }
 
-export function writeGridLayout(
+export function writeSelectable(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: GridLayoutPtrData,
+    ptr: number, data: SelectablePtrData,
 ): void {
-    u32[ptr >> 2] = data.direction | 0;
-    u32[(ptr + 4) >> 2] = data.crossAxisCount | 0;
-    f32[(ptr + 8) >> 2] = data.itemSize.x; f32[((ptr + 8) >> 2) + 1] = data.itemSize.y;
-    f32[(ptr + 16) >> 2] = data.spacing.x; f32[((ptr + 16) >> 2) + 1] = data.spacing.y;
+    u8[ptr] = data.selected ? 1 : 0;
+    u32[(ptr + 4) >> 2] = data.group | 0;
 }
 
-export function createGridLayoutData(): GridLayoutPtrData {
+export function createSelectableData(): SelectablePtrData {
     return {
-        direction: 0,
-        crossAxisCount: 0,
-        itemSize: { x: 0, y: 0 },
-        spacing: { x: 0, y: 0 },
+        selected: false,
+        group: 0,
     };
 }
 
-export interface VelocityPtrData {
-    linear: Vec3;
-    angular: Vec3;
+export interface ShapeRendererPtrData {
+    shapeType: number;
+    color: Color;
+    size: Vec2;
+    cornerRadius: number;
+    layer: number;
+    enabled: boolean;
 }
 
-export function fillVelocity(
+export function fillShapeRenderer(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: VelocityPtrData,
+    ptr: number, out: ShapeRendererPtrData,
 ): void {
-    const linear_ = out.linear; linear_.x = f32[ptr >> 2]; linear_.y = f32[(ptr >> 2) + 1]; linear_.z = f32[(ptr >> 2) + 2];
-    const angular_ = out.angular; angular_.x = f32[(ptr + 12) >> 2]; angular_.y = f32[((ptr + 12) >> 2) + 1]; angular_.z = f32[((ptr + 12) >> 2) + 2];
+    out.shapeType = u8[ptr];
+    const color_ = out.color; color_.r = f32[(ptr + 4) >> 2]; color_.g = f32[((ptr + 4) >> 2) + 1]; color_.b = f32[((ptr + 4) >> 2) + 2]; color_.a = f32[((ptr + 4) >> 2) + 3];
+    const size_ = out.size; size_.x = f32[(ptr + 20) >> 2]; size_.y = f32[((ptr + 20) >> 2) + 1];
+    out.cornerRadius = f32[(ptr + 28) >> 2];
+    out.layer = u32[(ptr + 32) >> 2] | 0;
+    out.enabled = u8[ptr + 36] !== 0;
 }
 
-export function writeVelocity(
+export function writeShapeRenderer(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: VelocityPtrData,
+    ptr: number, data: ShapeRendererPtrData,
 ): void {
-    f32[ptr >> 2] = data.linear.x; f32[(ptr >> 2) + 1] = data.linear.y; f32[(ptr >> 2) + 2] = data.linear.z;
-    f32[(ptr + 12) >> 2] = data.angular.x; f32[((ptr + 12) >> 2) + 1] = data.angular.y; f32[((ptr + 12) >> 2) + 2] = data.angular.z;
+    u8[ptr] = data.shapeType;
+    f32[(ptr + 4) >> 2] = data.color.r; f32[((ptr + 4) >> 2) + 1] = data.color.g; f32[((ptr + 4) >> 2) + 2] = data.color.b; f32[((ptr + 4) >> 2) + 3] = data.color.a;
+    f32[(ptr + 20) >> 2] = data.size.x; f32[((ptr + 20) >> 2) + 1] = data.size.y;
+    f32[(ptr + 28) >> 2] = data.cornerRadius;
+    u32[(ptr + 32) >> 2] = data.layer | 0;
+    u8[ptr + 36] = data.enabled ? 1 : 0;
 }
 
-export function createVelocityData(): VelocityPtrData {
+export function createShapeRendererData(): ShapeRendererPtrData {
     return {
-        linear: { x: 0, y: 0, z: 0 },
-        angular: { x: 0, y: 0, z: 0 },
+        shapeType: 0,
+        color: { r: 0, g: 0, b: 0, a: 0 },
+        size: { x: 0, y: 0 },
+        cornerRadius: 0,
+        layer: 0,
+        enabled: false,
     };
 }
 
@@ -789,170 +1013,6 @@ export function createSpineAnimationData(): SpineAnimationPtrData {
         layer: 0,
         skeletonScale: 0,
         material: 0,
-        enabled: false,
-    };
-}
-
-export interface InteractablePtrData {
-    enabled: boolean;
-    blockRaycast: boolean;
-    raycastTarget: boolean;
-}
-
-export function fillInteractable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: InteractablePtrData,
-): void {
-    out.enabled = u8[ptr] !== 0;
-    out.blockRaycast = u8[ptr + 1] !== 0;
-    out.raycastTarget = u8[ptr + 2] !== 0;
-}
-
-export function writeInteractable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: InteractablePtrData,
-): void {
-    u8[ptr] = data.enabled ? 1 : 0;
-    u8[ptr + 1] = data.blockRaycast ? 1 : 0;
-    u8[ptr + 2] = data.raycastTarget ? 1 : 0;
-}
-
-export function createInteractableData(): InteractablePtrData {
-    return {
-        enabled: false,
-        blockRaycast: false,
-        raycastTarget: false,
-    };
-}
-
-export interface UIInteractionPtrData {
-    hovered: boolean;
-    pressed: boolean;
-    justPressed: boolean;
-    justReleased: boolean;
-}
-
-export function fillUIInteraction(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: UIInteractionPtrData,
-): void {
-    out.hovered = u8[ptr] !== 0;
-    out.pressed = u8[ptr + 1] !== 0;
-    out.justPressed = u8[ptr + 2] !== 0;
-    out.justReleased = u8[ptr + 3] !== 0;
-}
-
-export function writeUIInteraction(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: UIInteractionPtrData,
-): void {
-    u8[ptr] = data.hovered ? 1 : 0;
-    u8[ptr + 1] = data.pressed ? 1 : 0;
-    u8[ptr + 2] = data.justPressed ? 1 : 0;
-    u8[ptr + 3] = data.justReleased ? 1 : 0;
-}
-
-export function createUIInteractionData(): UIInteractionPtrData {
-    return {
-        hovered: false,
-        pressed: false,
-        justPressed: false,
-        justReleased: false,
-    };
-}
-
-export interface RigidBodyPtrData {
-    bodyType: number;
-    gravityScale: number;
-    linearDamping: number;
-    angularDamping: number;
-    fixedRotation: boolean;
-    bullet: boolean;
-    enabled: boolean;
-}
-
-export function fillRigidBody(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: RigidBodyPtrData,
-): void {
-    out.bodyType = u8[ptr];
-    out.gravityScale = f32[(ptr + 4) >> 2];
-    out.linearDamping = f32[(ptr + 8) >> 2];
-    out.angularDamping = f32[(ptr + 12) >> 2];
-    out.fixedRotation = u8[ptr + 16] !== 0;
-    out.bullet = u8[ptr + 17] !== 0;
-    out.enabled = u8[ptr + 18] !== 0;
-}
-
-export function writeRigidBody(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: RigidBodyPtrData,
-): void {
-    u8[ptr] = data.bodyType;
-    f32[(ptr + 4) >> 2] = data.gravityScale;
-    f32[(ptr + 8) >> 2] = data.linearDamping;
-    f32[(ptr + 12) >> 2] = data.angularDamping;
-    u8[ptr + 16] = data.fixedRotation ? 1 : 0;
-    u8[ptr + 17] = data.bullet ? 1 : 0;
-    u8[ptr + 18] = data.enabled ? 1 : 0;
-}
-
-export function createRigidBodyData(): RigidBodyPtrData {
-    return {
-        bodyType: 0,
-        gravityScale: 0,
-        linearDamping: 0,
-        angularDamping: 0,
-        fixedRotation: false,
-        bullet: false,
-        enabled: false,
-    };
-}
-
-export interface BitmapTextPtrData {
-    color: Color;
-    fontSize: number;
-    align: number;
-    spacing: number;
-    layer: number;
-    font: number;
-    enabled: boolean;
-}
-
-export function fillBitmapText(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: BitmapTextPtrData,
-): void {
-    const color_ = out.color; color_.r = f32[ptr >> 2]; color_.g = f32[(ptr >> 2) + 1]; color_.b = f32[(ptr >> 2) + 2]; color_.a = f32[(ptr >> 2) + 3];
-    out.fontSize = f32[(ptr + 16) >> 2];
-    out.align = u8[ptr + 20];
-    out.spacing = f32[(ptr + 24) >> 2];
-    out.layer = u32[(ptr + 28) >> 2] | 0;
-    out.font = u32[(ptr + 32) >> 2];
-    out.enabled = u8[ptr + 36] !== 0;
-}
-
-export function writeBitmapText(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: BitmapTextPtrData,
-): void {
-    f32[ptr >> 2] = data.color.r; f32[(ptr >> 2) + 1] = data.color.g; f32[(ptr >> 2) + 2] = data.color.b; f32[(ptr >> 2) + 3] = data.color.a;
-    f32[(ptr + 16) >> 2] = data.fontSize;
-    u8[ptr + 20] = data.align;
-    f32[(ptr + 24) >> 2] = data.spacing;
-    u32[(ptr + 28) >> 2] = data.layer | 0;
-    u32[(ptr + 32) >> 2] = data.font;
-    u8[ptr + 36] = data.enabled ? 1 : 0;
-}
-
-export function createBitmapTextData(): BitmapTextPtrData {
-    return {
-        color: { r: 0, g: 0, b: 0, a: 0 },
-        fontSize: 0,
-        align: 0,
-        spacing: 0,
-        layer: 0,
-        font: 0,
         enabled: false,
     };
 }
@@ -1029,6 +1089,86 @@ export function createSpriteData(): SpritePtrData {
     };
 }
 
+export interface TransformPtrData {
+    position: Vec3;
+    rotation: Vec4;
+    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Vec4;
+    worldScale: Vec3;
+}
+
+export function fillTransform(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: TransformPtrData,
+): void {
+    const position_ = out.position; position_.x = f32[ptr >> 2]; position_.y = f32[(ptr >> 2) + 1]; position_.z = f32[(ptr >> 2) + 2];
+    const rotation_ = out.rotation; rotation_.x = f32[(ptr + 12) >> 2]; rotation_.y = f32[((ptr + 12) >> 2) + 1]; rotation_.z = f32[((ptr + 12) >> 2) + 2]; rotation_.w = f32[((ptr + 12) >> 2) + 3];
+    const scale_ = out.scale; scale_.x = f32[(ptr + 28) >> 2]; scale_.y = f32[((ptr + 28) >> 2) + 1]; scale_.z = f32[((ptr + 28) >> 2) + 2];
+    const worldPosition_ = out.worldPosition; worldPosition_.x = f32[(ptr + 40) >> 2]; worldPosition_.y = f32[((ptr + 40) >> 2) + 1]; worldPosition_.z = f32[((ptr + 40) >> 2) + 2];
+    const worldRotation_ = out.worldRotation; worldRotation_.x = f32[(ptr + 52) >> 2]; worldRotation_.y = f32[((ptr + 52) >> 2) + 1]; worldRotation_.z = f32[((ptr + 52) >> 2) + 2]; worldRotation_.w = f32[((ptr + 52) >> 2) + 3];
+    const worldScale_ = out.worldScale; worldScale_.x = f32[(ptr + 68) >> 2]; worldScale_.y = f32[((ptr + 68) >> 2) + 1]; worldScale_.z = f32[((ptr + 68) >> 2) + 2];
+}
+
+export function writeTransform(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: TransformPtrData,
+): void {
+    f32[ptr >> 2] = data.position.x; f32[(ptr >> 2) + 1] = data.position.y; f32[(ptr >> 2) + 2] = data.position.z;
+    f32[(ptr + 12) >> 2] = data.rotation.x; f32[((ptr + 12) >> 2) + 1] = data.rotation.y; f32[((ptr + 12) >> 2) + 2] = data.rotation.z; f32[((ptr + 12) >> 2) + 3] = data.rotation.w;
+    f32[(ptr + 28) >> 2] = data.scale.x; f32[((ptr + 28) >> 2) + 1] = data.scale.y; f32[((ptr + 28) >> 2) + 2] = data.scale.z;
+    f32[(ptr + 40) >> 2] = data.worldPosition.x; f32[((ptr + 40) >> 2) + 1] = data.worldPosition.y; f32[((ptr + 40) >> 2) + 2] = data.worldPosition.z;
+    f32[(ptr + 52) >> 2] = data.worldRotation.x; f32[((ptr + 52) >> 2) + 1] = data.worldRotation.y; f32[((ptr + 52) >> 2) + 2] = data.worldRotation.z; f32[((ptr + 52) >> 2) + 3] = data.worldRotation.w;
+    f32[(ptr + 68) >> 2] = data.worldScale.x; f32[((ptr + 68) >> 2) + 1] = data.worldScale.y; f32[((ptr + 68) >> 2) + 2] = data.worldScale.z;
+}
+
+export function createTransformData(): TransformPtrData {
+    return {
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 0 },
+        scale: { x: 0, y: 0, z: 0 },
+        worldPosition: { x: 0, y: 0, z: 0 },
+        worldRotation: { x: 0, y: 0, z: 0, w: 0 },
+        worldScale: { x: 0, y: 0, z: 0 },
+    };
+}
+
+export interface UIInteractionPtrData {
+    hovered: boolean;
+    pressed: boolean;
+    justPressed: boolean;
+    justReleased: boolean;
+}
+
+export function fillUIInteraction(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: UIInteractionPtrData,
+): void {
+    out.hovered = u8[ptr] !== 0;
+    out.pressed = u8[ptr + 1] !== 0;
+    out.justPressed = u8[ptr + 2] !== 0;
+    out.justReleased = u8[ptr + 3] !== 0;
+}
+
+export function writeUIInteraction(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: UIInteractionPtrData,
+): void {
+    u8[ptr] = data.hovered ? 1 : 0;
+    u8[ptr + 1] = data.pressed ? 1 : 0;
+    u8[ptr + 2] = data.justPressed ? 1 : 0;
+    u8[ptr + 3] = data.justReleased ? 1 : 0;
+}
+
+export function createUIInteractionData(): UIInteractionPtrData {
+    return {
+        hovered: false,
+        pressed: false,
+        justPressed: false,
+        justReleased: false,
+    };
+}
+
 export interface UIMaskPtrData {
     enabled: boolean;
     mode: number;
@@ -1057,267 +1197,127 @@ export function createUIMaskData(): UIMaskPtrData {
     };
 }
 
-export interface FlexContainerPtrData {
-    direction: number;
-    wrap: number;
-    justifyContent: number;
-    alignItems: number;
-    alignContent: number;
-    gap: Vec2;
+export interface UIRectPtrData {
+    anchorMin: Vec2;
+    anchorMax: Vec2;
+    offsetMin: Vec2;
+    offsetMax: Vec2;
+    size: Vec2;
+    pivot: Vec2;
 }
 
-export function fillFlexContainer(
+export function fillUIRect(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: FlexContainerPtrData,
+    ptr: number, out: UIRectPtrData,
 ): void {
-    out.direction = u8[ptr];
-    out.wrap = u8[ptr + 1];
-    out.justifyContent = u8[ptr + 2];
-    out.alignItems = u8[ptr + 3];
-    out.alignContent = u8[ptr + 4];
-    const gap_ = out.gap; gap_.x = f32[(ptr + 8) >> 2]; gap_.y = f32[((ptr + 8) >> 2) + 1];
+    const anchorMin_ = out.anchorMin; anchorMin_.x = f32[ptr >> 2]; anchorMin_.y = f32[(ptr >> 2) + 1];
+    const anchorMax_ = out.anchorMax; anchorMax_.x = f32[(ptr + 8) >> 2]; anchorMax_.y = f32[((ptr + 8) >> 2) + 1];
+    const offsetMin_ = out.offsetMin; offsetMin_.x = f32[(ptr + 16) >> 2]; offsetMin_.y = f32[((ptr + 16) >> 2) + 1];
+    const offsetMax_ = out.offsetMax; offsetMax_.x = f32[(ptr + 24) >> 2]; offsetMax_.y = f32[((ptr + 24) >> 2) + 1];
+    const size_ = out.size; size_.x = f32[(ptr + 32) >> 2]; size_.y = f32[((ptr + 32) >> 2) + 1];
+    const pivot_ = out.pivot; pivot_.x = f32[(ptr + 40) >> 2]; pivot_.y = f32[((ptr + 40) >> 2) + 1];
 }
 
-export function writeFlexContainer(
+export function writeUIRect(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: FlexContainerPtrData,
+    ptr: number, data: UIRectPtrData,
 ): void {
-    u8[ptr] = data.direction;
-    u8[ptr + 1] = data.wrap;
-    u8[ptr + 2] = data.justifyContent;
-    u8[ptr + 3] = data.alignItems;
-    u8[ptr + 4] = data.alignContent;
-    f32[(ptr + 8) >> 2] = data.gap.x; f32[((ptr + 8) >> 2) + 1] = data.gap.y;
+    f32[ptr >> 2] = data.anchorMin.x; f32[(ptr >> 2) + 1] = data.anchorMin.y;
+    f32[(ptr + 8) >> 2] = data.anchorMax.x; f32[((ptr + 8) >> 2) + 1] = data.anchorMax.y;
+    f32[(ptr + 16) >> 2] = data.offsetMin.x; f32[((ptr + 16) >> 2) + 1] = data.offsetMin.y;
+    f32[(ptr + 24) >> 2] = data.offsetMax.x; f32[((ptr + 24) >> 2) + 1] = data.offsetMax.y;
+    f32[(ptr + 32) >> 2] = data.size.x; f32[((ptr + 32) >> 2) + 1] = data.size.y;
+    f32[(ptr + 40) >> 2] = data.pivot.x; f32[((ptr + 40) >> 2) + 1] = data.pivot.y;
 }
 
-export function createFlexContainerData(): FlexContainerPtrData {
+export function createUIRectData(): UIRectPtrData {
     return {
-        direction: 0,
-        wrap: 0,
-        justifyContent: 0,
-        alignItems: 0,
-        alignContent: 0,
-        gap: { x: 0, y: 0 },
+        anchorMin: { x: 0, y: 0 },
+        anchorMax: { x: 0, y: 0 },
+        offsetMin: { x: 0, y: 0 },
+        offsetMax: { x: 0, y: 0 },
+        size: { x: 0, y: 0 },
+        pivot: { x: 0, y: 0 },
     };
 }
 
-export interface ShapeRendererPtrData {
-    shapeType: number;
+export interface UIRendererPtrData {
+    visualType: number;
+    texture: number;
     color: Color;
-    size: Vec2;
-    cornerRadius: number;
-    layer: number;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    sliceBorder: Vec4;
+    material: number;
     enabled: boolean;
 }
 
-export function fillShapeRenderer(
+export function fillUIRenderer(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: ShapeRendererPtrData,
+    ptr: number, out: UIRendererPtrData,
 ): void {
-    out.shapeType = u8[ptr];
-    const color_ = out.color; color_.r = f32[(ptr + 4) >> 2]; color_.g = f32[((ptr + 4) >> 2) + 1]; color_.b = f32[((ptr + 4) >> 2) + 2]; color_.a = f32[((ptr + 4) >> 2) + 3];
-    const size_ = out.size; size_.x = f32[(ptr + 20) >> 2]; size_.y = f32[((ptr + 20) >> 2) + 1];
-    out.cornerRadius = f32[(ptr + 28) >> 2];
-    out.layer = u32[(ptr + 32) >> 2] | 0;
-    out.enabled = u8[ptr + 36] !== 0;
+    out.visualType = u8[ptr];
+    out.texture = u32[(ptr + 4) >> 2];
+    const color_ = out.color; color_.r = f32[(ptr + 8) >> 2]; color_.g = f32[((ptr + 8) >> 2) + 1]; color_.b = f32[((ptr + 8) >> 2) + 2]; color_.a = f32[((ptr + 8) >> 2) + 3];
+    const uvOffset_ = out.uvOffset; uvOffset_.x = f32[(ptr + 24) >> 2]; uvOffset_.y = f32[((ptr + 24) >> 2) + 1];
+    const uvScale_ = out.uvScale; uvScale_.x = f32[(ptr + 32) >> 2]; uvScale_.y = f32[((ptr + 32) >> 2) + 1];
+    const sliceBorder_ = out.sliceBorder; sliceBorder_.x = f32[(ptr + 40) >> 2]; sliceBorder_.y = f32[((ptr + 40) >> 2) + 1]; sliceBorder_.z = f32[((ptr + 40) >> 2) + 2]; sliceBorder_.w = f32[((ptr + 40) >> 2) + 3];
+    out.material = u32[(ptr + 56) >> 2];
+    out.enabled = u8[ptr + 60] !== 0;
 }
 
-export function writeShapeRenderer(
+export function writeUIRenderer(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: ShapeRendererPtrData,
+    ptr: number, data: UIRendererPtrData,
 ): void {
-    u8[ptr] = data.shapeType;
-    f32[(ptr + 4) >> 2] = data.color.r; f32[((ptr + 4) >> 2) + 1] = data.color.g; f32[((ptr + 4) >> 2) + 2] = data.color.b; f32[((ptr + 4) >> 2) + 3] = data.color.a;
-    f32[(ptr + 20) >> 2] = data.size.x; f32[((ptr + 20) >> 2) + 1] = data.size.y;
-    f32[(ptr + 28) >> 2] = data.cornerRadius;
-    u32[(ptr + 32) >> 2] = data.layer | 0;
-    u8[ptr + 36] = data.enabled ? 1 : 0;
+    u8[ptr] = data.visualType;
+    u32[(ptr + 4) >> 2] = data.texture;
+    f32[(ptr + 8) >> 2] = data.color.r; f32[((ptr + 8) >> 2) + 1] = data.color.g; f32[((ptr + 8) >> 2) + 2] = data.color.b; f32[((ptr + 8) >> 2) + 3] = data.color.a;
+    f32[(ptr + 24) >> 2] = data.uvOffset.x; f32[((ptr + 24) >> 2) + 1] = data.uvOffset.y;
+    f32[(ptr + 32) >> 2] = data.uvScale.x; f32[((ptr + 32) >> 2) + 1] = data.uvScale.y;
+    f32[(ptr + 40) >> 2] = data.sliceBorder.x; f32[((ptr + 40) >> 2) + 1] = data.sliceBorder.y; f32[((ptr + 40) >> 2) + 2] = data.sliceBorder.z; f32[((ptr + 40) >> 2) + 3] = data.sliceBorder.w;
+    u32[(ptr + 56) >> 2] = data.material;
+    u8[ptr + 60] = data.enabled ? 1 : 0;
 }
 
-export function createShapeRendererData(): ShapeRendererPtrData {
+export function createUIRendererData(): UIRendererPtrData {
     return {
-        shapeType: 0,
+        visualType: 0,
+        texture: 0,
         color: { r: 0, g: 0, b: 0, a: 0 },
-        size: { x: 0, y: 0 },
-        cornerRadius: 0,
-        layer: 0,
+        uvOffset: { x: 0, y: 0 },
+        uvScale: { x: 0, y: 0 },
+        sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+        material: 0,
         enabled: false,
     };
 }
 
-export interface SelectablePtrData {
-    selected: boolean;
-    group: number;
+export interface VelocityPtrData {
+    linear: Vec3;
+    angular: Vec3;
 }
 
-export function fillSelectable(
+export function fillVelocity(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: SelectablePtrData,
+    ptr: number, out: VelocityPtrData,
 ): void {
-    out.selected = u8[ptr] !== 0;
-    out.group = u32[(ptr + 4) >> 2] | 0;
+    const linear_ = out.linear; linear_.x = f32[ptr >> 2]; linear_.y = f32[(ptr >> 2) + 1]; linear_.z = f32[(ptr >> 2) + 2];
+    const angular_ = out.angular; angular_.x = f32[(ptr + 12) >> 2]; angular_.y = f32[((ptr + 12) >> 2) + 1]; angular_.z = f32[((ptr + 12) >> 2) + 2];
 }
 
-export function writeSelectable(
+export function writeVelocity(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: SelectablePtrData,
+    ptr: number, data: VelocityPtrData,
 ): void {
-    u8[ptr] = data.selected ? 1 : 0;
-    u32[(ptr + 4) >> 2] = data.group | 0;
+    f32[ptr >> 2] = data.linear.x; f32[(ptr >> 2) + 1] = data.linear.y; f32[(ptr >> 2) + 2] = data.linear.z;
+    f32[(ptr + 12) >> 2] = data.angular.x; f32[((ptr + 12) >> 2) + 1] = data.angular.y; f32[((ptr + 12) >> 2) + 2] = data.angular.z;
 }
 
-export function createSelectableData(): SelectablePtrData {
+export function createVelocityData(): VelocityPtrData {
     return {
-        selected: false,
-        group: 0,
-    };
-}
-
-export interface LayoutGroupPtrData {
-    direction: number;
-    spacing: number;
-    childAlignment: number;
-    reverseOrder: boolean;
-}
-
-export function fillLayoutGroup(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: LayoutGroupPtrData,
-): void {
-    out.direction = u8[ptr];
-    out.spacing = f32[(ptr + 4) >> 2];
-    out.childAlignment = u8[ptr + 8];
-    out.reverseOrder = u8[ptr + 9] !== 0;
-}
-
-export function writeLayoutGroup(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: LayoutGroupPtrData,
-): void {
-    u8[ptr] = data.direction;
-    f32[(ptr + 4) >> 2] = data.spacing;
-    u8[ptr + 8] = data.childAlignment;
-    u8[ptr + 9] = data.reverseOrder ? 1 : 0;
-}
-
-export function createLayoutGroupData(): LayoutGroupPtrData {
-    return {
-        direction: 0,
-        spacing: 0,
-        childAlignment: 0,
-        reverseOrder: false,
-    };
-}
-
-export interface CanvasPtrData {
-    designResolution: Vec2;
-    pixelsPerUnit: number;
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: Color;
-}
-
-export function fillCanvas(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: CanvasPtrData,
-): void {
-    const designResolution_ = out.designResolution; designResolution_.x = f32[ptr >> 2]; designResolution_.y = f32[(ptr >> 2) + 1];
-    out.pixelsPerUnit = f32[(ptr + 8) >> 2];
-    out.scaleMode = u8[ptr + 12];
-    out.matchWidthOrHeight = f32[(ptr + 16) >> 2];
-    const backgroundColor_ = out.backgroundColor; backgroundColor_.r = f32[(ptr + 20) >> 2]; backgroundColor_.g = f32[((ptr + 20) >> 2) + 1]; backgroundColor_.b = f32[((ptr + 20) >> 2) + 2]; backgroundColor_.a = f32[((ptr + 20) >> 2) + 3];
-}
-
-export function writeCanvas(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: CanvasPtrData,
-): void {
-    f32[ptr >> 2] = data.designResolution.x; f32[(ptr >> 2) + 1] = data.designResolution.y;
-    f32[(ptr + 8) >> 2] = data.pixelsPerUnit;
-    u8[ptr + 12] = data.scaleMode;
-    f32[(ptr + 16) >> 2] = data.matchWidthOrHeight;
-    f32[(ptr + 20) >> 2] = data.backgroundColor.r; f32[((ptr + 20) >> 2) + 1] = data.backgroundColor.g; f32[((ptr + 20) >> 2) + 2] = data.backgroundColor.b; f32[((ptr + 20) >> 2) + 3] = data.backgroundColor.a;
-}
-
-export function createCanvasData(): CanvasPtrData {
-    return {
-        designResolution: { x: 0, y: 0 },
-        pixelsPerUnit: 0,
-        scaleMode: 0,
-        matchWidthOrHeight: 0,
-        backgroundColor: { r: 0, g: 0, b: 0, a: 0 },
-    };
-}
-
-export interface CameraPtrData {
-    projectionType: number;
-    fov: number;
-    orthoSize: number;
-    nearPlane: number;
-    farPlane: number;
-    aspectRatio: number;
-    isActive: boolean;
-    priority: number;
-    viewportX: number;
-    viewportY: number;
-    viewportW: number;
-    viewportH: number;
-    clearFlags: number;
-}
-
-export function fillCamera(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: CameraPtrData,
-): void {
-    out.projectionType = u8[ptr];
-    out.fov = f32[(ptr + 4) >> 2];
-    out.orthoSize = f32[(ptr + 8) >> 2];
-    out.nearPlane = f32[(ptr + 12) >> 2];
-    out.farPlane = f32[(ptr + 16) >> 2];
-    out.aspectRatio = f32[(ptr + 20) >> 2];
-    out.isActive = u8[ptr + 24] !== 0;
-    out.priority = u32[(ptr + 28) >> 2] | 0;
-    out.viewportX = f32[(ptr + 32) >> 2];
-    out.viewportY = f32[(ptr + 36) >> 2];
-    out.viewportW = f32[(ptr + 40) >> 2];
-    out.viewportH = f32[(ptr + 44) >> 2];
-    out.clearFlags = u32[(ptr + 48) >> 2] | 0;
-}
-
-export function writeCamera(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: CameraPtrData,
-): void {
-    u8[ptr] = data.projectionType;
-    f32[(ptr + 4) >> 2] = data.fov;
-    f32[(ptr + 8) >> 2] = data.orthoSize;
-    f32[(ptr + 12) >> 2] = data.nearPlane;
-    f32[(ptr + 16) >> 2] = data.farPlane;
-    f32[(ptr + 20) >> 2] = data.aspectRatio;
-    u8[ptr + 24] = data.isActive ? 1 : 0;
-    u32[(ptr + 28) >> 2] = data.priority | 0;
-    f32[(ptr + 32) >> 2] = data.viewportX;
-    f32[(ptr + 36) >> 2] = data.viewportY;
-    f32[(ptr + 40) >> 2] = data.viewportW;
-    f32[(ptr + 44) >> 2] = data.viewportH;
-    u32[(ptr + 48) >> 2] = data.clearFlags | 0;
-}
-
-export function createCameraData(): CameraPtrData {
-    return {
-        projectionType: 0,
-        fov: 0,
-        orthoSize: 0,
-        nearPlane: 0,
-        farPlane: 0,
-        aspectRatio: 0,
-        isActive: false,
-        priority: 0,
-        viewportX: 0,
-        viewportY: 0,
-        viewportW: 0,
-        viewportH: 0,
-        clearFlags: 0,
+        linear: { x: 0, y: 0, z: 0 },
+        angular: { x: 0, y: 0, z: 0 },
     };
 }
 
@@ -1328,29 +1328,29 @@ export interface PtrAccessor<T> {
 }
 
 export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
-    UIRect: { fill: fillUIRect, write: writeUIRect, create: createUIRectData },
-    FlexItem: { fill: fillFlexItem, write: writeFlexItem, create: createFlexItemData },
+    BitmapText: { fill: fillBitmapText, write: writeBitmapText, create: createBitmapTextData },
+    Camera: { fill: fillCamera, write: writeCamera, create: createCameraData },
+    Canvas: { fill: fillCanvas, write: writeCanvas, create: createCanvasData },
     BoxCollider: { fill: fillBoxCollider, write: writeBoxCollider, create: createBoxColliderData },
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
     SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
     FanLayout: { fill: fillFanLayout, write: writeFanLayout, create: createFanLayoutData },
-    ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
-    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },
-    UIRenderer: { fill: fillUIRenderer, write: writeUIRenderer, create: createUIRendererData },
-    GridLayout: { fill: fillGridLayout, write: writeGridLayout, create: createGridLayoutData },
-    Velocity: { fill: fillVelocity, write: writeVelocity, create: createVelocityData },
-    SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
-    Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
-    UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
-    RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
-    BitmapText: { fill: fillBitmapText, write: writeBitmapText, create: createBitmapTextData },
-    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
-    UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
-    ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
-    Selectable: { fill: fillSelectable, write: writeSelectable, create: createSelectableData },
+    FlexItem: { fill: fillFlexItem, write: writeFlexItem, create: createFlexItemData },
+    GridLayout: { fill: fillGridLayout, write: writeGridLayout, create: createGridLayoutData },
+    Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     LayoutGroup: { fill: fillLayoutGroup, write: writeLayoutGroup, create: createLayoutGroupData },
-    Canvas: { fill: fillCanvas, write: writeCanvas, create: createCanvasData },
-    Camera: { fill: fillCamera, write: writeCamera, create: createCameraData },
+    ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
+    RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
+    Selectable: { fill: fillSelectable, write: writeSelectable, create: createSelectableData },
+    ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
+    SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
+    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
+    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },
+    UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
+    UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
+    UIRect: { fill: fillUIRect, write: writeUIRect, create: createUIRectData },
+    UIRenderer: { fill: fillUIRenderer, write: writeUIRenderer, create: createUIRendererData },
+    Velocity: { fill: fillVelocity, write: writeVelocity, create: createVelocityData },
 };

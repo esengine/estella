@@ -18,31 +18,44 @@ export interface PtrLayout {
 }
 
 export const PTR_LAYOUTS: Record<string, PtrLayout> = {
-    UIRect: {
-        ptrFn: 'getUIRectPtr',
+    BitmapText: {
+        ptrFn: 'getBitmapTextPtr',
         fields: [
-            { name: 'anchorMin', type: 'vec2', offset: 0 },
-            { name: 'anchorMax', type: 'vec2', offset: 8 },
-            { name: 'offsetMin', type: 'vec2', offset: 16 },
-            { name: 'offsetMax', type: 'vec2', offset: 24 },
-            { name: 'size', type: 'vec2', offset: 32 },
-            { name: 'pivot', type: 'vec2', offset: 40 },
+            { name: 'color', type: 'color', offset: 0 },
+            { name: 'fontSize', type: 'f32', offset: 16 },
+            { name: 'align', type: 'u8', offset: 20 },
+            { name: 'spacing', type: 'f32', offset: 24 },
+            { name: 'layer', type: 'i32', offset: 28 },
+            { name: 'font', type: 'u32', offset: 32 },
+            { name: 'enabled', type: 'bool', offset: 36 },
         ],
     },
-    FlexItem: {
-        ptrFn: 'getFlexItemPtr',
+    Camera: {
+        ptrFn: 'getCameraPtr',
         fields: [
-            { name: 'flexGrow', type: 'f32', offset: 0 },
-            { name: 'flexShrink', type: 'f32', offset: 4 },
-            { name: 'flexBasis', type: 'f32', offset: 8 },
-            { name: 'order', type: 'i32', offset: 12 },
-            { name: 'alignSelf', type: 'u8', offset: 16 },
-            { name: 'minWidth', type: 'f32', offset: 20 },
-            { name: 'minHeight', type: 'f32', offset: 24 },
-            { name: 'maxWidth', type: 'f32', offset: 28 },
-            { name: 'maxHeight', type: 'f32', offset: 32 },
-            { name: 'widthPercent', type: 'f32', offset: 36 },
-            { name: 'heightPercent', type: 'f32', offset: 40 },
+            { name: 'projectionType', type: 'u8', offset: 0 },
+            { name: 'fov', type: 'f32', offset: 4 },
+            { name: 'orthoSize', type: 'f32', offset: 8 },
+            { name: 'nearPlane', type: 'f32', offset: 12 },
+            { name: 'farPlane', type: 'f32', offset: 16 },
+            { name: 'aspectRatio', type: 'f32', offset: 20 },
+            { name: 'isActive', type: 'bool', offset: 24 },
+            { name: 'priority', type: 'i32', offset: 28 },
+            { name: 'viewportX', type: 'f32', offset: 32 },
+            { name: 'viewportY', type: 'f32', offset: 36 },
+            { name: 'viewportW', type: 'f32', offset: 40 },
+            { name: 'viewportH', type: 'f32', offset: 44 },
+            { name: 'clearFlags', type: 'i32', offset: 48 },
+        ],
+    },
+    Canvas: {
+        ptrFn: 'getCanvasPtr',
+        fields: [
+            { name: 'designResolution', type: 'vec2', offset: 0 },
+            { name: 'pixelsPerUnit', type: 'f32', offset: 8 },
+            { name: 'scaleMode', type: 'u8', offset: 12 },
+            { name: 'matchWidthOrHeight', type: 'f32', offset: 16 },
+            { name: 'backgroundColor', type: 'color', offset: 20 },
         ],
     },
     BoxCollider: {
@@ -113,6 +126,59 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'direction', type: 'i32', offset: 20 },
         ],
     },
+    FlexContainer: {
+        ptrFn: 'getFlexContainerPtr',
+        fields: [
+            { name: 'direction', type: 'u8', offset: 0 },
+            { name: 'wrap', type: 'u8', offset: 1 },
+            { name: 'justifyContent', type: 'u8', offset: 2 },
+            { name: 'alignItems', type: 'u8', offset: 3 },
+            { name: 'alignContent', type: 'u8', offset: 4 },
+            { name: 'gap', type: 'vec2', offset: 8 },
+        ],
+    },
+    FlexItem: {
+        ptrFn: 'getFlexItemPtr',
+        fields: [
+            { name: 'flexGrow', type: 'f32', offset: 0 },
+            { name: 'flexShrink', type: 'f32', offset: 4 },
+            { name: 'flexBasis', type: 'f32', offset: 8 },
+            { name: 'order', type: 'i32', offset: 12 },
+            { name: 'alignSelf', type: 'u8', offset: 16 },
+            { name: 'minWidth', type: 'f32', offset: 20 },
+            { name: 'minHeight', type: 'f32', offset: 24 },
+            { name: 'maxWidth', type: 'f32', offset: 28 },
+            { name: 'maxHeight', type: 'f32', offset: 32 },
+            { name: 'widthPercent', type: 'f32', offset: 36 },
+            { name: 'heightPercent', type: 'f32', offset: 40 },
+        ],
+    },
+    GridLayout: {
+        ptrFn: 'getGridLayoutPtr',
+        fields: [
+            { name: 'direction', type: 'i32', offset: 0 },
+            { name: 'crossAxisCount', type: 'i32', offset: 4 },
+            { name: 'itemSize', type: 'vec2', offset: 8 },
+            { name: 'spacing', type: 'vec2', offset: 16 },
+        ],
+    },
+    Interactable: {
+        ptrFn: 'getInteractablePtr',
+        fields: [
+            { name: 'enabled', type: 'bool', offset: 0 },
+            { name: 'blockRaycast', type: 'bool', offset: 1 },
+            { name: 'raycastTarget', type: 'bool', offset: 2 },
+        ],
+    },
+    LayoutGroup: {
+        ptrFn: 'getLayoutGroupPtr',
+        fields: [
+            { name: 'direction', type: 'u8', offset: 0 },
+            { name: 'spacing', type: 'f32', offset: 4 },
+            { name: 'childAlignment', type: 'u8', offset: 8 },
+            { name: 'reverseOrder', type: 'bool', offset: 9 },
+        ],
+    },
     ParticleEmitter: {
         ptrFn: 'getParticleEmitterPtr',
         fields: [
@@ -159,44 +225,34 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 188 },
         ],
     },
-    Transform: {
-        ptrFn: 'getTransformPtr',
+    RigidBody: {
+        ptrFn: 'getRigidBodyPtr',
         fields: [
-            { name: 'position', type: 'vec3', offset: 0 },
-            { name: 'rotation', type: 'quat', offset: 12 },
-            { name: 'scale', type: 'vec3', offset: 28 },
-            { name: 'worldPosition', type: 'vec3', offset: 40 },
-            { name: 'worldRotation', type: 'quat', offset: 52 },
-            { name: 'worldScale', type: 'vec3', offset: 68 },
+            { name: 'bodyType', type: 'u8', offset: 0 },
+            { name: 'gravityScale', type: 'f32', offset: 4 },
+            { name: 'linearDamping', type: 'f32', offset: 8 },
+            { name: 'angularDamping', type: 'f32', offset: 12 },
+            { name: 'fixedRotation', type: 'bool', offset: 16 },
+            { name: 'bullet', type: 'bool', offset: 17 },
+            { name: 'enabled', type: 'bool', offset: 18 },
         ],
     },
-    UIRenderer: {
-        ptrFn: 'getUIRendererPtr',
+    Selectable: {
+        ptrFn: 'getSelectablePtr',
         fields: [
-            { name: 'visualType', type: 'u8', offset: 0 },
-            { name: 'texture', type: 'u32', offset: 4 },
-            { name: 'color', type: 'color', offset: 8 },
-            { name: 'uvOffset', type: 'vec2', offset: 24 },
-            { name: 'uvScale', type: 'vec2', offset: 32 },
-            { name: 'sliceBorder', type: 'vec4', offset: 40 },
-            { name: 'material', type: 'u32', offset: 56 },
-            { name: 'enabled', type: 'bool', offset: 60 },
+            { name: 'selected', type: 'bool', offset: 0 },
+            { name: 'group', type: 'i32', offset: 4 },
         ],
     },
-    GridLayout: {
-        ptrFn: 'getGridLayoutPtr',
+    ShapeRenderer: {
+        ptrFn: 'getShapeRendererPtr',
         fields: [
-            { name: 'direction', type: 'i32', offset: 0 },
-            { name: 'crossAxisCount', type: 'i32', offset: 4 },
-            { name: 'itemSize', type: 'vec2', offset: 8 },
-            { name: 'spacing', type: 'vec2', offset: 16 },
-        ],
-    },
-    Velocity: {
-        ptrFn: 'getVelocityPtr',
-        fields: [
-            { name: 'linear', type: 'vec3', offset: 0 },
-            { name: 'angular', type: 'vec3', offset: 12 },
+            { name: 'shapeType', type: 'u8', offset: 0 },
+            { name: 'color', type: 'color', offset: 4 },
+            { name: 'size', type: 'vec2', offset: 20 },
+            { name: 'cornerRadius', type: 'f32', offset: 28 },
+            { name: 'layer', type: 'i32', offset: 32 },
+            { name: 'enabled', type: 'bool', offset: 36 },
         ],
     },
     SpineAnimation: {
@@ -211,47 +267,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'layer', type: 'i32', offset: 24 },
             { name: 'skeletonScale', type: 'f32', offset: 28 },
             { name: 'material', type: 'u32', offset: 32 },
-            { name: 'enabled', type: 'bool', offset: 36 },
-        ],
-    },
-    Interactable: {
-        ptrFn: 'getInteractablePtr',
-        fields: [
-            { name: 'enabled', type: 'bool', offset: 0 },
-            { name: 'blockRaycast', type: 'bool', offset: 1 },
-            { name: 'raycastTarget', type: 'bool', offset: 2 },
-        ],
-    },
-    UIInteraction: {
-        ptrFn: 'getUIInteractionPtr',
-        fields: [
-            { name: 'hovered', type: 'bool', offset: 0 },
-            { name: 'pressed', type: 'bool', offset: 1 },
-            { name: 'justPressed', type: 'bool', offset: 2 },
-            { name: 'justReleased', type: 'bool', offset: 3 },
-        ],
-    },
-    RigidBody: {
-        ptrFn: 'getRigidBodyPtr',
-        fields: [
-            { name: 'bodyType', type: 'u8', offset: 0 },
-            { name: 'gravityScale', type: 'f32', offset: 4 },
-            { name: 'linearDamping', type: 'f32', offset: 8 },
-            { name: 'angularDamping', type: 'f32', offset: 12 },
-            { name: 'fixedRotation', type: 'bool', offset: 16 },
-            { name: 'bullet', type: 'bool', offset: 17 },
-            { name: 'enabled', type: 'bool', offset: 18 },
-        ],
-    },
-    BitmapText: {
-        ptrFn: 'getBitmapTextPtr',
-        fields: [
-            { name: 'color', type: 'color', offset: 0 },
-            { name: 'fontSize', type: 'f32', offset: 16 },
-            { name: 'align', type: 'u8', offset: 20 },
-            { name: 'spacing', type: 'f32', offset: 24 },
-            { name: 'layer', type: 'i32', offset: 28 },
-            { name: 'font', type: 'u32', offset: 32 },
             { name: 'enabled', type: 'bool', offset: 36 },
         ],
     },
@@ -273,6 +288,26 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 80 },
         ],
     },
+    Transform: {
+        ptrFn: 'getTransformPtr',
+        fields: [
+            { name: 'position', type: 'vec3', offset: 0 },
+            { name: 'rotation', type: 'quat', offset: 12 },
+            { name: 'scale', type: 'vec3', offset: 28 },
+            { name: 'worldPosition', type: 'vec3', offset: 40 },
+            { name: 'worldRotation', type: 'quat', offset: 52 },
+            { name: 'worldScale', type: 'vec3', offset: 68 },
+        ],
+    },
+    UIInteraction: {
+        ptrFn: 'getUIInteractionPtr',
+        fields: [
+            { name: 'hovered', type: 'bool', offset: 0 },
+            { name: 'pressed', type: 'bool', offset: 1 },
+            { name: 'justPressed', type: 'bool', offset: 2 },
+            { name: 'justReleased', type: 'bool', offset: 3 },
+        ],
+    },
     UIMask: {
         ptrFn: 'getUIMaskPtr',
         fields: [
@@ -280,70 +315,35 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'mode', type: 'u8', offset: 1 },
         ],
     },
-    FlexContainer: {
-        ptrFn: 'getFlexContainerPtr',
+    UIRect: {
+        ptrFn: 'getUIRectPtr',
         fields: [
-            { name: 'direction', type: 'u8', offset: 0 },
-            { name: 'wrap', type: 'u8', offset: 1 },
-            { name: 'justifyContent', type: 'u8', offset: 2 },
-            { name: 'alignItems', type: 'u8', offset: 3 },
-            { name: 'alignContent', type: 'u8', offset: 4 },
-            { name: 'gap', type: 'vec2', offset: 8 },
+            { name: 'anchorMin', type: 'vec2', offset: 0 },
+            { name: 'anchorMax', type: 'vec2', offset: 8 },
+            { name: 'offsetMin', type: 'vec2', offset: 16 },
+            { name: 'offsetMax', type: 'vec2', offset: 24 },
+            { name: 'size', type: 'vec2', offset: 32 },
+            { name: 'pivot', type: 'vec2', offset: 40 },
         ],
     },
-    ShapeRenderer: {
-        ptrFn: 'getShapeRendererPtr',
+    UIRenderer: {
+        ptrFn: 'getUIRendererPtr',
         fields: [
-            { name: 'shapeType', type: 'u8', offset: 0 },
-            { name: 'color', type: 'color', offset: 4 },
-            { name: 'size', type: 'vec2', offset: 20 },
-            { name: 'cornerRadius', type: 'f32', offset: 28 },
-            { name: 'layer', type: 'i32', offset: 32 },
-            { name: 'enabled', type: 'bool', offset: 36 },
+            { name: 'visualType', type: 'u8', offset: 0 },
+            { name: 'texture', type: 'u32', offset: 4 },
+            { name: 'color', type: 'color', offset: 8 },
+            { name: 'uvOffset', type: 'vec2', offset: 24 },
+            { name: 'uvScale', type: 'vec2', offset: 32 },
+            { name: 'sliceBorder', type: 'vec4', offset: 40 },
+            { name: 'material', type: 'u32', offset: 56 },
+            { name: 'enabled', type: 'bool', offset: 60 },
         ],
     },
-    Selectable: {
-        ptrFn: 'getSelectablePtr',
+    Velocity: {
+        ptrFn: 'getVelocityPtr',
         fields: [
-            { name: 'selected', type: 'bool', offset: 0 },
-            { name: 'group', type: 'i32', offset: 4 },
-        ],
-    },
-    LayoutGroup: {
-        ptrFn: 'getLayoutGroupPtr',
-        fields: [
-            { name: 'direction', type: 'u8', offset: 0 },
-            { name: 'spacing', type: 'f32', offset: 4 },
-            { name: 'childAlignment', type: 'u8', offset: 8 },
-            { name: 'reverseOrder', type: 'bool', offset: 9 },
-        ],
-    },
-    Canvas: {
-        ptrFn: 'getCanvasPtr',
-        fields: [
-            { name: 'designResolution', type: 'vec2', offset: 0 },
-            { name: 'pixelsPerUnit', type: 'f32', offset: 8 },
-            { name: 'scaleMode', type: 'u8', offset: 12 },
-            { name: 'matchWidthOrHeight', type: 'f32', offset: 16 },
-            { name: 'backgroundColor', type: 'color', offset: 20 },
-        ],
-    },
-    Camera: {
-        ptrFn: 'getCameraPtr',
-        fields: [
-            { name: 'projectionType', type: 'u8', offset: 0 },
-            { name: 'fov', type: 'f32', offset: 4 },
-            { name: 'orthoSize', type: 'f32', offset: 8 },
-            { name: 'nearPlane', type: 'f32', offset: 12 },
-            { name: 'farPlane', type: 'f32', offset: 16 },
-            { name: 'aspectRatio', type: 'f32', offset: 20 },
-            { name: 'isActive', type: 'bool', offset: 24 },
-            { name: 'priority', type: 'i32', offset: 28 },
-            { name: 'viewportX', type: 'f32', offset: 32 },
-            { name: 'viewportY', type: 'f32', offset: 36 },
-            { name: 'viewportW', type: 'f32', offset: 40 },
-            { name: 'viewportH', type: 'f32', offset: 44 },
-            { name: 'clearFlags', type: 'i32', offset: 48 },
+            { name: 'linear', type: 'vec3', offset: 0 },
+            { name: 'angular', type: 'vec3', offset: 12 },
         ],
     },
 };
