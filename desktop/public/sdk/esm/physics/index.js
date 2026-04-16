@@ -1,2 +1,0 @@
-export{B as BodyType,a as BoxCollider,o as CapsuleCollider,q as ChainCollider,C as CircleCollider,J as DistanceJoint,t as Physics,K as PhysicsAPI,L as PhysicsDebugDraw,v as PhysicsEvents,P as PhysicsPlugin,w as PolygonCollider,N as PrismaticJoint,x as RevoluteJoint,R as RigidBody,S as SegmentCollider,W as WeldJoint,O as WheelJoint,Q as drawPhysicsDebug,F as loadPhysicsModule,T as loadPhysicsSideModule,U as setupPhysicsDebugDraw}from"../shared/index.js";import"../shared/system.js";
-//# sourceMappingURL=index.js.map

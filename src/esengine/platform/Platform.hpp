@@ -363,7 +363,7 @@ public:
      * @brief Creates a platform-appropriate implementation
      * @return Unique pointer to the platform instance
      *
-     * @details Returns WebPlatform for ES_PLATFORM_WEB, NativePlatform otherwise.
+     * @details Returns WebPlatform for ES_PLATFORM_WEB.
      */
     static Unique<Platform> create();
 };
