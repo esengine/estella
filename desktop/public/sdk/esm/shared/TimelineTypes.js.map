@@ -1,1 +1,0 @@
-{"version":3,"file":"TimelineTypes.js","sources":["../../src/timeline/TimelineTypes.ts"],"sourcesContent":[null],"names":["WrapMode","Once","Loop","PingPong","TrackType","Property","Spine","SpriteAnim","Audio","Activation"],"mappings":"AAAO,MAAMA,EAAW,CACpBC,KAAM,EACNC,KAAM,EACNC,SAAU,GAKDC,EAAY,CACrBC,SAAU,WACVC,MAAO,QACPC,WAAY,aACZC,MAAO,QACPC,WAAY"}
