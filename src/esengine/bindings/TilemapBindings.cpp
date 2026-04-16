@@ -1,7 +1,7 @@
 #ifdef ES_PLATFORM_WEB
 #ifdef ES_ENABLE_TILEMAP
 
-#include "EngineContext.hpp"
+#include "ActiveContext.hpp"
 #include "../tilemap/TilemapSystem.hpp"
 #include "../tilemap/TiledMapLoader.hpp"
 #include "../renderer/RenderContext.hpp"
@@ -29,7 +29,7 @@ tilemap::TilemapSystem& getTilemapSystem() {
 }
 static tilemap::TiledMapLoader s_tiledLoader;
 
-static EngineContext& ctx() { return EngineContext::instance(); }
+static EstellaContext& ctx() { return activeCtx(); }
 
 void tilemap_initLayer(u32 entity, u32 width, u32 height,
                        f32 tileWidth, f32 tileHeight) {

@@ -1,7 +1,7 @@
 #ifdef ES_PLATFORM_WEB
 
 #include "GeometryBindings.hpp"
-#include "EngineContext.hpp"
+#include "ActiveContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/CustomGeometry.hpp"
@@ -23,7 +23,7 @@
 
 namespace esengine {
 
-static EngineContext& ctx() { return EngineContext::instance(); }
+static EstellaContext& ctx() { return activeCtx(); }
 
 #define g_device (ctx().tryGet<GfxDevice>())
 #define g_initialized (ctx().state().initialized)

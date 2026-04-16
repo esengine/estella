@@ -4,7 +4,7 @@
 #include <emscripten.h>
 #include <emscripten/bind.h>
 
-#include "EngineContext.hpp"
+#include "ActiveContext.hpp"
 #include "../animation/TimelineSystem.hpp"
 
 #include <cstring>
@@ -12,7 +12,7 @@
 
 namespace esengine {
 
-static animation::TimelineSystem* tlSys() { return EngineContext::instance().tryGet<animation::TimelineSystem>(); }
+static animation::TimelineSystem* tlSys() { return activeCtx().tryGet<animation::TimelineSystem>(); }
 
 // ---------------------------------------------------------------------------
 // Create / Destroy
