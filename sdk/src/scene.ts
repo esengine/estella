@@ -57,11 +57,34 @@ export interface LoadedSceneAssets {
 
 export type SceneLoadProgressCallback = (loaded: number, total: number) => void;
 
+export type MissingAssetCallback = (missing: import('./asset/Assets').MissingAsset[]) => void;
+
 export interface SceneLoadOptions {
     assets?: import('./asset/Assets').Assets;
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
     onProgress?: SceneLoadProgressCallback;
+    /**
+     * Invoked once during load with the list of asset refs that could not
+     * be loaded (unresolved UUID or fetch failure). Fires even if the list
+     * is empty — callers that want "missing asset" UI wire this up.
+     */
+    onMissingAssets?: MissingAssetCallback;
+    /**
+     * If true, throw after preloading when any asset is missing; the
+     * scene is not spawned. Default is false (legacy behaviour: missing
+     * assets get handle 0, scene loads anyway).
+     */
+    abortOnMissingAssets?: boolean;
+}
+
+export class MissingAssetsError extends Error {
+    readonly missing: import('./asset/Assets').MissingAsset[];
+    constructor(missing: import('./asset/Assets').MissingAsset[]) {
+        super(`Scene load aborted: ${missing.length} asset(s) missing`);
+        this.name = 'MissingAssetsError';
+        this.missing = missing;
+    }
 }
 
 // =============================================================================
@@ -208,6 +231,12 @@ export async function loadSceneWithAssets(
     if (options?.assets) {
         const assets = options.assets;
         const result = await assets.preloadSceneAssets(sceneData, options.onProgress);
+        if (options.onMissingAssets) {
+            options.onMissingAssets(result.missing);
+        }
+        if (options.abortOnMissingAssets && result.missing.length > 0) {
+            throw new MissingAssetsError(result.missing);
+        }
         assets.resolveSceneAssetPaths(sceneData, result);
         applyTextureMetadata(sceneData, result.textureHandles);
         if (options.collectAssets) {
