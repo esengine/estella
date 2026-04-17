@@ -6,10 +6,16 @@
 
 namespace esengine::ecs {
 
+ES_ENUM()
+enum class GridDirection : u8 {
+    Vertical = 0,
+    Horizontal = 1,
+};
+
 ES_COMPONENT()
 struct GridLayout {
     ES_PROPERTY()
-    i32 direction{0};  // 0=Vertical, 1=Horizontal
+    GridDirection direction{GridDirection::Vertical};
 
     ES_PROPERTY()
     i32 crossAxisCount{3};
