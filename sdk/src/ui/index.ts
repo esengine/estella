@@ -395,52 +395,12 @@ export {
     type ResolvedImage,
 } from './ImageResolver';
 
-// Collection View
+// GridLayout (C++-backed ECS component) — canonical in ui2
 export {
-    CollectionView,
-    CollectionItem,
-    SelectionMode,
-    type CollectionViewData,
-    type CollectionItemData,
-} from './CollectionView';
-
-export {
-    setCollectionAdapter,
-    getCollectionAdapter,
-    removeCollectionAdapter,
-    type CollectionAdapter,
-} from './CollectionAdapter';
-
-export {
-    registerLayoutProvider,
-    getLayoutProvider,
-    ScrollAlign,
-    type LayoutProvider,
-    type LayoutResult as CollectionLayoutResult,
-} from './LayoutProvider';
-
-export { ItemPool } from './ItemPool';
-
-export {
-    collectionViewPlugin,
-    CollectionViewPlugin,
-} from './CollectionViewPlugin';
-
-export {
-    collectionGetItemEntity,
-    collectionRefreshItems,
-    collectionRefreshItem,
-    collectionInsertItems,
-    collectionRemoveItems,
-} from './CollectionViewAPI';
-
-export { LinearLayout, type LinearLayoutData } from './layouts/LinearLayout';
-export { GridLayout, type GridLayoutData } from './layouts/GridLayout';
-export { LinearLayoutProvider } from './layouts/LinearLayoutProvider';
-export { GridLayoutProvider } from './layouts/GridLayoutProvider';
-
-export { LinearLayoutPlugin, linearLayoutPlugin } from './LinearLayoutPlugin';
-export { GridLayoutPlugin, gridLayoutPlugin } from './GridLayoutPlugin';
+    GridLayout,
+    GridLayoutDirection,
+    type GridLayoutData,
+} from '../ui2/layout/grid';
 
 export const AnimOverride = {
     POS_X: 1,
