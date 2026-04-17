@@ -7,8 +7,8 @@ import { SafeArea } from './SafeArea';
 import type { SafeAreaData } from './SafeArea';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { UIRect } from './UIRect';
-import type { UIRectData } from './UIRect';
+import { UIRect } from './core/ui-rect';
+import type { UIRectData } from './core/ui-rect';
 import { SystemLabel, PluginName } from '../systemLabels';
 
 export interface SafeAreaInsets {

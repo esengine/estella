@@ -3,7 +3,7 @@
  * Uses a minimal mock World — enough to exercise onDespawn + valid.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ViewPool } from '../src/ui2/collection/view-pool';
+import { ViewPool } from '../src/ui/collection/view-pool';
 import type { Entity } from '../src/types';
 import type { World } from '../src/world';
 

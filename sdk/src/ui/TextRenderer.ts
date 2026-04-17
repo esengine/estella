@@ -6,7 +6,7 @@
 import type { Entity } from '../types';
 import { RuntimeConfig } from '../defaults';
 import type { ESEngineModule } from '../wasm';
-import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
+import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './core/text';
 import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';
 import { wrapText, nextPowerOf2, colorToRgba } from './uiHelpers';

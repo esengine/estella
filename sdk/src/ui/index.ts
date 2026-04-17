@@ -1,6 +1,6 @@
 /**
  * @file    ui/index.ts
- * @brief   UI module exports
+ * @brief   UI module — public barrel.
  */
 
 // Shared Types
@@ -51,52 +51,211 @@ export {
     DROPDOWN_HIGHLIGHT_COLOR,
 } from './uiConstants';
 
-// Text Component
+// ─── Layer 0: Events ────────────────────────────────────────────────────────
+
+export {
+    UIEventQueue,
+    UIEventType,
+    UIEventBus,
+    type UIEvent,
+    type UIEventHandler,
+    type Unsubscribe,
+} from './core/events';
+
+// Legacy UIEvents resource (still used by UIInteractionPlugin / DragPlugin /
+// FocusPlugin / TextInputPlugin until those migrate to UIEventBus).
+export { UIEvents } from './UIEvents';
+
+// ─── Layer 1: Primitives ────────────────────────────────────────────────────
+
+export { UIRect, type UIRectData } from './core/ui-rect';
+
+export {
+    UIRenderer,
+    UIVisualType,
+    type UIRendererData,
+} from './core/ui-renderer';
+
+export { UIMask, MaskMode, type UIMaskData } from './core/ui-mask';
+
 export {
     Text,
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
     type TextData,
-} from './text';
+} from './core/text';
 
-// UIRect Component
 export {
-    UIRect,
-    type UIRectData,
-} from './UIRect';
+    Image,
+    ImageType,
+    FillMethod,
+    FillOrigin,
+    type ImageData,
+} from './core/image';
 
-// UIRenderer Component
 export {
-    UIRenderer,
-    UIVisualType,
-    type UIRendererData,
-} from './UIRenderer';
+    FlexContainer,
+    FlexDirection,
+    FlexWrap,
+    JustifyContent,
+    AlignItems,
+    AlignContent,
+    type FlexContainerData,
+    FlexItem,
+    AlignSelf,
+    type FlexItemData,
+} from './layout/flex';
 
-// Text Renderer
+export {
+    GridLayout,
+    GridLayoutDirection,
+    type GridLayoutData,
+} from './layout/grid';
+
+// ─── Layer 2: Behaviors ─────────────────────────────────────────────────────
+
+export {
+    Interactable,
+    UIInteraction,
+    type InteractableData,
+    type UIInteractionData,
+} from './behavior/interactable';
+
+export {
+    StateMachine,
+    type StateMachineData,
+} from './behavior/state-machine';
+
+export {
+    StateVisuals,
+    TransitionFlag,
+    STATE_VISUALS_SLOT_COUNT,
+    type StateVisualsData,
+} from './behavior/state-visuals';
+
+export {
+    Focusable,
+    FocusManager,
+    FocusManagerState,
+    type FocusableData,
+} from './behavior/focusable';
+
+export {
+    Draggable,
+    DragState,
+    type DraggableData,
+    type DragStateData,
+} from './behavior/draggable';
+
+export {
+    driverStateFor,
+    findStateSlot,
+    createInteractableDriverSystem,
+    createStateMachineDiffSystem,
+    createStateVisualsApplySystem,
+} from './behavior/systems';
+
+export { UIBehaviorPlugin, uiBehaviorPlugin } from './plugin';
+
+// ─── Collection ─────────────────────────────────────────────────────────────
+
+export {
+    ViewPool,
+    type ViewPoolOptions,
+    type ViewPoolTemplate,
+} from './collection/view-pool';
+
+export {
+    type DataSource,
+    type DataSourceChange,
+    ArrayDataSource,
+    arrayDataSource,
+} from './collection/data-source';
+
+export {
+    type LayoutProvider,
+    type Rect,
+    type LinearLayoutOptions,
+    type GridLayoutOptions,
+    LinearLayoutProvider,
+    GridLayoutProvider,
+} from './collection/layout-provider';
+
+export {
+    ListView,
+    ListViewRegistry,
+    type ListViewOptions,
+    type ListViewItemTemplate,
+} from './collection/list-view';
+
+export {
+    ScrollContainer,
+    ScrollContainerRegistry,
+    type ScrollContainerOptions,
+    type ScrollListener,
+} from './collection/scroll-container';
+
+// ─── Widgets (Layer 3 factories) ────────────────────────────────────────────
+
+export {
+    identityTransform,
+    buildUIRect,
+    buildUIRenderer,
+    buildText,
+    spawnUIEntity,
+    setUIVisible,
+    type UIRectInit,
+    type UIRendererInit,
+    type TextInit,
+    type UIEntityInit,
+} from './widgets/helpers';
+
+export {
+    createButton,
+    setButtonState,
+    type ButtonOptions,
+    type ButtonStateVisual,
+} from './widgets/button';
+
+export {
+    createToggle,
+    type ToggleOptions,
+    type ToggleHandle,
+} from './widgets/toggle';
+
+export {
+    createProgress,
+    type ProgressOptions,
+    type ProgressHandle,
+} from './widgets/progress';
+
+export {
+    createDialog,
+    type DialogOptions,
+    type DialogHandle,
+} from './widgets/dialog';
+
+export {
+    createSlider,
+    type SliderOptions,
+    type SliderHandle,
+} from './widgets/slider';
+
+export {
+    createDropdown,
+    type DropdownOptions,
+    type DropdownHandle,
+} from './widgets/dropdown';
+
+// ─── Rendering / text helpers ───────────────────────────────────────────────
+
 export {
     TextRenderer,
     type TextRenderResult,
 } from './TextRenderer';
 
-// Text Plugin
-export {
-    TextPlugin,
-    textPlugin,
-} from './TextPlugin';
-
-// UIMask Component
-export {
-    UIMask,
-    MaskMode,
-    type UIMaskData,
-} from './UIMask';
-
-// UIMask Plugin
-export {
-    UIMaskPlugin,
-    uiMaskPlugin,
-} from './UIMaskPlugin';
+export { TextPlugin, textPlugin } from './TextPlugin';
 
 // UI Math Utilities
 export {
@@ -111,159 +270,58 @@ export {
     type ScreenRect,
 } from './uiMath';
 
-// Interactable Component
-export {
-    Interactable,
-    type InteractableData,
-} from './Interactable';
+// ─── Legacy plugins / resources still in ui/ ────────────────────────────────
 
-// UIInteraction Component
-export {
-    UIInteraction,
-    type UIInteractionData,
-} from './UIInteraction';
+export { UIMaskPlugin, uiMaskPlugin } from './UIMaskPlugin';
 
-// UI Events
-export {
-    UIEvents,
-    UIEventQueue,
-    type UIEvent,
-    type UIEventType,
-    type UIEventHandler,
-    type Unsubscribe,
-} from './UIEvents';
-
-// UI Camera Info Resource
 export {
     UICameraInfo,
     type UICameraData,
 } from './UICameraInfo';
 
-// UI Layout Calculation
 export {
     computeUIRectLayout,
     type LayoutRect,
     type LayoutResult,
 } from './uiHelpers';
 
-// UI Layout Generation Resource
 export {
     UILayoutGeneration,
     type UILayoutGenerationData,
 } from './UILayoutGeneration';
 
-// UI Layout Plugin
-export {
-    UILayoutPlugin,
-    uiLayoutPlugin,
-} from './UILayoutPlugin';
+export { UILayoutPlugin, uiLayoutPlugin } from './UILayoutPlugin';
 
-// UI Interaction Plugin
-export {
-    UIInteractionPlugin,
-    uiInteractionPlugin,
-} from './UIInteractionPlugin';
+export { UIInteractionPlugin, uiInteractionPlugin } from './UIInteractionPlugin';
 
-// TextInput Component
 export {
     TextInput,
     type TextInputData,
 } from './TextInput';
 
-// TextInput Plugin
-export {
-    TextInputPlugin,
-    textInputPlugin,
-} from './TextInputPlugin';
+export { TextInputPlugin, textInputPlugin } from './TextInputPlugin';
 
-// Image Component
-export {
-    Image,
-    ImageType,
-    FillMethod,
-    FillOrigin,
-    type ImageData,
-} from './Image';
+export { ImagePlugin, imagePlugin } from './ImagePlugin';
 
-// Image Plugin
-export {
-    ImagePlugin,
-    imagePlugin,
-} from './ImagePlugin';
+export { DragPlugin, dragPlugin } from './DragPlugin';
 
-// Draggable Component
-export {
-    Draggable,
-    DragState,
-    type DraggableData,
-    type DragStateData,
-} from './Draggable';
-
-// Drag Plugin
-export {
-    DragPlugin,
-    dragPlugin,
-} from './DragPlugin';
-
-// ScrollView Component
 export {
     ScrollView,
     type ScrollViewData,
 } from './ScrollView';
 
-// ScrollView Plugin
-export {
-    ScrollViewPlugin,
-    scrollViewPlugin,
-} from './ScrollViewPlugin';
+export { ScrollViewPlugin, scrollViewPlugin } from './ScrollViewPlugin';
 
-// Focusable Component
-export {
-    Focusable,
-    FocusManager,
-    FocusManagerState,
-    type FocusableData,
-} from './Focusable';
+export { FocusPlugin, focusPlugin } from './FocusPlugin';
 
-// Focus Plugin
-export {
-    FocusPlugin,
-    focusPlugin,
-} from './FocusPlugin';
-
-// SafeArea Component
 export {
     SafeArea,
     type SafeAreaData,
 } from './SafeArea';
 
-// SafeArea Plugin
-export {
-    SafeAreaPlugin,
-    safeAreaPlugin,
-} from './SafeAreaPlugin';
+export { SafeAreaPlugin, safeAreaPlugin } from './SafeAreaPlugin';
 
-// FlexContainer Component
-export {
-    FlexContainer,
-    FlexDirection,
-    FlexWrap,
-    JustifyContent,
-    AlignItems,
-    type FlexContainerData,
-} from './FlexContainer';
-
-// FlexItem Component
-export {
-    FlexItem,
-    type FlexItemData,
-} from './FlexItem';
-
-// UIRenderOrder Plugin
-export {
-    UIRenderOrderPlugin,
-    uiRenderOrderPlugin,
-} from './UIRenderOrderPlugin';
+export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './UIRenderOrderPlugin';
 
 // UI Theme
 export {
@@ -271,12 +329,6 @@ export {
     DARK_THEME,
     type UITheme,
 } from './UITheme';
-
-// StateMachine (C++-backed) — canonical in ui2
-export {
-    StateMachine,
-    type StateMachineData,
-} from '../ui2/behavior/state-machine';
 
 // Property Path Utilities
 export {
@@ -316,13 +368,6 @@ export {
     type ImageResolver,
     type ResolvedImage,
 } from './ImageResolver';
-
-// GridLayout (C++-backed ECS component) — canonical in ui2
-export {
-    GridLayout,
-    GridLayoutDirection,
-    type GridLayoutData,
-} from '../ui2/layout/grid';
 
 export const AnimOverride = {
     POS_X: 1,

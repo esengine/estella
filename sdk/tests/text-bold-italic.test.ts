@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Text, type TextData } from '../src/ui/text';
+import { Text, type TextData } from '../src/ui/core/text';
 
 describe('Text bold/italic', () => {
     it('defaults to false', () => {

@@ -9,7 +9,7 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { World } from '../src/world';
 import { Transform, Children, Name, getComponent } from '../src/component';
-import { UIRect, type UIRectData } from '../src/ui/UIRect';
+import { UIRect, type UIRectData } from '../src/ui/core/ui-rect';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule } from './helpers/loadWasm';
 import {

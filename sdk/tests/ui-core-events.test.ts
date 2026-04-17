@@ -3,7 +3,7 @@
  * Pure TS; no WASM / World required.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { UIEventQueue, UIEventType, type UIEvent } from '../src/ui2/core/events';
+import { UIEventQueue, UIEventType, type UIEvent } from '../src/ui/core/events';
 import type { Entity } from '../src/types';
 
 const E1 = 1 as Entity;

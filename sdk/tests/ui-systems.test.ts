@@ -5,7 +5,7 @@ import {
     TransitionFlag,
     type StateVisualsData,
     type UIInteractionData,
-} from '../src/ui2';
+} from '../src/ui';
 
 const sv = (overrides: Partial<StateVisualsData> = {}): StateVisualsData => ({
     targetGraphic: 0 as never,

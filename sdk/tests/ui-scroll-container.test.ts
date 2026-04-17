@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ScrollContainer, ScrollContainerRegistry } from '../src/ui2';
+import { ScrollContainer, ScrollContainerRegistry } from '../src/ui';
 
 describe('ScrollContainer', () => {
     it('clamps initial offset to [0, max]', () => {

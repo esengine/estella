@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
 import { registerComponent } from '../component';
-import { UIMask } from './UIMask';
+import { UIMask } from './core/ui-mask';
 import { PluginName } from '../systemLabels';
 
 export class UIMaskPlugin implements Plugin {
