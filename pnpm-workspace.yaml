@@ -1,6 +1,4 @@
 packages:
   - 'sdk'
-  - 'editor'
-  - 'desktop'
 onlyBuiltDependencies:
   - esbuild
