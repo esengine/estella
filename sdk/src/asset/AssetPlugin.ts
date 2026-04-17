@@ -3,6 +3,7 @@ import { defineResource } from '../resource';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { initBuiltinAssetFields } from './AssetFieldRegistry';
+import { AssetRefCounter } from './AssetRefCounter';
 
 export type AssetsData = AssetsClass;
 
@@ -27,6 +28,15 @@ export class AssetPlugin implements Plugin {
             backend: new HttpBackend({ baseUrl: '' }),
             module,
         });
+
+        // Install the ref counter so resolveSceneAssetPaths records who
+        // uses what, and wire it to world despawns so entries don't
+        // outlive their entities. Tools / debug UI read it via
+        // `assets.getRefCounter()`.
+        const counter = new AssetRefCounter();
+        assets.setRefCounter(counter);
+        app.world.onDespawn((entity) => counter.removeAllRefsForEntity(entity));
+
         app.insertResource(Assets, assets);
     }
 }
