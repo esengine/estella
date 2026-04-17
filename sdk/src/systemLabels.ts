@@ -12,7 +12,6 @@ export const PluginName = {
     Text: 'text',
     Image: 'image',
     Focus: 'focus',
-    DataBinding: 'dataBinding',
     ScrollView: 'scrollView',
     Dropdown: 'dropdown',
     ProgressBar: 'progressBar',
