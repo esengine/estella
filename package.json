@@ -14,7 +14,8 @@
     "dev": "node build-tools/cli.js watch",
     "clean": "node build-tools/cli.js clean -a",
     "eht": "node build-tools/cli.js eht",
-    "sync": "node build-tools/cli.js sync"
+    "sync": "node build-tools/cli.js sync",
+    "asset-meta": "node tools/asset-meta.js"
   },
   "dependencies": {
     "chalk": "^5.3.0",
