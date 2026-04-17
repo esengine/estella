@@ -3,6 +3,7 @@
 export {
     UIEventQueue,
     UIEventType,
+    UIEventBus,
     type UIEvent,
     type UIEventHandler,
     type Unsubscribe,
@@ -95,3 +96,13 @@ export {
     type DraggableData,
     type DragStateData,
 } from './behavior/draggable';
+
+export {
+    driverStateFor,
+    findStateSlot,
+    createInteractableDriverSystem,
+    createStateMachineDiffSystem,
+    createStateVisualsApplySystem,
+} from './behavior/systems';
+
+export { UIBehaviorPlugin, uiBehaviorPlugin } from './plugin';
