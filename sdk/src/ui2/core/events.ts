@@ -1,3 +1,4 @@
+import { defineResource } from '../../resource';
 import type { Entity } from '../../types';
 
 /**
@@ -267,3 +268,9 @@ export class UIEventQueue {
         }
     }
 }
+
+/**
+ * Shared UIEventQueue resource. A plugin inserts the authoritative
+ * instance on startup; systems access it via `Res(UIEventBus)`.
+ */
+export const UIEventBus = defineResource<UIEventQueue>(new UIEventQueue(), 'UIEventBus');
