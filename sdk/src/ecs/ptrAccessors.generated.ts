@@ -385,50 +385,6 @@ export function createSegmentColliderData(): SegmentColliderPtrData {
     };
 }
 
-export interface FanLayoutPtrData {
-    radius: number;
-    maxSpreadAngle: number;
-    maxCardAngle: number;
-    tiltFactor: number;
-    cardSpacing: number;
-    direction: number;
-}
-
-export function fillFanLayout(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: FanLayoutPtrData,
-): void {
-    out.radius = f32[ptr >> 2];
-    out.maxSpreadAngle = f32[(ptr + 4) >> 2];
-    out.maxCardAngle = f32[(ptr + 8) >> 2];
-    out.tiltFactor = f32[(ptr + 12) >> 2];
-    out.cardSpacing = f32[(ptr + 16) >> 2];
-    out.direction = u8[ptr + 20];
-}
-
-export function writeFanLayout(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: FanLayoutPtrData,
-): void {
-    f32[ptr >> 2] = data.radius;
-    f32[(ptr + 4) >> 2] = data.maxSpreadAngle;
-    f32[(ptr + 8) >> 2] = data.maxCardAngle;
-    f32[(ptr + 12) >> 2] = data.tiltFactor;
-    f32[(ptr + 16) >> 2] = data.cardSpacing;
-    u8[ptr + 20] = data.direction;
-}
-
-export function createFanLayoutData(): FanLayoutPtrData {
-    return {
-        radius: 0,
-        maxSpreadAngle: 0,
-        maxCardAngle: 0,
-        tiltFactor: 0,
-        cardSpacing: 0,
-        direction: 0,
-    };
-}
-
 export interface FlexContainerPtrData {
     direction: number;
     wrap: number;
@@ -602,42 +558,6 @@ export function createInteractableData(): InteractablePtrData {
         enabled: false,
         blockRaycast: false,
         raycastTarget: false,
-    };
-}
-
-export interface LayoutGroupPtrData {
-    direction: number;
-    spacing: number;
-    childAlignment: number;
-    reverseOrder: boolean;
-}
-
-export function fillLayoutGroup(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: LayoutGroupPtrData,
-): void {
-    out.direction = u8[ptr];
-    out.spacing = f32[(ptr + 4) >> 2];
-    out.childAlignment = u8[ptr + 8];
-    out.reverseOrder = u8[ptr + 9] !== 0;
-}
-
-export function writeLayoutGroup(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: LayoutGroupPtrData,
-): void {
-    u8[ptr] = data.direction;
-    f32[(ptr + 4) >> 2] = data.spacing;
-    u8[ptr + 8] = data.childAlignment;
-    u8[ptr + 9] = data.reverseOrder ? 1 : 0;
-}
-
-export function createLayoutGroupData(): LayoutGroupPtrData {
-    return {
-        direction: 0,
-        spacing: 0,
-        childAlignment: 0,
-        reverseOrder: false,
     };
 }
 
@@ -870,34 +790,6 @@ export function createRigidBodyData(): RigidBodyPtrData {
         fixedRotation: false,
         bullet: false,
         enabled: false,
-    };
-}
-
-export interface SelectablePtrData {
-    selected: boolean;
-    group: number;
-}
-
-export function fillSelectable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: SelectablePtrData,
-): void {
-    out.selected = u8[ptr] !== 0;
-    out.group = u32[(ptr + 4) >> 2] | 0;
-}
-
-export function writeSelectable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: SelectablePtrData,
-): void {
-    u8[ptr] = data.selected ? 1 : 0;
-    u32[(ptr + 4) >> 2] = data.group | 0;
-}
-
-export function createSelectableData(): SelectablePtrData {
-    return {
-        selected: false,
-        group: 0,
     };
 }
 
@@ -1447,15 +1339,12 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
     SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
-    FanLayout: { fill: fillFanLayout, write: writeFanLayout, create: createFanLayoutData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     FlexItem: { fill: fillFlexItem, write: writeFlexItem, create: createFlexItemData },
     GridLayout: { fill: fillGridLayout, write: writeGridLayout, create: createGridLayoutData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
-    LayoutGroup: { fill: fillLayoutGroup, write: writeLayoutGroup, create: createLayoutGroupData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
-    Selectable: { fill: fillSelectable, write: writeSelectable, create: createSelectableData },
     ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },

@@ -48,11 +48,6 @@ export enum CanvasScaleMode {
     Match = 4,
 }
 
-export enum FanDirection {
-    Up = 0,
-    Down = 1,
-}
-
 export enum FlexDirection {
     Row = 0,
     Column = 1,
@@ -101,17 +96,6 @@ export enum AlignSelf {
 export enum GridDirection {
     Vertical = 0,
     Horizontal = 1,
-}
-
-export enum LayoutDirection {
-    Horizontal = 0,
-    Vertical = 1,
-}
-
-export enum ChildAlignment {
-    Start = 0,
-    Center = 1,
-    End = 2,
 }
 
 export enum EmitterShape {
@@ -227,15 +211,6 @@ export interface SegmentCollider {
     maskBits: number;
 }
 
-export interface FanLayout {
-    radius: number;
-    maxSpreadAngle: number;
-    maxCardAngle: number;
-    tiltFactor: number;
-    cardSpacing: number;
-    direction: number;
-}
-
 export interface FlexContainer {
     direction: number;
     wrap: number;
@@ -280,14 +255,6 @@ export interface Interactable {
     enabled: boolean;
     blockRaycast: boolean;
     raycastTarget: boolean;
-}
-
-export interface LayoutGroup {
-    direction: number;
-    spacing: number;
-    padding: Padding;
-    childAlignment: number;
-    reverseOrder: boolean;
 }
 
 export interface ParticleEmitter {
@@ -342,14 +309,6 @@ export interface RigidBody {
     fixedRotation: boolean;
     bullet: boolean;
     enabled: boolean;
-}
-
-export interface ScreenSpace {
-}
-
-export interface Selectable {
-    selected: boolean;
-    group: number;
 }
 
 export interface ShapeRenderer {
@@ -518,10 +477,6 @@ export interface Registry {
     getSegmentCollider(entity: Entity): SegmentCollider;
     addSegmentCollider(entity: Entity, component: SegmentCollider): void;
     removeSegmentCollider(entity: Entity): void;
-    hasFanLayout(entity: Entity): boolean;
-    getFanLayout(entity: Entity): FanLayout;
-    addFanLayout(entity: Entity, component: FanLayout): void;
-    removeFanLayout(entity: Entity): void;
     hasFlexContainer(entity: Entity): boolean;
     getFlexContainer(entity: Entity): FlexContainer;
     addFlexContainer(entity: Entity, component: FlexContainer): void;
@@ -546,10 +501,6 @@ export interface Registry {
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
     removeInteractable(entity: Entity): void;
-    hasLayoutGroup(entity: Entity): boolean;
-    getLayoutGroup(entity: Entity): LayoutGroup;
-    addLayoutGroup(entity: Entity, component: LayoutGroup): void;
-    removeLayoutGroup(entity: Entity): void;
     hasParticleEmitter(entity: Entity): boolean;
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
@@ -558,14 +509,6 @@ export interface Registry {
     getRigidBody(entity: Entity): RigidBody;
     addRigidBody(entity: Entity, component: RigidBody): void;
     removeRigidBody(entity: Entity): void;
-    hasScreenSpace(entity: Entity): boolean;
-    getScreenSpace(entity: Entity): ScreenSpace;
-    addScreenSpace(entity: Entity, component: ScreenSpace): void;
-    removeScreenSpace(entity: Entity): void;
-    hasSelectable(entity: Entity): boolean;
-    getSelectable(entity: Entity): Selectable;
-    addSelectable(entity: Entity, component: Selectable): void;
-    removeSelectable(entity: Entity): void;
     hasShapeRenderer(entity: Entity): boolean;
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
@@ -625,18 +568,14 @@ export interface ESEngineModule {
     CircleCollider: new () => CircleCollider;
     CapsuleCollider: new () => CapsuleCollider;
     SegmentCollider: new () => SegmentCollider;
-    FanLayout: new () => FanLayout;
     FlexContainer: new () => FlexContainer;
     FlexItem: new () => FlexItem;
     GridLayout: new () => GridLayout;
     Parent: new () => Parent;
     Children: new () => Children;
     Interactable: new () => Interactable;
-    LayoutGroup: new () => LayoutGroup;
     ParticleEmitter: new () => ParticleEmitter;
     RigidBody: new () => RigidBody;
-    ScreenSpace: new () => ScreenSpace;
-    Selectable: new () => Selectable;
     ShapeRenderer: new () => ShapeRenderer;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;
