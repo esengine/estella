@@ -104,6 +104,10 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Shrink", esengine::ecs::CanvasScaleMode::Shrink)
         .value("Match", esengine::ecs::CanvasScaleMode::Match);
 
+    enum_<esengine::ecs::FanDirection>("FanDirection")
+        .value("Up", esengine::ecs::FanDirection::Up)
+        .value("Down", esengine::ecs::FanDirection::Down);
+
     enum_<esengine::ecs::FlexDirection>("FlexDirection")
         .value("Row", esengine::ecs::FlexDirection::Row)
         .value("Column", esengine::ecs::FlexDirection::Column)
@@ -142,6 +146,10 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Center", esengine::ecs::AlignSelf::Center)
         .value("End", esengine::ecs::AlignSelf::End)
         .value("Stretch", esengine::ecs::AlignSelf::Stretch);
+
+    enum_<esengine::ecs::GridDirection>("GridDirection")
+        .value("Vertical", esengine::ecs::GridDirection::Vertical)
+        .value("Horizontal", esengine::ecs::GridDirection::Horizontal);
 
     enum_<esengine::ecs::LayoutDirection>("LayoutDirection")
         .value("Horizontal", esengine::ecs::LayoutDirection::Horizontal)
@@ -291,6 +299,37 @@ CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
     return js;
 }
 
+struct FanLayoutJS {
+    f32 radius;
+    f32 maxSpreadAngle;
+    f32 maxCardAngle;
+    f32 tiltFactor;
+    f32 cardSpacing;
+    i32 direction;
+};
+
+esengine::ecs::FanLayout fanlayoutFromJS(const FanLayoutJS& js) {
+    esengine::ecs::FanLayout c;
+    c.radius = js.radius;
+    c.maxSpreadAngle = js.maxSpreadAngle;
+    c.maxCardAngle = js.maxCardAngle;
+    c.tiltFactor = js.tiltFactor;
+    c.cardSpacing = js.cardSpacing;
+    c.direction = static_cast<FanDirection>(js.direction);
+    return c;
+}
+
+FanLayoutJS fanlayoutToJS(const esengine::ecs::FanLayout& c) {
+    FanLayoutJS js;
+    js.radius = c.radius;
+    js.maxSpreadAngle = c.maxSpreadAngle;
+    js.maxCardAngle = c.maxCardAngle;
+    js.tiltFactor = c.tiltFactor;
+    js.cardSpacing = c.cardSpacing;
+    js.direction = static_cast<i32>(c.direction);
+    return js;
+}
+
 struct FlexContainerJS {
     i32 direction;
     i32 wrap;
@@ -371,6 +410,31 @@ FlexItemJS flexitemToJS(const esengine::ecs::FlexItem& c) {
     js.maxHeight = c.maxHeight;
     js.widthPercent = c.widthPercent;
     js.heightPercent = c.heightPercent;
+    return js;
+}
+
+struct GridLayoutJS {
+    i32 direction;
+    i32 crossAxisCount;
+    glm::vec2 itemSize;
+    glm::vec2 spacing;
+};
+
+esengine::ecs::GridLayout gridlayoutFromJS(const GridLayoutJS& js) {
+    esengine::ecs::GridLayout c;
+    c.direction = static_cast<GridDirection>(js.direction);
+    c.crossAxisCount = js.crossAxisCount;
+    c.itemSize = js.itemSize;
+    c.spacing = js.spacing;
+    return c;
+}
+
+GridLayoutJS gridlayoutToJS(const esengine::ecs::GridLayout& c) {
+    GridLayoutJS js;
+    js.direction = static_cast<i32>(c.direction);
+    js.crossAxisCount = c.crossAxisCount;
+    js.itemSize = c.itemSize;
+    js.spacing = c.spacing;
     return js;
 }
 
@@ -791,13 +855,13 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
         .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
 
-    value_object<esengine::ecs::FanLayout>("FanLayout")
-        .field("radius", &esengine::ecs::FanLayout::radius)
-        .field("maxSpreadAngle", &esengine::ecs::FanLayout::maxSpreadAngle)
-        .field("maxCardAngle", &esengine::ecs::FanLayout::maxCardAngle)
-        .field("tiltFactor", &esengine::ecs::FanLayout::tiltFactor)
-        .field("cardSpacing", &esengine::ecs::FanLayout::cardSpacing)
-        .field("direction", &esengine::ecs::FanLayout::direction);
+    value_object<FanLayoutJS>("FanLayout")
+        .field("radius", &FanLayoutJS::radius)
+        .field("maxSpreadAngle", &FanLayoutJS::maxSpreadAngle)
+        .field("maxCardAngle", &FanLayoutJS::maxCardAngle)
+        .field("tiltFactor", &FanLayoutJS::tiltFactor)
+        .field("cardSpacing", &FanLayoutJS::cardSpacing)
+        .field("direction", &FanLayoutJS::direction);
 
     value_object<FlexContainerJS>("FlexContainer")
         .field("direction", &FlexContainerJS::direction)
@@ -822,11 +886,11 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("widthPercent", &FlexItemJS::widthPercent)
         .field("heightPercent", &FlexItemJS::heightPercent);
 
-    value_object<esengine::ecs::GridLayout>("GridLayout")
-        .field("direction", &esengine::ecs::GridLayout::direction)
-        .field("crossAxisCount", &esengine::ecs::GridLayout::crossAxisCount)
-        .field("itemSize", &esengine::ecs::GridLayout::itemSize)
-        .field("spacing", &esengine::ecs::GridLayout::spacing);
+    value_object<GridLayoutJS>("GridLayout")
+        .field("direction", &GridLayoutJS::direction)
+        .field("crossAxisCount", &GridLayoutJS::crossAxisCount)
+        .field("itemSize", &GridLayoutJS::itemSize)
+        .field("spacing", &GridLayoutJS::spacing);
 
     value_object<ParentJS>("Parent")
         .field("entity", &ParentJS::entity);
@@ -1151,16 +1215,15 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("hasFanLayout", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::FanLayout>(static_cast<Entity>(e));
         }))
-        .function("getFanLayout", optional_override([](Registry& r, u32 e) -> esengine::ecs::FanLayout& {
+        .function("getFanLayout", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::FanLayout s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::FanLayout>(entity)) return s_dummy;
-            return r.get<esengine::ecs::FanLayout>(entity);
-        }), allow_raw_pointers())
-        .function("addFanLayout", optional_override([](Registry& r, u32 e, const esengine::ecs::FanLayout& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::FanLayout>(entity)) return FanLayoutJS{};
+            return fanlayoutToJS(r.get<esengine::ecs::FanLayout>(entity));
+        }))
+        .function("addFanLayout", optional_override([](Registry& r, u32 e, const FanLayoutJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::FanLayout>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::FanLayout>(entity, fanlayoutFromJS(js));
         }))
         .function("removeFanLayout", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
@@ -1212,16 +1275,15 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("hasGridLayout", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::GridLayout>(static_cast<Entity>(e));
         }))
-        .function("getGridLayout", optional_override([](Registry& r, u32 e) -> esengine::ecs::GridLayout& {
+        .function("getGridLayout", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::GridLayout s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::GridLayout>(entity)) return s_dummy;
-            return r.get<esengine::ecs::GridLayout>(entity);
-        }), allow_raw_pointers())
-        .function("addGridLayout", optional_override([](Registry& r, u32 e, const esengine::ecs::GridLayout& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::GridLayout>(entity)) return GridLayoutJS{};
+            return gridlayoutToJS(r.get<esengine::ecs::GridLayout>(entity));
+        }))
+        .function("addGridLayout", optional_override([](Registry& r, u32 e, const GridLayoutJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::GridLayout>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::GridLayout>(entity, gridlayoutFromJS(js));
         }))
         .function("removeGridLayout", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);

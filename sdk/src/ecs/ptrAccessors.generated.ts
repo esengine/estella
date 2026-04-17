@@ -403,7 +403,7 @@ export function fillFanLayout(
     out.maxCardAngle = f32[(ptr + 8) >> 2];
     out.tiltFactor = f32[(ptr + 12) >> 2];
     out.cardSpacing = f32[(ptr + 16) >> 2];
-    out.direction = u32[(ptr + 20) >> 2] | 0;
+    out.direction = u8[ptr + 20];
 }
 
 export function writeFanLayout(
@@ -415,7 +415,7 @@ export function writeFanLayout(
     f32[(ptr + 8) >> 2] = data.maxCardAngle;
     f32[(ptr + 12) >> 2] = data.tiltFactor;
     f32[(ptr + 16) >> 2] = data.cardSpacing;
-    u32[(ptr + 20) >> 2] = data.direction | 0;
+    u8[ptr + 20] = data.direction;
 }
 
 export function createFanLayoutData(): FanLayoutPtrData {
@@ -548,7 +548,7 @@ export function fillGridLayout(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: GridLayoutPtrData,
 ): void {
-    out.direction = u32[ptr >> 2] | 0;
+    out.direction = u8[ptr];
     out.crossAxisCount = u32[(ptr + 4) >> 2] | 0;
     const itemSize_ = out.itemSize; itemSize_.x = f32[(ptr + 8) >> 2]; itemSize_.y = f32[((ptr + 8) >> 2) + 1];
     const spacing_ = out.spacing; spacing_.x = f32[(ptr + 16) >> 2]; spacing_.y = f32[((ptr + 16) >> 2) + 1];
@@ -558,7 +558,7 @@ export function writeGridLayout(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: GridLayoutPtrData,
 ): void {
-    u32[ptr >> 2] = data.direction | 0;
+    u8[ptr] = data.direction;
     u32[(ptr + 4) >> 2] = data.crossAxisCount | 0;
     f32[(ptr + 8) >> 2] = data.itemSize.x; f32[((ptr + 8) >> 2) + 1] = data.itemSize.y;
     f32[(ptr + 16) >> 2] = data.spacing.x; f32[((ptr + 16) >> 2) + 1] = data.spacing.y;

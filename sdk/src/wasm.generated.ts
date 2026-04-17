@@ -48,6 +48,11 @@ export enum CanvasScaleMode {
     Match = 4,
 }
 
+export enum FanDirection {
+    Up = 0,
+    Down = 1,
+}
+
 export enum FlexDirection {
     Row = 0,
     Column = 1,
@@ -91,6 +96,11 @@ export enum AlignSelf {
     Center = 2,
     End = 3,
     Stretch = 4,
+}
+
+export enum GridDirection {
+    Vertical = 0,
+    Horizontal = 1,
 }
 
 export enum LayoutDirection {
