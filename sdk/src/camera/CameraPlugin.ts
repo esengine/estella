@@ -119,7 +119,7 @@ export function collectCameras(
         const camera = registry.getCamera(e);
         const transform = registry.getTransform(e);
 
-        const aspect = (camera.viewportW * width) / (camera.viewportH * height);
+        const aspect = (camera.viewport.z * width) / (camera.viewport.w * height);
         let projection: Float32Array;
         let camHalfW = 0;
         let camHalfH = 0;
@@ -151,10 +151,10 @@ export function collectCameras(
         const cam = acquireCameraInfo(cameras.length);
         cam.entity = e;
         cam.viewProjection.set(multiply(projection, view));
-        cam.viewportRect.x = camera.viewportX;
-        cam.viewportRect.y = camera.viewportY;
-        cam.viewportRect.w = camera.viewportW;
-        cam.viewportRect.h = camera.viewportH;
+        cam.viewportRect.x = camera.viewport.x;
+        cam.viewportRect.y = camera.viewport.y;
+        cam.viewportRect.w = camera.viewport.z;
+        cam.viewportRect.h = camera.viewport.w;
         cam.clearFlags = camera.clearFlags;
         cam.priority = camera.priority;
         cam.halfW = camHalfW;
