@@ -281,4 +281,54 @@ describe('AsyncCache', () => {
             expect(cache.has('key')).toBe(true);
         });
     });
+
+    describe('invalidate', () => {
+        it('drops the cached value so next load fetches fresh', async () => {
+            const loader = vi.fn()
+                .mockResolvedValueOnce('v1')
+                .mockResolvedValueOnce('v2');
+
+            expect(await cache.getOrLoad('k', loader)).toBe('v1');
+            expect(cache.invalidate('k')).toBe(true);
+            expect(await cache.getOrLoad('k', loader)).toBe('v2');
+            expect(loader).toHaveBeenCalledTimes(2);
+        });
+
+        it('returns false for a key that was never cached', () => {
+            expect(cache.invalidate('missing')).toBe(false);
+        });
+
+        it('also clears the failure cooldown', async () => {
+            const loader = vi.fn()
+                .mockRejectedValueOnce(new Error('fail'))
+                .mockResolvedValueOnce('ok');
+
+            await expect(cache.getOrLoad('k', loader)).rejects.toThrow('fail');
+            // Without invalidate, the cooldown would throw again.
+            expect(cache.invalidate('k')).toBe(true);
+            expect(await cache.getOrLoad('k', loader)).toBe('ok');
+        });
+
+        it('aborts an in-flight loader so the next getOrLoad starts a new one', async () => {
+            let resolveFirst: (v: string) => void = () => {};
+            const first = new Promise<string>(r => { resolveFirst = r; });
+            const loader = vi.fn()
+                .mockImplementationOnce(() => first)
+                .mockResolvedValueOnce('v2');
+
+            const p1 = cache.getOrLoad('k', loader);
+            expect(cache.invalidate('k')).toBe(true);
+
+            // Second call must not dedupe against the aborted first loader.
+            const p2 = cache.getOrLoad('k', loader);
+            resolveFirst('v1');
+
+            // The aborted first loader still resolves but must not land in
+            // the cache; the fresh load wins.
+            await p1;
+            expect(await p2).toBe('v2');
+            expect(cache.get('k')).toBe('v2');
+            expect(loader).toHaveBeenCalledTimes(2);
+        });
+    });
 });
