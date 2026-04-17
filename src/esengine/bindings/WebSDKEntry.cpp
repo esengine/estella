@@ -28,7 +28,6 @@
 #include "../ecs/UILayoutSystem.hpp"
 #include "../ecs/UIHitTestSystem.hpp"
 #include "../ecs/UIRenderOrderSystem.hpp"
-#include "../ecs/UIFlexLayoutSystem.hpp"
 
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"

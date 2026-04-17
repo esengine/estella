@@ -446,7 +446,7 @@ void resolveGridLayoutChildren(
     if (cols < 1) cols = 1;
     f32 strideX = grid.itemSize.x + grid.spacing.x;
     f32 strideY = grid.itemSize.y + grid.spacing.y;
-    bool isVertical = (grid.direction == 0);
+    bool isVertical = (grid.direction == GridDirection::Vertical);
 
     i32 childIdx = 0;
     for (i32 j = containerIndex + 1; j < static_cast<i32>(tree.nodes_.size()); j++) {
@@ -504,7 +504,7 @@ void resolveFanLayoutChildren(
     if (n == 0) return;
 
     f32 spreadAngle = std::min(fan.maxSpreadAngle, (n - 1) * fan.maxCardAngle);
-    f32 dirSign = (fan.direction == 1) ? -1.0f : 1.0f;
+    f32 dirSign = (fan.direction == FanDirection::Down) ? -1.0f : 1.0f;
     constexpr f32 DEG2RAD = 3.14159265358979f / 180.0f;
     bool useFixedSpacing = (fan.cardSpacing > 0.0f && n > 1);
 

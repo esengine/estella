@@ -6,6 +6,12 @@
 
 namespace esengine::ecs {
 
+ES_ENUM()
+enum class FanDirection : u8 {
+    Up = 0,
+    Down = 1,
+};
+
 ES_COMPONENT()
 struct FanLayout {
     ES_PROPERTY()
@@ -24,8 +30,7 @@ struct FanLayout {
     f32 cardSpacing{0.0f};  // 0=auto (arc-based), >0=fixed center-to-center distance
 
     ES_PROPERTY()
-    i32 direction{0};
-
+    FanDirection direction{FanDirection::Up};
 };
 
 }  // namespace esengine::ecs
