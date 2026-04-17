@@ -308,19 +308,6 @@ export {
     dropdownPlugin,
 } from './DropdownPlugin';
 
-// LayoutGroup Component (C++ backed)
-export {
-    LayoutGroup,
-    LayoutDirection,
-    ChildAlignment,
-    type LayoutGroupData,
-} from './LayoutGroup';
-
-export {
-    LayoutGroupPlugin,
-    layoutGroupPlugin,
-} from './LayoutGroupPlugin';
-
 // FlexContainer Component
 export {
     FlexContainer,
@@ -497,17 +484,11 @@ export {
 
 export { LinearLayout, type LinearLayoutData } from './layouts/LinearLayout';
 export { GridLayout, type GridLayoutData } from './layouts/GridLayout';
-export { FanLayout, type FanLayoutData } from './layouts/FanLayout';
 export { LinearLayoutProvider } from './layouts/LinearLayoutProvider';
 export { GridLayoutProvider } from './layouts/GridLayoutProvider';
-export { FanLayoutProvider, computeFanPositions } from './layouts/FanLayoutProvider';
 
-export { FanLayoutPlugin, fanLayoutPlugin } from './FanLayoutPlugin';
 export { LinearLayoutPlugin, linearLayoutPlugin } from './LinearLayoutPlugin';
 export { GridLayoutPlugin, gridLayoutPlugin } from './GridLayoutPlugin';
-
-export { Selectable, type SelectableData } from './Selectable';
-export { SelectablePlugin, selectablePlugin } from './SelectablePlugin';
 
 export const AnimOverride = {
     POS_X: 1,
