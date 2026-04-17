@@ -3,7 +3,7 @@ import type { Entity } from '../src/types';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import type { TransformData, ParentData } from '../src/component';
 import { Transform, Parent } from '../src/component';
-import { syncDynamicTransforms } from '../src/physics/PhysicsPlugin';
+import { syncDynamicTransforms } from '../src/physics/PhysicsSystem';
 import { createMockModule } from './mocks/wasm';
 import { World } from '../src/world';
 

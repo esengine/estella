@@ -4,7 +4,7 @@ import { World } from '../src/world';
 import { defineBuiltin } from '../src/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
-import { syncDynamicTransforms } from '../src/physics/PhysicsPlugin';
+import { syncDynamicTransforms } from '../src/physics/PhysicsSystem';
 import type { Entity } from '../src/types';
 
 let wasmModule: ESEngineModule;
