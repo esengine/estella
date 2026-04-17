@@ -9,9 +9,10 @@
  * identity for scene/prefab references and must survive across runs.
  *
  * Usage:
- *   node tools/asset-meta.js <dir>...           # generate missing metas
- *   node tools/asset-meta.js <dir> --dry-run    # preview only
- *   node tools/asset-meta.js <dir> --check      # exit 1 if any missing (CI)
+ *   node tools/asset-meta.js <dir>...                        # generate missing metas
+ *   node tools/asset-meta.js <dir> --dry-run                 # preview only
+ *   node tools/asset-meta.js <dir> --check                   # exit 1 if any missing (CI)
+ *   node tools/asset-meta.js <dir> --emit-manifest <out>     # also write runtime manifest
  *   node tools/asset-meta.js <dir> --verbose
  *
  * Exit codes:
@@ -244,13 +245,110 @@ function printSummary(results, { verbose, dryRun, check }) {
     );
 }
 
+/**
+ * Scan every `.meta` sidecar under `dir` and collect their contents
+ * as AssetManifest entries keyed by path relative to `dir`.
+ */
+export async function buildManifest(dir, options = {}) {
+    const { manifestBase } = options;
+    const root = resolve(dir);
+    const base = manifestBase ? resolve(manifestBase) : root;
+
+    const entries = [];
+    const warnings = [];
+
+    for await (const filePath of walk(root)) {
+        const type = getAssetType(filePath);
+        if (type === null) continue;
+
+        const metaPath = filePath + '.meta';
+        if (!(await exists(metaPath))) continue;
+
+        let raw;
+        try {
+            raw = await readFile(metaPath, 'utf8');
+        } catch (err) {
+            warnings.push({ metaPath, reason: `read failed: ${err.message}` });
+            continue;
+        }
+
+        let meta;
+        try {
+            meta = JSON.parse(raw);
+        } catch (err) {
+            warnings.push({ metaPath, reason: `malformed JSON: ${err.message}` });
+            continue;
+        }
+
+        if (!meta || typeof meta.uuid !== 'string' || !meta.type) {
+            warnings.push({ metaPath, reason: 'missing uuid or type' });
+            continue;
+        }
+
+        // Manifest paths are relative + forward-slashed so the runtime
+        // (web / wechat) can treat them as URL-ish without OS-specific
+        // backslash handling.
+        const relPath = relative(base, filePath).replace(/\\/g, '/');
+
+        entries.push({
+            uuid: meta.uuid,
+            path: relPath,
+            type: meta.type,
+            importer: meta.importer ?? {},
+        });
+    }
+
+    entries.sort((a, b) => a.path.localeCompare(b.path));
+
+    return { manifest: { version: '1.0', entries }, warnings };
+}
+
+async function emitManifest(outPath, dirs, manifestBase) {
+    const allEntries = [];
+    const allWarnings = [];
+    for (const dir of dirs) {
+        const { manifest, warnings } = await buildManifest(dir, { manifestBase });
+        allEntries.push(...manifest.entries);
+        allWarnings.push(...warnings);
+    }
+
+    // Detect UUID collisions across scanned dirs — caller almost certainly
+    // wants to know.
+    const byUuid = new Map();
+    const collisions = [];
+    for (const e of allEntries) {
+        const prior = byUuid.get(e.uuid);
+        if (prior) collisions.push({ uuid: e.uuid, a: prior.path, b: e.path });
+        else byUuid.set(e.uuid, e);
+    }
+
+    if (collisions.length > 0) {
+        console.error('\nUUID collision(s) detected:');
+        for (const c of collisions) {
+            console.error(`  ${c.uuid}: ${c.a}  vs  ${c.b}`);
+        }
+    }
+    if (allWarnings.length > 0) {
+        console.warn('\nWarnings:');
+        for (const w of allWarnings) console.warn(`  ${w.metaPath}  — ${w.reason}`);
+    }
+
+    const manifest = { version: '1.0', entries: allEntries };
+    await writeFile(outPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+    console.log(`\nwrote manifest: ${outPath}  (${allEntries.length} entries)`);
+
+    return collisions.length === 0;
+}
+
 async function main() {
     const { values, positionals } = parseArgs({
         options: {
-            'dry-run': { type: 'boolean', default: false },
-            'check':   { type: 'boolean', default: false },
-            'verbose': { type: 'boolean', short: 'v', default: false },
-            'help':    { type: 'boolean', short: 'h', default: false },
+            'dry-run':        { type: 'boolean', default: false },
+            'check':          { type: 'boolean', default: false },
+            'verbose':        { type: 'boolean', short: 'v', default: false },
+            'help':           { type: 'boolean', short: 'h', default: false },
+            'emit-manifest':  { type: 'string' },
+            'manifest-base':  { type: 'string' },
         },
         allowPositionals: true,
     });
@@ -259,10 +357,12 @@ async function main() {
         console.log(`Usage: node tools/asset-meta.js <dir>... [options]
 
 Options:
-  --dry-run      Show what would be created, write nothing
-  --check        Exit 1 if any asset is missing .meta (CI mode)
-  -v, --verbose  Log every asset considered
-  -h, --help     Show this help`);
+  --dry-run                  Show what would be created, write nothing
+  --check                    Exit 1 if any asset is missing .meta (CI mode)
+  --emit-manifest <file>     After generating, write AssetManifest JSON here
+  --manifest-base <dir>      Base dir for manifest paths (default: scanned dir)
+  -v, --verbose              Log every asset considered
+  -h, --help                 Show this help`);
         process.exit(values.help ? 0 : 2);
     }
 
@@ -288,7 +388,16 @@ Options:
 
     if (values.check) {
         const anyMissing = results.some(r => r.created.length > 0);
-        process.exit(anyMissing ? 1 : 0);
+        if (anyMissing) process.exit(1);
+    }
+
+    if (values['emit-manifest']) {
+        const ok = await emitManifest(
+            values['emit-manifest'],
+            positionals,
+            values['manifest-base'],
+        );
+        if (!ok) process.exit(1);
     }
 }
 
