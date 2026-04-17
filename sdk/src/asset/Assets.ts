@@ -38,11 +38,30 @@ export interface AssetBundle {
     fonts: Map<string, FontResult>;
 }
 
+/**
+ * Describes one asset a scene / prefab referenced that couldn't be
+ * materialized into a usable handle. The caller of preloadSceneAssets
+ * uses this to surface editor UI ("missing asset") or to abort the
+ * load entirely — instead of the old behaviour of silently storing
+ * `texture: 0` and hoping the renderer notices.
+ */
+export interface MissingAsset {
+    /** The original serialized ref (`"@uuid:..."` or a plain path). */
+    ref: string;
+    /** Asset type (`"texture"`, `"material"`, ...) when known. */
+    type?: string;
+    /** `unresolved` = UUID not in registry; `load-failed` = fetch threw. */
+    reason: 'unresolved' | 'load-failed';
+    /** Stringified error for `load-failed`. */
+    error?: string;
+}
+
 export interface SceneAssetResult {
     textureHandles: Map<string, number>;
     materialHandles: Map<string, number>;
     fontHandles: Map<string, number>;
     releaseCallbacks: ReleaseCallback[];
+    missing: MissingAsset[];
 }
 
 export type AssetRefResolver = (ref: string) => string | null;
@@ -273,7 +292,11 @@ export class Assets {
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
     ): Promise<SceneAssetResult> {
+        const missing: MissingAsset[] = [];
         const discovered = discoverSceneAssets(sceneData, (ref) => this.resolveRef(ref));
+        for (const ref of discovered.unresolved) {
+            missing.push({ ref, reason: 'unresolved' });
+        }
         if (discovered.unresolved.length > 0) {
             console.warn(
                 `[Assets] ${discovered.unresolved.length} unresolved asset ref(s):`,
@@ -299,6 +322,15 @@ export class Assets {
         const trackProgress = (p: Promise<void>): Promise<void> =>
             p.then(() => { onProgress?.(++loadedCount, totalCount); });
 
+        const recordFailure = (path: string, label: string, err: unknown): void => {
+            missing.push({
+                ref: path,
+                type: label,
+                reason: 'load-failed',
+                error: err instanceof Error ? err.message : String(err),
+            });
+        };
+
         const loadHandles = (
             paths: Set<string>, loader: (p: string) => Promise<{ handle: number }>,
             handles: Map<string, number>, label: string,
@@ -308,6 +340,7 @@ export class Assets {
                     loader(path).then(r => { handles.set(path, r.handle); }).catch(e => {
                         console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
                         handles.set(path, 0);
+                        recordFailure(path, label, e);
                     }),
                 ),
             );
@@ -319,6 +352,7 @@ export class Assets {
                 trackProgress(
                     loader(path).then(() => {}).catch(e => {
                         console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
+                        recordFailure(path, label, e);
                     }),
                 ),
             );
@@ -331,6 +365,7 @@ export class Assets {
                 trackProgress(
                     this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
                         console.warn(`[Assets] Failed to load spine: ${pair.skeleton}`, e);
+                        recordFailure(pair.skeleton, 'spine', e);
                     }),
                 ),
             ),
@@ -345,7 +380,7 @@ export class Assets {
 
         await Promise.all(promises);
 
-        return { textureHandles, materialHandles, fontHandles, releaseCallbacks };
+        return { textureHandles, materialHandles, fontHandles, releaseCallbacks, missing };
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {

@@ -476,6 +476,8 @@ export {
     type SceneComponentData,
     type SceneLoadOptions,
     type SceneLoadProgressCallback,
+    type MissingAssetCallback,
+    MissingAssetsError,
     type SliceBorder,
 } from './scene';
 

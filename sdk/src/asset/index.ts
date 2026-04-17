@@ -9,7 +9,7 @@ export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin
 export { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
 export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
 
-export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult } from './Assets';
+export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult, type MissingAsset } from './Assets';
 export { type Backend, HttpBackend, EmbeddedBackend, type HttpBackendOptions } from './Backend';
 export { Catalog, type CatalogData, type CatalogEntry, type AtlasFrameInfo } from './Catalog';
 export {
