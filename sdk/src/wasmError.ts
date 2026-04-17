@@ -1,3 +1,5 @@
+import { log } from './logger';
+
 type WasmErrorHandler = (error: unknown, context: string) => void;
 
 let errorHandler: WasmErrorHandler | null = null;
@@ -18,12 +20,12 @@ export function handleWasmError(error: unknown, context: string): void {
     }
 
     if (suppressedCount > 0) {
-        console.warn(`[ESEngine] ${suppressedCount} WASM error(s) suppressed`);
+        log.warn('wasm', `${suppressedCount} WASM error(s) suppressed`);
         suppressedCount = 0;
     }
 
     lastReportTime = now;
-    console.error(`[ESEngine] WASM error in ${context}:`, error);
+    log.error('wasm', `error in ${context}`, error);
     if (errorHandler) {
         errorHandler(error, context);
     }

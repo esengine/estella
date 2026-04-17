@@ -1,5 +1,6 @@
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
+import { log } from '../logger';
 
 export class Audio {
     private static backend_: PlatformAudioBackend;
@@ -81,7 +82,7 @@ export class Audio {
                     pending.resolve(this.backend_.play(buf, playConfig));
                 }
             }).catch(err => {
-                console.warn(`Failed to preload audio: ${url}`, err);
+                log.warn('audio', `Failed to preload audio: ${url}`, err);
             });
             return pending;
         }
@@ -132,7 +133,7 @@ export class Audio {
                     play(buf);
                 }
             }).catch(err => {
-                console.warn(`Failed to preload BGM: ${url}`, err);
+                log.warn('audio', `Failed to preload BGM: ${url}`, err);
             });
         }
     }

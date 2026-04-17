@@ -1,4 +1,5 @@
 import type { Vec2 } from '../../types';
+import { log } from '../../logger';
 
 export interface ScrollContainerOptions {
     viewportSize: Vec2;
@@ -73,7 +74,7 @@ export class ScrollContainer {
             try {
                 listener({ x: next.x, y: next.y });
             } catch (err) {
-                console.error('[ScrollContainer] listener error:', err);
+                log.error('ui', 'ScrollContainer listener error', err);
             }
         }
     }

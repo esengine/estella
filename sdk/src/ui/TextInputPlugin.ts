@@ -18,6 +18,7 @@ import { playModeOnly } from '../env';
 import { wrapText, nextPowerOf2, ensureComponent, colorToRgba } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 import { SystemLabel, PluginName } from '../systemLabels';
+import { log } from '../logger';
 
 export class TextInputPlugin implements Plugin {
     name = PluginName.TextInput;
@@ -39,7 +40,7 @@ export class TextInputPlugin implements Plugin {
 
         const moduleOrNull = app.wasmModule;
         if (!moduleOrNull) {
-            console.warn('TextInputPlugin: No WASM module available');
+            log.warn('ui', 'TextInputPlugin: No WASM module available');
             return;
         }
         const module = moduleOrNull;
@@ -49,7 +50,7 @@ export class TextInputPlugin implements Plugin {
         const canvas = platformCreateCanvas(RuntimeConfig.textCanvasSize, 64);
         const ctxOrNull = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctxOrNull) {
-            console.warn('TextInputPlugin: failed to create 2D canvas context');
+            log.warn('ui', 'TextInputPlugin: failed to create 2D canvas context');
             return;
         }
         const ctx = ctxOrNull as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;

@@ -6,6 +6,7 @@
 import { defineResource } from './resource';
 import type { Plugin } from './app';
 import { getPlatformType } from './platform';
+import { log } from './logger';
 
 // =============================================================================
 // Lifecycle State
@@ -70,7 +71,7 @@ export class LifecycleManager {
     emit_(event: LifecycleEvent): void {
         for (const listener of this.listeners_) {
             try { listener(event); } catch (e) {
-                console.error('[Lifecycle] Listener error:', e);
+                log.error('lifecycle', 'Listener error', e);
             }
         }
     }

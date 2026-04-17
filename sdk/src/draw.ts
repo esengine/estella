@@ -12,6 +12,7 @@ import type { ShaderHandle, MaterialHandle } from './material';
 import { Material, isTextureRef } from './material';
 import { BlendMode } from './blend';
 import { handleWasmError } from './wasmError';
+import { log } from './logger';
 
 export { BlendMode } from './blend';
 
@@ -376,7 +377,7 @@ export const Draw: DrawAPI = {
                 let autoTextureSlot = 0;
                 for (const [name, value] of matData.uniforms) {
                     if (idx > UNIFORMS_BUFFER_SIZE - 6) {
-                        console.warn('Uniform buffer overflow, some uniforms will be ignored');
+                        log.warn('draw', 'Uniform buffer overflow, some uniforms will be ignored');
                         break;
                     }
 
@@ -469,9 +470,9 @@ function getUniformNameId(name: string): number {
     if (id !== undefined) return id;
     if (!warnedUniforms.has(name)) {
         warnedUniforms.add(name);
-        console.warn(
-            `[ESEngine] Unknown uniform name "${name}" - ` +
-            `supported names: ${Object.keys(UNIFORM_NAME_MAP).join(', ')}`
+        log.warn(
+            'draw',
+            `Unknown uniform name "${name}" - supported: ${Object.keys(UNIFORM_NAME_MAP).join(', ')}`,
         );
     }
     return -1;

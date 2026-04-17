@@ -24,6 +24,7 @@ import {
 import { UIRenderer } from './ui/core/ui-renderer';
 import { Assets } from './asset/AssetPlugin';
 import { RuntimeConfig } from './defaults';
+import { log } from './logger';
 
 const RENDERABLE_COMPONENTS: AnyComponentDef[] = [
     Sprite, SpineAnimation, BitmapText, ShapeRenderer, ParticleEmitter, UIRenderer,
@@ -229,7 +230,7 @@ export class SceneManagerState {
 
     async switchTo(name: string, options?: TransitionOptions): Promise<void> {
         if (this.transition_ || this.switching_) {
-            console.warn(`[SceneManager] Scene switch already in progress, ignoring switchTo("${name}")`);
+            log.warn('scene', `Scene switch already in progress, ignoring switchTo("${name}")`);
             return;
         }
 
@@ -305,7 +306,7 @@ export class SceneManagerState {
                     }
                     await this.load(targetScene);
                 } catch (err) {
-                    console.error('Scene transition failed:', err);
+                    log.error('scene', 'Scene transition failed', err);
                     const { reject: rejectTransition } = this.transition_!;
                     this.transition_ = null;
                     unregisterDrawCallback(TRANSITION_CALLBACK_ID);

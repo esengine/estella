@@ -1,5 +1,6 @@
 import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
+import { log } from '../logger';
 
 interface WxInnerAudioContext {
     src: string;
@@ -57,7 +58,7 @@ class WeChatAudioHandle implements AudioHandle {
 
     setPan(_pan: number): void {
         if (!this.panWarned_) {
-            console.warn('[Audio] WeChat InnerAudioContext does not support stereo panning');
+            log.warn('audio', 'WeChat InnerAudioContext does not support stereo panning');
             this.panWarned_ = true;
         }
     }
@@ -145,7 +146,7 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
             }
         });
         ctx.onError((res) => {
-            console.error(`[WeChatAudio] Playback error for "${url}":`, res.errMsg);
+            log.error('audio', `Playback error for "${url}"`, res.errMsg);
         });
 
         ctx.src = url;

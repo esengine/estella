@@ -1,6 +1,7 @@
 import type { AssetLoader, LoadContext, TilemapResult } from '../AssetLoader';
 import { parseTmjJson, resolveRelativePath } from '../../tilemap/tiledLoader';
 import { registerTilemapSource } from '../../tilemap/tilesetCache';
+import { log } from '../../logger';
 
 export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
     readonly type = 'tilemap';
@@ -22,7 +23,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 const result = await ctx.loadTexture(imagePath, true);
                 textureHandle = result.handle;
             } catch (e) {
-                console.warn(`[TilemapLoader] Failed to load tileset texture: ${imagePath}`, e);
+                log.warn('asset', `Failed to load tileset texture: ${imagePath}`, e);
             }
             tilesets.push({ textureHandle, columns: ts.columns });
         }

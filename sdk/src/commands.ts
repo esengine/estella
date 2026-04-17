@@ -7,6 +7,7 @@ import { Entity } from './types';
 import { AnyComponentDef, ComponentDef, isBuiltinComponent, Name } from './component';
 import type { World } from './world';
 import { ResourceDef, ResourceStorage } from './resource';
+import { log } from './logger';
 
 // =============================================================================
 // Commands Descriptor (for system parameters)
@@ -189,7 +190,7 @@ export class CommandsInstance {
             try {
                 this.executeCommand(cmd);
             } catch (e) {
-                console.warn('[Commands] Failed to execute command:', cmd.type, e);
+                log.warn('commands', `Failed to execute command: ${cmd.type}`, e);
             }
         }
         this.pending_.length = 0;
@@ -199,7 +200,7 @@ export class CommandsInstance {
         switch (cmd.type) {
             case 'despawn':
                 if (!this.world_.valid(cmd.entity)) {
-                    console.warn(`[Commands] despawn skipped: entity ${cmd.entity} is already invalid`);
+                    log.warn('commands', `despawn skipped: entity ${cmd.entity} is already invalid`);
                     break;
                 }
                 this.world_.despawn(cmd.entity);
@@ -207,7 +208,7 @@ export class CommandsInstance {
 
             case 'insert':
                 if (!this.world_.valid(cmd.entity)) {
-                    console.warn(`[Commands] insert skipped: entity ${cmd.entity} is invalid`);
+                    log.warn('commands', `insert skipped: entity ${cmd.entity} is invalid`);
                     break;
                 }
                 this.world_.insert(cmd.entity, cmd.component, cmd.data as Record<string, unknown>);
@@ -215,7 +216,7 @@ export class CommandsInstance {
 
             case 'remove':
                 if (!this.world_.valid(cmd.entity)) {
-                    console.warn(`[Commands] remove skipped: entity ${cmd.entity} is invalid`);
+                    log.warn('commands', `remove skipped: entity ${cmd.entity} is invalid`);
                     break;
                 }
                 this.world_.remove(cmd.entity, cmd.component);

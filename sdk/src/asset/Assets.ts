@@ -25,6 +25,7 @@ import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import type { AssetRegistry } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
+import { log } from '../logger';
 
 export interface AssetsOptions {
     backend: Backend;
@@ -300,8 +301,9 @@ export class Assets {
             missing.push({ ref, reason: 'unresolved' });
         }
         if (discovered.unresolved.length > 0) {
-            console.warn(
-                `[Assets] ${discovered.unresolved.length} unresolved asset ref(s):`,
+            log.warn(
+                'asset',
+                `${discovered.unresolved.length} unresolved asset ref(s)`,
                 discovered.unresolved,
             );
         }
@@ -340,7 +342,7 @@ export class Assets {
             [...paths].map(path =>
                 trackProgress(
                     loader(path).then(r => { handles.set(path, r.handle); }).catch(e => {
-                        console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
+                        log.warn('asset', `Failed to load ${label}: ${path}`, e);
                         handles.set(path, 0);
                         recordFailure(path, label, e);
                     }),
@@ -353,7 +355,7 @@ export class Assets {
             [...paths].map(path =>
                 trackProgress(
                     loader(path).then(() => {}).catch(e => {
-                        console.warn(`[Assets] Failed to load ${label}: ${path}`, e);
+                        log.warn('asset', `Failed to load ${label}: ${path}`, e);
                         recordFailure(path, label, e);
                     }),
                 ),
@@ -366,7 +368,7 @@ export class Assets {
             ...spinePairs.map(pair =>
                 trackProgress(
                     this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
-                        console.warn(`[Assets] Failed to load spine: ${pair.skeleton}`, e);
+                        log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
                         recordFailure(pair.skeleton, 'spine', e);
                     }),
                 ),

@@ -12,6 +12,7 @@ import { platformFetch } from '../platform';
 import { SceneManager } from '../sceneManager';
 import { WebAssetProvider } from './WebAssetProvider';
 import { SpinePlugin } from '../spine/SpinePlugin';
+import { log } from '../logger';
 
 const PREVIEW_SCENE = '__preview__';
 
@@ -48,7 +49,7 @@ export class PreviewPlugin implements Plugin {
         manager.setInitial(PREVIEW_SCENE);
 
         this.loadPromise_ = manager.load(PREVIEW_SCENE).then(() => {}).catch(e => {
-            console.error('[Preview] Failed to load preview scene:', e);
+            log.error('preview', 'Failed to load preview scene', e);
         });
         this.setupHotReload();
     }
@@ -103,7 +104,7 @@ export class PreviewPlugin implements Plugin {
         }
 
         if (!hasActiveCamera) {
-            console.warn('[PreviewPlugin] No active camera found, creating default camera');
+            log.warn('preview', 'No active camera found, creating default camera');
 
             let orthoSize = 540;
             let aspectRatio = DEFAULT_DESIGN_WIDTH / DEFAULT_DESIGN_HEIGHT;
@@ -177,13 +178,13 @@ export class PreviewPlugin implements Plugin {
 
         this.onMessage_ = async (event: MessageEvent) => {
             if (event.data === 'reload') {
-                console.log('[PreviewPlugin] Reload event received, updating scene...');
+                log.info('preview', 'Reload event received, updating scene...');
                 await this.reloadScene();
             }
         };
 
         this.onError_ = (err: Event) => {
-            console.error('[PreviewPlugin] EventSource error:', err);
+            log.error('preview', 'EventSource error', err);
         };
 
         this.eventSource_.addEventListener('message', this.onMessage_ as EventListener);
@@ -196,10 +197,10 @@ export class PreviewPlugin implements Plugin {
         try {
             const manager = this.app_.getResource(SceneManager);
             await manager.switchTo(PREVIEW_SCENE);
-            console.log('[PreviewPlugin] Scene reloaded successfully');
+            log.info('preview', 'Scene reloaded successfully');
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[PreviewPlugin] Failed to reload scene: ${msg}`);
+            log.error('preview', `Failed to reload scene: ${msg}`);
         }
     }
 }

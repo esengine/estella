@@ -1,3 +1,5 @@
+import { log } from '../../logger';
+
 /**
  * Change notification emitted by a DataSource.
  */
@@ -98,7 +100,7 @@ export class ArrayDataSource<T> implements DataSource<T> {
             try {
                 listener(change);
             } catch (err) {
-                console.error('[ArrayDataSource] listener error:', err);
+                log.error('ui', 'ArrayDataSource listener error', err);
             }
         }
     }

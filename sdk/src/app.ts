@@ -22,6 +22,7 @@ import { sceneManagerPlugin } from './scenePlugin';
 import { getDefaultContext } from './context';
 import { cameraPlugin } from './camera/CameraPlugin';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
+import { log } from './logger';
 
 // =============================================================================
 // Plugin Interface
@@ -253,7 +254,7 @@ export class App {
 
     async waitForPhysics(): Promise<void> {
         if (!this.hasResource(PhysicsRuntime)) {
-            console.warn('[ESEngine] No PhysicsPlugin installed, waitForPhysics() is a no-op');
+            log.warn('app', 'No PhysicsPlugin installed, waitForPhysics() is a no-op');
             return;
         }
         const promise = this.getResource(PhysicsRuntime).initPromise;
@@ -472,7 +473,7 @@ export class App {
 
         for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
             try { this.installed_plugins_[i].cleanup?.(this); } catch (e) {
-                console.error('[ESEngine] Plugin cleanup error:', e);
+                log.error('app', 'Plugin cleanup error', e);
             }
         }
         this.installed_plugins_.length = 0;
@@ -480,7 +481,7 @@ export class App {
         this.installedPluginNames_.clear();
 
         for (const entity of this.world_.getAllEntities()) {
-            try { this.world_.despawn(entity); } catch (e) { console.warn('[App] Shutdown despawn error:', e); }
+            try { this.world_.despawn(entity); } catch (e) { log.warn('app', 'Shutdown despawn error', e); }
         }
         this.world_.disconnectCpp();
 
@@ -546,7 +547,7 @@ export class App {
         this.pluginsFinished_ = true;
         for (const plugin of this.installed_plugins_) {
             try { plugin.finish?.(this); } catch (e) {
-                console.error(`[ESEngine] Plugin "${plugin.name ?? 'unknown'}" finish error:`, e);
+                log.error('app', `Plugin "${plugin.name ?? 'unknown'}" finish error`, e);
             }
         }
     }
@@ -559,7 +560,7 @@ export class App {
             const name = plugins[i].name;
             if (name) {
                 if (nameToIndex.has(name)) {
-                    console.warn(`[ESEngine] Duplicate plugin name "${name}" at indices ${nameToIndex.get(name)} and ${i}`);
+                    log.warn('app', `Duplicate plugin name "${name}" at indices ${nameToIndex.get(name)} and ${i}`);
                 }
                 nameToIndex.set(name, i);
             }
@@ -735,7 +736,7 @@ export class App {
                 }
             } catch (e) {
                 const name = entry.system._name;
-                console.error(`[ESEngine] System "${name}" threw an error:`, e);
+                log.error('app', `System "${name}" threw an error`, e);
                 if (this.error_handler_) {
                     this.error_handler_(e, name);
                 }

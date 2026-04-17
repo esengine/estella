@@ -726,6 +726,7 @@ export type {
 export {
     Logger,
     getLogger,
+    log,
     setLogLevel,
     debug,
     info,

@@ -1,4 +1,5 @@
 import { RuntimeConfig } from '../defaults';
+import { log } from '../logger';
 
 interface PendingEntry<T> {
     promise: Promise<T>;
@@ -65,7 +66,7 @@ export class AsyncCache<T> {
             if (err instanceof Error) {
                 this.failed_.set(key, { error: err, expiry: Date.now() + RuntimeConfig.assetFailureCooldown });
                 if (err.message.startsWith('AsyncCache timeout:')) {
-                    console.warn(`[AsyncCache] ${err.message}`);
+                    log.warn('asset', err.message);
                 }
             }
             throw err;

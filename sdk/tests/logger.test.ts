@@ -282,10 +282,8 @@ describe('Logger', () => {
             const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
             const l = new Logger();
             l.info('Test', 'msg', { key: 'val' });
-            expect(spy).toHaveBeenCalledWith(
-                expect.any(String),
-                expect.stringContaining('"key":"val"'),
-            );
+            // Single-arg style: non-Error data is JSON-stringified into the line.
+            expect(spy).toHaveBeenCalledWith(expect.stringContaining('"key":"val"'));
             spy.mockRestore();
         });
     });

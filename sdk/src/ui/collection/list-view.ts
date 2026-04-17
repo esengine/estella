@@ -5,6 +5,7 @@ import type { World } from '../../world';
 import type { DataSource } from './data-source';
 import type { LayoutProvider, Rect } from './layout-provider';
 import { ViewPool, type ViewPoolTemplate } from './view-pool';
+import { log } from '../../logger';
 
 export interface ListViewItemTemplate<T = unknown> extends ViewPoolTemplate<T> {}
 
@@ -181,7 +182,7 @@ export class ListView<T = unknown> {
                 entity = existing.entity;
             } else {
                 if (!this.pool_.hasTemplate(itemType)) {
-                    console.warn(`[ListView] No template for item type "${itemType}" at index ${i}`);
+                    log.warn('ui', `ListView: No template for item type "${itemType}" at index ${i}`);
                     continue;
                 }
                 entity = this.pool_.acquire(itemType, this.parent_);

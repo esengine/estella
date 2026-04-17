@@ -14,6 +14,7 @@ import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RAT
 import { parseRichText } from './RichTextParser';
 import { createFontSet, fontIndex, layoutRichText, measureLayoutWidth, type LayoutLine } from './RichTextLayout';
 import type { ImageResolver } from './ImageResolver';
+import { log } from '../logger';
 
 interface SizedRect {
     size: { x: number; y: number };
@@ -86,7 +87,7 @@ export class TextRenderer {
         try {
             return this.renderTextInner(text, uiRect);
         } catch (e) {
-            console.error('TextRenderer: render failed', e);
+            log.error('ui', 'TextRenderer: render failed', e);
             return { textureHandle: 0, width: 0, height: 0 };
         }
     }

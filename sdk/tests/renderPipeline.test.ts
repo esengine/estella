@@ -203,7 +203,10 @@ describe('RenderPipeline', () => {
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
 
-            expect(errorSpy).toHaveBeenCalledWith("[CustomDraw] callback 'bad-cb' error:", error);
+            expect(errorSpy).toHaveBeenCalledWith(
+                expect.stringContaining("callback 'bad-cb' error"),
+                error,
+            );
             expect(unregisterDrawCallback).toHaveBeenCalledWith('bad-cb');
             errorSpy.mockRestore();
         });

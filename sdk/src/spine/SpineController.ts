@@ -5,6 +5,7 @@
 
 import type { Entity, Vec2 } from '../types';
 import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
+import { log } from '../logger';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
 
@@ -157,7 +158,7 @@ export class SpineModuleController {
         try {
             return JSON.parse(json);
         } catch (e) {
-            console.warn('[Spine] Failed to parse animations JSON', e);
+            log.warn('spine', 'Failed to parse animations JSON', e);
             return [];
         }
     }
@@ -167,7 +168,7 @@ export class SpineModuleController {
         try {
             return JSON.parse(json);
         } catch (e) {
-            console.warn('[Spine] Failed to parse skins JSON', e);
+            log.warn('spine', 'Failed to parse skins JSON', e);
             return [];
         }
     }

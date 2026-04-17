@@ -9,6 +9,7 @@ import { getPlatform } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
 import { isEditor, isPlayMode } from '../env';
+import { log } from '../logger';
 
 export interface AudioPluginConfig {
     initialPoolSize?: number;
@@ -32,7 +33,7 @@ export class AudioPlugin implements Plugin {
         const config = this.config_;
 
         backend.initialize({ initialPoolSize: config.initialPoolSize }).catch(err => {
-            console.warn('[AudioPlugin] backend initialization failed:', err);
+            log.warn('audio', 'backend initialization failed', err);
         });
 
         const mixer = backend.mixer;
@@ -115,8 +116,9 @@ export class AudioPlugin implements Plugin {
                                 activeSourceHandles.set(id, handle);
                                 playedEntities.add(id);
                             } else {
-                                console.warn(
-                                    `[AudioPlugin] playOnAwake: clip "${source.clip}" not preloaded`
+                                log.warn(
+                                    'audio',
+                                    `playOnAwake: clip "${source.clip}" not preloaded`,
                                 );
                             }
                         }
@@ -129,7 +131,7 @@ export class AudioPlugin implements Plugin {
                             }
 
                             if (!hasListener && !spatialListenerWarned) {
-                                console.warn('[AudioPlugin] spatial audio used but no AudioListener entity found');
+                                log.warn('audio', 'spatial audio used but no AudioListener entity found');
                                 spatialListenerWarned = true;
                             }
 

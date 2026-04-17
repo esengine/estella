@@ -2,6 +2,7 @@ import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
+import { log } from '../logger';
 
 interface EntityInfo {
     skelHandle: number;
@@ -46,7 +47,7 @@ export class ModuleBackend {
     ): boolean {
         const skelHandle = this.controller_.loadSkeleton(skelData, atlasText, isBinary);
         if (skelHandle < 0) {
-            console.error(`[ModuleBackend] Failed to load skeleton: ${this.controller_.getLastError()}`);
+            log.error('spine', `Failed to load skeleton: ${this.controller_.getLastError()}`);
             return false;
         }
 

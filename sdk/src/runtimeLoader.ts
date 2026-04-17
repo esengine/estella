@@ -27,6 +27,7 @@ import { updateCameraAspectRatio } from './scene';
 import { requireResourceManager } from './resourceManager';
 import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
 import { registerTilemapSource } from './tilemap/tilesetCache';
+import { log } from './logger';
 
 // =============================================================================
 // Public Interface
@@ -89,7 +90,7 @@ async function loadTextures(
             const handle = createTextureFromPixels(module, pixelData, true, params);
             cache[ref] = handle;
         } catch (e) {
-            console.warn(`[loadTextures] Failed to load texture: ${ref}`, e);
+            log.warn('runtime', `Failed to load texture: ${ref}`, e);
             cache[ref] = 0;
         }
     }
@@ -177,7 +178,7 @@ function writeToVirtualFS(module: ESEngineModule, virtualPath: string, data: str
         fs.writeFile(virtualPath, data);
         return true;
     } catch (e) {
-        console.warn(`[Runtime] Failed to write virtual FS: ${virtualPath}`, e);
+        log.warn('runtime', `Failed to write virtual FS: ${virtualPath}`, e);
         return false;
     }
 }
@@ -238,7 +239,7 @@ async function loadSpineAssetsToVirtualFS(
                             h: result.height,
                         });
                     } catch (err) {
-                        console.warn(`[Spine] Failed to load texture: ${texPath}`, err);
+                        log.warn('runtime', `Failed to load texture: ${texPath}`, err);
                     }
                 }
 
@@ -250,7 +251,7 @@ async function loadSpineAssetsToVirtualFS(
 
                 assetInfoMap.set(cacheKey, { version, skelData, atlasText: atlasContent, textures });
             } catch (err) {
-                console.warn(`[Runtime] Failed to load spine asset: skel=${skelRef} atlas=${atlasRef}`, err);
+                log.warn('runtime', `Failed to load spine asset: skel=${skelRef} atlas=${atlasRef}`, err);
             }
     }
     return assetInfoMap;
@@ -298,7 +299,7 @@ async function loadBitmapFonts(
             const rm = requireResourceManager();
             cache[ref] = rm.loadBitmapFont(fntContent, texHandle, pixels.width, pixels.height);
         } catch (e) {
-            console.warn(`[Runtime] Failed to load bitmap font: ${ref}`, e);
+            log.warn('runtime', `Failed to load bitmap font: ${ref}`, e);
             cache[ref] = 0;
         }
     }
@@ -331,7 +332,7 @@ async function loadMaterials(
             }
             materialCache[matRef] = Material.createFromAsset(matData, shaderHandle);
         } catch (e) {
-            console.warn(`[Runtime] Failed to load material: ${matRef}`, e);
+            log.warn('runtime', `Failed to load material: ${matRef}`, e);
             materialCache[matRef] = 0;
         }
     }
@@ -353,12 +354,12 @@ async function preloadAudioClips(provider: RuntimeAssetProvider, audioPaths: Set
                 const binary = await provider.readBinary(path);
                 await Audio.preloadFromData(path, binary.buffer as ArrayBuffer);
             } catch (err) {
-                console.warn(`[preloadAudioClips] Failed to preload audio: ${path}`, err);
+                log.warn('runtime', `Failed to preload audio: ${path}`, err);
             }
         }));
     } else {
         await Audio.preloadAll(paths).catch(err => {
-            console.warn('[preloadAudioClips] Failed to preload audio assets:', err);
+            log.warn('runtime', 'Failed to preload audio assets', err);
         });
     }
 }
@@ -384,7 +385,7 @@ async function loadAnimClips(
                     const result = await provider.loadPixels(texPath);
                     textureHandles.set(texPath, createTextureFromPixels(module, result));
                 } catch (e) {
-                    console.warn(`[Runtime] Failed to load anim texture: ${texPath}`, e);
+                    log.warn('runtime', `Failed to load anim texture: ${texPath}`, e);
                     textureHandles.set(texPath, 0);
                 }
             }
@@ -392,7 +393,7 @@ async function loadAnimClips(
             const clip = parseAnimClipData(clipPath, clipData, textureHandles);
             registerAnimClip(clip);
         } catch (err) {
-            console.warn(`[loadAnimClips] Failed to load animation clip: ${clipPath}`, err);
+            log.warn('runtime', `Failed to load animation clip: ${clipPath}`, err);
         }
     }
 }
@@ -420,7 +421,7 @@ async function loadTilemaps(
                     const result = await provider.loadPixels(imagePath);
                     textureHandle = createTextureFromPixels(module, result);
                 } catch (e) {
-                    console.warn(`[Runtime] Failed to load tileset texture: ${imagePath}`, e);
+                    log.warn('runtime', `Failed to load tileset texture: ${imagePath}`, e);
                 }
                 tilesets.push({ textureHandle, columns: ts.columns });
             }
@@ -439,7 +440,7 @@ async function loadTilemaps(
                 tilesets,
             });
         } catch (err) {
-            console.warn(`[loadTilemaps] Failed to load tilemap: ${tmjPath}`, err);
+            log.warn('runtime', `Failed to load tilemap: ${tmjPath}`, err);
         }
     }
 }

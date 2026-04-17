@@ -11,6 +11,7 @@ import { getEffectiveWidth, getEffectiveHeight, setUIRectSizeNative, ensureUIRen
 import { getImageResolver, type DefaultImageResolver } from './ImageResolver';
 import { parseRichText } from './RichTextParser';
 import { SystemLabel, PluginName } from '../systemLabels';
+import { log } from '../logger';
 
 export class TextPlugin implements Plugin {
     name = PluginName.Text;
@@ -21,7 +22,7 @@ export class TextPlugin implements Plugin {
 
         const module = app.wasmModule;
         if (!module) {
-            console.warn('TextPlugin: No WASM module available');
+            log.warn('ui', 'TextPlugin: No WASM module available');
             return;
         }
 

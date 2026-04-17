@@ -1,6 +1,7 @@
 import type { AssetLoader, LoadContext, AnimClipResult } from '../AssetLoader';
 import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from '../../animation/AnimClipLoader';
 import { registerAnimClip } from '../../animation/SpriteAnimator';
+import { log } from '../../logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
     readonly type = 'anim-clip';
@@ -18,7 +19,7 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
                 const result = await ctx.loadTexture(texPath, true);
                 textureHandles.set(texPath, result.handle);
             } catch (e) {
-                console.warn(`[AnimClipLoader] Failed to load texture: ${texPath}`, e);
+                log.warn('asset', `Failed to load texture: ${texPath}`, e);
                 textureHandles.set(texPath, 0);
             }
         }

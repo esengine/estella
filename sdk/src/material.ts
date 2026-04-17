@@ -8,6 +8,7 @@ import type { ESEngineModule } from './wasm';
 import { requireResourceManager } from './resourceManager';
 import type { Vec2, Vec3, Vec4 } from './types';
 import { BlendMode } from './blend';
+import { log } from './logger';
 
 export type { Vec2, Vec3, Vec4 } from './types';
 
@@ -383,7 +384,7 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
         const requiredBytes = 4 + namePadded + 4 + 16;
 
         if (offset + requiredBytes > UNIFORM_BUFFER_SIZE) {
-            console.warn(`[ESEngine] Material uniform buffer full (${offset}/${UNIFORM_BUFFER_SIZE} bytes), skipping remaining uniforms`);
+            log.warn('material', `uniform buffer full (${offset}/${UNIFORM_BUFFER_SIZE} bytes), skipping remaining uniforms`);
             break;
         }
 

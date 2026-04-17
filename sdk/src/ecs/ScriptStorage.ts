@@ -6,6 +6,7 @@
 import { Entity } from '../types';
 import { ComponentDef } from '../component';
 import { validateComponentData, formatValidationErrors } from '../validation';
+import { log } from '../logger';
 
 export interface InsertResult<T> {
     value: T;
@@ -79,7 +80,7 @@ export class ScriptStorage {
                 data as Record<string, unknown>,
             );
             if (errors.length > 0) {
-                console.warn(formatValidationErrors(component._name, errors));
+                log.warn('ecs', formatValidationErrors(component._name, errors));
             }
         }
         this.getStorage(component).set(entity, data);

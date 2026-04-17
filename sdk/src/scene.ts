@@ -9,6 +9,7 @@ import { getComponent, Name, Camera } from './component';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import { requireResourceManager } from './resourceManager';
 import { validateComponentData, formatValidationErrors } from './validation';
+import { log } from './logger';
 
 // =============================================================================
 // Types
@@ -136,8 +137,9 @@ export function remapEntityFields(compData: SceneComponentData, entityMap: Map<n
         if (typeof editorId === 'number' && editorId !== INVALID_ENTITY) {
             const runtimeId = entityMap.get(editorId);
             if (runtimeId === undefined) {
-                console.warn(
-                    `[Scene] Entity reference not found: ${compData.type}.${field} ` +
+                log.warn(
+                    'scene',
+                    `Entity reference not found: ${compData.type}.${field} ` +
                     `references entity ${editorId} which does not exist`,
                 );
             }
@@ -282,12 +284,12 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
         const errors = validateComponentData(compData.type, comp._default as Record<string, unknown>, compData.data);
         if (errors.length > 0) {
             const context = entityName ? ` (entity "${entityName}")` : '';
-            console.warn(formatValidationErrors(compData.type + context, errors));
+            log.warn('scene', formatValidationErrors(compData.type + context, errors));
         }
         world.insert(entity, comp, compData.data);
     } else {
         const context = entityName ? ` on entity "${entityName}"` : '';
-        console.warn(`Unknown component type: ${compData.type}${context}`);
+        log.warn('scene', `Unknown component type: ${compData.type}${context}`);
     }
 }
 

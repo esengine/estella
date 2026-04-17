@@ -7,6 +7,7 @@ import type { RuntimeAssetProvider } from '../runtimeLoader';
 import type { SceneData } from '../scene';
 import { getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor } from '../scene';
 import { getAssetTypeEntry } from '../assetTypes';
+import { log } from '../logger';
 
 export class WebAssetProvider implements RuntimeAssetProvider {
     private textCache_ = new Map<string, string>();
@@ -65,7 +66,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                 fetch(this.resolveUrl(ref))
                     .then(r => r.text())
                     .then(text => { this.textCache_.set(ref, text); })
-                    .catch(err => { console.warn(`[WebAssetProvider] Failed to prefetch text "${ref}":`, err); })
+                    .catch(err => { log.warn('preview', `Failed to prefetch text "${ref}"`, err); })
             );
         }
 
@@ -74,7 +75,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                 fetch(this.resolveUrl(ref))
                     .then(r => r.arrayBuffer())
                     .then(buf => { this.binaryCache_.set(ref, new Uint8Array(buf)); })
-                    .catch(err => { console.warn(`[WebAssetProvider] Failed to prefetch binary "${ref}":`, err); })
+                    .catch(err => { log.warn('preview', `Failed to prefetch binary "${ref}"`, err); })
             );
         }
 
@@ -97,7 +98,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                             fetch(this.resolveUrl(fntRef))
                                 .then(r => r.text())
                                 .then(t => { this.textCache_.set(fntRef, t); })
-                                .catch(err => { console.warn(`[WebAssetProvider] Failed to prefetch font "${fntRef}":`, err); })
+                                .catch(err => { log.warn('preview', `Failed to prefetch font "${fntRef}"`, err); })
                         );
                     }
                 }

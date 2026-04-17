@@ -5,6 +5,7 @@ import { TilemapLayer } from './components';
 import { Transform } from '../component';
 import { RigidBody, BoxCollider, CircleCollider, BodyType } from '../physics/PhysicsComponents';
 import { mergeCollisionTiles } from './collisionMerge';
+import { log } from '../logger';
 
 export interface TiledChunkData {
     x: number;
@@ -428,7 +429,7 @@ export async function parseTiledMap(
         api.tiled_freeMap(handle);
         return result;
     } catch (e) {
-        console.warn('[Tiled] Failed to parse tilemap', e);
+        log.warn('tilemap', 'Failed to parse tilemap', e);
         api.tiled_freeMap(handle);
         return null;
     }

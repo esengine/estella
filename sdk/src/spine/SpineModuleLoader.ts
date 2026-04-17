@@ -3,6 +3,8 @@
  * @brief   Loads and initializes the standalone Spine WASM module
  */
 
+import { log } from '../logger';
+
 export interface SpineWasmModule {
     _spine_loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: number, atlasLen: number, isBinary: number): number;
     _spine_unloadSkeleton(handle: number): void;
@@ -189,7 +191,7 @@ export function createSpineFactories(provider: SpineWasmProvider): Map<SpineVers
                     WebAssembly.instantiate(wasmBytes, imports).then(
                         r => cb(r.instance, r.module),
                     ).catch(e => {
-                        console.error('[Spine] WASM instantiation failed:', e);
+                        log.error('spine', 'WASM instantiation failed', e);
                     });
                     return {};
                 },

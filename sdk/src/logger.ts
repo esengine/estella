@@ -26,24 +26,42 @@ class ConsoleLogHandler implements LogHandler {
     handle(entry: LogEntry): void {
         const time = new Date(entry.timestamp).toISOString().substring(11, 23);
         const levelStr = LogLevel[entry.level].toUpperCase().padEnd(5);
-        const prefix = `[${time}] [${levelStr}] [${entry.category}]`;
 
-        const message = entry.data !== undefined
-            ? `${entry.message} ${JSON.stringify(entry.data)}`
-            : entry.message;
+        // One formatted string as the first arg so existing console-based
+        // test spies (and simple substring checks) see the whole message.
+        // Error instances go through as a separate second arg so the
+        // console can render their stack trace natively — JSON.stringify
+        // on an Error loses the stack, and on cyclic structures throws.
+        let line = `[${time}] [${levelStr}] [${entry.category}] ${entry.message}`;
+        let errorArg: Error | undefined;
+
+        if (entry.data !== undefined) {
+            if (entry.data instanceof Error) {
+                errorArg = entry.data;
+            } else {
+                try {
+                    line += ` ${JSON.stringify(entry.data)}`;
+                } catch {
+                    line += ` ${String(entry.data)}`;
+                }
+            }
+        }
+
+        const args: unknown[] = [line];
+        if (errorArg) args.push(errorArg);
 
         switch (entry.level) {
             case LogLevel.Debug:
-                console.debug(prefix, message);
+                console.debug(...args);
                 break;
             case LogLevel.Info:
-                console.log(prefix, message);
+                console.log(...args);
                 break;
             case LogLevel.Warn:
-                console.warn(prefix, message);
+                console.warn(...args);
                 break;
             case LogLevel.Error:
-                console.error(prefix, message);
+                console.error(...args);
                 break;
         }
     }
@@ -116,6 +134,15 @@ export class Logger {
 }
 
 const defaultLogger = new Logger();
+
+/**
+ * Default logger singleton. Prefer this over `console.*` inside the SDK
+ * so consumers can install a handler (e.g. an editor log panel) and
+ * receive structured `LogEntry`s with category + level.
+ *
+ * Usage: `import { log } from './logger'; log.warn('physics', 'foo', err);`
+ */
+export const log = defaultLogger;
 
 export function getLogger(): Logger {
     return defaultLogger;
