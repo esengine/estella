@@ -366,23 +366,6 @@ export {
     type ParsedPropertyPath,
 } from './propertyPath';
 
-// DataBinding
-export {
-    DataBinding,
-    type DataBindingData,
-    type BindingEntry,
-} from './DataBinding';
-
-export {
-    DataBindingPlugin,
-    dataBindingPlugin,
-} from './DataBindingPlugin';
-
-export {
-    compileExpression,
-    type CompiledExpression,
-} from './DataBindingExpression';
-
 // Rich Text
 export {
     parseRichText,

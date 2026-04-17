@@ -14,14 +14,12 @@ import { safeAreaPlugin } from './ui/SafeAreaPlugin';
 import { dropdownPlugin } from './ui/DropdownPlugin';
 import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 import { stateMachinePlugin } from './ui/StateMachinePlugin';
-import { dataBindingPlugin } from './ui/DataBindingPlugin';
 import { collectionViewPlugin } from './ui/CollectionViewPlugin';
 import { linearLayoutPlugin } from './ui/LinearLayoutPlugin';
 import { gridLayoutPlugin } from './ui/GridLayoutPlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
-    dataBindingPlugin,
     textPlugin, uiMaskPlugin, uiLayoutPlugin,
     imagePlugin, progressBarPlugin,
     uiInteractionPlugin, dragPlugin, scrollViewPlugin, sliderPlugin,
