@@ -4,21 +4,27 @@
  */
 
 export {
-    Tween,
-    TweenHandle,
     EasingType,
-    TweenTarget,
+    applyEasing,
+    type BezierPoints,
+} from './Easing';
+
+export {
     TweenState,
     LoopMode,
+    type TweenOptions,
+} from './TweenTypes';
+
+export {
+    Tween,
+    TweenHandle,
+    TweenTarget,
     initTweenAPI,
     shutdownTweenAPI,
-    type TweenOptions,
-    type BezierPoints,
 } from './Tween';
 
 export {
     ValueTweenHandle,
-    applyEasing,
 } from './ValueTween';
 
 export {

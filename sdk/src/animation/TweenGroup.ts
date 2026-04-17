@@ -3,8 +3,8 @@
  * @brief   Parallel and sequential tween composition utilities
  */
 
-import { TweenState, valueTweenManager, ValueTweenHandle } from './ValueTween';
-import type { TweenOptions } from './ValueTween';
+import { TweenState } from './TweenTypes';
+import { valueTweenManager, ValueTweenHandle } from './ValueTween';
 
 // =============================================================================
 // Completable - common interface for things that finish
