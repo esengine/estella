@@ -21,6 +21,7 @@ import { SceneManager } from './sceneManager';
 import { sceneManagerPlugin } from './scenePlugin';
 import { getDefaultContext } from './context';
 import { cameraPlugin } from './camera/CameraPlugin';
+import { PhysicsRuntime } from './physics/PhysicsRuntime';
 
 // =============================================================================
 // Plugin Interface
@@ -74,8 +75,6 @@ export class App {
     private module_: ESEngineModule | null = null;
     private pipeline_: RenderPipeline | null = null;
     private spineInitPromise_?: Promise<unknown>;
-    private physicsInitPromise_?: Promise<unknown>;
-    private physicsModule_?: unknown;
     private readonly installed_plugins_: Plugin[] = [];
     private readonly installedPluginSet_ = new Set<Plugin>();
     private readonly installedPluginNames_ = new Set<string>();
@@ -252,32 +251,18 @@ export class App {
         this.spineInitPromise_ = p;
     }
 
-    get physicsInitPromise(): Promise<unknown> | undefined {
-        return this.physicsInitPromise_;
-    }
-
-    set physicsInitPromise(p: Promise<unknown> | undefined) {
-        this.physicsInitPromise_ = p;
-    }
-
-    get physicsModule(): unknown {
-        return this.physicsModule_;
-    }
-
-    set physicsModule(m: unknown) {
-        this.physicsModule_ = m;
-    }
-
     async waitForPhysics(): Promise<void> {
-        if (!this.physicsInitPromise_) {
+        if (!this.hasResource(PhysicsRuntime)) {
             console.warn('[ESEngine] No PhysicsPlugin installed, waitForPhysics() is a no-op');
             return;
         }
-        await this.physicsInitPromise_;
+        const promise = this.getResource(PhysicsRuntime).initPromise;
+        if (promise) await promise;
     }
 
     get isPhysicsReady(): boolean {
-        return this.physicsModule_ != null;
+        return this.hasResource(PhysicsRuntime)
+            && this.getResource(PhysicsRuntime).module != null;
     }
 
     // =========================================================================
