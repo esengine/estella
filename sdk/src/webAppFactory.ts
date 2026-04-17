@@ -30,7 +30,6 @@ export { scrollViewPlugin, ScrollViewPlugin } from './ui/ScrollViewPlugin';
 export { focusPlugin, FocusPlugin } from './ui/FocusPlugin';
 export { safeAreaPlugin, SafeAreaPlugin } from './ui/SafeAreaPlugin';
 export { dropdownPlugin, DropdownPlugin } from './ui/DropdownPlugin';
-export { stateMachinePlugin, StateMachinePlugin } from './ui/StateMachinePlugin';
 
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';
 export { AnimationPlugin, animationPlugin } from './animation';
