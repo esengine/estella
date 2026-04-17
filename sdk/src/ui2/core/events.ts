@@ -1,13 +1,3 @@
-/**
- * @file    events.ts
- * @brief   UI event queue with bubbling, per-entity/global handlers, and
- *          pending-event queue (drain).
- *
- * v4 redesign: entity subscription is owned by the plugin, which wires
- * `world.onDespawn(e => queue.removeAll(e))` to guarantee cleanup on
- * entity destruction — UIEventQueue itself has no World dependency.
- */
-
 import type { Entity } from '../../types';
 
 /**
