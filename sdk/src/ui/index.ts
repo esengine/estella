@@ -337,24 +337,11 @@ export {
     type UITheme,
 } from './UITheme';
 
-// StateMachine Component
+// StateMachine (C++-backed) — canonical in ui2
 export {
     StateMachine,
     type StateMachineData,
-    type StateNode,
-    type Transition,
-    type Condition,
-    type InputDef,
-    type ListenerDef,
-} from './StateMachine';
-
-// StateMachine Plugin
-export {
-    StateMachinePlugin,
-    stateMachinePlugin,
-    evaluateCondition,
-} from './StateMachinePlugin';
-
+} from '../ui2/behavior/state-machine';
 
 // Property Path Utilities
 export {

@@ -13,14 +13,13 @@ import { focusPlugin } from './ui/FocusPlugin';
 import { safeAreaPlugin } from './ui/SafeAreaPlugin';
 import { dropdownPlugin } from './ui/DropdownPlugin';
 import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
-import { stateMachinePlugin } from './ui/StateMachinePlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
     textPlugin, uiMaskPlugin, uiLayoutPlugin,
     imagePlugin, progressBarPlugin,
     uiInteractionPlugin, dragPlugin, scrollViewPlugin, sliderPlugin,
-    togglePlugin, textInputPlugin, stateMachinePlugin,
+    togglePlugin, textInputPlugin,
     focusPlugin, safeAreaPlugin, dropdownPlugin,
     uiRenderOrderPlugin,
 ];

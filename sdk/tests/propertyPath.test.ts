@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { getNestedProperty, setNestedProperty, parsePropertyPath } from '../src/ui/propertyPath';
-import { evaluateCondition } from '../src/ui/StateMachinePlugin';
-import type { Condition } from '../src/ui/StateMachine';
 
 describe('propertyPath', () => {
     describe('getNestedProperty', () => {
@@ -61,48 +59,5 @@ describe('propertyPath', () => {
         it('returns null for no dot', () => {
             expect(parsePropertyPath('Sprite')).toBeNull();
         });
-    });
-});
-
-describe('evaluateCondition', () => {
-    const inputs = new Map<string, boolean | number>([
-        ['hovered', true],
-        ['pressed', false],
-        ['speed', 5],
-    ]);
-
-    it('eq with bool', () => {
-        const c: Condition = { inputName: 'hovered', comparator: 'eq', value: true };
-        expect(evaluateCondition(c, inputs)).toBe(true);
-    });
-
-    it('neq with bool', () => {
-        const c: Condition = { inputName: 'pressed', comparator: 'neq', value: true };
-        expect(evaluateCondition(c, inputs)).toBe(true);
-    });
-
-    it('gt with number', () => {
-        const c: Condition = { inputName: 'speed', comparator: 'gt', value: 3 };
-        expect(evaluateCondition(c, inputs)).toBe(true);
-    });
-
-    it('lt with number', () => {
-        const c: Condition = { inputName: 'speed', comparator: 'lt', value: 3 };
-        expect(evaluateCondition(c, inputs)).toBe(false);
-    });
-
-    it('gte boundary', () => {
-        const c: Condition = { inputName: 'speed', comparator: 'gte', value: 5 };
-        expect(evaluateCondition(c, inputs)).toBe(true);
-    });
-
-    it('lte boundary', () => {
-        const c: Condition = { inputName: 'speed', comparator: 'lte', value: 5 };
-        expect(evaluateCondition(c, inputs)).toBe(true);
-    });
-
-    it('returns false for unknown input', () => {
-        const c: Condition = { inputName: 'missing', comparator: 'eq', value: true };
-        expect(evaluateCondition(c, inputs)).toBe(false);
     });
 });
