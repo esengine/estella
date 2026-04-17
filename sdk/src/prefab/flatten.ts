@@ -95,8 +95,12 @@ export function flattenPrefab(
             visible: pe.visible,
         };
 
-        remapComponentEntityRefs(entity.components, idMapping);
+        // Apply overrides BEFORE remapping so newly added/replaced
+        // components — and property overrides that target an
+        // entityField — get their prefab-entity-id values remapped
+        // to the allocated entity ids in the same pass.
         applyOverrides(entity, overrides);
+        remapComponentEntityRefs(entity.components, idMapping);
         result.push(entity);
     }
 
