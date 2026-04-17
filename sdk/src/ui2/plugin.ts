@@ -1,5 +1,8 @@
 import type { App, Plugin } from '../app';
+import { Res } from '../resource';
 import { defineSystem, Schedule } from '../system';
+import { Input, type InputState } from '../input';
+import type { Entity } from '../types';
 
 import { UIEventBus, UIEventQueue } from './core/events';
 import {
@@ -8,6 +11,8 @@ import {
     createStateVisualsApplySystem,
 } from './behavior/systems';
 import { ListView, ListViewRegistry } from './collection/list-view';
+import { ScrollContainer, ScrollContainerRegistry } from './collection/scroll-container';
+import { UIInteraction, type UIInteractionData } from './behavior/interactable';
 
 /**
  * Wires the Layer 2 behavior systems — interactable-driven state machine
@@ -21,6 +26,7 @@ export class UIBehaviorPlugin implements Plugin {
 
     private events_: UIEventQueue | null = null;
     private listViews_: ListViewRegistry | null = null;
+    private scrollContainers_: ScrollContainerRegistry | null = null;
 
     /** The authoritative event queue for this app instance. */
     get events(): UIEventQueue {
@@ -32,8 +38,6 @@ export class UIBehaviorPlugin implements Plugin {
 
     /**
      * Register a ListView so its `update()` is invoked each frame.
-     * ListView is typically constructed right after the plugin is
-     * installed, so callers hold onto this plugin to register.
      */
     registerListView(list: ListView<unknown>): void {
         if (!this.listViews_) {
@@ -46,6 +50,22 @@ export class UIBehaviorPlugin implements Plugin {
         this.listViews_?.remove(list);
     }
 
+    /**
+     * Attach a ScrollContainer to an entity. A wheel-driven system
+     * applies mouse-wheel input to the container whenever the entity's
+     * UIInteraction.hovered flag is true.
+     */
+    attachScrollContainer(entity: Entity, container: ScrollContainer): void {
+        if (!this.scrollContainers_) {
+            throw new Error('UIBehaviorPlugin.attachScrollContainer called before build()');
+        }
+        this.scrollContainers_.attach(entity, container);
+    }
+
+    detachScrollContainer(entity: Entity): void {
+        this.scrollContainers_?.detach(entity);
+    }
+
     build(app: App): void {
         const events = new UIEventQueue();
         this.events_ = events;
@@ -54,6 +74,12 @@ export class UIBehaviorPlugin implements Plugin {
 
         const listViews = new ListViewRegistry();
         this.listViews_ = listViews;
+
+        const scrollContainers = new ScrollContainerRegistry();
+        this.scrollContainers_ = scrollContainers;
+        app.world.onDespawn((entity) => scrollContainers.detach(entity));
+
+        const world = app.world;
 
         app.addSystemToSchedule(
             Schedule.Update,
@@ -72,6 +98,21 @@ export class UIBehaviorPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem([], () => listViews.tick(), { name: 'ListViewSystem' }),
+        );
+        app.addSystemToSchedule(
+            Schedule.Update,
+            defineSystem([Res(Input)], (input: InputState) => {
+                const dx = input.scrollDeltaX;
+                const dy = input.scrollDeltaY;
+                if (dx === 0 && dy === 0) return;
+                for (const [entity, container] of scrollContainers.entries()) {
+                    if (!world.has(entity as Entity, UIInteraction)) continue;
+                    const ui = world.get(entity as Entity, UIInteraction) as UIInteractionData;
+                    if (!ui.hovered) continue;
+                    const speed = container.getWheelSpeed();
+                    container.scrollBy({ x: dx * speed, y: dy * speed });
+                }
+            }, { name: 'ScrollWheelSystem' }),
         );
     }
 }

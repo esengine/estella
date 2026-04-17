@@ -132,6 +132,13 @@ export {
     type ListViewItemTemplate,
 } from './collection/list-view';
 
+export {
+    ScrollContainer,
+    ScrollContainerRegistry,
+    type ScrollContainerOptions,
+    type ScrollListener,
+} from './collection/scroll-container';
+
 // Widgets
 
 export {
@@ -171,3 +178,15 @@ export {
     type DialogOptions,
     type DialogHandle,
 } from './widgets/dialog';
+
+export {
+    createSlider,
+    type SliderOptions,
+    type SliderHandle,
+} from './widgets/slider';
+
+export {
+    createDropdown,
+    type DropdownOptions,
+    type DropdownHandle,
+} from './widgets/dropdown';
