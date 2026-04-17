@@ -28,6 +28,7 @@
 #include "../ecs/UILayoutSystem.hpp"
 #include "../ecs/UIHitTestSystem.hpp"
 #include "../ecs/UIRenderOrderSystem.hpp"
+#include "../ecs/UISystem.hpp"
 
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
@@ -593,20 +594,20 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 namespace esengine {
 
 void uiLayout_update(ecs::Registry& registry, f32 camLeft, f32 camBottom, f32 camRight, f32 camTop) {
-    ecs::uiLayoutUpdate(registry, camLeft, camBottom, camRight, camTop);
+    ctx().require<ecs::UISystem>().layoutUpdate(registry, camLeft, camBottom, camRight, camTop);
 }
 
 void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY,
                        bool mouseDown, bool mousePressed, bool mouseReleased) {
-    ecs::uiHitTestUpdate(registry, mouseWorldX, mouseWorldY, mouseDown, mousePressed, mouseReleased);
+    ctx().require<ecs::UISystem>().hitTestUpdate(registry, mouseWorldX, mouseWorldY, mouseDown, mousePressed, mouseReleased);
 }
 
 u32 uiHitTest_getHitEntity() {
-    return ecs::uiHitTestGetHitEntity();
+    return ctx().require<ecs::UISystem>().getHitEntity();
 }
 
 u32 uiHitTest_getHitEntityPrev() {
-    return ecs::uiHitTestGetHitEntityPrev();
+    return ctx().require<ecs::UISystem>().getPrevHitEntity();
 }
 
 void uiRenderOrder_update(ecs::Registry& registry) {
@@ -620,17 +621,17 @@ void uiFlexLayout_update(ecs::Registry& registry) {
 }
 
 void uiTree_markStructureDirty() {
-    ecs::uiTreeMarkStructureDirty();
+    ctx().require<ecs::UISystem>().treeMarkStructureDirty();
 }
 
 void uiTree_markDirty(u32 entity) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    ecs::uiTreeMarkDirty(e);
+    ctx().require<ecs::UISystem>().treeMarkDirty(e);
 }
 
 void uiTree_markAllDirty() {
-    ecs::getUITree().markAllDirty();
+    ctx().require<ecs::UISystem>().tree.markAllDirty();
 }
 
 f32 getUIRectComputedWidth(ecs::Registry& registry, u32 entity) {
@@ -650,7 +651,7 @@ void setUIRectSize(ecs::Registry& registry, u32 entity, f32 w, f32 h) {
     if (!rect) return;
     rect->size.x = w;
     rect->size.y = h;
-    ecs::uiTreeMarkDirty(Entity::fromRaw(entity));
+    ctx().require<ecs::UISystem>().treeMarkDirty(Entity::fromRaw(entity));
 }
 
 void transform_update(ecs::Registry& registry) {

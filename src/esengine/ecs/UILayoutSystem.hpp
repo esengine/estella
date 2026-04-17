@@ -28,13 +28,9 @@ LayoutResult computeAnchorLayout(
     const glm::vec2& pivot
 );
 
-void uiLayoutUpdate(
-    Registry& registry,
-    f32 camLeft, f32 camBottom, f32 camRight, f32 camTop
-);
-
-UITree& getUITree();
-void uiTreeMarkStructureDirty();
-void uiTreeMarkDirty(Entity entity);
+// Layout and tree operations are methods on UISystem (see UISystem.hpp).
+// Previously free functions (uiLayoutUpdate, getUITree, uiTreeMarkStructureDirty,
+// uiTreeMarkDirty) lived here but held state in a file-level static; that
+// state now lives on UISystem registered via EstellaContext.
 
 }  // namespace esengine::ecs

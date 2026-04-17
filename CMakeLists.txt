@@ -64,6 +64,7 @@ set(ESENGINE_SOURCES
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
     src/esengine/ecs/UILayoutSystem.cpp
+    src/esengine/ecs/UISystem.cpp
 )
 
 if(ES_ENABLE_POSTPROCESS)
