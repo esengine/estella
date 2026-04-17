@@ -37,6 +37,20 @@ export function applyOverrides(entity: ProcessedEntity, overrides: PrefabOverrid
                     }
                 }
                 break;
+            case 'component_replaced':
+                if (override.componentData) {
+                    const type = override.componentData.type;
+                    const existing = entity.components.find(c => c.type === type);
+                    if (existing) {
+                        existing.data = cloneComponentData(override.componentData.data);
+                    } else {
+                        entity.components.push({
+                            type,
+                            data: cloneComponentData(override.componentData.data),
+                        });
+                    }
+                }
+                break;
             case 'component_removed':
                 if (override.componentType) {
                     entity.components = entity.components.filter(

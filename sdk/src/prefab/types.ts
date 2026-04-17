@@ -27,9 +27,33 @@ export interface NestedPrefabRef {
     overrides: PrefabOverride[];
 }
 
+/**
+ * Override types applied to an entity in an instantiated prefab.
+ *
+ * - `property`          — patch one field of one component.
+ *                         Requires: componentType, propertyName, value.
+ * - `name`              — change the entity's name. Requires: value (string).
+ * - `visibility`        — change the entity's visibility. Requires: value (boolean).
+ * - `component_added`   — add a component **only if not already present**
+ *                         (idempotent insert). Requires: componentData.
+ *                         Use this for variants that want to *augment* the
+ *                         base without silently stomping existing data.
+ * - `component_replaced`— upsert: replace the component's data if the
+ *                         component already exists, or insert it if not.
+ *                         Requires: componentData. Use this when you
+ *                         explicitly want to override the base's copy.
+ * - `component_removed` — delete the component if present.
+ *                         Requires: componentType.
+ */
 export interface PrefabOverride {
     prefabEntityId: number;
-    type: 'property' | 'component_added' | 'component_removed' | 'name' | 'visibility';
+    type:
+        | 'property'
+        | 'component_added'
+        | 'component_replaced'
+        | 'component_removed'
+        | 'name'
+        | 'visibility';
     componentType?: string;
     propertyName?: string;
     value?: unknown;

@@ -386,6 +386,99 @@ describe('Prefab', () => {
         });
     });
 
+    describe('component_replaced overrides', () => {
+        it('replaces the component data when the component exists', async () => {
+            const prefab = simplePrefab();
+            const overrides: PrefabOverride[] = [{
+                prefabEntityId: 1,
+                type: 'component_replaced',
+                componentData: { type: 'Sprite', data: { texture: 'replaced.png', color: 'blue' } },
+            }];
+
+            await instantiatePrefab(world, prefab, { overrides });
+
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
+            const sprites = child.components.filter(c => c.type === 'Sprite');
+            expect(sprites).toHaveLength(1);
+            expect(sprites[0].data.texture).toBe('replaced.png');
+            expect(sprites[0].data.color).toBe('blue');
+        });
+
+        it('inserts the component when it does not already exist (upsert)', async () => {
+            const prefab = simplePrefab();
+            const overrides: PrefabOverride[] = [{
+                prefabEntityId: 1,
+                type: 'component_replaced',
+                componentData: { type: 'Health', data: { value: 75 } },
+            }];
+
+            await instantiatePrefab(world, prefab, { overrides });
+
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
+            const health = child.components.find(c => c.type === 'Health')!;
+            expect(health).toBeDefined();
+            expect(health.data.value).toBe(75);
+        });
+
+        it('deep clones the replacement data', async () => {
+            const componentData = { type: 'Sprite', data: { texture: 'other.png', color: 'green' } };
+            const overrides: PrefabOverride[] = [{
+                prefabEntityId: 1,
+                type: 'component_replaced',
+                componentData,
+            }];
+
+            await instantiatePrefab(world, simplePrefab(), { overrides });
+
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
+            const sprite = child.components.find(c => c.type === 'Sprite')!;
+            sprite.data.texture = 'mutated.png';
+            expect(componentData.data.texture).toBe('other.png');
+        });
+
+        it('ignores component_replaced without componentData', async () => {
+            const prefab = simplePrefab();
+            const overrides: PrefabOverride[] = [{
+                prefabEntityId: 1,
+                type: 'component_replaced',
+            }];
+
+            await instantiatePrefab(world, prefab, { overrides });
+
+            const child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
+            expect(child.components).toHaveLength(1);
+            expect(child.components[0].data.texture).toBe('test.png');
+        });
+
+        it('distinguishes component_replaced from component_added (the latter keeps existing)', async () => {
+            const prefab = simplePrefab();
+
+            // Added — idempotent; existing Sprite stays as 'test.png'.
+            await instantiatePrefab(world, prefab, {
+                overrides: [{
+                    prefabEntityId: 1,
+                    type: 'component_added',
+                    componentData: { type: 'Sprite', data: { texture: 'A.png' } },
+                }],
+            });
+            let child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
+            expect(child.components.find(c => c.type === 'Sprite')!.data.texture).toBe('test.png');
+
+            capturedSceneData = null;
+
+            // Replaced — upserts; Sprite is now 'B.png'.
+            await instantiatePrefab(world, prefab, {
+                overrides: [{
+                    prefabEntityId: 1,
+                    type: 'component_replaced',
+                    componentData: { type: 'Sprite', data: { texture: 'B.png' } },
+                }],
+            });
+            child = capturedSceneData!.entities.find(e => e.name === 'Child')!;
+            expect(child.components.find(c => c.type === 'Sprite')!.data.texture).toBe('B.png');
+        });
+    });
+
     describe('entity reference remapping', () => {
         beforeEach(() => {
             defineComponent('Slider', {
