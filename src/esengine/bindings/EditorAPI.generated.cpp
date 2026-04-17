@@ -190,7 +190,7 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"maxCardAngle","type":"float","group":"FanLayout"},
   {"key":"tiltFactor","type":"float","group":"FanLayout"},
   {"key":"cardSpacing","type":"float","group":"FanLayout"},
-  {"key":"direction","type":"int","group":"FanLayout"}
+  {"key":"direction","type":"enum","group":"FanLayout","values":["Up","Down"]}
         ])JSON";
     } else if (name == "FlexContainer") {
         return R"JSON([
@@ -226,7 +226,7 @@ std::string editor_getComponentSchema(const std::string& name) {
         ])JSON";
     } else if (name == "GridLayout") {
         return R"JSON([
-  {"key":"direction","type":"int","group":"GridLayout"},
+  {"key":"direction","type":"enum","group":"GridLayout","values":["Vertical","Horizontal"]},
   {"key":"crossAxisCount","type":"int","group":"GridLayout"},
   {"key":"itemSize.x","type":"float","group":"GridLayout"},
   {"key":"itemSize.y","type":"float","group":"GridLayout"},
@@ -1299,7 +1299,7 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
     } else if (comp == "FanLayout") {
         if (!reg.has<esengine::ecs::FanLayout>(entity)) return false;
         auto& c = reg.get<esengine::ecs::FanLayout>(entity);
-        if (field == "direction") { c.direction = static_cast<i32>(value); }
+        if (field == "direction") { c.direction = static_cast<FanDirection>(value); }
         else { return false; }
         return true;
     } else if (comp == "FlexContainer") {
@@ -1322,7 +1322,7 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
     } else if (comp == "GridLayout") {
         if (!reg.has<esengine::ecs::GridLayout>(entity)) return false;
         auto& c = reg.get<esengine::ecs::GridLayout>(entity);
-        if (field == "direction") { c.direction = static_cast<i32>(value); }
+        if (field == "direction") { c.direction = static_cast<GridDirection>(value); }
         else if (field == "crossAxisCount") { c.crossAxisCount = static_cast<i32>(value); }
         else { return false; }
         return true;

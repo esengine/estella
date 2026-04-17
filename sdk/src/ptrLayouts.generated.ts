@@ -120,7 +120,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'maxCardAngle', type: 'f32', offset: 8 },
             { name: 'tiltFactor', type: 'f32', offset: 12 },
             { name: 'cardSpacing', type: 'f32', offset: 16 },
-            { name: 'direction', type: 'i32', offset: 20 },
+            { name: 'direction', type: 'u8', offset: 20 },
         ],
     },
     FlexContainer: {
@@ -153,7 +153,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
     GridLayout: {
         ptrFn: 'getGridLayoutPtr',
         fields: [
-            { name: 'direction', type: 'i32', offset: 0 },
+            { name: 'direction', type: 'u8', offset: 0 },
             { name: 'crossAxisCount', type: 'i32', offset: 4 },
             { name: 'itemSize', type: 'vec2', offset: 8 },
             { name: 'spacing', type: 'vec2', offset: 16 },
