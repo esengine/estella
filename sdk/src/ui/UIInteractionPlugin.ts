@@ -10,8 +10,7 @@ import { playModeOnly } from '../env';
 import { Interactable } from './behavior/interactable';
 import { UIInteraction } from './behavior/interactable';
 import type { UIInteractionData } from './behavior/interactable';
-import { UIEvents, UIEventQueue } from './UIEvents';
-import type { UIEventType } from './UIEvents';
+import { UIEvents, UIEventQueue, UIEventType } from './core/events';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import type { InteractableData } from './behavior/interactable';
@@ -30,16 +29,16 @@ function emitWithBubbling(
     world: World,
     events: UIEventQueue,
     entity: Entity,
-    type: UIEventType
+    type: string,
 ): void {
-    const event = events.emit(entity, type, entity);
+    const event = events.emit(entity, type);
 
     walkParentChain(world, entity, (ancestor) => {
         if (event.propagationStopped) return true;
         if (!world.has(ancestor, Interactable)) return false;
         const interactable = world.get(ancestor, Interactable) as InteractableData;
         if (interactable.enabled) {
-            events.emitBubbled(ancestor, type, entity, event);
+            events.emitBubbled(ancestor, event);
         }
         return interactable.blockRaycast;
     });
@@ -56,8 +55,11 @@ export class UIInteractionPlugin implements Plugin {
         const module = app.wasmModule as ESEngineModule;
         const registry = world.getCppRegistry() as CppRegistry;
         const events = new UIEventQueue();
-        events.setEntityValidator((e) => world.valid(e));
         app.insertResource(UIEvents, events);
+        // Prune handlers when an entity dies. Replaces the old
+        // setEntityValidator pattern; canonical UIEventQueue has no
+        // validator hook because it's the plugin's job to wire cleanup.
+        app.world.onDespawn((e) => events.removeAll(e));
 
         let hoveredEntity: Entity | null = null;
         let pressedEntity: Entity | null = null;
@@ -130,14 +132,14 @@ export class UIInteractionPlugin implements Plugin {
                         const prev = world.get(hoveredEntity, UIInteraction) as UIInteractionData;
                         prev.hovered = false;
                         world.insert(hoveredEntity, UIInteraction, prev);
-                        events.emit(hoveredEntity, 'hover_exit');
+                        events.emit(hoveredEntity, UIEventType.HoverExit);
                     }
                     if (hitEntity !== null) {
                         ensureComponent(world, hitEntity, UIInteraction);
                         const curr = world.get(hitEntity, UIInteraction) as UIInteractionData;
                         curr.hovered = true;
                         world.insert(hitEntity, UIInteraction, curr);
-                        events.emit(hitEntity, 'hover_enter');
+                        events.emit(hitEntity, UIEventType.HoverEnter);
                     }
                     hoveredEntity = hitEntity;
                 }
@@ -148,7 +150,7 @@ export class UIInteractionPlugin implements Plugin {
                     interaction.justPressed = true;
                     world.insert(hitEntity, UIInteraction, interaction);
                     pressedEntity = hitEntity;
-                    emitWithBubbling(world, events, hitEntity, 'press');
+                    emitWithBubbling(world, events, hitEntity, UIEventType.Press);
                 }
 
                 if (mouseReleased && pressedEntity !== null) {
@@ -157,9 +159,9 @@ export class UIInteractionPlugin implements Plugin {
                         interaction.pressed = false;
                         interaction.justReleased = true;
                         world.insert(pressedEntity, UIInteraction, interaction);
-                        emitWithBubbling(world, events, pressedEntity, 'release');
+                        emitWithBubbling(world, events, pressedEntity, UIEventType.Release);
                         if (pressedEntity === hoveredEntity) {
-                            emitWithBubbling(world, events, pressedEntity, 'click');
+                            emitWithBubbling(world, events, pressedEntity, UIEventType.Click);
                         }
                     }
                     pressedEntity = null;

@@ -25,6 +25,13 @@ export const UIEventType = {
     StateChanged: 'state_changed',
 } as const;
 
+/**
+ * Union of the string values in `UIEventType`. Event emitters accept
+ * any string (widgets may define their own), but consumers can narrow
+ * to this type when they only handle built-ins.
+ */
+export type UIEventType = typeof UIEventType[keyof typeof UIEventType];
+
 export interface UIEvent<TData = unknown> {
     /** Event type string (e.g. `'click'`, `'state_changed'`). */
     readonly type: string;
@@ -271,6 +278,11 @@ export class UIEventQueue {
 
 /**
  * Shared UIEventQueue resource. A plugin inserts the authoritative
- * instance on startup; systems access it via `Res(UIEventBus)`.
+ * instance on startup; systems access it via `Res(UIEvents)`.
+ *
+ * The default value exists only so the resource is well-typed before
+ * the owning plugin constructs the real queue. Consumers should never
+ * see the placeholder at runtime — UIInteractionPlugin inserts its
+ * queue during `build()`.
  */
-export const UIEventBus = defineResource<UIEventQueue>(new UIEventQueue(), 'UIEventBus');
+export const UIEvents = defineResource<UIEventQueue>(new UIEventQueue(), 'UIEvents');

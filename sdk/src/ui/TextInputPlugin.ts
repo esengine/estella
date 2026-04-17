@@ -10,7 +10,7 @@ import type { UIRendererData } from './core/ui-renderer';
 import { Interactable } from './behavior/interactable';
 import { Focusable } from './behavior/focusable';
 import { FocusManager, FocusManagerState } from './behavior/focusable';
-import { UIEvents, UIEventQueue } from './UIEvents';
+import { UIEvents, UIEventQueue } from './core/events';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';

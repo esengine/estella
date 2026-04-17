@@ -13,7 +13,7 @@ import { Draggable, DragState } from './behavior/draggable';
 import type { DraggableData, DragStateData } from './behavior/draggable';
 import { UIInteraction } from './behavior/interactable';
 import type { UIInteractionData } from './behavior/interactable';
-import { UIEvents, UIEventQueue } from './UIEvents';
+import { UIEvents, UIEventQueue } from './core/events';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { playModeOnly } from '../env';

@@ -15,7 +15,7 @@ import { UIRect } from '../src/ui/core/ui-rect';
 import type { UIRectData } from '../src/ui/core/ui-rect';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { Input, InputState } from '../src/input';
-import { UIEvents, UIEventQueue } from '../src/ui/UIEvents';
+import { UIEvents, UIEventQueue } from '../src/ui/core/events';
 import { uiLayoutPlugin } from '../src/ui/UILayoutPlugin';
 import { uiRenderOrderPlugin } from '../src/ui/UIRenderOrderPlugin';
 import { Text } from '../src/ui/core/text';

@@ -4,7 +4,8 @@ import { defineSystem, Schedule } from '../system';
 import { Input, type InputState } from '../input';
 import type { Entity } from '../types';
 
-import { UIEventBus, UIEventQueue } from './core/events';
+import { UIEvents, UIEventQueue } from './core/events';
+import { PluginName } from '../systemLabels';
 import {
     createInteractableDriverSystem,
     createStateMachineDiffSystem,
@@ -23,6 +24,7 @@ import { UIInteraction, type UIInteractionData } from './behavior/interactable';
  */
 export class UIBehaviorPlugin implements Plugin {
     name = 'uiBehavior';
+    dependencies = [PluginName.UIInteraction];
 
     private events_: UIEventQueue | null = null;
     private listViews_: ListViewRegistry | null = null;
@@ -67,10 +69,11 @@ export class UIBehaviorPlugin implements Plugin {
     }
 
     build(app: App): void {
-        const events = new UIEventQueue();
+        // UIInteractionPlugin (declared as our dependency) owns the
+        // UIEvents resource and wires onDespawn cleanup. We just grab
+        // the queue so our systems emit into the same bus.
+        const events = app.getResource(UIEvents) as UIEventQueue;
         this.events_ = events;
-        app.insertResource(UIEventBus, events);
-        app.world.onDespawn((entity) => events.removeAll(entity));
 
         const listViews = new ListViewRegistry();
         this.listViews_ = listViews;
