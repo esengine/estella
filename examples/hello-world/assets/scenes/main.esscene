@@ -33,7 +33,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": -200, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.92, "g": 0.28, "b": 0.28, "a": 1 }, "texture": "de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
+        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.92, "g": 0.28, "b": 0.28, "a": 1 }, "texture": "@uuid:de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
         { "type": "Rotator", "data": {} }
       ],
       "visible": true
@@ -45,7 +45,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": -100, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.79, "g": 0.92, "b": 0.28, "a": 1 }, "texture": "de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
+        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.79, "g": 0.92, "b": 0.28, "a": 1 }, "texture": "@uuid:de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
         { "type": "Rotator", "data": { "speed": 135, "bobSpeed": 2.3, "bobAmount": 40 } }
       ],
       "visible": true
@@ -57,7 +57,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.28, "g": 0.92, "b": 0.54, "a": 1 }, "texture": "de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
+        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.28, "g": 0.92, "b": 0.54, "a": 1 }, "texture": "@uuid:de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
         { "type": "Rotator", "data": { "speed": 180, "bobSpeed": 2.6, "bobAmount": 50 } }
       ],
       "visible": true
@@ -69,7 +69,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 100, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.28, "g": 0.54, "b": 0.92, "a": 1 }, "texture": "de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
+        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.28, "g": 0.54, "b": 0.92, "a": 1 }, "texture": "@uuid:de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
         { "type": "Rotator", "data": { "speed": 225, "bobSpeed": 2.9, "bobAmount": 60 } }
       ],
       "visible": true
@@ -81,7 +81,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.79, "g": 0.28, "b": 0.92, "a": 1 }, "texture": "de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
+        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 }, "color": { "r": 0.79, "g": 0.28, "b": 0.92, "a": 1 }, "texture": "@uuid:de747ef6-544b-4fde-8e83-a533f91eeaa5" } },
         { "type": "Rotator", "data": { "speed": 270, "bobSpeed": 3.2, "bobAmount": 70 } }
       ],
       "visible": true

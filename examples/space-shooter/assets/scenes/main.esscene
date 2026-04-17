@@ -49,7 +49,7 @@
         {
           "type": "Sprite",
           "data": {
-            "texture": "78c53bf7-88b8-481d-805c-a443c2d06076",
+            "texture": "@uuid:78c53bf7-88b8-481d-805c-a443c2d06076",
             "size": {
               "x": 600,
               "y": 1080
@@ -79,7 +79,7 @@
         {
           "type": "Sprite",
           "data": {
-            "texture": "92f1ab5f-28f4-4b95-bb82-7182fdb33494",
+            "texture": "@uuid:92f1ab5f-28f4-4b95-bb82-7182fdb33494",
             "size": {
               "x": 64,
               "y": 64
@@ -253,7 +253,7 @@
         {
           "type": "Image",
           "data": {
-            "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408",
+            "texture": "@uuid:5b21b6a6-dffa-4256-872a-36f4e4549408",
             "color": {
               "r": 1,
               "g": 1,
@@ -313,7 +313,7 @@
         {
           "type": "Image",
           "data": {
-            "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408",
+            "texture": "@uuid:5b21b6a6-dffa-4256-872a-36f4e4549408",
             "color": {
               "r": 1,
               "g": 1,
@@ -373,7 +373,7 @@
         {
           "type": "Image",
           "data": {
-            "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408",
+            "texture": "@uuid:5b21b6a6-dffa-4256-872a-36f4e4549408",
             "color": {
               "r": 1,
               "g": 1,

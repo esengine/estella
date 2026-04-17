@@ -44,17 +44,36 @@ export interface AssetManifest {
     entries: AssetEntry[];
 }
 
-/** True if `ref` is a `"@uuid:xxxxxxxx-xxxx-..."` string. */
+/**
+ * True if `ref` is an asset UUID reference. Accepts two forms:
+ *   - canonical: `"@uuid:xxxxxxxx-xxxx-..."`
+ *   - bare:     `"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"`
+ *
+ * The bare form exists because earlier prefabs in the repo (pre-Phase 1
+ * of the resource refactor) wrote UUIDs as plain strings. The migration
+ * script rewrites those to the canonical form, but until it runs the
+ * loader must accept both. UUID_V4_REGEX is strict enough that no plain
+ * asset path can collide (paths have slashes / extensions).
+ */
 export function isUuidRef(ref: unknown): ref is string {
-    return typeof ref === 'string'
-        && ref.startsWith(UUID_REF_PREFIX)
-        && UUID_V4_REGEX.test(ref.slice(UUID_REF_PREFIX.length));
+    if (typeof ref !== 'string') return false;
+    if (ref.startsWith(UUID_REF_PREFIX)) {
+        return UUID_V4_REGEX.test(ref.slice(UUID_REF_PREFIX.length));
+    }
+    return UUID_V4_REGEX.test(ref);
 }
 
-/** Extract the UUID out of a `"@uuid:..."` string, or null if not a ref. */
+/**
+ * Extract the UUID out of either ref form, or null if `ref` is not a UUID
+ * ref. The returned UUID is lower-cased for consistent map lookup.
+ */
 export function extractUuid(ref: unknown): string | null {
-    if (!isUuidRef(ref)) return null;
-    return (ref as string).slice(UUID_REF_PREFIX.length).toLowerCase();
+    if (typeof ref !== 'string') return null;
+    const body = ref.startsWith(UUID_REF_PREFIX)
+        ? ref.slice(UUID_REF_PREFIX.length)
+        : ref;
+    if (!UUID_V4_REGEX.test(body)) return null;
+    return body.toLowerCase();
 }
 
 /** Build a `"@uuid:..."` serialized ref. Validates the UUID shape. */

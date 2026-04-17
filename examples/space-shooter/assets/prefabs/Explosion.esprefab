@@ -16,7 +16,7 @@
                 {
                     "type": "Sprite",
                     "data": {
-                        "texture": "4e16b7e8-3ba1-455b-ab3c-1cfbf5a97e0c",
+                        "texture": "@uuid:4e16b7e8-3ba1-455b-ab3c-1cfbf5a97e0c",
                         "size": { "x": 64, "y": 64 }
                     }
                 },

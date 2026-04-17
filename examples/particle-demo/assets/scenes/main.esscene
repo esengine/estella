@@ -56,7 +56,7 @@
           "simulationSpace": 0,
           "looping": true,
           "playOnStart": true,
-          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
         }}
       ],
       "visible": true
@@ -91,7 +91,7 @@
           "damping": 0.5,
           "looping": true,
           "playOnStart": true,
-          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
         }}
       ],
       "visible": true
@@ -126,7 +126,7 @@
           "damping": 0.3,
           "looping": true,
           "playOnStart": true,
-          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
         }}
       ],
       "visible": true
@@ -160,7 +160,7 @@
           "gravity": { "x": 0, "y": -200 },
           "looping": true,
           "playOnStart": true,
-          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
         }}
       ],
       "visible": true

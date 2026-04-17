@@ -20,7 +20,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": -150, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 40, "y": 40 }, "color": { "r": 0.3, "g": 0.8, "b": 1, "a": 1 }, "layer": 2, "texture": "52b02713-c5ba-4b97-a9ae-311511dd26ec" } },
+        { "type": "Sprite", "data": { "size": { "x": 40, "y": 40 }, "color": { "r": 0.3, "g": 0.8, "b": 1, "a": 1 }, "layer": 2, "texture": "@uuid:52b02713-c5ba-4b97-a9ae-311511dd26ec" } },
         { "type": "PlayerControl", "data": { "speed": 250 } }
       ],
       "visible": true
@@ -32,7 +32,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 150, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 1, "g": 0.5, "b": 0.3, "a": 1 }, "layer": 2, "texture": "625449a9-8566-4af6-b8d1-4c762cb47f1e" } },
+        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 1, "g": 0.5, "b": 0.3, "a": 1 }, "layer": 2, "texture": "@uuid:625449a9-8566-4af6-b8d1-4c762cb47f1e" } },
         { "type": "MouseFollower", "data": {} }
       ],
       "visible": true
