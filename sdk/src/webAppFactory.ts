@@ -22,14 +22,10 @@ export { uiRenderOrderPlugin, UIRenderOrderPlugin } from './ui/UIRenderOrderPlug
 export { textInputPlugin, TextInputPlugin } from './ui/TextInputPlugin';
 
 export { imagePlugin, ImagePlugin } from './ui/ImagePlugin';
-export { progressBarPlugin, ProgressBarPlugin } from './ui/ProgressBarPlugin';
-export { sliderPlugin, SliderPlugin } from './ui/SliderPlugin';
-export { togglePlugin, TogglePlugin } from './ui/TogglePlugin';
 export { dragPlugin, DragPlugin } from './ui/DragPlugin';
 export { scrollViewPlugin, ScrollViewPlugin } from './ui/ScrollViewPlugin';
 export { focusPlugin, FocusPlugin } from './ui/FocusPlugin';
 export { safeAreaPlugin, SafeAreaPlugin } from './ui/SafeAreaPlugin';
-export { dropdownPlugin, DropdownPlugin } from './ui/DropdownPlugin';
 
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';
 export { AnimationPlugin, animationPlugin } from './animation';
