@@ -14,9 +14,6 @@ import { safeAreaPlugin } from './ui/SafeAreaPlugin';
 import { dropdownPlugin } from './ui/DropdownPlugin';
 import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 import { stateMachinePlugin } from './ui/StateMachinePlugin';
-import { collectionViewPlugin } from './ui/CollectionViewPlugin';
-import { linearLayoutPlugin } from './ui/LinearLayoutPlugin';
-import { gridLayoutPlugin } from './ui/GridLayoutPlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
@@ -25,7 +22,5 @@ export const uiPlugins: Plugin[] = [
     uiInteractionPlugin, dragPlugin, scrollViewPlugin, sliderPlugin,
     togglePlugin, textInputPlugin, stateMachinePlugin,
     focusPlugin, safeAreaPlugin, dropdownPlugin,
-    collectionViewPlugin,
-    linearLayoutPlugin, gridLayoutPlugin,
     uiRenderOrderPlugin,
 ];

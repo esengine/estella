@@ -9,7 +9,6 @@ export class UIRenderOrderPlugin implements Plugin {
     after = [
         PluginName.Text, PluginName.Image, PluginName.UIMask,
         PluginName.UIInteraction, PluginName.ScrollView,
-        PluginName.CollectionView, PluginName.LayoutGroup,
     ];
 
     build(app: App): void {

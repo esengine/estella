@@ -8,7 +8,6 @@ export const PluginName = {
     UIInteraction: 'uiInteraction',
     UIRenderOrder: 'uiRenderOrder',
     UIMask: 'uiMask',
-    CollectionView: 'collectionView',
     Text: 'text',
     Image: 'image',
     Focus: 'focus',
@@ -21,11 +20,6 @@ export const PluginName = {
     SafeArea: 'safeArea',
     TextInput: 'textInput',
     StateMachine: 'stateMachine',
-    LayoutGroup: 'layoutGroup',
-    FanLayout: 'fanLayout',
-    Selectable: 'selectable',
-    LinearLayout: 'linearLayout',
-    GridLayout: 'gridLayout',
 } as const;
 
 export const SystemLabel = {
@@ -35,7 +29,6 @@ export const SystemLabel = {
     UIInteraction: 'UIInteractionSystem',
     Button: 'ButtonSystem',
     ScrollView: 'ScrollViewSystem',
-    CollectionView: 'CollectionViewSystem',
     ListView: 'ListViewSystem',
     Text: 'TextSystem',
     Image: 'ImageSystem',
