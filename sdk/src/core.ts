@@ -438,8 +438,6 @@ export {
     type FocusableData,
     type SafeAreaData,
     type DropdownData,
-    UI,
-    initUIBuilder,
     UIThemeRes,
     DARK_THEME,
     withChildEntity,
@@ -449,18 +447,6 @@ export {
     colorWithAlpha,
     EntityStateMap,
     type UITheme,
-    type UIEntityDef,
-    type ButtonOptions,
-    type SliderOptions,
-    type ToggleOptions,
-    type ProgressBarOptions,
-    type ScrollViewOptions,
-    type TextInputOptions,
-    type DropdownOptions,
-    type LabelOptions,
-    type PanelOptions,
-    type FlexOptions,
-    type UINode,
 } from './ui';
 
 // =============================================================================
