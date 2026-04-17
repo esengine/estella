@@ -34,6 +34,7 @@
 #endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
+#include "../ecs/UISystem.hpp"
 #include "../animation/TweenSystem.hpp"
 #ifdef ES_ENABLE_TIMELINE
 #include "../animation/TimelineSystem.hpp"
@@ -93,6 +94,7 @@ void EstellaContext::initSubsystems() {
     services_.registerOwned<RenderContext>(std::move(renderContext));
 
     services_.registerOwned<ecs::TransformSystem>(makeUnique<ecs::TransformSystem>());
+    services_.registerOwned<ecs::UISystem>(makeUnique<ecs::UISystem>());
     services_.registerOwned<animation::TweenSystem>(makeUnique<animation::TweenSystem>());
 
 #ifdef ES_ENABLE_TIMELINE

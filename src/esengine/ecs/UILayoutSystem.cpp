@@ -1,4 +1,5 @@
 #include "UILayoutSystem.hpp"
+#include "UISystem.hpp"
 
 #include "components/Transform.hpp"
 #include "components/Sprite.hpp"
@@ -576,27 +577,26 @@ void unifiedLayoutPass(Registry& registry, UITree& tree, const LayoutRect& camer
 
 }  // anonymous namespace
 
-static UITree s_ui_tree;
+// =============================================================================
+// UISystem method impls that need the anonymous-namespace helpers above
+// (hitTestUpdate lives in UISystem.cpp since it only needs UIHitTestSystem.hpp)
+// =============================================================================
 
-void uiLayoutUpdate(
+void UISystem::layoutUpdate(
     Registry& registry,
     f32 camLeft, f32 camBottom, f32 camRight, f32 camTop
 ) {
-    s_ui_tree.rebuild(registry);
+    tree.rebuild(registry);
     LayoutRect cameraRect{ camLeft, camBottom, camRight, camTop };
-    unifiedLayoutPass(registry, s_ui_tree, cameraRect);
+    unifiedLayoutPass(registry, tree, cameraRect);
 }
 
-UITree& getUITree() {
-    return s_ui_tree;
+void UISystem::treeMarkStructureDirty() {
+    tree.structure_dirty_ = true;
 }
 
-void uiTreeMarkStructureDirty() {
-    s_ui_tree.structure_dirty_ = true;
-}
-
-void uiTreeMarkDirty(Entity entity) {
-    s_ui_tree.markDirty(entity);
+void UISystem::treeMarkDirty(Entity entity) {
+    tree.markDirty(entity);
 }
 
 }  // namespace esengine::ecs
