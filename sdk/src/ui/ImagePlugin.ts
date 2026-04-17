@@ -2,12 +2,12 @@ import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
 import { registerComponent } from '../component';
 import { defineSystem, Schedule } from '../system';
-import { Image, ImageType, FillMethod, FillOrigin } from './Image';
-import type { ImageData } from './Image';
-import { UIRect } from './UIRect';
-import type { UIRectData } from './UIRect';
-import { UIRenderer, UIVisualType } from './UIRenderer';
-import type { UIRendererData } from './UIRenderer';
+import { Image, ImageType, FillMethod, FillOrigin } from './core/image';
+import type { ImageData } from './core/image';
+import { UIRect } from './core/ui-rect';
+import type { UIRectData } from './core/ui-rect';
+import { UIRenderer, UIVisualType } from './core/ui-renderer';
+import type { UIRendererData } from './core/ui-renderer';
 import { getEffectiveWidth, getEffectiveHeight, ensureUIRenderer } from './uiHelpers';
 import { SystemLabel, PluginName } from '../systemLabels';
 

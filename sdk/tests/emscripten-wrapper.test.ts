@@ -6,8 +6,8 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { App } from '../src/app';
 import { Transform } from '../src/component';
-import { UIRect } from '../src/ui/UIRect';
-import type { UIRectData } from '../src/ui/UIRect';
+import { UIRect } from '../src/ui/core/ui-rect';
+import type { UIRectData } from '../src/ui/core/ui-rect';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule } from './helpers/loadWasm';
 

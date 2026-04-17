@@ -8,7 +8,7 @@ import {
     UIInteraction,
     Focusable,
     Draggable,
-} from '../src/ui2';
+} from '../src/ui';
 
 describe('ui2 behavior components', () => {
     describe('StateMachine', () => {

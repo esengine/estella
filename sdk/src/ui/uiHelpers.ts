@@ -1,17 +1,17 @@
 import { Sprite, Parent, Transform } from '../component';
 import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../component';
-import { Image } from './Image';
-import type { ImageData } from './Image';
+import { Image } from './core/image';
+import type { ImageData } from './core/image';
 import type { Entity, Color } from '../types';
 import type { World } from '../world';
-import { UIRect } from './UIRect';
-import type { UIRectData } from './UIRect';
-import { UIRenderer, UIVisualType } from './UIRenderer';
-import type { UIRendererData } from './UIRenderer';
+import { UIRect } from './core/ui-rect';
+import type { UIRectData } from './core/ui-rect';
+import { UIRenderer, UIVisualType } from './core/ui-renderer';
+import type { UIRendererData } from './core/ui-renderer';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import { Interactable } from './Interactable';
+import { Interactable } from './behavior/interactable';
 
 export interface LayoutRect {
     left: number;

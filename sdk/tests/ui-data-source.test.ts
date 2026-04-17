@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ArrayDataSource, arrayDataSource, type DataSourceChange } from '../src/ui2';
+import { ArrayDataSource, arrayDataSource, type DataSourceChange } from '../src/ui';
 
 describe('ArrayDataSource', () => {
     it('reports count and items from initial array', () => {

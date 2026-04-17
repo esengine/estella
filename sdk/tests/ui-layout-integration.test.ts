@@ -9,7 +9,7 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { App } from '../src/app';
 import { World } from '../src/world';
-import { UIRect, type UIRectData } from '../src/ui/UIRect';
+import { UIRect, type UIRectData } from '../src/ui/core/ui-rect';
 import { Canvas } from '../src/component';
 import { UICameraInfo, type UICameraData } from '../src/ui/UICameraInfo';
 import { uiLayoutPlugin } from '../src/ui/UILayoutPlugin';

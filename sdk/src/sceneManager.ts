@@ -21,7 +21,7 @@ import {
     ShapeRenderer, ParticleEmitter,
     type AnyComponentDef,
 } from './component';
-import { UIRenderer } from './ui/UIRenderer';
+import { UIRenderer } from './ui/core/ui-renderer';
 import { Assets } from './asset/AssetPlugin';
 import { RuntimeConfig } from './defaults';
 

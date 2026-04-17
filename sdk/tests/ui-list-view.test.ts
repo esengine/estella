@@ -4,7 +4,7 @@ import {
     LinearLayoutProvider,
     arrayDataSource,
     type DataSource,
-} from '../src/ui2';
+} from '../src/ui';
 import type { Entity } from '../src/types';
 import type { World } from '../src/world';
 

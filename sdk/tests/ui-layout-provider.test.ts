@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LinearLayoutProvider, GridLayoutProvider, type Rect } from '../src/ui2';
+import { LinearLayoutProvider, GridLayoutProvider, type Rect } from '../src/ui';
 
 const VIEWPORT = (x: number, y: number, w: number, h: number): Rect =>
     ({ x, y, width: w, height: h });
