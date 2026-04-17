@@ -12,6 +12,7 @@ import {
     type CustomEventTrack,
     type AnimFramesTrack,
 } from './TimelineTypes';
+import { log } from '../logger';
 
 const CURRENT_VERSION = '1.1';
 
@@ -138,7 +139,7 @@ function parseTrack(raw: any): Track {
             } as AnimFramesTrack;
 
         default:
-            console.warn(`[Timeline] Unknown track type: ${raw.type}, skipping`);
+            log.warn('timeline', `Unknown track type: ${raw.type}, skipping`);
             return null as any;
     }
 }

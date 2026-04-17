@@ -6,6 +6,7 @@ import { wrapSpineModule } from './SpineModuleLoader';
 import { SpineModuleController } from './SpineController';
 import { ModuleBackend } from './ModuleBackend';
 import { SpineCpp } from './SpineCppAPI';
+import { log } from '../logger';
 
 export type SpineVersion = '3.8' | '4.1' | '4.2';
 
@@ -70,14 +71,14 @@ export class SpineManager {
 
         const backend = await this.ensureBackend(version);
         if (!backend) {
-            console.error(`[SpineManager] Failed to create backend for version ${version}`);
+            log.error('spine', `Failed to create backend for version ${version}`);
             return null;
         }
 
         const isBinary = skelData instanceof Uint8Array;
         const ok = backend.loadEntity(entity, skelData, atlasText, textures, isBinary);
         if (!ok) {
-            console.error(`[SpineManager] Failed to load entity ${entity} into backend ${version}`);
+            log.error('spine', `Failed to load entity ${entity} into backend ${version}`);
             return null;
         }
         this.entityVersions_.set(entity, version);
@@ -282,7 +283,7 @@ export class SpineManager {
 
         const factory = this.factories_.get(version);
         if (!factory) {
-            console.warn(`[SpineManager] No module factory for version ${version}`);
+            log.warn('spine', `No module factory for version ${version}`);
             return null;
         }
 
@@ -295,7 +296,7 @@ export class SpineManager {
                 this.backends_.set(version, backend);
                 return backend;
             } catch (e) {
-                console.error(`[SpineManager] Failed to load WASM module for version ${version}:`, e);
+                log.error('spine', `Failed to load WASM module for version ${version}`, e);
                 return null;
             } finally {
                 this.loadingBackends_.delete(version);

@@ -18,6 +18,7 @@ import { SpineManager, type SpineVersion } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
+import { log } from './logger';
 
 // =============================================================================
 // WeChat Asset Provider
@@ -90,7 +91,7 @@ function createWasmInstantiator(wasmPath: string) {
         platformInstantiateWasm(wasmPath, imports).then((result) => {
             successCallback(result.instance, result.module);
         }).catch((e) => {
-            console.error('[WeChat] WASM instantiation failed:', e);
+            log.error('wechat', 'WASM instantiation failed', e);
         });
         return {};
     };
@@ -105,7 +106,7 @@ async function initWasmModule<T>(
             instantiateWasm: createWasmInstantiator(wasmPath),
         });
     } catch (e) {
-        console.warn(`[ESEngine] Failed to load WASM module: ${wasmPath}`, e);
+        log.warn('wechat', `Failed to load WASM module: ${wasmPath}`, e);
         return null;
     }
 }
@@ -142,7 +143,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
 
     const gl = (canvas.getContext('webgl2') || canvas.getContext('webgl')) as WebGLRenderingContext | null;
     if (!gl) {
-        console.error('[ESEngine] Failed to create WebGL context');
+        log.error('wechat', 'Failed to create WebGL context');
         return;
     }
 

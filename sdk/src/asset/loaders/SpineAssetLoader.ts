@@ -3,6 +3,7 @@ import { requireResourceManager } from '../../resourceManager';
 import { getAssetTypeEntry } from '../../assetTypes';
 import type { ESEngineModule } from '../../wasm';
 import type { SpineModuleController } from '../../spine/SpineController';
+import { log } from '../../logger';
 
 export class SpineAssetLoader implements AssetLoader<SpineResult> {
     readonly type = 'spine';
@@ -57,7 +58,7 @@ export class SpineAssetLoader implements AssetLoader<SpineResult> {
                 rm.registerTextureWithPath(texResult.handle, texPath);
                 return { name: texName, handle: texResult.handle, width: texResult.width, height: texResult.height };
             } catch (err) {
-                console.warn(`[SpineLoader] Failed to load texture: ${texPath}`, err);
+                log.warn('asset', `Failed to load texture: ${texPath}`, err);
                 return null;
             }
         });
@@ -123,7 +124,7 @@ export class SpineAssetLoader implements AssetLoader<SpineResult> {
             fs.writeFile(virtualPath, data);
             this.virtualFSPaths_.add(virtualPath);
         } catch (e) {
-            console.warn(`[SpineLoader] Failed to write virtual FS: ${virtualPath}`, e);
+            log.warn('asset', `Failed to write virtual FS: ${virtualPath}`, e);
         }
     }
 

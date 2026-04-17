@@ -1,5 +1,6 @@
 import { defineResource } from '../../resource';
 import type { Entity } from '../../types';
+import { log } from '../../logger';
 
 /**
  * Common UI event types. Event type strings are open — users may emit any
@@ -248,8 +249,9 @@ export class UIEventQueue {
                         try {
                             h(event);
                         } catch (err) {
-                            console.error(
-                                `[UIEventQueue] handler error [${event.type}]:`,
+                            log.error(
+                                'ui',
+                                `UIEventQueue handler error [${event.type}]`,
                                 err,
                             );
                         }
@@ -263,8 +265,9 @@ export class UIEventQueue {
                     try {
                         h(event);
                     } catch (err) {
-                        console.error(
-                            `[UIEventQueue] handler error [${event.type}]:`,
+                        log.error(
+                            'ui',
+                            `UIEventQueue handler error [${event.type}]`,
                             err,
                         );
                     }

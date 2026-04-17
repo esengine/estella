@@ -12,6 +12,7 @@ import { ScriptStorage } from './ecs/ScriptStorage';
 import { NameIndex } from './ecs/NameIndex';
 import { ChangeTracker } from './ecs/ChangeTracker';
 import { QueryCache } from './ecs/QueryCache';
+import { log } from './logger';
 
 export { PTR_LAYOUTS } from './ptrLayouts.generated';
 export { BuiltinBridge } from './ecs/BuiltinBridge';
@@ -144,7 +145,7 @@ export class World {
         }
 
         for (const cb of this.spawnCallbacks_) {
-            try { cb(entity); } catch (e) { console.warn('[World] Spawn callback error:', e); }
+            try { cb(entity); } catch (e) { log.warn('world', 'Spawn callback error', e); }
         }
 
         return entity;
@@ -159,7 +160,7 @@ export class World {
         }
 
         for (const cb of this.despawnCallbacks_) {
-            try { cb(entity); } catch (e) { console.warn('[World] Despawn callback error:', e); }
+            try { cb(entity); } catch (e) { log.warn('world', 'Despawn callback error', e); }
         }
 
         this.names_.remove(entity);
@@ -218,7 +219,7 @@ export class World {
     endIteration(): void {
         this.iterationDepth_--;
         if (this.iterationDepth_ < 0) {
-            console.warn('World.endIteration: mismatched begin/end calls');
+            log.warn('world', 'World.endIteration: mismatched begin/end calls');
             this.iterationDepth_ = 0;
         }
     }
@@ -478,7 +479,7 @@ export class World {
     getComponentTypes(entity: Entity): string[] {
         const types = new Set<string>();
         for (const [name, methods] of this.builtin_.getMethodCache()) {
-            try { if (methods.has(entity)) types.add(name); } catch (e) { console.warn(`[World] Component check failed for ${name}:`, e); }
+            try { if (methods.has(entity)) types.add(name); } catch (e) { log.warn('world', `Component check failed for ${name}`, e); }
         }
         if (this.builtin_.hasCpp) {
             for (const [name, comp] of getAllRegisteredComponents()) {
@@ -486,7 +487,7 @@ export class World {
                     try {
                         const m = this.builtin_.getBuiltinMethods(comp._cppName);
                         if (m.has(entity)) types.add(name);
-                    } catch (e) { console.warn(`[World] Builtin check failed for ${name}:`, e); }
+                    } catch (e) { log.warn('world', `Builtin check failed for ${name}`, e); }
                 }
             }
         }

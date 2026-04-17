@@ -20,6 +20,7 @@ import { wxInstantiateWasm, polyfillWebAssembly } from './wasm';
 import { wxReadFileSync, wxReadTextFileSync, wxFileExistsSync } from './fs';
 import { wxLoadImagePixels } from './image';
 import { toBuildPath } from '../../assetTypes';
+import { log } from '../../logger';
 
 // =============================================================================
 // WeChat Platform Adapter
@@ -162,7 +163,7 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         try {
             wx.setStorageSync(key, value);
         } catch (e) {
-            console.warn('[WeChat] setStorageSync failed:', e);
+            log.warn('wechat', 'setStorageSync failed', e);
         }
     }
 
@@ -170,7 +171,7 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         try {
             wx.removeStorageSync(key);
         } catch (e) {
-            console.warn('[WeChat] removeStorageSync failed:', e);
+            log.warn('wechat', 'removeStorageSync failed', e);
         }
     }
 
@@ -191,7 +192,7 @@ class WeChatPlatformAdapter implements PlatformAdapter {
                 }
             }
         } catch (e) {
-            console.warn('[WeChat] clearStorage failed:', e);
+            log.warn('wechat', 'clearStorage failed', e);
         }
     }
 }
@@ -215,7 +216,7 @@ export function initWeChatPlatform(): void {
     polyfillWebAssembly();
     polyfillTextEncoder();
 
-    console.log('[ESEngine] WeChat platform initialized');
+    log.info('wechat', 'WeChat platform initialized');
 }
 
 function polyfillPerformance(): void {

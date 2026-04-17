@@ -1,6 +1,7 @@
 import type { AssetLoader, LoadContext, TimelineResult } from '../AssetLoader';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
 import { registerTimelineAsset, registerTimelineTextureHandles } from '../../timeline/TimelinePlugin';
+import { log } from '../../logger';
 
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
     readonly type = 'timeline';
@@ -19,7 +20,7 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
                 const result = await ctx.loadTexture(texPath, true);
                 textureHandles.set(texPath, result.handle);
             } catch (e) {
-                console.warn(`[TimelineLoader] Failed to load texture: ${texPath}`, e);
+                log.warn('asset', `Failed to load texture: ${texPath}`, e);
                 textureHandles.set(texPath, 0);
             }
         }

@@ -16,6 +16,7 @@ import { SpinePlugin } from './spine/SpinePlugin';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { SceneData } from './scene';
 import { Audio } from './audio/Audio';
+import { log } from './logger';
 
 declare const ESPhysicsModule: ((opts: unknown) => Promise<PhysicsWasmModule>) | undefined;
 
@@ -127,7 +128,7 @@ async function instantiateWasmModule(
                             r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
                                     (r as WebAssembly.WebAssemblyInstantiatedSource).module),
                         ).catch(e => {
-                            console.error('[Playable] WASM instantiation fallback failed:', e);
+                            log.error('playable', 'WASM instantiation fallback failed', e);
                         });
                     },
                 );
@@ -136,7 +137,7 @@ async function instantiateWasmModule(
         };
         return await factory(opts);
     } catch (e) {
-        console.error('[Playable] WASM module init failed:', e);
+        log.error('playable', 'WASM module init failed', e);
         return null;
     }
 }
@@ -144,7 +145,7 @@ async function instantiateWasmModule(
 async function initPhysicsModule(wasmBase64: string): Promise<PhysicsWasmModule | null> {
     if (typeof ESPhysicsModule === 'undefined') return null;
     const mod = await instantiateWasmModule(ESPhysicsModule, wasmBase64);
-    if (!mod) console.warn('Physics module not available');
+    if (!mod) log.warn('playable', 'Physics module not available');
     return mod as PhysicsWasmModule | null;
 }
 
@@ -169,7 +170,7 @@ function buildSpineManager(
                                 r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
                                         (r as WebAssembly.WebAssemblyInstantiatedSource).module),
                             ).catch(e => {
-                                console.error('[Playable] Spine WASM instantiation fallback failed:', e);
+                                log.error('playable', 'Spine WASM instantiation fallback failed', e);
                             });
                         },
                     );

@@ -8,6 +8,7 @@ import { SceneManager, SceneManagerState } from './sceneManager';
 import { defineSystem, Schedule } from './system';
 import { Res, ResMut, Time } from './resource';
 import type { SystemDef } from './system';
+import { log } from './logger';
 
 const sceneTransitionSystem = defineSystem(
     [ResMut(SceneManager), Res(Time)],
@@ -33,7 +34,7 @@ export const sceneManagerPlugin: Plugin = {
                 const initial = manager.getInitial();
                 if (initial) {
                     manager.load(initial).catch(err => {
-                        console.error('Failed to load initial scene:', err);
+                        log.error('scene', 'Failed to load initial scene', err);
                     });
                 }
             },

@@ -1,4 +1,5 @@
 import { getPlatform } from './platform/base';
+import { log } from './logger';
 
 const KEY_PREFIX = 'esengine:';
 
@@ -39,7 +40,7 @@ export const Storage = {
         try {
             return JSON.parse(raw) as T;
         } catch (e) {
-            console.warn(`[Storage] Failed to parse JSON for key "${key}"`, e);
+            log.warn('storage', `Failed to parse JSON for key "${key}"`, e);
             return defaultValue;
         }
     },

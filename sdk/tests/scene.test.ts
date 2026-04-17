@@ -318,7 +318,9 @@ describe('Scene', () => {
                 data: {},
             });
 
-            expect(warnSpy).toHaveBeenCalledWith('Unknown component type: NonExistentComponent');
+            expect(warnSpy).toHaveBeenCalledWith(
+                expect.stringContaining('Unknown component type: NonExistentComponent'),
+            );
             warnSpy.mockRestore();
         });
     });

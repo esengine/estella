@@ -9,6 +9,7 @@ import { Renderer } from './renderer';
 import { PostProcess } from './postprocess';
 import { Draw } from './draw';
 import { getDrawCallbacks, unregisterDrawCallback } from './customDraw';
+import { log } from './logger';
 
 export interface Viewport {
     x: number;
@@ -137,7 +138,7 @@ export class RenderPipeline {
                 try {
                     entry.fn(elapsed);
                 } catch (e) {
-                    console.error(`[CustomDraw] callback '${id}' error:`, e);
+                    log.error('render', `callback '${id}' error`, e);
                     failed.push(id);
                 }
             }
