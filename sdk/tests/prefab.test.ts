@@ -583,6 +583,112 @@ describe('Prefab', () => {
             const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
             expect(root.components[0].data.x).toBe(10);
         });
+
+        it('remaps entity fields in a component_added override', async () => {
+            // Override adds a Slider pointing at prefab-entity-ids 1 and 2.
+            // Expect those to become the allocated entity ids after flatten.
+            const prefab: PrefabData = {
+                version: '1.0',
+                name: 'SliderPrefab',
+                rootEntityId: 0,
+                entities: [
+                    { prefabEntityId: 0, name: 'Root',   parent: null, children: [1, 2], components: [], visible: true },
+                    { prefabEntityId: 1, name: 'Fill',   parent: 0,    children: [],     components: [], visible: true },
+                    { prefabEntityId: 2, name: 'Handle', parent: 0,    children: [],     components: [], visible: true },
+                ],
+            };
+
+            await instantiatePrefab(world, prefab, {
+                overrides: [{
+                    prefabEntityId: 0,
+                    type: 'component_added',
+                    componentData: {
+                        type: 'Slider',
+                        data: { fillEntity: 1, handleEntity: 2, value: 0.25 },
+                    },
+                }],
+            });
+
+            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
+            const fill = capturedSceneData!.entities.find(e => e.name === 'Fill')!;
+            const handle = capturedSceneData!.entities.find(e => e.name === 'Handle')!;
+            const slider = root.components.find(c => c.type === 'Slider')!;
+            expect(slider.data.fillEntity).toBe(fill.id);
+            expect(slider.data.handleEntity).toBe(handle.id);
+            expect(slider.data.value).toBe(0.25);
+        });
+
+        it('remaps entity fields in a component_replaced override', async () => {
+            const prefab: PrefabData = {
+                version: '1.0',
+                name: 'SliderPrefab',
+                rootEntityId: 0,
+                entities: [
+                    {
+                        prefabEntityId: 0,
+                        name: 'Root',
+                        parent: null,
+                        children: [1, 2],
+                        components: [{ type: 'Slider', data: { fillEntity: 0, handleEntity: 0, value: 0 } }],
+                        visible: true,
+                    },
+                    { prefabEntityId: 1, name: 'Fill',   parent: 0, children: [], components: [], visible: true },
+                    { prefabEntityId: 2, name: 'Handle', parent: 0, children: [], components: [], visible: true },
+                ],
+            };
+
+            await instantiatePrefab(world, prefab, {
+                overrides: [{
+                    prefabEntityId: 0,
+                    type: 'component_replaced',
+                    componentData: {
+                        type: 'Slider',
+                        data: { fillEntity: 1, handleEntity: 2, value: 1 },
+                    },
+                }],
+            });
+
+            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
+            const fill = capturedSceneData!.entities.find(e => e.name === 'Fill')!;
+            const handle = capturedSceneData!.entities.find(e => e.name === 'Handle')!;
+            const slider = root.components.find(c => c.type === 'Slider')!;
+            expect(slider.data.fillEntity).toBe(fill.id);
+            expect(slider.data.handleEntity).toBe(handle.id);
+        });
+
+        it('remaps an entity field set by a property override', async () => {
+            const prefab: PrefabData = {
+                version: '1.0',
+                name: 'SliderPrefab',
+                rootEntityId: 0,
+                entities: [
+                    {
+                        prefabEntityId: 0,
+                        name: 'Root',
+                        parent: null,
+                        children: [1],
+                        components: [{ type: 'Slider', data: { fillEntity: 0, handleEntity: 0, value: 0 } }],
+                        visible: true,
+                    },
+                    { prefabEntityId: 1, name: 'Fill', parent: 0, children: [], components: [], visible: true },
+                ],
+            };
+
+            await instantiatePrefab(world, prefab, {
+                overrides: [{
+                    prefabEntityId: 0,
+                    type: 'property',
+                    componentType: 'Slider',
+                    propertyName: 'fillEntity',
+                    value: 1,
+                }],
+            });
+
+            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
+            const fill = capturedSceneData!.entities.find(e => e.name === 'Fill')!;
+            const slider = root.components.find(c => c.type === 'Slider')!;
+            expect(slider.data.fillEntity).toBe(fill.id);
+        });
     });
 
     describe('nested prefabs', () => {
