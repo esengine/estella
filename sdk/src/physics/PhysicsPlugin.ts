@@ -26,6 +26,8 @@ import {
     type DistanceJointData, type PrismaticJointData, type WeldJointData, type WheelJointData,
 } from './PhysicsComponents';
 import { setupPhysicsDebugDraw, PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';
+import { PhysicsRuntime } from './PhysicsRuntime';
+import { handleWasmError } from '../wasmError';
 
 // =============================================================================
 // Physics Config
@@ -148,6 +150,7 @@ export class PhysicsPlugin implements Plugin {
             sensorEnters: [],
             sensorExits: []
         });
+        app.insertResource(PhysicsRuntime, { module: null, initPromise: null });
 
         const trackedEntities = new Set<Entity>();
         const trackedJoints = new Set<Entity>();
@@ -167,8 +170,6 @@ export class PhysicsPlugin implements Plugin {
                     this.config_.contactSpeed
                 );
 
-                const ppu = readPixelsPerUnit(app);
-                const invPpu = 1 / ppu;
                 const world = app.world;
 
                 world.onDespawn((entity: Entity) => {
@@ -189,6 +190,13 @@ export class PhysicsPlugin implements Plugin {
                     defineSystem(
                         [Res(Time)],
                         (time: TimeData) => {
+                            // Read pixelsPerUnit live each tick so a Canvas
+                                // property change at runtime (editor: user edits
+                            // Canvas.pixelsPerUnit) propagates to physics
+                            // transforms instead of staying at the value
+                            // captured when the wasm module first loaded.
+                            const ppu = readPixelsPerUnit(app);
+                            const invPpu = 1 / ppu;
                             const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
                             const currentEntities = new Set<Entity>();
 
@@ -287,7 +295,7 @@ export class PhysicsPlugin implements Plugin {
                     { runIf: playModeOnly }
                 );
 
-                app.physicsModule = module;
+                app.getResource(PhysicsRuntime).module = module;
                 app.insertResource(PhysicsAPI, Physics._fromModule(module));
                 setupPhysicsDebugDraw(app, PhysicsAPI, PhysicsEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
@@ -295,9 +303,9 @@ export class PhysicsPlugin implements Plugin {
         );
 
         initPromise.catch((e) => {
-            console.error('[ESEngine] Physics initialization failed:', e);
+            handleWasmError(e, 'PhysicsPlugin.init');
         });
-        app.physicsInitPromise = initPromise;
+        app.getResource(PhysicsRuntime).initPromise = initPromise;
     }
 }
 
@@ -716,10 +724,13 @@ export class Physics {
     private module_: PhysicsWasmModule;
 
     constructor(app: App) {
-        this.module_ = app.physicsModule as PhysicsWasmModule;
-        if (!this.module_) {
+        const module = app.hasResource(PhysicsRuntime)
+            ? app.getResource(PhysicsRuntime).module
+            : null;
+        if (!module) {
             throw new Error('Physics module not loaded. Ensure PhysicsPlugin init is complete.');
         }
+        this.module_ = module;
     }
 
     /** @internal */
