@@ -84,6 +84,26 @@ export class AsyncCache<T> {
         return this.cache_.delete(key);
     }
 
+    /**
+     * Drop every record of `key` — resolved value, failure cooldown, and
+     * any in-flight loader. Used by hot-reload when the underlying bytes
+     * changed on disk and the next `getOrLoad` must fetch fresh.
+     *
+     * Returns true if any record was removed. Doesn't release whatever
+     * resource the cached value points to — that's the caller's concern
+     * (see `Assets.invalidate` for the resource-aware variant).
+     */
+    invalidate(key: string): boolean {
+        const hadCached = this.cache_.delete(key);
+        const hadFailed = this.failed_.delete(key);
+        const pending = this.pending_.get(key);
+        if (pending) {
+            pending.aborted = true;
+            this.pending_.delete(key);
+        }
+        return hadCached || hadFailed || pending !== undefined;
+    }
+
     clear(): void {
         this.cache_.clear();
     }

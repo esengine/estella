@@ -473,6 +473,38 @@ export class Assets {
         }
     }
 
+    /**
+     * Drop every internal cache entry for `ref` so the next `loadTexture` /
+     * `loadMaterial` / ... fetches fresh bytes. Call this when the source
+     * file changed on disk (hot reload).
+     *
+     * Any GPU handle that was already handed out stays valid and keeps
+     * rendering — that's the caller's concern to release. The next load
+     * produces a brand-new handle from the updated bytes; the old handle
+     * is evicted from the cache but not freed, so currently-rendering
+     * entities don't flicker.
+     *
+     * Returns true if any cache held `ref`.
+     */
+    invalidate(ref: string): boolean {
+        const path = this.resolveRef(ref) ?? ref;
+        let hit = false;
+
+        // Textures: cache_key has a flip flag suffix, so check both.
+        for (const flip of [true, false]) {
+            const key = this.textureCacheKey_(path, flip);
+            if (this.textureCache_.invalidate(key)) hit = true;
+            if (this.textureRefCounts_.delete(key)) hit = true;
+        }
+
+        // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
+        for (const cache of this.genericCache_.values()) {
+            if (cache.invalidate(path)) hit = true;
+        }
+
+        return hit;
+    }
+
     releaseAll(): void {
         const rm = requireResourceManager();
         for (const info of this.textureCache_.values()) {
