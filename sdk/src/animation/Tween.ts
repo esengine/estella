@@ -19,9 +19,28 @@ export { EasingType, TweenState, LoopMode, ValueTweenHandle } from './ValueTween
 export type { TweenOptions, BezierPoints } from './ValueTween';
 
 // =============================================================================
-// Tween Target (C++ specific)
+// Tween Target (wire protocol — must stay in lock-step with
+// src/esengine/animation/TweenData.hpp::TweenTarget — both the order
+// and the numeric values are the WASM boundary contract).
 // =============================================================================
 
+/**
+ * The 13 properties the C++ TweenSystem can drive directly.
+ *
+ * NOTE ON THE RELATIONSHIP TO `AnimTargetField`: Timeline uses the
+ * wider, code-generated `AnimTargetField` enum (33 entries) because
+ * it composes smaller setters on top of `AnimApplicator`. TweenTarget
+ * is intentionally narrower — just the common property tweens that
+ * have a fast C++ fast-path. Unifying the two would require
+ * `_anim_createTween` on the WASM boundary to accept AnimTargetField
+ * values directly and an extended TWEEN_TO_ANIM_FIELD map in
+ * TweenSystem.cpp. That's a larger cross-layer change tracked
+ * separately; for now TweenTarget is the stable subset.
+ *
+ * If you need to tween a field not in this list (e.g. UIRect.anchorMin.x),
+ * use `Tween.value(...)` with a callback that writes the field yourself,
+ * or drive it via Timeline.
+ */
 export const TweenTarget = {
     PositionX: 0,
     PositionY: 1,
