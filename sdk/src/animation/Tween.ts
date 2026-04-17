@@ -5,18 +5,14 @@
 
 import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import {
-    EasingType,
-    TweenState,
-    LoopMode,
-    valueTweenManager,
-    ValueTweenHandle,
-} from './ValueTween';
-import type { TweenOptions, BezierPoints } from './ValueTween';
+import { EasingType } from './Easing';
+import { LoopMode, TweenState, type TweenOptions } from './TweenTypes';
+import { valueTweenManager, ValueTweenHandle } from './ValueTween';
 
-// Re-export shared types from ValueTween for backward compatibility
-export { EasingType, TweenState, LoopMode, ValueTweenHandle } from './ValueTween';
-export type { TweenOptions, BezierPoints } from './ValueTween';
+// Re-export so consumers can reach shared types via the Tween entry point
+export { EasingType, type BezierPoints } from './Easing';
+export { TweenState, LoopMode, type TweenOptions } from './TweenTypes';
+export { ValueTweenHandle } from './ValueTween';
 
 // =============================================================================
 // Tween Target (wire protocol — must stay in lock-step with

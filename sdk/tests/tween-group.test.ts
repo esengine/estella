@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { TweenGroup, TweenSequence, TweenCompose, tweenCompositionManager } from '../src/animation/TweenGroup';
-import { TweenState } from '../src/animation/ValueTween';
+import { TweenState } from '../src/animation/TweenTypes';
 
 function mockTween(doneAfter: number) {
     let elapsed = 0;
