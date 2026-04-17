@@ -54,17 +54,13 @@ export {
 // ─── Layer 0: Events ────────────────────────────────────────────────────────
 
 export {
+    UIEvents,
     UIEventQueue,
     UIEventType,
-    UIEventBus,
     type UIEvent,
     type UIEventHandler,
     type Unsubscribe,
 } from './core/events';
-
-// Legacy UIEvents resource (still used by UIInteractionPlugin / DragPlugin /
-// FocusPlugin / TextInputPlugin until those migrate to UIEventBus).
-export { UIEvents } from './UIEvents';
 
 // ─── Layer 1: Primitives ────────────────────────────────────────────────────
 

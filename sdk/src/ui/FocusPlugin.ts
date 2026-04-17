@@ -12,7 +12,7 @@ import type { InteractableData } from './behavior/interactable';
 import { UIInteraction } from './behavior/interactable';
 import type { UIInteractionData } from './behavior/interactable';
 import { playModeOnly } from '../env';
-import { UIEvents, UIEventQueue } from './UIEvents';
+import { UIEvents, UIEventQueue } from './core/events';
 import { PluginName } from '../systemLabels';
 
 export class FocusPlugin implements Plugin {
@@ -86,13 +86,13 @@ export class FocusPlugin implements Plugin {
                     if (prev !== null && world.valid(prev) && world.has(prev, Focusable)) {
                         const prevF = world.get(prev, Focusable) as FocusableData;
                         prevF.isFocused = false;
-                        events.emit(prev, 'blur', prev);
+                        events.emit(prev, 'blur');
                     }
 
                     focusManager.focus(entity);
                     const f = world.get(entity, Focusable) as FocusableData;
                     f.isFocused = true;
-                    events.emit(entity, 'focus', entity);
+                    events.emit(entity, 'focus');
                 }
             },
             { name: 'FocusSystem' }
