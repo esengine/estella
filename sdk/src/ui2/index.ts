@@ -60,3 +60,38 @@ export {
     GridLayoutDirection,
     type GridLayoutData,
 } from './layout/grid';
+
+// Layer 2 — Behaviors
+
+export {
+    Interactable,
+    UIInteraction,
+    type InteractableData,
+    type UIInteractionData,
+} from './behavior/interactable';
+
+export {
+    StateMachine,
+    type StateMachineData,
+} from './behavior/state-machine';
+
+export {
+    StateVisuals,
+    TransitionFlag,
+    STATE_VISUALS_SLOT_COUNT,
+    type StateVisualsData,
+} from './behavior/state-visuals';
+
+export {
+    Focusable,
+    FocusManager,
+    FocusManagerState,
+    type FocusableData,
+} from './behavior/focusable';
+
+export {
+    Draggable,
+    DragState,
+    type DraggableData,
+    type DragStateData,
+} from './behavior/draggable';

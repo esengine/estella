@@ -394,6 +394,49 @@ export interface Sprite {
     enabled: boolean;
 }
 
+export interface StateMachine {
+    current: string;
+    previous: string;
+}
+
+export interface StateVisuals {
+    targetGraphic: number;
+    transitionFlags: number;
+    fadeDuration: number;
+    slot0Name: string;
+    slot0Color: Vec4;
+    slot0Sprite: number;
+    slot0Scale: number;
+    slot1Name: string;
+    slot1Color: Vec4;
+    slot1Sprite: number;
+    slot1Scale: number;
+    slot2Name: string;
+    slot2Color: Vec4;
+    slot2Sprite: number;
+    slot2Scale: number;
+    slot3Name: string;
+    slot3Color: Vec4;
+    slot3Sprite: number;
+    slot3Scale: number;
+    slot4Name: string;
+    slot4Color: Vec4;
+    slot4Sprite: number;
+    slot4Scale: number;
+    slot5Name: string;
+    slot5Color: Vec4;
+    slot5Sprite: number;
+    slot5Scale: number;
+    slot6Name: string;
+    slot6Color: Vec4;
+    slot6Sprite: number;
+    slot6Scale: number;
+    slot7Name: string;
+    slot7Color: Vec4;
+    slot7Sprite: number;
+    slot7Scale: number;
+}
+
 export interface Transform {
     position: Vec3;
     rotation: Quat;
@@ -535,6 +578,14 @@ export interface Registry {
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
     removeSprite(entity: Entity): void;
+    hasStateMachine(entity: Entity): boolean;
+    getStateMachine(entity: Entity): StateMachine;
+    addStateMachine(entity: Entity, component: StateMachine): void;
+    removeStateMachine(entity: Entity): void;
+    hasStateVisuals(entity: Entity): boolean;
+    getStateVisuals(entity: Entity): StateVisuals;
+    addStateVisuals(entity: Entity, component: StateVisuals): void;
+    removeStateVisuals(entity: Entity): void;
     hasTransform(entity: Entity): boolean;
     getTransform(entity: Entity): Transform;
     addTransform(entity: Entity, component: Transform): void;
@@ -589,6 +640,8 @@ export interface ESEngineModule {
     ShapeRenderer: new () => ShapeRenderer;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;
+    StateMachine: new () => StateMachine;
+    StateVisuals: new () => StateVisuals;
     Transform: new () => Transform;
     UIInteraction: new () => UIInteraction;
     UIMask: new () => UIMask;
