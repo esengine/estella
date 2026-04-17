@@ -85,6 +85,26 @@ export class SpinePlugin implements Plugin {
             this.spineManager_?.removeEntity(entity);
         });
 
+        // Per-frame spine tick. Both calls fire unconditionally, but
+        // they tick DISJOINT entity sets — this is not a double-tick:
+        //   - SpineCpp.update(registry, dt)      advances every entity
+        //                                        whose C++ `needsReload`
+        //                                        flag is true. That's
+        //                                        the 4.2 set.
+        //   - spineManager_.updateAnimations(dt) iterates
+        //                                        SpineManager.backends_
+        //                                        (ModuleBackend
+        //                                        instances, one per
+        //                                        loaded JS runtime
+        //                                        version — 3.8 / 4.1).
+        //                                        Each backend advances
+        //                                        only its own entities.
+        //
+        // SpineManager.loadEntity does the routing:
+        //   - version '4.2': sets entityVersions_['4.2'] and returns,
+        //     leaving the entity under C++ control;
+        //   - version '3.8' / '4.1': calls spine_setNeedsReload(false)
+        //     to hand the entity off to the JS runtime.
         const spineUpdateSystem: SystemDef = {
             _id: Symbol('SpineUpdateSystem'),
             _name: 'SpineUpdateSystem',

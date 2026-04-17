@@ -52,6 +52,15 @@ export class SpineManager {
 
         if (!version) return null;
 
+        // Version routing, see SpinePlugin spineUpdateSystem for the
+        // full story. When a 4.2 entity shows up and no 4.2 JS factory
+        // is registered, we leave it for the native C++ runtime
+        // (`spine_setNeedsReload` stays at its default of true, so
+        // SpineCpp.update ticks it each frame). For older versions
+        // (3.8 / 4.1) we hand the entity off to the JS runtime by
+        // disabling needsReload on the C++ side and loading into
+        // ModuleBackend. The two runtimes therefore tick disjoint
+        // entity sets — there is NO double update per entity.
         if (version === '4.2' && !this.factories_.has('4.2')) {
             this.entityVersions_.set(entity, '4.2');
             return '4.2';
