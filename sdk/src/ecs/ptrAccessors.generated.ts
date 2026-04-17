@@ -1077,6 +1077,130 @@ export function createSpriteData(): SpritePtrData {
     };
 }
 
+export interface StateVisualsPtrData {
+    transitionFlags: number;
+    fadeDuration: number;
+    slot0Color: Color;
+    slot0Sprite: number;
+    slot0Scale: number;
+    slot1Color: Color;
+    slot1Sprite: number;
+    slot1Scale: number;
+    slot2Color: Color;
+    slot2Sprite: number;
+    slot2Scale: number;
+    slot3Color: Color;
+    slot3Sprite: number;
+    slot3Scale: number;
+    slot4Color: Color;
+    slot4Sprite: number;
+    slot4Scale: number;
+    slot5Color: Color;
+    slot5Sprite: number;
+    slot5Scale: number;
+    slot6Color: Color;
+    slot6Sprite: number;
+    slot6Scale: number;
+    slot7Color: Color;
+    slot7Sprite: number;
+    slot7Scale: number;
+}
+
+export function fillStateVisuals(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: StateVisualsPtrData,
+): void {
+    out.transitionFlags = u32[ptr >> 2];
+    out.fadeDuration = f32[(ptr + 4) >> 2];
+    const slot0Color_ = out.slot0Color; slot0Color_.r = f32[(ptr + 8) >> 2]; slot0Color_.g = f32[((ptr + 8) >> 2) + 1]; slot0Color_.b = f32[((ptr + 8) >> 2) + 2]; slot0Color_.a = f32[((ptr + 8) >> 2) + 3];
+    out.slot0Sprite = u32[(ptr + 24) >> 2];
+    out.slot0Scale = f32[(ptr + 28) >> 2];
+    const slot1Color_ = out.slot1Color; slot1Color_.r = f32[(ptr + 32) >> 2]; slot1Color_.g = f32[((ptr + 32) >> 2) + 1]; slot1Color_.b = f32[((ptr + 32) >> 2) + 2]; slot1Color_.a = f32[((ptr + 32) >> 2) + 3];
+    out.slot1Sprite = u32[(ptr + 48) >> 2];
+    out.slot1Scale = f32[(ptr + 52) >> 2];
+    const slot2Color_ = out.slot2Color; slot2Color_.r = f32[(ptr + 56) >> 2]; slot2Color_.g = f32[((ptr + 56) >> 2) + 1]; slot2Color_.b = f32[((ptr + 56) >> 2) + 2]; slot2Color_.a = f32[((ptr + 56) >> 2) + 3];
+    out.slot2Sprite = u32[(ptr + 72) >> 2];
+    out.slot2Scale = f32[(ptr + 76) >> 2];
+    const slot3Color_ = out.slot3Color; slot3Color_.r = f32[(ptr + 80) >> 2]; slot3Color_.g = f32[((ptr + 80) >> 2) + 1]; slot3Color_.b = f32[((ptr + 80) >> 2) + 2]; slot3Color_.a = f32[((ptr + 80) >> 2) + 3];
+    out.slot3Sprite = u32[(ptr + 96) >> 2];
+    out.slot3Scale = f32[(ptr + 100) >> 2];
+    const slot4Color_ = out.slot4Color; slot4Color_.r = f32[(ptr + 104) >> 2]; slot4Color_.g = f32[((ptr + 104) >> 2) + 1]; slot4Color_.b = f32[((ptr + 104) >> 2) + 2]; slot4Color_.a = f32[((ptr + 104) >> 2) + 3];
+    out.slot4Sprite = u32[(ptr + 120) >> 2];
+    out.slot4Scale = f32[(ptr + 124) >> 2];
+    const slot5Color_ = out.slot5Color; slot5Color_.r = f32[(ptr + 128) >> 2]; slot5Color_.g = f32[((ptr + 128) >> 2) + 1]; slot5Color_.b = f32[((ptr + 128) >> 2) + 2]; slot5Color_.a = f32[((ptr + 128) >> 2) + 3];
+    out.slot5Sprite = u32[(ptr + 144) >> 2];
+    out.slot5Scale = f32[(ptr + 148) >> 2];
+    const slot6Color_ = out.slot6Color; slot6Color_.r = f32[(ptr + 152) >> 2]; slot6Color_.g = f32[((ptr + 152) >> 2) + 1]; slot6Color_.b = f32[((ptr + 152) >> 2) + 2]; slot6Color_.a = f32[((ptr + 152) >> 2) + 3];
+    out.slot6Sprite = u32[(ptr + 168) >> 2];
+    out.slot6Scale = f32[(ptr + 172) >> 2];
+    const slot7Color_ = out.slot7Color; slot7Color_.r = f32[(ptr + 176) >> 2]; slot7Color_.g = f32[((ptr + 176) >> 2) + 1]; slot7Color_.b = f32[((ptr + 176) >> 2) + 2]; slot7Color_.a = f32[((ptr + 176) >> 2) + 3];
+    out.slot7Sprite = u32[(ptr + 192) >> 2];
+    out.slot7Scale = f32[(ptr + 196) >> 2];
+}
+
+export function writeStateVisuals(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: StateVisualsPtrData,
+): void {
+    u32[ptr >> 2] = data.transitionFlags;
+    f32[(ptr + 4) >> 2] = data.fadeDuration;
+    f32[(ptr + 8) >> 2] = data.slot0Color.r; f32[((ptr + 8) >> 2) + 1] = data.slot0Color.g; f32[((ptr + 8) >> 2) + 2] = data.slot0Color.b; f32[((ptr + 8) >> 2) + 3] = data.slot0Color.a;
+    u32[(ptr + 24) >> 2] = data.slot0Sprite;
+    f32[(ptr + 28) >> 2] = data.slot0Scale;
+    f32[(ptr + 32) >> 2] = data.slot1Color.r; f32[((ptr + 32) >> 2) + 1] = data.slot1Color.g; f32[((ptr + 32) >> 2) + 2] = data.slot1Color.b; f32[((ptr + 32) >> 2) + 3] = data.slot1Color.a;
+    u32[(ptr + 48) >> 2] = data.slot1Sprite;
+    f32[(ptr + 52) >> 2] = data.slot1Scale;
+    f32[(ptr + 56) >> 2] = data.slot2Color.r; f32[((ptr + 56) >> 2) + 1] = data.slot2Color.g; f32[((ptr + 56) >> 2) + 2] = data.slot2Color.b; f32[((ptr + 56) >> 2) + 3] = data.slot2Color.a;
+    u32[(ptr + 72) >> 2] = data.slot2Sprite;
+    f32[(ptr + 76) >> 2] = data.slot2Scale;
+    f32[(ptr + 80) >> 2] = data.slot3Color.r; f32[((ptr + 80) >> 2) + 1] = data.slot3Color.g; f32[((ptr + 80) >> 2) + 2] = data.slot3Color.b; f32[((ptr + 80) >> 2) + 3] = data.slot3Color.a;
+    u32[(ptr + 96) >> 2] = data.slot3Sprite;
+    f32[(ptr + 100) >> 2] = data.slot3Scale;
+    f32[(ptr + 104) >> 2] = data.slot4Color.r; f32[((ptr + 104) >> 2) + 1] = data.slot4Color.g; f32[((ptr + 104) >> 2) + 2] = data.slot4Color.b; f32[((ptr + 104) >> 2) + 3] = data.slot4Color.a;
+    u32[(ptr + 120) >> 2] = data.slot4Sprite;
+    f32[(ptr + 124) >> 2] = data.slot4Scale;
+    f32[(ptr + 128) >> 2] = data.slot5Color.r; f32[((ptr + 128) >> 2) + 1] = data.slot5Color.g; f32[((ptr + 128) >> 2) + 2] = data.slot5Color.b; f32[((ptr + 128) >> 2) + 3] = data.slot5Color.a;
+    u32[(ptr + 144) >> 2] = data.slot5Sprite;
+    f32[(ptr + 148) >> 2] = data.slot5Scale;
+    f32[(ptr + 152) >> 2] = data.slot6Color.r; f32[((ptr + 152) >> 2) + 1] = data.slot6Color.g; f32[((ptr + 152) >> 2) + 2] = data.slot6Color.b; f32[((ptr + 152) >> 2) + 3] = data.slot6Color.a;
+    u32[(ptr + 168) >> 2] = data.slot6Sprite;
+    f32[(ptr + 172) >> 2] = data.slot6Scale;
+    f32[(ptr + 176) >> 2] = data.slot7Color.r; f32[((ptr + 176) >> 2) + 1] = data.slot7Color.g; f32[((ptr + 176) >> 2) + 2] = data.slot7Color.b; f32[((ptr + 176) >> 2) + 3] = data.slot7Color.a;
+    u32[(ptr + 192) >> 2] = data.slot7Sprite;
+    f32[(ptr + 196) >> 2] = data.slot7Scale;
+}
+
+export function createStateVisualsData(): StateVisualsPtrData {
+    return {
+        transitionFlags: 0,
+        fadeDuration: 0,
+        slot0Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot0Sprite: 0,
+        slot0Scale: 0,
+        slot1Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot1Sprite: 0,
+        slot1Scale: 0,
+        slot2Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot2Sprite: 0,
+        slot2Scale: 0,
+        slot3Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot3Sprite: 0,
+        slot3Scale: 0,
+        slot4Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot4Sprite: 0,
+        slot4Scale: 0,
+        slot5Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot5Sprite: 0,
+        slot5Scale: 0,
+        slot6Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot6Sprite: 0,
+        slot6Scale: 0,
+        slot7Color: { r: 0, g: 0, b: 0, a: 0 },
+        slot7Sprite: 0,
+        slot7Scale: 0,
+    };
+}
+
 export interface TransformPtrData {
     position: Vec3;
     rotation: Vec4;
@@ -1335,6 +1459,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
+    StateVisuals: { fill: fillStateVisuals, write: writeStateVisuals, create: createStateVisualsData },
     Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },

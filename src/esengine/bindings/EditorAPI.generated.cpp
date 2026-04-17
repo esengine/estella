@@ -28,6 +28,8 @@
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/StateMachine.hpp"
+#include "../ecs/components/StateVisuals.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
@@ -74,6 +76,8 @@ std::vector<std::string> editor_getComponentNames() {
         "ShapeRenderer",
         "SpineAnimation",
         "Sprite",
+        "StateMachine",
+        "StateVisuals",
         "Transform",
         "UIInteraction",
         "UIMask",
@@ -383,6 +387,73 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"material","type":"asset","group":"Sprite"},
   {"key":"enabled","type":"bool","group":"Sprite"}
         ])JSON";
+    } else if (name == "StateMachine") {
+        return R"JSON([
+  {"key":"current","type":"string","group":"StateMachine"},
+  {"key":"previous","type":"string","group":"StateMachine"}
+        ])JSON";
+    } else if (name == "StateVisuals") {
+        return R"JSON([
+  {"key":"targetGraphic","type":"entity","group":"StateVisuals"},
+  {"key":"transitionFlags","type":"int","group":"StateVisuals"},
+  {"key":"fadeDuration","type":"float","group":"StateVisuals"},
+  {"key":"slot0Name","type":"string","group":"StateVisuals"},
+  {"key":"slot0Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot0Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot0Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot0Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot0Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot0Scale","type":"float","group":"StateVisuals"},
+  {"key":"slot1Name","type":"string","group":"StateVisuals"},
+  {"key":"slot1Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot1Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot1Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot1Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot1Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot1Scale","type":"float","group":"StateVisuals"},
+  {"key":"slot2Name","type":"string","group":"StateVisuals"},
+  {"key":"slot2Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot2Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot2Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot2Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot2Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot2Scale","type":"float","group":"StateVisuals"},
+  {"key":"slot3Name","type":"string","group":"StateVisuals"},
+  {"key":"slot3Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot3Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot3Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot3Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot3Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot3Scale","type":"float","group":"StateVisuals"},
+  {"key":"slot4Name","type":"string","group":"StateVisuals"},
+  {"key":"slot4Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot4Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot4Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot4Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot4Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot4Scale","type":"float","group":"StateVisuals"},
+  {"key":"slot5Name","type":"string","group":"StateVisuals"},
+  {"key":"slot5Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot5Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot5Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot5Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot5Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot5Scale","type":"float","group":"StateVisuals"},
+  {"key":"slot6Name","type":"string","group":"StateVisuals"},
+  {"key":"slot6Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot6Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot6Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot6Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot6Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot6Scale","type":"float","group":"StateVisuals"},
+  {"key":"slot7Name","type":"string","group":"StateVisuals"},
+  {"key":"slot7Color.r","type":"color","group":"StateVisuals"},
+  {"key":"slot7Color.g","type":"color","group":"StateVisuals"},
+  {"key":"slot7Color.b","type":"color","group":"StateVisuals"},
+  {"key":"slot7Color.a","type":"color","group":"StateVisuals"},
+  {"key":"slot7Sprite","type":"asset","group":"StateVisuals"},
+  {"key":"slot7Scale","type":"float","group":"StateVisuals"}
+        ])JSON";
     } else if (name == "Transform") {
         return R"JSON([
   {"key":"position.x","type":"float","group":"Transform"},
@@ -522,6 +593,12 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) reg.emplace<esengine::ecs::Sprite>(entity);
         return true;
+    } else if (name == "StateMachine") {
+        if (!reg.has<esengine::ecs::StateMachine>(entity)) reg.emplace<esengine::ecs::StateMachine>(entity);
+        return true;
+    } else if (name == "StateVisuals") {
+        if (!reg.has<esengine::ecs::StateVisuals>(entity)) reg.emplace<esengine::ecs::StateVisuals>(entity);
+        return true;
     } else if (name == "Transform") {
         if (!reg.has<esengine::ecs::Transform>(entity)) reg.emplace<esengine::ecs::Transform>(entity);
         return true;
@@ -589,6 +666,10 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
         if (reg.has<esengine::ecs::SpineAnimation>(entity)) { reg.remove<esengine::ecs::SpineAnimation>(entity); return true; }
     } else if (name == "Sprite") {
         if (reg.has<esengine::ecs::Sprite>(entity)) { reg.remove<esengine::ecs::Sprite>(entity); return true; }
+    } else if (name == "StateMachine") {
+        if (reg.has<esengine::ecs::StateMachine>(entity)) { reg.remove<esengine::ecs::StateMachine>(entity); return true; }
+    } else if (name == "StateVisuals") {
+        if (reg.has<esengine::ecs::StateVisuals>(entity)) { reg.remove<esengine::ecs::StateVisuals>(entity); return true; }
     } else if (name == "Transform") {
         if (reg.has<esengine::ecs::Transform>(entity)) { reg.remove<esengine::ecs::Transform>(entity); return true; }
     } else if (name == "UIInteraction") {
@@ -629,6 +710,8 @@ bool editor_hasComponent(Registry& reg, u32 e, const std::string& name) {
     if (name == "ShapeRenderer") return reg.has<esengine::ecs::ShapeRenderer>(entity);
     if (name == "SpineAnimation") return reg.has<esengine::ecs::SpineAnimation>(entity);
     if (name == "Sprite") return reg.has<esengine::ecs::Sprite>(entity);
+    if (name == "StateMachine") return reg.has<esengine::ecs::StateMachine>(entity);
+    if (name == "StateVisuals") return reg.has<esengine::ecs::StateVisuals>(entity);
     if (name == "Transform") return reg.has<esengine::ecs::Transform>(entity);
     if (name == "UIInteraction") return reg.has<esengine::ecs::UIInteraction>(entity);
     if (name == "UIMask") return reg.has<esengine::ecs::UIMask>(entity);
@@ -665,6 +748,8 @@ std::vector<std::string> editor_getComponents(Registry& reg, u32 e) {
     if (reg.has<esengine::ecs::ShapeRenderer>(entity)) result.push_back("ShapeRenderer");
     if (reg.has<esengine::ecs::SpineAnimation>(entity)) result.push_back("SpineAnimation");
     if (reg.has<esengine::ecs::Sprite>(entity)) result.push_back("Sprite");
+    if (reg.has<esengine::ecs::StateMachine>(entity)) result.push_back("StateMachine");
+    if (reg.has<esengine::ecs::StateVisuals>(entity)) result.push_back("StateVisuals");
     if (reg.has<esengine::ecs::Transform>(entity)) result.push_back("Transform");
     if (reg.has<esengine::ecs::UIInteraction>(entity)) result.push_back("UIInteraction");
     if (reg.has<esengine::ecs::UIMask>(entity)) result.push_back("UIMask");
@@ -908,6 +993,52 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "tileSize.y") { c.tileSize.y = value; }
         else if (field == "tileSpacing.x") { c.tileSpacing.x = value; }
         else if (field == "tileSpacing.y") { c.tileSpacing.y = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "StateVisuals") {
+        if (!reg.has<esengine::ecs::StateVisuals>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
+        if (field == "fadeDuration") { c.fadeDuration = value; }
+        else if (field == "slot0Color.r") { c.slot0Color.r = value; }
+        else if (field == "slot0Color.g") { c.slot0Color.g = value; }
+        else if (field == "slot0Color.b") { c.slot0Color.b = value; }
+        else if (field == "slot0Color.a") { c.slot0Color.a = value; }
+        else if (field == "slot0Scale") { c.slot0Scale = value; }
+        else if (field == "slot1Color.r") { c.slot1Color.r = value; }
+        else if (field == "slot1Color.g") { c.slot1Color.g = value; }
+        else if (field == "slot1Color.b") { c.slot1Color.b = value; }
+        else if (field == "slot1Color.a") { c.slot1Color.a = value; }
+        else if (field == "slot1Scale") { c.slot1Scale = value; }
+        else if (field == "slot2Color.r") { c.slot2Color.r = value; }
+        else if (field == "slot2Color.g") { c.slot2Color.g = value; }
+        else if (field == "slot2Color.b") { c.slot2Color.b = value; }
+        else if (field == "slot2Color.a") { c.slot2Color.a = value; }
+        else if (field == "slot2Scale") { c.slot2Scale = value; }
+        else if (field == "slot3Color.r") { c.slot3Color.r = value; }
+        else if (field == "slot3Color.g") { c.slot3Color.g = value; }
+        else if (field == "slot3Color.b") { c.slot3Color.b = value; }
+        else if (field == "slot3Color.a") { c.slot3Color.a = value; }
+        else if (field == "slot3Scale") { c.slot3Scale = value; }
+        else if (field == "slot4Color.r") { c.slot4Color.r = value; }
+        else if (field == "slot4Color.g") { c.slot4Color.g = value; }
+        else if (field == "slot4Color.b") { c.slot4Color.b = value; }
+        else if (field == "slot4Color.a") { c.slot4Color.a = value; }
+        else if (field == "slot4Scale") { c.slot4Scale = value; }
+        else if (field == "slot5Color.r") { c.slot5Color.r = value; }
+        else if (field == "slot5Color.g") { c.slot5Color.g = value; }
+        else if (field == "slot5Color.b") { c.slot5Color.b = value; }
+        else if (field == "slot5Color.a") { c.slot5Color.a = value; }
+        else if (field == "slot5Scale") { c.slot5Scale = value; }
+        else if (field == "slot6Color.r") { c.slot6Color.r = value; }
+        else if (field == "slot6Color.g") { c.slot6Color.g = value; }
+        else if (field == "slot6Color.b") { c.slot6Color.b = value; }
+        else if (field == "slot6Color.a") { c.slot6Color.a = value; }
+        else if (field == "slot6Scale") { c.slot6Scale = value; }
+        else if (field == "slot7Color.r") { c.slot7Color.r = value; }
+        else if (field == "slot7Color.g") { c.slot7Color.g = value; }
+        else if (field == "slot7Color.b") { c.slot7Color.b = value; }
+        else if (field == "slot7Color.a") { c.slot7Color.a = value; }
+        else if (field == "slot7Scale") { c.slot7Scale = value; }
         else { return false; }
         return true;
     } else if (comp == "Transform") {
@@ -1187,6 +1318,50 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "tileSize.y") { return c.tileSize.y; }
         else if (field == "tileSpacing.x") { return c.tileSpacing.x; }
         else if (field == "tileSpacing.y") { return c.tileSpacing.y; }
+    } else if (comp == "StateVisuals") {
+        if (!reg.has<esengine::ecs::StateVisuals>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
+        if (field == "fadeDuration") { return c.fadeDuration; }
+        else if (field == "slot0Color.r") { return c.slot0Color.r; }
+        else if (field == "slot0Color.g") { return c.slot0Color.g; }
+        else if (field == "slot0Color.b") { return c.slot0Color.b; }
+        else if (field == "slot0Color.a") { return c.slot0Color.a; }
+        else if (field == "slot0Scale") { return c.slot0Scale; }
+        else if (field == "slot1Color.r") { return c.slot1Color.r; }
+        else if (field == "slot1Color.g") { return c.slot1Color.g; }
+        else if (field == "slot1Color.b") { return c.slot1Color.b; }
+        else if (field == "slot1Color.a") { return c.slot1Color.a; }
+        else if (field == "slot1Scale") { return c.slot1Scale; }
+        else if (field == "slot2Color.r") { return c.slot2Color.r; }
+        else if (field == "slot2Color.g") { return c.slot2Color.g; }
+        else if (field == "slot2Color.b") { return c.slot2Color.b; }
+        else if (field == "slot2Color.a") { return c.slot2Color.a; }
+        else if (field == "slot2Scale") { return c.slot2Scale; }
+        else if (field == "slot3Color.r") { return c.slot3Color.r; }
+        else if (field == "slot3Color.g") { return c.slot3Color.g; }
+        else if (field == "slot3Color.b") { return c.slot3Color.b; }
+        else if (field == "slot3Color.a") { return c.slot3Color.a; }
+        else if (field == "slot3Scale") { return c.slot3Scale; }
+        else if (field == "slot4Color.r") { return c.slot4Color.r; }
+        else if (field == "slot4Color.g") { return c.slot4Color.g; }
+        else if (field == "slot4Color.b") { return c.slot4Color.b; }
+        else if (field == "slot4Color.a") { return c.slot4Color.a; }
+        else if (field == "slot4Scale") { return c.slot4Scale; }
+        else if (field == "slot5Color.r") { return c.slot5Color.r; }
+        else if (field == "slot5Color.g") { return c.slot5Color.g; }
+        else if (field == "slot5Color.b") { return c.slot5Color.b; }
+        else if (field == "slot5Color.a") { return c.slot5Color.a; }
+        else if (field == "slot5Scale") { return c.slot5Scale; }
+        else if (field == "slot6Color.r") { return c.slot6Color.r; }
+        else if (field == "slot6Color.g") { return c.slot6Color.g; }
+        else if (field == "slot6Color.b") { return c.slot6Color.b; }
+        else if (field == "slot6Color.a") { return c.slot6Color.a; }
+        else if (field == "slot6Scale") { return c.slot6Scale; }
+        else if (field == "slot7Color.r") { return c.slot7Color.r; }
+        else if (field == "slot7Color.g") { return c.slot7Color.g; }
+        else if (field == "slot7Color.b") { return c.slot7Color.b; }
+        else if (field == "slot7Color.a") { return c.slot7Color.a; }
+        else if (field == "slot7Scale") { return c.slot7Scale; }
     } else if (comp == "Transform") {
         if (!reg.has<esengine::ecs::Transform>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::Transform>(entity);
@@ -1385,6 +1560,13 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (field == "layer") { c.layer = static_cast<i32>(value); }
         else { return false; }
         return true;
+    } else if (comp == "StateVisuals") {
+        if (!reg.has<esengine::ecs::StateVisuals>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
+        if (field == "targetGraphic") { c.targetGraphic = static_cast<Entity>(value); }
+        else if (field == "transitionFlags") { c.transitionFlags = static_cast<u32>(value); }
+        else { return false; }
+        return true;
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
         auto& c = reg.get<esengine::ecs::UIMask>(entity);
@@ -1506,6 +1688,11 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         if (!reg.has<esengine::ecs::Sprite>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::Sprite>(entity);
         if (field == "layer") { return static_cast<i32>(c.layer); }
+    } else if (comp == "StateVisuals") {
+        if (!reg.has<esengine::ecs::StateVisuals>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
+        if (field == "targetGraphic") { return static_cast<i32>(static_cast<u32>(c.targetGraphic)); }
+        else if (field == "transitionFlags") { return static_cast<i32>(c.transitionFlags); }
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::UIMask>(entity);
