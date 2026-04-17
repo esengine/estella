@@ -24,6 +24,7 @@ import { discoverSceneAssets } from './discoverAssets';
 import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import type { AssetRegistry } from './AssetRegistry';
+import type { AssetRefCounter } from './AssetRefCounter';
 
 export interface AssetsOptions {
     backend: Backend;
@@ -90,6 +91,7 @@ export class Assets {
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
     private assetRegistry_: AssetRegistry | null = null;
+    private refCounter_: AssetRefCounter | null = null;
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend;
@@ -385,6 +387,7 @@ export class Assets {
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {
         const { textureHandles, materialHandles, fontHandles } = result;
+        const counter = this.refCounter_;
 
         for (const entity of sceneData.entities) {
             for (const comp of entity.components) {
@@ -404,7 +407,9 @@ export class Assets {
 
                     switch (type) {
                         case 'texture': {
-                            comp.data[field] = textureHandles.get(path) ?? 0;
+                            const handle = textureHandles.get(path) ?? 0;
+                            comp.data[field] = handle;
+                            if (counter && handle) counter.addTextureRef(path, entity.id);
                             const atlasInfo = this.catalog.getAtlasFrame(path);
                             if (atlasInfo) {
                                 comp.data['uvOffset'] = { x: atlasInfo.uvOffset[0], y: atlasInfo.uvOffset[1] };
@@ -418,12 +423,18 @@ export class Assets {
                             }
                             break;
                         }
-                        case 'material':
-                            comp.data[field] = materialHandles.get(path) ?? 0;
+                        case 'material': {
+                            const handle = materialHandles.get(path) ?? 0;
+                            comp.data[field] = handle;
+                            if (counter && handle) counter.addMaterialRef(path, entity.id);
                             break;
-                        case 'font':
-                            comp.data[field] = fontHandles.get(path) ?? 0;
+                        }
+                        case 'font': {
+                            const handle = fontHandles.get(path) ?? 0;
+                            comp.data[field] = handle;
+                            if (counter && handle) counter.addFontRef(path, entity.id);
                             break;
+                        }
                     }
                 }
             }
@@ -560,6 +571,23 @@ export class Assets {
 
     getAssetRegistry(): AssetRegistry | null {
         return this.assetRegistry_;
+    }
+
+    /**
+     * Attach an AssetRefCounter. When set, resolveSceneAssetPaths records
+     * which entity references which texture/material/font path as it
+     * hands out handles. Paired with `world.onDespawn(e =>
+     * counter.removeAllRefsForEntity(e))` — which AssetPlugin installs
+     * — this gives editor tools visibility into "who's holding X" and
+     * "does anything still need this asset?". Optional; null means no
+     * tracking (default, zero overhead).
+     */
+    setRefCounter(counter: AssetRefCounter): void {
+        this.refCounter_ = counter;
+    }
+
+    getRefCounter(): AssetRefCounter | null {
+        return this.refCounter_;
     }
 
     /**
