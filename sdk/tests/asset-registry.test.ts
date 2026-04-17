@@ -25,18 +25,21 @@ describe('AssetRegistry ref helpers', () => {
         expect(UUID_V4_REGEX.test('aaaa-1111-4111-8111-aaaaaaaaaaaa')).toBe(false);
     });
 
-    it('isUuidRef detects the @uuid: prefix + valid body', () => {
+    it('isUuidRef accepts canonical and bare forms', () => {
         expect(isUuidRef(`${UUID_REF_PREFIX}${UUID_A}`)).toBe(true);
-        expect(isUuidRef(UUID_A)).toBe(false);
+        expect(isUuidRef(UUID_A)).toBe(true);
         expect(isUuidRef('@uuid:garbage')).toBe(false);
         expect(isUuidRef('assets/player.png')).toBe(false);
+        expect(isUuidRef('not-a-uuid-at-all')).toBe(false);
         expect(isUuidRef(null)).toBe(false);
         expect(isUuidRef(123)).toBe(false);
     });
 
-    it('extractUuid returns the lower-cased UUID', () => {
+    it('extractUuid returns the lower-cased UUID for both forms', () => {
         expect(extractUuid(`${UUID_REF_PREFIX}${UUID_A}`)).toBe(UUID_A);
         expect(extractUuid(`${UUID_REF_PREFIX}${UUID_A.toUpperCase()}`)).toBe(UUID_A);
+        expect(extractUuid(UUID_A)).toBe(UUID_A);
+        expect(extractUuid(UUID_A.toUpperCase())).toBe(UUID_A);
         expect(extractUuid('assets/player.png')).toBeNull();
         expect(extractUuid(null)).toBeNull();
     });
