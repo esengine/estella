@@ -142,20 +142,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
-    FanLayout: {
-        defaults: {
-            radius: 600,
-            maxSpreadAngle: 30,
-            maxCardAngle: 8,
-            tiltFactor: 1,
-            cardSpacing: 0,
-            direction: 0,
-        },
-        assetFields: [],
-        entityFields: [],
-        colorFields: [],
-        animatableFields: [],
-    },
     FlexContainer: {
         defaults: {
             direction: 0,
@@ -232,19 +218,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
-    LayoutGroup: {
-        defaults: {
-            direction: 0,
-            spacing: 0,
-            padding: { left: 0, top: 0, right: 0, bottom: 0 },
-            childAlignment: 0,
-            reverseOrder: false,
-        },
-        assetFields: [],
-        entityFields: [],
-        colorFields: [],
-        animatableFields: [],
-    },
     ParticleEmitter: {
         defaults: {
             rate: 10,
@@ -303,16 +276,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             fixedRotation: false,
             bullet: false,
             enabled: true,
-        },
-        assetFields: [],
-        entityFields: [],
-        colorFields: [],
-        animatableFields: [],
-    },
-    Selectable: {
-        defaults: {
-            selected: false,
-            group: 0,
         },
         assetFields: [],
         entityFields: [],

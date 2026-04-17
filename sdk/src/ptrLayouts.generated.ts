@@ -112,17 +112,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'maskBits', type: 'u32', offset: 36 },
         ],
     },
-    FanLayout: {
-        ptrFn: 'getFanLayoutPtr',
-        fields: [
-            { name: 'radius', type: 'f32', offset: 0 },
-            { name: 'maxSpreadAngle', type: 'f32', offset: 4 },
-            { name: 'maxCardAngle', type: 'f32', offset: 8 },
-            { name: 'tiltFactor', type: 'f32', offset: 12 },
-            { name: 'cardSpacing', type: 'f32', offset: 16 },
-            { name: 'direction', type: 'u8', offset: 20 },
-        ],
-    },
     FlexContainer: {
         ptrFn: 'getFlexContainerPtr',
         fields: [
@@ -165,15 +154,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 0 },
             { name: 'blockRaycast', type: 'bool', offset: 1 },
             { name: 'raycastTarget', type: 'bool', offset: 2 },
-        ],
-    },
-    LayoutGroup: {
-        ptrFn: 'getLayoutGroupPtr',
-        fields: [
-            { name: 'direction', type: 'u8', offset: 0 },
-            { name: 'spacing', type: 'f32', offset: 4 },
-            { name: 'childAlignment', type: 'u8', offset: 8 },
-            { name: 'reverseOrder', type: 'bool', offset: 9 },
         ],
     },
     ParticleEmitter: {
@@ -232,13 +212,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'fixedRotation', type: 'bool', offset: 16 },
             { name: 'bullet', type: 'bool', offset: 17 },
             { name: 'enabled', type: 'bool', offset: 18 },
-        ],
-    },
-    Selectable: {
-        ptrFn: 'getSelectablePtr',
-        fields: [
-            { name: 'selected', type: 'bool', offset: 0 },
-            { name: 'group', type: 'i32', offset: 4 },
         ],
     },
     ShapeRenderer: {

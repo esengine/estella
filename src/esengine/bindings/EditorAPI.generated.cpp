@@ -14,17 +14,13 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
-#include "../ecs/components/FanLayout.hpp"
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/FlexItem.hpp"
 #include "../ecs/components/GridLayout.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
-#include "../ecs/components/LayoutGroup.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
-#include "../ecs/components/ScreenSpace.hpp"
-#include "../ecs/components/Selectable.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
@@ -62,17 +58,14 @@ std::vector<std::string> editor_getComponentNames() {
         "CircleCollider",
         "CapsuleCollider",
         "SegmentCollider",
-        "FanLayout",
         "FlexContainer",
         "FlexItem",
         "GridLayout",
         "Parent",
         "Children",
         "Interactable",
-        "LayoutGroup",
         "ParticleEmitter",
         "RigidBody",
-        "Selectable",
         "ShapeRenderer",
         "SpineAnimation",
         "Sprite",
@@ -187,15 +180,6 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"categoryBits","type":"int","group":"SegmentCollider"},
   {"key":"maskBits","type":"int","group":"SegmentCollider"}
         ])JSON";
-    } else if (name == "FanLayout") {
-        return R"JSON([
-  {"key":"radius","type":"float","group":"FanLayout"},
-  {"key":"maxSpreadAngle","type":"float","group":"FanLayout"},
-  {"key":"maxCardAngle","type":"float","group":"FanLayout"},
-  {"key":"tiltFactor","type":"float","group":"FanLayout"},
-  {"key":"cardSpacing","type":"float","group":"FanLayout"},
-  {"key":"direction","type":"enum","group":"FanLayout","values":["Up","Down"]}
-        ])JSON";
     } else if (name == "FlexContainer") {
         return R"JSON([
   {"key":"direction","type":"enum","group":"FlexContainer","values":["Row","Column","RowReverse","ColumnReverse"]},
@@ -250,17 +234,6 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"enabled","type":"bool","group":"Interactable"},
   {"key":"blockRaycast","type":"bool","group":"Interactable"},
   {"key":"raycastTarget","type":"bool","group":"Interactable"}
-        ])JSON";
-    } else if (name == "LayoutGroup") {
-        return R"JSON([
-  {"key":"direction","type":"enum","group":"LayoutGroup","values":["Horizontal","Vertical"]},
-  {"key":"spacing","type":"float","group":"LayoutGroup"},
-  {"key":"padding.left","type":"float","group":"LayoutGroup"},
-  {"key":"padding.top","type":"float","group":"LayoutGroup"},
-  {"key":"padding.right","type":"float","group":"LayoutGroup"},
-  {"key":"padding.bottom","type":"float","group":"LayoutGroup"},
-  {"key":"childAlignment","type":"enum","group":"LayoutGroup","values":["Start","Center","End"]},
-  {"key":"reverseOrder","type":"bool","group":"LayoutGroup"}
         ])JSON";
     } else if (name == "ParticleEmitter") {
         return R"JSON([
@@ -323,11 +296,6 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"fixedRotation","type":"bool","group":"RigidBody"},
   {"key":"bullet","type":"bool","group":"RigidBody"},
   {"key":"enabled","type":"bool","group":"RigidBody"}
-        ])JSON";
-    } else if (name == "Selectable") {
-        return R"JSON([
-  {"key":"selected","type":"bool","group":"Selectable"},
-  {"key":"group","type":"int","group":"Selectable"}
         ])JSON";
     } else if (name == "ShapeRenderer") {
         return R"JSON([
@@ -551,9 +519,6 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "SegmentCollider") {
         if (!reg.has<esengine::ecs::SegmentCollider>(entity)) reg.emplace<esengine::ecs::SegmentCollider>(entity);
         return true;
-    } else if (name == "FanLayout") {
-        if (!reg.has<esengine::ecs::FanLayout>(entity)) reg.emplace<esengine::ecs::FanLayout>(entity);
-        return true;
     } else if (name == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) reg.emplace<esengine::ecs::FlexContainer>(entity);
         return true;
@@ -572,17 +537,11 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "Interactable") {
         if (!reg.has<esengine::ecs::Interactable>(entity)) reg.emplace<esengine::ecs::Interactable>(entity);
         return true;
-    } else if (name == "LayoutGroup") {
-        if (!reg.has<esengine::ecs::LayoutGroup>(entity)) reg.emplace<esengine::ecs::LayoutGroup>(entity);
-        return true;
     } else if (name == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) reg.emplace<esengine::ecs::ParticleEmitter>(entity);
         return true;
     } else if (name == "RigidBody") {
         if (!reg.has<esengine::ecs::RigidBody>(entity)) reg.emplace<esengine::ecs::RigidBody>(entity);
-        return true;
-    } else if (name == "Selectable") {
-        if (!reg.has<esengine::ecs::Selectable>(entity)) reg.emplace<esengine::ecs::Selectable>(entity);
         return true;
     } else if (name == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) reg.emplace<esengine::ecs::ShapeRenderer>(entity);
@@ -638,8 +597,6 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
         if (reg.has<esengine::ecs::CapsuleCollider>(entity)) { reg.remove<esengine::ecs::CapsuleCollider>(entity); return true; }
     } else if (name == "SegmentCollider") {
         if (reg.has<esengine::ecs::SegmentCollider>(entity)) { reg.remove<esengine::ecs::SegmentCollider>(entity); return true; }
-    } else if (name == "FanLayout") {
-        if (reg.has<esengine::ecs::FanLayout>(entity)) { reg.remove<esengine::ecs::FanLayout>(entity); return true; }
     } else if (name == "FlexContainer") {
         if (reg.has<esengine::ecs::FlexContainer>(entity)) { reg.remove<esengine::ecs::FlexContainer>(entity); return true; }
     } else if (name == "FlexItem") {
@@ -652,14 +609,10 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
         if (reg.has<esengine::ecs::Children>(entity)) { reg.remove<esengine::ecs::Children>(entity); return true; }
     } else if (name == "Interactable") {
         if (reg.has<esengine::ecs::Interactable>(entity)) { reg.remove<esengine::ecs::Interactable>(entity); return true; }
-    } else if (name == "LayoutGroup") {
-        if (reg.has<esengine::ecs::LayoutGroup>(entity)) { reg.remove<esengine::ecs::LayoutGroup>(entity); return true; }
     } else if (name == "ParticleEmitter") {
         if (reg.has<esengine::ecs::ParticleEmitter>(entity)) { reg.remove<esengine::ecs::ParticleEmitter>(entity); return true; }
     } else if (name == "RigidBody") {
         if (reg.has<esengine::ecs::RigidBody>(entity)) { reg.remove<esengine::ecs::RigidBody>(entity); return true; }
-    } else if (name == "Selectable") {
-        if (reg.has<esengine::ecs::Selectable>(entity)) { reg.remove<esengine::ecs::Selectable>(entity); return true; }
     } else if (name == "ShapeRenderer") {
         if (reg.has<esengine::ecs::ShapeRenderer>(entity)) { reg.remove<esengine::ecs::ShapeRenderer>(entity); return true; }
     } else if (name == "SpineAnimation") {
@@ -696,17 +649,14 @@ bool editor_hasComponent(Registry& reg, u32 e, const std::string& name) {
     if (name == "CircleCollider") return reg.has<esengine::ecs::CircleCollider>(entity);
     if (name == "CapsuleCollider") return reg.has<esengine::ecs::CapsuleCollider>(entity);
     if (name == "SegmentCollider") return reg.has<esengine::ecs::SegmentCollider>(entity);
-    if (name == "FanLayout") return reg.has<esengine::ecs::FanLayout>(entity);
     if (name == "FlexContainer") return reg.has<esengine::ecs::FlexContainer>(entity);
     if (name == "FlexItem") return reg.has<esengine::ecs::FlexItem>(entity);
     if (name == "GridLayout") return reg.has<esengine::ecs::GridLayout>(entity);
     if (name == "Parent") return reg.has<esengine::ecs::Parent>(entity);
     if (name == "Children") return reg.has<esengine::ecs::Children>(entity);
     if (name == "Interactable") return reg.has<esengine::ecs::Interactable>(entity);
-    if (name == "LayoutGroup") return reg.has<esengine::ecs::LayoutGroup>(entity);
     if (name == "ParticleEmitter") return reg.has<esengine::ecs::ParticleEmitter>(entity);
     if (name == "RigidBody") return reg.has<esengine::ecs::RigidBody>(entity);
-    if (name == "Selectable") return reg.has<esengine::ecs::Selectable>(entity);
     if (name == "ShapeRenderer") return reg.has<esengine::ecs::ShapeRenderer>(entity);
     if (name == "SpineAnimation") return reg.has<esengine::ecs::SpineAnimation>(entity);
     if (name == "Sprite") return reg.has<esengine::ecs::Sprite>(entity);
@@ -734,17 +684,14 @@ std::vector<std::string> editor_getComponents(Registry& reg, u32 e) {
     if (reg.has<esengine::ecs::CircleCollider>(entity)) result.push_back("CircleCollider");
     if (reg.has<esengine::ecs::CapsuleCollider>(entity)) result.push_back("CapsuleCollider");
     if (reg.has<esengine::ecs::SegmentCollider>(entity)) result.push_back("SegmentCollider");
-    if (reg.has<esengine::ecs::FanLayout>(entity)) result.push_back("FanLayout");
     if (reg.has<esengine::ecs::FlexContainer>(entity)) result.push_back("FlexContainer");
     if (reg.has<esengine::ecs::FlexItem>(entity)) result.push_back("FlexItem");
     if (reg.has<esengine::ecs::GridLayout>(entity)) result.push_back("GridLayout");
     if (reg.has<esengine::ecs::Parent>(entity)) result.push_back("Parent");
     if (reg.has<esengine::ecs::Children>(entity)) result.push_back("Children");
     if (reg.has<esengine::ecs::Interactable>(entity)) result.push_back("Interactable");
-    if (reg.has<esengine::ecs::LayoutGroup>(entity)) result.push_back("LayoutGroup");
     if (reg.has<esengine::ecs::ParticleEmitter>(entity)) result.push_back("ParticleEmitter");
     if (reg.has<esengine::ecs::RigidBody>(entity)) result.push_back("RigidBody");
-    if (reg.has<esengine::ecs::Selectable>(entity)) result.push_back("Selectable");
     if (reg.has<esengine::ecs::ShapeRenderer>(entity)) result.push_back("ShapeRenderer");
     if (reg.has<esengine::ecs::SpineAnimation>(entity)) result.push_back("SpineAnimation");
     if (reg.has<esengine::ecs::Sprite>(entity)) result.push_back("Sprite");
@@ -847,16 +794,6 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "restitution") { c.restitution = value; }
         else { return false; }
         return true;
-    } else if (comp == "FanLayout") {
-        if (!reg.has<esengine::ecs::FanLayout>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FanLayout>(entity);
-        if (field == "radius") { c.radius = value; }
-        else if (field == "maxSpreadAngle") { c.maxSpreadAngle = value; }
-        else if (field == "maxCardAngle") { c.maxCardAngle = value; }
-        else if (field == "tiltFactor") { c.tiltFactor = value; }
-        else if (field == "cardSpacing") { c.cardSpacing = value; }
-        else { return false; }
-        return true;
     } else if (comp == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
         auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
@@ -893,16 +830,6 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "itemSize.y") { c.itemSize.y = value; }
         else if (field == "spacing.x") { c.spacing.x = value; }
         else if (field == "spacing.y") { c.spacing.y = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "LayoutGroup") {
-        if (!reg.has<esengine::ecs::LayoutGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LayoutGroup>(entity);
-        if (field == "spacing") { c.spacing = value; }
-        else if (field == "padding.left") { c.padding.left = value; }
-        else if (field == "padding.top") { c.padding.top = value; }
-        else if (field == "padding.right") { c.padding.right = value; }
-        else if (field == "padding.bottom") { c.padding.bottom = value; }
         else { return false; }
         return true;
     } else if (comp == "ParticleEmitter") {
@@ -1190,14 +1117,6 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "density") { return c.density; }
         else if (field == "friction") { return c.friction; }
         else if (field == "restitution") { return c.restitution; }
-    } else if (comp == "FanLayout") {
-        if (!reg.has<esengine::ecs::FanLayout>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::FanLayout>(entity);
-        if (field == "radius") { return c.radius; }
-        else if (field == "maxSpreadAngle") { return c.maxSpreadAngle; }
-        else if (field == "maxCardAngle") { return c.maxCardAngle; }
-        else if (field == "tiltFactor") { return c.tiltFactor; }
-        else if (field == "cardSpacing") { return c.cardSpacing; }
     } else if (comp == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
@@ -1230,14 +1149,6 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "itemSize.y") { return c.itemSize.y; }
         else if (field == "spacing.x") { return c.spacing.x; }
         else if (field == "spacing.y") { return c.spacing.y; }
-    } else if (comp == "LayoutGroup") {
-        if (!reg.has<esengine::ecs::LayoutGroup>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::LayoutGroup>(entity);
-        if (field == "spacing") { return c.spacing; }
-        else if (field == "padding.left") { return c.padding.left; }
-        else if (field == "padding.top") { return c.padding.top; }
-        else if (field == "padding.right") { return c.padding.right; }
-        else if (field == "padding.bottom") { return c.padding.bottom; }
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1471,12 +1382,6 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
-    } else if (comp == "FanLayout") {
-        if (!reg.has<esengine::ecs::FanLayout>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FanLayout>(entity);
-        if (field == "direction") { c.direction = static_cast<FanDirection>(value); }
-        else { return false; }
-        return true;
     } else if (comp == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
         auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
@@ -1507,13 +1412,6 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (field == "entity") { c.entity = static_cast<Entity>(value); }
         else { return false; }
         return true;
-    } else if (comp == "LayoutGroup") {
-        if (!reg.has<esengine::ecs::LayoutGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LayoutGroup>(entity);
-        if (field == "direction") { c.direction = static_cast<LayoutDirection>(value); }
-        else if (field == "childAlignment") { c.childAlignment = static_cast<ChildAlignment>(value); }
-        else { return false; }
-        return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
         auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1533,12 +1431,6 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
         auto& c = reg.get<esengine::ecs::RigidBody>(entity);
         if (field == "bodyType") { c.bodyType = static_cast<BodyType>(value); }
-        else { return false; }
-        return true;
-    } else if (comp == "Selectable") {
-        if (!reg.has<esengine::ecs::Selectable>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Selectable>(entity);
-        if (field == "group") { c.group = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "ShapeRenderer") {
@@ -1623,10 +1515,6 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
         if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
         else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
-    } else if (comp == "FanLayout") {
-        if (!reg.has<esengine::ecs::FanLayout>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::FanLayout>(entity);
-        if (field == "direction") { return static_cast<i32>(c.direction); }
     } else if (comp == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
@@ -1649,11 +1537,6 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         if (!reg.has<esengine::ecs::Parent>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::Parent>(entity);
         if (field == "entity") { return static_cast<i32>(static_cast<u32>(c.entity)); }
-    } else if (comp == "LayoutGroup") {
-        if (!reg.has<esengine::ecs::LayoutGroup>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::LayoutGroup>(entity);
-        if (field == "direction") { return static_cast<i32>(c.direction); }
-        else if (field == "childAlignment") { return static_cast<i32>(c.childAlignment); }
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1671,10 +1554,6 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         if (!reg.has<esengine::ecs::RigidBody>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
         if (field == "bodyType") { return static_cast<i32>(c.bodyType); }
-    } else if (comp == "Selectable") {
-        if (!reg.has<esengine::ecs::Selectable>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::Selectable>(entity);
-        if (field == "group") { return static_cast<i32>(c.group); }
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
@@ -1758,12 +1637,6 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "raycastTarget") { c.raycastTarget = value; }
         else { return false; }
         return true;
-    } else if (comp == "LayoutGroup") {
-        if (!reg.has<esengine::ecs::LayoutGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LayoutGroup>(entity);
-        if (field == "reverseOrder") { c.reverseOrder = value; }
-        else { return false; }
-        return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
         auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1779,12 +1652,6 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "fixedRotation") { c.fixedRotation = value; }
         else if (field == "bullet") { c.bullet = value; }
         else if (field == "enabled") { c.enabled = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "Selectable") {
-        if (!reg.has<esengine::ecs::Selectable>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Selectable>(entity);
-        if (field == "selected") { c.selected = value; }
         else { return false; }
         return true;
     } else if (comp == "ShapeRenderer") {
@@ -1875,10 +1742,6 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "enabled") { return c.enabled; }
         else if (field == "blockRaycast") { return c.blockRaycast; }
         else if (field == "raycastTarget") { return c.raycastTarget; }
-    } else if (comp == "LayoutGroup") {
-        if (!reg.has<esengine::ecs::LayoutGroup>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::LayoutGroup>(entity);
-        if (field == "reverseOrder") { return c.reverseOrder; }
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1892,10 +1755,6 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "fixedRotation") { return c.fixedRotation; }
         else if (field == "bullet") { return c.bullet; }
         else if (field == "enabled") { return c.enabled; }
-    } else if (comp == "Selectable") {
-        if (!reg.has<esengine::ecs::Selectable>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::Selectable>(entity);
-        if (field == "selected") { return c.selected; }
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);

@@ -15,17 +15,13 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
-#include "../ecs/components/FanLayout.hpp"
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/FlexItem.hpp"
 #include "../ecs/components/GridLayout.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
-#include "../ecs/components/LayoutGroup.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
-#include "../ecs/components/ScreenSpace.hpp"
-#include "../ecs/components/Selectable.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
@@ -106,10 +102,6 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Shrink", esengine::ecs::CanvasScaleMode::Shrink)
         .value("Match", esengine::ecs::CanvasScaleMode::Match);
 
-    enum_<esengine::ecs::FanDirection>("FanDirection")
-        .value("Up", esengine::ecs::FanDirection::Up)
-        .value("Down", esengine::ecs::FanDirection::Down);
-
     enum_<esengine::ecs::FlexDirection>("FlexDirection")
         .value("Row", esengine::ecs::FlexDirection::Row)
         .value("Column", esengine::ecs::FlexDirection::Column)
@@ -152,15 +144,6 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::GridDirection>("GridDirection")
         .value("Vertical", esengine::ecs::GridDirection::Vertical)
         .value("Horizontal", esengine::ecs::GridDirection::Horizontal);
-
-    enum_<esengine::ecs::LayoutDirection>("LayoutDirection")
-        .value("Horizontal", esengine::ecs::LayoutDirection::Horizontal)
-        .value("Vertical", esengine::ecs::LayoutDirection::Vertical);
-
-    enum_<esengine::ecs::ChildAlignment>("ChildAlignment")
-        .value("Start", esengine::ecs::ChildAlignment::Start)
-        .value("Center", esengine::ecs::ChildAlignment::Center)
-        .value("End", esengine::ecs::ChildAlignment::End);
 
     enum_<esengine::ecs::EmitterShape>("EmitterShape")
         .value("Point", esengine::ecs::EmitterShape::Point)
@@ -298,37 +281,6 @@ CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
     js.scaleMode = static_cast<i32>(c.scaleMode);
     js.matchWidthOrHeight = c.matchWidthOrHeight;
     js.backgroundColor = c.backgroundColor;
-    return js;
-}
-
-struct FanLayoutJS {
-    f32 radius;
-    f32 maxSpreadAngle;
-    f32 maxCardAngle;
-    f32 tiltFactor;
-    f32 cardSpacing;
-    i32 direction;
-};
-
-esengine::ecs::FanLayout fanlayoutFromJS(const FanLayoutJS& js) {
-    esengine::ecs::FanLayout c;
-    c.radius = js.radius;
-    c.maxSpreadAngle = js.maxSpreadAngle;
-    c.maxCardAngle = js.maxCardAngle;
-    c.tiltFactor = js.tiltFactor;
-    c.cardSpacing = js.cardSpacing;
-    c.direction = static_cast<FanDirection>(js.direction);
-    return c;
-}
-
-FanLayoutJS fanlayoutToJS(const esengine::ecs::FanLayout& c) {
-    FanLayoutJS js;
-    js.radius = c.radius;
-    js.maxSpreadAngle = c.maxSpreadAngle;
-    js.maxCardAngle = c.maxCardAngle;
-    js.tiltFactor = c.tiltFactor;
-    js.cardSpacing = c.cardSpacing;
-    js.direction = static_cast<i32>(c.direction);
     return js;
 }
 
@@ -471,34 +423,6 @@ ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
     ChildrenJS js;
     js.entities.reserve(c.entities.size());
     for (auto e : c.entities) js.entities.push_back(static_cast<u32>(e));
-    return js;
-}
-
-struct LayoutGroupJS {
-    i32 direction;
-    f32 spacing;
-    Padding padding;
-    i32 childAlignment;
-    bool reverseOrder;
-};
-
-esengine::ecs::LayoutGroup layoutgroupFromJS(const LayoutGroupJS& js) {
-    esengine::ecs::LayoutGroup c;
-    c.direction = static_cast<LayoutDirection>(js.direction);
-    c.spacing = js.spacing;
-    c.padding = js.padding;
-    c.childAlignment = static_cast<ChildAlignment>(js.childAlignment);
-    c.reverseOrder = js.reverseOrder;
-    return c;
-}
-
-LayoutGroupJS layoutgroupToJS(const esengine::ecs::LayoutGroup& c) {
-    LayoutGroupJS js;
-    js.direction = static_cast<i32>(c.direction);
-    js.spacing = c.spacing;
-    js.padding = c.padding;
-    js.childAlignment = static_cast<i32>(c.childAlignment);
-    js.reverseOrder = c.reverseOrder;
     return js;
 }
 
@@ -975,14 +899,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
         .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
 
-    value_object<FanLayoutJS>("FanLayout")
-        .field("radius", &FanLayoutJS::radius)
-        .field("maxSpreadAngle", &FanLayoutJS::maxSpreadAngle)
-        .field("maxCardAngle", &FanLayoutJS::maxCardAngle)
-        .field("tiltFactor", &FanLayoutJS::tiltFactor)
-        .field("cardSpacing", &FanLayoutJS::cardSpacing)
-        .field("direction", &FanLayoutJS::direction);
-
     value_object<FlexContainerJS>("FlexContainer")
         .field("direction", &FlexContainerJS::direction)
         .field("wrap", &FlexContainerJS::wrap)
@@ -1022,13 +938,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("enabled", &esengine::ecs::Interactable::enabled)
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
         .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
-
-    value_object<LayoutGroupJS>("LayoutGroup")
-        .field("direction", &LayoutGroupJS::direction)
-        .field("spacing", &LayoutGroupJS::spacing)
-        .field("padding", &LayoutGroupJS::padding)
-        .field("childAlignment", &LayoutGroupJS::childAlignment)
-        .field("reverseOrder", &LayoutGroupJS::reverseOrder);
 
     value_object<ParticleEmitterJS>("ParticleEmitter")
         .field("rate", &ParticleEmitterJS::rate)
@@ -1081,12 +990,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("fixedRotation", &RigidBodyJS::fixedRotation)
         .field("bullet", &RigidBodyJS::bullet)
         .field("enabled", &RigidBodyJS::enabled);
-
-    value_object<esengine::ecs::ScreenSpace>("ScreenSpace");
-
-    value_object<esengine::ecs::Selectable>("Selectable")
-        .field("selected", &esengine::ecs::Selectable::selected)
-        .field("group", &esengine::ecs::Selectable::group);
 
     value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
         .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
@@ -1372,26 +1275,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::SegmentCollider>(entity);
         }))
 
-        // FanLayout
-        .function("hasFanLayout", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::FanLayout>(static_cast<Entity>(e));
-        }))
-        .function("getFanLayout", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FanLayout>(entity)) return FanLayoutJS{};
-            return fanlayoutToJS(r.get<esengine::ecs::FanLayout>(entity));
-        }))
-        .function("addFanLayout", optional_override([](Registry& r, u32 e, const FanLayoutJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::FanLayout>(entity, fanlayoutFromJS(js));
-        }))
-        .function("removeFanLayout", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FanLayout>(entity)) return;
-            r.remove<esengine::ecs::FanLayout>(entity);
-        }))
-
         // FlexContainer
         .function("hasFlexContainer", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
@@ -1513,26 +1396,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Interactable>(entity);
         }))
 
-        // LayoutGroup
-        .function("hasLayoutGroup", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::LayoutGroup>(static_cast<Entity>(e));
-        }))
-        .function("getLayoutGroup", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::LayoutGroup>(entity)) return LayoutGroupJS{};
-            return layoutgroupToJS(r.get<esengine::ecs::LayoutGroup>(entity));
-        }))
-        .function("addLayoutGroup", optional_override([](Registry& r, u32 e, const LayoutGroupJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::LayoutGroup>(entity, layoutgroupFromJS(js));
-        }))
-        .function("removeLayoutGroup", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::LayoutGroup>(entity)) return;
-            r.remove<esengine::ecs::LayoutGroup>(entity);
-        }))
-
         // ParticleEmitter
         .function("hasParticleEmitter", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
@@ -1571,48 +1434,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return;
             r.remove<esengine::ecs::RigidBody>(entity);
-        }))
-
-        // ScreenSpace
-        .function("hasScreenSpace", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
-        }))
-        .function("getScreenSpace", optional_override([](Registry& r, u32 e) -> esengine::ecs::ScreenSpace& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::ScreenSpace s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::ScreenSpace>(entity)) return s_dummy;
-            return r.get<esengine::ecs::ScreenSpace>(entity);
-        }), allow_raw_pointers())
-        .function("addScreenSpace", optional_override([](Registry& r, u32 e, const esengine::ecs::ScreenSpace& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::ScreenSpace>(entity, c);
-        }))
-        .function("removeScreenSpace", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::ScreenSpace>(entity)) return;
-            r.remove<esengine::ecs::ScreenSpace>(entity);
-        }))
-
-        // Selectable
-        .function("hasSelectable", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Selectable>(static_cast<Entity>(e));
-        }))
-        .function("getSelectable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Selectable& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::Selectable s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return s_dummy;
-            return r.get<esengine::ecs::Selectable>(entity);
-        }), allow_raw_pointers())
-        .function("addSelectable", optional_override([](Registry& r, u32 e, const esengine::ecs::Selectable& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Selectable>(entity, c);
-        }))
-        .function("removeSelectable", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Selectable>(entity)) return;
-            r.remove<esengine::ecs::Selectable>(entity);
         }))
 
         // ShapeRenderer
