@@ -10,8 +10,6 @@ import { playModeOnly } from '../env';
 import { Interactable } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
-import { Button, ButtonState } from './Button';
-import type { ButtonData } from './Button';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import type { UIEventType } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
@@ -19,9 +17,7 @@ import type { UICameraData } from './UICameraInfo';
 import type { InteractableData } from './Interactable';
 import { screenToWorld, createInvVPCache } from './uiMath';
 import { platformDevicePixelRatio } from '../platform';
-import { applyColorTransition, applyDefaultTint, ensureComponent, walkParentChain, setEntityColor } from './uiHelpers';
-import { Image } from './Image';
-import type { ImageData } from './Image';
+import { ensureComponent, walkParentChain } from './uiHelpers';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { UILayoutGeneration } from './UILayoutGeneration';
 import { SystemLabel, PluginName } from '../systemLabels';
@@ -55,7 +51,6 @@ export class UIInteractionPlugin implements Plugin {
 
     build(app: App): void {
         registerComponent('Interactable', Interactable);
-        registerComponent('Button', Button);
 
         const world = app.world;
         const module = app.wasmModule as ESEngineModule;
@@ -172,59 +167,6 @@ export class UIInteractionPlugin implements Plugin {
             },
             { name: 'UIInteractionSystem' }
         ), { runAfter: [SystemLabel.UILayout], runIf: playModeOnly });
-
-        const buttonInitialized = new Set<Entity>();
-
-        app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [],
-            () => {
-                for (const e of buttonInitialized) {
-                    if (!world.valid(e)) buttonInitialized.delete(e);
-                }
-                const buttonEntities = world.getEntitiesWithComponents([Button]);
-                for (const entity of buttonEntities) {
-                    ensureComponent(world, entity, Interactable, { enabled: true });
-                    if (!world.has(entity, UIInteraction)) continue;
-
-                    const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                    const button = world.get(entity, Button) as ButtonData;
-                    const interactable = world.get(entity, Interactable) as InteractableData;
-
-                    const isFirstFrame = !buttonInitialized.has(entity);
-                    const prevState = button.state;
-
-                    if (!interactable.enabled) {
-                        button.state = ButtonState.Disabled;
-                    } else if (interaction.pressed) {
-                        button.state = ButtonState.Pressed;
-                    } else if (interaction.hovered) {
-                        button.state = ButtonState.Hovered;
-                    } else {
-                        button.state = ButtonState.Normal;
-                    }
-
-                    if (isFirstFrame) {
-                        buttonInitialized.add(entity);
-                    }
-
-                    if ((isFirstFrame || prevState !== button.state) && button.transition) {
-                        const color = applyColorTransition(
-                            button.transition,
-                            interactable.enabled,
-                            interaction.pressed,
-                            interaction.hovered,
-                        );
-                        setEntityColor(world, entity, color);
-                    } else if ((isFirstFrame || prevState !== button.state) && !button.transition
-                        && world.has(entity, Image)) {
-                        const image = world.get(entity, Image) as ImageData;
-                        const tinted = applyDefaultTint(image.color, interactable.enabled, interaction.pressed, interaction.hovered);
-                        setEntityColor(world, entity, tinted);
-                    }
-                }
-            },
-            { name: 'ButtonSystem' }
-        ));
     }
 }
 

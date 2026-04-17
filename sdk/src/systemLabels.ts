@@ -12,14 +12,9 @@ export const PluginName = {
     Image: 'image',
     Focus: 'focus',
     ScrollView: 'scrollView',
-    Dropdown: 'dropdown',
-    ProgressBar: 'progressBar',
-    Slider: 'slider',
-    Toggle: 'toggle',
     Drag: 'drag',
     SafeArea: 'safeArea',
     TextInput: 'textInput',
-    StateMachine: 'stateMachine',
 } as const;
 
 export const SystemLabel = {
@@ -27,7 +22,6 @@ export const SystemLabel = {
     UILayoutLate: 'UILayoutLateSystem',
     UIRenderOrder: 'UIRenderOrderSystem',
     UIInteraction: 'UIInteractionSystem',
-    Button: 'ButtonSystem',
     ScrollView: 'ScrollViewSystem',
     ListView: 'ListViewSystem',
     Text: 'TextSystem',
