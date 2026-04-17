@@ -23,6 +23,7 @@ import { getAssetFields } from './AssetFieldRegistry';
 import { discoverSceneAssets } from './discoverAssets';
 import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
+import type { AssetRegistry } from './AssetRegistry';
 
 export interface AssetsOptions {
     backend: Backend;
@@ -69,6 +70,7 @@ export class Assets {
     private genericCache_ = new Map<string, AsyncCache<unknown>>();
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
+    private assetRegistry_: AssetRegistry | null = null;
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend;
@@ -271,7 +273,13 @@ export class Assets {
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
     ): Promise<SceneAssetResult> {
-        const discovered = discoverSceneAssets(sceneData);
+        const discovered = discoverSceneAssets(sceneData, (ref) => this.resolveRef(ref));
+        if (discovered.unresolved.length > 0) {
+            console.warn(
+                `[Assets] ${discovered.unresolved.length} unresolved asset ref(s):`,
+                discovered.unresolved,
+            );
+        }
         const texturePaths = discovered.byType.get('texture') ?? new Set<string>();
         const materialPaths = discovered.byType.get('material') ?? new Set<string>();
         const fontPaths = discovered.byType.get('font') ?? new Set<string>();
@@ -347,13 +355,22 @@ export class Assets {
             for (const comp of entity.components) {
                 const fields = getAssetFields(comp.type);
                 for (const { field, type } of fields) {
-                    const value = comp.data[field];
-                    if (typeof value !== 'string' || !value) continue;
+                    const ref = comp.data[field];
+                    if (typeof ref !== 'string' || !ref) continue;
+
+                    // UUID refs resolve to their current path; plain paths
+                    // pass through. Unknown UUID → null, handle will be 0
+                    // (caller's getter returns 0 when the key is missing).
+                    const path = this.resolveRef(ref);
+                    if (path == null) {
+                        comp.data[field] = 0;
+                        continue;
+                    }
 
                     switch (type) {
                         case 'texture': {
-                            comp.data[field] = textureHandles.get(value) ?? 0;
-                            const atlasInfo = this.catalog.getAtlasFrame(value);
+                            comp.data[field] = textureHandles.get(path) ?? 0;
+                            const atlasInfo = this.catalog.getAtlasFrame(path);
                             if (atlasInfo) {
                                 comp.data['uvOffset'] = { x: atlasInfo.uvOffset[0], y: atlasInfo.uvOffset[1] };
                                 comp.data['uvScale'] = { x: atlasInfo.uvScale[0], y: atlasInfo.uvScale[1] };
@@ -367,10 +384,10 @@ export class Assets {
                             break;
                         }
                         case 'material':
-                            comp.data[field] = materialHandles.get(value) ?? 0;
+                            comp.data[field] = materialHandles.get(path) ?? 0;
                             break;
                         case 'font':
-                            comp.data[field] = fontHandles.get(value) ?? 0;
+                            comp.data[field] = fontHandles.get(path) ?? 0;
                             break;
                     }
                 }
@@ -461,6 +478,32 @@ export class Assets {
 
     getAssetRefResolver(): AssetRefResolver | null {
         return this.assetRefResolver_;
+    }
+
+    /**
+     * Attach an AssetRegistry so that scene/prefab refs of the form
+     * `"@uuid:..."` are resolved to current paths before loading.
+     * Convenience over `setAssetRefResolver`: sets the resolver to
+     * `registry.resolveRef`.
+     */
+    setAssetRegistry(registry: AssetRegistry): void {
+        this.assetRegistry_ = registry;
+        this.assetRefResolver_ = (ref) => registry.resolveRef(ref);
+    }
+
+    getAssetRegistry(): AssetRegistry | null {
+        return this.assetRegistry_;
+    }
+
+    /**
+     * Resolve any serialized asset ref (UUID or plain path) to a concrete
+     * path. Returns null when a UUID ref can't be matched to a known
+     * asset. Without a registry/resolver configured, refs pass through
+     * unchanged — legacy path-only scenes keep working.
+     */
+    resolveRef(ref: string): string | null {
+        if (this.assetRefResolver_) return this.assetRefResolver_(ref);
+        return ref;
     }
 
     // =========================================================================
