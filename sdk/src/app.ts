@@ -430,14 +430,16 @@ export class App {
         }
 
         this.running_ = true;
-        this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
-        if (this.statsEnabled_) {
-            this.runner_.setTimingEnabled(true);
+        if (!this.runner_) {
+            this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
+            if (this.statsEnabled_) {
+                this.runner_.setTimingEnabled(true);
+            }
+            if (!this.resources_.has(Time)) {
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
+            }
+            this.finishPlugins_();
         }
-
-        this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
-
-        this.finishPlugins_();
         await this.flushStartupSystems_();
 
         this.lastTime_ = platformNow();
@@ -700,7 +702,6 @@ export class App {
         if (startup.length === 0) return;
         this.flushing_startup_ = true;
         try {
-            this.sortedSystemsCache_.delete(Schedule.Startup);
             await this.runSchedule(Schedule.Startup);
             startup.length = 0;
             this.sortedSystemsCache_.delete(Schedule.Startup);
