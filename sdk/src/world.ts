@@ -3,7 +3,7 @@
  * @brief   ECS World with C++ Registry integration
  */
 
-import { Entity } from './types';
+import { Entity, entityGeneration, entityIndex, makeEntity } from './types';
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getComponentRegistry, Name } from './component';
 import type { CppRegistry, ESEngineModule } from './wasm';
 import { handleWasmError } from './wasmError';
@@ -71,8 +71,9 @@ export class World {
     readonly changes_ = new ChangeTracker();
     readonly queries_ = new QueryCache();
     private entities_ = new Map<Entity, number>();
+    private indexGeneration_ = new Map<number, number>();  // index -> current generation (for isStale detection)
     private iterationDepth_ = 0;
-    private nextEntityId_ = 0;
+    private nextEntityIndex_ = 0;  // pure-JS fallback: monotonic index counter
     private nextGeneration_ = 0;
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
@@ -129,7 +130,12 @@ export class World {
                 throw e;
             }
         } else {
-            entity = (++this.nextEntityId_) as Entity;
+            // Pure-JS fallback: pack into the same {generation(12) | index(20)}
+            // layout as C++ so Entity helpers (entityIndex/entityGeneration)
+            // give consistent results whether or not WASM is connected.
+            const idx = ++this.nextEntityIndex_;
+            const gen = (this.indexGeneration_.get(idx) ?? 0);
+            entity = makeEntity(idx, gen);
         }
 
         let generation = 0;
@@ -142,6 +148,7 @@ export class World {
             generation = ++this.nextGeneration_;
         }
         this.entities_.set(entity, generation);
+        this.indexGeneration_.set(entityIndex(entity), entityGeneration(entity));
         this.queries_.markStructuralChange();
 
         if (name !== undefined) {
@@ -206,6 +213,19 @@ export class World {
 
     valid(entity: Entity): boolean {
         return this.entities_.has(entity);
+    }
+
+    /**
+     * True if `entity` refers to a slot that has been recycled — its index is
+     * currently live, but held by a *different* generation. Useful for
+     * diagnostic logs: `valid()` alone can't distinguish "never existed" from
+     * "was despawned and its slot reassigned" since both return false.
+     */
+    isStale(entity: Entity): boolean {
+        if (this.entities_.has(entity)) return false;
+        const idx = entityIndex(entity);
+        const currentGen = this.indexGeneration_.get(idx);
+        return currentGen !== undefined && currentGen !== entityGeneration(entity);
     }
 
     entityCount(): number {
