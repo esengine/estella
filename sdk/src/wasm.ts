@@ -83,6 +83,12 @@ export interface ESEngineModule {
             minorVersion: number;
             enableExtensionsByDefault?: boolean;
         }): number;
+        /** Emscripten-internal: active GL context record (populated after registerContext). */
+        currentContext?: { GLctx: WebGLRenderingContext | WebGL2RenderingContext };
+        /** Emscripten-internal: allocate a new handle id into the given object pool. */
+        getNewId(pool: Record<number, unknown>): number;
+        /** Emscripten-internal: texture object pool keyed by handle id. */
+        textures: Record<number, WebGLTexture>;
     };
     renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
@@ -99,6 +105,33 @@ export interface ESEngineModule {
     spine_getAnimations?(entity: number): string[];
     spine_getSkins?(entity: number): string[];
     spine_setNeedsReload?(registry: CppRegistry, entity: number, value: boolean): void;
+
+    // Spine native (4.2) constraint + event accessors — only present when
+    // the 4.2 runtime is compiled in; optional on module interface.
+    spine_native_listConstraints?(entity: number): { ik: string[]; transform: string[]; path: string[] } | null;
+    spine_native_getTransformConstraintMix?(entity: number, name: string): {
+        mixRotate: number; mixX: number; mixY: number;
+        mixScaleX: number; mixScaleY: number; mixShearY: number;
+    } | null;
+    spine_native_setTransformConstraintMix?(
+        entity: number, name: string,
+        rotate: number, x: number, y: number,
+        scaleX: number, scaleY: number, shearY: number,
+    ): boolean;
+    spine_native_getPathConstraintMix?(entity: number, name: string): {
+        position: number; spacing: number; mixRotate: number; mixX: number; mixY: number;
+    } | null;
+    spine_native_setPathConstraintMix?(
+        entity: number, name: string,
+        position: number, spacing: number,
+        rotate: number, x: number, y: number,
+    ): boolean;
+    spine_native_getEventCount?(): number;
+    spine_native_getEventRecord?(index: number): {
+        entity: number; animationName: string; eventName: string; stringValue: string;
+    } | null;
+    spine_native_getEventBuffer?(): number;
+    spine_native_clearEvents?(): void;
     renderer_submitSpineBatch?(
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,

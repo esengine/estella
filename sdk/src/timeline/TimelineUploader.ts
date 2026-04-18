@@ -25,13 +25,13 @@ function resolveField(component: string, property: string): AnimTargetField {
 function allocString(module: ESEngineModule, str: string): [number, number] {
     const encoder = new TextEncoder();
     const bytes = encoder.encode(str);
-    const ptr = (module as any)._malloc(bytes.length);
-    new Uint8Array((module as any).HEAPU8.buffer, ptr, bytes.length).set(bytes);
+    const ptr = module._malloc(bytes.length);
+    new Uint8Array(module.HEAPU8.buffer, ptr, bytes.length).set(bytes);
     return [ptr, bytes.length];
 }
 
 function freePtr(module: ESEngineModule, ptr: number): void {
-    (module as any)._free(ptr);
+    module._free(ptr);
 }
 
 export interface UploadedTrackInfo {
@@ -89,7 +89,6 @@ export function uploadTimelineToWasm(module: ESEngineModule, asset: TimelineAsse
 }
 
 function uploadPropertyTrack(module: ESEngineModule, handle: number, track: PropertyTrack): void {
-    const mod = module as any;
     const channelCount = track.channels.length;
     const component = COMPONENT_MAP[track.component] ?? AnimTargetComponent.Custom;
     const isCustom = component === AnimTargetComponent.Custom;
@@ -101,8 +100,8 @@ function uploadPropertyTrack(module: ESEngineModule, handle: number, track: Prop
 
     const [childPtr, childLen] = allocString(module, track.childPath);
 
-    const fieldsPtr = mod._malloc(channelCount);
-    const fieldsArr = new Uint8Array(mod.HEAPU8.buffer, fieldsPtr, channelCount);
+    const fieldsPtr = module._malloc(channelCount);
+    const fieldsArr = new Uint8Array(module.HEAPU8.buffer, fieldsPtr, channelCount);
     for (let i = 0; i < channelCount; i++) {
         fieldsArr[i] = resolveField(track.component, track.channels[i].property);
     }
@@ -114,11 +113,11 @@ function uploadPropertyTrack(module: ESEngineModule, handle: number, track: Prop
         totalKeyframes += ch.keyframes.length;
     }
 
-    const countsPtr = mod._malloc(channelCount * 4);
-    new Int32Array(mod.HEAPU8.buffer, countsPtr, channelCount).set(counts);
+    const countsPtr = module._malloc(channelCount * 4);
+    new Int32Array(module.HEAPU8.buffer, countsPtr, channelCount).set(counts);
 
-    const dataPtr = mod._malloc(totalKeyframes * 5 * 4);
-    const dataArr = new Float32Array(mod.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
+    const dataPtr = module._malloc(totalKeyframes * 5 * 4);
+    const dataArr = new Float32Array(module.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
     let offset = 0;
     for (const ch of track.channels) {
         for (const kf of ch.keyframes) {
@@ -140,7 +139,6 @@ function uploadPropertyTrack(module: ESEngineModule, handle: number, track: Prop
 }
 
 function uploadCustomPropertyTrack(module: ESEngineModule, handle: number, track: PropertyTrack): void {
-    const mod = module as any;
     const channelCount = track.channels.length;
 
     const [childPtr, childLen] = allocString(module, track.childPath);
@@ -150,15 +148,15 @@ function uploadCustomPropertyTrack(module: ESEngineModule, handle: number, track
     let totalPathBytes = 0;
     for (const p of pathStrings) totalPathBytes += p.length;
 
-    const fieldPathsPtr = mod._malloc(totalPathBytes);
+    const fieldPathsPtr = module._malloc(totalPathBytes);
     let pathOffset = 0;
     for (const p of pathStrings) {
-        new Uint8Array(mod.HEAPU8.buffer, fieldPathsPtr + pathOffset, p.length).set(p);
+        new Uint8Array(module.HEAPU8.buffer, fieldPathsPtr + pathOffset, p.length).set(p);
         pathOffset += p.length;
     }
 
-    const fieldPathLensPtr = mod._malloc(channelCount * 4);
-    new Int32Array(mod.HEAPU8.buffer, fieldPathLensPtr, channelCount).set(pathStrings.map(p => p.length));
+    const fieldPathLensPtr = module._malloc(channelCount * 4);
+    new Int32Array(module.HEAPU8.buffer, fieldPathLensPtr, channelCount).set(pathStrings.map(p => p.length));
 
     let totalKeyframes = 0;
     const counts: number[] = [];
@@ -167,11 +165,11 @@ function uploadCustomPropertyTrack(module: ESEngineModule, handle: number, track
         totalKeyframes += ch.keyframes.length;
     }
 
-    const countsPtr = mod._malloc(channelCount * 4);
-    new Int32Array(mod.HEAPU8.buffer, countsPtr, channelCount).set(counts);
+    const countsPtr = module._malloc(channelCount * 4);
+    new Int32Array(module.HEAPU8.buffer, countsPtr, channelCount).set(counts);
 
-    const dataPtr = mod._malloc(totalKeyframes * 5 * 4);
-    const dataArr = new Float32Array(mod.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
+    const dataPtr = module._malloc(totalKeyframes * 5 * 4);
+    const dataArr = new Float32Array(module.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
     let dOffset = 0;
     for (const ch of track.channels) {
         for (const kf of ch.keyframes) {
@@ -197,16 +195,15 @@ function uploadCustomPropertyTrack(module: ESEngineModule, handle: number, track
 
 function uploadSpineTrack(module: ESEngineModule, handle: number, track: Track): void {
     if (track.type !== TrackType.Spine) return;
-    const mod = module as any;
     const [childPtr, childLen] = allocString(module, track.childPath);
     const clipCount = track.clips.length;
 
-    const floatsPtr = mod._malloc(clipCount * 4 * 4);
-    const floats = new Float32Array(mod.HEAPU8.buffer, floatsPtr, clipCount * 4);
-    const animPtrsPtr = mod._malloc(clipCount * 4);
-    const animPtrs = new Uint32Array(mod.HEAPU8.buffer, animPtrsPtr, clipCount);
-    const animLensPtr = mod._malloc(clipCount * 4);
-    const animLens = new Int32Array(mod.HEAPU8.buffer, animLensPtr, clipCount);
+    const floatsPtr = module._malloc(clipCount * 4 * 4);
+    const floats = new Float32Array(module.HEAPU8.buffer, floatsPtr, clipCount * 4);
+    const animPtrsPtr = module._malloc(clipCount * 4);
+    const animPtrs = new Uint32Array(module.HEAPU8.buffer, animPtrsPtr, clipCount);
+    const animLensPtr = module._malloc(clipCount * 4);
+    const animLens = new Int32Array(module.HEAPU8.buffer, animLensPtr, clipCount);
 
     const animStrPtrs: number[] = [];
     for (let i = 0; i < clipCount; i++) {
@@ -233,16 +230,15 @@ function uploadSpineTrack(module: ESEngineModule, handle: number, track: Track):
 
 function uploadAudioTrack(module: ESEngineModule, handle: number, track: Track): void {
     if (track.type !== TrackType.Audio) return;
-    const mod = module as any;
     const [childPtr, childLen] = allocString(module, track.childPath);
     const eventCount = track.events.length;
 
-    const floatsPtr = mod._malloc(eventCount * 2 * 4);
-    const floats = new Float32Array(mod.HEAPU8.buffer, floatsPtr, eventCount * 2);
-    const clipPtrsPtr = mod._malloc(eventCount * 4);
-    const clipPtrs = new Uint32Array(mod.HEAPU8.buffer, clipPtrsPtr, eventCount);
-    const clipLensPtr = mod._malloc(eventCount * 4);
-    const clipLens = new Int32Array(mod.HEAPU8.buffer, clipLensPtr, eventCount);
+    const floatsPtr = module._malloc(eventCount * 2 * 4);
+    const floats = new Float32Array(module.HEAPU8.buffer, floatsPtr, eventCount * 2);
+    const clipPtrsPtr = module._malloc(eventCount * 4);
+    const clipPtrs = new Uint32Array(module.HEAPU8.buffer, clipPtrsPtr, eventCount);
+    const clipLensPtr = module._malloc(eventCount * 4);
+    const clipLens = new Int32Array(module.HEAPU8.buffer, clipLensPtr, eventCount);
 
     const strPtrs: number[] = [];
     for (let i = 0; i < eventCount; i++) {
@@ -267,11 +263,10 @@ function uploadAudioTrack(module: ESEngineModule, handle: number, track: Track):
 
 function uploadActivationTrack(module: ESEngineModule, handle: number, track: Track): void {
     if (track.type !== TrackType.Activation) return;
-    const mod = module as any;
     const [childPtr, childLen] = allocString(module, track.childPath);
 
-    const rangesPtr = mod._malloc(track.ranges.length * 2 * 4);
-    const rangesArr = new Float32Array(mod.HEAPU8.buffer, rangesPtr, track.ranges.length * 2);
+    const rangesPtr = module._malloc(track.ranges.length * 2 * 4);
+    const rangesArr = new Float32Array(module.HEAPU8.buffer, rangesPtr, track.ranges.length * 2);
     for (let i = 0; i < track.ranges.length; i++) {
         rangesArr[i * 2] = track.ranges[i].start;
         rangesArr[i * 2 + 1] = track.ranges[i].end;
