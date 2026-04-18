@@ -18,6 +18,7 @@ class EmbindGenerator:
         lines.extend(self._gen_enums())
         lines.extend(self._gen_components())
         lines.extend(self._gen_registry())
+        lines.extend(self._gen_reflection())
         lines.append('')
         lines.append('#endif  // ES_PLATFORM_WEB')
         lines.append('')
@@ -211,6 +212,33 @@ class EmbindGenerator:
             lines.append('')
         lines.append('}')
         lines.append('')
+        return lines
+
+    def _gen_reflection(self) -> List[str]:
+        """Emit a module-level function returning the authoritative list of
+        component names bound in this WASM build. JS uses this to detect drift
+        between the shipped SDK's COMPONENT_META and the actual WASM module."""
+        lines = [
+            '',
+            '// =============================================================================',
+            '// Reflection — authoritative binding manifest for JS',
+            '// =============================================================================',
+            '',
+            'emscripten::val esengineGetBuiltinComponentNames() {',
+            '    using namespace emscripten;',
+            '    auto arr = val::array();',
+            '    size_t i = 0;',
+        ]
+        for comp in self.components:
+            lines.append(f'    arr.set(i++, val(std::string("{comp.name}")));')
+        lines.extend([
+            '    return arr;',
+            '}',
+            '',
+            'EMSCRIPTEN_BINDINGS(esengine_reflection) {',
+            '    emscripten::function("getBuiltinComponentNames", &esengineGetBuiltinComponentNames);',
+            '}',
+        ])
         return lines
 
     def _gen_registry(self) -> List[str]:

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { BuiltinBridge } from '../src/ecs/BuiltinBridge';
 import { COMPONENT_META } from '../src/component.generated';
-import type { CppRegistry } from '../src/wasm';
+import type { CppRegistry, ESEngineModule } from '../src/wasm';
 
 function stubMethod() { return undefined; }
 
@@ -113,5 +113,86 @@ describe('BuiltinBridge', () => {
     it('throws a descriptive error when getBuiltinMethods is called before connect', () => {
         const bridge = new BuiltinBridge();
         expect(() => bridge.getBuiltinMethods('Transform')).toThrow(/before connect/);
+    });
+
+    // -------------------------------------------------------------------------
+    // Reflection-table drift detection (requires the WASM module to expose
+    // getBuiltinComponentNames() — absent on older builds; present on all
+    // builds produced by the current EHT generator).
+    // -------------------------------------------------------------------------
+
+    it('verify().ok is true when WASM reflection matches COMPONENT_META', () => {
+        const bridge = new BuiltinBridge();
+        const reg = makeCompleteRegistry() as unknown as CppRegistry;
+        const module = {
+            getBuiltinComponentNames: () => Object.keys(COMPONENT_META),
+        } as unknown as ESEngineModule;
+
+        bridge.connect(reg, module, { strict: true });
+        const v = bridge.verify();
+        expect(v.ok).toBe(true);
+        expect(v.wasmOnly).toEqual([]);
+        expect(v.sdkOnly).toEqual([]);
+    });
+
+    it('reports wasmOnly components when WASM exposes one the SDK does not know', () => {
+        const bridge = new BuiltinBridge();
+        const reg = makeCompleteRegistry();
+        // Add a hypothetical component the SDK hasn't heard of. The registry must
+        // expose its four methods too or strict verification of SDK components
+        // wouldn't be the source of the drift report.
+        for (const p of ['add', 'get', 'has', 'remove']) {
+            reg[`${p}FutureThing`] = stubMethod;
+        }
+        const module = {
+            getBuiltinComponentNames: () => [...Object.keys(COMPONENT_META), 'FutureThing'],
+        } as unknown as ESEngineModule;
+
+        const caught = (() => {
+            try {
+                bridge.connect(reg as unknown as CppRegistry, module, { strict: true });
+                return null;
+            } catch (e) { return e as Error; }
+        })();
+
+        expect(caught).not.toBeNull();
+        expect(caught!.message).toContain('WASM exposes components not in');
+        expect(caught!.message).toContain('FutureThing');
+    });
+
+    it('reports sdkOnly components when COMPONENT_META has one the WASM does not', () => {
+        const bridge = new BuiltinBridge();
+        const reg = makeCompleteRegistry() as unknown as CppRegistry;
+        const firstName = Object.keys(COMPONENT_META)[0];
+        if (!firstName) throw new Error('COMPONENT_META fixture is empty');
+        const module = {
+            // WASM reports everything except the first name.
+            getBuiltinComponentNames: () => Object.keys(COMPONENT_META).slice(1),
+        } as unknown as ESEngineModule;
+
+        const caught = (() => {
+            try {
+                bridge.connect(reg, module, { strict: true });
+                return null;
+            } catch (e) { return e as Error; }
+        })();
+
+        expect(caught).not.toBeNull();
+        expect(caught!.message).toContain('SDK\'s COMPONENT_META lists components the WASM does not');
+        expect(caught!.message).toContain(firstName);
+    });
+
+    it('skips reflection cross-check when the module lacks getBuiltinComponentNames', () => {
+        // Older WASM builds won't have the reflection export. The bridge must
+        // still connect successfully as long as method-level verification passes.
+        const bridge = new BuiltinBridge();
+        const reg = makeCompleteRegistry() as unknown as CppRegistry;
+        const module = {} as unknown as ESEngineModule;
+
+        expect(() => { bridge.connect(reg, module, { strict: true }); }).not.toThrow();
+        const v = bridge.verify();
+        expect(v.ok).toBe(true);
+        expect(v.wasmOnly).toEqual([]);
+        expect(v.sdkOnly).toEqual([]);
     });
 });
