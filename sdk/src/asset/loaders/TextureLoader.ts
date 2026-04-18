@@ -92,7 +92,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     private getWebGL2Context(): WebGL2RenderingContext | null {
         try {
-            const glObj = (this.module_ as any).GL;
+            const glObj = this.module_.GL;
             if (glObj?.currentContext?.GLctx instanceof WebGL2RenderingContext) {
                 return glObj.currentContext.GLctx;
             }
@@ -119,7 +119,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         gl.generateMipmap(gl.TEXTURE_2D);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
 
-        const glObj = (this.module_ as any).GL;
+        const glObj = this.module_.GL;
         const glTextureId = glObj.getNewId(glObj.textures);
         glObj.textures[glTextureId] = texture;
 

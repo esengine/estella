@@ -97,7 +97,7 @@ function decodeEventString(module: ESEngineModule, index: number): string {
     const ptr = module._tl_getEventString(index);
     const len = module._tl_getEventStringLen(index);
     if (!ptr || len <= 0) return '';
-    const bytes = new Uint8Array((module as any).HEAPU8.buffer, ptr, len);
+    const bytes = new Uint8Array(module.HEAPU8.buffer, ptr, len);
     return new TextDecoder().decode(bytes);
 }
 

@@ -147,8 +147,8 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         return;
     }
 
-    const glHandle = (module as any).GL.registerContext(gl, {
-        majorVersion: (gl as any).getParameter((gl as any).VERSION).indexOf('WebGL 2') === 0 ? 2 : 1,
+    const glHandle = module.GL.registerContext(gl, {
+        majorVersion: String(gl.getParameter(gl.VERSION)).indexOf('WebGL 2') === 0 ? 2 : 1,
         minorVersion: 0,
         enableExtensionsByDefault: true,
     });
