@@ -1,2 +1,2 @@
-export { Particle, initParticleAPI, shutdownParticleAPI } from './ParticleAPI';
+export { Particle, ParticleAPI } from './ParticleAPI';
 export { ParticlePlugin, particlePlugin } from './ParticlePlugin';

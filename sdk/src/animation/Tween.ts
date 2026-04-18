@@ -1,13 +1,25 @@
 /**
  * @file    Tween.ts
  * @brief   Property tween API wrapping C++ TweenSystem
+ *
+ * `TweenAPI` is per-app — each `App` owns an instance via the `Tween`
+ * resource. Consume as `Res(Tween)` in a system or
+ * `app.getResource(Tween)` outside ECS code.
  */
 
 import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+import { defineResource } from '../resource';
 import { EasingType } from './Easing';
 import { LoopMode, TweenState, type TweenOptions } from './TweenTypes';
-import { valueTweenManager, ValueTweenHandle } from './ValueTween';
+import { ValueTweenManager, ValueTweenHandle } from './ValueTween';
+import {
+    TweenGroup,
+    TweenSequence,
+    TweenCompositionManager,
+    type Completable,
+    type TweenFactory,
+} from './TweenGroup';
 
 // Re-export so consumers can reach shared types via the Tween entry point
 export { EasingType, type BezierPoints } from './Easing';
@@ -34,7 +46,7 @@ export { ValueTweenHandle } from './ValueTween';
  * separately; for now TweenTarget is the stable subset.
  *
  * If you need to tween a field not in this list (e.g. UIRect.anchorMin.x),
- * use `Tween.value(...)` with a callback that writes the field yourself,
+ * use `tween.value(...)` with a callback that writes the field yourself,
  * or drive it via Timeline.
  */
 export const TweenTarget = {
@@ -62,11 +74,18 @@ export type TweenTarget = (typeof TweenTarget)[keyof typeof TweenTarget];
 export class TweenHandle {
     private readonly module_: ESEngineModule;
     private readonly registry_: CppRegistry;
+    private readonly valueManager_: ValueTweenManager;
     readonly entity: Entity;
 
-    constructor(module: ESEngineModule, registry: CppRegistry, entity: Entity) {
+    constructor(
+        module: ESEngineModule,
+        registry: CppRegistry,
+        valueManager: ValueTweenManager,
+        entity: Entity,
+    ) {
         this.module_ = module;
         this.registry_ = registry;
+        this.valueManager_ = valueManager;
         this.entity = entity;
     }
 
@@ -81,7 +100,7 @@ export class TweenHandle {
 
     then(next: TweenHandle | ValueTweenHandle): this {
         if (next instanceof ValueTweenHandle) {
-            valueTweenManager.registerCppSequence(this.entity, next.id);
+            this.valueManager_.registerCppSequence(this.entity, next.id);
             return this;
         }
         this.module_._anim_setSequenceNext(this.registry_, this.entity, next.entity);
@@ -102,69 +121,97 @@ export class TweenHandle {
 }
 
 // =============================================================================
-// Tween Static API
+// Per-app Tween API
 // =============================================================================
 
-let _module: ESEngineModule | null = null;
-let _registry: CppRegistry | null = null;
+export class TweenAPI {
+    private readonly module_: ESEngineModule;
+    private readonly registry_: CppRegistry;
+    private readonly valueManager_: ValueTweenManager;
+    private readonly compositionManager_: TweenCompositionManager;
 
-export function initTweenAPI(module: ESEngineModule, registry: CppRegistry): void {
-    _module = module;
-    _registry = registry;
-    valueTweenManager.init(module, registry);
-}
+    constructor(module: ESEngineModule, registry: CppRegistry) {
+        this.module_ = module;
+        this.registry_ = registry;
+        this.valueManager_ = new ValueTweenManager(module, registry);
+        this.compositionManager_ = new TweenCompositionManager();
+    }
 
-export function shutdownTweenAPI(): void {
-    valueTweenManager.shutdown();
-    _module = null;
-    _registry = null;
-}
-
-function getModule(): ESEngineModule {
-    if (!_module) throw new Error('Tween API not initialized');
-    return _module;
-}
-
-function getRegistry(): CppRegistry {
-    if (!_registry) throw new Error('Tween API not initialized');
-    return _registry;
-}
-
-export const Tween = {
-    to(entity: Entity, target: TweenTarget, from: number, to: number,
-       duration: number, options?: TweenOptions): TweenHandle {
-        const m = getModule();
-        const r = getRegistry();
+    to(
+        entity: Entity,
+        target: TweenTarget,
+        from: number,
+        to: number,
+        duration: number,
+        options?: TweenOptions,
+    ): TweenHandle {
         const easing = options?.easing ?? EasingType.Linear;
         const delay = options?.delay ?? 0;
         const loop = options?.loop ?? LoopMode.None;
         const loopCount = options?.loopCount ?? 0;
 
-        const tweenEntity = m._anim_createTween(
-            r, entity, target, from, to, duration,
+        const tweenEntity = this.module_._anim_createTween(
+            this.registry_, entity, target, from, to, duration,
             easing, delay, loop, loopCount,
         ) as Entity;
 
-        return new TweenHandle(m, r, tweenEntity);
-    },
+        return new TweenHandle(this.module_, this.registry_, this.valueManager_, tweenEntity);
+    }
 
-    value(from: number, to: number, duration: number,
-          callback: (value: number) => void,
-          options?: TweenOptions): ValueTweenHandle {
-        const id = valueTweenManager.create(from, to, duration, callback, options);
-        return new ValueTweenHandle(id);
-    },
+    value(
+        from: number,
+        to: number,
+        duration: number,
+        callback: (value: number) => void,
+        options?: TweenOptions,
+    ): ValueTweenHandle {
+        const id = this.valueManager_.create(from, to, duration, callback, options);
+        return new ValueTweenHandle(this.valueManager_, id);
+    }
 
     cancel(tweenHandle: TweenHandle): void {
-        getModule()._anim_cancelTween(getRegistry(), tweenHandle.entity);
-    },
+        this.module_._anim_cancelTween(this.registry_, tweenHandle.entity);
+    }
 
     cancelAll(entity: Entity): void {
-        getModule()._anim_cancelAllTweens(getRegistry(), entity);
-    },
+        this.module_._anim_cancelAllTweens(this.registry_, entity);
+    }
 
     update(deltaTime: number): void {
-        getModule()._anim_updateTweens(getRegistry(), deltaTime);
-        valueTweenManager.update(deltaTime);
-    },
-};
+        this.module_._anim_updateTweens(this.registry_, deltaTime);
+        this.valueManager_.update(deltaTime);
+        this.compositionManager_.update();
+    }
+
+    // ---- Composition builders -------------------------------------------------
+
+    parallel(tweens: Completable[]): TweenGroup {
+        const group = new TweenGroup(tweens);
+        this.compositionManager_.add(group);
+        return group;
+    }
+
+    sequence(factories: TweenFactory[]): TweenSequence {
+        const seq = new TweenSequence(factories);
+        this.compositionManager_.add(seq);
+        return seq;
+    }
+
+    delay(seconds: number): ValueTweenHandle {
+        const id = this.valueManager_.create(0, 0, seconds, () => {});
+        return new ValueTweenHandle(this.valueManager_, id);
+    }
+
+    /** @internal test hook — how many groups/sequences are still being polled */
+    get activeCompositionCount(): number {
+        return this.compositionManager_.activeCount;
+    }
+
+    /** @internal shutdown hook for plugin cleanup */
+    clear(): void {
+        this.compositionManager_.clear();
+    }
+}
+
+/** Resource handle for the per-app Tween API. */
+export const Tween = defineResource<TweenAPI>(null!, 'Tween');

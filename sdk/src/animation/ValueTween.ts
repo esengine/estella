@@ -1,6 +1,10 @@
 /**
  * @file    ValueTween.ts
  * @brief   JS-side value tweening (fallback for fields not covered by C++ TweenTarget)
+ *
+ * Each App owns its own `ValueTweenManager` instance (held inside
+ * `TweenAPI`). Handles carry a reference back to their manager so
+ * `handle.state` / `handle.cancel()` etc. route to the right app.
  */
 
 import type { ESEngineModule, CppRegistry } from '../wasm';
@@ -31,17 +35,17 @@ interface ValueTweenEntry {
 }
 
 // =============================================================================
-// Value Tween Manager
+// Value Tween Manager (per-app)
 // =============================================================================
 
-class ValueTweenManager {
+export class ValueTweenManager {
     private entries_ = new Map<number, ValueTweenEntry>();
     private nextId_ = 1;
     private cppSequences_ = new Map<number, number>();
-    private module_: ESEngineModule | null = null;
-    private registry_: CppRegistry | null = null;
+    private readonly module_: ESEngineModule;
+    private readonly registry_: CppRegistry;
 
-    init(module: ESEngineModule, registry: CppRegistry): void {
+    constructor(module: ESEngineModule, registry: CppRegistry) {
         this.module_ = module;
         this.registry_ = registry;
     }
@@ -75,15 +79,13 @@ class ValueTweenManager {
     }
 
     update(dt: number): void {
-        if (this.module_ && this.registry_) {
-            for (const [cppEntity, jsTweenId] of this.cppSequences_) {
-                const cppState = this.module_._anim_getTweenState(
-                    this.registry_, cppEntity as Entity,
-                );
-                if (cppState === TweenState.Completed) {
-                    this.resume(jsTweenId);
-                    this.cppSequences_.delete(cppEntity);
-                }
+        for (const [cppEntity, jsTweenId] of this.cppSequences_) {
+            const cppState = this.module_._anim_getTweenState(
+                this.registry_, cppEntity as Entity,
+            );
+            if (cppState === TweenState.Completed) {
+                this.resume(jsTweenId);
+                this.cppSequences_.delete(cppEntity);
             }
         }
 
@@ -189,35 +191,33 @@ class ValueTweenManager {
         this.cppSequences_.set(cppEntity as number, jsTweenId);
         this.pause(jsTweenId);
     }
-
-    shutdown(): void {
-        this.entries_.clear();
-        this.cppSequences_.clear();
-        this.module_ = null;
-        this.registry_ = null;
-        this.nextId_ = 1;
-    }
 }
 
-export const valueTweenManager = new ValueTweenManager();
-
 // =============================================================================
-// Value Tween Handle
+// Value Tween Handle — carries a back-ref to its manager so handle-side
+// calls route to the right app's state.
 // =============================================================================
 
 export class ValueTweenHandle {
+    private readonly manager_: ValueTweenManager;
     readonly id: number;
 
-    constructor(id: number) {
+    constructor(manager: ValueTweenManager, id: number) {
+        this.manager_ = manager;
         this.id = id;
     }
 
+    /** @internal used by TweenAPI.then() to chain the C++ tween side */
+    get manager(): ValueTweenManager {
+        return this.manager_;
+    }
+
     get state(): TweenState {
-        return valueTweenManager.getState(this.id);
+        return this.manager_.getState(this.id);
     }
 
     bezier(p1x: number, p1y: number, p2x: number, p2y: number): this {
-        valueTweenManager.setBezier(this.id, p1x, p1y, p2x, p2y);
+        this.manager_.setBezier(this.id, p1x, p1y, p2x, p2y);
         return this;
     }
 
@@ -225,22 +225,22 @@ export class ValueTweenHandle {
     then(next: { pause(): void; resume(): void }): this;
     then(next: ValueTweenHandle | { pause(): void; resume(): void }): this {
         if (next instanceof ValueTweenHandle) {
-            valueTweenManager.setSequenceNext(this.id, next.id);
+            this.manager_.setSequenceNext(this.id, next.id);
         } else {
-            valueTweenManager.setSequenceNextExternal(this.id, next);
+            this.manager_.setSequenceNextExternal(this.id, next);
         }
         return this;
     }
 
     pause(): void {
-        valueTweenManager.pause(this.id);
+        this.manager_.pause(this.id);
     }
 
     resume(): void {
-        valueTweenManager.resume(this.id);
+        this.manager_.resume(this.id);
     }
 
     cancel(): void {
-        valueTweenManager.cancel(this.id);
+        this.manager_.cancel(this.id);
     }
 }

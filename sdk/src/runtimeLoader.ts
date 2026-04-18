@@ -343,8 +343,13 @@ async function loadMaterials(
 // Audio Helpers
 // =============================================================================
 
-async function preloadAudioClips(provider: RuntimeAssetProvider, audioPaths: Set<string>): Promise<void> {
+async function preloadAudioClips(app: App, provider: RuntimeAssetProvider, audioPaths: Set<string>): Promise<void> {
     if (audioPaths.size === 0) return;
+    if (!app.hasResource(Audio)) {
+        log.warn('runtime', 'No Audio resource; skipping audio preload (AudioPlugin not installed?)');
+        return;
+    }
+    const audio = app.getResource(Audio);
 
     const paths = [...audioPaths];
 
@@ -352,13 +357,13 @@ async function preloadAudioClips(provider: RuntimeAssetProvider, audioPaths: Set
         await Promise.all(paths.map(async (path) => {
             try {
                 const binary = await provider.readBinary(path);
-                await Audio.preloadFromData(path, binary.buffer as ArrayBuffer);
+                await audio.preloadFromData(path, binary.buffer as ArrayBuffer);
             } catch (err) {
                 log.warn('runtime', `Failed to preload audio: ${path}`, err);
             }
         }));
     } else {
-        await Audio.preloadAll(paths).catch(err => {
+        await audio.preloadAll(paths).catch(err => {
             log.warn('runtime', 'Failed to preload audio assets', err);
         });
     }
@@ -489,7 +494,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const materialCache = await loadMaterials(provider, getAssetPathsByType(discovered, 'material'));
     await loadAnimClips(module, provider, getAssetPathsByType(discovered, 'anim-clip'));
     await loadTilemaps(module, provider, getAssetPathsByType(discovered, 'tilemap'));
-    await preloadAudioClips(provider, getAssetPathsByType(discovered, 'audio'));
+    await preloadAudioClips(app, provider, getAssetPathsByType(discovered, 'audio'));
 
     resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);

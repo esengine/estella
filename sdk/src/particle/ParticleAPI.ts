@@ -1,42 +1,44 @@
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { Entity } from '../types';
+import { defineResource } from '../resource';
 
-let module: ESEngineModule | null = null;
-let registry: CppRegistry | null = null;
+/**
+ * Per-app particle API. Wraps the C++ registry-scoped particle system
+ * so two App instances (e.g. editor tabs previewing different scenes)
+ * can drive independent simulations without cross-talk.
+ *
+ * Consumed as a resource: declare `Res(Particle)` as a system param, or
+ * grab it with `app.getResource(Particle)` outside ECS code.
+ */
+export class ParticleAPI {
+    private readonly module_: ESEngineModule;
+    private readonly registry_: CppRegistry;
 
-export function initParticleAPI(m: ESEngineModule, r: CppRegistry): void {
-    module = m;
-    registry = r;
-}
+    constructor(module: ESEngineModule, registry: CppRegistry) {
+        this.module_ = module;
+        this.registry_ = registry;
+    }
 
-export function shutdownParticleAPI(): void {
-    module = null;
-    registry = null;
-}
-
-export const Particle = {
     update(dt: number): void {
-        if (!module || !registry) return;
-        module.particle_update?.(registry, dt);
-    },
+        this.module_.particle_update?.(this.registry_, dt);
+    }
 
     play(entity: Entity): void {
-        if (!module || !registry) return;
-        module.particle_play?.(registry, entity as number);
-    },
+        this.module_.particle_play?.(this.registry_, entity as number);
+    }
 
     stop(entity: Entity): void {
-        if (!module || !registry) return;
-        module.particle_stop?.(registry, entity as number);
-    },
+        this.module_.particle_stop?.(this.registry_, entity as number);
+    }
 
     reset(entity: Entity): void {
-        if (!module || !registry) return;
-        module.particle_reset?.(registry, entity as number);
-    },
+        this.module_.particle_reset?.(this.registry_, entity as number);
+    }
 
     getAliveCount(entity: Entity): number {
-        if (!module) return 0;
-        return module.particle_getAliveCount?.(entity as number) ?? 0;
-    },
-};
+        return this.module_.particle_getAliveCount?.(entity as number) ?? 0;
+    }
+}
+
+/** Resource handle for the per-app particle API. */
+export const Particle = defineResource<ParticleAPI>(null!, 'Particle');

@@ -4,6 +4,7 @@ import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { initBuiltinAssetFields } from './AssetFieldRegistry';
 import { AssetRefCounter } from './AssetRefCounter';
+import { Audio, type AudioAPI } from '../audio/Audio';
 import { log } from '../logger';
 
 export type AssetsData = AssetsClass;
@@ -28,6 +29,8 @@ export class AssetPlugin implements Plugin {
         const assets = AssetsClass.create({
             backend: new HttpBackend({ baseUrl: '' }),
             module,
+            getAudio: (): AudioAPI | null =>
+                app.hasResource(Audio) ? app.getResource(Audio) : null,
         });
 
         // Install the ref counter so resolveSceneAssetPaths records who

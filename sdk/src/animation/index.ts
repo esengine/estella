@@ -17,14 +17,14 @@ export {
 
 export {
     Tween,
+    TweenAPI,
     TweenHandle,
     TweenTarget,
-    initTweenAPI,
-    shutdownTweenAPI,
 } from './Tween';
 
 export {
     ValueTweenHandle,
+    ValueTweenManager,
 } from './ValueTween';
 
 export {
@@ -54,8 +54,9 @@ export {
 export {
     TweenGroup,
     TweenSequence,
-    TweenCompose,
-    tweenCompositionManager,
+    TweenCompositionManager,
+    type Completable,
+    type TweenFactory,
 } from './TweenGroup';
 
 export {

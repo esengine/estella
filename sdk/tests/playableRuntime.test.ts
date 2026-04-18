@@ -19,6 +19,7 @@ function createMockConfig(overrides?: Partial<PlayableRuntimeConfig>): PlayableR
         getResource: vi.fn().mockReturnValue({
             registerEmbeddedAssets: vi.fn(),
             setEmbeddedOnly: vi.fn(),
+            setAssetResolver: vi.fn(),
         }),
         hasResource: vi.fn().mockReturnValue(true),
         run: vi.fn(),

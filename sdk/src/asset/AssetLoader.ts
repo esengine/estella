@@ -54,6 +54,13 @@ export interface LoadContext {
     loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
     loadText(path: string): Promise<string>;
     loadBinary(path: string): Promise<ArrayBuffer>;
+    /**
+     * Audio API for the owning app, resolved lazily so that
+     * AudioPlugin / AssetPlugin can be installed in either order.
+     * Returns null when no AudioPlugin is installed — audio-typed
+     * assets will fail to preload.
+     */
+    getAudio(): import('../audio/Audio').AudioAPI | null;
 }
 
 export interface AssetLoader<T> {

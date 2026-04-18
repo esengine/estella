@@ -2,7 +2,7 @@ import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
 import { defineSystem, Schedule } from '../system';
 import { Res, Time, type TimeData } from '../resource';
-import { Audio } from './Audio';
+import { Audio, AudioAPI } from './Audio';
 import { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';
 import { WorldTransform, type WorldTransformData } from '../component';
 import { getPlatform } from '../platform/base';
@@ -23,6 +23,7 @@ export class AudioPlugin implements Plugin {
     private config_: AudioPluginConfig;
     private activeSourceHandles_: Map<number, AudioHandle> | null = null;
     private playedEntities_: Set<number> | null = null;
+    private audio_: AudioAPI | null = null;
 
     constructor(config: AudioPluginConfig = {}) {
         this.config_ = config;
@@ -37,7 +38,9 @@ export class AudioPlugin implements Plugin {
         });
 
         const mixer = backend.mixer;
-        Audio.init(backend, mixer);
+        const audio = new AudioAPI(backend, mixer);
+        this.audio_ = audio;
+        app.insertResource(Audio, audio);
 
         if (mixer) {
             if (config.masterVolume !== undefined) mixer.master.volume = config.masterVolume;
@@ -65,8 +68,8 @@ export class AudioPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.PreUpdate,
             defineSystem(
-                [Res(Time)],
-                (_time: TimeData) => {
+                [Res(Time), Res(Audio)],
+                (_time: TimeData, audioAPI: AudioAPI) => {
                     const playMode = !isEditor() || isPlayMode();
 
                     if (!playMode) {
@@ -105,7 +108,7 @@ export class AudioPlugin implements Plugin {
                         liveEntities.add(id);
 
                         if (source.playOnAwake && !playedEntities.has(id) && !activeSourceHandles.has(id) && backend.isReady) {
-                            const buffer = Audio.getBufferHandle(source.clip);
+                            const buffer = audioAPI.getBufferHandle(source.clip);
                             if (buffer) {
                                 const handle = backend.play(buffer, {
                                     bus: source.bus,
@@ -184,7 +187,8 @@ export class AudioPlugin implements Plugin {
 
     cleanup(): void {
         this.stopAllSources();
-        Audio.dispose();
+        this.audio_?.dispose();
+        this.audio_ = null;
     }
 }
 

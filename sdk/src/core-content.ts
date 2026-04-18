@@ -160,13 +160,13 @@ export { PreviewPlugin, WebAssetProvider } from './preview';
 
 export {
     Tween,
+    TweenAPI,
     TweenHandle,
     EasingType,
     TweenTarget,
     TweenState,
     LoopMode,
-    initTweenAPI,
-    shutdownTweenAPI,
+    ValueTweenHandle,
     SpriteAnimator,
     spriteAnimatorSystemUpdate,
     registerAnimClip,
@@ -190,7 +190,8 @@ export {
     removeAnimEventListeners,
     TweenGroup,
     TweenSequence,
-    TweenCompose,
+    type Completable,
+    type TweenFactory,
 } from './animation';
 
 // =============================================================================
@@ -199,6 +200,7 @@ export {
 
 export {
     Audio,
+    AudioAPI,
     AudioPlugin,
     audioPlugin,
     AudioSource,
@@ -229,8 +231,7 @@ export {
 
 export {
     Particle,
-    initParticleAPI,
-    shutdownParticleAPI,
+    ParticleAPI,
     ParticlePlugin,
     particlePlugin,
 } from './particle';
