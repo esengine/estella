@@ -27,6 +27,9 @@ import type { AssetRegistry } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../logger';
 
+/** Callback fired when `Assets.invalidate(ref)` actually dropped cache entries. */
+export type InvalidateListener = (ref: string) => void;
+
 /**
  * Default upper bound on concurrent loads inside preloadSceneAssets.
  * Picked to match typical browser per-origin connection limits; scenes
@@ -139,6 +142,7 @@ export class Assets {
     private assetRefResolver_: AssetRefResolver | null = null;
     private assetRegistry_: AssetRegistry | null = null;
     private refCounter_: AssetRefCounter | null = null;
+    private invalidateListeners_ = new Set<InvalidateListener>();
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend;
@@ -569,6 +573,11 @@ export class Assets {
      * is evicted from the cache but not freed, so currently-rendering
      * entities don't flicker.
      *
+     * If any cache held `ref`, invokes every listener registered via
+     * `onInvalidate` with the original ref. Listeners that throw are
+     * caught and logged — one bad subscriber can't prevent other
+     * subscribers from observing the invalidation.
+     *
      * Returns true if any cache held `ref`.
      */
     invalidate(ref: string): boolean {
@@ -587,7 +596,33 @@ export class Assets {
             if (cache.invalidate(path)) hit = true;
         }
 
+        if (hit) {
+            for (const listener of this.invalidateListeners_) {
+                try {
+                    listener(ref);
+                } catch (e) {
+                    log.warn('asset', 'onInvalidate listener threw', e);
+                }
+            }
+        }
+
         return hit;
+    }
+
+    /**
+     * Subscribe to cache invalidations. The listener fires once per
+     * successful `invalidate(ref)` call with the original ref (not the
+     * resolved path). Returns an unsubscribe function.
+     *
+     * Typical use: a scene-graph controller or renderer that holds cached
+     * handles for assets — subscribe to re-bind / re-load on hot reload
+     * so stale GPU handles stop being rendered.
+     */
+    onInvalidate(listener: InvalidateListener): () => void {
+        this.invalidateListeners_.add(listener);
+        return () => {
+            this.invalidateListeners_.delete(listener);
+        };
     }
 
     releaseAll(): void {
