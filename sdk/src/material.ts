@@ -31,6 +31,40 @@ export function isTextureRef(v: UniformValue): v is TextureRef {
     return typeof v === 'object' && v !== null && '__textureRef' in v;
 }
 
+/**
+ * Decompose a non-texture uniform value into an arity (1–4) and packed
+ * float values. Shared by the material-registration serializer (in this
+ * file) and the per-draw uniform path in draw.ts, which previously had
+ * their own parallel branches that drifted in subtle ways.
+ *
+ * The two serializers apply different *type codes* on top of the arity —
+ * material.ts uses 0..3 (float, vec2, vec3, vec4), while draw.ts uses
+ * 1..4 plus 10 for texture refs. Those layouts match two distinct WASM
+ * APIs (material-reflection vs per-draw uniform binding), so the code
+ * offsets stay at each call site; only the arity-and-extract step is
+ * centralized here.
+ */
+export interface UniformArity {
+    readonly arity: 1 | 2 | 3 | 4;
+    readonly values: readonly [number, number, number, number];
+}
+
+export function classifyUniformArity(value: Exclude<UniformValue, TextureRef>): UniformArity {
+    if (typeof value === 'number') {
+        return { arity: 1, values: [value, 0, 0, 0] };
+    }
+    if (Array.isArray(value)) {
+        const arity = Math.max(1, Math.min(value.length, 4)) as 1 | 2 | 3 | 4;
+        return {
+            arity,
+            values: [value[0] ?? 0, value[1] ?? 0, value[2] ?? 0, value[3] ?? 0],
+        };
+    }
+    if ('w' in value) return { arity: 4, values: [value.x, value.y, value.z, value.w] };
+    if ('z' in value) return { arity: 3, values: [value.x, value.y, value.z, 0] };
+    return { arity: 2, values: [value.x, value.y, 0, 0] };
+}
+
 export interface MaterialOptions {
     shader: ShaderHandle;
     uniforms?: Record<string, UniformValue>;
@@ -394,29 +428,11 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
         heap8.set(nameBytes, bufferPtr + offset);
         offset += namePadded;
 
-        let type = 0;
-        let values = [0, 0, 0, 0];
-
-        if (typeof value === 'number') {
-            type = 0;
-            values[0] = value;
-        } else if (Array.isArray(value)) {
-            type = Math.min(value.length - 1, 3);
-            for (let i = 0; i < Math.min(value.length, 4); i++) {
-                values[i] = value[i];
-            }
-        } else if ('w' in value) {
-            type = 3;
-            values = [value.x, value.y, value.z, value.w];
-        } else if ('z' in value) {
-            type = 2;
-            values = [value.x, value.y, value.z, 0];
-        } else if ('y' in value) {
-            type = 1;
-            values = [value.x, value.y, 0, 0];
-        }
-
-        heap32[(bufferPtr + offset) >> 2] = type;
+        // Type codes in this layout are zero-indexed (0=float, 1=vec2,
+        // 2=vec3, 3=vec4); classifyUniformArity returns arity 1..4 so we
+        // subtract one to match.
+        const { arity, values } = classifyUniformArity(value as Exclude<UniformValue, TextureRef>);
+        heap32[(bufferPtr + offset) >> 2] = arity - 1;
         offset += 4;
 
         for (let i = 0; i < 4; i++) {

@@ -9,7 +9,7 @@ import type { ESEngineModule } from './wasm';
 import type { Vec2, Color } from './types';
 import type { GeometryHandle } from './geometry';
 import type { ShaderHandle, MaterialHandle } from './material';
-import { Material, isTextureRef } from './material';
+import { Material, isTextureRef, classifyUniformArity, type UniformValue, type TextureRef } from './material';
 import { BlendMode } from './blend';
 import { handleWasmError } from './wasmError';
 import { log } from './logger';
@@ -385,38 +385,23 @@ export const Draw: DrawAPI = {
                     if (nameId < 0) continue;
 
                     if (isTextureRef(value)) {
+                        // Texture refs use a separate type code (10) since
+                        // they carry slot + textureId rather than packed floats.
                         uniformBuffer[idx++] = 10;
                         uniformBuffer[idx++] = nameId;
                         uniformBuffer[idx++] = value.slot ?? autoTextureSlot++;
                         uniformBuffer[idx++] = value.textureId;
-                    } else if (typeof value === 'number') {
-                        uniformBuffer[idx++] = 1;
-                        uniformBuffer[idx++] = nameId;
-                        uniformBuffer[idx++] = value;
-                    } else if (Array.isArray(value)) {
-                        uniformBuffer[idx++] = value.length;
-                        uniformBuffer[idx++] = nameId;
-                        for (let i = 0; i < value.length; i++) {
-                            uniformBuffer[idx++] = value[i];
-                        }
-                    } else if ('w' in value) {
-                        uniformBuffer[idx++] = 4;
-                        uniformBuffer[idx++] = nameId;
-                        uniformBuffer[idx++] = value.x;
-                        uniformBuffer[idx++] = value.y;
-                        uniformBuffer[idx++] = value.z;
-                        uniformBuffer[idx++] = value.w;
-                    } else if ('z' in value) {
-                        uniformBuffer[idx++] = 3;
-                        uniformBuffer[idx++] = nameId;
-                        uniformBuffer[idx++] = value.x;
-                        uniformBuffer[idx++] = value.y;
-                        uniformBuffer[idx++] = value.z;
                     } else {
-                        uniformBuffer[idx++] = 2;
+                        // Scalar/vec uniforms: type code in this layout is
+                        // one-indexed arity (1=float, 2=vec2, 3=vec3, 4=vec4).
+                        const { arity, values } = classifyUniformArity(
+                            value as Exclude<UniformValue, TextureRef>,
+                        );
+                        uniformBuffer[idx++] = arity;
                         uniformBuffer[idx++] = nameId;
-                        uniformBuffer[idx++] = value.x;
-                        uniformBuffer[idx++] = value.y;
+                        for (let i = 0; i < arity; i++) {
+                            uniformBuffer[idx++] = values[i];
+                        }
                     }
 
                 }

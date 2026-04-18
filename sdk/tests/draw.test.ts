@@ -8,6 +8,19 @@ vi.mock('../src/material', () => {
         isTextureRef: vi.fn(
             (v: any) => typeof v === 'object' && v !== null && '__textureRef' in v,
         ),
+        classifyUniformArity: (value: any) => {
+            if (typeof value === 'number') return { arity: 1, values: [value, 0, 0, 0] };
+            if (Array.isArray(value)) {
+                const arity = Math.max(1, Math.min(value.length, 4));
+                return {
+                    arity,
+                    values: [value[0] ?? 0, value[1] ?? 0, value[2] ?? 0, value[3] ?? 0],
+                };
+            }
+            if ('w' in value) return { arity: 4, values: [value.x, value.y, value.z, value.w] };
+            if ('z' in value) return { arity: 3, values: [value.x, value.y, value.z, 0] };
+            return { arity: 2, values: [value.x, value.y, 0, 0] };
+        },
     };
 });
 
