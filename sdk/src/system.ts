@@ -82,6 +82,9 @@ export type InferParams<P extends readonly SystemParam[]> = {
 // System Definition
 // =============================================================================
 
+/** Predicate evaluated per-frame; returning false skips the system for that tick. */
+export type RunCondition = () => boolean;
+
 export interface SystemDef {
     readonly _id: symbol;
     readonly _params: readonly SystemParam[];
@@ -109,6 +112,49 @@ export function defineSystem<P extends readonly SystemParam[]>(
         _params: params,
         _fn: fn as (...args: never[]) => void,
         _name: options?.name ?? ''
+    };
+}
+
+// =============================================================================
+// System Set — group of systems sharing a run condition and ordering edges
+// =============================================================================
+
+/**
+ * A named group of systems. When registered via `App.addSystemSet`, each
+ * contained system inherits the set's `runIf` (AND-combined with its own)
+ * and `runBefore`/`runAfter` edges. Other systems or sets may also reference
+ * the set's *name* in their own `runBefore`/`runAfter` lists; the scheduler
+ * expands such references to every member of the set.
+ */
+export interface SystemSet {
+    readonly _kind: 'set';
+    readonly _name: string;
+    readonly _systems: readonly SystemDef[];
+    readonly _runIf?: RunCondition;
+    readonly _runBefore?: readonly string[];
+    readonly _runAfter?: readonly string[];
+}
+
+export interface SystemSetOptions {
+    /** Systems contained in the set. */
+    systems: SystemDef[];
+    /** Predicate checked per-frame; false skips every member. */
+    runIf?: RunCondition;
+    /** Member systems run before each of these names (may reference a set). */
+    runBefore?: string[];
+    /** Member systems run after each of these names (may reference a set). */
+    runAfter?: string[];
+}
+
+export function defineSystemSet(name: string, options: SystemSetOptions): SystemSet {
+    if (!name) throw new Error('SystemSet requires a name');
+    return {
+        _kind: 'set',
+        _name: name,
+        _systems: options.systems,
+        _runIf: options.runIf,
+        _runBefore: options.runBefore,
+        _runAfter: options.runAfter,
     };
 }
 
