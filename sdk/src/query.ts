@@ -5,7 +5,7 @@
 
 import { Entity } from './types';
 import { AnyComponentDef, ComponentData, isBuiltinComponent } from './component';
-import type { World } from './world';
+import type { World, QueryFilter } from './world';
 import { computeQueryCacheKey } from './world';
 
 // =============================================================================
@@ -60,6 +60,109 @@ export function isChangedWrapper(value: unknown): value is ChangedWrapper<AnyCom
 type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
 
 // =============================================================================
+// Filter Expression Tree
+// =============================================================================
+// Composable filter predicates. `With`/`Without` remain as flat shortcuts on
+// the QueryBuilder for the common case (AND of positive/negative predicates);
+// `filter(expr)` accepts arbitrary combinations of And/Or/Not for cases the
+// flat API can't express, e.g. `Or(With(A), Without(B))`.
+
+export type FilterExpr =
+    | { readonly kind: 'with'; readonly component: AnyComponentDef }
+    | { readonly kind: 'without'; readonly component: AnyComponentDef }
+    | { readonly kind: 'and'; readonly filters: readonly FilterExpr[] }
+    | { readonly kind: 'or'; readonly filters: readonly FilterExpr[] }
+    | { readonly kind: 'not'; readonly filter: FilterExpr };
+
+export function With(component: AnyComponentDef): FilterExpr {
+    return { kind: 'with', component };
+}
+export function Without(component: AnyComponentDef): FilterExpr {
+    return { kind: 'without', component };
+}
+export function And(...filters: FilterExpr[]): FilterExpr {
+    return { kind: 'and', filters };
+}
+export function Or(...filters: FilterExpr[]): FilterExpr {
+    return { kind: 'or', filters };
+}
+export function Not(filter: FilterExpr): FilterExpr {
+    return { kind: 'not', filter };
+}
+
+/** Collect every component referenced by a filter expression (for cache-dep tracking). */
+function collectFilterComponents(expr: FilterExpr, out: AnyComponentDef[]): void {
+    switch (expr.kind) {
+        case 'with':
+        case 'without':
+            out.push(expr.component);
+            return;
+        case 'and':
+        case 'or':
+            for (const f of expr.filters) collectFilterComponents(f, out);
+            return;
+        case 'not':
+            collectFilterComponents(expr.filter, out);
+            return;
+    }
+}
+
+/**
+ * Serialize a filter expression deterministically for cache keys. Uses
+ * component `_name` (unique within a registry) so no cross-module numeric
+ * ID table is required.
+ */
+function serializeFilter(expr: FilterExpr): string {
+    switch (expr.kind) {
+        case 'with': return `+${expr.component._name}`;
+        case 'without': return `-${expr.component._name}`;
+        case 'not': return `!(${serializeFilter(expr.filter)})`;
+        case 'and': {
+            const parts = expr.filters.map(serializeFilter);
+            parts.sort();
+            return `&(${parts.join(',')})`;
+        }
+        case 'or': {
+            const parts = expr.filters.map(serializeFilter);
+            parts.sort();
+            return `|(${parts.join(',')})`;
+        }
+    }
+}
+
+/** Compile a filter expression into a reusable entity-predicate closure. */
+function compileFilter(expr: FilterExpr, world: World): (entity: Entity) => boolean {
+    switch (expr.kind) {
+        case 'with': {
+            const comp = expr.component;
+            return (e) => world.has(e, comp);
+        }
+        case 'without': {
+            const comp = expr.component;
+            return (e) => !world.has(e, comp);
+        }
+        case 'not': {
+            const inner = compileFilter(expr.filter, world);
+            return (e) => !inner(e);
+        }
+        case 'and': {
+            const subs = expr.filters.map(f => compileFilter(f, world));
+            return (e) => {
+                for (const s of subs) if (!s(e)) return false;
+                return true;
+            };
+        }
+        case 'or': {
+            const subs = expr.filters.map(f => compileFilter(f, world));
+            return (e) => {
+                for (const s of subs) if (s(e)) return true;
+                return false;
+            };
+        }
+    }
+}
+
+// =============================================================================
 // Query Descriptor
 // =============================================================================
 
@@ -71,11 +174,14 @@ export interface QueryDescriptor<C extends readonly QueryArg[]> {
     readonly _without: AnyComponentDef[];
     readonly _addedFilters: Array<{ index: number; component: AnyComponentDef }>;
     readonly _changedFilters: Array<{ index: number; component: AnyComponentDef }>;
+    readonly _filter: FilterExpr | null;
 }
 
 export interface QueryBuilder<C extends readonly QueryArg[]> extends QueryDescriptor<C> {
     with(...components: AnyComponentDef[]): QueryBuilder<C>;
     without(...components: AnyComponentDef[]): QueryBuilder<C>;
+    /** Attach a composable filter expression. Replaces any prior call. */
+    filter(expr: FilterExpr): QueryBuilder<C>;
 }
 
 function unwrapComponent(comp: QueryArg): AnyComponentDef {
@@ -88,7 +194,8 @@ function unwrapComponent(comp: QueryArg): AnyComponentDef {
 function createQueryDescriptor<C extends readonly QueryArg[]>(
     components: C,
     withFilters: AnyComponentDef[] = [],
-    withoutFilters: AnyComponentDef[] = []
+    withoutFilters: AnyComponentDef[] = [],
+    filter: FilterExpr | null = null,
 ): QueryBuilder<C> {
     const mutIndices: number[] = [];
     const addedFilters: Array<{ index: number; component: AnyComponentDef }> = [];
@@ -113,11 +220,15 @@ function createQueryDescriptor<C extends readonly QueryArg[]>(
         _without: withoutFilters,
         _addedFilters: addedFilters,
         _changedFilters: changedFilters,
+        _filter: filter,
         with(...extraWith: AnyComponentDef[]) {
-            return createQueryDescriptor(components, [...withFilters, ...extraWith], withoutFilters);
+            return createQueryDescriptor(components, [...withFilters, ...extraWith], withoutFilters, filter);
         },
         without(...extraWithout: AnyComponentDef[]) {
-            return createQueryDescriptor(components, withFilters, [...withoutFilters, ...extraWithout]);
+            return createQueryDescriptor(components, withFilters, [...withoutFilters, ...extraWithout], filter);
+        },
+        filter(expr: FilterExpr) {
+            return createQueryDescriptor(components, withFilters, withoutFilters, expr);
         },
     };
 }
@@ -171,6 +282,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
     private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
     private readonly mutIsBuiltin_: boolean[];
+    private readonly compiledFilter_: QueryFilter | null;
 
     constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick = -1) {
         this.world_ = world;
@@ -183,10 +295,18 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             component: this.actualComponents_[idx],
             data: null as unknown as Record<string, unknown>
         }));
+        if (descriptor._filter) {
+            const deps: AnyComponentDef[] = [];
+            collectFilterComponents(descriptor._filter, deps);
+            this.compiledFilter_ = { match: compileFilter(descriptor._filter, world), deps };
+        } else {
+            this.compiledFilter_ = null;
+        }
         this.cacheKey_ = computeQueryCacheKey(
             this.allRequired_,
             descriptor._with,
             descriptor._without,
+            descriptor._filter ? serializeFilter(descriptor._filter) : undefined,
         );
         this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp));
         this.mutSetters_ = descriptor._mutIndices.map(idx =>
@@ -228,7 +348,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             this.allRequired_,
             this.descriptor_._with,
             this.descriptor_._without,
-            this.cacheKey_
+            this.cacheKey_,
+            this.compiledFilter_ ?? undefined,
         );
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
@@ -323,7 +444,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             this.allRequired_,
             this.descriptor_._with,
             this.descriptor_._without,
-            this.cacheKey_
+            this.cacheKey_,
+            this.compiledFilter_ ?? undefined,
         );
         const compCount = this.actualComponents_.length;
         const hasMut = _mutIndices.length > 0;
@@ -408,7 +530,11 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
     count(): number {
         return this.world_.getEntitiesWithComponents(
-            this.allRequired_, this.descriptor_._with, this.descriptor_._without
+            this.allRequired_,
+            this.descriptor_._with,
+            this.descriptor_._without,
+            this.cacheKey_,
+            this.compiledFilter_ ?? undefined,
         ).length;
     }
 

@@ -40,6 +40,7 @@ export function computeQueryCacheKey(
     components: AnyComponentDef[],
     withFilters: AnyComponentDef[] = [],
     withoutFilters: AnyComponentDef[] = [],
+    filterKey?: string,
 ): string {
     _keyIds.length = 0;
     for (const c of components) _keyIds.push(getCompNumId(c));
@@ -57,7 +58,21 @@ export function computeQueryCacheKey(
         _keyIds.sort((a, b) => a - b);
         key += '|-' + _keyIds.join(',');
     }
+    if (filterKey) {
+        key += '|F=' + filterKey;
+    }
     return key;
+}
+
+/**
+ * Predicate-based filter applied after the positive/negative component
+ * checks. Callers (typically `QueryInstance`) compile an expression tree
+ * into a `match` closure plus a list of components the tree reads so the
+ * query cache can invalidate on structural changes to any of them.
+ */
+export interface QueryFilter {
+    readonly match: (entity: Entity) => boolean;
+    readonly deps: readonly AnyComponentDef[];
 }
 
 // =============================================================================
@@ -564,14 +579,21 @@ export class World {
         components: AnyComponentDef[],
         withFilters: AnyComponentDef[] = [],
         withoutFilters: AnyComponentDef[] = [],
-        precomputedKey?: string
+        precomputedKey?: string,
+        filter?: QueryFilter,
     ): Entity[] {
-        if (components.length === 0 && withFilters.length === 0 && withoutFilters.length === 0) {
+        if (
+            components.length === 0 && withFilters.length === 0 &&
+            withoutFilters.length === 0 && !filter
+        ) {
             return this.getAllEntities();
         }
 
         const cacheKey = precomputedKey ?? computeQueryCacheKey(components, withFilters, withoutFilters);
         const depIds = this.collectComponentIds_(components, withFilters, withoutFilters);
+        if (filter) {
+            for (const c of filter.deps) depIds.push(c._id);
+        }
 
         return this.queries_.getOrCompute(cacheKey, depIds, () => {
             const entities: Entity[] = [];
@@ -652,6 +674,9 @@ export class World {
                             if (woBuiltin![i].has(entity)) { match = false; break; }
                         }
                     }
+                }
+                if (match && filter && !filter.match(entity)) {
+                    match = false;
                 }
                 if (match) {
                     entities.push(entity);
