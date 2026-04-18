@@ -124,7 +124,8 @@ describe('System Dependency Ordering', () => {
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
 
-            await expect((app as any).runSchedule(Schedule.Update)).rejects.toThrow('Circular dependency');
+            await expect((app as any).runSchedule(Schedule.Update))
+                .rejects.toThrow(/Circular system dependency: SystemA → SystemB → SystemA/);
         });
     });
 
