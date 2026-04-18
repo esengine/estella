@@ -65,7 +65,23 @@ export interface TransitionOptions {
     onComplete?: () => void;
 }
 
-type TransitionPhase = 'fade-out' | 'fade-in';
+/**
+ * Fade transition runs in three phases:
+ *  - fade-out: overlay alpha ramps 0 → 1 over duration/2
+ *  - loading: overlay stays fully opaque while the old scene unloads and the
+ *    new one loads. Visual hold absorbs any load latency and prevents a
+ *    black-screen flash if the swap takes longer than the timer.
+ *  - fade-in: overlay alpha ramps 1 → 0 over duration/2
+ *
+ * Only a completed fade-in resolves the caller's promise. Any failure during
+ * the `loading` phase rejects it with the original error.
+ */
+type TransitionPhase = 'fade-out' | 'loading' | 'fade-in';
+
+type SwitchOutcome =
+    | { readonly status: 'pending' }
+    | { readonly status: 'success' }
+    | { readonly status: 'error'; readonly error: unknown };
 
 interface TransitionState {
     phase: TransitionPhase;
@@ -76,6 +92,8 @@ interface TransitionState {
     options: TransitionOptions;
     resolve: () => void;
     reject: (reason?: unknown) => void;
+    /** Outcome of the in-flight doSwitch() during the `loading` phase. */
+    outcome: SwitchOutcome;
 }
 
 const TRANSITION_CALLBACK_ID = '__scene_transition_overlay__';
@@ -268,13 +286,24 @@ export class SceneManagerState {
                 options,
                 resolve,
                 reject,
+                outcome: { status: 'pending' },
             };
 
             registerDrawCallback(TRANSITION_CALLBACK_ID, () => {
                 if (!this.transition_) return;
                 const halfDuration = this.transition_.duration / 2;
-                const t = Math.min(this.transition_.elapsed / halfDuration, 1);
-                const alpha = this.transition_.phase === 'fade-out' ? t : 1 - t;
+                let alpha: number;
+                switch (this.transition_.phase) {
+                    case 'fade-out':
+                        alpha = Math.min(this.transition_.elapsed / halfDuration, 1);
+                        break;
+                    case 'loading':
+                        alpha = 1;
+                        break;
+                    case 'fade-in':
+                        alpha = Math.max(1 - this.transition_.elapsed / halfDuration, 0);
+                        break;
+                }
                 Draw.setLayer(9999);
                 Draw.setDepth(9999);
                 Draw.rect(
@@ -292,30 +321,68 @@ export class SceneManagerState {
         this.transition_.elapsed += dt;
         const halfDuration = this.transition_.duration / 2;
 
+        // Phase 1 → 2: fade-out reached full opacity. Start the swap, hold
+        // the overlay fully opaque while it runs.
         if (this.transition_.phase === 'fade-out' && this.transition_.elapsed >= halfDuration) {
-            this.transition_.phase = 'fade-in';
+            this.transition_.phase = 'loading';
             this.transition_.elapsed = 0;
 
-            const { targetScene, options } = this.transition_;
+            const transition = this.transition_;
+            const { targetScene, options } = transition;
             const oldScene = this.activeScene_;
 
-            const doSwitch = async () => {
+            // Fire-and-forget; we observe completion via `transition.outcome`.
+            // Errors are recorded there rather than rejecting the transition
+            // promise directly so the outcome check below owns the cleanup path
+            // (avoids racing with a transition_ that may have been cleared).
+            void (async () => {
                 try {
                     if (oldScene && oldScene !== targetScene) {
                         await this.unload(oldScene, options);
                     }
                     await this.load(targetScene);
+                    // Only record success if this transition is still the
+                    // in-flight one (cancel/replace could have reassigned).
+                    if (this.transition_ === transition) {
+                        transition.outcome = { status: 'success' };
+                    }
                 } catch (err) {
                     log.error('scene', 'Scene transition failed', err);
-                    const { reject: rejectTransition } = this.transition_!;
-                    this.transition_ = null;
-                    unregisterDrawCallback(TRANSITION_CALLBACK_ID);
-                    rejectTransition(err);
+                    if (this.transition_ === transition) {
+                        transition.outcome = { status: 'error', error: err };
+                    } else {
+                        // Transition was replaced mid-flight; nothing to reject.
+                    }
                 }
-            };
-            doSwitch().catch(() => {});
+            })();
         }
 
+        // Phase 2 → 3 or reject: loading phase checks whether the swap has
+        // finished this frame. Elapsed is clamped to 0 so the overlay never
+        // fades back in prematurely — visual hold until the outcome is known.
+        if (this.transition_.phase === 'loading') {
+            const outcome = this.transition_.outcome;
+            if (outcome.status === 'pending') {
+                this.transition_.elapsed = 0;
+                return;
+            }
+            if (outcome.status === 'error') {
+                const { reject, options } = this.transition_;
+                this.transition_ = null;
+                unregisterDrawCallback(TRANSITION_CALLBACK_ID);
+                // Still call onComplete? No — onComplete signals success. Keep
+                // it scoped to the successful path.
+                void options;
+                reject(outcome.error);
+                return;
+            }
+            // success → start fade-in
+            this.transition_.phase = 'fade-in';
+            this.transition_.elapsed = 0;
+            return;
+        }
+
+        // Phase 3: fade-in done → resolve caller's promise.
         if (this.transition_.phase === 'fade-in' && this.transition_.elapsed >= halfDuration) {
             const { resolve, options } = this.transition_;
             this.transition_ = null;

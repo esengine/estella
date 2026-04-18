@@ -833,11 +833,14 @@ describe('SceneManager', () => {
             });
             await Promise.resolve();
 
-            // Complete fade-out (half = 0.5)
+            // Complete fade-out (half = 0.5) → enters loading phase.
             manager.updateTransition(0.6);
             await new Promise(r => setTimeout(r, 10));
 
-            // Complete fade-in (half = 0.5)
+            // Flush the loading-phase outcome; sees success → flips to fade-in.
+            manager.updateTransition(0.0);
+
+            // Complete fade-in (half = 0.5).
             manager.updateTransition(0.6);
 
             expect(manager.isTransitioning()).toBe(false);
