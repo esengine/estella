@@ -7,7 +7,7 @@ import { Entity } from './types';
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getComponentRegistry, Name } from './component';
 import type { CppRegistry, ESEngineModule } from './wasm';
 import { handleWasmError } from './wasmError';
-import { BuiltinBridge, convertFromWasm, convertForWasm, type BuiltinMethods } from './ecs/BuiltinBridge';
+import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './ecs/BuiltinBridge';
 import { ScriptStorage } from './ecs/ScriptStorage';
 import { NameIndex } from './ecs/NameIndex';
 import { ChangeTracker } from './ecs/ChangeTracker';
@@ -81,8 +81,12 @@ export class World {
         return this.builtin_;
     }
 
-    connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void {
-        this.builtin_.connect(cppRegistry, module);
+    connectCpp(
+        cppRegistry: CppRegistry,
+        module?: ESEngineModule,
+        options?: BridgeConnectOptions,
+    ): void {
+        this.builtin_.connect(cppRegistry, module, options);
     }
 
     disconnectCpp(): void {

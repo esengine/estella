@@ -8,6 +8,7 @@ import { Schedule, SystemDef, SystemRunner } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import { EventRegistry, type EventDef } from './event';
 import type { ESEngineModule, CppRegistry } from './wasm';
+import type { BridgeConnectOptions } from './ecs/BuiltinBridge';
 import { UICameraInfo } from './ui/UICameraInfo';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
@@ -222,8 +223,12 @@ export class App {
     // C++ Integration
     // =========================================================================
 
-    connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this {
-        this.world_.connectCpp(cppRegistry, module);
+    connectCpp(
+        cppRegistry: CppRegistry,
+        module?: ESEngineModule,
+        options?: BridgeConnectOptions,
+    ): this {
+        this.world_.connectCpp(cppRegistry, module, options);
 
         if (module) {
             this.module_ = module;
@@ -779,7 +784,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     const app = App.new();
     const cppRegistry = new module.Registry() as unknown as CppRegistry;
 
-    app.connectCpp(cppRegistry, module);
+    app.connectCpp(cppRegistry, module, { strict: true });
 
     if (options?.glContextHandle) {
         module.initRendererWithContext(options.glContextHandle);

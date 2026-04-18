@@ -8,6 +8,7 @@ import type { BuiltinComponentDef } from '../component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { validateComponentData, formatValidationErrors } from '../validation';
 import { handleWasmError } from '../wasmError';
+import { COMPONENT_META } from '../component.generated';
 import { PTR_LAYOUTS } from '../ptrLayouts.generated';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
 
@@ -169,6 +170,38 @@ export interface BuiltinMethods {
     remove: (e: Entity) => void;
 }
 
+/** Result of verifying a connected C++ Registry against the generated metadata. */
+export interface BridgeVerification {
+    /** True when every component in COMPONENT_META has all four methods. */
+    readonly ok: boolean;
+    /** List of components with missing bindings (empty when ok). */
+    readonly missing: readonly { readonly name: string; readonly methods: readonly string[] }[];
+}
+
+/** Options for {@link BuiltinBridge.connect}. */
+export interface BridgeConnectOptions {
+    /**
+     * When true (recommended for production), verify every component in
+     * COMPONENT_META against the registry at connect time and throw a single
+     * aggregated diagnostic if any bindings are missing. When false (default,
+     * legacy-compatible), pre-populate the method cache for whatever bindings
+     * exist and let per-component lookups throw on demand — this keeps
+     * partial mock registries used in unit tests working unchanged.
+     */
+    readonly strict?: boolean;
+}
+
+const METHOD_PREFIXES = ['add', 'get', 'has', 'remove'] as const;
+
+function formatMissingBindings(missing: readonly { name: string; methods: readonly string[] }[]): string {
+    const detail = missing.map(m => `  - ${m.name}: missing ${m.methods.join(', ')}`).join('\n');
+    return (
+        `C++ Registry is missing ${String(missing.length)} builtin component binding(s):\n${detail}\n\n` +
+        `Likely cause: WebBindings.generated.cpp is out of sync with component.generated.ts. ` +
+        `Rerun the EHT generator and rebuild the WASM target.`
+    );
+}
+
 // =============================================================================
 // BuiltinBridge
 // =============================================================================
@@ -179,16 +212,43 @@ export class BuiltinBridge {
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
     private builtinEntitySets_ = new Map<string, Set<Entity>>();
 
-    connect(cppRegistry: CppRegistry, module?: ESEngineModule): void {
+    /**
+     * Bind to a C++ Registry.
+     *
+     * Production call sites should pass `{ strict: true }` so the bridge
+     * verifies that every component declared in COMPONENT_META has its four
+     * bindings (add/get/has/remove) and throws a single aggregated diagnostic
+     * if any are missing. This surfaces drift between the WASM build and the
+     * generated metadata at startup rather than on first component use.
+     *
+     * In non-strict mode (default, used by unit tests with partial mock
+     * registries) the cache is pre-populated for whatever bindings exist and
+     * individual `getBuiltinMethods()` calls throw lazily on missing ones.
+     */
+    connect(
+        cppRegistry: CppRegistry,
+        module?: ESEngineModule,
+        options: BridgeConnectOptions = {},
+    ): void {
         this.cppRegistry_ = cppRegistry;
         this.module_ = module ?? null;
         this.builtinMethodCache_.clear();
+        this.builtinEntitySets_.clear();
+
+        const verification = this.verifyAgainst_(cppRegistry);
+        if (options.strict && !verification.ok) {
+            this.cppRegistry_ = null;
+            this.module_ = null;
+            this.builtinMethodCache_.clear();
+            throw new Error(formatMissingBindings(verification.missing));
+        }
     }
 
     disconnect(): void {
         this.cppRegistry_ = null;
         this.module_ = null;
         this.builtinMethodCache_.clear();
+        this.builtinEntitySets_.clear();
     }
 
     get hasCpp(): boolean {
@@ -203,29 +263,61 @@ export class BuiltinBridge {
         return this.module_;
     }
 
-    getBuiltinMethods(cppName: string): BuiltinMethods {
-        let methods = this.builtinMethodCache_.get(cppName);
-        if (methods) return methods;
+    /**
+     * Describe the current binding state without throwing. Useful for
+     * diagnostics and tests that want to inspect coverage.
+     */
+    verify(): BridgeVerification {
+        if (!this.cppRegistry_) return { ok: false, missing: [{ name: '<registry>', methods: ['connect() not called'] }] };
+        return this.verifyAgainst_(this.cppRegistry_);
+    }
 
-        const reg = this.cppRegistry_!;
+    private verifyAgainst_(reg: CppRegistry): BridgeVerification {
+        const missing: { name: string; methods: string[] }[] = [];
+        for (const cppName of Object.keys(COMPONENT_META)) {
+            const missingMethods: string[] = [];
+            for (const prefix of METHOD_PREFIXES) {
+                const fn = reg[`${prefix}${cppName}`];
+                if (typeof fn !== 'function') missingMethods.push(`${prefix}${cppName}`);
+            }
+            if (missingMethods.length > 0) {
+                missing.push({ name: cppName, methods: missingMethods });
+                continue;
+            }
+            this.resolveAndCache_(reg, cppName);
+        }
+        return { ok: missing.length === 0, missing };
+    }
+
+    getBuiltinMethods(cppName: string): BuiltinMethods {
+        const cached = this.builtinMethodCache_.get(cppName);
+        if (cached) return cached;
+        if (!this.cppRegistry_) {
+            throw new Error(`BuiltinBridge.getBuiltinMethods("${cppName}") called before connect().`);
+        }
+        // Fallback for components not declared in COMPONENT_META — user-defined
+        // builtins and test-only synthetic components. Production components are
+        // resolved eagerly in verifyAgainst_ and never hit this path.
+        return this.resolveAndCache_(this.cppRegistry_, cppName);
+    }
+
+    private resolveAndCache_(reg: CppRegistry, cppName: string): BuiltinMethods {
         const addFn = reg[`add${cppName}`];
         const getFn = reg[`get${cppName}`];
         const hasFn = reg[`has${cppName}`];
         const removeFn = reg[`remove${cppName}`];
-
         if (typeof addFn !== 'function' || typeof getFn !== 'function' ||
             typeof hasFn !== 'function' || typeof removeFn !== 'function') {
             throw new Error(
                 `C++ Registry missing methods for component "${cppName}". ` +
-                `Expected: add${cppName}, get${cppName}, has${cppName}, remove${cppName}`
+                `Expected: add${cppName}, get${cppName}, has${cppName}, remove${cppName}`,
             );
         }
-
-        methods = {
-            add: addFn.bind(reg),
-            get: getFn.bind(reg),
-            has: hasFn.bind(reg),
-            remove: removeFn.bind(reg),
+        const methods: BuiltinMethods = {
+            add: (addFn as (e: Entity, d: unknown) => void).bind(reg),
+            get: (getFn as (e: Entity) => unknown).bind(reg),
+            has: (hasFn as (e: Entity) => boolean).bind(reg),
+            remove: (removeFn as (e: Entity) => void).bind(reg),
         };
         this.builtinMethodCache_.set(cppName, methods);
         return methods;
