@@ -11,7 +11,7 @@ import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptio
 import { ScriptStorage } from './ecs/ScriptStorage';
 import { NameIndex } from './ecs/NameIndex';
 import { ChangeTracker } from './ecs/ChangeTracker';
-import { QueryCache } from './ecs/QueryCache';
+import { QueryCache, type QueryCacheStats } from './ecs/QueryCache';
 import { log } from './logger';
 
 export { PTR_LAYOUTS } from './ptrLayouts.generated';
@@ -249,6 +249,16 @@ export class World {
 
     getWorldVersion(): number {
         return this.queries_.structuralVersion;
+    }
+
+    /** Cumulative query-cache counters (hits, misses, invalidation causes). */
+    getQueryCacheStats(): QueryCacheStats {
+        return this.queries_.getStats();
+    }
+
+    /** Reset the query-cache counters. Entries themselves are kept. */
+    resetQueryCacheStats(): void {
+        this.queries_.resetStats();
     }
 
     beginIteration(): void {

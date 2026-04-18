@@ -16,34 +16,50 @@ import { PTR_ACCESSORS } from './ptrAccessors.generated';
 // Color conversion helpers
 // =============================================================================
 
+/**
+ * Rewrite color-typed fields from the WASM {x,y,z,w} shape into the SDK
+ * {r,g,b,a} shape. The outer object comes fresh from embind on every
+ * Registry method call and has no outside aliases, so we mutate it in
+ * place; the inner color objects are likewise fresh. Setting r/g/b/a
+ * on the same object leaves ghost x/y/z/w properties, but consumers
+ * only read r/g/b/a — net zero allocations per get().
+ */
 export function convertFromWasm(
     obj: Record<string, unknown>,
     colorKeys: readonly string[],
 ): Record<string, unknown> {
     if (colorKeys.length === 0) return obj;
-    const result: Record<string, unknown> = { ...obj };
     for (const key of colorKeys) {
-        const val = result[key] as Record<string, unknown> | null | undefined;
+        const val = obj[key] as { x?: number; y?: number; z?: number; w?: number } & Record<string, unknown> | null | undefined;
         if (val && typeof val === 'object') {
-            result[key] = { r: val.x, g: val.y, b: val.z, a: val.w };
+            (val as { r: unknown }).r = val.x;
+            (val as { g: unknown }).g = val.y;
+            (val as { b: unknown }).b = val.z;
+            (val as { a: unknown }).a = val.w;
         }
     }
-    return result;
+    return obj;
 }
 
+/**
+ * Rewrite color-typed fields from the SDK {r,g,b,a} shape into the WASM
+ * {x,y,z,w} shape. The outer object is always a fresh merge constructed
+ * by the caller, but inner color values may alias user-supplied data or
+ * the shared component defaults, so we replace those slots with fresh
+ * {x,y,z,w} objects rather than mutating them.
+ */
 export function convertForWasm(
     obj: Record<string, unknown>,
     colorKeys: readonly string[],
 ): Record<string, unknown> {
     if (colorKeys.length === 0) return obj;
-    const result: Record<string, unknown> = { ...obj };
     for (const key of colorKeys) {
-        const val = result[key] as Record<string, unknown> | null | undefined;
+        const val = obj[key] as { r?: number; g?: number; b?: number; a?: number } | null | undefined;
         if (val && typeof val === 'object') {
-            result[key] = { x: val.r, y: val.g, z: val.b, w: val.a };
+            obj[key] = { x: val.r, y: val.g, z: val.b, w: val.a };
         }
     }
-    return result;
+    return obj;
 }
 
 // =============================================================================
@@ -58,11 +74,31 @@ interface PtrFieldDesc {
     readonly offset: number;
 }
 
+function fieldByteSize(type: PtrFieldType): number {
+    switch (type) {
+        case 'f32': case 'i32': case 'u32': return 4;
+        case 'bool': case 'u8': return 1;
+        case 'vec2': return 8;
+        case 'vec3': return 12;
+        case 'vec4': case 'quat': case 'color': return 16;
+    }
+}
+
+function assertPtrInBounds(heapByteLength: number, byteOff: number, size: number): void {
+    if (byteOff < 0 || byteOff + size > heapByteLength) {
+        throw new RangeError(
+            `WASM pointer field access out of bounds: offset ${String(byteOff)} + size ${String(size)} ` +
+            `exceeds heap byteLength ${String(heapByteLength)} (typed-array detached, or C++ returned a stale pointer)`,
+        );
+    }
+}
+
 export function readPtrField(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, field: PtrFieldDesc,
 ): unknown {
     const byteOff = ptr + field.offset;
+    assertPtrInBounds(u8.byteLength, byteOff, fieldByteSize(field.type));
     const idx = byteOff >> 2;
     switch (field.type) {
         case 'f32':   return f32[idx];
@@ -87,6 +123,16 @@ export function fillPtrFields(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, fields: readonly PtrFieldDesc[], target: Record<string, unknown>,
 ): void {
+    // One bounds check for the whole struct: compute the maximum byte extent
+    // across all fields and verify against the heap view once.
+    let maxEnd = 0;
+    for (let i = 0; i < fields.length; i++) {
+        const f = fields[i];
+        const end = f.offset + fieldByteSize(f.type);
+        if (end > maxEnd) maxEnd = end;
+    }
+    if (maxEnd > 0) assertPtrInBounds(u8.byteLength, ptr, maxEnd);
+
     for (let i = 0; i < fields.length; i++) {
         const field = fields[i];
         const byteOff = ptr + field.offset;
@@ -144,6 +190,7 @@ export function writePtrField(
     ptr: number, field: PtrFieldDesc, value: PtrFieldValue | unknown,
 ): void {
     const byteOff = ptr + field.offset;
+    assertPtrInBounds(u8.byteLength, byteOff, fieldByteSize(field.type));
     const idx = byteOff >> 2;
     switch (field.type) {
         case 'f32':   f32[idx] = value as number; break;
