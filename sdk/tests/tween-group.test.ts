@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { TweenGroup, TweenSequence, TweenCompose, tweenCompositionManager } from '../src/animation/TweenGroup';
+import { TweenGroup, TweenSequence, TweenCompositionManager } from '../src/animation/TweenGroup';
 import { TweenState } from '../src/animation/TweenTypes';
 
 function mockTween(doneAfter: number) {
@@ -133,18 +133,35 @@ describe('TweenSequence', () => {
     });
 });
 
-describe('TweenCompose', () => {
-    it('parallel() registers with composition manager', () => {
-        const initial = tweenCompositionManager.activeCount;
-        TweenCompose.parallel([mockTween(1)]);
-        expect(tweenCompositionManager.activeCount).toBe(initial + 1);
-        tweenCompositionManager.clear();
+describe('TweenCompositionManager', () => {
+    it('add() tracks a group', () => {
+        const mgr = new TweenCompositionManager();
+        mgr.add(new TweenGroup([mockTween(1)]));
+        expect(mgr.activeCount).toBe(1);
     });
 
-    it('sequence() registers with composition manager', () => {
-        const initial = tweenCompositionManager.activeCount;
-        TweenCompose.sequence([() => mockTween(1)]);
-        expect(tweenCompositionManager.activeCount).toBe(initial + 1);
-        tweenCompositionManager.clear();
+    it('add() tracks a sequence', () => {
+        const mgr = new TweenCompositionManager();
+        mgr.add(new TweenSequence([() => mockTween(1)]));
+        expect(mgr.activeCount).toBe(1);
+    });
+
+    it('update() drops completed items', () => {
+        const mgr = new TweenCompositionManager();
+        const a = mockTween(0);
+        a.tick(1);
+        const group = new TweenGroup([a]);
+        mgr.add(group);
+        expect(mgr.activeCount).toBe(1);
+        mgr.update();
+        expect(mgr.activeCount).toBe(0);
+    });
+
+    it('clear() empties the set', () => {
+        const mgr = new TweenCompositionManager();
+        mgr.add(new TweenGroup([mockTween(1)]));
+        mgr.add(new TweenSequence([() => mockTween(1)]));
+        mgr.clear();
+        expect(mgr.activeCount).toBe(0);
     });
 });

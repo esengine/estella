@@ -3,7 +3,7 @@ import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import { initParticleAPI, shutdownParticleAPI, Particle } from './ParticleAPI';
+import { Particle, ParticleAPI } from './ParticleAPI';
 
 export class ParticlePlugin implements Plugin {
     name = 'particle';
@@ -11,19 +11,15 @@ export class ParticlePlugin implements Plugin {
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
         const registry = app.world.getCppRegistry() as CppRegistry;
-        initParticleAPI(module, registry);
+        app.insertResource(Particle, new ParticleAPI(module, registry));
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(Time)],
-            (time: TimeData) => {
-                Particle.update(time.delta);
+            [Res(Time), Res(Particle)],
+            (time: TimeData, particle: ParticleAPI) => {
+                particle.update(time.delta);
             },
             { name: 'ParticleSystem' }
         ));
-    }
-
-    cleanup(): void {
-        shutdownParticleAPI();
     }
 }
 

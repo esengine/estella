@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AudioPlugin, audioPlugin } from '../src/audio/AudioPlugin';
-import { Audio } from '../src/audio/Audio';
+import { AudioAPI } from '../src/audio/Audio';
 import type { AudioHandle, AudioBufferHandle, PlatformAudioBackend } from '../src/audio/PlatformAudioBackend';
 import type { AudioMixer } from '../src/audio/AudioMixer';
 import type { AudioBus } from '../src/audio/AudioBus';
@@ -70,7 +70,7 @@ describe('AudioPlugin', () => {
         expect(audioPlugin).toBeInstanceOf(AudioPlugin);
     });
 
-    it('should have name "AudioPlugin"', () => {
+    it('should have name "audio"', () => {
         expect(audioPlugin.name).toBe('audio');
     });
 
@@ -86,14 +86,6 @@ describe('AudioPlugin', () => {
             sfxVolume: 0.9,
         });
         expect(plugin.name).toBe('audio');
-    });
-
-    it('should call Audio.dispose on cleanup', () => {
-        const disposeSpy = vi.spyOn(Audio, 'dispose').mockImplementation(() => {});
-        const plugin = new AudioPlugin();
-        plugin.cleanup();
-        expect(disposeSpy).toHaveBeenCalled();
-        disposeSpy.mockRestore();
     });
 
     describe('stopAllSources', () => {
@@ -132,10 +124,16 @@ describe('AudioPlugin', () => {
     });
 
     describe('cleanup', () => {
-        it('should call stopAllSources then Audio.dispose', () => {
+        it('should call stopAllSources then dispose the owned AudioAPI instance', () => {
             const plugin = new AudioPlugin();
+            const backend = createMockBackend();
+            const audio = new AudioAPI(backend, backend.mixer);
+            (plugin as any).audio_ = audio;
+            (plugin as any).activeSourceHandles_ = new Map();
+            (plugin as any).playedEntities_ = new Set();
+
             const stopSpy = vi.spyOn(plugin, 'stopAllSources');
-            const disposeSpy = vi.spyOn(Audio, 'dispose').mockImplementation(() => {});
+            const disposeSpy = vi.spyOn(audio, 'dispose');
 
             plugin.cleanup();
 
@@ -144,49 +142,59 @@ describe('AudioPlugin', () => {
             const stopOrder = stopSpy.mock.invocationCallOrder[0];
             const disposeOrder = disposeSpy.mock.invocationCallOrder[0];
             expect(stopOrder).toBeLessThan(disposeOrder);
+        });
 
-            stopSpy.mockRestore();
-            disposeSpy.mockRestore();
+        it('should clear the audio_ reference after dispose', () => {
+            const plugin = new AudioPlugin();
+            const backend = createMockBackend();
+            (plugin as any).audio_ = new AudioAPI(backend, backend.mixer);
+            (plugin as any).activeSourceHandles_ = new Map();
+            (plugin as any).playedEntities_ = new Set();
+
+            plugin.cleanup();
+
+            expect((plugin as any).audio_).toBeNull();
         });
     });
 });
 
-describe('Audio.stopAll', () => {
+describe('AudioAPI.stopAll', () => {
     let backend: PlatformAudioBackend;
+    let audio: AudioAPI;
 
     beforeEach(() => {
         backend = createMockBackend();
-        Audio.init(backend, backend.mixer);
+        audio = new AudioAPI(backend, backend.mixer);
     });
 
     it('should stop BGM without disposing backend', async () => {
-        await Audio.preload('bgm.mp3');
+        await audio.preload('bgm.mp3');
         const bgmHandle = createMockHandle();
         (backend.play as ReturnType<typeof vi.fn>).mockReturnValue(bgmHandle);
-        Audio.playBGM('bgm.mp3');
+        audio.playBGM('bgm.mp3');
 
-        Audio.stopAll();
+        audio.stopAll();
 
         expect(bgmHandle.stop).toHaveBeenCalled();
         expect(backend.dispose).not.toHaveBeenCalled();
-        expect(Audio.getBufferHandle('bgm.mp3')).toBeDefined();
+        expect(audio.getBufferHandle('bgm.mp3')).toBeDefined();
     });
 
     it('should allow playing new BGM after stopAll', async () => {
-        await Audio.preload('bgm.mp3');
+        await audio.preload('bgm.mp3');
         const firstHandle = createMockHandle();
         (backend.play as ReturnType<typeof vi.fn>).mockReturnValue(firstHandle);
-        Audio.playBGM('bgm.mp3');
-        Audio.stopAll();
+        audio.playBGM('bgm.mp3');
+        audio.stopAll();
 
         const secondHandle = createMockHandle();
         (backend.play as ReturnType<typeof vi.fn>).mockReturnValue(secondHandle);
-        Audio.playBGM('bgm.mp3');
+        audio.playBGM('bgm.mp3');
 
         expect(backend.play).toHaveBeenCalledTimes(2);
     });
 
     it('should be safe to call when no audio is playing', () => {
-        expect(() => Audio.stopAll()).not.toThrow();
+        expect(() => audio.stopAll()).not.toThrow();
     });
 });

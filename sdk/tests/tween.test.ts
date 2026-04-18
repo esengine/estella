@@ -1,15 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
 import {
-    Tween,
+    TweenAPI,
     TweenHandle,
     EasingType,
     TweenTarget,
     TweenState,
     LoopMode,
-    initTweenAPI,
-    shutdownTweenAPI,
 } from '../src/animation/Tween';
 
 function createMockAnimModule() {
@@ -44,16 +42,13 @@ function createMockAnimModule() {
 describe('Tween API', () => {
     let module: ESEngineModule;
     let registry: CppRegistry;
+    let tween: TweenAPI;
 
     beforeEach(() => {
         const mock = createMockAnimModule();
         module = mock.module;
         registry = mock.registry;
-        initTweenAPI(module, registry);
-    });
-
-    afterEach(() => {
-        shutdownTweenAPI();
+        tween = new TweenAPI(module, registry);
     });
 
     // =========================================================================
@@ -92,13 +87,13 @@ describe('Tween API', () => {
     });
 
     // =========================================================================
-    // Tween.to()
+    // tween.to()
     // =========================================================================
 
-    describe('Tween.to()', () => {
+    describe('tween.to()', () => {
         it('should call WASM createTween with correct params', () => {
             const entity = 42 as Entity;
-            Tween.to(entity, TweenTarget.PositionX, 0, 100, 1.5);
+            tween.to(entity, TweenTarget.PositionX, 0, 100, 1.5);
 
             expect(module._anim_createTween).toHaveBeenCalledWith(
                 registry, 42, TweenTarget.PositionX,
@@ -108,7 +103,7 @@ describe('Tween API', () => {
         });
 
         it('should pass easing option', () => {
-            Tween.to(1 as Entity, TweenTarget.ColorA, 1, 0, 0.5, {
+            tween.to(1 as Entity, TweenTarget.ColorA, 1, 0, 0.5, {
                 easing: EasingType.EaseOutQuad,
             });
 
@@ -120,7 +115,7 @@ describe('Tween API', () => {
         });
 
         it('should pass delay option', () => {
-            Tween.to(1 as Entity, TweenTarget.ScaleX, 1, 2, 1, {
+            tween.to(1 as Entity, TweenTarget.ScaleX, 1, 2, 1, {
                 delay: 0.5,
             });
 
@@ -132,7 +127,7 @@ describe('Tween API', () => {
         });
 
         it('should pass loop options', () => {
-            Tween.to(1 as Entity, TweenTarget.PositionY, 0, 50, 2, {
+            tween.to(1 as Entity, TweenTarget.PositionY, 0, 50, 2, {
                 loop: LoopMode.PingPong,
                 loopCount: 3,
             });
@@ -145,7 +140,7 @@ describe('Tween API', () => {
         });
 
         it('should return a TweenHandle', () => {
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             expect(handle).toBeInstanceOf(TweenHandle);
         });
     });
@@ -159,12 +154,12 @@ describe('Tween API', () => {
             (module._anim_getTweenState as ReturnType<typeof vi.fn>)
                 .mockReturnValueOnce(TweenState.Paused);
 
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             expect(handle.state).toBe(TweenState.Paused);
         });
 
         it('should call WASM setBezier', () => {
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.bezier(0.25, 0.1, 0.25, 1.0);
 
             expect(module._anim_setTweenBezier).toHaveBeenCalledWith(
@@ -173,14 +168,14 @@ describe('Tween API', () => {
         });
 
         it('bezier() should return this for chaining', () => {
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             const result = handle.bezier(0, 0, 1, 1);
             expect(result).toBe(handle);
         });
 
         it('should chain tweens with then()', () => {
-            const h1 = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
-            const h2 = Tween.to(1 as Entity, TweenTarget.PositionY, 0, 20, 1);
+            const h1 = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const h2 = tween.to(1 as Entity, TweenTarget.PositionY, 0, 20, 1);
             h1.then(h2);
 
             expect(module._anim_setSequenceNext).toHaveBeenCalledWith(
@@ -189,28 +184,28 @@ describe('Tween API', () => {
         });
 
         it('then() should return this for chaining', () => {
-            const h1 = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
-            const h2 = Tween.to(1 as Entity, TweenTarget.PositionY, 0, 20, 1);
+            const h1 = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const h2 = tween.to(1 as Entity, TweenTarget.PositionY, 0, 20, 1);
             const result = h1.then(h2);
             expect(result).toBe(h1);
         });
 
         it('should pause a tween', () => {
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.pause();
 
             expect(module._anim_pauseTween).toHaveBeenCalledWith(registry, handle.entity);
         });
 
         it('should resume a tween', () => {
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.resume();
 
             expect(module._anim_resumeTween).toHaveBeenCalledWith(registry, handle.entity);
         });
 
         it('should cancel a tween via handle', () => {
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.cancel();
 
             expect(module._anim_cancelTween).toHaveBeenCalledWith(registry, handle.entity);
@@ -218,48 +213,55 @@ describe('Tween API', () => {
     });
 
     // =========================================================================
-    // Tween static methods
+    // Instance methods
     // =========================================================================
 
-    describe('static methods', () => {
-        it('Tween.cancel() should delegate to WASM', () => {
-            const handle = Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
-            Tween.cancel(handle);
+    describe('instance methods', () => {
+        it('tween.cancel() should delegate to WASM', () => {
+            const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            tween.cancel(handle);
 
             expect(module._anim_cancelTween).toHaveBeenCalledWith(registry, handle.entity);
         });
 
-        it('Tween.cancelAll() should delegate to WASM', () => {
+        it('tween.cancelAll() should delegate to WASM', () => {
             const entity = 5 as Entity;
-            Tween.cancelAll(entity);
+            tween.cancelAll(entity);
 
             expect(module._anim_cancelAllTweens).toHaveBeenCalledWith(registry, 5);
         });
 
-        it('Tween.update() should delegate to WASM', () => {
-            Tween.update(0.016);
+        it('tween.update() should delegate to WASM', () => {
+            tween.update(0.016);
 
             expect(module._anim_updateTweens).toHaveBeenCalledWith(registry, 0.016);
         });
     });
 
     // =========================================================================
-    // Lifecycle
+    // Per-app isolation
     // =========================================================================
 
-    describe('lifecycle', () => {
-        it('should throw if used before init', () => {
-            shutdownTweenAPI();
-            expect(() => Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1))
-                .toThrow('Tween API not initialized');
-        });
+    describe('isolation', () => {
+        it('two TweenAPI instances drive independent WASM calls', () => {
+            const { module: module2, registry: registry2 } = createMockAnimModule();
+            const tween2 = new TweenAPI(module2, registry2);
 
-        it('should work after re-init', () => {
-            shutdownTweenAPI();
-            initTweenAPI(module, registry);
+            tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
+            tween2.to(2 as Entity, TweenTarget.PositionY, 0, 20, 1);
 
-            expect(() => Tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1))
-                .not.toThrow();
+            expect(module._anim_createTween).toHaveBeenCalledTimes(1);
+            expect(module2._anim_createTween).toHaveBeenCalledTimes(1);
+            expect(module._anim_createTween).toHaveBeenCalledWith(
+                registry, 1, TweenTarget.PositionX,
+                0, 10, 1,
+                EasingType.Linear, 0, LoopMode.None, 0,
+            );
+            expect(module2._anim_createTween).toHaveBeenCalledWith(
+                registry2, 2, TweenTarget.PositionY,
+                0, 20, 1,
+                EasingType.Linear, 0, LoopMode.None, 0,
+            );
         });
     });
 });

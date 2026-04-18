@@ -1,5 +1,5 @@
 import {
-    defineSystem, Query, Mut, Res, Time, Input, Audio,
+    defineSystem, Query, Mut, Res, Time, Input, Audio, AudioAPI,
     UIEvents,
 } from 'esengine';
 import type { UIEventQueue } from 'esengine';
@@ -15,8 +15,8 @@ const SFX_URLS = [
 let triggerIndex = 0;
 
 export const sfxTriggerSystem = defineSystem(
-    [Query(Mut(SFXTrigger)), Res(Time), Res(Input), Res(UIEvents)],
-    (query, time, input, events: UIEventQueue) => {
+    [Query(Mut(SFXTrigger)), Res(Time), Res(Input), Res(UIEvents), Res(Audio)],
+    (query, time, input, events: UIEventQueue, audio: AudioAPI) => {
         triggerIndex = 0;
         for (const [entity, trigger] of query) {
             trigger.cooldown = Math.max(0, trigger.cooldown - time.delta);
@@ -26,7 +26,7 @@ export const sfxTriggerSystem = defineSystem(
             if ((input.isKeyPressed(key) || clicked) && trigger.cooldown <= 0) {
                 const url = SFX_URLS[triggerIndex];
                 if (url) {
-                    Audio.playSFX(url);
+                    audio.playSFX(url);
                 }
                 trigger.cooldown = 0.1;
             }

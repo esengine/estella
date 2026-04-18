@@ -31,6 +31,12 @@ export interface AssetsOptions {
     backend: Backend;
     catalog?: Catalog;
     module: ESEngineModule;
+    /**
+     * Lazy accessor for the owning app's Audio API. AudioAssetLoader
+     * calls it at load time so AssetPlugin and AudioPlugin can be built
+     * in any order. Pass null (or omit) if no audio support is needed.
+     */
+    getAudio?: () => import('../audio/Audio').AudioAPI | null;
 }
 
 export interface AssetBundle {
@@ -82,6 +88,7 @@ export class Assets {
     private baseUrl_?: string;
 
     private module_: ESEngineModule;
+    private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
     private spineLoader_: SpineAssetLoader;
@@ -98,6 +105,7 @@ export class Assets {
         this.backend = options.backend;
         this.catalog = options.catalog ?? Catalog.empty();
         this.module_ = options.module;
+        this.getAudio_ = options.getAudio ?? (() => null);
 
         this.textureLoader_ = new TextureLoader(options.module);
         this.spineLoader_ = new SpineAssetLoader(options.module);
@@ -662,6 +670,9 @@ export class Assets {
             },
             async loadBinary(path: string): Promise<ArrayBuffer> {
                 return self.backend.fetchBinary(self.backend.resolveUrl(path));
+            },
+            getAudio() {
+                return self.getAudio_();
             },
         };
         return this.loadContext_;

@@ -1,43 +1,43 @@
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
+import { defineResource } from '../resource';
 import { log } from '../logger';
 
-export class Audio {
-    private static backend_: PlatformAudioBackend;
-    private static mixer_: AudioMixer | null = null;
-    private static bufferCache_ = new Map<string, AudioBufferHandle>();
-    private static bgmHandle_: AudioHandle | null = null;
-    private static bgmVolume_ = 1.0;
-    private static fadeAnimIds_ = new Set<number>();
-    private static disposed_ = false;
-    private static assetResolver_: ((url: string) => ArrayBuffer | null) | null = null;
-    static baseUrl = '';
+/**
+ * Per-app audio API. Each `App` owns an `AudioAPI` instance (created by
+ * `AudioPlugin.build()`), exposed via the `Audio` resource.
+ *
+ * Consumed as a resource: declare `Res(Audio)` as a system param or
+ * grab it with `app.getResource(Audio)` outside ECS code.
+ */
+export class AudioAPI {
+    private readonly backend_: PlatformAudioBackend;
+    private readonly mixer_: AudioMixer | null;
+    private readonly bufferCache_ = new Map<string, AudioBufferHandle>();
+    private bgmHandle_: AudioHandle | null = null;
+    private bgmVolume_ = 1.0;
+    private readonly fadeAnimIds_ = new Set<number>();
+    private disposed_ = false;
+    private assetResolver_: ((url: string) => ArrayBuffer | null) | null = null;
+    baseUrl = '';
 
-    static init(backend: PlatformAudioBackend, mixer: AudioMixer | null = null): void {
+    constructor(backend: PlatformAudioBackend, mixer: AudioMixer | null = null) {
         this.backend_ = backend;
         this.mixer_ = mixer;
-        this.bufferCache_.clear();
-        this.bgmHandle_ = null;
-        this.bgmVolume_ = 1.0;
-        this.disposed_ = false;
-        for (const id of this.fadeAnimIds_) {
-            cancelAnimationFrame(id);
-        }
-        this.fadeAnimIds_.clear();
     }
 
-    static setAssetResolver(resolver: (url: string) => ArrayBuffer | null): void {
+    setAssetResolver(resolver: (url: string) => ArrayBuffer | null): void {
         this.assetResolver_ = resolver;
     }
 
-    private static resolveUrl_(url: string): string {
+    private resolveUrl_(url: string): string {
         if (!this.baseUrl || url.startsWith('/') || url.startsWith('http://') || url.startsWith('https://')) {
             return url;
         }
         return `${this.baseUrl}/${url}`;
     }
 
-    static async preload(url: string): Promise<void> {
+    async preload(url: string): Promise<void> {
         if (this.bufferCache_.has(url)) return;
         if (this.assetResolver_) {
             const data = this.assetResolver_(url);
@@ -49,17 +49,17 @@ export class Audio {
         this.bufferCache_.set(url, buffer);
     }
 
-    static async preloadAll(urls: string[]): Promise<void> {
+    async preloadAll(urls: string[]): Promise<void> {
         await Promise.all(urls.map(url => this.preload(url)));
     }
 
-    static async preloadFromData(url: string, data: ArrayBuffer): Promise<void> {
+    async preloadFromData(url: string, data: ArrayBuffer): Promise<void> {
         if (this.bufferCache_.has(url)) return;
         const buffer = await this.backend_.loadBufferFromData(url, data);
         this.bufferCache_.set(url, buffer);
     }
 
-    static playSFX(url: string, config?: {
+    playSFX(url: string, config?: {
         volume?: number;
         pitch?: number;
         pan?: number;
@@ -74,7 +74,7 @@ export class Audio {
         };
         const buffer = this.bufferCache_.get(url);
         if (!buffer) {
-            const pending = this.createDeferredHandle();
+            const pending = this.createDeferredHandle_();
             this.preload(url).then(() => {
                 if (this.disposed_) return;
                 const buf = this.bufferCache_.get(url);
@@ -89,7 +89,7 @@ export class Audio {
         return this.backend_.play(buffer, playConfig);
     }
 
-    static playBGM(url: string, config?: {
+    playBGM(url: string, config?: {
         volume?: number;
         fadeIn?: number;
         crossFade?: number;
@@ -105,7 +105,7 @@ export class Audio {
             this.bgmVolume_ = targetVolume;
 
             if (this.bgmHandle_ && config?.crossFade) {
-                this.fadeOut(this.bgmHandle_, config.crossFade, oldVolume);
+                this.fadeOut_(this.bgmHandle_, config.crossFade, oldVolume);
             } else if (this.bgmHandle_) {
                 this.bgmHandle_.stop();
             }
@@ -118,7 +118,7 @@ export class Audio {
             });
 
             if (fadeInDuration) {
-                this.fadeIn(this.bgmHandle_, fadeInDuration, targetVolume);
+                this.fadeIn_(this.bgmHandle_, fadeInDuration, targetVolume);
             }
         };
 
@@ -138,7 +138,7 @@ export class Audio {
         }
     }
 
-    static stopAll(): void {
+    stopAll(): void {
         for (const id of this.fadeAnimIds_) {
             cancelAnimationFrame(id);
         }
@@ -149,7 +149,7 @@ export class Audio {
         }
     }
 
-    static stopBGM(fadeOut?: number): void {
+    stopBGM(fadeOut?: number): void {
         if (!this.bgmHandle_) return;
         for (const id of this.fadeAnimIds_) {
             cancelAnimationFrame(id);
@@ -158,49 +158,49 @@ export class Audio {
         if (fadeOut && fadeOut > 0) {
             const handle = this.bgmHandle_;
             this.bgmHandle_ = null;
-            this.fadeOut(handle, fadeOut, this.bgmVolume_);
+            this.fadeOut_(handle, fadeOut, this.bgmVolume_);
         } else {
             this.bgmHandle_.stop();
             this.bgmHandle_ = null;
         }
     }
 
-    static setMasterVolume(volume: number): void {
+    setMasterVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.master.volume = volume;
         }
     }
 
-    static setMusicVolume(volume: number): void {
+    setMusicVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.music.volume = volume;
         }
     }
 
-    static setSFXVolume(volume: number): void {
+    setSFXVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.sfx.volume = volume;
         }
     }
 
-    static setUIVolume(volume: number): void {
+    setUIVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.ui.volume = volume;
         }
     }
 
-    static muteBus(busName: string, muted: boolean): void {
+    muteBus(busName: string, muted: boolean): void {
         const bus = this.mixer_?.getBus(busName);
         if (bus) {
             bus.muted = muted;
         }
     }
 
-    static getBufferHandle(url: string): AudioBufferHandle | undefined {
+    getBufferHandle(url: string): AudioBufferHandle | undefined {
         return this.bufferCache_.get(url);
     }
 
-    static dispose(): void {
+    dispose(): void {
         this.disposed_ = true;
         for (const id of this.fadeAnimIds_) {
             cancelAnimationFrame(id);
@@ -215,10 +215,9 @@ export class Audio {
         }
         this.bufferCache_.clear();
         this.backend_?.dispose();
-        this.mixer_ = null;
     }
 
-    private static fadeIn(handle: AudioHandle, duration: number, targetVolume: number): void {
+    private fadeIn_(handle: AudioHandle, duration: number, targetVolume: number): void {
         handle.setVolume(0);
         const startTime = performance.now();
         let animId = 0;
@@ -237,7 +236,7 @@ export class Audio {
         this.fadeAnimIds_.add(animId);
     }
 
-    private static fadeOut(handle: AudioHandle, duration: number, startVolume: number): void {
+    private fadeOut_(handle: AudioHandle, duration: number, startVolume: number): void {
         const startTime = performance.now();
         let animId = 0;
         const tick = () => {
@@ -256,7 +255,7 @@ export class Audio {
         this.fadeAnimIds_.add(animId);
     }
 
-    private static createDeferredHandle(): AudioHandle & { resolve(real: AudioHandle): void } {
+    private createDeferredHandle_(): AudioHandle & { resolve(real: AudioHandle): void } {
         let real: AudioHandle | null = null;
         const handle: AudioHandle & { resolve(r: AudioHandle): void } = {
             id: -1,
@@ -275,3 +274,6 @@ export class Audio {
         return handle;
     }
 }
+
+/** Resource handle for the per-app audio API. */
+export const Audio = defineResource<AudioAPI>(null!, 'Audio');

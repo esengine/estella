@@ -203,11 +203,13 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
 
     const provider = new EmbeddedAssetProvider(assets);
 
-    Audio.setAssetResolver((url: string) => {
-        const dataUrl = assets[url];
-        if (!dataUrl) return null;
-        return decodeDataUrlBinary(dataUrl).buffer as ArrayBuffer;
-    });
+    if (app.hasResource(Audio)) {
+        app.getResource(Audio).setAssetResolver((url: string) => {
+            const dataUrl = assets[url];
+            if (!dataUrl) return null;
+            return decodeDataUrlBinary(dataUrl).buffer as ArrayBuffer;
+        });
+    }
 
     await initRuntime({
         app,

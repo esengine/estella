@@ -1,16 +1,27 @@
 /**
  * @file    TweenGroup.ts
- * @brief   Parallel and sequential tween composition utilities
+ * @brief   Parallel and sequential tween composition utilities.
+ *
+ * `TweenGroup` / `TweenSequence` are pure logic — they wrap any set of
+ * `Completable` items and expose parent-level state/pause/resume/cancel.
+ * `TweenCompositionManager` owns auto-polling: call `add(group)` once and
+ * `update()` each frame; it removes groups as they finish.
+ *
+ * There is no module-level composition singleton anymore — the manager is
+ * owned by each `TweenAPI` instance so multiple apps don't share state.
  */
 
 import { TweenState } from './TweenTypes';
-import { valueTweenManager, ValueTweenHandle } from './ValueTween';
+
+// Keep the handle type re-exported from this module for downstream
+// convenience (TweenAPI's composition helpers return ValueTweenHandle).
+export type { ValueTweenHandle } from './ValueTween';
 
 // =============================================================================
 // Completable - common interface for things that finish
 // =============================================================================
 
-interface Completable {
+export interface Completable {
     get state(): TweenState;
     pause(): void;
     resume(): void;
@@ -75,7 +86,7 @@ export class TweenGroup implements Completable {
 // TweenSequence - sequential execution
 // =============================================================================
 
-type TweenFactory = () => Completable;
+export type TweenFactory = () => Completable;
 
 export class TweenSequence implements Completable {
     private readonly factories_: TweenFactory[];
@@ -141,10 +152,10 @@ export class TweenSequence implements Completable {
 }
 
 // =============================================================================
-// Composition Manager - polls groups/sequences for completion
+// Composition Manager (per-app) - polls groups/sequences for completion
 // =============================================================================
 
-class TweenCompositionManager {
+export class TweenCompositionManager {
     private readonly active_ = new Set<TweenGroup | TweenSequence>();
 
     add(item: TweenGroup | TweenSequence): void {
@@ -168,27 +179,6 @@ class TweenCompositionManager {
     }
 }
 
-export const tweenCompositionManager = new TweenCompositionManager();
-
-// =============================================================================
-// Builder API
-// =============================================================================
-
-export const TweenCompose = {
-    parallel(tweens: Completable[]): TweenGroup {
-        const group = new TweenGroup(tweens);
-        tweenCompositionManager.add(group);
-        return group;
-    },
-
-    sequence(factories: TweenFactory[]): TweenSequence {
-        const seq = new TweenSequence(factories);
-        tweenCompositionManager.add(seq);
-        return seq;
-    },
-
-    delay(seconds: number): ValueTweenHandle {
-        const id = valueTweenManager.create(0, 0, seconds, () => {});
-        return new ValueTweenHandle(id);
-    },
-};
+// The builder API (parallel / sequence / delay) now lives on `TweenAPI`
+// since it needs access to per-app state (value tween manager, composition
+// manager). See `TweenAPI.parallel()` / `.sequence()` / `.delay()`.

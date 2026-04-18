@@ -4,6 +4,7 @@ import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import { defineComponent, getComponent } from '../component';
 import { playModeOnly } from '../env';
+import { Audio, type AudioAPI } from '../audio/Audio';
 import { WrapMode, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { parseTimelineAsset } from './TimelineLoader';
 import { uploadTimelineToWasm, type UploadResult } from './TimelineUploader';
@@ -104,6 +105,7 @@ export class TimelinePlugin implements Plugin {
 
                 setTimelineModule(module);
                 const registry = world.getCppRegistry() as any;
+                const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
 
                 const entities = world.getEntitiesWithComponents([TimelinePlayer]);
                 for (const entity of entities) {
@@ -148,7 +150,7 @@ export class TimelinePlugin implements Plugin {
                     const wrapModeNum = WRAP_MODE_MAP[playerData.wrapMode] ?? WrapMode.Once;
                     module._tl_setWrapMode(handle, wrapModeNum);
 
-                    advanceAndProcess(world, module, handle, entity, time.delta, playerData.speed, uploadResult);
+                    advanceAndProcess(world, module, handle, entity, time.delta, playerData.speed, uploadResult, audio);
                     this.processAnimFrames(world, module, entity, handle, playerData.timeline);
 
                     if (!module._tl_isPlaying(handle) && playerData.playing) {

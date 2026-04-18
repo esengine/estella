@@ -1,4 +1,4 @@
-export { Audio } from './Audio';
+export { Audio, AudioAPI } from './Audio';
 export { AudioBus, type AudioBusConfig } from './AudioBus';
 export { AudioMixer, type AudioMixerConfig } from './AudioMixer';
 export { AudioPool, type PooledAudioNode } from './AudioPool';

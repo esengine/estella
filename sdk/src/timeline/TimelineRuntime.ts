@@ -1,6 +1,6 @@
 import { getComponent, SpineAnimation } from '../component';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
-import { Audio } from '../audio';
+import type { AudioAPI } from '../audio/Audio';
 import { uploadTimelineToWasm, type UploadResult } from './TimelineUploader';
 import type { TimelineAsset } from './TimelineTypes';
 import type { ESEngineModule } from '../wasm';
@@ -101,7 +101,7 @@ function decodeEventString(module: ESEngineModule, index: number): string {
     return new TextDecoder().decode(bytes);
 }
 
-export function processTimelineEvents(world: any, module: ESEngineModule): void {
+export function processTimelineEvents(world: any, module: ESEngineModule, audio: AudioAPI | null = null): void {
     const count = module._tl_getEventCount();
     for (let i = 0; i < count; i++) {
         const type = module._tl_getEventType(i);
@@ -143,8 +143,8 @@ export function processTimelineEvents(world: any, module: ESEngineModule): void 
             case TimelineEventType.AudioPlay: {
                 const clipPath = decodeEventString(module, i);
                 const volume = module._tl_getEventFloatParam(i);
-                if (clipPath) {
-                    Audio.playSFX(clipPath, { volume });
+                if (clipPath && audio) {
+                    audio.playSFX(clipPath, { volume });
                 }
                 break;
             }
@@ -201,12 +201,13 @@ export function advanceAndProcess(
     handle: number, entity: Entity,
     dt: number, speed: number,
     uploadResult: UploadResult,
+    audio: AudioAPI | null = null,
 ): void {
     module._tl_advance(
         world.getCppRegistry() as any,
         handle, entity, dt, speed,
     );
-    processTimelineEvents(world, module);
+    processTimelineEvents(world, module, audio);
     processCustomProperties(world, module, uploadResult);
     module._tl_clearResults();
 }
