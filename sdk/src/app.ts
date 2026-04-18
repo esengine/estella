@@ -4,7 +4,7 @@
  */
 
 import { World } from './world';
-import { Schedule, SystemDef, SystemRunner } from './system';
+import { Schedule, SystemDef, SystemRunner, SystemSet, type RunCondition } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import { EventRegistry, type EventDef } from './event';
 import type { ESEngineModule, CppRegistry } from './wasm';
@@ -45,7 +45,7 @@ export interface Plugin {
 // System Entry
 // =============================================================================
 
-export type RunCondition = () => boolean;
+export type { RunCondition };
 
 interface SystemEntry {
     system: SystemDef;
@@ -65,6 +65,8 @@ export class App {
     private runner_: SystemRunner | null = null;
     private systemCounter_ = 0;
     private readonly templateToRuntime_ = new Map<symbol, symbol>();
+    /** Set name -> runtime system names registered under that set, for dep expansion. */
+    private readonly setMembership_ = new Map<string, string[]>();
 
     private running_ = false;
     private lastTime_ = 0;
@@ -199,6 +201,53 @@ export class App {
 
     addStartupSystem(system: SystemDef): this {
         return this.addSystemToSchedule(Schedule.Startup, system);
+    }
+
+    /**
+     * Register every system in `set` onto `schedule`. Each member inherits
+     * the set's `runIf` (AND-combined with its own if supplied per-system
+     * here), and its `runBefore` / `runAfter` lists are prepended to the
+     * member's edges. Other systems may reference the set's name in their
+     * own ordering; the scheduler expands those references to every member.
+     */
+    addSystemSetToSchedule(schedule: Schedule, set: SystemSet): this {
+        const members: string[] = [];
+        for (const sys of set._systems) {
+            const name = sys._name || `System_${String(++this.systemCounter_)}`;
+            members.push(name);
+
+            const mergedRunBefore = set._runBefore ? [...set._runBefore] : undefined;
+            const mergedRunAfter = set._runAfter ? [...set._runAfter] : undefined;
+            const setCondition = set._runIf;
+            const runIf: RunCondition | undefined = setCondition ? (() => setCondition()) : undefined;
+
+            // Use the scoped system name the App would generate so ordering
+            // lookups match. Mirrors addSystemToSchedule's naming path.
+            const scoped: SystemDef = {
+                _id: Symbol(`System_${name}`),
+                _params: sys._params,
+                _fn: sys._fn,
+                _name: name,
+            };
+            this.templateToRuntime_.set(sys._id, scoped._id);
+
+            this.systems_.get(schedule)!.push({
+                system: scoped,
+                runBefore: mergedRunBefore,
+                runAfter: mergedRunAfter,
+                runIf,
+            });
+        }
+        this.sortedSystemsCache_.delete(schedule);
+
+        const existing = this.setMembership_.get(set._name);
+        this.setMembership_.set(set._name, existing ? [...existing, ...members] : members);
+        return this;
+    }
+
+    /** Shortcut for `addSystemSetToSchedule(Schedule.Update, set)`. */
+    addSystemSet(set: SystemSet): this {
+        return this.addSystemSetToSchedule(Schedule.Update, set);
     }
 
     removeSystem(systemId: symbol): boolean {
@@ -647,11 +696,26 @@ export class App {
             nameToIndex.set(systems[i].system._name, i);
         }
 
+        // Expand a name that may refer to a SystemSet into the indices of
+        // every member of the set that is also in this schedule. Returns
+        // empty when the name matches neither a system nor a known set.
+        const resolveTargets = (name: string): number[] => {
+            const direct = nameToIndex.get(name);
+            if (direct !== undefined) return [direct];
+            const members = this.setMembership_.get(name);
+            if (!members) return [];
+            const out: number[] = [];
+            for (const m of members) {
+                const idx = nameToIndex.get(m);
+                if (idx !== undefined) out.push(idx);
+            }
+            return out;
+        };
+
         for (const entry of systems) {
             if (entry.runBefore) {
                 for (const targetName of entry.runBefore) {
-                    const targetIndex = nameToIndex.get(targetName);
-                    if (targetIndex !== undefined) {
+                    for (const targetIndex of resolveTargets(targetName)) {
                         const targetEntry = systems[targetIndex];
                         if (!targetEntry.runAfter) {
                             targetEntry.runAfter = [];
@@ -680,8 +744,7 @@ export class App {
 
             if (entry.runAfter) {
                 for (const depName of entry.runAfter) {
-                    const depIndex = nameToIndex.get(depName);
-                    if (depIndex !== undefined) {
+                    for (const depIndex of resolveTargets(depName)) {
                         visit(depIndex);
                     }
                 }
