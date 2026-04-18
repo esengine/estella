@@ -112,6 +112,10 @@ class SceneInstance {
     loadedTextures: Set<string> | null = null;
     loadedMaterials: Set<number> | null = null;
     loadedFonts: Set<string> | null = null;
+    loadedAudio: Set<string> | null = null;
+    loadedAnimClips: Set<string> | null = null;
+    loadedTilemaps: Set<string> | null = null;
+    loadedTimelines: Set<string> | null = null;
     status: SceneStatus = 'loading';
 
     constructor(config: SceneConfig) {
@@ -559,6 +563,13 @@ export class SceneManagerState {
             instance.loadedTextures = discovered.byType.get('texture') ?? new Set();
             instance.loadedMaterials = new Set();
             instance.loadedFonts = discovered.byType.get('font') ?? new Set();
+            // Fire-and-forget asset types that previously leaked on unload —
+            // track what the scene declares so releaseSceneAssets_ can drop
+            // them via the matching Assets.release* method.
+            instance.loadedAudio = discovered.byType.get('audio') ?? new Set();
+            instance.loadedAnimClips = discovered.byType.get('anim-clip') ?? new Set();
+            instance.loadedTilemaps = discovered.byType.get('tilemap') ?? new Set();
+            instance.loadedTimelines = discovered.byType.get('timeline') ?? new Set();
 
             const collectAssets: LoadedSceneAssets = {
                 texturePaths: instance.loadedTextures,
@@ -621,9 +632,28 @@ export class SceneManagerState {
             }
         }
 
+        if (assetsRes) {
+            if (instance.loadedAudio) {
+                for (const path of instance.loadedAudio) assetsRes.releaseAudio(path);
+            }
+            if (instance.loadedAnimClips) {
+                for (const path of instance.loadedAnimClips) assetsRes.releaseAnimClip(path);
+            }
+            if (instance.loadedTilemaps) {
+                for (const path of instance.loadedTilemaps) assetsRes.releaseTilemap(path);
+            }
+            if (instance.loadedTimelines) {
+                for (const path of instance.loadedTimelines) assetsRes.releaseTimeline(path);
+            }
+        }
+
         instance.loadedTextures = null;
         instance.loadedMaterials = null;
         instance.loadedFonts = null;
+        instance.loadedAudio = null;
+        instance.loadedAnimClips = null;
+        instance.loadedTilemaps = null;
+        instance.loadedTimelines = null;
     }
 
     pause(name: string): void {
