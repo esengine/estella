@@ -368,10 +368,14 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                 prevEntity = entity;
             }
 
+            // Fast path for 1–6 components (covers the vast majority of queries); 7+ falls back to .apply.
             switch (compCount) {
                 case 1: (callback as any)(entity, result[1]); break;
                 case 2: (callback as any)(entity, result[1], result[2]); break;
                 case 3: (callback as any)(entity, result[1], result[2], result[3]); break;
+                case 4: (callback as any)(entity, result[1], result[2], result[3], result[4]); break;
+                case 5: (callback as any)(entity, result[1], result[2], result[3], result[4], result[5]); break;
+                case 6: (callback as any)(entity, result[1], result[2], result[3], result[4], result[5], result[6]); break;
                 default: (callback as Function).apply(null, result); break;
             }
         }
