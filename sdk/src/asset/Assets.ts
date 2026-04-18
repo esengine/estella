@@ -482,6 +482,26 @@ export class Assets {
         this.releaseTyped('font', ref);
     }
 
+    releaseAudio(ref: string): void {
+        this.releaseTyped('audio', ref);
+    }
+
+    releaseAnimClip(ref: string): void {
+        this.releaseTyped('anim-clip', ref);
+    }
+
+    releaseTimeline(ref: string): void {
+        this.releaseTyped('timeline', ref);
+    }
+
+    releaseTilemap(ref: string): void {
+        this.releaseTyped('tilemap', ref);
+    }
+
+    releasePrefab(ref: string): void {
+        this.releaseTyped('prefab', ref);
+    }
+
     private releaseTyped(type: string, ref: string): void {
         const path = this.catalog.resolve(ref);
         const cache = this.genericCache_.get(type);
