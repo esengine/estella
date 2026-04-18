@@ -1,5 +1,7 @@
 import { defineSystem, type SystemDef } from '../../system';
 import { Transform, type TransformData } from '../../component';
+import { Res, Time, type TimeData } from '../../resource';
+import type { Entity, Color } from '../../types';
 import type { World } from '../../world';
 
 import { Interactable, UIInteraction, type InteractableData, type UIInteractionData } from './interactable';
@@ -97,43 +99,121 @@ export function createStateMachineDiffSystem(
 }
 
 /**
+ * Per-entity transition bookkeeping for StateVisualsApplySystem.
+ *
+ * Kept in a closure Map rather than an ECS component so the state is
+ * invisible to serialization and GC'd naturally when an entity's
+ * StateVisuals row disappears (stale entries are purged lazily via
+ * `world.valid` and slot-change checks). Color and scalar scale fade
+ * continuously over `sv.fadeDuration`; sprite swaps snap (can't lerp
+ * between two discrete texture handles).
+ */
+interface VisualTransitionState {
+    readonly toSlot: number;
+    elapsed: number;
+    /** Snapshot of the target's color at the moment the transition started. */
+    readonly startColor: Color;
+    /** Snapshot of the target's uniform scale at the moment the transition started. */
+    readonly startScale: number;
+}
+
+function lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t;
+}
+
+function lerpColor(from: Color, to: Color, t: number): Color {
+    return {
+        r: lerp(from.r, to.r, t),
+        g: lerp(from.g, to.g, t),
+        b: lerp(from.b, to.b, t),
+        a: lerp(from.a, to.a, t),
+    };
+}
+
+/**
  * Reads StateMachine.current, looks up the matching StateVisuals slot,
  * and applies the selected visual dimensions (color / sprite / scale)
  * to the targetGraphic entity (or the owning entity when unset).
  *
- * `fadeDuration` is currently ignored — changes snap. Continuous fading
- * will be layered on in a later iteration.
+ * When `fadeDuration > 0` and the target slot changed from the last
+ * frame's, color and scale continuously interpolate from whatever value
+ * the target already had over `fadeDuration` seconds. Sprite swaps are
+ * discrete and still snap (no meaningful interpolation between textures).
  */
 export function createStateVisualsApplySystem(world: World): SystemDef {
-    return defineSystem([], () => {
+    const transitions = new Map<Entity, VisualTransitionState>();
+
+    return defineSystem([Res(Time)], (time: TimeData) => {
+        const dt = time.delta;
         const entities = world.getEntitiesWithComponents([StateMachine, StateVisuals]);
+        const seen = new Set<Entity>();
+
         for (const e of entities) {
+            seen.add(e);
             const sm = world.get(e, StateMachine) as StateMachineData;
             const sv = world.get(e, StateVisuals) as StateVisualsData;
             const slot = findStateSlot(sv, sm.current);
-            if (slot < 0) continue;
+            if (slot < 0) {
+                transitions.delete(e);
+                continue;
+            }
 
             const target = sv.targetGraphic !== 0 ? sv.targetGraphic : e;
             const flags = sv.transitionFlags;
             const record = sv as unknown as Record<string, unknown>;
+            const targetColor = record[`slot${slot}Color`] as Color;
+            const targetScale = record[`slot${slot}Scale`] as number;
+            const fade = Math.max(0, sv.fadeDuration);
+
+            // Detect a slot change. If we have no prior entry OR the entry
+            // points at a different slot, seed a new transition with the
+            // target's *current* values as the "from" endpoint so the fade
+            // blends from whatever the user/driver left there.
+            let tx = transitions.get(e);
+            if (!tx || tx.toSlot !== slot) {
+                const startColor = (flags & TransitionFlag.ColorTint) && world.has(target, UIRenderer)
+                    ? { ...(world.get(target, UIRenderer) as UIRendererData).color }
+                    : { ...targetColor };
+                const startScale = (flags & TransitionFlag.Scale) && world.has(target, Transform)
+                    ? (world.get(target, Transform) as TransformData).scale.x
+                    : targetScale;
+                tx = { toSlot: slot, elapsed: 0, startColor, startScale };
+                transitions.set(e, tx);
+            } else {
+                tx.elapsed += dt;
+            }
+
+            const t = fade > 0 ? Math.min(tx.elapsed / fade, 1) : 1;
 
             if ((flags & TransitionFlag.ColorTint) && world.has(target, UIRenderer)) {
                 const r = world.get(target, UIRenderer) as UIRendererData;
-                r.color = record[`slot${slot}Color`] as UIRendererData['color'];
+                r.color = t >= 1 ? targetColor : lerpColor(tx.startColor, targetColor, t);
                 world.insert(target, UIRenderer, r);
             }
 
             if ((flags & TransitionFlag.SpriteSwap) && world.has(target, UIRenderer)) {
+                // Sprite swap is discrete: apply immediately at the slot change.
                 const r = world.get(target, UIRenderer) as UIRendererData;
                 r.texture = record[`slot${slot}Sprite`] as number;
                 world.insert(target, UIRenderer, r);
             }
 
             if ((flags & TransitionFlag.Scale) && world.has(target, Transform)) {
-                const t = world.get(target, Transform) as TransformData;
-                const s = record[`slot${slot}Scale`] as number;
-                t.scale = { x: s, y: s, z: 1 };
-                world.insert(target, Transform, t);
+                const tr = world.get(target, Transform) as TransformData;
+                const s = t >= 1 ? targetScale : lerp(tx.startScale, targetScale, t);
+                tr.scale = { x: s, y: s, z: 1 };
+                world.insert(target, Transform, tr);
+            }
+
+            if (t >= 1) {
+                transitions.delete(e);
+            }
+        }
+
+        // Purge entries whose entity vanished or no longer carries the components.
+        if (transitions.size > 0) {
+            for (const e of transitions.keys()) {
+                if (!seen.has(e) || !world.valid(e)) transitions.delete(e);
             }
         }
     }, { name: 'StateVisualsApplySystem' });
