@@ -51,79 +51,70 @@ inline glm::quat eulerDegToQuat(const glm::vec3& deg) {
 
 std::vector<std::string> editor_getComponentNames() {
     return {
-        "BitmapText",
-        "Camera",
-        "Canvas",
+        "UIRect",
+        "FlexItem",
         "BoxCollider",
         "CircleCollider",
         "CapsuleCollider",
         "SegmentCollider",
-        "FlexContainer",
-        "FlexItem",
+        "ParticleEmitter",
+        "Transform",
+        "UIRenderer",
         "GridLayout",
+        "Velocity",
+        "SpineAnimation",
+        "Interactable",
+        "UIInteraction",
+        "RigidBody",
+        "BitmapText",
+        "Sprite",
+        "UIMask",
+        "FlexContainer",
+        "StateVisuals",
         "Parent",
         "Children",
-        "Interactable",
-        "ParticleEmitter",
-        "RigidBody",
         "ShapeRenderer",
-        "SpineAnimation",
-        "Sprite",
         "StateMachine",
-        "StateVisuals",
-        "Transform",
-        "UIInteraction",
-        "UIMask",
-        "UIRect",
-        "UIRenderer",
-        "Velocity",
+        "Canvas",
+        "Camera",
     };
 }
 
 // ── Component Schema (JSON) ──
 
 std::string editor_getComponentSchema(const std::string& name) {
-    if (name == "BitmapText") {
+    if (name == "UIRect") {
         return R"JSON([
-  {"key":"text","type":"string","group":"BitmapText"},
-  {"key":"color.r","type":"color","group":"BitmapText"},
-  {"key":"color.g","type":"color","group":"BitmapText"},
-  {"key":"color.b","type":"color","group":"BitmapText"},
-  {"key":"color.a","type":"color","group":"BitmapText"},
-  {"key":"fontSize","type":"float","group":"BitmapText"},
-  {"key":"align","type":"enum","group":"BitmapText","values":["Left","Center","Right"]},
-  {"key":"spacing","type":"float","group":"BitmapText"},
-  {"key":"layer","type":"int","group":"BitmapText"},
-  {"key":"font","type":"asset","group":"BitmapText"},
-  {"key":"enabled","type":"bool","group":"BitmapText"}
+  {"key":"anchorMin.x","type":"float","group":"UIRect"},
+  {"key":"anchorMin.y","type":"float","group":"UIRect"},
+  {"key":"anchorMax.x","type":"float","group":"UIRect"},
+  {"key":"anchorMax.y","type":"float","group":"UIRect"},
+  {"key":"offsetMin.x","type":"float","group":"UIRect"},
+  {"key":"offsetMin.y","type":"float","group":"UIRect"},
+  {"key":"offsetMax.x","type":"float","group":"UIRect"},
+  {"key":"offsetMax.y","type":"float","group":"UIRect"},
+  {"key":"size.x","type":"float","group":"UIRect"},
+  {"key":"size.y","type":"float","group":"UIRect"},
+  {"key":"pivot.x","type":"float","group":"UIRect"},
+  {"key":"pivot.y","type":"float","group":"UIRect"}
         ])JSON";
-    } else if (name == "Camera") {
+    } else if (name == "FlexItem") {
         return R"JSON([
-  {"key":"projectionType","type":"enum","group":"Camera","values":["Perspective","Orthographic"]},
-  {"key":"fov","type":"float","group":"Camera"},
-  {"key":"orthoSize","type":"float","group":"Camera"},
-  {"key":"nearPlane","type":"float","group":"Camera"},
-  {"key":"farPlane","type":"float","group":"Camera"},
-  {"key":"aspectRatio","type":"float","group":"Camera"},
-  {"key":"isActive","type":"bool","group":"Camera"},
-  {"key":"priority","type":"int","group":"Camera"},
-  {"key":"viewport.x","type":"float","group":"Camera"},
-  {"key":"viewport.y","type":"float","group":"Camera"},
-  {"key":"viewport.z","type":"float","group":"Camera"},
-  {"key":"viewport.w","type":"float","group":"Camera"},
-  {"key":"clearFlags","type":"enum","group":"Camera","values":["Nothing","Color","Depth","ColorAndDepth"]}
-        ])JSON";
-    } else if (name == "Canvas") {
-        return R"JSON([
-  {"key":"designResolution.x","type":"int","group":"Canvas"},
-  {"key":"designResolution.y","type":"int","group":"Canvas"},
-  {"key":"pixelsPerUnit","type":"float","group":"Canvas"},
-  {"key":"scaleMode","type":"enum","group":"Canvas","values":["FixedWidth","FixedHeight","Expand","Shrink","Match"]},
-  {"key":"matchWidthOrHeight","type":"float","group":"Canvas"},
-  {"key":"backgroundColor.r","type":"color","group":"Canvas"},
-  {"key":"backgroundColor.g","type":"color","group":"Canvas"},
-  {"key":"backgroundColor.b","type":"color","group":"Canvas"},
-  {"key":"backgroundColor.a","type":"color","group":"Canvas"}
+  {"key":"flexGrow","type":"float","group":"FlexItem"},
+  {"key":"flexShrink","type":"float","group":"FlexItem"},
+  {"key":"flexBasis","type":"float","group":"FlexItem"},
+  {"key":"order","type":"int","group":"FlexItem"},
+  {"key":"alignSelf","type":"enum","group":"FlexItem","values":["Auto","Start","Center","End","Stretch"]},
+  {"key":"margin.left","type":"float","group":"FlexItem"},
+  {"key":"margin.top","type":"float","group":"FlexItem"},
+  {"key":"margin.right","type":"float","group":"FlexItem"},
+  {"key":"margin.bottom","type":"float","group":"FlexItem"},
+  {"key":"minWidth","type":"float","group":"FlexItem"},
+  {"key":"minHeight","type":"float","group":"FlexItem"},
+  {"key":"maxWidth","type":"float","group":"FlexItem"},
+  {"key":"maxHeight","type":"float","group":"FlexItem"},
+  {"key":"widthPercent","type":"float","group":"FlexItem"},
+  {"key":"heightPercent","type":"float","group":"FlexItem"}
         ])JSON";
     } else if (name == "BoxCollider") {
         return R"JSON([
@@ -180,61 +171,6 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"categoryBits","type":"int","group":"SegmentCollider"},
   {"key":"maskBits","type":"int","group":"SegmentCollider"}
         ])JSON";
-    } else if (name == "FlexContainer") {
-        return R"JSON([
-  {"key":"direction","type":"enum","group":"FlexContainer","values":["Row","Column","RowReverse","ColumnReverse"]},
-  {"key":"wrap","type":"enum","group":"FlexContainer","values":["NoWrap","Wrap"]},
-  {"key":"justifyContent","type":"enum","group":"FlexContainer","values":["Start","Center","End","SpaceBetween","SpaceAround","SpaceEvenly"]},
-  {"key":"alignItems","type":"enum","group":"FlexContainer","values":["Start","Center","End","Stretch"]},
-  {"key":"alignContent","type":"enum","group":"FlexContainer","values":["Start","Center","End","Stretch","SpaceBetween","SpaceAround"]},
-  {"key":"gap.x","type":"float","group":"FlexContainer"},
-  {"key":"gap.y","type":"float","group":"FlexContainer"},
-  {"key":"padding.left","type":"float","group":"FlexContainer"},
-  {"key":"padding.top","type":"float","group":"FlexContainer"},
-  {"key":"padding.right","type":"float","group":"FlexContainer"},
-  {"key":"padding.bottom","type":"float","group":"FlexContainer"}
-        ])JSON";
-    } else if (name == "FlexItem") {
-        return R"JSON([
-  {"key":"flexGrow","type":"float","group":"FlexItem"},
-  {"key":"flexShrink","type":"float","group":"FlexItem"},
-  {"key":"flexBasis","type":"float","group":"FlexItem"},
-  {"key":"order","type":"int","group":"FlexItem"},
-  {"key":"alignSelf","type":"enum","group":"FlexItem","values":["Auto","Start","Center","End","Stretch"]},
-  {"key":"margin.left","type":"float","group":"FlexItem"},
-  {"key":"margin.top","type":"float","group":"FlexItem"},
-  {"key":"margin.right","type":"float","group":"FlexItem"},
-  {"key":"margin.bottom","type":"float","group":"FlexItem"},
-  {"key":"minWidth","type":"float","group":"FlexItem"},
-  {"key":"minHeight","type":"float","group":"FlexItem"},
-  {"key":"maxWidth","type":"float","group":"FlexItem"},
-  {"key":"maxHeight","type":"float","group":"FlexItem"},
-  {"key":"widthPercent","type":"float","group":"FlexItem"},
-  {"key":"heightPercent","type":"float","group":"FlexItem"}
-        ])JSON";
-    } else if (name == "GridLayout") {
-        return R"JSON([
-  {"key":"direction","type":"enum","group":"GridLayout","values":["Vertical","Horizontal"]},
-  {"key":"crossAxisCount","type":"int","group":"GridLayout"},
-  {"key":"itemSize.x","type":"float","group":"GridLayout"},
-  {"key":"itemSize.y","type":"float","group":"GridLayout"},
-  {"key":"spacing.x","type":"float","group":"GridLayout"},
-  {"key":"spacing.y","type":"float","group":"GridLayout"}
-        ])JSON";
-    } else if (name == "Parent") {
-        return R"JSON([
-  {"key":"entity","type":"entity","group":"Parent"}
-        ])JSON";
-    } else if (name == "Children") {
-        return R"JSON([
-  {"key":"entities","type":"entity","group":"Children"}
-        ])JSON";
-    } else if (name == "Interactable") {
-        return R"JSON([
-  {"key":"enabled","type":"bool","group":"Interactable"},
-  {"key":"blockRaycast","type":"bool","group":"Interactable"},
-  {"key":"raycastTarget","type":"bool","group":"Interactable"}
-        ])JSON";
     } else if (name == "ParticleEmitter") {
         return R"JSON([
   {"key":"rate","type":"float","group":"ParticleEmitter"},
@@ -287,28 +223,54 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"simulationSpace","type":"int","group":"ParticleEmitter"},
   {"key":"enabled","type":"bool","group":"ParticleEmitter"}
         ])JSON";
-    } else if (name == "RigidBody") {
+    } else if (name == "Transform") {
         return R"JSON([
-  {"key":"bodyType","type":"enum","group":"RigidBody","values":["Static","Kinematic","Dynamic"]},
-  {"key":"gravityScale","type":"float","group":"RigidBody"},
-  {"key":"linearDamping","type":"float","group":"RigidBody"},
-  {"key":"angularDamping","type":"float","group":"RigidBody"},
-  {"key":"fixedRotation","type":"bool","group":"RigidBody"},
-  {"key":"bullet","type":"bool","group":"RigidBody"},
-  {"key":"enabled","type":"bool","group":"RigidBody"}
+  {"key":"position.x","type":"float","group":"Transform"},
+  {"key":"position.y","type":"float","group":"Transform"},
+  {"key":"position.z","type":"float","group":"Transform"},
+  {"key":"rotation.x","type":"float","group":"Transform"},
+  {"key":"rotation.y","type":"float","group":"Transform"},
+  {"key":"rotation.z","type":"float","group":"Transform"},
+  {"key":"scale.x","type":"float","group":"Transform"},
+  {"key":"scale.y","type":"float","group":"Transform"},
+  {"key":"scale.z","type":"float","group":"Transform"}
         ])JSON";
-    } else if (name == "ShapeRenderer") {
+    } else if (name == "UIRenderer") {
         return R"JSON([
-  {"key":"shapeType","type":"int","group":"ShapeRenderer"},
-  {"key":"color.r","type":"color","group":"ShapeRenderer"},
-  {"key":"color.g","type":"color","group":"ShapeRenderer"},
-  {"key":"color.b","type":"color","group":"ShapeRenderer"},
-  {"key":"color.a","type":"color","group":"ShapeRenderer"},
-  {"key":"size.x","type":"float","group":"ShapeRenderer"},
-  {"key":"size.y","type":"float","group":"ShapeRenderer"},
-  {"key":"cornerRadius","type":"float","group":"ShapeRenderer"},
-  {"key":"layer","type":"int","group":"ShapeRenderer"},
-  {"key":"enabled","type":"bool","group":"ShapeRenderer"}
+  {"key":"visualType","type":"enum","group":"UIRenderer","values":["None","SolidColor","Image","NineSlice"]},
+  {"key":"texture","type":"asset","group":"UIRenderer"},
+  {"key":"color.r","type":"color","group":"UIRenderer"},
+  {"key":"color.g","type":"color","group":"UIRenderer"},
+  {"key":"color.b","type":"color","group":"UIRenderer"},
+  {"key":"color.a","type":"color","group":"UIRenderer"},
+  {"key":"uvOffset.x","type":"float","group":"UIRenderer"},
+  {"key":"uvOffset.y","type":"float","group":"UIRenderer"},
+  {"key":"uvScale.x","type":"float","group":"UIRenderer"},
+  {"key":"uvScale.y","type":"float","group":"UIRenderer"},
+  {"key":"sliceBorder.x","type":"float","group":"UIRenderer"},
+  {"key":"sliceBorder.y","type":"float","group":"UIRenderer"},
+  {"key":"sliceBorder.z","type":"float","group":"UIRenderer"},
+  {"key":"sliceBorder.w","type":"float","group":"UIRenderer"},
+  {"key":"material","type":"asset","group":"UIRenderer"},
+  {"key":"enabled","type":"bool","group":"UIRenderer"}
+        ])JSON";
+    } else if (name == "GridLayout") {
+        return R"JSON([
+  {"key":"direction","type":"enum","group":"GridLayout","values":["Vertical","Horizontal"]},
+  {"key":"crossAxisCount","type":"int","group":"GridLayout"},
+  {"key":"itemSize.x","type":"float","group":"GridLayout"},
+  {"key":"itemSize.y","type":"float","group":"GridLayout"},
+  {"key":"spacing.x","type":"float","group":"GridLayout"},
+  {"key":"spacing.y","type":"float","group":"GridLayout"}
+        ])JSON";
+    } else if (name == "Velocity") {
+        return R"JSON([
+  {"key":"linear.x","type":"float","group":"Velocity"},
+  {"key":"linear.y","type":"float","group":"Velocity"},
+  {"key":"linear.z","type":"float","group":"Velocity"},
+  {"key":"angular.x","type":"float","group":"Velocity"},
+  {"key":"angular.y","type":"float","group":"Velocity"},
+  {"key":"angular.z","type":"float","group":"Velocity"}
         ])JSON";
     } else if (name == "SpineAnimation") {
         return R"JSON([
@@ -329,6 +291,43 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"skeletonScale","type":"float","group":"SpineAnimation"},
   {"key":"material","type":"asset","group":"SpineAnimation"},
   {"key":"enabled","type":"bool","group":"SpineAnimation"}
+        ])JSON";
+    } else if (name == "Interactable") {
+        return R"JSON([
+  {"key":"enabled","type":"bool","group":"Interactable"},
+  {"key":"blockRaycast","type":"bool","group":"Interactable"},
+  {"key":"raycastTarget","type":"bool","group":"Interactable"}
+        ])JSON";
+    } else if (name == "UIInteraction") {
+        return R"JSON([
+  {"key":"hovered","type":"bool","group":"UIInteraction"},
+  {"key":"pressed","type":"bool","group":"UIInteraction"},
+  {"key":"justPressed","type":"bool","group":"UIInteraction"},
+  {"key":"justReleased","type":"bool","group":"UIInteraction"}
+        ])JSON";
+    } else if (name == "RigidBody") {
+        return R"JSON([
+  {"key":"bodyType","type":"enum","group":"RigidBody","values":["Static","Kinematic","Dynamic"]},
+  {"key":"gravityScale","type":"float","group":"RigidBody"},
+  {"key":"linearDamping","type":"float","group":"RigidBody"},
+  {"key":"angularDamping","type":"float","group":"RigidBody"},
+  {"key":"fixedRotation","type":"bool","group":"RigidBody"},
+  {"key":"bullet","type":"bool","group":"RigidBody"},
+  {"key":"enabled","type":"bool","group":"RigidBody"}
+        ])JSON";
+    } else if (name == "BitmapText") {
+        return R"JSON([
+  {"key":"text","type":"string","group":"BitmapText"},
+  {"key":"color.r","type":"color","group":"BitmapText"},
+  {"key":"color.g","type":"color","group":"BitmapText"},
+  {"key":"color.b","type":"color","group":"BitmapText"},
+  {"key":"color.a","type":"color","group":"BitmapText"},
+  {"key":"fontSize","type":"float","group":"BitmapText"},
+  {"key":"align","type":"enum","group":"BitmapText","values":["Left","Center","Right"]},
+  {"key":"spacing","type":"float","group":"BitmapText"},
+  {"key":"layer","type":"int","group":"BitmapText"},
+  {"key":"font","type":"asset","group":"BitmapText"},
+  {"key":"enabled","type":"bool","group":"BitmapText"}
         ])JSON";
     } else if (name == "Sprite") {
         return R"JSON([
@@ -355,10 +354,24 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"material","type":"asset","group":"Sprite"},
   {"key":"enabled","type":"bool","group":"Sprite"}
         ])JSON";
-    } else if (name == "StateMachine") {
+    } else if (name == "UIMask") {
         return R"JSON([
-  {"key":"current","type":"string","group":"StateMachine"},
-  {"key":"previous","type":"string","group":"StateMachine"}
+  {"key":"enabled","type":"bool","group":"UIMask"},
+  {"key":"mode","type":"enum","group":"UIMask","values":["Scissor","Stencil"]}
+        ])JSON";
+    } else if (name == "FlexContainer") {
+        return R"JSON([
+  {"key":"direction","type":"enum","group":"FlexContainer","values":["Row","Column","RowReverse","ColumnReverse"]},
+  {"key":"wrap","type":"enum","group":"FlexContainer","values":["NoWrap","Wrap"]},
+  {"key":"justifyContent","type":"enum","group":"FlexContainer","values":["Start","Center","End","SpaceBetween","SpaceAround","SpaceEvenly"]},
+  {"key":"alignItems","type":"enum","group":"FlexContainer","values":["Start","Center","End","Stretch"]},
+  {"key":"alignContent","type":"enum","group":"FlexContainer","values":["Start","Center","End","Stretch","SpaceBetween","SpaceAround"]},
+  {"key":"gap.x","type":"float","group":"FlexContainer"},
+  {"key":"gap.y","type":"float","group":"FlexContainer"},
+  {"key":"padding.left","type":"float","group":"FlexContainer"},
+  {"key":"padding.top","type":"float","group":"FlexContainer"},
+  {"key":"padding.right","type":"float","group":"FlexContainer"},
+  {"key":"padding.bottom","type":"float","group":"FlexContainer"}
         ])JSON";
     } else if (name == "StateVisuals") {
         return R"JSON([
@@ -422,72 +435,59 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"slot7Sprite","type":"asset","group":"StateVisuals"},
   {"key":"slot7Scale","type":"float","group":"StateVisuals"}
         ])JSON";
-    } else if (name == "Transform") {
+    } else if (name == "Parent") {
         return R"JSON([
-  {"key":"position.x","type":"float","group":"Transform"},
-  {"key":"position.y","type":"float","group":"Transform"},
-  {"key":"position.z","type":"float","group":"Transform"},
-  {"key":"rotation.x","type":"float","group":"Transform"},
-  {"key":"rotation.y","type":"float","group":"Transform"},
-  {"key":"rotation.z","type":"float","group":"Transform"},
-  {"key":"scale.x","type":"float","group":"Transform"},
-  {"key":"scale.y","type":"float","group":"Transform"},
-  {"key":"scale.z","type":"float","group":"Transform"}
+  {"key":"entity","type":"entity","group":"Parent"}
         ])JSON";
-    } else if (name == "UIInteraction") {
+    } else if (name == "Children") {
         return R"JSON([
-  {"key":"hovered","type":"bool","group":"UIInteraction"},
-  {"key":"pressed","type":"bool","group":"UIInteraction"},
-  {"key":"justPressed","type":"bool","group":"UIInteraction"},
-  {"key":"justReleased","type":"bool","group":"UIInteraction"}
+  {"key":"entities","type":"entity","group":"Children"}
         ])JSON";
-    } else if (name == "UIMask") {
+    } else if (name == "ShapeRenderer") {
         return R"JSON([
-  {"key":"enabled","type":"bool","group":"UIMask"},
-  {"key":"mode","type":"enum","group":"UIMask","values":["Scissor","Stencil"]}
+  {"key":"shapeType","type":"int","group":"ShapeRenderer"},
+  {"key":"color.r","type":"color","group":"ShapeRenderer"},
+  {"key":"color.g","type":"color","group":"ShapeRenderer"},
+  {"key":"color.b","type":"color","group":"ShapeRenderer"},
+  {"key":"color.a","type":"color","group":"ShapeRenderer"},
+  {"key":"size.x","type":"float","group":"ShapeRenderer"},
+  {"key":"size.y","type":"float","group":"ShapeRenderer"},
+  {"key":"cornerRadius","type":"float","group":"ShapeRenderer"},
+  {"key":"layer","type":"int","group":"ShapeRenderer"},
+  {"key":"enabled","type":"bool","group":"ShapeRenderer"}
         ])JSON";
-    } else if (name == "UIRect") {
+    } else if (name == "StateMachine") {
         return R"JSON([
-  {"key":"anchorMin.x","type":"float","group":"UIRect"},
-  {"key":"anchorMin.y","type":"float","group":"UIRect"},
-  {"key":"anchorMax.x","type":"float","group":"UIRect"},
-  {"key":"anchorMax.y","type":"float","group":"UIRect"},
-  {"key":"offsetMin.x","type":"float","group":"UIRect"},
-  {"key":"offsetMin.y","type":"float","group":"UIRect"},
-  {"key":"offsetMax.x","type":"float","group":"UIRect"},
-  {"key":"offsetMax.y","type":"float","group":"UIRect"},
-  {"key":"size.x","type":"float","group":"UIRect"},
-  {"key":"size.y","type":"float","group":"UIRect"},
-  {"key":"pivot.x","type":"float","group":"UIRect"},
-  {"key":"pivot.y","type":"float","group":"UIRect"}
+  {"key":"current","type":"string","group":"StateMachine"},
+  {"key":"previous","type":"string","group":"StateMachine"}
         ])JSON";
-    } else if (name == "UIRenderer") {
+    } else if (name == "Canvas") {
         return R"JSON([
-  {"key":"visualType","type":"enum","group":"UIRenderer","values":["None","SolidColor","Image","NineSlice"]},
-  {"key":"texture","type":"asset","group":"UIRenderer"},
-  {"key":"color.r","type":"color","group":"UIRenderer"},
-  {"key":"color.g","type":"color","group":"UIRenderer"},
-  {"key":"color.b","type":"color","group":"UIRenderer"},
-  {"key":"color.a","type":"color","group":"UIRenderer"},
-  {"key":"uvOffset.x","type":"float","group":"UIRenderer"},
-  {"key":"uvOffset.y","type":"float","group":"UIRenderer"},
-  {"key":"uvScale.x","type":"float","group":"UIRenderer"},
-  {"key":"uvScale.y","type":"float","group":"UIRenderer"},
-  {"key":"sliceBorder.x","type":"float","group":"UIRenderer"},
-  {"key":"sliceBorder.y","type":"float","group":"UIRenderer"},
-  {"key":"sliceBorder.z","type":"float","group":"UIRenderer"},
-  {"key":"sliceBorder.w","type":"float","group":"UIRenderer"},
-  {"key":"material","type":"asset","group":"UIRenderer"},
-  {"key":"enabled","type":"bool","group":"UIRenderer"}
+  {"key":"designResolution.x","type":"int","group":"Canvas"},
+  {"key":"designResolution.y","type":"int","group":"Canvas"},
+  {"key":"pixelsPerUnit","type":"float","group":"Canvas"},
+  {"key":"scaleMode","type":"enum","group":"Canvas","values":["FixedWidth","FixedHeight","Expand","Shrink","Match"]},
+  {"key":"matchWidthOrHeight","type":"float","group":"Canvas"},
+  {"key":"backgroundColor.r","type":"color","group":"Canvas"},
+  {"key":"backgroundColor.g","type":"color","group":"Canvas"},
+  {"key":"backgroundColor.b","type":"color","group":"Canvas"},
+  {"key":"backgroundColor.a","type":"color","group":"Canvas"}
         ])JSON";
-    } else if (name == "Velocity") {
+    } else if (name == "Camera") {
         return R"JSON([
-  {"key":"linear.x","type":"float","group":"Velocity"},
-  {"key":"linear.y","type":"float","group":"Velocity"},
-  {"key":"linear.z","type":"float","group":"Velocity"},
-  {"key":"angular.x","type":"float","group":"Velocity"},
-  {"key":"angular.y","type":"float","group":"Velocity"},
-  {"key":"angular.z","type":"float","group":"Velocity"}
+  {"key":"projectionType","type":"enum","group":"Camera","values":["Perspective","Orthographic"]},
+  {"key":"fov","type":"float","group":"Camera"},
+  {"key":"orthoSize","type":"float","group":"Camera"},
+  {"key":"nearPlane","type":"float","group":"Camera"},
+  {"key":"farPlane","type":"float","group":"Camera"},
+  {"key":"aspectRatio","type":"float","group":"Camera"},
+  {"key":"isActive","type":"bool","group":"Camera"},
+  {"key":"priority","type":"int","group":"Camera"},
+  {"key":"viewport.x","type":"float","group":"Camera"},
+  {"key":"viewport.y","type":"float","group":"Camera"},
+  {"key":"viewport.z","type":"float","group":"Camera"},
+  {"key":"viewport.w","type":"float","group":"Camera"},
+  {"key":"clearFlags","type":"enum","group":"Camera","values":["Nothing","Color","Depth","ColorAndDepth"]}
         ])JSON";
     }
     return "[]";
@@ -498,14 +498,11 @@ std::string editor_getComponentSchema(const std::string& name) {
 bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
-    if (name == "BitmapText") {
-        if (!reg.has<esengine::ecs::BitmapText>(entity)) reg.emplace<esengine::ecs::BitmapText>(entity);
+    if (name == "UIRect") {
+        if (!reg.has<esengine::ecs::UIRect>(entity)) reg.emplace<esengine::ecs::UIRect>(entity);
         return true;
-    } else if (name == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) reg.emplace<esengine::ecs::Camera>(entity);
-        return true;
-    } else if (name == "Canvas") {
-        if (!reg.has<esengine::ecs::Canvas>(entity)) reg.emplace<esengine::ecs::Canvas>(entity);
+    } else if (name == "FlexItem") {
+        if (!reg.has<esengine::ecs::FlexItem>(entity)) reg.emplace<esengine::ecs::FlexItem>(entity);
         return true;
     } else if (name == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) reg.emplace<esengine::ecs::BoxCollider>(entity);
@@ -519,14 +516,47 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "SegmentCollider") {
         if (!reg.has<esengine::ecs::SegmentCollider>(entity)) reg.emplace<esengine::ecs::SegmentCollider>(entity);
         return true;
-    } else if (name == "FlexContainer") {
-        if (!reg.has<esengine::ecs::FlexContainer>(entity)) reg.emplace<esengine::ecs::FlexContainer>(entity);
+    } else if (name == "ParticleEmitter") {
+        if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) reg.emplace<esengine::ecs::ParticleEmitter>(entity);
         return true;
-    } else if (name == "FlexItem") {
-        if (!reg.has<esengine::ecs::FlexItem>(entity)) reg.emplace<esengine::ecs::FlexItem>(entity);
+    } else if (name == "Transform") {
+        if (!reg.has<esengine::ecs::Transform>(entity)) reg.emplace<esengine::ecs::Transform>(entity);
+        return true;
+    } else if (name == "UIRenderer") {
+        if (!reg.has<esengine::ecs::UIRenderer>(entity)) reg.emplace<esengine::ecs::UIRenderer>(entity);
         return true;
     } else if (name == "GridLayout") {
         if (!reg.has<esengine::ecs::GridLayout>(entity)) reg.emplace<esengine::ecs::GridLayout>(entity);
+        return true;
+    } else if (name == "Velocity") {
+        if (!reg.has<esengine::ecs::Velocity>(entity)) reg.emplace<esengine::ecs::Velocity>(entity);
+        return true;
+    } else if (name == "SpineAnimation") {
+        if (!reg.has<esengine::ecs::SpineAnimation>(entity)) reg.emplace<esengine::ecs::SpineAnimation>(entity);
+        return true;
+    } else if (name == "Interactable") {
+        if (!reg.has<esengine::ecs::Interactable>(entity)) reg.emplace<esengine::ecs::Interactable>(entity);
+        return true;
+    } else if (name == "UIInteraction") {
+        if (!reg.has<esengine::ecs::UIInteraction>(entity)) reg.emplace<esengine::ecs::UIInteraction>(entity);
+        return true;
+    } else if (name == "RigidBody") {
+        if (!reg.has<esengine::ecs::RigidBody>(entity)) reg.emplace<esengine::ecs::RigidBody>(entity);
+        return true;
+    } else if (name == "BitmapText") {
+        if (!reg.has<esengine::ecs::BitmapText>(entity)) reg.emplace<esengine::ecs::BitmapText>(entity);
+        return true;
+    } else if (name == "Sprite") {
+        if (!reg.has<esengine::ecs::Sprite>(entity)) reg.emplace<esengine::ecs::Sprite>(entity);
+        return true;
+    } else if (name == "UIMask") {
+        if (!reg.has<esengine::ecs::UIMask>(entity)) reg.emplace<esengine::ecs::UIMask>(entity);
+        return true;
+    } else if (name == "FlexContainer") {
+        if (!reg.has<esengine::ecs::FlexContainer>(entity)) reg.emplace<esengine::ecs::FlexContainer>(entity);
+        return true;
+    } else if (name == "StateVisuals") {
+        if (!reg.has<esengine::ecs::StateVisuals>(entity)) reg.emplace<esengine::ecs::StateVisuals>(entity);
         return true;
     } else if (name == "Parent") {
         if (!reg.has<esengine::ecs::Parent>(entity)) reg.emplace<esengine::ecs::Parent>(entity);
@@ -534,47 +564,17 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "Children") {
         if (!reg.has<esengine::ecs::Children>(entity)) reg.emplace<esengine::ecs::Children>(entity);
         return true;
-    } else if (name == "Interactable") {
-        if (!reg.has<esengine::ecs::Interactable>(entity)) reg.emplace<esengine::ecs::Interactable>(entity);
-        return true;
-    } else if (name == "ParticleEmitter") {
-        if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) reg.emplace<esengine::ecs::ParticleEmitter>(entity);
-        return true;
-    } else if (name == "RigidBody") {
-        if (!reg.has<esengine::ecs::RigidBody>(entity)) reg.emplace<esengine::ecs::RigidBody>(entity);
-        return true;
     } else if (name == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) reg.emplace<esengine::ecs::ShapeRenderer>(entity);
-        return true;
-    } else if (name == "SpineAnimation") {
-        if (!reg.has<esengine::ecs::SpineAnimation>(entity)) reg.emplace<esengine::ecs::SpineAnimation>(entity);
-        return true;
-    } else if (name == "Sprite") {
-        if (!reg.has<esengine::ecs::Sprite>(entity)) reg.emplace<esengine::ecs::Sprite>(entity);
         return true;
     } else if (name == "StateMachine") {
         if (!reg.has<esengine::ecs::StateMachine>(entity)) reg.emplace<esengine::ecs::StateMachine>(entity);
         return true;
-    } else if (name == "StateVisuals") {
-        if (!reg.has<esengine::ecs::StateVisuals>(entity)) reg.emplace<esengine::ecs::StateVisuals>(entity);
+    } else if (name == "Canvas") {
+        if (!reg.has<esengine::ecs::Canvas>(entity)) reg.emplace<esengine::ecs::Canvas>(entity);
         return true;
-    } else if (name == "Transform") {
-        if (!reg.has<esengine::ecs::Transform>(entity)) reg.emplace<esengine::ecs::Transform>(entity);
-        return true;
-    } else if (name == "UIInteraction") {
-        if (!reg.has<esengine::ecs::UIInteraction>(entity)) reg.emplace<esengine::ecs::UIInteraction>(entity);
-        return true;
-    } else if (name == "UIMask") {
-        if (!reg.has<esengine::ecs::UIMask>(entity)) reg.emplace<esengine::ecs::UIMask>(entity);
-        return true;
-    } else if (name == "UIRect") {
-        if (!reg.has<esengine::ecs::UIRect>(entity)) reg.emplace<esengine::ecs::UIRect>(entity);
-        return true;
-    } else if (name == "UIRenderer") {
-        if (!reg.has<esengine::ecs::UIRenderer>(entity)) reg.emplace<esengine::ecs::UIRenderer>(entity);
-        return true;
-    } else if (name == "Velocity") {
-        if (!reg.has<esengine::ecs::Velocity>(entity)) reg.emplace<esengine::ecs::Velocity>(entity);
+    } else if (name == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) reg.emplace<esengine::ecs::Camera>(entity);
         return true;
     }
     return false;
@@ -583,12 +583,10 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
 bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
-    if (name == "BitmapText") {
-        if (reg.has<esengine::ecs::BitmapText>(entity)) { reg.remove<esengine::ecs::BitmapText>(entity); return true; }
-    } else if (name == "Camera") {
-        if (reg.has<esengine::ecs::Camera>(entity)) { reg.remove<esengine::ecs::Camera>(entity); return true; }
-    } else if (name == "Canvas") {
-        if (reg.has<esengine::ecs::Canvas>(entity)) { reg.remove<esengine::ecs::Canvas>(entity); return true; }
+    if (name == "UIRect") {
+        if (reg.has<esengine::ecs::UIRect>(entity)) { reg.remove<esengine::ecs::UIRect>(entity); return true; }
+    } else if (name == "FlexItem") {
+        if (reg.has<esengine::ecs::FlexItem>(entity)) { reg.remove<esengine::ecs::FlexItem>(entity); return true; }
     } else if (name == "BoxCollider") {
         if (reg.has<esengine::ecs::BoxCollider>(entity)) { reg.remove<esengine::ecs::BoxCollider>(entity); return true; }
     } else if (name == "CircleCollider") {
@@ -597,44 +595,46 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
         if (reg.has<esengine::ecs::CapsuleCollider>(entity)) { reg.remove<esengine::ecs::CapsuleCollider>(entity); return true; }
     } else if (name == "SegmentCollider") {
         if (reg.has<esengine::ecs::SegmentCollider>(entity)) { reg.remove<esengine::ecs::SegmentCollider>(entity); return true; }
-    } else if (name == "FlexContainer") {
-        if (reg.has<esengine::ecs::FlexContainer>(entity)) { reg.remove<esengine::ecs::FlexContainer>(entity); return true; }
-    } else if (name == "FlexItem") {
-        if (reg.has<esengine::ecs::FlexItem>(entity)) { reg.remove<esengine::ecs::FlexItem>(entity); return true; }
+    } else if (name == "ParticleEmitter") {
+        if (reg.has<esengine::ecs::ParticleEmitter>(entity)) { reg.remove<esengine::ecs::ParticleEmitter>(entity); return true; }
+    } else if (name == "Transform") {
+        if (reg.has<esengine::ecs::Transform>(entity)) { reg.remove<esengine::ecs::Transform>(entity); return true; }
+    } else if (name == "UIRenderer") {
+        if (reg.has<esengine::ecs::UIRenderer>(entity)) { reg.remove<esengine::ecs::UIRenderer>(entity); return true; }
     } else if (name == "GridLayout") {
         if (reg.has<esengine::ecs::GridLayout>(entity)) { reg.remove<esengine::ecs::GridLayout>(entity); return true; }
+    } else if (name == "Velocity") {
+        if (reg.has<esengine::ecs::Velocity>(entity)) { reg.remove<esengine::ecs::Velocity>(entity); return true; }
+    } else if (name == "SpineAnimation") {
+        if (reg.has<esengine::ecs::SpineAnimation>(entity)) { reg.remove<esengine::ecs::SpineAnimation>(entity); return true; }
+    } else if (name == "Interactable") {
+        if (reg.has<esengine::ecs::Interactable>(entity)) { reg.remove<esengine::ecs::Interactable>(entity); return true; }
+    } else if (name == "UIInteraction") {
+        if (reg.has<esengine::ecs::UIInteraction>(entity)) { reg.remove<esengine::ecs::UIInteraction>(entity); return true; }
+    } else if (name == "RigidBody") {
+        if (reg.has<esengine::ecs::RigidBody>(entity)) { reg.remove<esengine::ecs::RigidBody>(entity); return true; }
+    } else if (name == "BitmapText") {
+        if (reg.has<esengine::ecs::BitmapText>(entity)) { reg.remove<esengine::ecs::BitmapText>(entity); return true; }
+    } else if (name == "Sprite") {
+        if (reg.has<esengine::ecs::Sprite>(entity)) { reg.remove<esengine::ecs::Sprite>(entity); return true; }
+    } else if (name == "UIMask") {
+        if (reg.has<esengine::ecs::UIMask>(entity)) { reg.remove<esengine::ecs::UIMask>(entity); return true; }
+    } else if (name == "FlexContainer") {
+        if (reg.has<esengine::ecs::FlexContainer>(entity)) { reg.remove<esengine::ecs::FlexContainer>(entity); return true; }
+    } else if (name == "StateVisuals") {
+        if (reg.has<esengine::ecs::StateVisuals>(entity)) { reg.remove<esengine::ecs::StateVisuals>(entity); return true; }
     } else if (name == "Parent") {
         if (reg.has<esengine::ecs::Parent>(entity)) { reg.remove<esengine::ecs::Parent>(entity); return true; }
     } else if (name == "Children") {
         if (reg.has<esengine::ecs::Children>(entity)) { reg.remove<esengine::ecs::Children>(entity); return true; }
-    } else if (name == "Interactable") {
-        if (reg.has<esengine::ecs::Interactable>(entity)) { reg.remove<esengine::ecs::Interactable>(entity); return true; }
-    } else if (name == "ParticleEmitter") {
-        if (reg.has<esengine::ecs::ParticleEmitter>(entity)) { reg.remove<esengine::ecs::ParticleEmitter>(entity); return true; }
-    } else if (name == "RigidBody") {
-        if (reg.has<esengine::ecs::RigidBody>(entity)) { reg.remove<esengine::ecs::RigidBody>(entity); return true; }
     } else if (name == "ShapeRenderer") {
         if (reg.has<esengine::ecs::ShapeRenderer>(entity)) { reg.remove<esengine::ecs::ShapeRenderer>(entity); return true; }
-    } else if (name == "SpineAnimation") {
-        if (reg.has<esengine::ecs::SpineAnimation>(entity)) { reg.remove<esengine::ecs::SpineAnimation>(entity); return true; }
-    } else if (name == "Sprite") {
-        if (reg.has<esengine::ecs::Sprite>(entity)) { reg.remove<esengine::ecs::Sprite>(entity); return true; }
     } else if (name == "StateMachine") {
         if (reg.has<esengine::ecs::StateMachine>(entity)) { reg.remove<esengine::ecs::StateMachine>(entity); return true; }
-    } else if (name == "StateVisuals") {
-        if (reg.has<esengine::ecs::StateVisuals>(entity)) { reg.remove<esengine::ecs::StateVisuals>(entity); return true; }
-    } else if (name == "Transform") {
-        if (reg.has<esengine::ecs::Transform>(entity)) { reg.remove<esengine::ecs::Transform>(entity); return true; }
-    } else if (name == "UIInteraction") {
-        if (reg.has<esengine::ecs::UIInteraction>(entity)) { reg.remove<esengine::ecs::UIInteraction>(entity); return true; }
-    } else if (name == "UIMask") {
-        if (reg.has<esengine::ecs::UIMask>(entity)) { reg.remove<esengine::ecs::UIMask>(entity); return true; }
-    } else if (name == "UIRect") {
-        if (reg.has<esengine::ecs::UIRect>(entity)) { reg.remove<esengine::ecs::UIRect>(entity); return true; }
-    } else if (name == "UIRenderer") {
-        if (reg.has<esengine::ecs::UIRenderer>(entity)) { reg.remove<esengine::ecs::UIRenderer>(entity); return true; }
-    } else if (name == "Velocity") {
-        if (reg.has<esengine::ecs::Velocity>(entity)) { reg.remove<esengine::ecs::Velocity>(entity); return true; }
+    } else if (name == "Canvas") {
+        if (reg.has<esengine::ecs::Canvas>(entity)) { reg.remove<esengine::ecs::Canvas>(entity); return true; }
+    } else if (name == "Camera") {
+        if (reg.has<esengine::ecs::Camera>(entity)) { reg.remove<esengine::ecs::Camera>(entity); return true; }
     }
     return false;
 }
@@ -642,32 +642,32 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
 bool editor_hasComponent(Registry& reg, u32 e, const std::string& name) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
-    if (name == "BitmapText") return reg.has<esengine::ecs::BitmapText>(entity);
-    if (name == "Camera") return reg.has<esengine::ecs::Camera>(entity);
-    if (name == "Canvas") return reg.has<esengine::ecs::Canvas>(entity);
+    if (name == "UIRect") return reg.has<esengine::ecs::UIRect>(entity);
+    if (name == "FlexItem") return reg.has<esengine::ecs::FlexItem>(entity);
     if (name == "BoxCollider") return reg.has<esengine::ecs::BoxCollider>(entity);
     if (name == "CircleCollider") return reg.has<esengine::ecs::CircleCollider>(entity);
     if (name == "CapsuleCollider") return reg.has<esengine::ecs::CapsuleCollider>(entity);
     if (name == "SegmentCollider") return reg.has<esengine::ecs::SegmentCollider>(entity);
-    if (name == "FlexContainer") return reg.has<esengine::ecs::FlexContainer>(entity);
-    if (name == "FlexItem") return reg.has<esengine::ecs::FlexItem>(entity);
+    if (name == "ParticleEmitter") return reg.has<esengine::ecs::ParticleEmitter>(entity);
+    if (name == "Transform") return reg.has<esengine::ecs::Transform>(entity);
+    if (name == "UIRenderer") return reg.has<esengine::ecs::UIRenderer>(entity);
     if (name == "GridLayout") return reg.has<esengine::ecs::GridLayout>(entity);
+    if (name == "Velocity") return reg.has<esengine::ecs::Velocity>(entity);
+    if (name == "SpineAnimation") return reg.has<esengine::ecs::SpineAnimation>(entity);
+    if (name == "Interactable") return reg.has<esengine::ecs::Interactable>(entity);
+    if (name == "UIInteraction") return reg.has<esengine::ecs::UIInteraction>(entity);
+    if (name == "RigidBody") return reg.has<esengine::ecs::RigidBody>(entity);
+    if (name == "BitmapText") return reg.has<esengine::ecs::BitmapText>(entity);
+    if (name == "Sprite") return reg.has<esengine::ecs::Sprite>(entity);
+    if (name == "UIMask") return reg.has<esengine::ecs::UIMask>(entity);
+    if (name == "FlexContainer") return reg.has<esengine::ecs::FlexContainer>(entity);
+    if (name == "StateVisuals") return reg.has<esengine::ecs::StateVisuals>(entity);
     if (name == "Parent") return reg.has<esengine::ecs::Parent>(entity);
     if (name == "Children") return reg.has<esengine::ecs::Children>(entity);
-    if (name == "Interactable") return reg.has<esengine::ecs::Interactable>(entity);
-    if (name == "ParticleEmitter") return reg.has<esengine::ecs::ParticleEmitter>(entity);
-    if (name == "RigidBody") return reg.has<esengine::ecs::RigidBody>(entity);
     if (name == "ShapeRenderer") return reg.has<esengine::ecs::ShapeRenderer>(entity);
-    if (name == "SpineAnimation") return reg.has<esengine::ecs::SpineAnimation>(entity);
-    if (name == "Sprite") return reg.has<esengine::ecs::Sprite>(entity);
     if (name == "StateMachine") return reg.has<esengine::ecs::StateMachine>(entity);
-    if (name == "StateVisuals") return reg.has<esengine::ecs::StateVisuals>(entity);
-    if (name == "Transform") return reg.has<esengine::ecs::Transform>(entity);
-    if (name == "UIInteraction") return reg.has<esengine::ecs::UIInteraction>(entity);
-    if (name == "UIMask") return reg.has<esengine::ecs::UIMask>(entity);
-    if (name == "UIRect") return reg.has<esengine::ecs::UIRect>(entity);
-    if (name == "UIRenderer") return reg.has<esengine::ecs::UIRenderer>(entity);
-    if (name == "Velocity") return reg.has<esengine::ecs::Velocity>(entity);
+    if (name == "Canvas") return reg.has<esengine::ecs::Canvas>(entity);
+    if (name == "Camera") return reg.has<esengine::ecs::Camera>(entity);
     return false;
 }
 
@@ -677,32 +677,32 @@ std::vector<std::string> editor_getComponents(Registry& reg, u32 e) {
     auto entity = static_cast<Entity>(e);
     std::vector<std::string> result;
     if (!reg.valid(entity)) return result;
-    if (reg.has<esengine::ecs::BitmapText>(entity)) result.push_back("BitmapText");
-    if (reg.has<esengine::ecs::Camera>(entity)) result.push_back("Camera");
-    if (reg.has<esengine::ecs::Canvas>(entity)) result.push_back("Canvas");
+    if (reg.has<esengine::ecs::UIRect>(entity)) result.push_back("UIRect");
+    if (reg.has<esengine::ecs::FlexItem>(entity)) result.push_back("FlexItem");
     if (reg.has<esengine::ecs::BoxCollider>(entity)) result.push_back("BoxCollider");
     if (reg.has<esengine::ecs::CircleCollider>(entity)) result.push_back("CircleCollider");
     if (reg.has<esengine::ecs::CapsuleCollider>(entity)) result.push_back("CapsuleCollider");
     if (reg.has<esengine::ecs::SegmentCollider>(entity)) result.push_back("SegmentCollider");
-    if (reg.has<esengine::ecs::FlexContainer>(entity)) result.push_back("FlexContainer");
-    if (reg.has<esengine::ecs::FlexItem>(entity)) result.push_back("FlexItem");
+    if (reg.has<esengine::ecs::ParticleEmitter>(entity)) result.push_back("ParticleEmitter");
+    if (reg.has<esengine::ecs::Transform>(entity)) result.push_back("Transform");
+    if (reg.has<esengine::ecs::UIRenderer>(entity)) result.push_back("UIRenderer");
     if (reg.has<esengine::ecs::GridLayout>(entity)) result.push_back("GridLayout");
+    if (reg.has<esengine::ecs::Velocity>(entity)) result.push_back("Velocity");
+    if (reg.has<esengine::ecs::SpineAnimation>(entity)) result.push_back("SpineAnimation");
+    if (reg.has<esengine::ecs::Interactable>(entity)) result.push_back("Interactable");
+    if (reg.has<esengine::ecs::UIInteraction>(entity)) result.push_back("UIInteraction");
+    if (reg.has<esengine::ecs::RigidBody>(entity)) result.push_back("RigidBody");
+    if (reg.has<esengine::ecs::BitmapText>(entity)) result.push_back("BitmapText");
+    if (reg.has<esengine::ecs::Sprite>(entity)) result.push_back("Sprite");
+    if (reg.has<esengine::ecs::UIMask>(entity)) result.push_back("UIMask");
+    if (reg.has<esengine::ecs::FlexContainer>(entity)) result.push_back("FlexContainer");
+    if (reg.has<esengine::ecs::StateVisuals>(entity)) result.push_back("StateVisuals");
     if (reg.has<esengine::ecs::Parent>(entity)) result.push_back("Parent");
     if (reg.has<esengine::ecs::Children>(entity)) result.push_back("Children");
-    if (reg.has<esengine::ecs::Interactable>(entity)) result.push_back("Interactable");
-    if (reg.has<esengine::ecs::ParticleEmitter>(entity)) result.push_back("ParticleEmitter");
-    if (reg.has<esengine::ecs::RigidBody>(entity)) result.push_back("RigidBody");
     if (reg.has<esengine::ecs::ShapeRenderer>(entity)) result.push_back("ShapeRenderer");
-    if (reg.has<esengine::ecs::SpineAnimation>(entity)) result.push_back("SpineAnimation");
-    if (reg.has<esengine::ecs::Sprite>(entity)) result.push_back("Sprite");
     if (reg.has<esengine::ecs::StateMachine>(entity)) result.push_back("StateMachine");
-    if (reg.has<esengine::ecs::StateVisuals>(entity)) result.push_back("StateVisuals");
-    if (reg.has<esengine::ecs::Transform>(entity)) result.push_back("Transform");
-    if (reg.has<esengine::ecs::UIInteraction>(entity)) result.push_back("UIInteraction");
-    if (reg.has<esengine::ecs::UIMask>(entity)) result.push_back("UIMask");
-    if (reg.has<esengine::ecs::UIRect>(entity)) result.push_back("UIRect");
-    if (reg.has<esengine::ecs::UIRenderer>(entity)) result.push_back("UIRenderer");
-    if (reg.has<esengine::ecs::Velocity>(entity)) result.push_back("Velocity");
+    if (reg.has<esengine::ecs::Canvas>(entity)) result.push_back("Canvas");
+    if (reg.has<esengine::ecs::Camera>(entity)) result.push_back("Camera");
     return result;
 }
 
@@ -711,40 +711,39 @@ std::vector<std::string> editor_getComponents(Registry& reg, u32 e) {
 bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::string& field, f32 value) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
-    if (comp == "BitmapText") {
-        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "color.r") { c.color.r = value; }
-        else if (field == "color.g") { c.color.g = value; }
-        else if (field == "color.b") { c.color.b = value; }
-        else if (field == "color.a") { c.color.a = value; }
-        else if (field == "fontSize") { c.fontSize = value; }
-        else if (field == "spacing") { c.spacing = value; }
+    if (comp == "UIRect") {
+        if (!reg.has<esengine::ecs::UIRect>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::UIRect>(entity);
+        if (field == "anchorMin.x") { c.anchorMin.x = value; }
+        else if (field == "anchorMin.y") { c.anchorMin.y = value; }
+        else if (field == "anchorMax.x") { c.anchorMax.x = value; }
+        else if (field == "anchorMax.y") { c.anchorMax.y = value; }
+        else if (field == "offsetMin.x") { c.offsetMin.x = value; }
+        else if (field == "offsetMin.y") { c.offsetMin.y = value; }
+        else if (field == "offsetMax.x") { c.offsetMax.x = value; }
+        else if (field == "offsetMax.y") { c.offsetMax.y = value; }
+        else if (field == "size.x") { c.size.x = value; }
+        else if (field == "size.y") { c.size.y = value; }
+        else if (field == "pivot.x") { c.pivot.x = value; }
+        else if (field == "pivot.y") { c.pivot.y = value; }
         else { return false; }
         return true;
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "fov") { c.fov = value; }
-        else if (field == "orthoSize") { c.orthoSize = value; }
-        else if (field == "nearPlane") { c.nearPlane = value; }
-        else if (field == "farPlane") { c.farPlane = value; }
-        else if (field == "aspectRatio") { c.aspectRatio = value; }
-        else if (field == "viewport.x") { c.viewport.x = value; }
-        else if (field == "viewport.y") { c.viewport.y = value; }
-        else if (field == "viewport.z") { c.viewport.z = value; }
-        else if (field == "viewport.w") { c.viewport.w = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "Canvas") {
-        if (!reg.has<esengine::ecs::Canvas>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Canvas>(entity);
-        if (field == "pixelsPerUnit") { c.pixelsPerUnit = value; }
-        else if (field == "matchWidthOrHeight") { c.matchWidthOrHeight = value; }
-        else if (field == "backgroundColor.r") { c.backgroundColor.r = value; }
-        else if (field == "backgroundColor.g") { c.backgroundColor.g = value; }
-        else if (field == "backgroundColor.b") { c.backgroundColor.b = value; }
-        else if (field == "backgroundColor.a") { c.backgroundColor.a = value; }
+    } else if (comp == "FlexItem") {
+        if (!reg.has<esengine::ecs::FlexItem>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::FlexItem>(entity);
+        if (field == "flexGrow") { c.flexGrow = value; }
+        else if (field == "flexShrink") { c.flexShrink = value; }
+        else if (field == "flexBasis") { c.flexBasis = value; }
+        else if (field == "margin.left") { c.margin.left = value; }
+        else if (field == "margin.top") { c.margin.top = value; }
+        else if (field == "margin.right") { c.margin.right = value; }
+        else if (field == "margin.bottom") { c.margin.bottom = value; }
+        else if (field == "minWidth") { c.minWidth = value; }
+        else if (field == "minHeight") { c.minHeight = value; }
+        else if (field == "maxWidth") { c.maxWidth = value; }
+        else if (field == "maxHeight") { c.maxHeight = value; }
+        else if (field == "widthPercent") { c.widthPercent = value; }
+        else if (field == "heightPercent") { c.heightPercent = value; }
         else { return false; }
         return true;
     } else if (comp == "BoxCollider") {
@@ -794,44 +793,6 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "restitution") { c.restitution = value; }
         else { return false; }
         return true;
-    } else if (comp == "FlexContainer") {
-        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
-        if (field == "gap.x") { c.gap.x = value; }
-        else if (field == "gap.y") { c.gap.y = value; }
-        else if (field == "padding.left") { c.padding.left = value; }
-        else if (field == "padding.top") { c.padding.top = value; }
-        else if (field == "padding.right") { c.padding.right = value; }
-        else if (field == "padding.bottom") { c.padding.bottom = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "FlexItem") {
-        if (!reg.has<esengine::ecs::FlexItem>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FlexItem>(entity);
-        if (field == "flexGrow") { c.flexGrow = value; }
-        else if (field == "flexShrink") { c.flexShrink = value; }
-        else if (field == "flexBasis") { c.flexBasis = value; }
-        else if (field == "margin.left") { c.margin.left = value; }
-        else if (field == "margin.top") { c.margin.top = value; }
-        else if (field == "margin.right") { c.margin.right = value; }
-        else if (field == "margin.bottom") { c.margin.bottom = value; }
-        else if (field == "minWidth") { c.minWidth = value; }
-        else if (field == "minHeight") { c.minHeight = value; }
-        else if (field == "maxWidth") { c.maxWidth = value; }
-        else if (field == "maxHeight") { c.maxHeight = value; }
-        else if (field == "widthPercent") { c.widthPercent = value; }
-        else if (field == "heightPercent") { c.heightPercent = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "GridLayout") {
-        if (!reg.has<esengine::ecs::GridLayout>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::GridLayout>(entity);
-        if (field == "itemSize.x") { c.itemSize.x = value; }
-        else if (field == "itemSize.y") { c.itemSize.y = value; }
-        else if (field == "spacing.x") { c.spacing.x = value; }
-        else if (field == "spacing.y") { c.spacing.y = value; }
-        else { return false; }
-        return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
         auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -870,24 +831,67 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "spriteFPS") { c.spriteFPS = value; }
         else { return false; }
         return true;
-    } else if (comp == "RigidBody") {
-        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody>(entity);
-        if (field == "gravityScale") { c.gravityScale = value; }
-        else if (field == "linearDamping") { c.linearDamping = value; }
-        else if (field == "angularDamping") { c.angularDamping = value; }
+    } else if (comp == "Transform") {
+        if (!reg.has<esengine::ecs::Transform>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Transform>(entity);
+        if (field == "position.x") { c.position.x = value; }
+        else if (field == "position.y") { c.position.y = value; }
+        else if (field == "position.z") { c.position.z = value; }
+        else if (field == "scale.x") { c.scale.x = value; }
+        else if (field == "scale.y") { c.scale.y = value; }
+        else if (field == "scale.z") { c.scale.z = value; }
+        else if (field == "rotation.x") {
+            auto euler = quatToEulerDeg(c.rotation);
+            euler.x = value;
+            c.rotation = eulerDegToQuat(euler);
+        }
+        else if (field == "rotation.y") {
+            auto euler = quatToEulerDeg(c.rotation);
+            euler.y = value;
+            c.rotation = eulerDegToQuat(euler);
+        }
+        else if (field == "rotation.z") {
+            auto euler = quatToEulerDeg(c.rotation);
+            euler.z = value;
+            c.rotation = eulerDegToQuat(euler);
+        }
         else { return false; }
         return true;
-    } else if (comp == "ShapeRenderer") {
-        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+    } else if (comp == "UIRenderer") {
+        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
         else if (field == "color.a") { c.color.a = value; }
-        else if (field == "size.x") { c.size.x = value; }
-        else if (field == "size.y") { c.size.y = value; }
-        else if (field == "cornerRadius") { c.cornerRadius = value; }
+        else if (field == "uvOffset.x") { c.uvOffset.x = value; }
+        else if (field == "uvOffset.y") { c.uvOffset.y = value; }
+        else if (field == "uvScale.x") { c.uvScale.x = value; }
+        else if (field == "uvScale.y") { c.uvScale.y = value; }
+        else if (field == "sliceBorder.x") { c.sliceBorder.x = value; }
+        else if (field == "sliceBorder.y") { c.sliceBorder.y = value; }
+        else if (field == "sliceBorder.z") { c.sliceBorder.z = value; }
+        else if (field == "sliceBorder.w") { c.sliceBorder.w = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "GridLayout") {
+        if (!reg.has<esengine::ecs::GridLayout>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::GridLayout>(entity);
+        if (field == "itemSize.x") { c.itemSize.x = value; }
+        else if (field == "itemSize.y") { c.itemSize.y = value; }
+        else if (field == "spacing.x") { c.spacing.x = value; }
+        else if (field == "spacing.y") { c.spacing.y = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "Velocity") {
+        if (!reg.has<esengine::ecs::Velocity>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Velocity>(entity);
+        if (field == "linear.x") { c.linear.x = value; }
+        else if (field == "linear.y") { c.linear.y = value; }
+        else if (field == "linear.z") { c.linear.z = value; }
+        else if (field == "angular.x") { c.angular.x = value; }
+        else if (field == "angular.y") { c.angular.y = value; }
+        else if (field == "angular.z") { c.angular.z = value; }
         else { return false; }
         return true;
     } else if (comp == "SpineAnimation") {
@@ -899,6 +903,25 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "color.b") { c.color.b = value; }
         else if (field == "color.a") { c.color.a = value; }
         else if (field == "skeletonScale") { c.skeletonScale = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "RigidBody") {
+        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::RigidBody>(entity);
+        if (field == "gravityScale") { c.gravityScale = value; }
+        else if (field == "linearDamping") { c.linearDamping = value; }
+        else if (field == "angularDamping") { c.angularDamping = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "BitmapText") {
+        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        if (field == "color.r") { c.color.r = value; }
+        else if (field == "color.g") { c.color.g = value; }
+        else if (field == "color.b") { c.color.b = value; }
+        else if (field == "color.a") { c.color.a = value; }
+        else if (field == "fontSize") { c.fontSize = value; }
+        else if (field == "spacing") { c.spacing = value; }
         else { return false; }
         return true;
     } else if (comp == "Sprite") {
@@ -920,6 +943,17 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "tileSize.y") { c.tileSize.y = value; }
         else if (field == "tileSpacing.x") { c.tileSpacing.x = value; }
         else if (field == "tileSpacing.y") { c.tileSpacing.y = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "FlexContainer") {
+        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
+        if (field == "gap.x") { c.gap.x = value; }
+        else if (field == "gap.y") { c.gap.y = value; }
+        else if (field == "padding.left") { c.padding.left = value; }
+        else if (field == "padding.top") { c.padding.top = value; }
+        else if (field == "padding.right") { c.padding.right = value; }
+        else if (field == "padding.bottom") { c.padding.bottom = value; }
         else { return false; }
         return true;
     } else if (comp == "StateVisuals") {
@@ -968,75 +1002,41 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "slot7Scale") { c.slot7Scale = value; }
         else { return false; }
         return true;
-    } else if (comp == "Transform") {
-        if (!reg.has<esengine::ecs::Transform>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Transform>(entity);
-        if (field == "position.x") { c.position.x = value; }
-        else if (field == "position.y") { c.position.y = value; }
-        else if (field == "position.z") { c.position.z = value; }
-        else if (field == "scale.x") { c.scale.x = value; }
-        else if (field == "scale.y") { c.scale.y = value; }
-        else if (field == "scale.z") { c.scale.z = value; }
-        else if (field == "rotation.x") {
-            auto euler = quatToEulerDeg(c.rotation);
-            euler.x = value;
-            c.rotation = eulerDegToQuat(euler);
-        }
-        else if (field == "rotation.y") {
-            auto euler = quatToEulerDeg(c.rotation);
-            euler.y = value;
-            c.rotation = eulerDegToQuat(euler);
-        }
-        else if (field == "rotation.z") {
-            auto euler = quatToEulerDeg(c.rotation);
-            euler.z = value;
-            c.rotation = eulerDegToQuat(euler);
-        }
-        else { return false; }
-        return true;
-    } else if (comp == "UIRect") {
-        if (!reg.has<esengine::ecs::UIRect>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIRect>(entity);
-        if (field == "anchorMin.x") { c.anchorMin.x = value; }
-        else if (field == "anchorMin.y") { c.anchorMin.y = value; }
-        else if (field == "anchorMax.x") { c.anchorMax.x = value; }
-        else if (field == "anchorMax.y") { c.anchorMax.y = value; }
-        else if (field == "offsetMin.x") { c.offsetMin.x = value; }
-        else if (field == "offsetMin.y") { c.offsetMin.y = value; }
-        else if (field == "offsetMax.x") { c.offsetMax.x = value; }
-        else if (field == "offsetMax.y") { c.offsetMax.y = value; }
-        else if (field == "size.x") { c.size.x = value; }
-        else if (field == "size.y") { c.size.y = value; }
-        else if (field == "pivot.x") { c.pivot.x = value; }
-        else if (field == "pivot.y") { c.pivot.y = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "UIRenderer") {
-        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
+    } else if (comp == "ShapeRenderer") {
+        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
         else if (field == "color.a") { c.color.a = value; }
-        else if (field == "uvOffset.x") { c.uvOffset.x = value; }
-        else if (field == "uvOffset.y") { c.uvOffset.y = value; }
-        else if (field == "uvScale.x") { c.uvScale.x = value; }
-        else if (field == "uvScale.y") { c.uvScale.y = value; }
-        else if (field == "sliceBorder.x") { c.sliceBorder.x = value; }
-        else if (field == "sliceBorder.y") { c.sliceBorder.y = value; }
-        else if (field == "sliceBorder.z") { c.sliceBorder.z = value; }
-        else if (field == "sliceBorder.w") { c.sliceBorder.w = value; }
+        else if (field == "size.x") { c.size.x = value; }
+        else if (field == "size.y") { c.size.y = value; }
+        else if (field == "cornerRadius") { c.cornerRadius = value; }
         else { return false; }
         return true;
-    } else if (comp == "Velocity") {
-        if (!reg.has<esengine::ecs::Velocity>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Velocity>(entity);
-        if (field == "linear.x") { c.linear.x = value; }
-        else if (field == "linear.y") { c.linear.y = value; }
-        else if (field == "linear.z") { c.linear.z = value; }
-        else if (field == "angular.x") { c.angular.x = value; }
-        else if (field == "angular.y") { c.angular.y = value; }
-        else if (field == "angular.z") { c.angular.z = value; }
+    } else if (comp == "Canvas") {
+        if (!reg.has<esengine::ecs::Canvas>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Canvas>(entity);
+        if (field == "pixelsPerUnit") { c.pixelsPerUnit = value; }
+        else if (field == "matchWidthOrHeight") { c.matchWidthOrHeight = value; }
+        else if (field == "backgroundColor.r") { c.backgroundColor.r = value; }
+        else if (field == "backgroundColor.g") { c.backgroundColor.g = value; }
+        else if (field == "backgroundColor.b") { c.backgroundColor.b = value; }
+        else if (field == "backgroundColor.a") { c.backgroundColor.a = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "fov") { c.fov = value; }
+        else if (field == "orthoSize") { c.orthoSize = value; }
+        else if (field == "nearPlane") { c.nearPlane = value; }
+        else if (field == "farPlane") { c.farPlane = value; }
+        else if (field == "aspectRatio") { c.aspectRatio = value; }
+        else if (field == "viewport.x") { c.viewport.x = value; }
+        else if (field == "viewport.y") { c.viewport.y = value; }
+        else if (field == "viewport.z") { c.viewport.z = value; }
+        else if (field == "viewport.w") { c.viewport.w = value; }
         else { return false; }
         return true;
     }
@@ -1048,36 +1048,37 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
 f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::string& field) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return 0.0f;
-    if (comp == "BitmapText") {
-        if (!reg.has<esengine::ecs::BitmapText>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "color.r") { return c.color.r; }
-        else if (field == "color.g") { return c.color.g; }
-        else if (field == "color.b") { return c.color.b; }
-        else if (field == "color.a") { return c.color.a; }
-        else if (field == "fontSize") { return c.fontSize; }
-        else if (field == "spacing") { return c.spacing; }
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "fov") { return c.fov; }
-        else if (field == "orthoSize") { return c.orthoSize; }
-        else if (field == "nearPlane") { return c.nearPlane; }
-        else if (field == "farPlane") { return c.farPlane; }
-        else if (field == "aspectRatio") { return c.aspectRatio; }
-        else if (field == "viewport.x") { return c.viewport.x; }
-        else if (field == "viewport.y") { return c.viewport.y; }
-        else if (field == "viewport.z") { return c.viewport.z; }
-        else if (field == "viewport.w") { return c.viewport.w; }
-    } else if (comp == "Canvas") {
-        if (!reg.has<esengine::ecs::Canvas>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::Canvas>(entity);
-        if (field == "pixelsPerUnit") { return c.pixelsPerUnit; }
-        else if (field == "matchWidthOrHeight") { return c.matchWidthOrHeight; }
-        else if (field == "backgroundColor.r") { return c.backgroundColor.r; }
-        else if (field == "backgroundColor.g") { return c.backgroundColor.g; }
-        else if (field == "backgroundColor.b") { return c.backgroundColor.b; }
-        else if (field == "backgroundColor.a") { return c.backgroundColor.a; }
+    if (comp == "UIRect") {
+        if (!reg.has<esengine::ecs::UIRect>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::UIRect>(entity);
+        if (field == "anchorMin.x") { return c.anchorMin.x; }
+        else if (field == "anchorMin.y") { return c.anchorMin.y; }
+        else if (field == "anchorMax.x") { return c.anchorMax.x; }
+        else if (field == "anchorMax.y") { return c.anchorMax.y; }
+        else if (field == "offsetMin.x") { return c.offsetMin.x; }
+        else if (field == "offsetMin.y") { return c.offsetMin.y; }
+        else if (field == "offsetMax.x") { return c.offsetMax.x; }
+        else if (field == "offsetMax.y") { return c.offsetMax.y; }
+        else if (field == "size.x") { return c.size.x; }
+        else if (field == "size.y") { return c.size.y; }
+        else if (field == "pivot.x") { return c.pivot.x; }
+        else if (field == "pivot.y") { return c.pivot.y; }
+    } else if (comp == "FlexItem") {
+        if (!reg.has<esengine::ecs::FlexItem>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::FlexItem>(entity);
+        if (field == "flexGrow") { return c.flexGrow; }
+        else if (field == "flexShrink") { return c.flexShrink; }
+        else if (field == "flexBasis") { return c.flexBasis; }
+        else if (field == "margin.left") { return c.margin.left; }
+        else if (field == "margin.top") { return c.margin.top; }
+        else if (field == "margin.right") { return c.margin.right; }
+        else if (field == "margin.bottom") { return c.margin.bottom; }
+        else if (field == "minWidth") { return c.minWidth; }
+        else if (field == "minHeight") { return c.minHeight; }
+        else if (field == "maxWidth") { return c.maxWidth; }
+        else if (field == "maxHeight") { return c.maxHeight; }
+        else if (field == "widthPercent") { return c.widthPercent; }
+        else if (field == "heightPercent") { return c.heightPercent; }
     } else if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
@@ -1117,38 +1118,6 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "density") { return c.density; }
         else if (field == "friction") { return c.friction; }
         else if (field == "restitution") { return c.restitution; }
-    } else if (comp == "FlexContainer") {
-        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
-        if (field == "gap.x") { return c.gap.x; }
-        else if (field == "gap.y") { return c.gap.y; }
-        else if (field == "padding.left") { return c.padding.left; }
-        else if (field == "padding.top") { return c.padding.top; }
-        else if (field == "padding.right") { return c.padding.right; }
-        else if (field == "padding.bottom") { return c.padding.bottom; }
-    } else if (comp == "FlexItem") {
-        if (!reg.has<esengine::ecs::FlexItem>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::FlexItem>(entity);
-        if (field == "flexGrow") { return c.flexGrow; }
-        else if (field == "flexShrink") { return c.flexShrink; }
-        else if (field == "flexBasis") { return c.flexBasis; }
-        else if (field == "margin.left") { return c.margin.left; }
-        else if (field == "margin.top") { return c.margin.top; }
-        else if (field == "margin.right") { return c.margin.right; }
-        else if (field == "margin.bottom") { return c.margin.bottom; }
-        else if (field == "minWidth") { return c.minWidth; }
-        else if (field == "minHeight") { return c.minHeight; }
-        else if (field == "maxWidth") { return c.maxWidth; }
-        else if (field == "maxHeight") { return c.maxHeight; }
-        else if (field == "widthPercent") { return c.widthPercent; }
-        else if (field == "heightPercent") { return c.heightPercent; }
-    } else if (comp == "GridLayout") {
-        if (!reg.has<esengine::ecs::GridLayout>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::GridLayout>(entity);
-        if (field == "itemSize.x") { return c.itemSize.x; }
-        else if (field == "itemSize.y") { return c.itemSize.y; }
-        else if (field == "spacing.x") { return c.spacing.x; }
-        else if (field == "spacing.y") { return c.spacing.y; }
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1185,22 +1154,49 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "gravity.y") { return c.gravity.y; }
         else if (field == "damping") { return c.damping; }
         else if (field == "spriteFPS") { return c.spriteFPS; }
-    } else if (comp == "RigidBody") {
-        if (!reg.has<esengine::ecs::RigidBody>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
-        if (field == "gravityScale") { return c.gravityScale; }
-        else if (field == "linearDamping") { return c.linearDamping; }
-        else if (field == "angularDamping") { return c.angularDamping; }
-    } else if (comp == "ShapeRenderer") {
-        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+    } else if (comp == "Transform") {
+        if (!reg.has<esengine::ecs::Transform>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::Transform>(entity);
+        if (field == "position.x") { return c.position.x; }
+        else if (field == "position.y") { return c.position.y; }
+        else if (field == "position.z") { return c.position.z; }
+        else if (field == "scale.x") { return c.scale.x; }
+        else if (field == "scale.y") { return c.scale.y; }
+        else if (field == "scale.z") { return c.scale.z; }
+        else if (field == "rotation.x") { return quatToEulerDeg(c.rotation).x; }
+        else if (field == "rotation.y") { return quatToEulerDeg(c.rotation).y; }
+        else if (field == "rotation.z") { return quatToEulerDeg(c.rotation).z; }
+    } else if (comp == "UIRenderer") {
+        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
         if (field == "color.r") { return c.color.r; }
         else if (field == "color.g") { return c.color.g; }
         else if (field == "color.b") { return c.color.b; }
         else if (field == "color.a") { return c.color.a; }
-        else if (field == "size.x") { return c.size.x; }
-        else if (field == "size.y") { return c.size.y; }
-        else if (field == "cornerRadius") { return c.cornerRadius; }
+        else if (field == "uvOffset.x") { return c.uvOffset.x; }
+        else if (field == "uvOffset.y") { return c.uvOffset.y; }
+        else if (field == "uvScale.x") { return c.uvScale.x; }
+        else if (field == "uvScale.y") { return c.uvScale.y; }
+        else if (field == "sliceBorder.x") { return c.sliceBorder.x; }
+        else if (field == "sliceBorder.y") { return c.sliceBorder.y; }
+        else if (field == "sliceBorder.z") { return c.sliceBorder.z; }
+        else if (field == "sliceBorder.w") { return c.sliceBorder.w; }
+    } else if (comp == "GridLayout") {
+        if (!reg.has<esengine::ecs::GridLayout>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::GridLayout>(entity);
+        if (field == "itemSize.x") { return c.itemSize.x; }
+        else if (field == "itemSize.y") { return c.itemSize.y; }
+        else if (field == "spacing.x") { return c.spacing.x; }
+        else if (field == "spacing.y") { return c.spacing.y; }
+    } else if (comp == "Velocity") {
+        if (!reg.has<esengine::ecs::Velocity>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::Velocity>(entity);
+        if (field == "linear.x") { return c.linear.x; }
+        else if (field == "linear.y") { return c.linear.y; }
+        else if (field == "linear.z") { return c.linear.z; }
+        else if (field == "angular.x") { return c.angular.x; }
+        else if (field == "angular.y") { return c.angular.y; }
+        else if (field == "angular.z") { return c.angular.z; }
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
@@ -1210,6 +1206,21 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "color.b") { return c.color.b; }
         else if (field == "color.a") { return c.color.a; }
         else if (field == "skeletonScale") { return c.skeletonScale; }
+    } else if (comp == "RigidBody") {
+        if (!reg.has<esengine::ecs::RigidBody>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
+        if (field == "gravityScale") { return c.gravityScale; }
+        else if (field == "linearDamping") { return c.linearDamping; }
+        else if (field == "angularDamping") { return c.angularDamping; }
+    } else if (comp == "BitmapText") {
+        if (!reg.has<esengine::ecs::BitmapText>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        if (field == "color.r") { return c.color.r; }
+        else if (field == "color.g") { return c.color.g; }
+        else if (field == "color.b") { return c.color.b; }
+        else if (field == "color.a") { return c.color.a; }
+        else if (field == "fontSize") { return c.fontSize; }
+        else if (field == "spacing") { return c.spacing; }
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::Sprite>(entity);
@@ -1229,6 +1240,15 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "tileSize.y") { return c.tileSize.y; }
         else if (field == "tileSpacing.x") { return c.tileSpacing.x; }
         else if (field == "tileSpacing.y") { return c.tileSpacing.y; }
+    } else if (comp == "FlexContainer") {
+        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
+        if (field == "gap.x") { return c.gap.x; }
+        else if (field == "gap.y") { return c.gap.y; }
+        else if (field == "padding.left") { return c.padding.left; }
+        else if (field == "padding.top") { return c.padding.top; }
+        else if (field == "padding.right") { return c.padding.right; }
+        else if (field == "padding.bottom") { return c.padding.bottom; }
     } else if (comp == "StateVisuals") {
         if (!reg.has<esengine::ecs::StateVisuals>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
@@ -1273,57 +1293,37 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "slot7Color.b") { return c.slot7Color.b; }
         else if (field == "slot7Color.a") { return c.slot7Color.a; }
         else if (field == "slot7Scale") { return c.slot7Scale; }
-    } else if (comp == "Transform") {
-        if (!reg.has<esengine::ecs::Transform>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::Transform>(entity);
-        if (field == "position.x") { return c.position.x; }
-        else if (field == "position.y") { return c.position.y; }
-        else if (field == "position.z") { return c.position.z; }
-        else if (field == "scale.x") { return c.scale.x; }
-        else if (field == "scale.y") { return c.scale.y; }
-        else if (field == "scale.z") { return c.scale.z; }
-        else if (field == "rotation.x") { return quatToEulerDeg(c.rotation).x; }
-        else if (field == "rotation.y") { return quatToEulerDeg(c.rotation).y; }
-        else if (field == "rotation.z") { return quatToEulerDeg(c.rotation).z; }
-    } else if (comp == "UIRect") {
-        if (!reg.has<esengine::ecs::UIRect>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::UIRect>(entity);
-        if (field == "anchorMin.x") { return c.anchorMin.x; }
-        else if (field == "anchorMin.y") { return c.anchorMin.y; }
-        else if (field == "anchorMax.x") { return c.anchorMax.x; }
-        else if (field == "anchorMax.y") { return c.anchorMax.y; }
-        else if (field == "offsetMin.x") { return c.offsetMin.x; }
-        else if (field == "offsetMin.y") { return c.offsetMin.y; }
-        else if (field == "offsetMax.x") { return c.offsetMax.x; }
-        else if (field == "offsetMax.y") { return c.offsetMax.y; }
-        else if (field == "size.x") { return c.size.x; }
-        else if (field == "size.y") { return c.size.y; }
-        else if (field == "pivot.x") { return c.pivot.x; }
-        else if (field == "pivot.y") { return c.pivot.y; }
-    } else if (comp == "UIRenderer") {
-        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
+    } else if (comp == "ShapeRenderer") {
+        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
         if (field == "color.r") { return c.color.r; }
         else if (field == "color.g") { return c.color.g; }
         else if (field == "color.b") { return c.color.b; }
         else if (field == "color.a") { return c.color.a; }
-        else if (field == "uvOffset.x") { return c.uvOffset.x; }
-        else if (field == "uvOffset.y") { return c.uvOffset.y; }
-        else if (field == "uvScale.x") { return c.uvScale.x; }
-        else if (field == "uvScale.y") { return c.uvScale.y; }
-        else if (field == "sliceBorder.x") { return c.sliceBorder.x; }
-        else if (field == "sliceBorder.y") { return c.sliceBorder.y; }
-        else if (field == "sliceBorder.z") { return c.sliceBorder.z; }
-        else if (field == "sliceBorder.w") { return c.sliceBorder.w; }
-    } else if (comp == "Velocity") {
-        if (!reg.has<esengine::ecs::Velocity>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::Velocity>(entity);
-        if (field == "linear.x") { return c.linear.x; }
-        else if (field == "linear.y") { return c.linear.y; }
-        else if (field == "linear.z") { return c.linear.z; }
-        else if (field == "angular.x") { return c.angular.x; }
-        else if (field == "angular.y") { return c.angular.y; }
-        else if (field == "angular.z") { return c.angular.z; }
+        else if (field == "size.x") { return c.size.x; }
+        else if (field == "size.y") { return c.size.y; }
+        else if (field == "cornerRadius") { return c.cornerRadius; }
+    } else if (comp == "Canvas") {
+        if (!reg.has<esengine::ecs::Canvas>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::Canvas>(entity);
+        if (field == "pixelsPerUnit") { return c.pixelsPerUnit; }
+        else if (field == "matchWidthOrHeight") { return c.matchWidthOrHeight; }
+        else if (field == "backgroundColor.r") { return c.backgroundColor.r; }
+        else if (field == "backgroundColor.g") { return c.backgroundColor.g; }
+        else if (field == "backgroundColor.b") { return c.backgroundColor.b; }
+        else if (field == "backgroundColor.a") { return c.backgroundColor.a; }
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "fov") { return c.fov; }
+        else if (field == "orthoSize") { return c.orthoSize; }
+        else if (field == "nearPlane") { return c.nearPlane; }
+        else if (field == "farPlane") { return c.farPlane; }
+        else if (field == "aspectRatio") { return c.aspectRatio; }
+        else if (field == "viewport.x") { return c.viewport.x; }
+        else if (field == "viewport.y") { return c.viewport.y; }
+        else if (field == "viewport.z") { return c.viewport.z; }
+        else if (field == "viewport.w") { return c.viewport.w; }
     }
     return 0.0f;
 }
@@ -1333,25 +1333,11 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
 bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::string& field, i32 value) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
-    if (comp == "BitmapText") {
-        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "align") { c.align = static_cast<TextAlign>(value); }
-        else if (field == "layer") { c.layer = static_cast<i32>(value); }
-        else { return false; }
-        return true;
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "projectionType") { c.projectionType = static_cast<ProjectionType>(value); }
-        else if (field == "priority") { c.priority = static_cast<i32>(value); }
-        else if (field == "clearFlags") { c.clearFlags = static_cast<ClearFlags>(value); }
-        else { return false; }
-        return true;
-    } else if (comp == "Canvas") {
-        if (!reg.has<esengine::ecs::Canvas>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Canvas>(entity);
-        if (field == "scaleMode") { c.scaleMode = static_cast<CanvasScaleMode>(value); }
+    if (comp == "FlexItem") {
+        if (!reg.has<esengine::ecs::FlexItem>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::FlexItem>(entity);
+        if (field == "order") { c.order = static_cast<i32>(value); }
+        else if (field == "alignSelf") { c.alignSelf = static_cast<AlignSelf>(value); }
         else { return false; }
         return true;
     } else if (comp == "BoxCollider") {
@@ -1382,36 +1368,6 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
-    } else if (comp == "FlexContainer") {
-        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
-        if (field == "direction") { c.direction = static_cast<FlexDirection>(value); }
-        else if (field == "wrap") { c.wrap = static_cast<FlexWrap>(value); }
-        else if (field == "justifyContent") { c.justifyContent = static_cast<JustifyContent>(value); }
-        else if (field == "alignItems") { c.alignItems = static_cast<AlignItems>(value); }
-        else if (field == "alignContent") { c.alignContent = static_cast<AlignContent>(value); }
-        else { return false; }
-        return true;
-    } else if (comp == "FlexItem") {
-        if (!reg.has<esengine::ecs::FlexItem>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FlexItem>(entity);
-        if (field == "order") { c.order = static_cast<i32>(value); }
-        else if (field == "alignSelf") { c.alignSelf = static_cast<AlignSelf>(value); }
-        else { return false; }
-        return true;
-    } else if (comp == "GridLayout") {
-        if (!reg.has<esengine::ecs::GridLayout>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::GridLayout>(entity);
-        if (field == "direction") { c.direction = static_cast<GridDirection>(value); }
-        else if (field == "crossAxisCount") { c.crossAxisCount = static_cast<i32>(value); }
-        else { return false; }
-        return true;
-    } else if (comp == "Parent") {
-        if (!reg.has<esengine::ecs::Parent>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Parent>(entity);
-        if (field == "entity") { c.entity = static_cast<Entity>(value); }
-        else { return false; }
-        return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
         auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1427,17 +1383,17 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else if (field == "simulationSpace") { c.simulationSpace = static_cast<i32>(value); }
         else { return false; }
         return true;
-    } else if (comp == "RigidBody") {
-        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody>(entity);
-        if (field == "bodyType") { c.bodyType = static_cast<BodyType>(value); }
+    } else if (comp == "UIRenderer") {
+        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
+        if (field == "visualType") { c.visualType = static_cast<UIVisualType>(value); }
         else { return false; }
         return true;
-    } else if (comp == "ShapeRenderer") {
-        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
-        if (field == "shapeType") { c.shapeType = static_cast<u8>(value); }
-        else if (field == "layer") { c.layer = static_cast<i32>(value); }
+    } else if (comp == "GridLayout") {
+        if (!reg.has<esengine::ecs::GridLayout>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::GridLayout>(entity);
+        if (field == "direction") { c.direction = static_cast<GridDirection>(value); }
+        else if (field == "crossAxisCount") { c.crossAxisCount = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "SpineAnimation") {
@@ -1446,10 +1402,39 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (field == "layer") { c.layer = static_cast<i32>(value); }
         else { return false; }
         return true;
+    } else if (comp == "RigidBody") {
+        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::RigidBody>(entity);
+        if (field == "bodyType") { c.bodyType = static_cast<BodyType>(value); }
+        else { return false; }
+        return true;
+    } else if (comp == "BitmapText") {
+        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        if (field == "align") { c.align = static_cast<TextAlign>(value); }
+        else if (field == "layer") { c.layer = static_cast<i32>(value); }
+        else { return false; }
+        return true;
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
         auto& c = reg.get<esengine::ecs::Sprite>(entity);
         if (field == "layer") { c.layer = static_cast<i32>(value); }
+        else { return false; }
+        return true;
+    } else if (comp == "UIMask") {
+        if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::UIMask>(entity);
+        if (field == "mode") { c.mode = static_cast<MaskMode>(value); }
+        else { return false; }
+        return true;
+    } else if (comp == "FlexContainer") {
+        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
+        if (field == "direction") { c.direction = static_cast<FlexDirection>(value); }
+        else if (field == "wrap") { c.wrap = static_cast<FlexWrap>(value); }
+        else if (field == "justifyContent") { c.justifyContent = static_cast<JustifyContent>(value); }
+        else if (field == "alignItems") { c.alignItems = static_cast<AlignItems>(value); }
+        else if (field == "alignContent") { c.alignContent = static_cast<AlignContent>(value); }
         else { return false; }
         return true;
     } else if (comp == "StateVisuals") {
@@ -1459,16 +1444,31 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else if (field == "transitionFlags") { c.transitionFlags = static_cast<u32>(value); }
         else { return false; }
         return true;
-    } else if (comp == "UIMask") {
-        if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIMask>(entity);
-        if (field == "mode") { c.mode = static_cast<MaskMode>(value); }
+    } else if (comp == "Parent") {
+        if (!reg.has<esengine::ecs::Parent>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Parent>(entity);
+        if (field == "entity") { c.entity = static_cast<Entity>(value); }
         else { return false; }
         return true;
-    } else if (comp == "UIRenderer") {
-        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
-        if (field == "visualType") { c.visualType = static_cast<UIVisualType>(value); }
+    } else if (comp == "ShapeRenderer") {
+        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+        if (field == "shapeType") { c.shapeType = static_cast<u8>(value); }
+        else if (field == "layer") { c.layer = static_cast<i32>(value); }
+        else { return false; }
+        return true;
+    } else if (comp == "Canvas") {
+        if (!reg.has<esengine::ecs::Canvas>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Canvas>(entity);
+        if (field == "scaleMode") { c.scaleMode = static_cast<CanvasScaleMode>(value); }
+        else { return false; }
+        return true;
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "projectionType") { c.projectionType = static_cast<ProjectionType>(value); }
+        else if (field == "priority") { c.priority = static_cast<i32>(value); }
+        else if (field == "clearFlags") { c.clearFlags = static_cast<ClearFlags>(value); }
         else { return false; }
         return true;
     }
@@ -1480,21 +1480,11 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
 i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::string& field) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return 0;
-    if (comp == "BitmapText") {
-        if (!reg.has<esengine::ecs::BitmapText>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "align") { return static_cast<i32>(c.align); }
-        else if (field == "layer") { return static_cast<i32>(c.layer); }
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "projectionType") { return static_cast<i32>(c.projectionType); }
-        else if (field == "priority") { return static_cast<i32>(c.priority); }
-        else if (field == "clearFlags") { return static_cast<i32>(c.clearFlags); }
-    } else if (comp == "Canvas") {
-        if (!reg.has<esengine::ecs::Canvas>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::Canvas>(entity);
-        if (field == "scaleMode") { return static_cast<i32>(c.scaleMode); }
+    if (comp == "FlexItem") {
+        if (!reg.has<esengine::ecs::FlexItem>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::FlexItem>(entity);
+        if (field == "order") { return static_cast<i32>(c.order); }
+        else if (field == "alignSelf") { return static_cast<i32>(c.alignSelf); }
     } else if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
@@ -1515,28 +1505,6 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
         if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
         else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
-    } else if (comp == "FlexContainer") {
-        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
-        if (field == "direction") { return static_cast<i32>(c.direction); }
-        else if (field == "wrap") { return static_cast<i32>(c.wrap); }
-        else if (field == "justifyContent") { return static_cast<i32>(c.justifyContent); }
-        else if (field == "alignItems") { return static_cast<i32>(c.alignItems); }
-        else if (field == "alignContent") { return static_cast<i32>(c.alignContent); }
-    } else if (comp == "FlexItem") {
-        if (!reg.has<esengine::ecs::FlexItem>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::FlexItem>(entity);
-        if (field == "order") { return static_cast<i32>(c.order); }
-        else if (field == "alignSelf") { return static_cast<i32>(c.alignSelf); }
-    } else if (comp == "GridLayout") {
-        if (!reg.has<esengine::ecs::GridLayout>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::GridLayout>(entity);
-        if (field == "direction") { return static_cast<i32>(c.direction); }
-        else if (field == "crossAxisCount") { return static_cast<i32>(c.crossAxisCount); }
-    } else if (comp == "Parent") {
-        if (!reg.has<esengine::ecs::Parent>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::Parent>(entity);
-        if (field == "entity") { return static_cast<i32>(static_cast<u32>(c.entity)); }
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1550,36 +1518,68 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         else if (field == "blendMode") { return static_cast<i32>(c.blendMode); }
         else if (field == "layer") { return static_cast<i32>(c.layer); }
         else if (field == "simulationSpace") { return static_cast<i32>(c.simulationSpace); }
-    } else if (comp == "RigidBody") {
-        if (!reg.has<esengine::ecs::RigidBody>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
-        if (field == "bodyType") { return static_cast<i32>(c.bodyType); }
-    } else if (comp == "ShapeRenderer") {
-        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
-        if (field == "shapeType") { return static_cast<i32>(c.shapeType); }
-        else if (field == "layer") { return static_cast<i32>(c.layer); }
+    } else if (comp == "UIRenderer") {
+        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
+        if (field == "visualType") { return static_cast<i32>(c.visualType); }
+    } else if (comp == "GridLayout") {
+        if (!reg.has<esengine::ecs::GridLayout>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::GridLayout>(entity);
+        if (field == "direction") { return static_cast<i32>(c.direction); }
+        else if (field == "crossAxisCount") { return static_cast<i32>(c.crossAxisCount); }
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
         if (field == "layer") { return static_cast<i32>(c.layer); }
+    } else if (comp == "RigidBody") {
+        if (!reg.has<esengine::ecs::RigidBody>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
+        if (field == "bodyType") { return static_cast<i32>(c.bodyType); }
+    } else if (comp == "BitmapText") {
+        if (!reg.has<esengine::ecs::BitmapText>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        if (field == "align") { return static_cast<i32>(c.align); }
+        else if (field == "layer") { return static_cast<i32>(c.layer); }
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::Sprite>(entity);
         if (field == "layer") { return static_cast<i32>(c.layer); }
+    } else if (comp == "UIMask") {
+        if (!reg.has<esengine::ecs::UIMask>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::UIMask>(entity);
+        if (field == "mode") { return static_cast<i32>(c.mode); }
+    } else if (comp == "FlexContainer") {
+        if (!reg.has<esengine::ecs::FlexContainer>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
+        if (field == "direction") { return static_cast<i32>(c.direction); }
+        else if (field == "wrap") { return static_cast<i32>(c.wrap); }
+        else if (field == "justifyContent") { return static_cast<i32>(c.justifyContent); }
+        else if (field == "alignItems") { return static_cast<i32>(c.alignItems); }
+        else if (field == "alignContent") { return static_cast<i32>(c.alignContent); }
     } else if (comp == "StateVisuals") {
         if (!reg.has<esengine::ecs::StateVisuals>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
         if (field == "targetGraphic") { return static_cast<i32>(static_cast<u32>(c.targetGraphic)); }
         else if (field == "transitionFlags") { return static_cast<i32>(c.transitionFlags); }
-    } else if (comp == "UIMask") {
-        if (!reg.has<esengine::ecs::UIMask>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::UIMask>(entity);
-        if (field == "mode") { return static_cast<i32>(c.mode); }
-    } else if (comp == "UIRenderer") {
-        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
-        if (field == "visualType") { return static_cast<i32>(c.visualType); }
+    } else if (comp == "Parent") {
+        if (!reg.has<esengine::ecs::Parent>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::Parent>(entity);
+        if (field == "entity") { return static_cast<i32>(static_cast<u32>(c.entity)); }
+    } else if (comp == "ShapeRenderer") {
+        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+        if (field == "shapeType") { return static_cast<i32>(c.shapeType); }
+        else if (field == "layer") { return static_cast<i32>(c.layer); }
+    } else if (comp == "Canvas") {
+        if (!reg.has<esengine::ecs::Canvas>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::Canvas>(entity);
+        if (field == "scaleMode") { return static_cast<i32>(c.scaleMode); }
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "projectionType") { return static_cast<i32>(c.projectionType); }
+        else if (field == "priority") { return static_cast<i32>(c.priority); }
+        else if (field == "clearFlags") { return static_cast<i32>(c.clearFlags); }
     }
     return 0;
 }
@@ -1589,19 +1589,7 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
 bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::string& field, bool value) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
-    if (comp == "BitmapText") {
-        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "enabled") { c.enabled = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "isActive") { c.isActive = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "BoxCollider") {
+    if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
         auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
         if (field == "isSensor") { c.isSensor = value; }
@@ -1629,14 +1617,6 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
-    } else if (comp == "Interactable") {
-        if (!reg.has<esengine::ecs::Interactable>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Interactable>(entity);
-        if (field == "enabled") { c.enabled = value; }
-        else if (field == "blockRaycast") { c.blockRaycast = value; }
-        else if (field == "raycastTarget") { c.raycastTarget = value; }
-        else { return false; }
-        return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
         auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1646,17 +1626,9 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
-    } else if (comp == "RigidBody") {
-        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody>(entity);
-        if (field == "fixedRotation") { c.fixedRotation = value; }
-        else if (field == "bullet") { c.bullet = value; }
-        else if (field == "enabled") { c.enabled = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "ShapeRenderer") {
-        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+    } else if (comp == "UIRenderer") {
+        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
@@ -1670,12 +1642,12 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
-    } else if (comp == "Sprite") {
-        if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "flipX") { c.flipX = value; }
-        else if (field == "flipY") { c.flipY = value; }
-        else if (field == "enabled") { c.enabled = value; }
+    } else if (comp == "Interactable") {
+        if (!reg.has<esengine::ecs::Interactable>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Interactable>(entity);
+        if (field == "enabled") { c.enabled = value; }
+        else if (field == "blockRaycast") { c.blockRaycast = value; }
+        else if (field == "raycastTarget") { c.raycastTarget = value; }
         else { return false; }
         return true;
     } else if (comp == "UIInteraction") {
@@ -1687,16 +1659,44 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "justReleased") { c.justReleased = value; }
         else { return false; }
         return true;
+    } else if (comp == "RigidBody") {
+        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::RigidBody>(entity);
+        if (field == "fixedRotation") { c.fixedRotation = value; }
+        else if (field == "bullet") { c.bullet = value; }
+        else if (field == "enabled") { c.enabled = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "BitmapText") {
+        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        if (field == "enabled") { c.enabled = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "Sprite") {
+        if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Sprite>(entity);
+        if (field == "flipX") { c.flipX = value; }
+        else if (field == "flipY") { c.flipY = value; }
+        else if (field == "enabled") { c.enabled = value; }
+        else { return false; }
+        return true;
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
         auto& c = reg.get<esengine::ecs::UIMask>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
-    } else if (comp == "UIRenderer") {
-        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
+    } else if (comp == "ShapeRenderer") {
+        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
         if (field == "enabled") { c.enabled = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "isActive") { c.isActive = value; }
         else { return false; }
         return true;
     }
@@ -1708,15 +1708,7 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
 bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::string& field) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
-    if (comp == "BitmapText") {
-        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
-        if (field == "enabled") { return c.enabled; }
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "isActive") { return c.isActive; }
-    } else if (comp == "BoxCollider") {
+    if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
         if (field == "isSensor") { return c.isSensor; }
@@ -1736,12 +1728,6 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
         if (field == "isSensor") { return c.isSensor; }
         else if (field == "enabled") { return c.enabled; }
-    } else if (comp == "Interactable") {
-        if (!reg.has<esengine::ecs::Interactable>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::Interactable>(entity);
-        if (field == "enabled") { return c.enabled; }
-        else if (field == "blockRaycast") { return c.blockRaycast; }
-        else if (field == "raycastTarget") { return c.raycastTarget; }
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
@@ -1749,15 +1735,9 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "playOnStart") { return c.playOnStart; }
         else if (field == "spriteLoop") { return c.spriteLoop; }
         else if (field == "enabled") { return c.enabled; }
-    } else if (comp == "RigidBody") {
-        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
-        if (field == "fixedRotation") { return c.fixedRotation; }
-        else if (field == "bullet") { return c.bullet; }
-        else if (field == "enabled") { return c.enabled; }
-    } else if (comp == "ShapeRenderer") {
-        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+    } else if (comp == "UIRenderer") {
+        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
         if (field == "enabled") { return c.enabled; }
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
@@ -1767,12 +1747,12 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "flipX") { return c.flipX; }
         else if (field == "flipY") { return c.flipY; }
         else if (field == "enabled") { return c.enabled; }
-    } else if (comp == "Sprite") {
-        if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "flipX") { return c.flipX; }
-        else if (field == "flipY") { return c.flipY; }
-        else if (field == "enabled") { return c.enabled; }
+    } else if (comp == "Interactable") {
+        if (!reg.has<esengine::ecs::Interactable>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::Interactable>(entity);
+        if (field == "enabled") { return c.enabled; }
+        else if (field == "blockRaycast") { return c.blockRaycast; }
+        else if (field == "raycastTarget") { return c.raycastTarget; }
     } else if (comp == "UIInteraction") {
         if (!reg.has<esengine::ecs::UIInteraction>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::UIInteraction>(entity);
@@ -1780,14 +1760,34 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "pressed") { return c.pressed; }
         else if (field == "justPressed") { return c.justPressed; }
         else if (field == "justReleased") { return c.justReleased; }
+    } else if (comp == "RigidBody") {
+        if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
+        if (field == "fixedRotation") { return c.fixedRotation; }
+        else if (field == "bullet") { return c.bullet; }
+        else if (field == "enabled") { return c.enabled; }
+    } else if (comp == "BitmapText") {
+        if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        if (field == "enabled") { return c.enabled; }
+    } else if (comp == "Sprite") {
+        if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::Sprite>(entity);
+        if (field == "flipX") { return c.flipX; }
+        else if (field == "flipY") { return c.flipY; }
+        else if (field == "enabled") { return c.enabled; }
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::UIMask>(entity);
         if (field == "enabled") { return c.enabled; }
-    } else if (comp == "UIRenderer") {
-        if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
+    } else if (comp == "ShapeRenderer") {
+        if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
         if (field == "enabled") { return c.enabled; }
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "isActive") { return c.isActive; }
     }
     return false;
 }

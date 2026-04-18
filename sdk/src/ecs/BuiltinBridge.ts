@@ -176,6 +176,19 @@ export interface BridgeVerification {
     readonly ok: boolean;
     /** List of components with missing bindings (empty when ok). */
     readonly missing: readonly { readonly name: string; readonly methods: readonly string[] }[];
+    /**
+     * Components reported by the WASM module's reflection table
+     * (`getBuiltinComponentNames`) that are not present in the shipped
+     * COMPONENT_META — the WASM was built from a newer schema than the SDK
+     * bundle. Only populated when the module exposes the reflection call.
+     */
+    readonly wasmOnly: readonly string[];
+    /**
+     * Components declared in COMPONENT_META that the WASM module's reflection
+     * table does not list — the SDK was built from a newer schema than the
+     * WASM. Only populated when the module exposes the reflection call.
+     */
+    readonly sdkOnly: readonly string[];
 }
 
 /** Options for {@link BuiltinBridge.connect}. */
@@ -193,13 +206,23 @@ export interface BridgeConnectOptions {
 
 const METHOD_PREFIXES = ['add', 'get', 'has', 'remove'] as const;
 
-function formatMissingBindings(missing: readonly { name: string; methods: readonly string[] }[]): string {
-    const detail = missing.map(m => `  - ${m.name}: missing ${m.methods.join(', ')}`).join('\n');
-    return (
-        `C++ Registry is missing ${String(missing.length)} builtin component binding(s):\n${detail}\n\n` +
-        `Likely cause: WebBindings.generated.cpp is out of sync with component.generated.ts. ` +
-        `Rerun the EHT generator and rebuild the WASM target.`
+function formatBridgeDiagnostic(v: BridgeVerification): string {
+    const parts: string[] = [];
+    if (v.missing.length > 0) {
+        const detail = v.missing.map(m => `  - ${m.name}: missing ${m.methods.join(', ')}`).join('\n');
+        parts.push(`C++ Registry is missing ${String(v.missing.length)} builtin component binding(s):\n${detail}`);
+    }
+    if (v.wasmOnly.length > 0) {
+        parts.push(`WASM exposes components not in the SDK's COMPONENT_META:\n  ${v.wasmOnly.join(', ')}`);
+    }
+    if (v.sdkOnly.length > 0) {
+        parts.push(`SDK's COMPONENT_META lists components the WASM does not export:\n  ${v.sdkOnly.join(', ')}`);
+    }
+    parts.push(
+        'Likely cause: WebBindings.generated.cpp is out of sync with component.generated.ts. ' +
+        'Rerun the EHT generator and rebuild the WASM target.',
     );
+    return parts.join('\n\n');
 }
 
 // =============================================================================
@@ -235,12 +258,12 @@ export class BuiltinBridge {
         this.builtinMethodCache_.clear();
         this.builtinEntitySets_.clear();
 
-        const verification = this.verifyAgainst_(cppRegistry);
+        const verification = this.verifyAgainst_(cppRegistry, module);
         if (options.strict && !verification.ok) {
             this.cppRegistry_ = null;
             this.module_ = null;
             this.builtinMethodCache_.clear();
-            throw new Error(formatMissingBindings(verification.missing));
+            throw new Error(formatBridgeDiagnostic(verification));
         }
     }
 
@@ -268,11 +291,18 @@ export class BuiltinBridge {
      * diagnostics and tests that want to inspect coverage.
      */
     verify(): BridgeVerification {
-        if (!this.cppRegistry_) return { ok: false, missing: [{ name: '<registry>', methods: ['connect() not called'] }] };
-        return this.verifyAgainst_(this.cppRegistry_);
+        if (!this.cppRegistry_) {
+            return {
+                ok: false,
+                missing: [{ name: '<registry>', methods: ['connect() not called'] }],
+                wasmOnly: [],
+                sdkOnly: [],
+            };
+        }
+        return this.verifyAgainst_(this.cppRegistry_, this.module_ ?? undefined);
     }
 
-    private verifyAgainst_(reg: CppRegistry): BridgeVerification {
+    private verifyAgainst_(reg: CppRegistry, module?: ESEngineModule): BridgeVerification {
         const missing: { name: string; methods: string[] }[] = [];
         for (const cppName of Object.keys(COMPONENT_META)) {
             const missingMethods: string[] = [];
@@ -286,7 +316,29 @@ export class BuiltinBridge {
             }
             this.resolveAndCache_(reg, cppName);
         }
-        return { ok: missing.length === 0, missing };
+
+        // Cross-check against the WASM module's self-reported component list
+        // (added in the EHT generator as `getBuiltinComponentNames`). Older
+        // WASM builds may not expose it — those skip this check.
+        let wasmOnly: string[] = [];
+        let sdkOnly: string[] = [];
+        const listFn = (module as unknown as { getBuiltinComponentNames?: () => string[] } | undefined)
+            ?.getBuiltinComponentNames;
+        if (typeof listFn === 'function') {
+            let wasmList: string[];
+            try {
+                wasmList = listFn();
+            } catch {
+                wasmList = [];
+            }
+            const sdkSet = new Set(Object.keys(COMPONENT_META));
+            const wasmSet = new Set(wasmList);
+            wasmOnly = wasmList.filter(n => !sdkSet.has(n));
+            sdkOnly = Object.keys(COMPONENT_META).filter(n => !wasmSet.has(n));
+        }
+
+        const ok = missing.length === 0 && wasmOnly.length === 0 && sdkOnly.length === 0;
+        return { ok, missing, wasmOnly, sdkOnly };
     }
 
     getBuiltinMethods(cppName: string): BuiltinMethods {

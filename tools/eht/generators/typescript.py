@@ -102,6 +102,12 @@ class TypeScriptGenerator:
             '// Module',
             'export interface ESEngineModule {',
             '    Registry: new () => Registry;',
+            '    /**',
+            '     * Authoritative list of component names this WASM build exposes',
+            '     * on the Registry. Used by BuiltinBridge to detect drift between',
+            '     * the shipped SDK and the actual WASM module.',
+            '     */',
+            '    getBuiltinComponentNames(): string[];',
         ]
         for comp in self.components:
             lines.append(f'    {comp.name}: new () => {comp.name};')
