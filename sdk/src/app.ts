@@ -712,53 +712,57 @@ export class App {
             return out;
         };
 
-        for (const entry of systems) {
-            if (entry.runBefore) {
-                for (const targetName of entry.runBefore) {
-                    for (const targetIndex of resolveTargets(targetName)) {
-                        const targetEntry = systems[targetIndex];
-                        if (!targetEntry.runAfter) {
-                            targetEntry.runAfter = [];
-                        }
-                        if (!targetEntry.runAfter.includes(entry.system._name)) {
-                            targetEntry.runAfter.push(entry.system._name);
-                        }
-                    }
-                }
-            }
-        }
-
-        const sorted: SystemEntry[] = [];
-        const visited = new Set<number>();
-        const visiting = new Set<number>();
-
-        const visit = (index: number): void => {
-            if (visited.has(index)) return;
-            if (visiting.has(index)) {
-                const name = systems[index].system._name;
-                throw new Error(`Circular dependency detected involving system "${name}"`);
-            }
-
-            visiting.add(index);
-            const entry = systems[index];
-
-            if (entry.runAfter) {
-                for (const depName of entry.runAfter) {
-                    for (const depIndex of resolveTargets(depName)) {
-                        visit(depIndex);
-                    }
-                }
-            }
-
-            visiting.delete(index);
-            visited.add(index);
-            sorted.push(entry);
+        // Build a local dependency graph: `adj[i]` lists indices that must run
+        // *before* system `i`. Both runBefore and runAfter feed into the same
+        // structure — runBefore is translated symmetrically into
+        // "target depends on me" without mutating the caller's SystemEntry
+        // objects (the old path appended to target.runAfter, leaving duplicated
+        // edges across repeat sorts).
+        const adj: number[][] = systems.map(() => []);
+        const addEdge = (from: number, to: number) => {
+            if (from === to) return;
+            const list = adj[to];
+            if (!list.includes(from)) list.push(from);
         };
 
         for (let i = 0; i < systems.length; i++) {
-            visit(i);
+            const e = systems[i];
+            if (e.runAfter) {
+                for (const depName of e.runAfter) {
+                    for (const j of resolveTargets(depName)) addEdge(j, i);
+                }
+            }
+            if (e.runBefore) {
+                for (const targetName of e.runBefore) {
+                    for (const j of resolveTargets(targetName)) addEdge(i, j);
+                }
+            }
         }
 
+        // DFS topological sort with path-aware cycle reporting.
+        // color: 0 = unvisited, 1 = in the current DFS stack (GRAY), 2 = done.
+        const GRAY = 1, BLACK = 2;
+        const color = new Uint8Array(systems.length);
+        const stack: number[] = [];
+        const sorted: SystemEntry[] = [];
+
+        const visit = (index: number): void => {
+            if (color[index] === BLACK) return;
+            if (color[index] === GRAY) {
+                const cycleStart = stack.indexOf(index);
+                const path = stack.slice(cycleStart).map(i => systems[i].system._name);
+                path.push(systems[index].system._name);
+                throw new Error(`Circular system dependency: ${path.join(' → ')}`);
+            }
+            color[index] = GRAY;
+            stack.push(index);
+            for (const dep of adj[index]) visit(dep);
+            stack.pop();
+            color[index] = BLACK;
+            sorted.push(systems[index]);
+        };
+
+        for (let i = 0; i < systems.length; i++) visit(i);
         return sorted;
     }
 
