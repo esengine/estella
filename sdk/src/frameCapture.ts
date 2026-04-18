@@ -1,5 +1,28 @@
 import type { ESEngineModule } from './wasm';
 
+/**
+ * Memory-safety model for this module
+ * -----------------------------------
+ *
+ * Every function here reads from WASM-owned memory and returns values the
+ * caller may hold across later frames. To stay safe when WASM memory grows
+ * or the renderer reuses its capture buffer, we never return a typed array
+ * that views the WASM heap — we copy primitives into fresh JS objects /
+ * buffers before returning.
+ *
+ *   - decodeFrameCapture copies every field out as plain `number`s and
+ *     numeric arrays. The intermediate `DataView` and `Uint32Array` views
+ *     are local and dropped as soon as the function returns.
+ *   - getSnapshotImageData reads pixel rows from the heap view into a
+ *     freshly-allocated `Uint8ClampedArray` ("flipped") and wraps that
+ *     JS-owned buffer in the returned ImageData.
+ *
+ * Do NOT "optimize" either function by returning a heap-backed typed array
+ * directly — a subsequent WASM alloc/grow would detach it or the renderer
+ * would overwrite the bytes on the next capture, handing the caller silent
+ * corruption.
+ */
+
 export enum FlushReason {
     BatchFull = 0,
     TextureSlotsFull = 1,
