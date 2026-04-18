@@ -27,6 +27,45 @@ import type { AssetRegistry } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../logger';
 
+/**
+ * Default upper bound on concurrent loads inside preloadSceneAssets.
+ * Picked to match typical browser per-origin connection limits; scenes
+ * with hundreds of assets would otherwise fan out all at once and
+ * saturate the network, CPU image decoders, and WASM memory.
+ */
+const DEFAULT_PRELOAD_CONCURRENCY = 6;
+
+/**
+ * Run an array of lazy task thunks with at most `maxConcurrent` in
+ * flight. Calls `onEach` once per task completion (success or failure)
+ * so callers can drive a progress indicator. Never rejects — individual
+ * task errors are expected to be handled inside the thunk itself.
+ */
+async function runWithConcurrency(
+    tasks: ReadonlyArray<() => Promise<void>>,
+    maxConcurrent: number,
+    onEach: () => void,
+): Promise<void> {
+    if (tasks.length === 0) return;
+    let cursor = 0;
+    const workers: Promise<void>[] = [];
+    const worker = async (): Promise<void> => {
+        while (cursor < tasks.length) {
+            const i = cursor++;
+            try {
+                await tasks[i]();
+            } finally {
+                onEach();
+            }
+        }
+    };
+    const slots = Math.min(maxConcurrent, tasks.length);
+    for (let i = 0; i < slots; i++) {
+        workers.push(worker());
+    }
+    await Promise.all(workers);
+}
+
 export interface AssetsOptions {
     backend: Backend;
     catalog?: Catalog;
@@ -302,6 +341,7 @@ export class Assets {
     async preloadSceneAssets(
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
+        options?: { readonly maxConcurrent?: number },
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
         const discovered = discoverSceneAssets(sceneData, (ref) => this.resolveRef(ref));
@@ -331,9 +371,6 @@ export class Assets {
 
         let loadedCount = 0;
 
-        const trackProgress = (p: Promise<void>): Promise<void> =>
-            p.then(() => { onProgress?.(++loadedCount, totalCount); });
-
         const recordFailure = (path: string, label: string, err: unknown): void => {
             missing.push({
                 ref: path,
@@ -343,54 +380,61 @@ export class Assets {
             });
         };
 
-        const loadHandles = (
+        // Build task thunks instead of starting the promises eagerly — the
+        // worker pool below calls them one at a time per slot so a scene
+        // with hundreds of assets doesn't saturate the network or tie up
+        // image decoders all at once.
+        const tasks: Array<() => Promise<void>> = [];
+        const pushHandleLoad = (
             paths: Set<string>, loader: (p: string) => Promise<{ handle: number }>,
             handles: Map<string, number>, label: string,
-        ): Promise<void>[] =>
-            [...paths].map(path =>
-                trackProgress(
+        ): void => {
+            for (const path of paths) {
+                tasks.push(() =>
                     loader(path).then(r => { handles.set(path, r.handle); }).catch(e => {
                         log.warn('asset', `Failed to load ${label}: ${path}`, e);
                         handles.set(path, 0);
                         recordFailure(path, label, e);
                     }),
-                ),
-            );
-
-        const loadFireAndForget = (
+                );
+            }
+        };
+        const pushFireAndForget = (
             paths: Set<string>, loader: (p: string) => Promise<unknown>, label: string,
-        ): Promise<void>[] =>
-            [...paths].map(path =>
-                trackProgress(
+        ): void => {
+            for (const path of paths) {
+                tasks.push(() =>
                     loader(path).then(() => {}).catch(e => {
                         log.warn('asset', `Failed to load ${label}: ${path}`, e);
                         recordFailure(path, label, e);
                     }),
-                ),
+                );
+            }
+        };
+
+        pushHandleLoad(texturePaths, p => this.loadTexture(p), textureHandles, 'texture');
+        pushHandleLoad(materialPaths, p => this.loadMaterial(p), materialHandles, 'material');
+        pushHandleLoad(fontPaths, p => this.loadFont(p), fontHandles, 'font');
+        for (const pair of spinePairs) {
+            tasks.push(() =>
+                this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
+                    log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
+                    recordFailure(pair.skeleton, 'spine', e);
+                }),
             );
+        }
+        pushFireAndForget(animClipPaths, p => this.loadAnimClip(p), 'anim-clip');
+        pushFireAndForget(tilemapPaths, p => this.loadTilemap(p), 'tilemap');
+        pushFireAndForget(timelinePaths, p => this.loadTimeline(p), 'timeline');
+        pushFireAndForget(audioPaths, p => this.loadAudio(p), 'audio');
 
-        const promises: Promise<void>[] = [
-            ...loadHandles(texturePaths, p => this.loadTexture(p), textureHandles, 'texture'),
-            ...loadHandles(materialPaths, p => this.loadMaterial(p), materialHandles, 'material'),
-            ...loadHandles(fontPaths, p => this.loadFont(p), fontHandles, 'font'),
-            ...spinePairs.map(pair =>
-                trackProgress(
-                    this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
-                        log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
-                        recordFailure(pair.skeleton, 'spine', e);
-                    }),
-                ),
-            ),
-            ...loadFireAndForget(animClipPaths, p => this.loadAnimClip(p), 'anim-clip'),
-            ...loadFireAndForget(tilemapPaths, p => this.loadTilemap(p), 'tilemap'),
-            ...loadFireAndForget(timelinePaths, p => this.loadTimeline(p), 'timeline'),
-            ...loadFireAndForget(audioPaths, p => this.loadAudio(p), 'audio'),
-        ];
-
-        const totalCount = promises.length;
+        const totalCount = tasks.length;
         onProgress?.(0, totalCount);
 
-        await Promise.all(promises);
+        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? DEFAULT_PRELOAD_CONCURRENCY);
+        await runWithConcurrency(tasks, maxConcurrent, () => {
+            onProgress?.(++loadedCount, totalCount);
+        });
 
         return { textureHandles, materialHandles, fontHandles, releaseCallbacks, missing };
     }
