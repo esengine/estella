@@ -59,8 +59,6 @@ function deepClone<T>(value: T): T {
     return result as T;
 }
 
-let componentCounter = 0;
-
 function classifyKeys(obj: object): { flatKeys: string[]; objectKeys: string[]; arrayKeys: string[] } | null {
     const flatKeys: string[] = [];
     const objectKeys: string[] = [];
@@ -87,11 +85,10 @@ function createComponentDef<T extends object>(
     defaults: T,
     metadata?: ComponentMetadata,
 ): ComponentDef<T> {
-    const id = ++componentCounter;
     const keyInfo = classifyKeys(defaults);
     const defaultsRec = defaults as Record<string, unknown>;
     return {
-        _id: Symbol(`Component_${id}_${name}`),
+        _id: Symbol(`Component_${name}`),
         _name: name,
         _default: defaults,
         _builtin: false as const,

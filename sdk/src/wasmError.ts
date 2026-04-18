@@ -1,32 +1,28 @@
 import { log } from './logger';
-
-type WasmErrorHandler = (error: unknown, context: string) => void;
-
-let errorHandler: WasmErrorHandler | null = null;
-let lastReportTime = 0;
-let suppressedCount = 0;
+import { getDefaultContext, type WasmErrorHandler } from './context';
 
 const THROTTLE_MS = 1000;
 
 export function setWasmErrorHandler(handler: WasmErrorHandler | null): void {
-    errorHandler = handler;
+    getDefaultContext().wasmError.handler = handler;
 }
 
 export function handleWasmError(error: unknown, context: string): void {
+    const state = getDefaultContext().wasmError;
     const now = Date.now();
-    if (now - lastReportTime < THROTTLE_MS) {
-        suppressedCount++;
+    if (now - state.lastReportTime < THROTTLE_MS) {
+        state.suppressedCount++;
         return;
     }
 
-    if (suppressedCount > 0) {
-        log.warn('wasm', `${suppressedCount} WASM error(s) suppressed`);
-        suppressedCount = 0;
+    if (state.suppressedCount > 0) {
+        log.warn('wasm', `${state.suppressedCount} WASM error(s) suppressed`);
+        state.suppressedCount = 0;
     }
 
-    lastReportTime = now;
+    state.lastReportTime = now;
     log.error('wasm', `error in ${context}`, error);
-    if (errorHandler) {
-        errorHandler(error, context);
+    if (state.handler) {
+        state.handler(error, context);
     }
 }
