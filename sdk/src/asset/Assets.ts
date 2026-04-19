@@ -9,6 +9,7 @@ import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, evictTextureDimensions } from '../resourceManager';
+import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
 import { TextureLoader } from './loaders/TextureLoader';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
@@ -133,6 +134,7 @@ export class Assets {
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
+    private textureImportResolver_: TextureImportSettingsResolver | null = null;
     private spineLoader_: SpineAssetLoader;
 
     private textureCache_ = new AsyncCache<TextureResult>();
@@ -177,35 +179,48 @@ export class Assets {
     // =========================================================================
 
     async loadTexture(ref: string): Promise<TextureResult> {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         const cacheKey = this.textureCacheKey_(path, true);
-        const result = await this.textureCache_.getOrLoad(cacheKey, () =>
-            this.textureLoader_.load(path, this.getLoadContext_()),
-        );
+        const settings = this.textureImportResolver_?.(ref);
+        const result = await this.textureCache_.getOrLoad(cacheKey, () => {
+            this.textureLoader_.setPendingSettings(settings);
+            return this.textureLoader_.load(path, this.getLoadContext_());
+        });
         this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
         return result;
     }
 
     async loadTextureRaw(ref: string): Promise<TextureResult> {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         const cacheKey = this.textureCacheKey_(path, false);
-        const result = await this.textureCache_.getOrLoad(cacheKey, () =>
-            this.textureLoader_.loadRaw(path, this.getLoadContext_()),
-        );
+        const settings = this.textureImportResolver_?.(ref);
+        const result = await this.textureCache_.getOrLoad(cacheKey, () => {
+            this.textureLoader_.setPendingSettings(settings);
+            return this.textureLoader_.loadRaw(path, this.getLoadContext_());
+        });
         this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
         return result;
     }
 
+    /**
+     * Provide per-asset texture import settings at load time (filter, wrap,
+     * mipmaps). The resolver is called with the original ref — keyed off
+     * `@uuid:...` in editor scenarios. Returning `undefined` uses defaults.
+     */
+    setTextureImportSettingsResolver(resolver: TextureImportSettingsResolver | null): void {
+        this.textureImportResolver_ = resolver;
+    }
+
     getTexture(ref: string): TextureResult | undefined {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         return this.textureCache_.get(this.textureCacheKey_(path, true));
     }
 
     async loadSpine(skeletonRef: string, atlasRef?: string): Promise<SpineResult> {
-        const skelPath = this.catalog.resolve(skeletonRef);
+        const skelPath = this.resolveLoadPath_(skeletonRef);
         const ctx = this.getLoadContext_();
         if (atlasRef) {
-            const atlasPath = this.catalog.resolve(atlasRef);
+            const atlasPath = this.resolveLoadPath_(atlasRef);
             return this.spineLoader_.loadWithAtlas(skelPath, atlasPath, ctx);
         }
         return this.spineLoader_.load(skelPath, ctx);
@@ -252,7 +267,7 @@ export class Assets {
     // =========================================================================
 
     getAtlasFrame(ref: string): AtlasFrameInfo | null {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         return this.catalog.getAtlasFrame(path);
     }
 
@@ -320,20 +335,20 @@ export class Assets {
     // =========================================================================
 
     async fetchJson<T = unknown>(ref: string): Promise<T> {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         const url = this.backend.resolveUrl(this.catalog.getBuildPath(path));
         const text = await this.backend.fetchText(url);
         return JSON.parse(text) as T;
     }
 
     async fetchBinary(ref: string): Promise<ArrayBuffer> {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         const url = this.backend.resolveUrl(this.catalog.getBuildPath(path));
         return this.backend.fetchBinary(url);
     }
 
     async fetchText(ref: string): Promise<string> {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         const url = this.backend.resolveUrl(this.catalog.getBuildPath(path));
         return this.backend.fetchText(url);
     }
@@ -504,7 +519,7 @@ export class Assets {
     // =========================================================================
 
     releaseTexture(ref: string): void {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         for (const flip of [true, false]) {
             const key = this.textureCacheKey_(path, flip);
             const count = this.textureRefCounts_.get(key);
@@ -551,7 +566,7 @@ export class Assets {
     }
 
     private releaseTyped(type: string, ref: string): void {
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
         const cache = this.genericCache_.get(type);
         if (!cache) return;
         const entry = cache.get(path);
@@ -710,6 +725,24 @@ export class Assets {
         return ref;
     }
 
+    /**
+     * Canonical path-resolution for all typed load methods.
+     * Runs the AssetRefResolver first so `@uuid:...` refs map to their real
+     * project path, then applies the addressable Catalog for any further
+     * indirection. If the resolver returns null (unknown UUID), we fall back
+     * to the Catalog on the original ref — the loader will 404 with a clear
+     * error rather than silently succeeding on a nonsense URL.
+     *
+     * Historically each load method called `this.catalog.resolve(ref)`
+     * directly, which completely bypassed the AssetRefResolver. Editors that
+     * serialized asset refs as `@uuid:...` could never resolve them at load
+     * time — textures silently rendered white. This helper closes that gap.
+     */
+    private resolveLoadPath_(ref: string): string {
+        const resolved = this.assetRefResolver_?.(ref) ?? ref;
+        return this.catalog.resolve(resolved);
+    }
+
     // =========================================================================
     // Private
     // =========================================================================
@@ -738,7 +771,7 @@ export class Assets {
         if (!loader) {
             throw new Error(`No loader registered for type: ${type}`);
         }
-        const path = this.catalog.resolve(ref);
+        const path = this.resolveLoadPath_(ref);
 
         let cache = this.genericCache_.get(type);
         if (!cache) {

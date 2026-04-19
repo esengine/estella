@@ -23,6 +23,7 @@ export {
     type AssetManifest,
 } from './AssetRegistry';
 export { type AssetLoader, type LoadContext, type TextureResult, type TextureResult as TextureInfo, type SpineResult, type SpineLoadResult, type MaterialResult, type FontResult, type AudioResult } from './AssetLoader';
+export { TextureLoader, type TextureImportSettings, type TextureImportSettingsResolver } from './loaders/TextureLoader';
 export { SceneHandle } from './SceneHandle';
 export {
     registerAssetFields, registerCompoundAssetFields,
