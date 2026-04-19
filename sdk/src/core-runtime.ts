@@ -66,6 +66,7 @@ export {
     unregisterComponent,
     registerComponent,
     getComponent,
+    getAllRegisteredComponents,
     type ComponentDef,
     type BuiltinComponentDef,
     type AnyComponentDef,
