@@ -122,15 +122,26 @@ export {
 export {
     flattenPrefab,
     applyOverrides,
+    bucketOverridesByEntity,
     remapComponentEntityRefs,
     cloneComponents,
     cloneComponentData,
+    cloneMetadata,
     collectNestedPrefabPaths,
     preloadNestedPrefabs,
+    migratePrefabData,
+    PREFAB_FORMAT_VERSION,
+    diffAgainstSource,
+    validateOverrides,
+    type PrefabEntityId,
     type ProcessedEntity,
     type FlattenContext,
     type FlattenResult,
     type ComponentData as PrefabComponentData,
+    type MigrationResult,
+    type DiffOptions,
+    type ValidateResult,
+    type StaleOverride,
 } from './prefab/index';
 
 export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefabServer';

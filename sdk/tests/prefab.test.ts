@@ -34,22 +34,22 @@ function simplePrefab(overrides?: Partial<PrefabData>): PrefabData {
     return {
         version: '1.0',
         name: 'TestPrefab',
-        rootEntityId: 0,
+        rootEntityId: '0',
         entities: [
             {
-                prefabEntityId: 0,
+                prefabEntityId: '0',
                 name: 'Root',
                 parent: null,
-                children: [1],
+                children: [ '1'],
                 components: [
                     { type: 'Transform', data: { x: 0, y: 0 } },
                 ],
                 visible: true,
             },
             {
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 name: 'Child',
-                parent: 0,
+                parent: '0',
                 children: [],
                 components: [
                     { type: 'Sprite', data: { texture: 'test.png', color: 'red' } },
@@ -136,13 +136,14 @@ describe('Prefab', () => {
             expect(result.entities.size).toBe(2);
         });
 
-        it('should filter children to only mapped entities', async () => {
+        it('should reject prefab whose children array references a missing entity', async () => {
             const prefab = simplePrefab();
-            prefab.entities[0].children = [1, 999];
-            await instantiatePrefab(world, prefab);
-
-            const root = capturedSceneData!.entities.find(e => e.name === 'Root')!;
-            expect(root.children).toHaveLength(1);
+            (prefab.entities[0] as { children: string[] }).children = ['1', '999'];
+            // Strict: authoring a phantom child id is a structural corruption
+            // we surface early instead of silently filtering.
+            await expect(instantiatePrefab(world, prefab)).rejects.toThrow(
+                /lists child "999" which does not exist/,
+            );
         });
 
         it('should pass assets and assetBaseUrl to loadSceneWithAssets', async () => {
@@ -184,7 +185,7 @@ describe('Prefab', () => {
         it('should apply property override to matching component', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'property',
                 componentType: 'Sprite',
                 propertyName: 'color',
@@ -201,7 +202,7 @@ describe('Prefab', () => {
         it('should not modify non-matching entity', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 0,
+                prefabEntityId: '0',
                 type: 'property',
                 componentType: 'Transform',
                 propertyName: 'x',
@@ -218,7 +219,7 @@ describe('Prefab', () => {
         it('should ignore property override for non-existing component', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'property',
                 componentType: 'NonExistent',
                 propertyName: 'x',
@@ -237,7 +238,7 @@ describe('Prefab', () => {
         it('should apply name override', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'name',
                 value: 'RenamedChild',
             }];
@@ -251,7 +252,7 @@ describe('Prefab', () => {
         it('should ignore name override with non-string value', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'name',
                 value: 42,
             }];
@@ -267,7 +268,7 @@ describe('Prefab', () => {
         it('should apply visibility override', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'visibility',
                 value: false,
             }];
@@ -281,7 +282,7 @@ describe('Prefab', () => {
         it('should ignore visibility override with non-boolean value', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'visibility',
                 value: 'false',
             }];
@@ -297,7 +298,7 @@ describe('Prefab', () => {
         it('should add a new component via override', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_added',
                 componentData: { type: 'Health', data: { value: 50 } },
             }];
@@ -313,7 +314,7 @@ describe('Prefab', () => {
         it('should not add duplicate component', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_added',
                 componentData: { type: 'Sprite', data: { texture: 'new.png' } },
             }];
@@ -329,7 +330,7 @@ describe('Prefab', () => {
         it('should deep clone component_added data', async () => {
             const componentData = { type: 'Health', data: { value: 50 } };
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_added',
                 componentData,
             }];
@@ -345,7 +346,7 @@ describe('Prefab', () => {
         it('should ignore component_added without componentData', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_added',
             }];
 
@@ -360,7 +361,7 @@ describe('Prefab', () => {
         it('should remove a component via override', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_removed',
                 componentType: 'Sprite',
             }];
@@ -374,7 +375,7 @@ describe('Prefab', () => {
         it('should ignore removal of non-existing component', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_removed',
                 componentType: 'NonExistent',
             }];
@@ -390,7 +391,7 @@ describe('Prefab', () => {
         it('replaces the component data when the component exists', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_replaced',
                 componentData: { type: 'Sprite', data: { texture: 'replaced.png', color: 'blue' } },
             }];
@@ -407,7 +408,7 @@ describe('Prefab', () => {
         it('inserts the component when it does not already exist (upsert)', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_replaced',
                 componentData: { type: 'Health', data: { value: 75 } },
             }];
@@ -423,7 +424,7 @@ describe('Prefab', () => {
         it('deep clones the replacement data', async () => {
             const componentData = { type: 'Sprite', data: { texture: 'other.png', color: 'green' } };
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_replaced',
                 componentData,
             }];
@@ -439,7 +440,7 @@ describe('Prefab', () => {
         it('ignores component_replaced without componentData', async () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [{
-                prefabEntityId: 1,
+                prefabEntityId: '1',
                 type: 'component_replaced',
             }];
 
@@ -456,7 +457,7 @@ describe('Prefab', () => {
             // Added — idempotent; existing Sprite stays as 'test.png'.
             await instantiatePrefab(world, prefab, {
                 overrides: [{
-                    prefabEntityId: 1,
+                    prefabEntityId: '1',
                     type: 'component_added',
                     componentData: { type: 'Sprite', data: { texture: 'A.png' } },
                 }],
@@ -469,7 +470,7 @@ describe('Prefab', () => {
             // Replaced — upserts; Sprite is now 'B.png'.
             await instantiatePrefab(world, prefab, {
                 overrides: [{
-                    prefabEntityId: 1,
+                    prefabEntityId: '1',
                     type: 'component_replaced',
                     componentData: { type: 'Sprite', data: { texture: 'B.png' } },
                 }],
@@ -492,30 +493,30 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'SliderPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'SliderRoot',
                         parent: null,
-                        children: [1, 2],
+                        children: [ '1', '2'],
                         components: [
                             { type: 'Slider', data: { fillEntity: 1, handleEntity: 2, value: 0.5 } },
                         ],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'Fill',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 2,
+                        prefabEntityId: '2',
                         name: 'Handle',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -538,10 +539,10 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'SliderPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'SliderRoot',
                         parent: null,
                         children: [],
@@ -565,9 +566,9 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'Test',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'Root',
                     parent: null,
                     children: [],
@@ -590,17 +591,17 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'SliderPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
-                    { prefabEntityId: 0, name: 'Root',   parent: null, children: [1, 2], components: [], visible: true },
-                    { prefabEntityId: 1, name: 'Fill',   parent: 0,    children: [],     components: [], visible: true },
-                    { prefabEntityId: 2, name: 'Handle', parent: 0,    children: [],     components: [], visible: true },
+                    { prefabEntityId: '0', name: 'Root',   parent: null, children: [ '1', '2'], components: [], visible: true },
+                    { prefabEntityId: '1', name: 'Fill',   parent: '0',    children: [],     components: [], visible: true },
+                    { prefabEntityId: '2', name: 'Handle', parent: '0',    children: [],     components: [], visible: true },
                 ],
             };
 
             await instantiatePrefab(world, prefab, {
                 overrides: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     type: 'component_added',
                     componentData: {
                         type: 'Slider',
@@ -622,24 +623,24 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'SliderPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'Root',
                         parent: null,
-                        children: [1, 2],
+                        children: [ '1', '2'],
                         components: [{ type: 'Slider', data: { fillEntity: 0, handleEntity: 0, value: 0 } }],
                         visible: true,
                     },
-                    { prefabEntityId: 1, name: 'Fill',   parent: 0, children: [], components: [], visible: true },
-                    { prefabEntityId: 2, name: 'Handle', parent: 0, children: [], components: [], visible: true },
+                    { prefabEntityId: '1', name: 'Fill',   parent: '0', children: [], components: [], visible: true },
+                    { prefabEntityId: '2', name: 'Handle', parent: '0', children: [], components: [], visible: true },
                 ],
             };
 
             await instantiatePrefab(world, prefab, {
                 overrides: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     type: 'component_replaced',
                     componentData: {
                         type: 'Slider',
@@ -660,23 +661,23 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'SliderPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'Root',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [{ type: 'Slider', data: { fillEntity: 0, handleEntity: 0, value: 0 } }],
                         visible: true,
                     },
-                    { prefabEntityId: 1, name: 'Fill', parent: 0, children: [], components: [], visible: true },
+                    { prefabEntityId: '1', name: 'Fill', parent: '0', children: [], components: [], visible: true },
                 ],
             };
 
             await instantiatePrefab(world, prefab, {
                 overrides: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     type: 'property',
                     componentType: 'Slider',
                     propertyName: 'fillEntity',
@@ -696,9 +697,9 @@ describe('Prefab', () => {
             const childPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ChildPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'NestedRoot',
                     parent: null,
                     children: [],
@@ -710,20 +711,20 @@ describe('Prefab', () => {
             const parentPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ParentPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'ParentRoot',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [{ type: 'Transform', data: { x: 0 } }],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'NestedSlot',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -751,20 +752,20 @@ describe('Prefab', () => {
             const childPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ChildPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'NestedRoot',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'NestedChild',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -775,20 +776,20 @@ describe('Prefab', () => {
             const parentPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ParentPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'ParentRoot',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'NestedSlot',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -815,9 +816,9 @@ describe('Prefab', () => {
             const childPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ChildPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'NestedRoot',
                     parent: null,
                     children: [],
@@ -829,20 +830,20 @@ describe('Prefab', () => {
             const parentPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ParentPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'ParentRoot',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'NestedSlot',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -869,9 +870,9 @@ describe('Prefab', () => {
             const childPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ChildPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'NestedRoot',
                     parent: null,
                     children: [],
@@ -883,27 +884,27 @@ describe('Prefab', () => {
             const parentPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ParentPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'ParentRoot',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'NestedSlot',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
                         nestedPrefab: {
                             prefabPath: 'child.prefab',
                             overrides: [{
-                                prefabEntityId: 0,
+                                prefabEntityId: '0',
                                 type: 'property',
                                 componentType: 'Sprite',
                                 propertyName: 'color',
@@ -929,20 +930,20 @@ describe('Prefab', () => {
             const selfRefPrefab: PrefabData = {
                 version: '1.0',
                 name: 'SelfRef',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'Root',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'Nested',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -967,20 +968,20 @@ describe('Prefab', () => {
             const deepPrefab: PrefabData = {
                 version: '1.0',
                 name: 'Deep',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'Root',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'Nested',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -1018,20 +1019,20 @@ describe('Prefab', () => {
             const parentPrefab: PrefabData = {
                 version: '1.0',
                 name: 'Parent',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'Root',
                         parent: null,
-                        children: [1],
+                        children: [ '1'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 1,
+                        prefabEntityId: '1',
                         name: 'Nested',
-                        parent: 0,
+                        parent: '0',
                         children: [],
                         components: [],
                         visible: true,
@@ -1054,19 +1055,19 @@ describe('Prefab', () => {
             const prefab = simplePrefab();
             const overrides: PrefabOverride[] = [
                 {
-                    prefabEntityId: 1,
+                    prefabEntityId: '1',
                     type: 'name',
                     value: 'RenamedChild',
                 },
                 {
-                    prefabEntityId: 1,
+                    prefabEntityId: '1',
                     type: 'property',
                     componentType: 'Sprite',
                     propertyName: 'color',
                     value: 'blue',
                 },
                 {
-                    prefabEntityId: 1,
+                    prefabEntityId: '1',
                     type: 'component_added',
                     componentData: { type: 'Health', data: { value: 100 } },
                 },
@@ -1086,9 +1087,9 @@ describe('Prefab', () => {
             const childPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ChildPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'NestedRoot',
                     parent: null,
                     children: [],
@@ -1100,9 +1101,9 @@ describe('Prefab', () => {
             const parentPrefab: PrefabData = {
                 version: '1.0',
                 name: 'ParentPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'Slot',
                     parent: null,
                     children: [],
@@ -1129,9 +1130,9 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'BadPrefab',
-                rootEntityId: 99,
+                rootEntityId: '99',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'Root',
                     parent: null,
                     children: [],
@@ -1151,9 +1152,9 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'SingleEntity',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [{
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     name: 'OnlyEntity',
                     parent: null,
                     children: [],
@@ -1173,20 +1174,20 @@ describe('Prefab', () => {
             const prefab: PrefabData = {
                 version: '1.0',
                 name: 'NonSequential',
-                rootEntityId: 5,
+                rootEntityId: '5',
                 entities: [
                     {
-                        prefabEntityId: 5,
+                        prefabEntityId: '5',
                         name: 'Root',
                         parent: null,
-                        children: [10],
+                        children: [ '10'],
                         components: [],
                         visible: true,
                     },
                     {
-                        prefabEntityId: 10,
+                        prefabEntityId: '10',
                         name: 'Child',
-                        parent: 5,
+                        parent: '5',
                         children: [],
                         components: [],
                         visible: true,
@@ -1219,10 +1220,10 @@ describe('Prefab', () => {
             const basePrefab: PrefabData = {
                 version: '1.0',
                 name: 'BasePrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'Root',
                         parent: null,
                         children: [],
@@ -1235,12 +1236,12 @@ describe('Prefab', () => {
             const variant: PrefabData = {
                 version: '1.0',
                 name: 'VariantPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [],
                 basePrefab: 'base.prefab',
                 overrides: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         type: 'property',
                         componentType: 'Transform',
                         propertyName: 'x',
@@ -1266,10 +1267,10 @@ describe('Prefab', () => {
             const basePrefab: PrefabData = {
                 version: '1.0',
                 name: 'BasePrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'Root',
                         parent: null,
                         children: [],
@@ -1282,12 +1283,12 @@ describe('Prefab', () => {
             const variant: PrefabData = {
                 version: '1.0',
                 name: 'VariantPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [],
                 basePrefab: 'base.prefab',
                 overrides: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         type: 'property',
                         componentType: 'Sprite',
                         propertyName: 'color',
@@ -1302,7 +1303,7 @@ describe('Prefab', () => {
 
             const instanceOverrides: PrefabOverride[] = [
                 {
-                    prefabEntityId: 0,
+                    prefabEntityId: '0',
                     type: 'property',
                     componentType: 'Sprite',
                     propertyName: 'size',
@@ -1325,7 +1326,7 @@ describe('Prefab', () => {
             const variant: PrefabData = {
                 version: '1.0',
                 name: 'CircularVariant',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [],
                 basePrefab: 'self.prefab',
             };
@@ -1343,10 +1344,10 @@ describe('Prefab', () => {
             const basePrefab: PrefabData = {
                 version: '1.0',
                 name: 'BasePrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         name: 'OriginalName',
                         parent: null,
                         children: [],
@@ -1359,12 +1360,12 @@ describe('Prefab', () => {
             const variant: PrefabData = {
                 version: '1.0',
                 name: 'VariantPrefab',
-                rootEntityId: 0,
+                rootEntityId: '0',
                 entities: [],
                 basePrefab: 'base.prefab',
                 overrides: [
                     {
-                        prefabEntityId: 0,
+                        prefabEntityId: '0',
                         type: 'name',
                         value: 'RenamedInVariant',
                     },

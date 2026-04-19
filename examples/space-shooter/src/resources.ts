@@ -30,7 +30,7 @@ export const PREFAB_STAR = 'assets/prefabs/Star.esprefab';
 
 export function positionOverride(x: number, y: number): PrefabOverride {
     return {
-        prefabEntityId: 0,
+        prefabEntityId: '0',
         type: 'property',
         componentType: 'Transform',
         propertyName: 'position',
@@ -40,7 +40,7 @@ export function positionOverride(x: number, y: number): PrefabOverride {
 
 export function propOverride(componentType: string, propertyName: string, value: unknown): PrefabOverride {
     return {
-        prefabEntityId: 0,
+        prefabEntityId: '0',
         type: 'property',
         componentType,
         propertyName,

@@ -1,5 +1,6 @@
 import type { AssetLoader, LoadContext, PrefabResult } from '../AssetLoader';
-import type { PrefabData } from '../../prefab';
+import { migratePrefabData } from '../../prefab';
+import { log } from '../../logger';
 
 export class PrefabAssetLoader implements AssetLoader<PrefabResult> {
     readonly type = 'prefab';
@@ -8,7 +9,14 @@ export class PrefabAssetLoader implements AssetLoader<PrefabResult> {
     async load(path: string, ctx: LoadContext): Promise<PrefabResult> {
         const buildPath = ctx.catalog.getBuildPath(path);
         const text = await ctx.loadText(buildPath);
-        const data = JSON.parse(text) as PrefabData;
+        const raw = JSON.parse(text) as unknown;
+        const { data, migrated, fromVersion, toVersion } = migratePrefabData(raw);
+        if (migrated) {
+            log.info(
+                'prefab',
+                `migrated "${path}" ${fromVersion} → ${toVersion} (legacy numeric ids → strings). Re-save to persist.`,
+            );
+        }
         return { data };
     }
 
