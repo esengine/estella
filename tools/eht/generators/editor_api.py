@@ -417,6 +417,13 @@ class EditorAPIGenerator:
                     int_fields.append((prop.name, prop.name, t))
                 elif editor_type == 'entity' and not self.types.is_vector(t):
                     int_fields.append((prop.name, prop.name, t))
+                elif editor_type == 'asset' and not self.types.is_vector(t):
+                    # Asset refs round-trip as i32 only when the backing type fits
+                    # into an int (resource::*Handle or raw u32 for material).
+                    # String-backed asset fields (e.g. spine paths) are excluded —
+                    # they need a setString path instead.
+                    if self.types.is_handle(t) or self.types.is_primitive(t):
+                        int_fields.append((prop.name, prop.name, t))
 
             if not int_fields:
                 continue
@@ -475,6 +482,9 @@ class EditorAPIGenerator:
                     int_fields.append((prop.name, prop.name, t))
                 elif editor_type == 'entity' and not self.types.is_vector(t):
                     int_fields.append((prop.name, prop.name, t))
+                elif editor_type == 'asset' and not self.types.is_vector(t):
+                    if self.types.is_handle(t) or self.types.is_primitive(t):
+                        int_fields.append((prop.name, prop.name, t))
 
             if not int_fields:
                 continue
@@ -489,6 +499,9 @@ class EditorAPIGenerator:
                 prefix = 'if' if i == 0 else 'else if'
                 if self.types.is_entity(cpp_type):
                     lines.append(f'        {prefix} (field == "{key}") {{ return static_cast<i32>(static_cast<u32>(c.{cpp_path})); }}')
+                elif self.types.is_handle(cpp_type):
+                    # Handle<T> has no implicit int cast; unpack via .id().
+                    lines.append(f'        {prefix} (field == "{key}") {{ return static_cast<i32>(c.{cpp_path}.id()); }}')
                 else:
                     lines.append(f'        {prefix} (field == "{key}") {{ return static_cast<i32>(c.{cpp_path}); }}')
 

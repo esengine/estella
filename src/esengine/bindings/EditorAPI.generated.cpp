@@ -1376,10 +1376,12 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else if (field == "shape") { c.shape = static_cast<i32>(value); }
         else if (field == "sizeEasing") { c.sizeEasing = static_cast<i32>(value); }
         else if (field == "colorEasing") { c.colorEasing = static_cast<i32>(value); }
+        else if (field == "texture") { c.texture = resource::TextureHandle(static_cast<u32>(value)); }
         else if (field == "spriteColumns") { c.spriteColumns = static_cast<i32>(value); }
         else if (field == "spriteRows") { c.spriteRows = static_cast<i32>(value); }
         else if (field == "blendMode") { c.blendMode = static_cast<i32>(value); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
+        else if (field == "material") { c.material = static_cast<u32>(value); }
         else if (field == "simulationSpace") { c.simulationSpace = static_cast<i32>(value); }
         else { return false; }
         return true;
@@ -1387,6 +1389,8 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (!reg.has<esengine::ecs::UIRenderer>(entity)) return false;
         auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
         if (field == "visualType") { c.visualType = static_cast<UIVisualType>(value); }
+        else if (field == "texture") { c.texture = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "material") { c.material = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "GridLayout") {
@@ -1400,6 +1404,7 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
         auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
         if (field == "layer") { c.layer = static_cast<i32>(value); }
+        else if (field == "material") { c.material = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "RigidBody") {
@@ -1413,12 +1418,15 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         auto& c = reg.get<esengine::ecs::BitmapText>(entity);
         if (field == "align") { c.align = static_cast<TextAlign>(value); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
+        else if (field == "font") { c.font = resource::BitmapFontHandle(static_cast<u32>(value)); }
         else { return false; }
         return true;
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
         auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "layer") { c.layer = static_cast<i32>(value); }
+        if (field == "texture") { c.texture = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "layer") { c.layer = static_cast<i32>(value); }
+        else if (field == "material") { c.material = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "UIMask") {
@@ -1442,6 +1450,14 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
         if (field == "targetGraphic") { c.targetGraphic = static_cast<Entity>(value); }
         else if (field == "transitionFlags") { c.transitionFlags = static_cast<u32>(value); }
+        else if (field == "slot0Sprite") { c.slot0Sprite = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "slot1Sprite") { c.slot1Sprite = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "slot2Sprite") { c.slot2Sprite = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "slot3Sprite") { c.slot3Sprite = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "slot4Sprite") { c.slot4Sprite = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "slot5Sprite") { c.slot5Sprite = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "slot6Sprite") { c.slot6Sprite = resource::TextureHandle(static_cast<u32>(value)); }
+        else if (field == "slot7Sprite") { c.slot7Sprite = resource::TextureHandle(static_cast<u32>(value)); }
         else { return false; }
         return true;
     } else if (comp == "Parent") {
@@ -1513,15 +1529,19 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         else if (field == "shape") { return static_cast<i32>(c.shape); }
         else if (field == "sizeEasing") { return static_cast<i32>(c.sizeEasing); }
         else if (field == "colorEasing") { return static_cast<i32>(c.colorEasing); }
+        else if (field == "texture") { return static_cast<i32>(c.texture.id()); }
         else if (field == "spriteColumns") { return static_cast<i32>(c.spriteColumns); }
         else if (field == "spriteRows") { return static_cast<i32>(c.spriteRows); }
         else if (field == "blendMode") { return static_cast<i32>(c.blendMode); }
         else if (field == "layer") { return static_cast<i32>(c.layer); }
+        else if (field == "material") { return static_cast<i32>(c.material); }
         else if (field == "simulationSpace") { return static_cast<i32>(c.simulationSpace); }
     } else if (comp == "UIRenderer") {
         if (!reg.has<esengine::ecs::UIRenderer>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::UIRenderer>(entity);
         if (field == "visualType") { return static_cast<i32>(c.visualType); }
+        else if (field == "texture") { return static_cast<i32>(c.texture.id()); }
+        else if (field == "material") { return static_cast<i32>(c.material); }
     } else if (comp == "GridLayout") {
         if (!reg.has<esengine::ecs::GridLayout>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::GridLayout>(entity);
@@ -1531,6 +1551,7 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
         if (field == "layer") { return static_cast<i32>(c.layer); }
+        else if (field == "material") { return static_cast<i32>(c.material); }
     } else if (comp == "RigidBody") {
         if (!reg.has<esengine::ecs::RigidBody>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
@@ -1540,10 +1561,13 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
         if (field == "align") { return static_cast<i32>(c.align); }
         else if (field == "layer") { return static_cast<i32>(c.layer); }
+        else if (field == "font") { return static_cast<i32>(c.font.id()); }
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::Sprite>(entity);
-        if (field == "layer") { return static_cast<i32>(c.layer); }
+        if (field == "texture") { return static_cast<i32>(c.texture.id()); }
+        else if (field == "layer") { return static_cast<i32>(c.layer); }
+        else if (field == "material") { return static_cast<i32>(c.material); }
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::UIMask>(entity);
@@ -1561,6 +1585,14 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         const auto& c = reg.get<esengine::ecs::StateVisuals>(entity);
         if (field == "targetGraphic") { return static_cast<i32>(static_cast<u32>(c.targetGraphic)); }
         else if (field == "transitionFlags") { return static_cast<i32>(c.transitionFlags); }
+        else if (field == "slot0Sprite") { return static_cast<i32>(c.slot0Sprite.id()); }
+        else if (field == "slot1Sprite") { return static_cast<i32>(c.slot1Sprite.id()); }
+        else if (field == "slot2Sprite") { return static_cast<i32>(c.slot2Sprite.id()); }
+        else if (field == "slot3Sprite") { return static_cast<i32>(c.slot3Sprite.id()); }
+        else if (field == "slot4Sprite") { return static_cast<i32>(c.slot4Sprite.id()); }
+        else if (field == "slot5Sprite") { return static_cast<i32>(c.slot5Sprite.id()); }
+        else if (field == "slot6Sprite") { return static_cast<i32>(c.slot6Sprite.id()); }
+        else if (field == "slot7Sprite") { return static_cast<i32>(c.slot7Sprite.id()); }
     } else if (comp == "Parent") {
         if (!reg.has<esengine::ecs::Parent>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::Parent>(entity);
