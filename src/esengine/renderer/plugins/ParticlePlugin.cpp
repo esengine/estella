@@ -72,10 +72,10 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         u32 idxCount = particleCount * 6;
 
         u32 vertByteSize = vertCount * sizeof(BatchVertex);
-        u32 vertByteOffset = buffers.allocVertices(vertByteSize);
-        u32 idxOffset = buffers.allocIndices(idxCount);
+        u32 vertByteOffset = buffers.allocVertices(LayoutId::Batch, vertByteSize);
+        u32 idxOffset = buffers.allocIndices(LayoutId::Batch, idxCount);
 
-        auto* verts = reinterpret_cast<BatchVertex*>(buffers.vertexData() + vertByteOffset);
+        auto* verts = reinterpret_cast<BatchVertex*>(buffers.vertexData(LayoutId::Batch) + vertByteOffset);
         u16 baseVertex = static_cast<u16>(vertByteOffset / sizeof(BatchVertex));
 
         u32 pi = 0;
@@ -138,15 +138,12 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 
             u32 ii = pi * 6;
             u16 bv = baseVertex + static_cast<u16>(vi);
-            for (u32 q = 0; q < 6; ++q) {
-                buffers.writeIndices(idxOffset + ii + q, &QUAD_INDICES[q], 1);
-            }
             // Patch base vertex into indices
             u16 patched[6];
             for (u32 q = 0; q < 6; ++q) {
                 patched[q] = bv + QUAD_INDICES[q];
             }
-            buffers.writeIndices(idxOffset + ii, patched, 6);
+            buffers.writeIndices(LayoutId::Batch, idxOffset + ii, patched, 6);
 
             ++pi;
         });
