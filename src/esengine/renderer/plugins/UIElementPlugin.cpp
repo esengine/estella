@@ -151,14 +151,14 @@ void UIElementPlugin::emitQuad(
         }
     }
 
-    u32 vOff = buffers.appendVertices(verts, sizeof(verts));
+    u32 vOff = buffers.appendVertices(LayoutId::Batch, verts, sizeof(verts));
     u32 baseVertex = vOff / sizeof(BatchVertex);
 
     u16 indices[6];
     for (u32 i = 0; i < 6; ++i) {
         indices[i] = static_cast<u16>(baseVertex + QUAD_INDICES[i]);
     }
-    u32 iOff = buffers.appendIndices(indices, 6);
+    u32 iOff = buffers.appendIndices(LayoutId::Batch, indices, 6);
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(stage, layer, shaderId, blend, 0, textureId, depth);
@@ -252,14 +252,14 @@ void UIElementPlugin::emitNineSlice(
             verts[2] = { p2, pc, {u[col + 1], v[row + 1]} };
             verts[3] = { p3, pc, {u[col],     v[row + 1]} };
 
-            u32 vOff = buffers.appendVertices(verts, sizeof(verts));
+            u32 vOff = buffers.appendVertices(LayoutId::Batch, verts, sizeof(verts));
             u32 baseVert = vOff / sizeof(BatchVertex);
 
             u16 indices[6];
             for (u32 i = 0; i < 6; ++i) {
                 indices[i] = static_cast<u16>(baseVert + QUAD_INDICES[i]);
             }
-            u32 iOff = buffers.appendIndices(indices, 6);
+            u32 iOff = buffers.appendIndices(LayoutId::Batch, indices, 6);
 
             DrawCommand cmd{};
             cmd.sort_key = DrawCommand::buildSortKey(stage, layer, shaderId, blend, 0, textureId, depth);

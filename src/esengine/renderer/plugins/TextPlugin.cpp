@@ -183,14 +183,14 @@ void TextPlugin::emitGlyphQuad(
     verts[3].color = pc;
     verts[3].texCoord = glm::vec2(0.0f, 1.0f) * uvScale + uvOffset;
 
-    u32 vOff = buffers.appendVertices(verts, sizeof(verts));
+    u32 vOff = buffers.appendVertices(LayoutId::Batch, verts, sizeof(verts));
     u32 baseVertex = vOff / sizeof(BatchVertex);
 
     u16 indices[6];
     for (u32 i = 0; i < 6; ++i) {
         indices[i] = static_cast<u16>(baseVertex + QUAD_INDICES[i]);
     }
-    u32 iOff = buffers.appendIndices(indices, 6);
+    u32 iOff = buffers.appendIndices(LayoutId::Batch, indices, 6);
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(stage, layer, shaderId, BlendMode::Normal, 0, textureId, depth);

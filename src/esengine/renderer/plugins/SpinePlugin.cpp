@@ -57,13 +57,13 @@ void SpinePlugin::emitBatch(
     if (vertices_.empty() || indices_.empty()) return;
 
     u32 vBytes = static_cast<u32>(vertices_.size()) * sizeof(BatchVertex);
-    u32 vOff = buffers.appendVertices(vertices_.data(), vBytes);
+    u32 vOff = buffers.appendVertices(LayoutId::Batch, vertices_.data(), vBytes);
     u32 baseVertex = vOff / sizeof(BatchVertex);
 
     for (auto& idx : indices_) {
         idx = static_cast<u16>(idx + baseVertex);
     }
-    u32 iOff = buffers.appendIndices(indices_.data(), static_cast<u32>(indices_.size()));
+    u32 iOff = buffers.appendIndices(LayoutId::Batch, indices_.data(), static_cast<u32>(indices_.size()));
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(

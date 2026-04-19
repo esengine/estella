@@ -28,14 +28,14 @@ void RenderFrame::submitTileQuad(
     verts[2] = { {position.x + hw, position.y + hh}, pc, {uvOffset.x + uvScale.x, uvOffset.y + uvScale.y} };
     verts[3] = { {position.x - hw, position.y + hh}, pc, {uvOffset.x, uvOffset.y + uvScale.y} };
 
-    u32 vOff = pool_.appendVertices(verts, sizeof(verts));
+    u32 vOff = pool_.appendVertices(LayoutId::Batch, verts, sizeof(verts));
     u32 baseVertex = vOff / sizeof(BatchVertex);
 
     u16 indices[6];
     for (u32 i = 0; i < 6; ++i) {
         indices[i] = static_cast<u16>(baseVertex + TILE_QUAD_IDX[i]);
     }
-    u32 iOff = pool_.appendIndices(indices, 6);
+    u32 iOff = pool_.appendIndices(LayoutId::Batch, indices, 6);
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(
@@ -72,8 +72,8 @@ void RenderFrame::submitSpineBatch(
     BlendMode blend = static_cast<BlendMode>(std::clamp(blendMode, 0, 5));
 
     u32 vBytes = static_cast<u32>(vertexCount) * sizeof(BatchVertex);
-    u32 vOff = pool_.allocVertices(vBytes);
-    auto* dst = reinterpret_cast<BatchVertex*>(pool_.vertexData() + vOff);
+    u32 vOff = pool_.allocVertices(LayoutId::Batch, vBytes);
+    auto* dst = reinterpret_cast<BatchVertex*>(pool_.vertexData(LayoutId::Batch) + vOff);
 
     for (i32 i = 0; i < vertexCount; ++i) {
         const f32* v = vertices + i * FLOATS_PER_VERTEX;
@@ -87,7 +87,7 @@ void RenderFrame::submitSpineBatch(
     for (i32 i = 0; i < indexCount; ++i) {
         offsetIndices[i] = static_cast<u16>(baseVertex + indices[i]);
     }
-    u32 iOff = pool_.appendIndices(offsetIndices.data(), static_cast<u32>(indexCount));
+    u32 iOff = pool_.appendIndices(LayoutId::Batch, offsetIndices.data(), static_cast<u32>(indexCount));
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(
