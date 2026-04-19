@@ -5,12 +5,33 @@ import { loadSceneWithAssets, type SceneData } from './scene';
 import {
     flattenPrefab,
     preloadNestedPrefabs,
+    migratePrefabData,
     type PrefabData,
     type PrefabOverride,
     type FlattenContext,
 } from './prefab/index';
 
-export type { PrefabData, PrefabEntityData, PrefabOverride, NestedPrefabRef } from './prefab/index';
+export type {
+    PrefabData,
+    PrefabEntityData,
+    PrefabEntityId,
+    PrefabOverride,
+    NestedPrefabRef,
+    ProcessedEntity,
+    MigrationResult,
+    DiffOptions,
+    ValidateResult,
+    StaleOverride,
+} from './prefab/index';
+export {
+    migratePrefabData,
+    diffAgainstSource,
+    validateOverrides,
+    PREFAB_FORMAT_VERSION,
+    cloneComponentData,
+    cloneMetadata,
+    bucketOverridesByEntity,
+} from './prefab/index';
 
 export interface InstantiatePrefabOptions {
     assets?: Assets;
@@ -29,15 +50,22 @@ export async function instantiatePrefab(
     prefab: PrefabData,
     options?: InstantiatePrefabOptions,
 ): Promise<InstantiatePrefabResult> {
+    // Accept both current and legacy formats — callers that hand us raw JSON
+    // from disk no longer have to migrate it themselves.
+    const migratedTop = migratePrefabData(prefab);
+    const normalized = migratedTop.data;
+
     const prefabCache = new Map<string, PrefabData>();
 
     if (options?.assets) {
         const assets = options.assets;
         await preloadNestedPrefabs(
-            prefab,
+            normalized,
             async (path) => {
                 const result = await assets.loadPrefab(path);
-                return result.data as PrefabData;
+                // Safety net: asset loader already migrates, but if a caller
+                // side-loaded a PrefabData manually, re-migration is idempotent.
+                return migratePrefabData(result.data as PrefabData).data;
             },
             prefabCache,
         );
@@ -52,14 +80,14 @@ export async function instantiatePrefab(
     };
 
     const { entities: processed, rootId } = flattenPrefab(
-        prefab,
+        normalized,
         options?.overrides ?? [],
         ctx,
     );
 
     const sceneData: SceneData = {
-        version: prefab.version,
-        name: prefab.name,
+        version: normalized.version,
+        name: normalized.name,
         entities: processed.map(e => ({
             id: e.id,
             name: e.name,

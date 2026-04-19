@@ -10,3 +10,7 @@ export function cloneComponents(components: ComponentData[]): ComponentData[] {
 export function cloneComponentData(data: Record<string, unknown>): Record<string, unknown> {
     return JSON.parse(JSON.stringify(data));
 }
+
+export function cloneMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+    return JSON.parse(JSON.stringify(metadata));
+}
