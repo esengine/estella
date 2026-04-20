@@ -3,8 +3,38 @@
  * @brief   Explicit application context replacing globalThis implicit coupling
  */
 
+/**
+ * Surface the engine exposes to an attached editor host.
+ *
+ * `registerComponent` is called eagerly during `defineComponent` so the
+ * editor knows the full component catalogue. The `on*` callbacks are all
+ * optional — an editor that only needs the catalogue (no live inspector)
+ * can leave them unset and avoid any per-mutation overhead.
+ *
+ * All entity values are the engine's numeric Entity handle. Component
+ * identification is by the string name that was passed to
+ * `registerComponent` / `defineComponent`.
+ */
 export interface EditorBridge {
     registerComponent(name: string, defaults: Record<string, unknown>, isTag: boolean): void;
+
+    /** Fired after an entity is created (optionally with a Name component). */
+    onEntitySpawned?(entity: number, name?: string): void;
+
+    /** Fired just before an entity is destroyed. Components are still attached. */
+    onEntityDespawned?(entity: number): void;
+
+    /** Fired when a component is first attached to an entity. */
+    onComponentAdded?(entity: number, component: string): void;
+
+    /** Fired when a component is detached from an entity. */
+    onComponentRemoved?(entity: number, component: string): void;
+
+    /** Fired when component data changes (insert with new data, set, or edit). */
+    onComponentChanged?(entity: number, component: string): void;
+
+    /** Fired when a parent link changes. `parent === null` means the entity was unparented. */
+    onParentChanged?(child: number, parent: number | null): void;
 }
 
 export interface PendingSystemEntry {

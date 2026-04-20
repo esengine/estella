@@ -13,6 +13,26 @@ import { NameIndex } from './ecs/NameIndex';
 import { ChangeTracker } from './ecs/ChangeTracker';
 import { QueryCache, type QueryCacheStats } from './ecs/QueryCache';
 import { log } from './logger';
+import { getDefaultContext, type EditorBridge } from './context';
+
+function editorBridge(): EditorBridge | null {
+    return getDefaultContext().editorBridge;
+}
+
+function notifyBridge<K extends keyof EditorBridge>(
+    method: K,
+    ...args: Parameters<NonNullable<EditorBridge[K]>>
+): void {
+    const bridge = editorBridge();
+    if (!bridge) return;
+    const fn = bridge[method] as ((...a: unknown[]) => void) | undefined;
+    if (typeof fn !== 'function') return;
+    try {
+        fn.apply(bridge, args as unknown[]);
+    } catch (e) {
+        log.warn('world', `EditorBridge.${String(method)} threw`, e);
+    }
+}
 
 export { PTR_LAYOUTS } from './ptrLayouts.generated';
 export { BuiltinBridge } from './ecs/BuiltinBridge';
@@ -174,6 +194,8 @@ export class World {
             try { cb(entity); } catch (e) { log.warn('world', 'Spawn callback error', e); }
         }
 
+        notifyBridge('onEntitySpawned', entity, name);
+
         return entity;
     }
 
@@ -184,6 +206,8 @@ export class World {
                 'Use Commands to defer entity destruction until after iteration completes.'
             );
         }
+
+        notifyBridge('onEntityDespawned', entity);
 
         for (const cb of this.despawnCallbacks_) {
             try { cb(entity); } catch (e) { log.warn('world', 'Despawn callback error', e); }
@@ -295,6 +319,7 @@ export class World {
             }
         }
         this.queries_.markStructuralChange();
+        notifyBridge('onParentChanged', child, parent);
     }
 
     removeParent(entity: Entity): void {
@@ -307,6 +332,7 @@ export class World {
             }
         }
         this.queries_.markStructuralChange();
+        notifyBridge('onParentChanged', entity, null);
     }
 
     // =========================================================================
@@ -342,6 +368,7 @@ export class World {
                 }
             }
             this.changes_.recordChanged(component, entity);
+            notifyBridge('onComponentChanged', entity, component._name);
             return;
         }
         this.scripts_.set(entity, component as ComponentDef<any>, data);
@@ -349,6 +376,7 @@ export class World {
         if ((component as ComponentDef<any>)._id === Name._id) {
             this.names_.update(entity, (data as { value: string }).value);
         }
+        notifyBridge('onComponentChanged', entity, component._name);
     }
 
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
@@ -405,6 +433,7 @@ export class World {
             this.changes_.recordRemoved(component, entity);
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
+            notifyBridge('onComponentRemoved', entity, component._name);
         } else {
             this.removeScript_(entity, component as ComponentDef<any>);
         }
@@ -420,8 +449,10 @@ export class World {
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
             this.changes_.recordAdded(component, entity);
+            notifyBridge('onComponentAdded', entity, component._name);
         }
         this.changes_.recordChanged(component, entity);
+        notifyBridge('onComponentChanged', entity, component._name);
         return merged;
     }
 
@@ -435,11 +466,13 @@ export class World {
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
             this.changes_.recordAdded(component, entity);
+            notifyBridge('onComponentAdded', entity, component._name);
         }
         this.changes_.recordChanged(component, entity);
         if (component._id === Name._id) {
             this.names_.update(entity, (value as { value: string }).value);
         }
+        notifyBridge('onComponentChanged', entity, component._name);
         return value;
     }
 
@@ -451,6 +484,7 @@ export class World {
         this.changes_.recordRemoved(component, entity);
         this.queries_.markComponentDirty(component._id);
         this.queries_.markStructuralChange();
+        notifyBridge('onComponentRemoved', entity, component._name);
     }
 
     // =========================================================================
