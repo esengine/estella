@@ -188,19 +188,24 @@ void HotReloadManager::watch(Handle<T> handle, const std::string& path,
         return;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
 
-    if (watchedFiles_.find(path) != watchedFiles_.end()) {
-        return;
+        if (watchedFiles_.find(path) != watchedFiles_.end()) {
+            return;
+        }
+
+        WatchEntry entry;
+        entry.path = path;
+        entry.type = std::type_index(typeid(T));
+        entry.reloadFn = std::move(reloadFn);
+
+        watchedFiles_[path] = std::move(entry);
     }
 
-    WatchEntry entry;
-    entry.path = path;
-    entry.type = std::type_index(typeid(T));
-    entry.reloadFn = std::move(reloadFn);
-
-    watchedFiles_[path] = std::move(entry);
-
+    // Register outside the lock: if a backend delivers its first notify
+    // synchronously during registration, onFileChanged would otherwise
+    // deadlock trying to re-acquire mutex_.
     FileSystem::watchFile(path, [this](const std::string& changedPath) {
         onFileChanged(changedPath);
     });

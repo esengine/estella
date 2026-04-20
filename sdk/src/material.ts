@@ -384,6 +384,9 @@ export const Material = {
 let materialCallbackRegistered = false;
 let uniformBuffer: number = 0;
 const UNIFORM_BUFFER_SIZE = 16384;
+// Cap the cache so apps that generate many unique uniform names (e.g. per-
+// instance shader variants) don't leak Uint8Arrays for the whole session.
+const ENCODED_NAME_CACHE_LIMIT = 256;
 const encodedNameCache = new Map<string, Uint8Array>();
 let encoder: TextEncoder | null = null;
 
@@ -411,6 +414,11 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
         if (!nameBytes) {
             if (!encoder) encoder = new TextEncoder();
             nameBytes = encoder.encode(name);
+            if (encodedNameCache.size >= ENCODED_NAME_CACHE_LIMIT) {
+                // Evict the oldest entry (Map preserves insertion order).
+                const oldest = encodedNameCache.keys().next().value;
+                if (oldest !== undefined) encodedNameCache.delete(oldest);
+            }
             encodedNameCache.set(name, nameBytes);
         }
         const nameLen = nameBytes.length;
