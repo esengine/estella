@@ -279,18 +279,6 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
         if (maskData.mode === 'scissor') maskData.mode = 0;
         else if (maskData.mode === 'stencil') maskData.mode = 1;
     }
-    // Tilemap chunk blob travels outside the component's ES_PROPERTY fields
-    // (it's binary, not a settable property). Strip it from the data dict so
-    // the component inserter doesn't choke on an unknown key, then hydrate
-    // after the component exists on the entity.
-    let chunkBlob: string | null = null;
-    if (compData.type === 'TilemapLayer') {
-        const data = compData.data as Record<string, unknown>;
-        if (typeof data.chunks === 'string') {
-            chunkBlob = data.chunks as string;
-            delete data.chunks;
-        }
-    }
     const comp = getComponent(compData.type);
     if (comp) {
         const errors = validateComponentData(compData.type, comp._default as Record<string, unknown>, compData.data);
@@ -299,18 +287,6 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
             log.warn('scene', formatValidationErrors(compData.type + context, errors));
         }
         world.insert(entity, comp, compData.data);
-
-        if (compData.type === 'TilemapLayer' && chunkBlob !== null) {
-            const wasm = world.getWasmModule();
-            if (wasm?.tilemap_importChunks) {
-                const ok = wasm.tilemap_importChunks(entity as unknown as number, chunkBlob);
-                if (!ok) {
-                    log.warn('scene', `TilemapLayer chunk import failed for entity ${entity}`);
-                }
-            } else {
-                log.warn('scene', 'tilemap_importChunks not available; chunk data lost');
-            }
-        }
     } else {
         const context = entityName ? ` on entity "${entityName}"` : '';
         log.warn('scene', `Unknown component type: ${compData.type}${context}`);
@@ -378,23 +354,10 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
             if (!comp) continue;
             const data = world.tryGet(entity, comp);
             if (data === null) continue;
-            const dataOut = { ...(data as Record<string, unknown>) };
-
-            // Tilemap tile grid lives in TilemapSystem, not in the component
-            // proper. Pull it through the binary export binding and attach
-            // it as a sibling field; loadComponent strips it back off on
-            // the inbound side so the component inserter doesn't see it.
-            if (typeName === 'TilemapLayer') {
-                const wasm = world.getWasmModule();
-                if (wasm?.tilemap_exportChunks) {
-                    const blob = wasm.tilemap_exportChunks(entity as unknown as number);
-                    if (blob && blob.length > 0) {
-                        dataOut.chunks = blob;
-                    }
-                }
-            }
-
-            components.push({ type: typeName, data: dataOut });
+            components.push({
+                type: typeName,
+                data: data as Record<string, unknown>,
+            });
         }
 
         entities.push({

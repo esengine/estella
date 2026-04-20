@@ -289,21 +289,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'slot7Scale', type: 'f32', offset: 196 },
         ],
     },
-    TilemapLayer: {
-        ptrFn: 'getTilemapLayerPtr',
-        fields: [
-            { name: 'cellSize', type: 'vec2', offset: 0 },
-            { name: 'originOffset', type: 'vec2', offset: 8 },
-            { name: 'tileset', type: 'u32', offset: 16 },
-            { name: 'tilesetColumns', type: 'i32', offset: 20 },
-            { name: 'tilesetRows', type: 'i32', offset: 24 },
-            { name: 'renderLayer', type: 'i32', offset: 28 },
-            { name: 'tintColor', type: 'color', offset: 32 },
-            { name: 'opacity', type: 'f32', offset: 48 },
-            { name: 'parallaxFactor', type: 'vec2', offset: 52 },
-            { name: 'visible', type: 'bool', offset: 60 },
-        ],
-    },
     Transform: {
         ptrFn: 'getTransformPtr',
         fields: [
