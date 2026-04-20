@@ -40,6 +40,21 @@ namespace esengine::resource {
 using ShaderIncludeResolver = std::function<std::optional<std::string>(const std::string&)>;
 
 // =============================================================================
+// Source Line Mapping
+// =============================================================================
+
+/**
+ * @brief A (file, line) pair identifying an original source location.
+ *
+ * Empty `file` denotes the primary shader source (the one passed directly
+ * to parse()); non-empty names an #included file.
+ */
+struct SourceLine {
+    std::string file;
+    u32 line = 0;
+};
+
+// =============================================================================
 // Shader Stage Enum
 // =============================================================================
 
@@ -89,6 +104,25 @@ struct ParsedShader {
     std::vector<ShaderProperty> properties;                   ///< Exposed properties
     std::string errorMessage;                                 ///< Parse error if any
     bool valid = false;                                       ///< True if parsing succeeded
+
+    /**
+     * @brief Line map for the expanded pre-parse source.
+     *
+     * expandedLineMap[i] is the original SourceLine that produced line
+     * (i + 1) of the post-#include-expansion source. Callers that know
+     * the expanded-source line of a compile error can resolve it back
+     * to the original file.
+     */
+    std::vector<SourceLine> expandedLineMap;
+
+    /**
+     * @brief Per-stage line maps, parallel to stages[].
+     *
+     * Entry N is the SourceLine for line (N + 1) of the stage body (the
+     * code between `#pragma vertex`/`#pragma fragment` and `#pragma end`,
+     * not including the assembled `#version`/sharedCode prefix).
+     */
+    std::unordered_map<ShaderStage, std::vector<SourceLine>> stageLineMaps;
 };
 
 // =============================================================================
@@ -147,6 +181,25 @@ public:
     static std::string assembleStage(const ParsedShader& parsed,
                                      ShaderStage stage,
                                      const std::string& platform = "");
+
+    /**
+     * @brief Rewrites GL compile-log line references back to original files
+     *
+     * Scans @p log for `0:N:` and `0(N)` patterns (the two common vendor
+     * prefixes) and rewrites each occurrence to `file:origLine:`. Lines
+     * before @p headerLineOffset are treated as synthetic header (e.g.
+     * `#version`, sharedCode) and left unchanged.
+     *
+     * @param log GL driver log (from glGetShaderInfoLog / glGetProgramInfoLog)
+     * @param stageMap Per-stage line map from ParsedShader::stageLineMaps
+     * @param headerLineOffset Line count prepended by assembleStage before
+     *        the stage body (typically 1 for `#version` + sharedCode line
+     *        count)
+     * @return Log with line references rewritten to original locations
+     */
+    static std::string remapCompilerLog(const std::string& log,
+                                        const std::vector<SourceLine>& stageMap,
+                                        u32 headerLineOffset);
 
 private:
     static void parseDirective(const std::string& line,
