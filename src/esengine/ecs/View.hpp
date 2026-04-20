@@ -270,17 +270,27 @@ public:
     void each(Func&& func) {
         if (!smallest_) return;
 
-        const auto& entities = smallest_->entities();
-        const usize n = entities.size();
+        // Snapshot the entity list so the callback can safely
+        // emplace/remove components mid-iteration — the snapshot is
+        // O(n) up front, but any pool realloc inside the callback
+        // would otherwise invalidate a live reference and silently
+        // corrupt the iteration.
+        //
+        // After the snapshot, each step re-checks that the entity
+        // still has the smallest component (it may have been removed
+        // by the callback). The smallest pool's dense index is no
+        // longer used for the fast read, since mutations can reorder
+        // it — look the component up by entity instead.
+        std::vector<Entity> entities = smallest_->entities();
 
-        for (usize i = 0; i < n; ++i) {
-            Entity entity = entities[i];
+        for (Entity entity : entities) {
+            if (!smallestStillHas(entity)) continue;
             if (!allHaveExceptSmallest(entity)) continue;
 
             if constexpr (std::is_invocable_v<Func, Entity, Components&...>) {
-                func(entity, getFromPool<Components>(entity, i)...);
+                func(entity, getByEntity<Components>(entity)...);
             } else if constexpr (std::is_invocable_v<Func, Components&...>) {
-                func(getFromPool<Components>(entity, i)...);
+                func(getByEntity<Components>(entity)...);
             } else {
                 func(entity);
             }
@@ -289,12 +299,12 @@ public:
 
 private:
     template<typename T>
-    T& getFromPool(Entity entity, usize smallestDenseIndex) {
-        auto* pool = std::get<SparseSet<T>*>(pools_);
-        if (static_cast<SparseSetBase*>(pool) == smallest_) {
-            return pool->components()[smallestDenseIndex];
-        }
-        return pool->getUnchecked(entity);
+    T& getByEntity(Entity entity) {
+        return std::get<SparseSet<T>*>(pools_)->getUnchecked(entity);
+    }
+
+    bool smallestStillHas(Entity entity) const {
+        return smallest_->contains(entity);
     }
 
     bool allHaveExceptSmallest(Entity entity) const {

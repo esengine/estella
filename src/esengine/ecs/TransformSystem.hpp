@@ -190,7 +190,16 @@ inline void setParent(Registry& registry, Entity child, Entity newParent) {
         if (!registry.has<Children>(newParent)) {
             registry.emplace<Children>(newParent);
         }
-        registry.get<Children>(newParent).entities.push_back(child);
+        // Defensive dedupe: the normal path already removed child from
+        // its old parent's list above, but if Parent/Children got out
+        // of sync externally (user code touching components directly,
+        // partial loads, or a double-insert via ordering bugs), a
+        // naked push_back here would compound the corruption into an
+        // infinite-traversal hierarchy.
+        auto& newChildren = registry.get<Children>(newParent).entities;
+        if (std::find(newChildren.begin(), newChildren.end(), child) == newChildren.end()) {
+            newChildren.push_back(child);
+        }
 
         u32 parentDepth = 0;
         if (registry.has<HierarchyDepth>(newParent)) {

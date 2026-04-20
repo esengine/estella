@@ -269,21 +269,18 @@ void TilemapSystem::setTileProperty(Entity entity, u16 tileId,
     layer->tile_properties[tileId][key] = value;
 }
 
-static std::string s_propertyResult;
-
-const char* TilemapSystem::getTileProperty(Entity entity, u16 tileId,
+std::string TilemapSystem::getTileProperty(Entity entity, u16 tileId,
                                             const std::string& key) const {
     const auto* layer = getLayerData(entity);
-    if (!layer) return "";
+    if (!layer) return {};
 
     auto tileIt = layer->tile_properties.find(tileId);
-    if (tileIt == layer->tile_properties.end()) return "";
+    if (tileIt == layer->tile_properties.end()) return {};
 
     auto propIt = tileIt->second.find(key);
-    if (propIt == tileIt->second.end()) return "";
+    if (propIt == tileIt->second.end()) return {};
 
-    s_propertyResult = propIt->second;
-    return s_propertyResult.c_str();
+    return propIt->second;
 }
 
 void TilemapSystem::flipTile(Entity entity, i32 x, i32 y,

@@ -561,6 +561,12 @@ export interface Registry {
 // Module
 export interface ESEngineModule {
     Registry: new () => Registry;
+    /**
+     * Authoritative list of component names this WASM build exposes
+     * on the Registry. Used by BuiltinBridge to detect drift between
+     * the shipped SDK and the actual WASM module.
+     */
+    getBuiltinComponentNames(): string[];
     BitmapText: new () => BitmapText;
     Camera: new () => Camera;
     Canvas: new () => Canvas;

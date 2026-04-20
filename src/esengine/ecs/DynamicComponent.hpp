@@ -129,7 +129,15 @@ public:
 
         dense_[denseIdx] = last;
         std::swap(values_[denseIdx], values_.back());
-        sparse_[last.index()] = denseIdx;
+        // Defensive: an in-dense entity implies its index was
+        // covered by sparse_ on emplace. Guard against the case
+        // where some future refactor shrinks sparse_ without
+        // dense_, instead of trusting the invariant silently.
+        ES_ASSERT(last.index() < sparse_.size(),
+                  "DynamicComponentPool sparse/dense out of sync");
+        if (last.index() < sparse_.size()) {
+            sparse_[last.index()] = denseIdx;
+        }
 
         dense_.pop_back();
         values_.pop_back();
