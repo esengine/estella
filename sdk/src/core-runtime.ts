@@ -159,6 +159,13 @@ export {
     type TouchPoint,
 } from './input';
 
+export {
+    InputRouter,
+    inputRouter,
+    type InputHandler,
+    type Modifiers,
+} from './inputRouter';
+
 export { GestureDetector, type SwipeDirection } from './gesture';
 
 // =============================================================================

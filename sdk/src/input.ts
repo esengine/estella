@@ -2,6 +2,7 @@ import { defineResource } from './resource';
 import { defineSystem, Schedule } from './system';
 import type { App, Plugin } from './app';
 import { getPlatform } from './platform';
+import { inputRouter } from './inputRouter';
 
 export interface TouchPoint {
     id: number;
@@ -102,39 +103,51 @@ export class InputPlugin implements Plugin {
 
         getPlatform().bindInputEvents({
             onKeyDown(code) {
+                if (inputRouter.dispatchKeyDown(code)) return;
                 if (!state.keysDown.has(code)) {
                     state.keysPressed.add(code);
                 }
                 state.keysDown.add(code);
             },
             onKeyUp(code) {
+                if (inputRouter.dispatchKeyUp(code)) return;
                 state.keysDown.delete(code);
                 state.keysReleased.add(code);
             },
             onPointerMove(x, y) {
+                // Pointer position tracks the cursor even when consumed so
+                // gameplay code that reads `getMousePosition()` (e.g. HUD
+                // cursor rendering) doesn't freeze while the editor is
+                // dragging a gizmo.
                 state.mouseX = x;
                 state.mouseY = y;
+                inputRouter.dispatchPointerMove(x, y);
             },
             onPointerDown(button, x, y) {
                 state.mouseX = x;
                 state.mouseY = y;
+                if (inputRouter.dispatchPointerDown(button, x, y)) return;
                 state.mouseButtons.add(button);
                 state.mouseButtonsPressed.add(button);
             },
             onPointerUp(button) {
+                if (inputRouter.dispatchPointerUp(button)) return;
                 state.mouseButtons.delete(button);
                 state.mouseButtonsReleased.add(button);
             },
             onWheel(deltaX, deltaY) {
+                if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
                 state.scrollDeltaX += deltaX;
                 state.scrollDeltaY += deltaY;
             },
             onTouchStart(id, x, y) {
+                if (inputRouter.dispatchTouchStart(id, x, y)) return;
                 const point = { id, x, y };
                 state.touches.set(id, point);
                 state.touchesStarted.set(id, point);
             },
             onTouchMove(id, x, y) {
+                if (inputRouter.dispatchTouchMove(id, x, y)) return;
                 const existing = state.touches.get(id);
                 if (existing) {
                     existing.x = x;
@@ -144,10 +157,12 @@ export class InputPlugin implements Plugin {
                 }
             },
             onTouchEnd(id) {
+                if (inputRouter.dispatchTouchEnd(id)) return;
                 state.touches.delete(id);
                 state.touchesEnded.add(id);
             },
             onTouchCancel(id) {
+                if (inputRouter.dispatchTouchCancel(id)) return;
                 state.touches.delete(id);
                 state.touchesEnded.add(id);
             },
