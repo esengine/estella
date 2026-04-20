@@ -14,12 +14,7 @@ from ..field_utils import get_sub_components, get_editor_type, is_color_field
 
 
 def compute_schema_hash(components: List[Component]) -> str:
-    """Deterministic hash of the component schema.
-
-    Stable across runs on the same input, invalidated by any added /
-    removed / renamed / retyped field. Emitted into generated files so
-    build-time drift detection can compare against the source schema.
-    """
+    """Stable sha256 over (component, field, type, annotations), truncated."""
     h = hashlib.sha256()
     for comp in sorted(components, key=lambda c: (c.namespace or '', c.name)):
         h.update(f'{comp.namespace or ""}::{comp.name}|'.encode('utf-8'))
@@ -622,12 +617,6 @@ class EditorAPIGenerator:
         return lines
 
     def _collect_string_fields(self, comp: Component) -> list:
-        """Collect (key, cpp_path) for all std::string-backed editable fields.
-
-        Includes both plain string fields and asset-annotated string fields
-        (e.g. spine skeleton paths) — the latter can't go through setInt
-        because their storage isn't integer-convertible.
-        """
         string_fields = []
         for prop in comp.properties:
             if self._is_readonly(prop):

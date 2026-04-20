@@ -434,21 +434,15 @@ TEST_CASE("uuid_component") {
 
 TEST_CASE("view_each tolerates mid-iteration emplace on the same pool") {
     esengine::ecs::Registry registry;
-    std::vector<esengine::Entity> seeds;
     for (int i = 0; i < 8; ++i) {
         esengine::Entity e = registry.create();
         registry.emplace<test::Position>(e, float(i), 0.0f);
-        seeds.push_back(e);
     }
 
     int visited = 0;
     auto view = registry.view<test::Position>();
-    view.each([&](esengine::Entity e, test::Position&) {
-        (void)e;
+    view.each([&](esengine::Entity, test::Position&) {
         ++visited;
-        // Trigger a pool realloc on the smallest pool while iterating.
-        // A naked reference to the dense array would dangle here; the
-        // snapshot path keeps iteration valid.
         if (visited == 1) {
             for (int j = 0; j < 32; ++j) {
                 esengine::Entity extra = registry.create();
@@ -462,11 +456,9 @@ TEST_CASE("view_each tolerates mid-iteration emplace on the same pool") {
 
 TEST_CASE("view_each tolerates mid-iteration remove of the current entity") {
     esengine::ecs::Registry registry;
-    std::vector<esengine::Entity> entities;
     for (int i = 0; i < 5; ++i) {
         esengine::Entity e = registry.create();
         registry.emplace<test::Position>(e, float(i), 0.0f);
-        entities.push_back(e);
     }
 
     int visited = 0;
@@ -486,7 +478,7 @@ TEST_CASE("setParent is idempotent on duplicate reparent") {
     esengine::Entity child = registry.create();
 
     esengine::ecs::setParent(registry, child, parent);
-    esengine::ecs::setParent(registry, child, parent); // second call
+    esengine::ecs::setParent(registry, child, parent);
 
     const auto& children = registry.get<esengine::ecs::Children>(parent).entities;
     CHECK_EQ(children.size(), 1u);
