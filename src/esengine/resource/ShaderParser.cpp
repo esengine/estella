@@ -14,6 +14,7 @@
 
 #include <sstream>
 #include <algorithm>
+#include <cctype>
 #include <unordered_set>
 
 namespace esengine::resource {
@@ -32,10 +33,12 @@ std::string ltrim(const std::string& s) {
 }
 
 bool expandIncludes(const std::string& source,
+                    const std::string& currentFile,
                     const ShaderIncludeResolver& resolver,
                     std::unordered_set<std::string>& active,
                     u32 depth,
                     std::string& out,
+                    std::vector<SourceLine>& outMap,
                     std::string& errorMessage) {
     if (depth > kMaxIncludeDepth) {
         errorMessage = "Shader include depth exceeded " + std::to_string(kMaxIncludeDepth);
@@ -44,11 +47,14 @@ bool expandIncludes(const std::string& source,
 
     std::istringstream stream(source);
     std::string line;
+    u32 lineNumber = 0;
     while (std::getline(stream, line)) {
+        ++lineNumber;
         const std::string lead = ltrim(line);
         if (lead.rfind("#include", 0) != 0) {
             out += line;
             out += '\n';
+            outMap.push_back(SourceLine{currentFile, lineNumber});
             continue;
         }
 
@@ -75,7 +81,7 @@ bool expandIncludes(const std::string& source,
         }
 
         active.insert(path);
-        if (!expandIncludes(*contents, resolver, active, depth + 1, out, errorMessage)) {
+        if (!expandIncludes(*contents, path, resolver, active, depth + 1, out, outMap, errorMessage)) {
             return false;
         }
         active.erase(path);
@@ -118,7 +124,8 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     {
         std::unordered_set<std::string> active;
         std::string includeError;
-        if (!expandIncludes(source, resolver, active, 0, expanded, includeError)) {
+        if (!expandIncludes(source, std::string{}, resolver, active, 0,
+                            expanded, result.expandedLineMap, includeError)) {
             result.errorMessage = includeError;
             return result;
         }
@@ -129,6 +136,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     ParseState state = ParseState::Global;
     std::string currentVariantName;
     std::ostringstream currentSection;
+    std::vector<SourceLine> currentSectionMap;
     u32 lineNumber = 0;
 
     while (std::getline(stream, line)) {
@@ -167,6 +175,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             state = ParseState::Vertex;
             currentSection.str("");
             currentSection.clear();
+            currentSectionMap.clear();
             continue;
         }
 
@@ -178,6 +187,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             state = ParseState::Fragment;
             currentSection.str("");
             currentSection.clear();
+            currentSectionMap.clear();
             continue;
         }
 
@@ -190,6 +200,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             currentVariantName = argument;
             currentSection.str("");
             currentSection.clear();
+            currentSectionMap.clear();
             continue;
         }
 
@@ -199,13 +210,18 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
                     break;
                 case ParseState::Vertex:
                     result.stages[ShaderStage::Vertex] = currentSection.str();
+                    result.stageLineMaps[ShaderStage::Vertex] = std::move(currentSectionMap);
+                    currentSectionMap.clear();
                     break;
                 case ParseState::Fragment:
                     result.stages[ShaderStage::Fragment] = currentSection.str();
+                    result.stageLineMaps[ShaderStage::Fragment] = std::move(currentSectionMap);
+                    currentSectionMap.clear();
                     break;
                 case ParseState::Variant:
                     result.variants[currentVariantName] = currentSection.str();
                     currentVariantName.clear();
+                    currentSectionMap.clear();
                     break;
                 default:
                     break;
@@ -234,9 +250,14 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
 
             case ParseState::Vertex:
             case ParseState::Fragment:
-            case ParseState::Variant:
+            case ParseState::Variant: {
                 currentSection << line << "\n";
+                const SourceLine src = (lineNumber >= 1 && lineNumber <= result.expandedLineMap.size())
+                    ? result.expandedLineMap[lineNumber - 1]
+                    : SourceLine{};
+                currentSectionMap.push_back(src);
                 break;
+            }
         }
     }
 
@@ -291,6 +312,87 @@ std::string ShaderParser::assembleStage(const ParsedShader& parsed,
     assembled << stageIt->second;
 
     return assembled.str();
+}
+
+namespace {
+
+std::string formatRemap(u32 logLine,
+                        const std::vector<SourceLine>& stageMap,
+                        u32 headerLineOffset,
+                        bool parenStyle) {
+    if (logLine <= headerLineOffset) return {};
+    const u32 bodyLine = logLine - headerLineOffset;
+    if (bodyLine == 0 || bodyLine > stageMap.size()) return {};
+    const SourceLine& src = stageMap[bodyLine - 1];
+    const std::string file = src.file.empty() ? std::string("<main>") : src.file;
+    std::string out;
+    if (parenStyle) {
+        out = file + "(" + std::to_string(src.line) + ")";
+    } else {
+        out = file + ":" + std::to_string(src.line) + ":";
+    }
+    return out;
+}
+
+bool scanNumber(const std::string& log, usize start, usize& outEnd, u32& outNumber) {
+    u32 num = 0;
+    usize j = start;
+    bool any = false;
+    while (j < log.size() && std::isdigit(static_cast<unsigned char>(log[j]))) {
+        num = num * 10 + static_cast<u32>(log[j] - '0');
+        ++j;
+        any = true;
+    }
+    if (!any) return false;
+    outEnd = j;
+    outNumber = num;
+    return true;
+}
+
+}  // namespace
+
+std::string ShaderParser::remapCompilerLog(const std::string& log,
+                                           const std::vector<SourceLine>& stageMap,
+                                           u32 headerLineOffset) {
+    if (log.empty() || stageMap.empty()) return log;
+
+    auto isWordChar = [](char c) {
+        return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+    };
+
+    std::string out;
+    out.reserve(log.size());
+    const usize n = log.size();
+    usize i = 0;
+    while (i < n) {
+        const bool boundary = (i == 0) || !isWordChar(log[i - 1]);
+        if (boundary && i + 2 < n && log[i] == '0' && log[i + 1] == ':') {
+            usize end = 0;
+            u32 num = 0;
+            if (scanNumber(log, i + 2, end, num) && end < n && log[end] == ':') {
+                std::string rep = formatRemap(num, stageMap, headerLineOffset, /*parenStyle*/ false);
+                if (!rep.empty()) {
+                    out += rep;
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
+        if (boundary && i + 2 < n && log[i] == '0' && log[i + 1] == '(') {
+            usize end = 0;
+            u32 num = 0;
+            if (scanNumber(log, i + 2, end, num) && end < n && log[end] == ')') {
+                std::string rep = formatRemap(num, stageMap, headerLineOffset, /*parenStyle*/ true);
+                if (!rep.empty()) {
+                    out += rep;
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
+        out += log[i++];
+    }
+    return out;
 }
 
 // =============================================================================
