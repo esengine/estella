@@ -68,6 +68,8 @@ public:
     void setUniformMat3(i32 location, const f32* data) override;
     void setUniformMat4(i32 location, const f32* data) override;
 
+    std::vector<GfxUniformInfo> getActiveUniforms(u32 programId) override;
+
     u32 createBuffer() override;
     void deleteBuffer(u32 bufferId) override;
     void bindVertexBuffer(u32 bufferId) override;

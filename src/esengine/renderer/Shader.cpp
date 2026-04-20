@@ -36,7 +36,8 @@ Shader::~Shader() {
 Shader::Shader(Shader&& other) noexcept
     : programId_(other.programId_)
     , uniformCache_(std::move(other.uniformCache_))
-    , attribCache_(std::move(other.attribCache_)) {
+    , attribCache_(std::move(other.attribCache_))
+    , activeUniforms_(std::move(other.activeUniforms_)) {
     other.programId_ = 0;
 }
 
@@ -48,6 +49,7 @@ Shader& Shader::operator=(Shader&& other) noexcept {
         programId_ = other.programId_;
         uniformCache_ = std::move(other.uniformCache_);
         attribCache_ = std::move(other.attribCache_);
+        activeUniforms_ = std::move(other.activeUniforms_);
         other.programId_ = 0;
     }
     return *this;
@@ -187,14 +189,84 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
-    ES_LOG_DEBUG("Shader compiled successfully (program ID: {})", programId_);
+    reflectActiveUniforms();
+
+    ES_LOG_DEBUG("Shader compiled successfully (program ID: {}, active uniforms: {})",
+                 programId_, activeUniforms_.size());
     return true;
+}
+
+namespace {
+
+GfxUniformType shaderUniformTypeFromGL(GLenum type) {
+    switch (type) {
+    case GL_FLOAT:        return GfxUniformType::Float;
+    case GL_FLOAT_VEC2:   return GfxUniformType::Vec2;
+    case GL_FLOAT_VEC3:   return GfxUniformType::Vec3;
+    case GL_FLOAT_VEC4:   return GfxUniformType::Vec4;
+    case GL_INT:          return GfxUniformType::Int;
+    case GL_INT_VEC2:     return GfxUniformType::IVec2;
+    case GL_INT_VEC3:     return GfxUniformType::IVec3;
+    case GL_INT_VEC4:     return GfxUniformType::IVec4;
+    case GL_BOOL:         return GfxUniformType::Bool;
+    case GL_FLOAT_MAT2:   return GfxUniformType::Mat2;
+    case GL_FLOAT_MAT3:   return GfxUniformType::Mat3;
+    case GL_FLOAT_MAT4:   return GfxUniformType::Mat4;
+    case GL_SAMPLER_2D:   return GfxUniformType::Sampler2D;
+    case GL_SAMPLER_CUBE: return GfxUniformType::SamplerCube;
+    default:              return GfxUniformType::Unknown;
+    }
+}
+
+}  // namespace
+
+void Shader::reflectActiveUniforms() {
+    activeUniforms_.clear();
+    if (programId_ == 0) return;
+
+    GLint count = 0;
+    glGetProgramiv(programId_, GL_ACTIVE_UNIFORMS, &count);
+    if (count <= 0) return;
+
+    GLint maxNameLen = 0;
+    glGetProgramiv(programId_, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxNameLen);
+    if (maxNameLen <= 0) maxNameLen = 64;
+
+    std::string nameBuf(static_cast<size_t>(maxNameLen), '\0');
+    activeUniforms_.reserve(static_cast<size_t>(count));
+
+    for (GLint i = 0; i < count; ++i) {
+        GLsizei nameLen = 0;
+        GLint size = 0;
+        GLenum type = 0;
+        glGetActiveUniform(programId_, static_cast<GLuint>(i),
+                           static_cast<GLsizei>(maxNameLen), &nameLen,
+                           &size, &type, nameBuf.data());
+
+        std::string name(nameBuf.data(), static_cast<size_t>(nameLen));
+        // Strip "[0]" suffix so callers look up arrays by their declared name.
+        const auto bracket = name.find('[');
+        if (bracket != std::string::npos) {
+            name.erase(bracket);
+        }
+
+        GfxUniformInfo info;
+        info.type = shaderUniformTypeFromGL(type);
+        info.location = glGetUniformLocation(programId_, name.c_str());
+        info.arraySize = size > 0 ? static_cast<u32>(size) : 1u;
+        info.name = std::move(name);
+        activeUniforms_.push_back(std::move(info));
+    }
 }
 
 i32 Shader::getUniformLocation(const std::string& name) const {
     auto [it, inserted] = uniformCache_.emplace(name, -1);
     if (inserted) {
         it->second = glGetUniformLocation(programId_, name.c_str());
+        if (it->second < 0) {
+            ES_LOG_WARN("Shader {}: uniform '{}' not found (typo or optimized out)",
+                        programId_, name);
+        }
     }
     return it->second;
 }

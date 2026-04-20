@@ -19,11 +19,13 @@
 // Project includes
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
+#include "GfxEnums.hpp"
 
 // Standard library
 #include <initializer_list>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace esengine {
 
@@ -141,6 +143,9 @@ public:
 
     i32 getUniformLocation(const std::string& name) const;
 
+    /** @brief Returns reflected metadata for every active uniform, populated at link time */
+    const std::vector<GfxUniformInfo>& getActiveUniforms() const { return activeUniforms_; }
+
     // =========================================================================
     // State
     // =========================================================================
@@ -167,11 +172,14 @@ private:
     bool compile(const std::string& vertexSrc, const std::string& fragmentSrc,
                  std::initializer_list<AttribBinding> bindings = {});
 
+    void reflectActiveUniforms();
+
     u32 programId_ = 0;
 
     /** @brief Cached uniform locations (mutable for const uniform setters) */
     mutable std::unordered_map<std::string, i32> uniformCache_;
     mutable std::unordered_map<std::string, i32> attribCache_;
+    std::vector<GfxUniformInfo> activeUniforms_;
 };
 
 // =============================================================================

@@ -311,6 +311,71 @@ void GLDevice::setUniformMat4(i32 location, const f32* data) {
     if (location >= 0) glUniformMatrix4fv(location, 1, GL_FALSE, data);
 }
 
+namespace {
+
+GfxUniformType fromGLUniformType(GLenum type) {
+    switch (type) {
+    case GL_FLOAT:        return GfxUniformType::Float;
+    case GL_FLOAT_VEC2:   return GfxUniformType::Vec2;
+    case GL_FLOAT_VEC3:   return GfxUniformType::Vec3;
+    case GL_FLOAT_VEC4:   return GfxUniformType::Vec4;
+    case GL_INT:          return GfxUniformType::Int;
+    case GL_INT_VEC2:     return GfxUniformType::IVec2;
+    case GL_INT_VEC3:     return GfxUniformType::IVec3;
+    case GL_INT_VEC4:     return GfxUniformType::IVec4;
+    case GL_BOOL:         return GfxUniformType::Bool;
+    case GL_FLOAT_MAT2:   return GfxUniformType::Mat2;
+    case GL_FLOAT_MAT3:   return GfxUniformType::Mat3;
+    case GL_FLOAT_MAT4:   return GfxUniformType::Mat4;
+    case GL_SAMPLER_2D:   return GfxUniformType::Sampler2D;
+    case GL_SAMPLER_CUBE: return GfxUniformType::SamplerCube;
+    default:              return GfxUniformType::Unknown;
+    }
+}
+
+}  // namespace
+
+std::vector<GfxUniformInfo> GLDevice::getActiveUniforms(u32 programId) {
+    std::vector<GfxUniformInfo> result;
+    if (programId == 0) return result;
+
+    GLint count = 0;
+    glGetProgramiv(programId, GL_ACTIVE_UNIFORMS, &count);
+    if (count <= 0) return result;
+
+    GLint maxNameLen = 0;
+    glGetProgramiv(programId, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxNameLen);
+    if (maxNameLen <= 0) maxNameLen = 64;
+
+    std::string nameBuf(static_cast<size_t>(maxNameLen), '\0');
+    result.reserve(static_cast<size_t>(count));
+
+    for (GLint i = 0; i < count; ++i) {
+        GLsizei nameLen = 0;
+        GLint size = 0;
+        GLenum type = 0;
+        glGetActiveUniform(programId, static_cast<GLuint>(i),
+                           static_cast<GLsizei>(maxNameLen), &nameLen,
+                           &size, &type, nameBuf.data());
+
+        std::string name(nameBuf.data(), static_cast<size_t>(nameLen));
+        // Strip "[0]" suffix so callers look up arrays by their declared name.
+        const auto bracket = name.find('[');
+        if (bracket != std::string::npos) {
+            name.erase(bracket);
+        }
+
+        GfxUniformInfo info;
+        info.name = std::move(name);
+        info.type = fromGLUniformType(type);
+        info.location = glGetUniformLocation(programId, info.name.c_str());
+        info.arraySize = size > 0 ? static_cast<u32>(size) : 1u;
+        result.push_back(std::move(info));
+    }
+
+    return result;
+}
+
 // =============================================================================
 // Buffer Operations
 // =============================================================================

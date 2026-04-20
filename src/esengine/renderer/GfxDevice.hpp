@@ -22,6 +22,8 @@
 #include "GfxEnums.hpp"
 #include "Texture.hpp"
 
+#include <vector>
+
 namespace esengine {
 
 // =============================================================================
@@ -157,6 +159,9 @@ public:
 
     /** @brief Sets a mat4 uniform */
     virtual void setUniformMat4(i32 location, const f32* data) = 0;
+
+    /** @brief Enumerates all active uniforms of a linked shader program */
+    virtual std::vector<GfxUniformInfo> getActiveUniforms(u32 programId) = 0;
 
     // =========================================================================
     // Buffer Operations
