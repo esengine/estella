@@ -293,6 +293,89 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
     }
 }
 
+// =============================================================================
+// Scene Serializer
+// =============================================================================
+
+// Components that describe the scene graph structure itself — name, parent
+// pointers, children lists, and derived world-transform caches. They are
+// reconstructed on load from the SceneEntityData {name, parent, children}
+// fields rather than from the components list, so we omit them here.
+const STRUCTURAL_COMPONENTS = new Set(['Name', 'Parent', 'Children', 'WorldTransform']);
+
+/**
+ * Walks the live world and produces a SceneData that round-trips through
+ * loadSceneData. Editors call this on save; external tools (prefab extract,
+ * diff, CLI export) can reuse the same primitive.
+ *
+ * Parent/child links are collapsed into the entity record's parent+children
+ * fields; the Parent and Children components themselves are omitted from
+ * the components array so loadSceneData's setParent pass is the single
+ * source of truth for hierarchy.
+ */
+export function serializeScene(world: World, sceneName = 'scene'): SceneData {
+    const parentDef = getComponent('Parent');
+    const allEntities = world.getAllEntities();
+
+    const parentOf = new Map<number, number>();
+    if (parentDef) {
+        for (const e of allEntities) {
+            const parentComp = world.tryGet(e, parentDef) as { entity: number } | null;
+            if (parentComp && parentComp.entity !== undefined) {
+                parentOf.set(e as unknown as number, parentComp.entity);
+            }
+        }
+    }
+
+    // Derive children from the parent map so we don't have to decode the
+    // Children component (whose `entities` field is a wasm VectorEntity on
+    // the CPP backend and would leak if iterated without cleanup).
+    const childrenOf = new Map<number, number[]>();
+    for (const [child, parent] of parentOf) {
+        let arr = childrenOf.get(parent);
+        if (!arr) {
+            arr = [];
+            childrenOf.set(parent, arr);
+        }
+        arr.push(child);
+    }
+
+    const entities: SceneEntityData[] = [];
+    for (const entity of allEntities) {
+        const entityNum = entity as unknown as number;
+
+        const nameComp = world.tryGet(entity, Name) as { value: string } | null;
+        const name = nameComp?.value ?? `Entity_${entityNum}`;
+
+        const components: SceneComponentData[] = [];
+        for (const typeName of world.getComponentTypes(entity)) {
+            if (STRUCTURAL_COMPONENTS.has(typeName)) continue;
+            const comp = getComponent(typeName);
+            if (!comp) continue;
+            const data = world.tryGet(entity, comp);
+            if (data === null) continue;
+            components.push({
+                type: typeName,
+                data: data as Record<string, unknown>,
+            });
+        }
+
+        entities.push({
+            id: entityNum,
+            name,
+            parent: parentOf.get(entityNum) ?? null,
+            children: childrenOf.get(entityNum) ?? [],
+            components,
+        });
+    }
+
+    return {
+        version: '1.0',
+        name: sceneName,
+        entities,
+    };
+}
+
 export function updateCameraAspectRatio(world: World, aspectRatio: number): void {
     const cameraEntities = world.getEntitiesWithComponents([Camera]);
     for (const entity of cameraEntities) {
