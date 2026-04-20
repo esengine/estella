@@ -1093,66 +1093,6 @@ export function createStateVisualsData(): StateVisualsPtrData {
     };
 }
 
-export interface TilemapLayerPtrData {
-    cellSize: Vec2;
-    originOffset: Vec2;
-    tileset: number;
-    tilesetColumns: number;
-    tilesetRows: number;
-    renderLayer: number;
-    tintColor: Color;
-    opacity: number;
-    parallaxFactor: Vec2;
-    visible: boolean;
-}
-
-export function fillTilemapLayer(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: TilemapLayerPtrData,
-): void {
-    const cellSize_ = out.cellSize; cellSize_.x = f32[ptr >> 2]; cellSize_.y = f32[(ptr >> 2) + 1];
-    const originOffset_ = out.originOffset; originOffset_.x = f32[(ptr + 8) >> 2]; originOffset_.y = f32[((ptr + 8) >> 2) + 1];
-    out.tileset = u32[(ptr + 16) >> 2];
-    out.tilesetColumns = u32[(ptr + 20) >> 2] | 0;
-    out.tilesetRows = u32[(ptr + 24) >> 2] | 0;
-    out.renderLayer = u32[(ptr + 28) >> 2] | 0;
-    const tintColor_ = out.tintColor; tintColor_.r = f32[(ptr + 32) >> 2]; tintColor_.g = f32[((ptr + 32) >> 2) + 1]; tintColor_.b = f32[((ptr + 32) >> 2) + 2]; tintColor_.a = f32[((ptr + 32) >> 2) + 3];
-    out.opacity = f32[(ptr + 48) >> 2];
-    const parallaxFactor_ = out.parallaxFactor; parallaxFactor_.x = f32[(ptr + 52) >> 2]; parallaxFactor_.y = f32[((ptr + 52) >> 2) + 1];
-    out.visible = u8[ptr + 60] !== 0;
-}
-
-export function writeTilemapLayer(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: TilemapLayerPtrData,
-): void {
-    f32[ptr >> 2] = data.cellSize.x; f32[(ptr >> 2) + 1] = data.cellSize.y;
-    f32[(ptr + 8) >> 2] = data.originOffset.x; f32[((ptr + 8) >> 2) + 1] = data.originOffset.y;
-    u32[(ptr + 16) >> 2] = data.tileset;
-    u32[(ptr + 20) >> 2] = data.tilesetColumns | 0;
-    u32[(ptr + 24) >> 2] = data.tilesetRows | 0;
-    u32[(ptr + 28) >> 2] = data.renderLayer | 0;
-    f32[(ptr + 32) >> 2] = data.tintColor.r; f32[((ptr + 32) >> 2) + 1] = data.tintColor.g; f32[((ptr + 32) >> 2) + 2] = data.tintColor.b; f32[((ptr + 32) >> 2) + 3] = data.tintColor.a;
-    f32[(ptr + 48) >> 2] = data.opacity;
-    f32[(ptr + 52) >> 2] = data.parallaxFactor.x; f32[((ptr + 52) >> 2) + 1] = data.parallaxFactor.y;
-    u8[ptr + 60] = data.visible ? 1 : 0;
-}
-
-export function createTilemapLayerData(): TilemapLayerPtrData {
-    return {
-        cellSize: { x: 0, y: 0 },
-        originOffset: { x: 0, y: 0 },
-        tileset: 0,
-        tilesetColumns: 0,
-        tilesetRows: 0,
-        renderLayer: 0,
-        tintColor: { r: 0, g: 0, b: 0, a: 0 },
-        opacity: 0,
-        parallaxFactor: { x: 0, y: 0 },
-        visible: false,
-    };
-}
-
 export interface TransformPtrData {
     position: Vec3;
     rotation: Vec4;
@@ -1409,7 +1349,6 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
     StateVisuals: { fill: fillStateVisuals, write: writeStateVisuals, create: createStateVisualsData },
-    TilemapLayer: { fill: fillTilemapLayer, write: writeTilemapLayer, create: createTilemapLayerData },
     Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },

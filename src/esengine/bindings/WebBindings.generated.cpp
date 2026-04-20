@@ -27,7 +27,6 @@
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/StateMachine.hpp"
 #include "../ecs/components/StateVisuals.hpp"
-#include "../ecs/components/TilemapLayer.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
@@ -767,49 +766,6 @@ StateVisualsJS statevisualsToJS(const esengine::ecs::StateVisuals& c) {
     return js;
 }
 
-struct TilemapLayerJS {
-    glm::vec2 cellSize;
-    glm::vec2 originOffset;
-    u32 tileset;
-    i32 tilesetColumns;
-    i32 tilesetRows;
-    i32 renderLayer;
-    glm::vec4 tintColor;
-    f32 opacity;
-    glm::vec2 parallaxFactor;
-    bool visible;
-};
-
-esengine::ecs::TilemapLayer tilemaplayerFromJS(const TilemapLayerJS& js) {
-    esengine::ecs::TilemapLayer c;
-    c.cellSize = js.cellSize;
-    c.originOffset = js.originOffset;
-    c.tileset = resource::TextureHandle(js.tileset);
-    c.tilesetColumns = js.tilesetColumns;
-    c.tilesetRows = js.tilesetRows;
-    c.renderLayer = js.renderLayer;
-    c.tintColor = js.tintColor;
-    c.opacity = js.opacity;
-    c.parallaxFactor = js.parallaxFactor;
-    c.visible = js.visible;
-    return c;
-}
-
-TilemapLayerJS tilemaplayerToJS(const esengine::ecs::TilemapLayer& c) {
-    TilemapLayerJS js;
-    js.cellSize = c.cellSize;
-    js.originOffset = c.originOffset;
-    js.tileset = c.tileset.id();
-    js.tilesetColumns = c.tilesetColumns;
-    js.tilesetRows = c.tilesetRows;
-    js.renderLayer = c.renderLayer;
-    js.tintColor = c.tintColor;
-    js.opacity = c.opacity;
-    js.parallaxFactor = c.parallaxFactor;
-    js.visible = c.visible;
-    return js;
-}
-
 struct UIMaskJS {
     bool enabled;
     i32 mode;
@@ -1114,18 +1070,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("slot7Color", &StateVisualsJS::slot7Color)
         .field("slot7Sprite", &StateVisualsJS::slot7Sprite)
         .field("slot7Scale", &StateVisualsJS::slot7Scale);
-
-    value_object<TilemapLayerJS>("TilemapLayer")
-        .field("cellSize", &TilemapLayerJS::cellSize)
-        .field("originOffset", &TilemapLayerJS::originOffset)
-        .field("tileset", &TilemapLayerJS::tileset)
-        .field("tilesetColumns", &TilemapLayerJS::tilesetColumns)
-        .field("tilesetRows", &TilemapLayerJS::tilesetRows)
-        .field("renderLayer", &TilemapLayerJS::renderLayer)
-        .field("tintColor", &TilemapLayerJS::tintColor)
-        .field("opacity", &TilemapLayerJS::opacity)
-        .field("parallaxFactor", &TilemapLayerJS::parallaxFactor)
-        .field("visible", &TilemapLayerJS::visible);
 
     value_object<esengine::ecs::Transform>("Transform")
         .field("position", &esengine::ecs::Transform::position)
@@ -1595,26 +1539,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::StateVisuals>(entity);
         }))
 
-        // TilemapLayer
-        .function("hasTilemapLayer", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::TilemapLayer>(static_cast<Entity>(e));
-        }))
-        .function("getTilemapLayer", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::TilemapLayer>(entity)) return TilemapLayerJS{};
-            return tilemaplayerToJS(r.get<esengine::ecs::TilemapLayer>(entity));
-        }))
-        .function("addTilemapLayer", optional_override([](Registry& r, u32 e, const TilemapLayerJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::TilemapLayer>(entity, tilemaplayerFromJS(js));
-        }))
-        .function("removeTilemapLayer", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::TilemapLayer>(entity)) return;
-            r.remove<esengine::ecs::TilemapLayer>(entity);
-        }))
-
         // Transform
         .function("hasTransform", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Transform>(static_cast<Entity>(e));
@@ -1777,7 +1701,6 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Sprite")));
     arr.set(i++, val(std::string("StateMachine")));
     arr.set(i++, val(std::string("StateVisuals")));
-    arr.set(i++, val(std::string("TilemapLayer")));
     arr.set(i++, val(std::string("Transform")));
     arr.set(i++, val(std::string("UIInteraction")));
     arr.set(i++, val(std::string("UIMask")));

@@ -396,19 +396,6 @@ export interface StateVisuals {
     slot7Scale: number;
 }
 
-export interface TilemapLayer {
-    cellSize: Vec2;
-    originOffset: Vec2;
-    tileset: number;
-    tilesetColumns: number;
-    tilesetRows: number;
-    renderLayer: number;
-    tintColor: Vec4;
-    opacity: number;
-    parallaxFactor: Vec2;
-    visible: boolean;
-}
-
 export interface Transform {
     position: Vec3;
     rotation: Quat;
@@ -542,10 +529,6 @@ export interface Registry {
     getStateVisuals(entity: Entity): StateVisuals;
     addStateVisuals(entity: Entity, component: StateVisuals): void;
     removeStateVisuals(entity: Entity): void;
-    hasTilemapLayer(entity: Entity): boolean;
-    getTilemapLayer(entity: Entity): TilemapLayer;
-    addTilemapLayer(entity: Entity, component: TilemapLayer): void;
-    removeTilemapLayer(entity: Entity): void;
     hasTransform(entity: Entity): boolean;
     getTransform(entity: Entity): Transform;
     addTransform(entity: Entity, component: Transform): void;
@@ -604,7 +587,6 @@ export interface ESEngineModule {
     Sprite: new () => Sprite;
     StateMachine: new () => StateMachine;
     StateVisuals: new () => StateVisuals;
-    TilemapLayer: new () => TilemapLayer;
     Transform: new () => Transform;
     UIInteraction: new () => UIInteraction;
     UIMask: new () => UIMask;
