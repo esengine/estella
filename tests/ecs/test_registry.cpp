@@ -472,6 +472,34 @@ TEST_CASE("view_each tolerates mid-iteration remove of the current entity") {
     CHECK_EQ(registry.view<test::Position>().sizeHint(), 0u);
 }
 
+TEST_CASE("onDestroy callback can safely removeOnDestroy itself") {
+    esengine::ecs::Registry registry;
+    esengine::Entity e = registry.create();
+
+    bool other_fired = false;
+    u32 self_id = 0;
+    u32 self_fires = 0;
+
+    u32 other_id = registry.onDestroy([&](esengine::Entity) { other_fired = true; });
+    self_id = registry.onDestroy([&](esengine::Entity) {
+        ++self_fires;
+        registry.removeOnDestroy(self_id);
+    });
+
+    registry.destroy(e);
+
+    CHECK(other_fired);
+    CHECK_EQ(self_fires, 1u);
+
+    esengine::Entity e2 = registry.create();
+    other_fired = false;
+    registry.destroy(e2);
+    CHECK(other_fired);
+    CHECK_EQ(self_fires, 1u);
+
+    registry.removeOnDestroy(other_id);
+}
+
 TEST_CASE("setParent is idempotent on duplicate reparent") {
     esengine::ecs::Registry registry;
     esengine::Entity parent = registry.create();

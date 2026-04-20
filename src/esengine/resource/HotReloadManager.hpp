@@ -20,10 +20,10 @@
 #include "../platform/FileSystem.hpp"
 #include "Handle.hpp"
 
+#include <chrono>
 #include <string>
 #include <mutex>
 #include <unordered_map>
-#include <unordered_set>
 #include <functional>
 #include <typeindex>
 
@@ -154,6 +154,10 @@ public:
      */
     usize getWatchCount() const { return watchedFiles_.size(); }
 
+    /** Time window (ms) a file must be quiet for before reload fires. */
+    void setDebounceMs(u32 ms) { debounce_ms_ = ms; }
+    u32 getDebounceMs() const { return debounce_ms_; }
+
     // =========================================================================
     // Reload Signals
     // =========================================================================
@@ -167,8 +171,9 @@ private:
 
     bool enabled_ = false;
     bool initialized_ = false;
+    u32 debounce_ms_ = 150;
     std::unordered_map<std::string, WatchEntry> watchedFiles_;
-    std::unordered_set<std::string> pendingReloads_;
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> pendingReloads_;
     mutable std::mutex mutex_;
 };
 

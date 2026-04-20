@@ -77,6 +77,7 @@ class SceneInstance {
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessBindings = new Map<Entity, PostProcessStack>();
     readonly savedEnabled = new Map<Entity, Map<AnyComponentDef, boolean>>();
+    readonly systemIds: symbol[] = [];
     loadedTextures: Set<string> | null = null;
     loadedMaterials: Set<number> | null = null;
     loadedFonts: Set<string> | null = null;
@@ -392,6 +393,11 @@ export class SceneManagerState {
         }
         instance.drawCallbacks.clear();
 
+        for (const id of instance.systemIds) {
+            this.app_.removeSystem(id);
+        }
+        instance.systemIds.length = 0;
+
         for (const camera of instance.postProcessBindings.keys()) {
             PostProcess.unbind(camera);
         }
@@ -463,6 +469,7 @@ export class SceneManagerState {
             for (const { schedule, system } of config.systems) {
                 const wrapped = wrapSceneSystem(this.app_, name, system);
                 this.app_.addSystemToSchedule(schedule, wrapped);
+                instance.systemIds.push(wrapped._id);
             }
         }
 

@@ -13,6 +13,8 @@
 #include "../core/Log.hpp"
 #include "../core/RuntimeConfig.hpp"
 
+#include <vector>
+
 namespace esengine::resource {
 
 // =============================================================================
@@ -63,11 +65,19 @@ void HotReloadManager::update() {
         return;
     }
 
-    std::unordered_set<std::string> reloadsToProcess;
+    std::vector<std::string> reloadsToProcess;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        reloadsToProcess = std::move(pendingReloads_);
-        pendingReloads_.clear();
+        const auto now = std::chrono::steady_clock::now();
+        const auto quietFor = std::chrono::milliseconds(debounce_ms_);
+        for (auto it = pendingReloads_.begin(); it != pendingReloads_.end(); ) {
+            if (now - it->second >= quietFor) {
+                reloadsToProcess.push_back(it->first);
+                it = pendingReloads_.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
 
     for (const auto& path : reloadsToProcess) {
@@ -132,7 +142,7 @@ bool HotReloadManager::isWatching(const std::string& path) const {
 
 void HotReloadManager::onFileChanged(const std::string& path) {
     std::lock_guard<std::mutex> lock(mutex_);
-    pendingReloads_.insert(path);
+    pendingReloads_[path] = std::chrono::steady_clock::now();
 }
 
 }  // namespace esengine::resource

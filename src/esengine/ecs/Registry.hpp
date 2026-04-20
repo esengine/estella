@@ -27,6 +27,7 @@
 #include "View.hpp"
 
 // Standard library
+#include <algorithm>
 #include <any>
 #include <functional>
 #include <queue>
@@ -139,8 +140,17 @@ public:
 
         const u32 idx = entity.index();
 
-        for (auto& entry : on_destroy_entries_) {
-            entry.callback(entity);
+        ++firing_destroy_;
+        for (usize i = 0; i < on_destroy_entries_.size(); ++i) {
+            if (on_destroy_entries_[i].dead) continue;
+            on_destroy_entries_[i].callback(entity);
+        }
+        --firing_destroy_;
+        if (firing_destroy_ == 0) {
+            on_destroy_entries_.erase(
+                std::remove_if(on_destroy_entries_.begin(), on_destroy_entries_.end(),
+                               [](const DestroyEntry& e) { return e.dead; }),
+                on_destroy_entries_.end());
         }
 
         component_masks_[idx].forEachSet([&](u32 bit) {
@@ -163,15 +173,20 @@ public:
 
     u32 onDestroy(DestroyCallback callback) {
         u32 id = next_callback_id_++;
-        on_destroy_entries_.push_back({id, std::move(callback)});
+        on_destroy_entries_.push_back({id, std::move(callback), false});
         return id;
     }
 
     void removeOnDestroy(u32 callbackId) {
-        for (usize i = 0; i < on_destroy_entries_.size(); ++i) {
-            if (on_destroy_entries_[i].id == callbackId) {
-                auto pos = static_cast<std::ptrdiff_t>(i);
-                on_destroy_entries_.erase(on_destroy_entries_.begin() + pos);
+        for (auto& entry : on_destroy_entries_) {
+            if (entry.id == callbackId) {
+                entry.dead = true;
+                if (firing_destroy_ == 0) {
+                    on_destroy_entries_.erase(
+                        std::remove_if(on_destroy_entries_.begin(), on_destroy_entries_.end(),
+                                       [](const DestroyEntry& e) { return e.dead; }),
+                        on_destroy_entries_.end());
+                }
                 return;
             }
         }
@@ -630,10 +645,12 @@ private:
     struct DestroyEntry {
         u32 id;
         DestroyCallback callback;
+        bool dead;
     };
 
     std::vector<DestroyEntry> on_destroy_entries_;
     u32 next_callback_id_ = 0;
+    u32 firing_destroy_ = 0;
 };
 
 }  // namespace esengine::ecs

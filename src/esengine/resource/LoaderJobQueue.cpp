@@ -213,12 +213,15 @@ void LoaderJobQueue::workerThread() {
             }
         }
 
+        bool cancelledDuringWork = false;
         {
             std::lock_guard<std::mutex> lock(activeJobsMutex_);
-            activeJobIds_.erase(job.jobId);
+            if (activeJobIds_.erase(job.jobId) == 0) {
+                cancelledDuringWork = true;
+            }
         }
 
-        if (job.completeFn) {
+        if (!cancelledDuringWork && job.completeFn) {
             std::lock_guard<std::mutex> lock(completionMutex_);
             completions_.push(std::move(job.completeFn));
         }
