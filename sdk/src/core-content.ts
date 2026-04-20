@@ -70,6 +70,7 @@ export {
     remapEntityFields,
     updateCameraAspectRatio,
     findEntityByName,
+    serializeScene,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
     getComponentSpineFieldDescriptor,
