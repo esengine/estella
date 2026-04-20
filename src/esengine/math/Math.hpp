@@ -243,14 +243,18 @@ inline void decompose(const glm::mat4& matrix, glm::vec3& position, glm::vec3& r
     scale.y = glm::length(glm::vec3(matrix[1]));
     scale.z = glm::length(glm::vec3(matrix[2]));
 
-    // Remove scale from matrix for rotation extraction
+    // Guard zero-scale axes: dividing by 0 produces NaN/Inf that propagates
+    // silently into Euler angles and corrupts every downstream transform.
+    const float sx = scale.x > EPSILON ? scale.x : EPSILON;
+    const float sy = scale.y > EPSILON ? scale.y : EPSILON;
+    const float sz = scale.z > EPSILON ? scale.z : EPSILON;
+
     glm::mat3 rotMatrix(
-        glm::vec3(matrix[0]) / scale.x,
-        glm::vec3(matrix[1]) / scale.y,
-        glm::vec3(matrix[2]) / scale.z
+        glm::vec3(matrix[0]) / sx,
+        glm::vec3(matrix[1]) / sy,
+        glm::vec3(matrix[2]) / sz
     );
 
-    // Extract Euler angles from rotation matrix
     rotation.x = std::atan2(rotMatrix[2][1], rotMatrix[2][2]);
     rotation.y = std::atan2(-rotMatrix[2][0],
         std::sqrt(rotMatrix[2][1] * rotMatrix[2][1] + rotMatrix[2][2] * rotMatrix[2][2]));
@@ -279,14 +283,17 @@ inline void decompose(const glm::mat4& matrix, glm::vec3& position, glm::quat& r
     scale.y = glm::length(glm::vec3(matrix[1]));
     scale.z = glm::length(glm::vec3(matrix[2]));
 
-    // Build rotation matrix without scale
+    // Guard zero-scale axes to avoid NaN/Inf in the quaternion.
+    const float sx = scale.x > EPSILON ? scale.x : EPSILON;
+    const float sy = scale.y > EPSILON ? scale.y : EPSILON;
+    const float sz = scale.z > EPSILON ? scale.z : EPSILON;
+
     glm::mat3 rotMatrix(
-        glm::vec3(matrix[0]) / scale.x,
-        glm::vec3(matrix[1]) / scale.y,
-        glm::vec3(matrix[2]) / scale.z
+        glm::vec3(matrix[0]) / sx,
+        glm::vec3(matrix[1]) / sy,
+        glm::vec3(matrix[2]) / sz
     );
 
-    // Convert rotation matrix to quaternion
     rotation = glm::quat_cast(rotMatrix);
 }
 
