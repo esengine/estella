@@ -5,6 +5,7 @@
 #include "../ecs/components/BitmapText.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/TilemapLayer.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/UIRenderer.hpp"
@@ -19,10 +20,11 @@ enum class AnimTargetComponent : u8 {
     BitmapText = 0,
     Camera = 1,
     Sprite = 2,
-    Transform = 3,
-    UIRect = 4,
-    UIRenderer = 5,
-    Custom = 6,
+    TilemapLayer = 3,
+    Transform = 4,
+    UIRect = 5,
+    UIRenderer = 6,
+    Custom = 7,
     COUNT
 };
 
@@ -38,28 +40,33 @@ enum class AnimTargetField : u8 {
     SpriteColorA = 8,
     SpriteSizeX = 9,
     SpriteSizeY = 10,
-    TransformPositionX = 11,
-    TransformPositionY = 12,
-    TransformPositionZ = 13,
-    TransformRotationZ = 14,
-    TransformScaleX = 15,
-    TransformScaleY = 16,
-    TransformScaleZ = 17,
-    UIRectAnchorMinX = 18,
-    UIRectAnchorMinY = 19,
-    UIRectAnchorMaxX = 20,
-    UIRectAnchorMaxY = 21,
-    UIRectOffsetMinX = 22,
-    UIRectOffsetMinY = 23,
-    UIRectOffsetMaxX = 24,
-    UIRectOffsetMaxY = 25,
-    UIRectPivotX = 26,
-    UIRectPivotY = 27,
-    UIRendererColorR = 28,
-    UIRendererColorG = 29,
-    UIRendererColorB = 30,
-    UIRendererColorA = 31,
-    CustomField = 32,
+    TilemapLayerTintColorR = 11,
+    TilemapLayerTintColorG = 12,
+    TilemapLayerTintColorB = 13,
+    TilemapLayerTintColorA = 14,
+    TilemapLayerOpacity = 15,
+    TransformPositionX = 16,
+    TransformPositionY = 17,
+    TransformPositionZ = 18,
+    TransformRotationZ = 19,
+    TransformScaleX = 20,
+    TransformScaleY = 21,
+    TransformScaleZ = 22,
+    UIRectAnchorMinX = 23,
+    UIRectAnchorMinY = 24,
+    UIRectAnchorMaxX = 25,
+    UIRectAnchorMaxY = 26,
+    UIRectOffsetMinX = 27,
+    UIRectOffsetMinY = 28,
+    UIRectOffsetMaxX = 29,
+    UIRectOffsetMaxY = 30,
+    UIRectPivotX = 31,
+    UIRectPivotY = 32,
+    UIRendererColorR = 33,
+    UIRendererColorG = 34,
+    UIRendererColorB = 35,
+    UIRendererColorA = 36,
+    CustomField = 37,
     COUNT
 };
 
@@ -121,6 +128,31 @@ inline void applyAnimatedValue(
         case AnimTargetField::SpriteSizeY:
             if (auto* c = registry.tryGet<ecs::Sprite>(entity)) {
                 c->size.y = value;
+            }
+            break;
+        case AnimTargetField::TilemapLayerTintColorR:
+            if (auto* c = registry.tryGet<ecs::TilemapLayer>(entity)) {
+                c->tintColor.r = value;
+            }
+            break;
+        case AnimTargetField::TilemapLayerTintColorG:
+            if (auto* c = registry.tryGet<ecs::TilemapLayer>(entity)) {
+                c->tintColor.g = value;
+            }
+            break;
+        case AnimTargetField::TilemapLayerTintColorB:
+            if (auto* c = registry.tryGet<ecs::TilemapLayer>(entity)) {
+                c->tintColor.b = value;
+            }
+            break;
+        case AnimTargetField::TilemapLayerTintColorA:
+            if (auto* c = registry.tryGet<ecs::TilemapLayer>(entity)) {
+                c->tintColor.a = value;
+            }
+            break;
+        case AnimTargetField::TilemapLayerOpacity:
+            if (auto* c = registry.tryGet<ecs::TilemapLayer>(entity)) {
+                c->opacity = value;
             }
             break;
         case AnimTargetField::TransformPositionX:

@@ -17,7 +17,9 @@
 #endif
 
 #include <emscripten/bind.h>
+#include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace esengine {
@@ -37,6 +39,13 @@ void tilemap_initLayer(u32 entity, u32 width, u32 height,
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
     getTilemapSystem().initLayer(e, width, height, tileWidth, tileHeight);
+}
+
+void tilemap_initInfinite(u32 entity, f32 tileWidth, f32 tileHeight) {
+    auto e = Entity::fromRaw(entity);
+    if (e == INVALID_ENTITY) return;
+    if (getTilemapSystem().hasLayer(e)) return;
+    getTilemapSystem().initInfiniteLayer(e, tileWidth, tileHeight);
 }
 
 void tilemap_destroyLayer(u32 entity) {
@@ -174,6 +183,166 @@ void tilemap_setVisible(u32 entity, bool visible) {
 void tilemap_setOriginEntity(u32 layerKey, u32 originEntity) {
     getTilemapSystem().setOriginEntity(Entity::fromRaw(layerKey),
                                     Entity::fromRaw(originEntity));
+}
+
+// --- Chunk serialization ---
+
+namespace {
+
+// Base64 encoding uses the URL-safe alphabet (`-` / `_` instead of `+` / `/`)
+// so the output embeds cleanly in JSON scene files without escaping and can
+// also survive a ?query= parameter if anyone ever serves scenes over HTTP.
+constexpr const char* kB64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+void base64Encode(const u8* data, usize len, std::string& out) {
+    out.reserve(out.size() + ((len + 2) / 3) * 4);
+    usize i = 0;
+    while (i + 3 <= len) {
+        const u32 v = (u32(data[i]) << 16) | (u32(data[i + 1]) << 8) | u32(data[i + 2]);
+        out.push_back(kB64[(v >> 18) & 0x3F]);
+        out.push_back(kB64[(v >> 12) & 0x3F]);
+        out.push_back(kB64[(v >> 6) & 0x3F]);
+        out.push_back(kB64[v & 0x3F]);
+        i += 3;
+    }
+    if (i < len) {
+        const u32 v = (u32(data[i]) << 16) | (i + 1 < len ? (u32(data[i + 1]) << 8) : 0);
+        out.push_back(kB64[(v >> 18) & 0x3F]);
+        out.push_back(kB64[(v >> 12) & 0x3F]);
+        if (i + 1 < len) {
+            out.push_back(kB64[(v >> 6) & 0x3F]);
+        } else {
+            out.push_back('=');
+        }
+        out.push_back('=');
+    }
+}
+
+i32 b64Value(char c) {
+    if (c >= 'A' && c <= 'Z') return c - 'A';
+    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+    if (c >= '0' && c <= '9') return c - '0' + 52;
+    if (c == '-' || c == '+') return 62;
+    if (c == '_' || c == '/') return 63;
+    return -1;
+}
+
+bool base64Decode(const std::string& in, std::vector<u8>& out) {
+    out.clear();
+    out.reserve(in.size() * 3 / 4);
+    i32 buf = 0;
+    i32 bits = 0;
+    for (char c : in) {
+        if (c == '=' || c == '\n' || c == '\r' || c == ' ') continue;
+        const i32 v = b64Value(c);
+        if (v < 0) return false;
+        buf = (buf << 6) | v;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            out.push_back(static_cast<u8>((buf >> bits) & 0xFF));
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+// Exports every non-empty chunk of `entity` as a single base64-encoded
+// blob. Layout (all little-endian):
+//   u32 magic = 'ESTM'   (header — version-check on import)
+//   u32 chunkCount
+//   repeated for each chunk:
+//     i32 chunkX, i32 chunkY
+//     u16 tiles[CHUNK_SIZE * CHUNK_SIZE]
+// Empty chunks are skipped to keep the payload compact for sparse maps.
+std::string tilemap_exportChunks(u32 entity) {
+    auto e = Entity::fromRaw(entity);
+    const auto* layer = getTilemapSystem().getLayerData(e);
+    if (!layer) return {};
+
+    std::vector<std::pair<tilemap::ChunkCoord, const tilemap::ChunkData*>> nonEmpty;
+    nonEmpty.reserve(layer->chunks.size());
+    for (const auto& [coord, chunk] : layer->chunks) {
+        bool anyTile = false;
+        for (u32 i = 0; i < tilemap::CHUNK_SIZE * tilemap::CHUNK_SIZE; ++i) {
+            if (chunk.tiles[i] != tilemap::EMPTY_TILE) { anyTile = true; break; }
+        }
+        if (anyTile) nonEmpty.emplace_back(coord, &chunk);
+    }
+
+    const u32 magic = 0x4D545345u;  // 'ESTM'
+    const u32 count = static_cast<u32>(nonEmpty.size());
+    const usize perChunk = sizeof(i32) * 2
+        + tilemap::CHUNK_SIZE * tilemap::CHUNK_SIZE * sizeof(u16);
+    std::vector<u8> raw;
+    raw.reserve(sizeof(u32) * 2 + count * perChunk);
+
+    auto append = [&](const void* p, usize n) {
+        const u8* b = static_cast<const u8*>(p);
+        raw.insert(raw.end(), b, b + n);
+    };
+    append(&magic, sizeof(magic));
+    append(&count, sizeof(count));
+    for (const auto& [coord, chunk] : nonEmpty) {
+        append(&coord.x, sizeof(coord.x));
+        append(&coord.y, sizeof(coord.y));
+        append(chunk->tiles, sizeof(chunk->tiles));
+    }
+
+    std::string out;
+    base64Encode(raw.data(), raw.size(), out);
+    return out;
+}
+
+bool tilemap_importChunks(u32 entity, const std::string& encoded) {
+    auto e = Entity::fromRaw(entity);
+    // Auto-init as infinite if the caller didn't pre-create a layer — the
+    // scene loader path inserts the TilemapLayer component first and then
+    // expects the chunks to land, so we can't require a separate init call.
+    if (!getTilemapSystem().hasLayer(e)) {
+        getTilemapSystem().initInfiniteLayer(e, 32.0f, 32.0f);
+    }
+    auto* layer = getTilemapSystem().getLayerDataMut(e);
+    if (!layer) return false;
+
+    std::vector<u8> raw;
+    if (!base64Decode(encoded, raw)) return false;
+    if (raw.size() < sizeof(u32) * 2) return false;
+
+    auto read = [&raw](usize offset, void* out, usize n) -> bool {
+        if (offset + n > raw.size()) return false;
+        std::memcpy(out, raw.data() + offset, n);
+        return true;
+    };
+
+    u32 magic = 0;
+    u32 count = 0;
+    if (!read(0, &magic, sizeof(magic))) return false;
+    if (magic != 0x4D545345u) return false;
+    if (!read(sizeof(u32), &count, sizeof(count))) return false;
+
+    const usize perChunk = sizeof(i32) * 2
+        + tilemap::CHUNK_SIZE * tilemap::CHUNK_SIZE * sizeof(u16);
+    if (raw.size() < sizeof(u32) * 2 + static_cast<usize>(count) * perChunk) return false;
+
+    layer->chunks.clear();
+    usize cursor = sizeof(u32) * 2;
+    for (u32 i = 0; i < count; ++i) {
+        i32 cx = 0, cy = 0;
+        if (!read(cursor, &cx, sizeof(cx))) return false;
+        cursor += sizeof(cx);
+        if (!read(cursor, &cy, sizeof(cy))) return false;
+        cursor += sizeof(cy);
+
+        tilemap::ChunkData chunk;
+        if (!read(cursor, chunk.tiles, sizeof(chunk.tiles))) return false;
+        cursor += sizeof(chunk.tiles);
+        chunk.dirty = true;
+        layer->chunks[tilemap::ChunkCoord{cx, cy}] = chunk;
+    }
+
+    return true;
 }
 
 // --- Tiled map loader bindings ---
@@ -581,6 +750,7 @@ uintptr_t tilemap_worldToTile(u32 entity, f32 wx, f32 wy,
 
 EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tilemap_initLayer", &esengine::tilemap_initLayer);
+    emscripten::function("tilemap_initInfinite", &esengine::tilemap_initInfinite);
     emscripten::function("tilemap_destroyLayer", &esengine::tilemap_destroyLayer);
     emscripten::function("tilemap_setTile", &esengine::tilemap_setTile);
     emscripten::function("tilemap_getTile", &esengine::tilemap_getTile);
@@ -592,6 +762,8 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tilemap_setTint", &esengine::tilemap_setTint);
     emscripten::function("tilemap_setVisible", &esengine::tilemap_setVisible);
     emscripten::function("tilemap_setOriginEntity", &esengine::tilemap_setOriginEntity);
+    emscripten::function("tilemap_exportChunks", &esengine::tilemap_exportChunks);
+    emscripten::function("tilemap_importChunks", &esengine::tilemap_importChunks);
 
     emscripten::function("tiled_loadMap", &esengine::tiled_loadMap);
     emscripten::function("tiled_freeMap", &esengine::tiled_freeMap);
