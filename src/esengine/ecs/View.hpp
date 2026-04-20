@@ -270,21 +270,11 @@ public:
     void each(Func&& func) {
         if (!smallest_) return;
 
-        // Snapshot the entity list so the callback can safely
-        // emplace/remove components mid-iteration — the snapshot is
-        // O(n) up front, but any pool realloc inside the callback
-        // would otherwise invalidate a live reference and silently
-        // corrupt the iteration.
-        //
-        // After the snapshot, each step re-checks that the entity
-        // still has the smallest component (it may have been removed
-        // by the callback). The smallest pool's dense index is no
-        // longer used for the fast read, since mutations can reorder
-        // it — look the component up by entity instead.
+        // Snapshot tolerates emplace/remove on the smallest pool during the callback.
         std::vector<Entity> entities = smallest_->entities();
 
         for (Entity entity : entities) {
-            if (!smallestStillHas(entity)) continue;
+            if (!smallest_->contains(entity)) continue;
             if (!allHaveExceptSmallest(entity)) continue;
 
             if constexpr (std::is_invocable_v<Func, Entity, Components&...>) {
@@ -301,10 +291,6 @@ private:
     template<typename T>
     T& getByEntity(Entity entity) {
         return std::get<SparseSet<T>*>(pools_)->getUnchecked(entity);
-    }
-
-    bool smallestStillHas(Entity entity) const {
-        return smallest_->contains(entity);
     }
 
     bool allHaveExceptSmallest(Entity entity) const {

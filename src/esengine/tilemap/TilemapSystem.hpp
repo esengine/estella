@@ -86,12 +86,6 @@ public:
 
     void setTileProperty(Entity entity, u16 tileId,
                          const std::string& key, const std::string& value);
-    /**
-     * Return the property value copied by value — do NOT return a
-     * pointer into internal storage. Previous iterations used a
-     * file-scope static buffer which corrupted on back-to-back calls
-     * and was unsafe across threads.
-     */
     std::string getTileProperty(Entity entity, u16 tileId,
                                 const std::string& key) const;
 
