@@ -393,6 +393,24 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['slot0Color', 'slot1Color', 'slot2Color', 'slot3Color', 'slot4Color', 'slot5Color', 'slot6Color', 'slot7Color'],
         animatableFields: [],
     },
+    TilemapLayer: {
+        defaults: {
+            cellSize: { x: 32, y: 32 },
+            originOffset: { x: 0, y: 0 },
+            tileset: 0,
+            tilesetColumns: 1,
+            tilesetRows: 1,
+            renderLayer: 0,
+            tintColor: { r: 1, g: 1, b: 1, a: 1 },
+            opacity: 1,
+            parallaxFactor: { x: 1, y: 1 },
+            visible: true,
+        },
+        assetFields: [{ field: 'tileset', type: 'texture' as AssetFieldType }],
+        entityFields: [],
+        colorFields: ['tintColor'],
+        animatableFields: ['tintColor.r', 'tintColor.g', 'tintColor.b', 'tintColor.a', 'opacity'],
+    },
     Transform: {
         defaults: {
             position: { x: 0, y: 0, z: 0 },

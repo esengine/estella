@@ -240,6 +240,7 @@ export interface ESEngineModule {
     // Tilemap API
     tilemap_initLayer?(entity: number, width: number, height: number,
                        tileWidth: number, tileHeight: number): void;
+    tilemap_initInfinite?(entity: number, tileWidth: number, tileHeight: number): void;
     tilemap_destroyLayer?(entity: number): void;
     tilemap_setTile?(entity: number, x: number, y: number, tileId: number): void;
     tilemap_getTile?(entity: number, x: number, y: number): number;
@@ -247,6 +248,8 @@ export interface ESEngineModule {
                       w: number, h: number, tileId: number): void;
     tilemap_setTiles?(entity: number, tilesPtr: number, count: number): void;
     tilemap_hasLayer?(entity: number): boolean;
+    tilemap_exportChunks?(entity: number): string;
+    tilemap_importChunks?(entity: number, encoded: string): boolean;
     tilemap_submitLayer?(entity: number, textureId: number,
                          sortLayer: number, depth: number,
                          tilesetColumns: number,
