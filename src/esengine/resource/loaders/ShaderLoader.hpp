@@ -56,13 +56,24 @@ public:
     const char* getTypeName() const override { return "Shader"; }
 
     /**
-     * @brief Loads a shader from source string
+     * @brief Loads a shader from source string (no include support)
      * @param source Complete .esshader content
      * @param platform Platform variant to use (empty for auto-detect)
      * @return Load result with shader or error message
      */
     LoadResult<Shader> loadFromSource(const std::string& source,
                                        const std::string& platform = "");
+
+    /**
+     * @brief Loads a shader from source string, expanding #include via resolver
+     * @param source Complete .esshader content
+     * @param platform Platform variant to use (empty for auto-detect)
+     * @param resolver Callback invoked to fetch included files
+     * @return Load result with shader or error message
+     */
+    LoadResult<Shader> loadFromSource(const std::string& source,
+                                       const std::string& platform,
+                                       const ShaderIncludeResolver& resolver);
 
     /**
      * @brief Gets the default platform identifier for current build

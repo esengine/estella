@@ -18,11 +18,26 @@
 
 #include "../core/Types.hpp"
 
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 #include <unordered_map>
 
 namespace esengine::resource {
+
+// =============================================================================
+// Include Resolver
+// =============================================================================
+
+/**
+ * @brief Resolves an #include path to its file contents.
+ *
+ * Return std::nullopt to signal "not found" — the parser will report a
+ * descriptive error. Resolvers are free to cache, normalize paths, or
+ * delegate to a virtual filesystem.
+ */
+using ShaderIncludeResolver = std::function<std::optional<std::string>(const std::string&)>;
 
 // =============================================================================
 // Shader Stage Enum
@@ -107,11 +122,20 @@ struct ParsedShader {
 class ShaderParser {
 public:
     /**
-     * @brief Parses shader source into structured format
+     * @brief Parses shader source into structured format (no include support)
      * @param source The complete .esshader file content
      * @return Parsed shader data with valid flag indicating success
      */
     static ParsedShader parse(const std::string& source);
+
+    /**
+     * @brief Parses shader source with #include "path" expansion
+     * @param source The complete .esshader file content
+     * @param resolver Callback used to fetch included file contents
+     * @return Parsed shader data with valid flag indicating success
+     */
+    static ParsedShader parse(const std::string& source,
+                              const ShaderIncludeResolver& resolver);
 
     /**
      * @brief Assembles final GLSL source for a specific stage

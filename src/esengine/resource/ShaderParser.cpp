@@ -14,8 +14,76 @@
 
 #include <sstream>
 #include <algorithm>
+#include <unordered_set>
 
 namespace esengine::resource {
+
+// =============================================================================
+// Include Expansion
+// =============================================================================
+
+namespace {
+
+constexpr u32 kMaxIncludeDepth = 16;
+
+std::string ltrim(const std::string& s) {
+    usize start = s.find_first_not_of(" \t");
+    return start == std::string::npos ? std::string() : s.substr(start);
+}
+
+bool expandIncludes(const std::string& source,
+                    const ShaderIncludeResolver& resolver,
+                    std::unordered_set<std::string>& active,
+                    u32 depth,
+                    std::string& out,
+                    std::string& errorMessage) {
+    if (depth > kMaxIncludeDepth) {
+        errorMessage = "Shader include depth exceeded " + std::to_string(kMaxIncludeDepth);
+        return false;
+    }
+
+    std::istringstream stream(source);
+    std::string line;
+    while (std::getline(stream, line)) {
+        const std::string lead = ltrim(line);
+        if (lead.rfind("#include", 0) != 0) {
+            out += line;
+            out += '\n';
+            continue;
+        }
+
+        const usize q1 = lead.find('"');
+        const usize q2 = (q1 == std::string::npos) ? std::string::npos : lead.find('"', q1 + 1);
+        if (q1 == std::string::npos || q2 == std::string::npos || q2 <= q1 + 1) {
+            errorMessage = "Malformed #include directive: " + line;
+            return false;
+        }
+        const std::string path = lead.substr(q1 + 1, q2 - q1 - 1);
+
+        if (!resolver) {
+            errorMessage = "#include \"" + path + "\" used but no include resolver was provided";
+            return false;
+        }
+        if (active.count(path) != 0) {
+            errorMessage = "Circular #include of \"" + path + "\"";
+            return false;
+        }
+        std::optional<std::string> contents = resolver(path);
+        if (!contents) {
+            errorMessage = "Could not resolve #include \"" + path + "\"";
+            return false;
+        }
+
+        active.insert(path);
+        if (!expandIncludes(*contents, resolver, active, depth + 1, out, errorMessage)) {
+            return false;
+        }
+        active.erase(path);
+    }
+    return true;
+}
+
+}  // namespace
 
 // =============================================================================
 // Parser State
@@ -34,6 +102,10 @@ enum class ParseState {
 // =============================================================================
 
 ParsedShader ShaderParser::parse(const std::string& source) {
+    return parse(source, ShaderIncludeResolver{});
+}
+
+ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeResolver& resolver) {
     ParsedShader result;
     result.valid = false;
 
@@ -42,7 +114,17 @@ ParsedShader ShaderParser::parse(const std::string& source) {
         return result;
     }
 
-    std::istringstream stream(source);
+    std::string expanded;
+    {
+        std::unordered_set<std::string> active;
+        std::string includeError;
+        if (!expandIncludes(source, resolver, active, 0, expanded, includeError)) {
+            result.errorMessage = includeError;
+            return result;
+        }
+    }
+
+    std::istringstream stream(expanded);
     std::string line;
     ParseState state = ParseState::Global;
     std::string currentVariantName;

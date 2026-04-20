@@ -46,8 +46,28 @@ LoadResult<Shader> ShaderFileLoader::load(const LoadRequest& request) {
         return LoadResult<Shader>::err("Failed to read shader file: " + request.path);
     }
 
-    auto result = loadFromSource(source, request.platform);
+    std::string shaderDir;
+    const usize slash = request.path.find_last_of("/\\");
+    if (slash != std::string::npos) {
+        shaderDir = request.path.substr(0, slash);
+    }
+
+    std::vector<std::string> includedPaths;
+    ShaderIncludeResolver resolver = [&shaderDir, &includedPaths](const std::string& include)
+        -> std::optional<std::string> {
+        std::string full = shaderDir.empty() ? include : shaderDir + "/" + include;
+        if (!FileSystem::fileExists(full)) return std::nullopt;
+        std::string contents = FileSystem::readTextFile(full);
+        if (contents.empty()) return std::nullopt;
+        includedPaths.push_back(std::move(full));
+        return contents;
+    };
+
+    auto result = loadFromSource(source, request.platform, resolver);
     result.dependencies.push_back(request.path);
+    for (auto& dep : includedPaths) {
+        result.dependencies.push_back(std::move(dep));
+    }
 
     if (result.isOk()) {
         ES_LOG_DEBUG("ShaderFileLoader: Loaded shader from {}", request.path);
@@ -58,7 +78,13 @@ LoadResult<Shader> ShaderFileLoader::load(const LoadRequest& request) {
 
 LoadResult<Shader> ShaderFileLoader::loadFromSource(const std::string& source,
                                                      const std::string& platform) {
-    ParsedShader parsed = ShaderParser::parse(source);
+    return loadFromSource(source, platform, ShaderIncludeResolver{});
+}
+
+LoadResult<Shader> ShaderFileLoader::loadFromSource(const std::string& source,
+                                                     const std::string& platform,
+                                                     const ShaderIncludeResolver& resolver) {
+    ParsedShader parsed = ShaderParser::parse(source, resolver);
     if (!parsed.valid) {
         ES_LOG_ERROR("ShaderFileLoader: {}", parsed.errorMessage);
         return LoadResult<Shader>::err("Shader parse error: " + parsed.errorMessage);
