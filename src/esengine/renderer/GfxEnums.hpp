@@ -14,6 +14,8 @@
 
 #include "../core/Types.hpp"
 
+#include <string>
+
 namespace esengine {
 
 // =============================================================================
@@ -84,6 +86,35 @@ enum class GfxPixelFormat : u8 {
 enum class GfxAttachment : u8 {
     Color0,
     Depth,
+};
+
+// =============================================================================
+// Uniform Reflection
+// =============================================================================
+
+enum class GfxUniformType : u8 {
+    Unknown,
+    Float,
+    Vec2,
+    Vec3,
+    Vec4,
+    Int,
+    IVec2,
+    IVec3,
+    IVec4,
+    Bool,
+    Mat2,
+    Mat3,
+    Mat4,
+    Sampler2D,
+    SamplerCube,
+};
+
+struct GfxUniformInfo {
+    std::string name;
+    GfxUniformType type = GfxUniformType::Unknown;
+    i32 location = -1;
+    u32 arraySize = 1;
 };
 
 }  // namespace esengine
