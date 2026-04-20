@@ -535,8 +535,7 @@ std::string tilemap_getTileProperty(u32 entity, i32 x, i32 y,
     u16 raw = getTilemapSystem().getTile(e, x, y);
     u16 tileId = raw & tilemap::TILE_ID_MASK;
     if (tileId == tilemap::EMPTY_TILE) return "";
-    const char* val = getTilemapSystem().getTileProperty(e, tileId, key);
-    return val ? std::string(val) : "";
+    return getTilemapSystem().getTileProperty(e, tileId, key);
 }
 
 void tilemap_flipTile(u32 entity, i32 x, i32 y,
