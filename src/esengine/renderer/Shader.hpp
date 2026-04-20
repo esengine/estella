@@ -34,6 +34,31 @@ struct AttribBinding {
     const char* name;
 };
 
+/** @brief Which pipeline stage rejected a shader during compile/link. */
+enum class ShaderStageFailure : u8 {
+    None,
+    Vertex,
+    Fragment,
+    Link,
+};
+
+// Forward declare Shader for the outcome struct.
+class Shader;
+
+/**
+ * @brief Result returned by Shader::createEx when you need the raw driver log.
+ *
+ * On success `shader` is non-null and `failedStage == None`. On failure
+ * `shader` is null, `failedStage` identifies which step rejected the source,
+ * and `log` carries the GL info log verbatim (ready to feed into
+ * ShaderParser::remapCompilerLog).
+ */
+struct ShaderCompileOutcome {
+    Unique<Shader> shader;
+    ShaderStageFailure failedStage = ShaderStageFailure::None;
+    std::string log;
+};
+
 // =============================================================================
 // Shader Class
 // =============================================================================
@@ -94,6 +119,17 @@ public:
      * @return Unique pointer to the shader, or nullptr on failure
      */
     static Unique<Shader> createFromFile(const std::string& vertexPath, const std::string& fragmentPath);
+
+    /**
+     * @brief Creates a shader and exposes the driver log on failure
+     *
+     * Same behaviour as createWithBindings but returns a ShaderCompileOutcome
+     * so callers (notably ShaderLoader) can remap the GL log back to the
+     * original .esshader file and line numbers.
+     */
+    static ShaderCompileOutcome createEx(const std::string& vertexSrc,
+                                         const std::string& fragmentSrc,
+                                         std::initializer_list<AttribBinding> bindings = {});
 
     // =========================================================================
     // Operations
@@ -170,7 +206,9 @@ private:
      * @return True on success
      */
     bool compile(const std::string& vertexSrc, const std::string& fragmentSrc,
-                 std::initializer_list<AttribBinding> bindings = {});
+                 std::initializer_list<AttribBinding> bindings = {},
+                 std::string* outLog = nullptr,
+                 ShaderStageFailure* outFailedStage = nullptr);
 
     void reflectActiveUniforms();
 

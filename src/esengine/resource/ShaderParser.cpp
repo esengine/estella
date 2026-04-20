@@ -283,35 +283,57 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
 std::string ShaderParser::assembleStage(const ParsedShader& parsed,
                                         ShaderStage stage,
                                         const std::string& platform) {
-    if (!parsed.valid) {
-        return "";
+    return assembleStageEx(parsed, stage, platform).source;
+}
+
+namespace {
+
+u32 countNewlines(const std::string& s) {
+    u32 n = 0;
+    for (char c : s) {
+        if (c == '\n') ++n;
     }
+    return n;
+}
+
+}  // namespace
+
+ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& parsed,
+                                                           ShaderStage stage,
+                                                           const std::string& platform) {
+    AssembledStage result;
+
+    if (!parsed.valid) return result;
 
     auto stageIt = parsed.stages.find(stage);
-    if (stageIt == parsed.stages.end()) {
-        return "";
-    }
+    if (stageIt == parsed.stages.end()) return result;
 
     std::ostringstream assembled;
+    u32 headerLines = 0;
 
     if (!parsed.version.empty()) {
         assembled << "#version " << parsed.version << "\n";
+        ++headerLines;
     }
 
     if (!platform.empty()) {
         auto variantIt = parsed.variants.find(platform);
         if (variantIt != parsed.variants.end()) {
             assembled << variantIt->second;
+            headerLines += countNewlines(variantIt->second);
         }
     }
 
     if (!parsed.sharedCode.empty()) {
         assembled << parsed.sharedCode;
+        headerLines += countNewlines(parsed.sharedCode);
     }
 
     assembled << stageIt->second;
 
-    return assembled.str();
+    result.source = assembled.str();
+    result.headerLineCount = headerLines;
+    return result;
 }
 
 namespace {
