@@ -92,25 +92,53 @@ LoadResult<Shader> ShaderFileLoader::loadFromSource(const std::string& source,
 
     std::string effectivePlatform = platform.empty() ? getDefaultPlatform() : platform;
 
-    std::string vertexSrc = ShaderParser::assembleStage(parsed, ShaderStage::Vertex, effectivePlatform);
-    std::string fragmentSrc = ShaderParser::assembleStage(parsed, ShaderStage::Fragment, effectivePlatform);
+    auto vertexAssembled = ShaderParser::assembleStageEx(parsed, ShaderStage::Vertex, effectivePlatform);
+    auto fragmentAssembled = ShaderParser::assembleStageEx(parsed, ShaderStage::Fragment, effectivePlatform);
 
-    if (vertexSrc.empty()) {
+    if (vertexAssembled.source.empty()) {
         return LoadResult<Shader>::err("Failed to assemble vertex shader");
     }
 
-    if (fragmentSrc.empty()) {
+    if (fragmentAssembled.source.empty()) {
         return LoadResult<Shader>::err("Failed to assemble fragment shader");
     }
 
-    auto shader = Shader::create(vertexSrc, fragmentSrc);
-    if (!shader || !shader->isValid()) {
-        ES_LOG_ERROR("ShaderFileLoader: Failed to compile shader");
-        return LoadResult<Shader>::err("Failed to compile shader");
+    auto outcome = Shader::createEx(vertexAssembled.source, fragmentAssembled.source);
+    if (!outcome.shader || !outcome.shader->isValid()) {
+        std::string remapped = outcome.log;
+        const char* stageLabel = "unknown";
+        switch (outcome.failedStage) {
+            case ShaderStageFailure::Vertex: {
+                stageLabel = "vertex";
+                auto it = parsed.stageLineMaps.find(ShaderStage::Vertex);
+                if (it != parsed.stageLineMaps.end()) {
+                    remapped = ShaderParser::remapCompilerLog(
+                        outcome.log, it->second, vertexAssembled.headerLineCount);
+                }
+                break;
+            }
+            case ShaderStageFailure::Fragment: {
+                stageLabel = "fragment";
+                auto it = parsed.stageLineMaps.find(ShaderStage::Fragment);
+                if (it != parsed.stageLineMaps.end()) {
+                    remapped = ShaderParser::remapCompilerLog(
+                        outcome.log, it->second, fragmentAssembled.headerLineCount);
+                }
+                break;
+            }
+            case ShaderStageFailure::Link:
+                stageLabel = "link";
+                break;
+            case ShaderStageFailure::None:
+                break;
+        }
+        ES_LOG_ERROR("ShaderFileLoader: {} stage failed — {}", stageLabel, remapped);
+        return LoadResult<Shader>::err(
+            std::string{"Shader "} + stageLabel + " stage failed:\n" + remapped);
     }
 
     ES_LOG_DEBUG("ShaderFileLoader: Successfully compiled shader '{}'", parsed.name);
-    return LoadResult<Shader>::ok(std::move(shader));
+    return LoadResult<Shader>::ok(std::move(outcome.shader));
 }
 
 std::string ShaderFileLoader::getDefaultPlatform() {

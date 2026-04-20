@@ -183,6 +183,23 @@ public:
                                      const std::string& platform = "");
 
     /**
+     * @brief Like assembleStage, but also reports the line count of the
+     *        assembled prefix (version + variant + sharedCode).
+     *
+     * Stage body starts at output line (headerLineCount + 1); pass
+     * headerLineCount to remapCompilerLog as its `headerLineOffset`
+     * so GL log line numbers can be translated back to the original file.
+     */
+    struct AssembledStage {
+        std::string source;
+        u32 headerLineCount = 0;
+    };
+
+    static AssembledStage assembleStageEx(const ParsedShader& parsed,
+                                          ShaderStage stage,
+                                          const std::string& platform = "");
+
+    /**
      * @brief Rewrites GL compile-log line references back to original files
      *
      * Scans @p log for `0:N:` and `0(N)` patterns (the two common vendor

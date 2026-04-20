@@ -119,47 +119,70 @@ void Shader::unbind() const {
     glUseProgram(0);
 }
 
+namespace {
+
+std::string readShaderInfoLog(GLuint shader) {
+    GLint logLength = 0;
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+    if (logLength <= 0) return {};
+    std::string log(static_cast<size_t>(logLength), '\0');
+    glGetShaderInfoLog(shader, logLength, nullptr, log.data());
+    // Drop the trailing NUL glGetShaderInfoLog writes inside the buffer.
+    if (!log.empty() && log.back() == '\0') log.pop_back();
+    return log;
+}
+
+std::string readProgramInfoLog(GLuint program) {
+    GLint logLength = 0;
+    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+    if (logLength <= 0) return {};
+    std::string log(static_cast<size_t>(logLength), '\0');
+    glGetProgramInfoLog(program, logLength, nullptr, log.data());
+    if (!log.empty() && log.back() == '\0') log.pop_back();
+    return log;
+}
+
+}  // namespace
+
 bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSrc,
-                     std::initializer_list<AttribBinding> bindings) {
-    // Create vertex shader
+                     std::initializer_list<AttribBinding> bindings,
+                     std::string* outLog,
+                     ShaderStageFailure* outFailedStage) {
+    auto setFailure = [&](ShaderStageFailure stage, std::string&& log) {
+        if (outLog) *outLog = std::move(log);
+        if (outFailedStage) *outFailedStage = stage;
+    };
+
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
     const char* vertexSrcPtr = vertexSrc.c_str();
     glShaderSource(vertexShader, 1, &vertexSrcPtr, nullptr);
     glCompileShader(vertexShader);
 
-    // Check vertex shader compilation
     GLint success;
     glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
     if (!success) {
-        GLint logLength;
-        glGetShaderiv(vertexShader, GL_INFO_LOG_LENGTH, &logLength);
-        std::string log(logLength, '\0');
-        glGetShaderInfoLog(vertexShader, logLength, nullptr, log.data());
+        std::string log = readShaderInfoLog(vertexShader);
         ES_LOG_ERROR("Vertex shader compilation failed: {}", log);
+        setFailure(ShaderStageFailure::Vertex, std::move(log));
         glDeleteShader(vertexShader);
         return false;
     }
 
-    // Create fragment shader
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     const char* fragmentSrcPtr = fragmentSrc.c_str();
     glShaderSource(fragmentShader, 1, &fragmentSrcPtr, nullptr);
     glCompileShader(fragmentShader);
 
-    // Check fragment shader compilation
     glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
     if (!success) {
-        GLint logLength;
-        glGetShaderiv(fragmentShader, GL_INFO_LOG_LENGTH, &logLength);
-        std::string log(logLength, '\0');
-        glGetShaderInfoLog(fragmentShader, logLength, nullptr, log.data());
+        std::string log = readShaderInfoLog(fragmentShader);
         ES_LOG_ERROR("Fragment shader compilation failed: {}", log);
+        setFailure(ShaderStageFailure::Fragment, std::move(log));
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
         return false;
     }
 
-    // Create program and link
     programId_ = glCreateProgram();
     glAttachShader(programId_, vertexShader);
     glAttachShader(programId_, fragmentShader);
@@ -170,14 +193,11 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
 
     glLinkProgram(programId_);
 
-    // Check linking
     glGetProgramiv(programId_, GL_LINK_STATUS, &success);
     if (!success) {
-        GLint logLength;
-        glGetProgramiv(programId_, GL_INFO_LOG_LENGTH, &logLength);
-        std::string log(logLength, '\0');
-        glGetProgramInfoLog(programId_, logLength, nullptr, log.data());
+        std::string log = readProgramInfoLog(programId_);
         ES_LOG_ERROR("Shader program linking failed: {}", log);
+        setFailure(ShaderStageFailure::Link, std::move(log));
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
         glDeleteProgram(programId_);
@@ -185,7 +205,6 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         return false;
     }
 
-    // Clean up shaders (they're now part of the program)
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
@@ -194,6 +213,18 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     ES_LOG_DEBUG("Shader compiled successfully (program ID: {}, active uniforms: {})",
                  programId_, activeUniforms_.size());
     return true;
+}
+
+ShaderCompileOutcome Shader::createEx(const std::string& vertexSrc,
+                                      const std::string& fragmentSrc,
+                                      std::initializer_list<AttribBinding> bindings) {
+    ShaderCompileOutcome outcome;
+    auto shader = makeUnique<Shader>();
+    if (!shader->compile(vertexSrc, fragmentSrc, bindings, &outcome.log, &outcome.failedStage)) {
+        return outcome;
+    }
+    outcome.shader = std::move(shader);
+    return outcome;
 }
 
 namespace {
