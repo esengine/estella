@@ -1846,6 +1846,7 @@ bool editor_setString(Registry& reg, u32 e, const std::string& comp, const std::
         else if (field == "skin") { c.skin = value; }
         else if (field == "animation") { c.animation = value; }
         else { return false; }
+        c.needsReload = true;
         return true;
     } else if (comp == "StateMachine") {
         if (!reg.has<esengine::ecs::StateMachine>(entity)) return false;

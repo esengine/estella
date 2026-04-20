@@ -25,6 +25,16 @@ def compute_schema_hash(components: List[Component]) -> str:
     return h.hexdigest()[:16]
 
 
+# Components whose non-scalar field changes require a runtime-side
+# invalidation flag to be flipped so the owning system re-runs its load
+# path on the next tick. Expressed as raw C++ appended after the field
+# assignment in editor_setString. When a proper ES_PROPERTY(invalidates=)
+# annotation exists this table should go away.
+_STRING_SET_SIDE_EFFECTS = {
+    'SpineAnimation': 'c.needsReload = true;',
+}
+
+
 class EditorAPIGenerator:
     def __init__(self, components: List[Component], enums: List[Enum]):
         self.components = components
@@ -658,6 +668,9 @@ class EditorAPIGenerator:
                 lines.append(f'        {prefix} (field == "{key}") {{ c.{cpp_path} = value; }}')
 
             lines.append('        else { return false; }')
+            side_effect = _STRING_SET_SIDE_EFFECTS.get(comp.name)
+            if side_effect:
+                lines.append(f'        {side_effect}')
             lines.append('        return true;')
 
         if not first_comp:
