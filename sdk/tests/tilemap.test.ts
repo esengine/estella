@@ -44,43 +44,36 @@ describe('Tilemap Components', () => {
             expect(TilemapLayer._name).toBe('TilemapLayer');
         });
 
-        it('should have texture field defaulting to 0', () => {
-            expect(TilemapLayer._default.texture).toBe(0);
+        it('should be a C++ builtin', () => {
+            expect(TilemapLayer._builtin).toBe(true);
         });
 
-        it('should have tilesetColumns field defaulting to 1', () => {
+        it('should have tileset field defaulting to 0', () => {
+            expect(TilemapLayer._default.tileset).toBe(0);
+        });
+
+        it('should have tilesetColumns and tilesetRows defaults', () => {
             expect(TilemapLayer._default.tilesetColumns).toBe(1);
+            expect(TilemapLayer._default.tilesetRows).toBe(1);
         });
 
-        it('should have tileWidth and tileHeight defaults', () => {
-            expect(TilemapLayer._default.tileWidth).toBe(32);
-            expect(TilemapLayer._default.tileHeight).toBe(32);
+        it('should have cellSize defaulting to 32x32', () => {
+            expect(TilemapLayer._default.cellSize).toEqual({ x: 32, y: 32 });
         });
 
         it('should have correct defaults', () => {
             expect(TilemapLayer._default).toEqual({
-                width: 10,
-                height: 10,
-                tileWidth: 32,
-                tileHeight: 32,
-                texture: 0,
+                cellSize: { x: 32, y: 32 },
+                originOffset: { x: 0, y: 0 },
+                tileset: 0,
                 tilesetColumns: 1,
-                layer: 0,
-                tiles: [],
-                infinite: false,
-                chunks: {},
-                tint: { r: 1, g: 1, b: 1, a: 1 },
+                tilesetRows: 1,
+                renderLayer: 0,
+                tintColor: { r: 1, g: 1, b: 1, a: 1 },
                 opacity: 1,
-                visible: true,
                 parallaxFactor: { x: 1, y: 1 },
+                visible: true,
             });
-        });
-
-        it('should create instances with deep-cloned tiles array', () => {
-            const a = TilemapLayer.create();
-            const b = TilemapLayer.create();
-            a.tiles.push(1);
-            expect(b.tiles).toEqual([]);
         });
     });
 });
@@ -381,13 +374,10 @@ describe('loadTiledMap', () => {
         const layerInserts = insertCalls.filter((c: any) => c[1]._name === 'TilemapLayer');
         expect(layerInserts).toHaveLength(2);
 
-        expect(layerInserts[0][2].texture).toBe(42);
+        expect(layerInserts[0][2].tileset).toBe(42);
         expect(layerInserts[0][2].tilesetColumns).toBe(8);
-        expect(layerInserts[0][2].tileWidth).toBe(16);
-        expect(layerInserts[0][2].tileHeight).toBe(16);
-        expect(layerInserts[0][2].width).toBe(20);
-        expect(layerInserts[0][2].height).toBe(15);
-        expect(layerInserts[0][2].layer).toBe(0);
+        expect(layerInserts[0][2].cellSize).toEqual({ x: 16, y: 16 });
+        expect(layerInserts[0][2].renderLayer).toBe(0);
     });
 
     it('should assign incremental layer sort order', () => {
@@ -398,20 +388,8 @@ describe('loadTiledMap', () => {
 
         const insertCalls = (world.insert as any).mock.calls;
         const layerInserts = insertCalls.filter((c: any) => c[1]._name === 'TilemapLayer');
-        expect(layerInserts[0][2].layer).toBe(0);
-        expect(layerInserts[1][2].layer).toBe(1);
-    });
-
-    it('should convert Uint16Array tiles to number[]', () => {
-        const world = createMockWorld();
-        const textureHandles = new Map([['terrain.png', 42]]);
-
-        loadTiledMap(world, sampleMapData, textureHandles);
-
-        const insertCalls = (world.insert as any).mock.calls;
-        const layerInsert = insertCalls.find((c: any) => c[1]._name === 'TilemapLayer');
-        expect(Array.isArray(layerInsert[2].tiles)).toBe(true);
-        expect(layerInsert[2].tiles).toEqual([1, 2, 3, 0, 0]);
+        expect(layerInserts[0][2].renderLayer).toBe(0);
+        expect(layerInserts[1][2].renderLayer).toBe(1);
     });
 
     it('should use texture handle 0 when tileset image is not in textureHandles', () => {
@@ -422,7 +400,7 @@ describe('loadTiledMap', () => {
 
         const insertCalls = (world.insert as any).mock.calls;
         const layerInsert = insertCalls.find((c: any) => c[1]._name === 'TilemapLayer');
-        expect(layerInsert[2].texture).toBe(0);
+        expect(layerInsert[2].tileset).toBe(0);
     });
 
     it('should return empty array for map with no layers', () => {
@@ -457,7 +435,7 @@ describe('loadTiledMap', () => {
         const insertCalls = (world.insert as any).mock.calls;
         const layerInsert = insertCalls.find((c: any) => c[1]._name === 'TilemapLayer');
         expect(layerInsert[2].opacity).toBe(0.5);
-        expect(layerInsert[2].tint).toEqual({ r: 1, g: 0.5, b: 0, a: 0.8 });
+        expect(layerInsert[2].tintColor).toEqual({ r: 1, g: 0.5, b: 0, a: 0.8 });
         expect(layerInsert[2].parallaxFactor).toEqual({ x: 0.5, y: 0.75 });
         expect(layerInsert[2].visible).toBe(true);
     });

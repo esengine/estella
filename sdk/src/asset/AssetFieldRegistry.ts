@@ -98,7 +98,7 @@ export function initBuiltinAssetFields(): void {
     ]);
 
     registerAssetFields('TilemapLayer', [
-        { field: 'texture', type: 'texture' },
+        { field: 'tileset', type: 'texture' },
     ]);
 
     registerAssetFields('TimelinePlayer', [
