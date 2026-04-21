@@ -412,6 +412,19 @@ export interface SpineAnimationData {
     enabled: boolean;
 }
 
+export interface TilemapLayerData {
+    cellSize: Vec2;
+    originOffset: Vec2;
+    tileset: number;
+    tilesetColumns: number;
+    tilesetRows: number;
+    renderLayer: number;
+    tintColor: Color;
+    opacity: number;
+    parallaxFactor: Vec2;
+    visible: boolean;
+}
+
 export interface BitmapTextData {
     text: string;
     color: Color;
@@ -493,6 +506,10 @@ export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText',
 
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation',
     metaDefaults<SpineAnimationData>('SpineAnimation')
+);
+
+export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
+    metaDefaults<TilemapLayerData>('TilemapLayer')
 );
 
 // =============================================================================

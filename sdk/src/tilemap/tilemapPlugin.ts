@@ -1,10 +1,10 @@
 import type { App, Plugin } from '../app';
 import type { ESEngineModule } from '../wasm';
-import { Transform, type TransformData } from '../component';
+import { Transform, TilemapLayer, type TilemapLayerData } from '../component';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
-import { Tilemap, TilemapLayer, type TilemapLayerData } from './components';
+import { Tilemap } from './components';
 import { getTilemapSource } from './tilesetCache';
 import { getTextureDimensions } from '../resourceManager';
 import { Time } from '../resource';
@@ -27,7 +27,7 @@ export class TilemapPlugin implements Plugin {
     private layerState_ = new Map<number, {
         texture: number;
         tilesetColumns: number;
-        layer: number;
+        renderLayer: number;
         tintR: number; tintG: number; tintB: number; tintA: number;
         opacity: number;
         parallaxX: number; parallaxY: number;
@@ -67,54 +67,30 @@ export class TilemapPlugin implements Plugin {
                     const layerData = world.tryGet(entity, TilemapLayer) as TilemapLayerData | null;
                     if (!layerData) continue;
 
-                    const textureHandle = layerData.texture;
+                    const textureHandle = layerData.tileset;
                     if (!textureHandle) continue;
 
                     const dims = getTextureDimensions(textureHandle);
                     if (!dims) continue;
 
                     if (!initializedLayers.has(entity)) {
-                        if (layerData.infinite) {
-                            TilemapAPI.initInfiniteLayer(
-                                entity, layerData.tileWidth, layerData.tileHeight,
-                            );
-                            if (layerData.chunks) {
-                                for (const [key, tiles] of Object.entries(layerData.chunks)) {
-                                    const [cxStr, cyStr] = key.split(',');
-                                    const cx = parseInt(cxStr, 10);
-                                    const cy = parseInt(cyStr, 10);
-                                    const u16 = new Uint16Array(tiles.length);
-                                    for (let i = 0; i < tiles.length; i++) u16[i] = tiles[i];
-                                    TilemapAPI.setChunkTiles(entity, cx, cy, u16, 16, 16);
-                                }
-                            }
-                        } else {
-                            TilemapAPI.initLayer(
-                                entity, layerData.width, layerData.height,
-                                layerData.tileWidth, layerData.tileHeight,
-                            );
-                            if (layerData.tiles.length > 0) {
-                                const u16 = new Uint16Array(layerData.tiles.length);
-                                for (let i = 0; i < layerData.tiles.length; i++) {
-                                    u16[i] = layerData.tiles[i];
-                                }
-                                TilemapAPI.setTiles(entity, u16);
-                            }
-                        }
+                        TilemapAPI.initInfiniteLayer(
+                            entity, layerData.cellSize.x, layerData.cellSize.y,
+                        );
                         TilemapAPI.setOriginEntity(entity, entity);
                         initializedLayers.add(entity);
                     }
 
-                    const uvTileWidth = layerData.tileWidth / dims.width;
-                    const uvTileHeight = layerData.tileHeight / dims.height;
-                    const tint = layerData.tint;
+                    const uvTileWidth = layerData.cellSize.x / dims.width;
+                    const uvTileHeight = layerData.cellSize.y / dims.height;
+                    const tint = layerData.tintColor;
                     const pf = layerData.parallaxFactor;
 
                     const prev = layerState.get(entity);
                     const needsUpdate = !prev
                         || prev.texture !== textureHandle
                         || prev.tilesetColumns !== layerData.tilesetColumns
-                        || prev.layer !== layerData.layer
+                        || prev.renderLayer !== layerData.renderLayer
                         || prev.parallaxX !== pf.x || prev.parallaxY !== pf.y
                         || prev.tintR !== tint.r || prev.tintG !== tint.g
                         || prev.tintB !== tint.b || prev.tintA !== tint.a
@@ -125,7 +101,7 @@ export class TilemapPlugin implements Plugin {
                         TilemapAPI.setRenderProps(
                             entity, textureHandle, layerData.tilesetColumns,
                             uvTileWidth, uvTileHeight,
-                            layerData.layer, 0,
+                            layerData.renderLayer, 0,
                             pf.x, pf.y,
                         );
                         TilemapAPI.setTint(entity, tint.r, tint.g, tint.b, tint.a, layerData.opacity ?? 1);
@@ -134,7 +110,7 @@ export class TilemapPlugin implements Plugin {
                         layerState.set(entity, {
                             texture: textureHandle,
                             tilesetColumns: layerData.tilesetColumns,
-                            layer: layerData.layer,
+                            renderLayer: layerData.renderLayer,
                             tintR: tint.r, tintG: tint.g, tintB: tint.b, tintA: tint.a,
                             opacity: layerData.opacity,
                             parallaxX: pf.x, parallaxY: pf.y,

@@ -1,8 +1,40 @@
-import { getTiledAPI } from './tilemapAPI';
+import { getTiledAPI, TilemapAPI } from './tilemapAPI';
 import type { World } from '../world';
 import type { Entity } from '../types';
 import { TilemapLayer } from './components';
 import { Transform } from '../component';
+
+// Matches TilemapSystem::CHUNK_SIZE on the C++ side.
+const TILEMAP_CHUNK_SIZE = 16;
+
+function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
+    if (layer.infinite) {
+        for (const chunk of layer.chunks) {
+            TilemapAPI.setChunkTiles(entity, chunk.x, chunk.y, chunk.tiles, chunk.width, chunk.height);
+        }
+        return;
+    }
+    const { width, height, tiles } = layer;
+    if (width <= 0 || height <= 0 || tiles.length === 0) return;
+    const chunksX = Math.ceil(width / TILEMAP_CHUNK_SIZE);
+    const chunksY = Math.ceil(height / TILEMAP_CHUNK_SIZE);
+    const buf = new Uint16Array(TILEMAP_CHUNK_SIZE * TILEMAP_CHUNK_SIZE);
+    for (let cy = 0; cy < chunksY; cy++) {
+        for (let cx = 0; cx < chunksX; cx++) {
+            buf.fill(0);
+            const regionW = Math.min(TILEMAP_CHUNK_SIZE, width - cx * TILEMAP_CHUNK_SIZE);
+            const regionH = Math.min(TILEMAP_CHUNK_SIZE, height - cy * TILEMAP_CHUNK_SIZE);
+            for (let ly = 0; ly < regionH; ly++) {
+                const gy = cy * TILEMAP_CHUNK_SIZE + ly;
+                for (let lx = 0; lx < regionW; lx++) {
+                    const gx = cx * TILEMAP_CHUNK_SIZE + lx;
+                    buf[ly * TILEMAP_CHUNK_SIZE + lx] = tiles[gy * width + gx];
+                }
+            }
+            TilemapAPI.setChunkTiles(entity, cx, cy, buf, regionW, regionH);
+        }
+    }
+}
 import { RigidBody, BoxCollider, CircleCollider, BodyType } from '../physics/PhysicsComponents';
 import { mergeCollisionTiles } from './collisionMerge';
 import { log } from '../logger';
@@ -565,19 +597,22 @@ export function loadTiledMap(
         const columns = firstTileset?.columns ?? 1;
 
         world.insert(entity, TilemapLayer, {
-            width: layer.width,
-            height: layer.height,
-            tileWidth: mapData.tileWidth,
-            tileHeight: mapData.tileHeight,
-            texture: textureHandle,
+            cellSize: { x: mapData.tileWidth, y: mapData.tileHeight },
+            tileset: textureHandle,
             tilesetColumns: columns,
-            layer: layerIndex,
-            tiles: Array.from(layer.tiles),
-            tint: { ...layer.tintColor },
+            tilesetRows: firstTileset
+                ? Math.max(1, Math.ceil(firstTileset.tileCount / Math.max(1, columns)))
+                : 1,
+            renderLayer: layerIndex,
+            tintColor: { ...layer.tintColor },
             opacity: layer.opacity,
             visible: layer.visible,
             parallaxFactor: { x: layer.parallaxX, y: layer.parallaxY },
         });
+
+        TilemapAPI.initInfiniteLayer(entity, mapData.tileWidth, mapData.tileHeight);
+        TilemapAPI.setOriginEntity(entity, entity);
+        uploadTiledLayerTiles(entity, layer);
 
         entities.push(entity);
         layerIndex++;

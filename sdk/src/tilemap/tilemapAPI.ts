@@ -41,6 +41,9 @@ interface TilemapModule {
     tilemap_rotateTile(entity: number, x: number, y: number, degrees: number): void;
     tilemap_setGridType(entity: number, type: number): void;
     tilemap_initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void;
+    tilemap_initInfinite?(entity: number, tileWidth: number, tileHeight: number): void;
+    tilemap_exportChunks?(entity: number): string;
+    tilemap_importChunks?(entity: number, encoded: string): boolean;
     tilemap_setChunkTiles(entity: number, chunkX: number, chunkY: number,
                            tilesPtr: number, width: number, height: number): void;
     tilemap_tileToWorld(entity: number, tx: number, ty: number,
@@ -225,6 +228,11 @@ export const TilemapAPI = {
     },
 
     initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void {
+        // Prefer the idempotent binding so a second call doesn't wipe tiles.
+        if (module_?.tilemap_initInfinite) {
+            module_.tilemap_initInfinite(entity, tileWidth, tileHeight);
+            return;
+        }
         module_?.tilemap_initInfiniteLayer(entity, tileWidth, tileHeight);
     },
 
@@ -256,5 +264,13 @@ export const TilemapAPI = {
         const ptr = module_.tilemap_worldToTile(entity, wx, wy, originX, originY);
         const floats = new Float32Array(module_.HEAPU8.buffer, ptr, 2);
         return { x: floats[0], y: floats[1] };
+    },
+
+    exportChunks(entity: number): string {
+        return module_?.tilemap_exportChunks?.(entity) ?? '';
+    },
+
+    importChunks(entity: number, encoded: string): boolean {
+        return module_?.tilemap_importChunks?.(entity, encoded) ?? false;
     },
 };

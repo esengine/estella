@@ -10,6 +10,7 @@ import { discoverSceneAssets } from './asset/discoverAssets';
 import { requireResourceManager } from './resourceManager';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { log } from './logger';
+import { TilemapAPI } from './tilemap/tilemapAPI';
 
 // =============================================================================
 // Types
@@ -281,12 +282,25 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
     }
     const comp = getComponent(compData.type);
     if (comp) {
+        // TilemapLayer carries tile chunks out-of-component as a base64 blob
+        // alongside the regular field record. Strip it before validation so
+        // the insert doesn't choke on the sibling field, then replay the
+        // chunks through the C++ import binding once the component is in.
+        let tilemapChunks: string | undefined;
+        if (compData.type === 'TilemapLayer') {
+            const raw = compData.data.chunks;
+            if (typeof raw === 'string') tilemapChunks = raw;
+            delete compData.data.chunks;
+        }
         const errors = validateComponentData(compData.type, comp._default as Record<string, unknown>, compData.data);
         if (errors.length > 0) {
             const context = entityName ? ` (entity "${entityName}")` : '';
             log.warn('scene', formatValidationErrors(compData.type + context, errors));
         }
         world.insert(entity, comp, compData.data);
+        if (tilemapChunks !== undefined && tilemapChunks !== '') {
+            TilemapAPI.importChunks(entity as unknown as number, tilemapChunks);
+        }
     } else {
         const context = entityName ? ` on entity "${entityName}"` : '';
         log.warn('scene', `Unknown component type: ${compData.type}${context}`);
@@ -354,9 +368,14 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
             if (!comp) continue;
             const data = world.tryGet(entity, comp);
             if (data === null) continue;
+            const payload = data as Record<string, unknown>;
+            if (typeName === 'TilemapLayer') {
+                const blob = TilemapAPI.exportChunks(entityNum);
+                if (blob) payload.chunks = blob;
+            }
             components.push({
                 type: typeName,
-                data: data as Record<string, unknown>,
+                data: payload,
             });
         }
 
