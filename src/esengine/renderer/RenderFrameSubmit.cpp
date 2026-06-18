@@ -83,9 +83,9 @@ void RenderFrame::submitSpineBatch(
     }
 
     u32 baseVertex = vOff / sizeof(BatchVertex);
-    std::vector<u16> offsetIndices(indexCount);
+    std::vector<u32> offsetIndices(indexCount);
     for (i32 i = 0; i < indexCount; ++i) {
-        offsetIndices[i] = static_cast<u16>(baseVertex + indices[i]);
+        offsetIndices[i] = static_cast<u32>(baseVertex + indices[i]);
     }
     u32 iOff = pool_.appendIndices(LayoutId::Batch, offsetIndices.data(), static_cast<u32>(indexCount));
 

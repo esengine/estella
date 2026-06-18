@@ -22,7 +22,7 @@ export const sfxTriggerSystem = defineSystem(
             trigger.cooldown = Math.max(0, trigger.cooldown - time.delta);
 
             const key = `Digit${triggerIndex + 1}`;
-            const clicked = events.hasEvent(entity, 'click');
+            const clicked = events.query('click').some(e => e.target === entity);
             if ((input.isKeyPressed(key) || clicked) && trigger.cooldown <= 0) {
                 const url = SFX_URLS[triggerIndex];
                 if (url) {
