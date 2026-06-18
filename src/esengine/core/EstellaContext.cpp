@@ -129,7 +129,7 @@ void EstellaContext::initSubsystems() {
 
     auto* rm = services_.getService<resource::ResourceManager>();
     auto* rc = services_.getService<RenderContext>();
-    auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *rc, *rm);
+    auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *statePtr, *rc, *rm);
     immediateDraw->init();
     services_.registerOwned<ImmediateDraw>(std::move(immediateDraw));
 
