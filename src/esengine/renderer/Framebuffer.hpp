@@ -21,6 +21,8 @@
 
 namespace esengine {
 
+class GfxDevice;
+
 // =============================================================================
 // Framebuffer Specification
 // =============================================================================
@@ -103,7 +105,7 @@ public:
      * @details Creates framebuffer with color attachment and optional
      *          depth/stencil attachment based on spec.
      */
-    static Unique<Framebuffer> create(const FramebufferSpec& spec);
+    static Unique<Framebuffer> create(GfxDevice& device, const FramebufferSpec& spec);
 
     // =========================================================================
     // Operations
@@ -166,6 +168,7 @@ private:
      */
     void cleanup();
 
+    GfxDevice* device_ = nullptr;  ///< Set by create(); all GL goes through it.
     FramebufferSpec spec_;
     u32 framebufferId_ = 0;
     u32 colorAttachment_ = 0;

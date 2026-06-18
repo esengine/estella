@@ -77,6 +77,7 @@ enum class GfxPixelFormat : u8 {
     RGB8,
     RGBA8,
     DepthComponent24,
+    Depth24Stencil8,
 };
 
 // =============================================================================
@@ -86,6 +87,28 @@ enum class GfxPixelFormat : u8 {
 enum class GfxAttachment : u8 {
     Color0,
     Depth,
+    DepthStencil,
+};
+
+// =============================================================================
+// Shader Program Creation
+// =============================================================================
+
+/**
+ * @brief Vertex attribute location binding applied before a program is linked.
+ * @note `name` is borrowed for the duration of the createProgram() call only.
+ */
+struct GfxAttribBinding {
+    u32 index = 0;
+    const char* name = nullptr;
+};
+
+/** @brief Which pipeline stage rejected a program during createProgram(). */
+enum class GfxShaderStage : u8 {
+    None,
+    Vertex,
+    Fragment,
+    Link,
 };
 
 // =============================================================================

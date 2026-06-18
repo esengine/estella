@@ -22,6 +22,8 @@
 
 #include <string>
 
+namespace esengine { class GfxDevice; }
+
 namespace esengine::resource {
 
 // =============================================================================
@@ -50,6 +52,12 @@ using ShaderLoadResult = LoadResult<Shader>;
  */
 class ShaderFileLoader : public ResourceLoader<Shader> {
 public:
+    /**
+     * @brief Constructs the loader bound to a graphics device.
+     * @param device Device used to compile/link the shader program.
+     */
+    explicit ShaderFileLoader(GfxDevice& device) : device_(device) {}
+
     bool canLoad(const std::string& path) const override;
     std::vector<std::string> getSupportedExtensions() const override;
     LoadResult<Shader> load(const LoadRequest& request) override;
@@ -80,6 +88,9 @@ public:
      * @return Platform string (e.g., "WEBGL", "DESKTOP")
      */
     static std::string getDefaultPlatform();
+
+private:
+    GfxDevice& device_;
 };
 
 

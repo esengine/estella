@@ -1,7 +1,9 @@
 /**
  * @file    Texture.cpp
- * @brief   Texture implementation for OpenGL/WebGL
- * @details Implements texture creation, loading (via stb_image), and management.
+ * @brief   Texture implementation (device-backed)
+ * @details Thin RAII handle over a GPU texture. All GL is delegated to GfxDevice;
+ *          this file contains no GL calls and no platform ifdefs — textures work
+ *          on every platform the device backs (web and native alike).
  *
  * @author  ESEngine Team
  * @date    2026
@@ -11,68 +13,43 @@
  */
 
 #include "Texture.hpp"
+#include "GfxDevice.hpp"
 #include "../core/Log.hpp"
-#include "OpenGLHeaders.hpp"
-
-#include <span>
 
 #ifndef ES_PLATFORM_WEB
 #include <stb_image.h>
 #endif
 
+#include <span>
+
 namespace esengine {
 
 namespace {
 
-#ifdef ES_PLATFORM_WEB
-GLenum toGLFormat(TextureFormat format) {
+GfxPixelFormat toGfxPixelFormat(TextureFormat format) {
     switch (format) {
-    case TextureFormat::RGB8:    return GL_RGB;
-    case TextureFormat::RGBA8:   return GL_RGBA;
-    case TextureFormat::Depth24: return GL_DEPTH_COMPONENT;
-    default: return GL_RGBA;
+    case TextureFormat::RGB8:    return GfxPixelFormat::RGB8;
+    case TextureFormat::RGBA8:   return GfxPixelFormat::RGBA8;
+    case TextureFormat::Depth24: return GfxPixelFormat::DepthComponent24;
+    default:                     return GfxPixelFormat::RGBA8;
     }
 }
 
-GLenum toGLInternalFormat(TextureFormat format) {
-    switch (format) {
-    case TextureFormat::RGB8:    return GL_RGB8;
-    case TextureFormat::RGBA8:   return GL_RGBA8;
-    case TextureFormat::Depth24: return GL_DEPTH_COMPONENT24;
-    default: return GL_RGBA8;
-    }
+u32 bytesPerPixel(TextureFormat format) {
+    return format == TextureFormat::RGBA8 ? 4u : 3u;
 }
-
-GLenum toGLFilter(TextureFilter filter) {
-    switch (filter) {
-    case TextureFilter::Nearest: return GL_NEAREST;
-    case TextureFilter::Linear:  return GL_LINEAR;
-    default: return GL_LINEAR;
-    }
-}
-
-GLenum toGLWrap(TextureWrap wrap) {
-    switch (wrap) {
-    case TextureWrap::Repeat:         return GL_REPEAT;
-    case TextureWrap::ClampToEdge:    return GL_CLAMP_TO_EDGE;
-    case TextureWrap::MirroredRepeat: return GL_MIRRORED_REPEAT;
-    default: return GL_REPEAT;
-    }
-}
-#endif
 
 }  // namespace
 
 Texture::~Texture() {
-#ifdef ES_PLATFORM_WEB
-    if (textureId_ != 0) {
-        glDeleteTextures(1, &textureId_);
+    if (textureId_ != 0 && device_) {
+        device_->deleteTexture(textureId_);
     }
-#endif
 }
 
 Texture::Texture(Texture&& other) noexcept
-    : textureId_(other.textureId_)
+    : device_(other.device_)
+    , textureId_(other.textureId_)
     , width_(other.width_)
     , height_(other.height_)
     , format_(other.format_) {
@@ -84,11 +61,10 @@ Texture::Texture(Texture&& other) noexcept
 
 Texture& Texture::operator=(Texture&& other) noexcept {
     if (this != &other) {
-#ifdef ES_PLATFORM_WEB
-        if (textureId_ != 0) {
-            glDeleteTextures(1, &textureId_);
+        if (textureId_ != 0 && device_) {
+            device_->deleteTexture(textureId_);
         }
-#endif
+        device_ = other.device_;
         textureId_ = other.textureId_;
         width_ = other.width_;
         height_ = other.height_;
@@ -101,27 +77,28 @@ Texture& Texture::operator=(Texture&& other) noexcept {
     return *this;
 }
 
-Unique<Texture> Texture::create(const TextureSpecification& spec) {
+Unique<Texture> Texture::create(GfxDevice& device, const TextureSpecification& spec) {
     auto texture = makeUnique<Texture>();
+    texture->device_ = &device;
     if (!texture->initialize(spec)) {
         return nullptr;
     }
     return texture;
 }
 
-Unique<Texture> Texture::create(u32 width, u32 height, std::span<const u8> pixels,
+Unique<Texture> Texture::create(GfxDevice& device, u32 width, u32 height, std::span<const u8> pixels,
                                  TextureFormat format, bool flipY) {
-    [[maybe_unused]] u32 expectedSize = width * height * (format == TextureFormat::RGBA8 ? 4 : 3);
+    [[maybe_unused]] u32 expectedSize = width * height * bytesPerPixel(format);
     ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
-    return createRaw(width, height, pixels.data(), format, flipY);
+    return createRaw(device, width, height, pixels.data(), format, flipY);
 }
 
-Unique<Texture> Texture::create(u32 width, u32 height, const std::vector<u8>& pixels,
+Unique<Texture> Texture::create(GfxDevice& device, u32 width, u32 height, const std::vector<u8>& pixels,
                                  TextureFormat format, bool flipY) {
-    return create(width, height, std::span<const u8>(pixels), format, flipY);
+    return create(device, width, height, std::span<const u8>(pixels), format, flipY);
 }
 
-Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data,
+Unique<Texture> Texture::createRaw(GfxDevice& device, u32 width, u32 height, const void* data,
                                     TextureFormat format, bool flipY) {
     TextureSpecification spec;
     spec.width = width;
@@ -132,19 +109,20 @@ Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data,
     spec.generateMips = false;
 
     auto texture = makeUnique<Texture>();
+    texture->device_ = &device;
     if (!texture->initialize(spec)) {
         return nullptr;
     }
 
     if (data) {
-        texture->setDataRaw(data, width * height * (format == TextureFormat::RGBA8 ? 4 : 3), flipY);
+        texture->setDataRaw(data, width * height * bytesPerPixel(format), flipY);
     }
 
     return texture;
 }
 
 #ifndef ES_PLATFORM_WEB
-Unique<Texture> Texture::createFromFile(const std::string& path) {
+Unique<Texture> Texture::createFromFile(GfxDevice& device, const std::string& path) {
     int width, height, channels;
     unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
 
@@ -170,7 +148,7 @@ Unique<Texture> Texture::createFromFile(const std::string& path) {
         format = TextureFormat::RGBA8;
     }
 
-    auto texture = createRaw(static_cast<u32>(width), static_cast<u32>(height), data, format);
+    auto texture = createRaw(device, static_cast<u32>(width), static_cast<u32>(height), data, format);
     stbi_image_free(data);
 
     if (texture) {
@@ -181,8 +159,10 @@ Unique<Texture> Texture::createFromFile(const std::string& path) {
 }
 #endif
 
-Unique<Texture> Texture::createFromExternalId(u32 glTextureId, u32 width, u32 height, TextureFormat format) {
+Unique<Texture> Texture::createFromExternalId(GfxDevice& device, u32 glTextureId, u32 width, u32 height,
+                                              TextureFormat format) {
     auto texture = makeUnique<Texture>();
+    texture->device_ = &device;
     texture->textureId_ = glTextureId;
     texture->width_ = width;
     texture->height_ = height;
@@ -195,58 +175,28 @@ bool Texture::initialize(const TextureSpecification& spec) {
     height_ = spec.height;
     format_ = spec.format;
 
-#ifdef ES_PLATFORM_WEB
-    glGenTextures(1, &textureId_);
-    glBindTexture(GL_TEXTURE_2D, textureId_);
-
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(spec.minFilter));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(spec.magFilter));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(spec.wrapS));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap(spec.wrapT));
-
-    // Allocate texture storage
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        toGLInternalFormat(spec.format),
-        width_,
-        height_,
-        0,
-        toGLFormat(spec.format),
-        GL_UNSIGNED_BYTE,
-        nullptr
-    );
+    textureId_ = device_->createTexture();
+    device_->texImage2D(textureId_, width_, height_, toGfxPixelFormat(spec.format), nullptr);
+    device_->setTextureParams(textureId_, spec.minFilter, spec.magFilter, spec.wrapS, spec.wrapT);
 
     if (spec.generateMips) {
-        glGenerateMipmap(GL_TEXTURE_2D);
+        device_->generateMipmaps(textureId_);
     }
 
     ES_LOG_DEBUG("Created texture {}x{} (ID: {})", width_, height_, textureId_);
     return true;
-#else
-    (void)spec;
-    return false;
-#endif
 }
 
 void Texture::bind(u32 slot) const {
-#ifdef ES_PLATFORM_WEB
-    glActiveTexture(GL_TEXTURE0 + slot);
-    glBindTexture(GL_TEXTURE_2D, textureId_);
-#else
-    (void)slot;
-#endif
+    if (device_) device_->bindTexture(slot, textureId_);
 }
 
 void Texture::unbind() const {
-#ifdef ES_PLATFORM_WEB
-    glBindTexture(GL_TEXTURE_2D, 0);
-#endif
+    if (device_) device_->bindTexture(0, 0);
 }
 
 void Texture::setData(std::span<const u8> pixels) {
-    [[maybe_unused]] u32 expectedSize = width_ * height_ * (format_ == TextureFormat::RGBA8 ? 4 : 3);
+    [[maybe_unused]] u32 expectedSize = width_ * height_ * bytesPerPixel(format_);
     ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
     setDataRaw(pixels.data(), static_cast<u32>(pixels.size()));
 }
@@ -256,32 +206,13 @@ void Texture::setData(const std::vector<u8>& pixels) {
 }
 
 void Texture::setDataRaw(const void* data, u32 sizeBytes, bool flipY) {
-#ifdef ES_PLATFORM_WEB
-    [[maybe_unused]] u32 bpp = (format_ == TextureFormat::RGBA8) ? 4 : 3;
+    [[maybe_unused]] u32 bpp = bytesPerPixel(format_);
     ES_ASSERT(sizeBytes == width_ * height_ * bpp, "Data size mismatch");
     (void)sizeBytes;
 
-    glBindTexture(GL_TEXTURE_2D, textureId_);
-    if (flipY) {
-        glPixelStorei(0x9240 /* GL_UNPACK_FLIP_Y_WEBGL */, GL_TRUE);
-    }
-    glTexSubImage2D(
-        GL_TEXTURE_2D,
-        0,
-        0, 0,
-        width_, height_,
-        toGLFormat(format_),
-        GL_UNSIGNED_BYTE,
-        data
-    );
-    if (flipY) {
-        glPixelStorei(0x9240, GL_FALSE);
-    }
-#else
-    (void)data;
-    (void)sizeBytes;
-    (void)flipY;
-#endif
+    if (flipY) device_->setUnpackFlipY(true);
+    device_->texSubImage2D(textureId_, 0, 0, width_, height_, toGfxPixelFormat(format_), data);
+    if (flipY) device_->setUnpackFlipY(false);
 }
 
 }  // namespace esengine

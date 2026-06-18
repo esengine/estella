@@ -13,6 +13,19 @@
 #include "OpenGLHeaders.hpp"
 #include "../core/Log.hpp"
 
+#ifndef GL_DEPTH_STENCIL
+    #define GL_DEPTH_STENCIL 0x84F9
+#endif
+#ifndef GL_UNSIGNED_INT_24_8
+    #define GL_UNSIGNED_INT_24_8 0x84FA
+#endif
+#ifndef GL_DEPTH_STENCIL_ATTACHMENT
+    #define GL_DEPTH_STENCIL_ATTACHMENT 0x821A
+#endif
+#ifndef GL_UNPACK_FLIP_Y_WEBGL
+    #define GL_UNPACK_FLIP_Y_WEBGL 0x9240
+#endif
+
 namespace esengine {
 
 // =============================================================================
@@ -104,16 +117,39 @@ GLPixelFormatInfo toGLPixelFormat(GfxPixelFormat fmt) {
     case GfxPixelFormat::RGB8:             return { GL_RGB8,              GL_RGB,             GL_UNSIGNED_BYTE };
     case GfxPixelFormat::RGBA8:            return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
     case GfxPixelFormat::DepthComponent24: return { GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT };
+    case GfxPixelFormat::Depth24Stencil8:  return { GL_DEPTH24_STENCIL8,  GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8 };
     default:                               return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
     }
 }
 
 GLenum toGLAttachment(GfxAttachment attachment) {
     switch (attachment) {
-    case GfxAttachment::Color0: return GL_COLOR_ATTACHMENT0;
-    case GfxAttachment::Depth:  return GL_DEPTH_ATTACHMENT;
+    case GfxAttachment::Color0:       return GL_COLOR_ATTACHMENT0;
+    case GfxAttachment::Depth:        return GL_DEPTH_ATTACHMENT;
+    case GfxAttachment::DepthStencil: return GL_DEPTH_STENCIL_ATTACHMENT;
     default: return GL_COLOR_ATTACHMENT0;
     }
+}
+
+std::string readShaderInfoLog(GLuint shader) {
+    GLint logLength = 0;
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+    if (logLength <= 0) return {};
+    std::string log(static_cast<size_t>(logLength), '\0');
+    glGetShaderInfoLog(shader, logLength, nullptr, log.data());
+    // Drop the trailing NUL glGetShaderInfoLog writes inside the buffer.
+    if (!log.empty() && log.back() == '\0') log.pop_back();
+    return log;
+}
+
+std::string readProgramInfoLog(GLuint program) {
+    GLint logLength = 0;
+    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+    if (logLength <= 0) return {};
+    std::string log(static_cast<size_t>(logLength), '\0');
+    glGetProgramInfoLog(program, logLength, nullptr, log.data());
+    if (!log.empty() && log.back() == '\0') log.pop_back();
+    return log;
 }
 
 }  // namespace
@@ -143,6 +179,10 @@ void GLDevice::setViewport(i32 x, i32 y, u32 w, u32 h) {
 
 void GLDevice::setClearColor(f32 r, f32 g, f32 b, f32 a) {
     glClearColor(r, g, b, a);
+}
+
+void GLDevice::setClearStencil(i32 value) {
+    glClearStencil(value);
 }
 
 void GLDevice::clear(bool color, bool depth, bool stencil) {
@@ -275,12 +315,84 @@ void GLDevice::bindTexture(u32 slot, u32 textureId) {
 // Shader Program
 // =============================================================================
 
+u32 GLDevice::createProgram(const char* vertexSrc, const char* fragmentSrc,
+                            const GfxAttribBinding* bindings, u32 bindingCount,
+                            std::string* outLog, GfxShaderStage* outFailedStage) {
+    auto setFailure = [&](GfxShaderStage stage, std::string&& log) {
+        if (outLog) *outLog = std::move(log);
+        if (outFailedStage) *outFailedStage = stage;
+    };
+
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexSrc, nullptr);
+    glCompileShader(vertexShader);
+
+    GLint success = 0;
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        std::string log = readShaderInfoLog(vertexShader);
+        ES_LOG_ERROR("Vertex shader compilation failed: {}", log);
+        setFailure(GfxShaderStage::Vertex, std::move(log));
+        glDeleteShader(vertexShader);
+        return 0;
+    }
+
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentSrc, nullptr);
+    glCompileShader(fragmentShader);
+
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        std::string log = readShaderInfoLog(fragmentShader);
+        ES_LOG_ERROR("Fragment shader compilation failed: {}", log);
+        setFailure(GfxShaderStage::Fragment, std::move(log));
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+        return 0;
+    }
+
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+
+    for (u32 i = 0; i < bindingCount; ++i) {
+        glBindAttribLocation(program, bindings[i].index, bindings[i].name);
+    }
+
+    glLinkProgram(program);
+
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        std::string log = readProgramInfoLog(program);
+        ES_LOG_ERROR("Shader program linking failed: {}", log);
+        setFailure(GfxShaderStage::Link, std::move(log));
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+        glDeleteProgram(program);
+        return 0;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    if (outFailedStage) *outFailedStage = GfxShaderStage::None;
+    return static_cast<u32>(program);
+}
+
+void GLDevice::deleteProgram(u32 programId) {
+    if (programId != 0) glDeleteProgram(programId);
+}
+
 void GLDevice::useProgram(u32 programId) {
     glUseProgram(programId);
 }
 
 i32 GLDevice::getUniformLocation(u32 programId, const char* name) {
     return glGetUniformLocation(programId, name);
+}
+
+i32 GLDevice::getAttribLocation(u32 programId, const char* name) {
+    return glGetAttribLocation(programId, name);
 }
 
 void GLDevice::setUniform1i(i32 location, i32 value) {
@@ -509,6 +621,15 @@ void GLDevice::generateMipmaps(u32 textureId) {
 
 void GLDevice::pixelStorei(u32 pname, i32 param) {
     glPixelStorei(pname, param);
+}
+
+void GLDevice::setUnpackFlipY(bool enabled) {
+#ifdef ES_PLATFORM_WEB
+    glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, enabled ? GL_TRUE : GL_FALSE);
+#else
+    // Native image data is flipped CPU-side at load (stbi_set_flip_vertically_on_load).
+    (void)enabled;
+#endif
 }
 
 // =============================================================================

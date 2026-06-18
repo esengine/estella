@@ -103,7 +103,7 @@ LoadResult<Shader> ShaderFileLoader::loadFromSource(const std::string& source,
         return LoadResult<Shader>::err("Failed to assemble fragment shader");
     }
 
-    auto outcome = Shader::createEx(vertexAssembled.source, fragmentAssembled.source);
+    auto outcome = Shader::createEx(device_, vertexAssembled.source, fragmentAssembled.source);
     if (!outcome.shader || !outcome.shader->isValid()) {
         std::string remapped = outcome.log;
         const char* stageLabel = "unknown";
