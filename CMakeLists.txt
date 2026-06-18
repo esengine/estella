@@ -223,21 +223,10 @@ set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/We
 set(GENERATED_EDITOR_API "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/EditorAPI.generated.cpp")
 set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm.generated.ts")
 
-if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/platform/web/WebPlatform.cpp
-        src/esengine/platform/web/WebFileSystem.cpp
-    )
-else()
-    # Web-only repo: the native platform layer (NativePlatform/NativeFileSystem/
-    # FileDialog) was removed in d9a08d87. Keep only the platform-agnostic
-    # sources a native tooling/test build still needs.
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/renderer/stb_image_impl.cpp
-        src/esengine/resource/HotReloadManager.cpp
-        src/esengine/resource/loaders/ShaderLoader.cpp
-    )
-endif()
+list(APPEND ESENGINE_SOURCES
+    src/esengine/platform/web/WebPlatform.cpp
+    src/esengine/platform/web/WebFileSystem.cpp
+)
 
 # =============================================================================
 # EHT - ESEngine Header Tool

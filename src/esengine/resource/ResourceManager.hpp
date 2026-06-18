@@ -22,9 +22,6 @@
 #include "ResourcePool.hpp"
 #include "LoaderRegistry.hpp"
 #include "TextureMetadata.hpp"
-#ifndef ES_PLATFORM_WEB
-#include "HotReloadManager.hpp"
-#endif
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
 #include "../renderer/Buffer.hpp"
@@ -121,20 +118,6 @@ public:
      */
     void update();
 
-#ifndef ES_PLATFORM_WEB
-    /**
-     * @brief Gets the hot reload manager
-     * @return Reference to the hot reload manager
-     */
-    HotReloadManager& getHotReloadManager() { return hotReloadManager_; }
-
-    /**
-     * @brief Gets the hot reload manager (const)
-     * @return Const reference to the hot reload manager
-     */
-    const HotReloadManager& getHotReloadManager() const { return hotReloadManager_; }
-#endif
-
     // =========================================================================
     // Shader Resources
     // =========================================================================
@@ -156,24 +139,6 @@ public:
      * @return Handle to the shader, or invalid handle on failure
      */
     ShaderHandle loadShader(const std::string& vertPath, const std::string& fragPath);
-
-#ifndef ES_PLATFORM_WEB
-    /**
-     * @brief Loads a shader from .esshader file (with caching)
-     * @param path Path to the .esshader file (relative to project)
-     * @param platform Platform variant (empty for auto-detect)
-     * @return Handle to the shader, or invalid handle on failure
-     */
-    ShaderHandle loadShaderFile(const std::string& path, const std::string& platform = "");
-
-    /**
-     * @brief Loads an engine shader from src/esengine/data/shaders/ (with caching)
-     * @param name Shader name without path or extension (e.g., "grid", "ui")
-     * @param platform Platform variant (empty for auto-detect)
-     * @return Handle to the shader, or invalid handle on failure
-     */
-    ShaderHandle loadEngineShader(const std::string& name, const std::string& platform = "");
-#endif
 
     /**
      * @brief Gets a shader by handle
@@ -487,10 +452,6 @@ public:
     LoaderRegistry& getLoaderRegistry() { return loaderRegistry_; }
 
 private:
-#ifndef ES_PLATFORM_WEB
-    void reloadShader(ShaderHandle handle, const std::string& path);
-#endif
-
     ResourcePool<Shader> shaders_;
     ResourcePool<Texture> textures_;
     ResourcePool<VertexBuffer> vertexBuffers_;
@@ -498,10 +459,6 @@ private:
     ResourcePool<text::BitmapFont> fonts_;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
     std::unordered_map<TextureHandle::IdType, TextureMetadata> textureMetadata_;
-#ifndef ES_PLATFORM_WEB
-    std::unordered_map<ShaderHandle::IdType, std::string> shaderPaths_;
-    HotReloadManager hotReloadManager_;
-#endif
     LoaderRegistry loaderRegistry_;
     mutable ResourceStats stats_;
     GfxDevice* device_ = nullptr;  ///< GPU device for resource creation (set in init)

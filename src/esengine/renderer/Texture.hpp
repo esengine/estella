@@ -113,9 +113,6 @@ struct TextureSpecification {
  *          creation from pixel data, files, or empty specifications.
  *
  * @code
- * // Create from file
- * auto texture = Texture::createFromFile("assets/player.png");
- *
  * // Create from pixel data
  * std::vector<u8> pixels = {...}; // RGBA data
  * auto texture = Texture::create(64, 64, std::span(pixels));
@@ -173,17 +170,6 @@ public:
     static Unique<Texture> create(GfxDevice& device, u32 width, u32 height, const std::vector<u8>& pixels,
                                    TextureFormat format = TextureFormat::RGBA8,
                                    bool flipY = false);
-
-    /**
-     * @brief Creates a texture from an image file
-     * @param path Path to the image file
-     * @return Unique pointer to the texture, or nullptr on failure
-     *
-     * @note Supported formats depend on the image loading implementation.
-     */
-#ifndef ES_PLATFORM_WEB
-    static Unique<Texture> createFromFile(GfxDevice& device, const std::string& path);
-#endif
 
     // =========================================================================
     // Operations

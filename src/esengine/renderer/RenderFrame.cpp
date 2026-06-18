@@ -394,11 +394,9 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
 }
 
 u32 RenderFrame::initBatchShader() {
-#ifndef ES_PLATFORM_WEB
-    auto handle = resource_manager_.loadEngineShader("batch");
-#else
+    // The batch shader ships embedded as source (ShaderSources::BATCH_*); there is
+    // no file-load path on web.
     resource::ShaderHandle handle;
-#endif
     if (!handle.isValid()) {
         handle = resource_manager_.createShaderWithBindings(
             ShaderSources::BATCH_VERTEX,

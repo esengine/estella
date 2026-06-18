@@ -34,12 +34,11 @@ namespace esengine::resource {
  *
  * @code
  * LoaderRegistry registry;
- * registry.registerLoader<Shader>(makeUnique<ShaderFileLoader>());
- * registry.registerLoader<Texture>(makeUnique<TextureFileLoader>());
+ * registry.registerLoader<Texture>(makeUnique<MyTextureLoader>());
  *
- * auto* loader = registry.getLoader<Shader>();
- * if (loader && loader->canLoad("my.esshader")) {
- *     auto result = loader->load({"my.esshader"});
+ * auto* loader = registry.getLoader<Texture>();
+ * if (loader && loader->canLoad("my.png")) {
+ *     auto result = loader->load({"my.png"});
  * }
  * @endcode
  */

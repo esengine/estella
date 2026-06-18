@@ -16,10 +16,6 @@
 #include "GfxDevice.hpp"
 #include "../core/Log.hpp"
 
-#ifndef ES_PLATFORM_WEB
-#include <stb_image.h>
-#endif
-
 #include <span>
 
 namespace esengine {
@@ -120,44 +116,6 @@ Unique<Texture> Texture::createRaw(GfxDevice& device, u32 width, u32 height, con
 
     return texture;
 }
-
-#ifndef ES_PLATFORM_WEB
-Unique<Texture> Texture::createFromFile(GfxDevice& device, const std::string& path) {
-    int width, height, channels;
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
-
-    if (!data) {
-        ES_LOG_ERROR("Failed to load texture: {} ({})", path, stbi_failure_reason());
-        return nullptr;
-    }
-
-    TextureFormat format = TextureFormat::RGBA8;
-    if (channels == 3) {
-        format = TextureFormat::RGB8;
-    } else if (channels == 4) {
-        format = TextureFormat::RGBA8;
-    } else {
-        ES_LOG_WARN("Unsupported texture format ({} channels), converting to RGBA", channels);
-        stbi_image_free(data);
-
-        data = stbi_load(path.c_str(), &width, &height, &channels, 4);
-        if (!data) {
-            ES_LOG_ERROR("Failed to convert texture to RGBA: {}", path);
-            return nullptr;
-        }
-        format = TextureFormat::RGBA8;
-    }
-
-    auto texture = createRaw(device, static_cast<u32>(width), static_cast<u32>(height), data, format);
-    stbi_image_free(data);
-
-    if (texture) {
-        ES_LOG_DEBUG("Loaded texture: {} ({}x{}, {} channels)", path, width, height, channels);
-    }
-
-    return texture;
-}
-#endif
 
 Unique<Texture> Texture::createFromExternalId(GfxDevice& device, u32 glTextureId, u32 width, u32 height,
                                               TextureFormat format) {

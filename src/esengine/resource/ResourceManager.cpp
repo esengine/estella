@@ -11,14 +11,7 @@
 
 #include "ResourceManager.hpp"
 #include "../text/BitmapFont.hpp"
-#ifndef ES_PLATFORM_WEB
-#include "loaders/ShaderLoader.hpp"
-#include <json.hpp>
-#include <fstream>
-#include <stb_image.h>
-#endif
 #include "../core/Log.hpp"
-#include "../platform/PathResolver.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
@@ -34,11 +27,6 @@ void ResourceManager::init(GfxDevice& device) {
 
     device_ = &device;
 
-#ifndef ES_PLATFORM_WEB
-    stbi_set_flip_vertically_on_load(true);
-    hotReloadManager_.init(true);
-#endif
-
     stats_ = {};
     initialized_ = true;
 }
@@ -50,11 +38,6 @@ void ResourceManager::shutdown() {
 
     ES_LOG_INFO("ResourceManager shutting down (shaders: {}, textures: {}, vbos: {}, ibos: {}, fonts: {})",
                 shaders_.size(), textures_.size(), vertexBuffers_.size(), indexBuffers_.size(), fonts_.size());
-
-#ifndef ES_PLATFORM_WEB
-    hotReloadManager_.shutdown();
-    shaderPaths_.clear();
-#endif
 
     guidToTexture_.clear();
     textureMetadata_.clear();
@@ -69,11 +52,7 @@ void ResourceManager::shutdown() {
 }
 
 void ResourceManager::update() {
-#ifndef ES_PLATFORM_WEB
-    if (initialized_) {
-        hotReloadManager_.update();
-    }
-#endif
+    // Hot reload is editor/native-only; no-op on web.
 }
 
 // =============================================================================
@@ -121,67 +100,6 @@ ShaderHandle ResourceManager::loadShader(const std::string& vertPath, const std:
     stats_.cacheMisses++;
     return shaders_.add(std::move(shader), cacheKey);
 }
-
-#ifndef ES_PLATFORM_WEB
-ShaderHandle ResourceManager::loadShaderFile(const std::string& path, const std::string& platform) {
-    auto cached = shaders_.findByPath(path);
-    if (cached.isValid()) {
-        shaders_.addRef(cached);
-        stats_.cacheHits++;
-        return cached;
-    }
-
-    ShaderFileLoader loader(*device_);
-    LoadRequest request;
-    request.path = path;
-    request.platform = platform;
-    auto result = loader.load(request);
-    if (!result.isOk()) {
-        stats_.cacheMisses++;
-        return ShaderHandle();
-    }
-
-    stats_.cacheMisses++;
-    auto handle = shaders_.add(std::move(result.resource), path);
-
-#ifndef ES_PLATFORM_WEB
-    if (handle.isValid()) {
-        shaderPaths_[handle.id()] = path;
-        hotReloadManager_.watch<Shader>(handle, path, [this, handle](const std::string& p) {
-            reloadShader(handle, p);
-        });
-    }
-#endif
-
-    return handle;
-}
-
-ShaderHandle ResourceManager::loadEngineShader(const std::string& name, const std::string& platform) {
-    std::string cacheKey = "engine:" + name;
-    auto cached = shaders_.findByPath(cacheKey);
-    if (cached.isValid()) {
-        shaders_.addRef(cached);
-        stats_.cacheHits++;
-        return cached;
-    }
-
-    std::string path = PathResolver::editorPath("src/esengine/data/shaders/" + name + ".esshader");
-
-    ShaderFileLoader loader(*device_);
-    LoadRequest request;
-    request.path = path;
-    request.platform = platform;
-    auto result = loader.load(request);
-    if (!result.isOk()) {
-        ES_LOG_ERROR("Failed to load engine shader '{}': {}", name, result.errorMessage);
-        stats_.cacheMisses++;
-        return ShaderHandle();
-    }
-
-    stats_.cacheMisses++;
-    return shaders_.add(std::move(result.resource), cacheKey);
-}
-#endif
 
 Shader* ResourceManager::getShader(ShaderHandle handle) {
     return shaders_.get(handle);
@@ -233,40 +151,11 @@ TextureHandle ResourceManager::loadTexture(const std::string& path) {
         return cached;
     }
 
-#ifdef ES_PLATFORM_WEB
+    // Web decodes images JS-side and uploads via createTexture/registerExternalTexture;
+    // there is no C++ file-decode path.
     ES_LOG_ERROR("loadTexture from file not supported on Web, use createTexture with pixel data");
     stats_.cacheMisses++;
     return TextureHandle();
-#else
-    auto texture = Texture::createFromFile(*device_, path);
-    if (!texture) {
-        stats_.cacheMisses++;
-        return TextureHandle();
-    }
-
-    stats_.cacheMisses++;
-    auto handle = textures_.add(std::move(texture), path);
-
-    // Load .meta file if exists
-    std::string metaPath = path + ".meta";
-    std::ifstream metaFile(metaPath);
-    if (metaFile.is_open()) {
-        std::string content((std::istreambuf_iterator<char>(metaFile)),
-                            std::istreambuf_iterator<char>());
-        auto j = nlohmann::json::parse(content, nullptr, false);
-        if (!j.is_discarded() && j.contains("sliceBorder")) {
-            TextureMetadata metadata;
-            auto& sb = j["sliceBorder"];
-            metadata.sliceBorder.left = sb.value("left", 0.0f);
-            metadata.sliceBorder.right = sb.value("right", 0.0f);
-            metadata.sliceBorder.top = sb.value("top", 0.0f);
-            metadata.sliceBorder.bottom = sb.value("bottom", 0.0f);
-            setTextureMetadata(handle, metadata);
-        }
-    }
-
-    return handle;
-#endif
 }
 
 Texture* ResourceManager::getTexture(TextureHandle handle) {
@@ -452,36 +341,11 @@ BitmapFontHandle ResourceManager::loadBitmapFont(const std::string& fntPath) {
         return cached;
     }
 
-#ifdef ES_PLATFORM_WEB
+    // Web has no filesystem font-decode path; fonts come via createBitmapFont
+    // with content + texture already supplied from JS.
     ES_LOG_ERROR("loadBitmapFont from file not supported on Web");
     stats_.cacheMisses++;
     return BitmapFontHandle();
-#else
-    std::ifstream fntFile(fntPath);
-    if (!fntFile.is_open()) {
-        ES_LOG_ERROR("Failed to open BMFont file: {}", fntPath);
-        stats_.cacheMisses++;
-        return BitmapFontHandle();
-    }
-
-    std::string content((std::istreambuf_iterator<char>(fntFile)),
-                         std::istreambuf_iterator<char>());
-
-    auto font = makeUnique<text::BitmapFont>();
-    std::string basePath;
-    auto lastSlash = fntPath.find_last_of("/\\");
-    if (lastSlash != std::string::npos) {
-        basePath = fntPath.substr(0, lastSlash);
-    }
-
-    if (!font->loadFromFntText(content, basePath, *this)) {
-        stats_.cacheMisses++;
-        return BitmapFontHandle();
-    }
-
-    stats_.cacheMisses++;
-    return fonts_.add(std::move(font), fntPath);
-#endif
 }
 
 BitmapFontHandle ResourceManager::createBitmapFont(const std::string& fntContent,
@@ -537,53 +401,5 @@ void ResourceManager::resetCacheStats() {
     stats_.cacheHits = 0;
     stats_.cacheMisses = 0;
 }
-
-#ifndef ES_PLATFORM_WEB
-void ResourceManager::reloadShader(ShaderHandle handle, const std::string& path) {
-    if (!handle.isValid()) {
-        return;
-    }
-
-    auto it = shaderPaths_.find(handle.id());
-    if (it == shaderPaths_.end()) {
-        ES_LOG_ERROR("HotReload: Shader path not found for handle {}", handle.id());
-        return;
-    }
-
-    ES_LOG_INFO("HotReload: Reloading shader '{}'", path);
-
-    ShaderFileLoader loader(*device_);
-    LoadRequest request;
-    request.path = path;
-    auto result = loader.load(request);
-
-    ReloadEvent<Shader> event;
-    event.handle = handle;
-    event.path = path;
-
-    if (!result.isOk()) {
-        ES_LOG_ERROR("HotReload: Failed to reload shader '{}': {}", path, result.errorMessage);
-        event.success = false;
-        event.errorMessage = result.errorMessage;
-        hotReloadManager_.onShaderReloaded.publish(event);
-        return;
-    }
-
-    Shader* oldShader = shaders_.get(handle);
-    if (!oldShader) {
-        ES_LOG_ERROR("HotReload: Shader handle {} is no longer valid", handle.id());
-        event.success = false;
-        event.errorMessage = "Shader handle no longer valid";
-        hotReloadManager_.onShaderReloaded.publish(event);
-        return;
-    }
-
-    *oldShader = std::move(*result.resource);
-
-    ES_LOG_INFO("HotReload: Successfully reloaded shader '{}'", path);
-    event.success = true;
-    hotReloadManager_.onShaderReloaded.publish(event);
-}
-#endif
 
 }  // namespace esengine::resource
