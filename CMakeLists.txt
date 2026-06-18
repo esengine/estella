@@ -40,7 +40,6 @@ set(ESENGINE_SOURCES
     src/esengine/resource/ResourceManager.cpp
     src/esengine/resource/ShaderParser.cpp
     src/esengine/renderer/RenderContext.cpp
-    src/esengine/renderer/Renderer.cpp
     src/esengine/renderer/Shader.cpp
     src/esengine/renderer/Buffer.cpp
     src/esengine/renderer/Texture.cpp
@@ -137,7 +136,6 @@ set(ESENGINE_HEADERS
     src/esengine/resource/ResourceManager.hpp
     src/esengine/resource/Resource.hpp
     src/esengine/renderer/RenderContext.hpp
-    src/esengine/renderer/Renderer.hpp
     src/esengine/renderer/Shader.hpp
     src/esengine/renderer/Buffer.hpp
     src/esengine/renderer/Texture.hpp
