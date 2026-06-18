@@ -226,7 +226,7 @@ private:
 
     template<typename Event>
     Signal<void(const Event&)>& assure() {
-        auto typeId = getTypeId<Event>();
+        auto typeId = eventTypeId<Event>();
         auto it = signals_.find(typeId);
 
         if (it == signals_.end()) {
@@ -241,7 +241,7 @@ private:
 
     template<typename Event>
     Signal<void(const Event&)>* find() {
-        auto typeId = getTypeId<Event>();
+        auto typeId = eventTypeId<Event>();
         auto it = signals_.find(typeId);
         if (it != signals_.end()) {
             return &static_cast<SignalWrapperTyped<Event>*>(it->second.get())->signal;
@@ -251,7 +251,7 @@ private:
 
     template<typename Event>
     const Signal<void(const Event&)>* find() const {
-        auto typeId = getTypeId<Event>();
+        auto typeId = eventTypeId<Event>();
         auto it = signals_.find(typeId);
         if (it != signals_.end()) {
             return &static_cast<const SignalWrapperTyped<Event>*>(it->second.get())->signal;

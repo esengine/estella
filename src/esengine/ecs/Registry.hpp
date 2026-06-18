@@ -246,7 +246,7 @@ public:
         ES_ASSERT(valid(entity), "Invalid entity");
         auto& pool = assurePool<T>();
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        component_masks_[entity.index()].set(getTypeId<T>());
+        component_masks_[entity.index()].set(componentTypeId<T>());
         return result;
     }
 
@@ -271,7 +271,7 @@ public:
             return comp;
         }
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        component_masks_[entity.index()].set(getTypeId<T>());
+        component_masks_[entity.index()].set(componentTypeId<T>());
         return result;
     }
 
@@ -289,7 +289,7 @@ public:
             pool->remove(entity);
             const u32 idx = entity.index();
             if (idx < component_masks_.size()) {
-                component_masks_[idx].clear(getTypeId<T>());
+                component_masks_[idx].clear(componentTypeId<T>());
             }
         }
     }
@@ -351,7 +351,7 @@ public:
             return pool.get(entity);
         }
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
-        component_masks_[entity.index()].set(getTypeId<T>());
+        component_masks_[entity.index()].set(componentTypeId<T>());
         return result;
     }
 
@@ -578,7 +578,7 @@ private:
      */
     template<typename T>
     SparseSet<T>& assurePool() {
-        TypeId typeId = getTypeId<T>();
+        TypeId typeId = componentTypeId<T>();
         if (typeId >= pools_.size()) {
             pools_.resize(typeId + 1);
         }
@@ -595,14 +595,14 @@ private:
      */
     template<typename T>
     SparseSet<T>* getPool() {
-        TypeId typeId = getTypeId<T>();
+        TypeId typeId = componentTypeId<T>();
         if (typeId >= pools_.size() || !pools_[typeId]) return nullptr;
         return static_cast<SparseSet<T>*>(pools_[typeId].get());
     }
 
     template<typename T>
     const SparseSet<T>* getPool() const {
-        TypeId typeId = getTypeId<T>();
+        TypeId typeId = componentTypeId<T>();
         if (typeId >= pools_.size() || !pools_[typeId]) return nullptr;
         return static_cast<const SparseSet<T>*>(pools_[typeId].get());
     }

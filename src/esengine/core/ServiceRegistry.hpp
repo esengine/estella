@@ -59,7 +59,7 @@ public:
      */
     template<typename T>
     void registerService(T* service) {
-        TypeId id = getTypeId<T>();
+        TypeId id = serviceTypeId<T>();
         ES_ASSERT(services_.find(id) == services_.end(),
                   "Service already registered, use removeService first");
         services_[id] = static_cast<void*>(service);
@@ -72,7 +72,7 @@ public:
      */
     template<typename T>
     void registerOwned(Unique<T> service) {
-        TypeId id = getTypeId<T>();
+        TypeId id = serviceTypeId<T>();
         ES_ASSERT(services_.find(id) == services_.end(),
                   "Service already registered, use removeService first");
         T* raw = service.get();
@@ -91,7 +91,7 @@ public:
      */
     template<typename T>
     T* getService() {
-        auto it = services_.find(getTypeId<T>());
+        auto it = services_.find(serviceTypeId<T>());
         if (it == services_.end()) return nullptr;
         return static_cast<T*>(it->second);
     }
@@ -114,7 +114,7 @@ public:
      */
     template<typename T>
     void removeService() {
-        TypeId id = getTypeId<T>();
+        TypeId id = serviceTypeId<T>();
         auto it = services_.find(id);
         if (it == services_.end()) return;
 
