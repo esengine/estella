@@ -2,7 +2,7 @@
 
 namespace esengine {
 
-void RenderTarget::init(u32 width, u32 height, bool depth, bool linearFilter) {
+void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bool linearFilter) {
     width_ = width;
     height_ = height;
     has_depth_ = depth;
@@ -14,7 +14,7 @@ void RenderTarget::init(u32 width, u32 height, bool depth, bool linearFilter) {
     spec.depthStencil = depth;
     spec.linearFilter = linearFilter;
 
-    framebuffer_ = Framebuffer::create(spec);
+    framebuffer_ = Framebuffer::create(device, spec);
 }
 
 void RenderTarget::shutdown() {
@@ -70,7 +70,7 @@ RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, b
     }
 
     auto target = makeUnique<RenderTarget>();
-    target->init(width, height, depth, linearFilter);
+    target->init(*device_, width, height, depth, linearFilter);
 
     usize index = handle - 1;
     if (index < targets_.size()) {

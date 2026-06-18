@@ -41,6 +41,14 @@ void StateTracker::reset() {
     current_program_ = 0;
     bound_textures_.fill(0);
 
+    // The actual VAO/buffer/framebuffer GL bindings are not forced here, so mark
+    // them unknown: the first bind of each per frame then always issues, which is
+    // correct regardless of leftover GL state and costs at most one bind/frame.
+    vao_bound_ = UNKNOWN_BINDING;
+    vertex_buffer_bound_ = UNKNOWN_BINDING;
+    index_buffer_bound_ = UNKNOWN_BINDING;
+    framebuffer_bound_ = UNKNOWN_BINDING;
+
     vp_x_ = -1;
     vp_y_ = -1;
     vp_w_ = 0;
@@ -124,6 +132,38 @@ void StateTracker::useProgram(u32 programId) {
     if (current_program_ == programId) return;
     current_program_ = programId;
     device_.useProgram(programId);
+}
+
+void StateTracker::bindVertexArray(u32 vaoId) {
+    if (vao_bound_ == vaoId) return;
+    vao_bound_ = vaoId;
+    device_.bindVertexArray(vaoId);
+    // The element-array (index) buffer binding is part of VAO state, so the
+    // freshly bound VAO now defines it — our cache no longer reflects reality.
+    index_buffer_bound_ = UNKNOWN_BINDING;
+}
+
+void StateTracker::bindVertexBuffer(u32 bufferId) {
+    if (vertex_buffer_bound_ == bufferId) return;
+    vertex_buffer_bound_ = bufferId;
+    device_.bindVertexBuffer(bufferId);
+}
+
+void StateTracker::bindIndexBuffer(u32 bufferId) {
+    if (index_buffer_bound_ == bufferId) return;
+    index_buffer_bound_ = bufferId;
+    device_.bindIndexBuffer(bufferId);
+}
+
+void StateTracker::bindFramebuffer(u32 fboId) {
+    if (framebuffer_bound_ == fboId) return;
+    framebuffer_bound_ = fboId;
+    device_.bindFramebuffer(fboId);
+}
+
+void StateTracker::invalidateBufferBindings() {
+    vertex_buffer_bound_ = UNKNOWN_BINDING;
+    index_buffer_bound_ = UNKNOWN_BINDING;
 }
 
 void StateTracker::setDepthTest(bool enabled) {

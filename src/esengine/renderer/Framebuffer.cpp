@@ -1,6 +1,8 @@
 /**
  * @file    Framebuffer.cpp
- * @brief   Framebuffer implementation for OpenGL/WebGL
+ * @brief   Framebuffer implementation (device-backed)
+ * @details Thin RAII handle over a GPU framebuffer + its attachments. All GL is
+ *          delegated to GfxDevice; this file contains no GL calls.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -10,23 +12,8 @@
  */
 
 #include "Framebuffer.hpp"
+#include "GfxDevice.hpp"
 #include "../core/Log.hpp"
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #include <glad/glad.h>
-#endif
-
-#ifndef GL_DEPTH_STENCIL
-    #define GL_DEPTH_STENCIL 0x84F9
-#endif
-#ifndef GL_UNSIGNED_INT_24_8
-    #define GL_UNSIGNED_INT_24_8 0x84FA
-#endif
-#ifndef GL_DEPTH_STENCIL_ATTACHMENT
-    #define GL_DEPTH_STENCIL_ATTACHMENT 0x821A
-#endif
 
 namespace esengine {
 
@@ -39,7 +26,8 @@ Framebuffer::~Framebuffer() {
 }
 
 Framebuffer::Framebuffer(Framebuffer&& other) noexcept
-    : spec_(other.spec_),
+    : device_(other.device_),
+      spec_(other.spec_),
       framebufferId_(other.framebufferId_),
       colorAttachment_(other.colorAttachment_),
       depthAttachment_(other.depthAttachment_) {
@@ -51,6 +39,7 @@ Framebuffer::Framebuffer(Framebuffer&& other) noexcept
 Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
     if (this != &other) {
         cleanup();
+        device_ = other.device_;
         spec_ = other.spec_;
         framebufferId_ = other.framebufferId_;
         colorAttachment_ = other.colorAttachment_;
@@ -66,8 +55,9 @@ Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
 // Creation
 // =============================================================================
 
-Unique<Framebuffer> Framebuffer::create(const FramebufferSpec& spec) {
+Unique<Framebuffer> Framebuffer::create(GfxDevice& device, const FramebufferSpec& spec) {
     auto framebuffer = makeUnique<Framebuffer>();
+    framebuffer->device_ = &device;
     framebuffer->spec_ = spec;
 
     if (!framebuffer->initialize()) {
@@ -83,11 +73,11 @@ Unique<Framebuffer> Framebuffer::create(const FramebufferSpec& spec) {
 // =============================================================================
 
 void Framebuffer::bind() const {
-    glBindFramebuffer(GL_FRAMEBUFFER, framebufferId_);
+    if (device_) device_->bindFramebuffer(framebufferId_);
 }
 
 void Framebuffer::unbind() const {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (device_) device_->bindFramebuffer(0);
 }
 
 void Framebuffer::resize(u32 width, u32 height) {
@@ -110,64 +100,57 @@ void Framebuffer::resize(u32 width, u32 height) {
 // =============================================================================
 
 bool Framebuffer::initialize() {
-    glGenFramebuffers(1, &framebufferId_);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebufferId_);
+    const TextureFilter filter = spec_.linearFilter ? TextureFilter::Linear : TextureFilter::Nearest;
 
-    glGenTextures(1, &colorAttachment_);
-    glBindTexture(GL_TEXTURE_2D, colorAttachment_);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, spec_.width, spec_.height, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    GLenum filter = spec_.linearFilter ? GL_LINEAR : GL_NEAREST;
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                          GL_TEXTURE_2D, colorAttachment_, 0);
+    framebufferId_ = device_->createFramebuffer();
+    device_->bindFramebuffer(framebufferId_);
+
+    colorAttachment_ = device_->createTexture();
+    device_->texImage2D(colorAttachment_, spec_.width, spec_.height, GfxPixelFormat::RGBA8, nullptr);
+    device_->setTextureParams(colorAttachment_, filter, filter,
+                              TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
+    device_->framebufferTexture2D(framebufferId_, GfxAttachment::Color0, colorAttachment_);
 
     if (spec_.depthStencil) {
-        glGenTextures(1, &depthAttachment_);
-        glBindTexture(GL_TEXTURE_2D, depthAttachment_);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, spec_.width, spec_.height, 0,
-                     GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                              GL_TEXTURE_2D, depthAttachment_, 0);
+        depthAttachment_ = device_->createTexture();
+        device_->texImage2D(depthAttachment_, spec_.width, spec_.height,
+                            GfxPixelFormat::Depth24Stencil8, nullptr);
+        device_->setTextureParams(depthAttachment_, TextureFilter::Nearest, TextureFilter::Nearest,
+                                  TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
+        device_->framebufferTexture2D(framebufferId_, GfxAttachment::DepthStencil, depthAttachment_);
     }
 
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        ES_LOG_ERROR("Framebuffer GL error before completeness check: 0x{:X} (size: {}x{})", err, spec_.width, spec_.height);
+    if (u32 err = device_->getError(); err != 0) {
+        ES_LOG_ERROR("Framebuffer GL error before completeness check: 0x{:X} (size: {}x{})",
+                     err, spec_.width, spec_.height);
     }
 
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        ES_LOG_ERROR("Framebuffer is incomplete! Status: 0x{:X} (size: {}x{})", status, spec_.width, spec_.height);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (!device_->checkFramebufferStatus()) {
+        ES_LOG_ERROR("Framebuffer is incomplete! (size: {}x{})", spec_.width, spec_.height);
+        device_->bindFramebuffer(0);
         cleanup();
         return false;
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    device_->bindFramebuffer(0);
     return true;
 }
 
 void Framebuffer::cleanup() {
+    if (!device_) return;
+
     if (colorAttachment_) {
-        glDeleteTextures(1, &colorAttachment_);
+        device_->deleteTexture(colorAttachment_);
         colorAttachment_ = 0;
     }
 
     if (depthAttachment_) {
-        glDeleteTextures(1, &depthAttachment_);
+        device_->deleteTexture(depthAttachment_);
         depthAttachment_ = 0;
     }
 
     if (framebufferId_) {
-        glDeleteFramebuffers(1, &framebufferId_);
+        device_->deleteFramebuffer(framebufferId_);
         framebufferId_ = 0;
     }
 }

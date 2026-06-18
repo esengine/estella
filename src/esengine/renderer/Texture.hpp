@@ -26,6 +26,8 @@
 
 namespace esengine {
 
+class GfxDevice;
+
 // =============================================================================
 // Texture Enums
 // =============================================================================
@@ -145,7 +147,7 @@ public:
      * @details Creates a texture with uninitialized pixel data.
      *          Use setData() to upload pixels later.
      */
-    static Unique<Texture> create(const TextureSpecification& spec);
+    static Unique<Texture> create(GfxDevice& device, const TextureSpecification& spec);
 
     /**
      * @brief Creates a texture from a span of pixel data
@@ -155,7 +157,7 @@ public:
      * @param format Pixel format (default RGBA8)
      * @return Unique pointer to the texture
      */
-    static Unique<Texture> create(u32 width, u32 height, std::span<const u8> pixels,
+    static Unique<Texture> create(GfxDevice& device, u32 width, u32 height, std::span<const u8> pixels,
                                    TextureFormat format = TextureFormat::RGBA8,
                                    bool flipY = false);
 
@@ -168,7 +170,7 @@ public:
      * @param flipY Flip vertically on upload (for web image data)
      * @return Unique pointer to the texture
      */
-    static Unique<Texture> create(u32 width, u32 height, const std::vector<u8>& pixels,
+    static Unique<Texture> create(GfxDevice& device, u32 width, u32 height, const std::vector<u8>& pixels,
                                    TextureFormat format = TextureFormat::RGBA8,
                                    bool flipY = false);
 
@@ -180,7 +182,7 @@ public:
      * @note Supported formats depend on the image loading implementation.
      */
 #ifndef ES_PLATFORM_WEB
-    static Unique<Texture> createFromFile(const std::string& path);
+    static Unique<Texture> createFromFile(GfxDevice& device, const std::string& path);
 #endif
 
     // =========================================================================
@@ -245,7 +247,7 @@ public:
      * @param format Pixel format (default RGBA8)
      * @return Unique pointer to the texture
      */
-    static Unique<Texture> createRaw(u32 width, u32 height, const void* data,
+    static Unique<Texture> createRaw(GfxDevice& device, u32 width, u32 height, const void* data,
                                       TextureFormat format = TextureFormat::RGBA8,
                                       bool flipY = false);
 
@@ -257,7 +259,7 @@ public:
      * @param format Pixel format
      * @return Unique pointer to the texture wrapper
      */
-    static Unique<Texture> createFromExternalId(u32 glTextureId, u32 width, u32 height,
+    static Unique<Texture> createFromExternalId(GfxDevice& device, u32 glTextureId, u32 width, u32 height,
                                                  TextureFormat format = TextureFormat::RGBA8);
 
     /**
@@ -275,6 +277,7 @@ private:
      */
     bool initialize(const TextureSpecification& spec);
 
+    GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     u32 textureId_ = 0;
     u32 width_ = 0;
     u32 height_ = 0;

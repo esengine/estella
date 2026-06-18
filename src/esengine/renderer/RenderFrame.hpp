@@ -52,7 +52,8 @@ public:
         u32 culled = 0;
     };
 
-    RenderFrame(GfxDevice& device, RenderContext& context, resource::ResourceManager& resource_manager);
+    RenderFrame(GfxDevice& device, StateTracker& state_tracker, RenderContext& context,
+                resource::ResourceManager& resource_manager);
     ~RenderFrame();
 
     RenderFrame(const RenderFrame&) = delete;
@@ -124,7 +125,7 @@ private:
     GfxDevice& device_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
-    StateTracker state_tracker_;
+    StateTracker& state_tracker_;  // owned by EstellaContext (per-App service)
 
 #ifdef ES_ENABLE_POSTPROCESS
     Unique<PostProcessPipeline> post_process_;

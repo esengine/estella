@@ -36,6 +36,7 @@ public:
 
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
     void setClearColor(f32 r, f32 g, f32 b, f32 a) override;
+    void setClearStencil(i32 value) override;
     void clear(bool color, bool depth, bool stencil) override;
 
     void setBlendEnabled(bool enabled) override;
@@ -58,8 +59,13 @@ public:
 
     void bindTexture(u32 slot, u32 textureId) override;
 
+    u32 createProgram(const char* vertexSrc, const char* fragmentSrc,
+                      const GfxAttribBinding* bindings, u32 bindingCount,
+                      std::string* outLog, GfxShaderStage* outFailedStage) override;
+    void deleteProgram(u32 programId) override;
     void useProgram(u32 programId) override;
     i32 getUniformLocation(u32 programId, const char* name) override;
+    i32 getAttribLocation(u32 programId, const char* name) override;
     void setUniform1i(i32 location, i32 value) override;
     void setUniform1f(i32 location, f32 value) override;
     void setUniform2f(i32 location, f32 x, f32 y) override;
@@ -100,6 +106,7 @@ public:
                           TextureWrap wrapS, TextureWrap wrapT) override;
     void generateMipmaps(u32 textureId) override;
     void pixelStorei(u32 pname, i32 param) override;
+    void setUnpackFlipY(bool enabled) override;
 
     u32 createFramebuffer() override;
     void deleteFramebuffer(u32 fboId) override;
