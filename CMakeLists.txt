@@ -234,7 +234,6 @@ else()
     # sources a native tooling/test build still needs.
     list(APPEND ESENGINE_SOURCES
         src/esengine/renderer/stb_image_impl.cpp
-        src/esengine/resource/LoaderJobQueue.cpp
         src/esengine/resource/HotReloadManager.cpp
         src/esengine/resource/loaders/ShaderLoader.cpp
     )
