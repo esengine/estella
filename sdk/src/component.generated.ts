@@ -6,6 +6,14 @@
 
 import type { AssetFieldType } from './scene';
 
+/**
+ * Single-source-of-truth hash of the C++/TS boundary ABI (component
+ * schema + pointer layouts). The WASM module exposes the same digest via
+ * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
+ * run on mismatch, because mismatched offsets read the wrong heap bytes.
+ */
+export const ABI_LAYOUT_HASH = 'f5d18743d00de675';
+
 export interface AssetFieldMeta {
     field: string;
     type: AssetFieldType;

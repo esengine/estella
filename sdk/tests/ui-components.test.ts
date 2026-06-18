@@ -6,8 +6,6 @@
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { App } from '../src/app';
 import { World } from '../src/world';
 import { Transform, Sprite, Canvas } from '../src/component';
@@ -21,10 +19,7 @@ import { UICameraInfo, type UICameraData } from '../src/ui/UICameraInfo';
 import { uiLayoutPlugin } from '../src/ui/UILayoutPlugin';
 import { uiRenderOrderPlugin } from '../src/ui/UIRenderOrderPlugin';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
-import { loadWasmModule } from './helpers/loadWasm';
-
-const WASM_PATH = resolve(__dirname, '../../desktop/public/wasm/esengine.wasm');
-const HAS_WASM = existsSync(WASM_PATH);
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
     let module: ESEngineModule;

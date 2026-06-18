@@ -6,6 +6,7 @@
 import type { Entity, Vec2 } from '../types';
 import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
 import { log } from '../logger';
+import { withMalloc, withScratch } from '../wasmScratch';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
 
@@ -75,23 +76,23 @@ export class SpineModuleController {
     // =========================================================================
 
     loadSkeleton(skelData: Uint8Array | string, atlasText: string, isBinary: boolean): number {
-        let ptr: number;
-        let len: number;
-        if (typeof skelData === 'string') {
-            const encoder = new TextEncoder();
-            const bytes = encoder.encode(skelData);
-            len = bytes.length;
-            ptr = this.raw_._malloc(len + 1);
-            this.raw_.HEAPU8.set(bytes, ptr);
-            this.raw_.HEAPU8[ptr + len] = 0;
-        } else {
-            len = skelData.length;
-            ptr = this.raw_._malloc(len);
-            this.raw_.HEAPU8.set(skelData, ptr);
-        }
-        const result = this.api_.loadSkeleton(ptr, len, atlasText, atlasText.length, isBinary);
-        this.raw_._free(ptr);
-        return result;
+        return withScratch(this.raw_, alloc => {
+            let ptr: number;
+            let len: number;
+            if (typeof skelData === 'string') {
+                const encoder = new TextEncoder();
+                const bytes = encoder.encode(skelData);
+                len = bytes.length;
+                ptr = alloc(len + 1);
+                this.raw_.HEAPU8.set(bytes, ptr);
+                this.raw_.HEAPU8[ptr + len] = 0;
+            } else {
+                len = skelData.length;
+                ptr = alloc(len);
+                this.raw_.HEAPU8.set(skelData, ptr);
+            }
+            return this.api_.loadSkeleton(ptr, len, atlasText, atlasText.length, isBinary);
+        });
     }
 
     getLastError(): string {
@@ -174,22 +175,20 @@ export class SpineModuleController {
     }
 
     getBonePosition(instanceId: number, boneName: string): Vec2 | null {
-        const xPtr = this.raw_._malloc(4);
-        const yPtr = this.raw_._malloc(4);
+        return withScratch(this.raw_, alloc => {
+            const xPtr = alloc(4);
+            const yPtr = alloc(4);
 
-        const found = this.api_.getBonePosition(instanceId, boneName, xPtr, yPtr);
+            const found = this.api_.getBonePosition(instanceId, boneName, xPtr, yPtr);
 
-        if (!found) {
-            this.raw_._free(xPtr);
-            this.raw_._free(yPtr);
-            return null;
-        }
+            if (!found) {
+                return null;
+            }
 
-        const x = this.raw_.HEAPF32[xPtr >> 2];
-        const y = this.raw_.HEAPF32[yPtr >> 2];
-        this.raw_._free(xPtr);
-        this.raw_._free(yPtr);
-        return { x, y };
+            const x = this.raw_.HEAPF32[xPtr >> 2];
+            const y = this.raw_.HEAPF32[yPtr >> 2];
+            return { x, y };
+        });
     }
 
     getBoneRotation(instanceId: number, boneName: string): number {
@@ -197,19 +196,18 @@ export class SpineModuleController {
     }
 
     getBounds(instanceId: number): { x: number; y: number; width: number; height: number } {
-        const ptr = this.raw_._malloc(16);
-        this.api_.getBounds(instanceId, ptr, ptr + 4, ptr + 8, ptr + 12);
+        return withMalloc(this.raw_, 16, ptr => {
+            this.api_.getBounds(instanceId, ptr, ptr + 4, ptr + 8, ptr + 12);
 
-        const f32 = this.raw_.HEAPF32;
-        const base = ptr >> 2;
-        const result = {
-            x: f32[base],
-            y: f32[base + 1],
-            width: f32[base + 2],
-            height: f32[base + 3],
-        };
-        this.raw_._free(ptr);
-        return result;
+            const f32 = this.raw_.HEAPF32;
+            const base = ptr >> 2;
+            return {
+                x: f32[base],
+                y: f32[base + 1],
+                width: f32[base + 2],
+                height: f32[base + 3],
+            };
+        });
     }
 
     // =========================================================================
@@ -230,40 +228,38 @@ export class SpineModuleController {
             blendMode: number;
         }[] = [];
 
-        const metaPtr = this.raw_._malloc(8);
-        const texIdPtr = metaPtr;
-        const blendPtr = metaPtr + 4;
+        withMalloc(this.raw_, 8, metaPtr => {
+            const texIdPtr = metaPtr;
+            const blendPtr = metaPtr + 4;
 
-        for (let i = 0; i < batchCount; i++) {
-            const vertexCount = this.api_.getMeshBatchVertexCount(instanceId, i);
-            const indexCount = this.api_.getMeshBatchIndexCount(instanceId, i);
-            if (vertexCount <= 0 || indexCount <= 0) continue;
+            for (let i = 0; i < batchCount; i++) {
+                const vertexCount = this.api_.getMeshBatchVertexCount(instanceId, i);
+                const indexCount = this.api_.getMeshBatchIndexCount(instanceId, i);
+                if (vertexCount <= 0 || indexCount <= 0) continue;
 
-            const vertBytes = vertexCount * 8 * 4;
-            const idxBytes = indexCount * 2;
-            const vertPtr = this.raw_._malloc(vertBytes);
-            const idxPtr = this.raw_._malloc(idxBytes);
+                const vertBytes = vertexCount * 8 * 4;
+                const idxBytes = indexCount * 2;
+                withScratch(this.raw_, alloc => {
+                    const vertPtr = alloc(vertBytes);
+                    const idxPtr = alloc(idxBytes);
 
-            this.api_.getMeshBatchData(
-                instanceId, i, vertPtr, idxPtr, texIdPtr, blendPtr);
+                    this.api_.getMeshBatchData(
+                        instanceId, i, vertPtr, idxPtr, texIdPtr, blendPtr);
 
-            const vertices = new Float32Array(
-                this.raw_.HEAPF32.buffer, vertPtr, vertexCount * 8);
-            const indices = new Uint16Array(
-                this.raw_.HEAPU8.buffer, idxPtr, indexCount);
+                    const vertices = new Float32Array(
+                        this.raw_.HEAPF32.buffer, vertPtr, vertexCount * 8);
+                    const indices = new Uint16Array(
+                        this.raw_.HEAPU8.buffer, idxPtr, indexCount);
 
-            batches.push({
-                vertices: new Float32Array(vertices),
-                indices: new Uint16Array(indices),
-                textureId: this.raw_.HEAPU32[texIdPtr >> 2],
-                blendMode: this.raw_.HEAPU32[blendPtr >> 2],
-            });
-
-            this.raw_._free(vertPtr);
-            this.raw_._free(idxPtr);
-        }
-
-        this.raw_._free(metaPtr);
+                    batches.push({
+                        vertices: new Float32Array(vertices),
+                        indices: new Uint16Array(indices),
+                        textureId: this.raw_.HEAPU32[texIdPtr >> 2],
+                        blendMode: this.raw_.HEAPU32[blendPtr >> 2],
+                    });
+                });
+            }
+        });
         return batches;
     }
 

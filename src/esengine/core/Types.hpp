@@ -179,35 +179,61 @@ using TypeId = u32;
 
 namespace detail {
     /**
-     * @brief Generates sequential type IDs
-     * @return The next available TypeId
-     * @note Internal use only
+     * @brief One independent TypeId counter per Domain tag.
+     * @details A single global counter shared across unrelated concerns
+     *          (components, events, services, resources) coupled them: a
+     *          component's id depended on how many events/services happened to
+     *          be instantiated first. Because the ECS uses the component id as
+     *          a `pools_` vector index AND a per-entity bitmask bit, an inflated
+     *          id wasted memory and could overflow the 128-bit inline mask.
+     *          Per-domain counters keep each domain's ids dense and 0-based.
+     * @note Internal use only.
      */
-    inline TypeId nextTypeId() {
+    template<typename Domain>
+    inline TypeId& typeIdCounter() {
         static TypeId counter = 0;
-        return counter++;
+        return counter;
+    }
+
+    template<typename Domain, typename T>
+    inline TypeId domainTypeId() {
+        static const TypeId id = typeIdCounter<Domain>()++;
+        return id;
     }
 }  // namespace detail
 
 /**
- * @brief Gets the unique runtime TypeId for a type
- * @tparam T The type to get an ID for
- * @return The TypeId associated with type T
- *
- * @details Each unique type T receives a unique ID on first call.
- *          Subsequent calls return the same ID.
- *
+ * @brief Domain tags — each yields an independent, dense, 0-based TypeId
+ *        sequence. Use the typed helpers below rather than the raw domain id.
+ */
+struct ComponentDomain {};
+struct EventDomain {};
+struct ServiceDomain {};
+struct ResourceDomain {};
+
+/**
+ * @brief Dense 0-based runtime id for a component type (ECS pool index + mask bit).
+ * @tparam T The component type
  * @code
- * TypeId posId = getTypeId<Position>();
- * TypeId velId = getTypeId<Velocity>();
+ * TypeId posId = componentTypeId<Position>();
+ * TypeId velId = componentTypeId<Velocity>();
  * assert(posId != velId);
  * @endcode
  */
 template<typename T>
-inline TypeId getTypeId() {
-    static const TypeId id = detail::nextTypeId();
-    return id;
-}
+inline TypeId componentTypeId() { return detail::domainTypeId<ComponentDomain, T>(); }
+
+/** @brief Dense 0-based runtime id for an event type (Dispatcher signal key). */
+template<typename T>
+inline TypeId eventTypeId() { return detail::domainTypeId<EventDomain, T>(); }
+
+/** @brief Dense 0-based runtime id for a service type (ServiceRegistry key). */
+template<typename T>
+inline TypeId serviceTypeId() { return detail::domainTypeId<ServiceDomain, T>(); }
+
+/** @brief Dense 0-based runtime id for a resource type (LoaderRegistry key). */
+template<typename T>
+inline TypeId resourceTypeId() { return detail::domainTypeId<ResourceDomain, T>(); }
 
 // =============================================================================
 // Result Type
