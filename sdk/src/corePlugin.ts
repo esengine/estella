@@ -14,7 +14,7 @@ export const corePlugin: Plugin = {
 
     build(app) {
         const module = app.wasmModule!;
-        initResourceManager(module.getResourceManager());
+        initResourceManager(module.getResourceManager(), module);
         initDrawAPI(module);
         initGeometryAPI(module);
         initMaterialAPI(module);

@@ -59,7 +59,7 @@ RC1–RC5 坍缩了五个正确性根因，但留下四处"半成品 / 未统一
 - **迁移方式**：每个子系统在其 init/connect 接缝处把存储的 module 引用替换为 `bridge.module`，**数百个调用点零改动**继承守卫。
 - **覆盖**：abort 守卫从"仅主模块经 BuiltinBridge"扩展到 physics / spine / tilemap / timeline / ui / 六个 core facet **全覆盖**——补全 RC3 空洞。
 - **验证**：29 个新测试（wasm-bridge 12 / spine-bridge 7 / core-bridge 4 / timeline-tilemap-ui 6）；typecheck 通过；全量 SDK 套件 **2052 通过 / 0 失败**。
-- **待闭环**：`ResourceManager`（经 `module.getResourceManager()` 的 embind 对象，非文档点名的 5 套之一）尚未经守卫——作为小后续。`Camera` 的 module 触点归 F3。
+- **`ResourceManager` 闭环 — ✅**：embind RM 对象经 `WasmBridge`（health=主模块）守卫，`initResourceManager(rm, module)` 接缝路由；测试路径（无 module）保持 raw 向后兼容。至此 SDK 全部 WASM 调用面均经守卫。`Camera` 的 module 触点归 F3。
 
 ---
 
