@@ -13,7 +13,7 @@ RC1–RC5 坍缩了五个正确性根因，但留下四处"半成品 / 未统一
 3. **状态半 per-App**：Tween/Audio/Scene 已资源化，Camera/SpriteAnimator/PostProcess/Timeline + 六个 core 模块仍是进程级全局。
 4. **文档漂移**：`ARCHITECTURE.md` 描述的类已在 RC5 删除。
 
-**决议（已拍板）**：native **保留但隔离**——不删，但从散落 `#ifdef` 收敛到单一平台后端接缝，使其要么被 CI 编译守护、要么被明确隔离，**不再污染业务代码**。
+**决议（已拍板，2026-06 修订并落地）**：~~native 保留但隔离~~ → **塌成 web-only（删 native）**。审计推翻了"保留 native"的前提：native C++ 引擎**零出货消费者**——web / 微信 / 桌面（Tauri 内嵌 wasm webview）全跑 wasm 构建；CI 只编 Emscripten（`build.yml`），native C++ 引擎从不进 CI。于是"隔离 + CI 门禁守护 native"是在为一条没人跑的路加机器；最优雅/统一的是**靠删除收敛**（与 RC2"靠删除而非改造"同精神）。详见下方 F1 落地记录。
 
 ---
 
@@ -24,14 +24,20 @@ RC1–RC5 坍缩了五个正确性根因，但留下四处"半成品 / 未统一
 - **孤儿死代码**：`LoaderJobQueue.cpp`（`std::thread` 线程池）——web 不编译，**native 下也从无调用**；`AsyncHandle`（`resource/AsyncHandle.hpp:67-151`）同样无引用。**含义：C++ 侧"异步加载"目前是虚的**，RC6 的流式不能建在其上。
 - **合法但应单点化的平台选择**：`OpenGLHeaders.hpp:18-30`（GL 头按平台 include）、`CMakeLists.txt:326`（glfw/glad/OpenGL 仅 native 分支链接）。
 
-### 目标架构
-- **一处平台概念 = 一个接口 + 每平台一份实现**，业务逻辑零内联 `#ifdef`。沿用现有 `WebFileSystem` 的"接口 + per-platform impl"范式（`platform/web/WebFileSystem.cpp`）推广到其余概念：
-  - `IImageDecoder`：native = stbi（`Texture::createFromFile`）；web = JS 侧 ImageBitmap 解码后交字节（`registerExternalTexture`）。
-  - `IAsyncLoader`：native = `LoaderJobQueue`（std::thread）；web = 主线程 / JS Promise 驱动。**接通它**（消灭孤儿），因为 RC6 流式要靠它。
-  - `IHotReload`：native = `HotReloadManager`；web = no-op 实现（而非 `#ifdef` 抹掉调用点）。
-  - `PathResolver` / `Engine::getPlatformName`：拆为 `*.web.cpp` / `*.native.cpp`，由 CMake 按目标选 TU，而非文件内 `#ifdef`。
-- **可单点化的简化**：`Log` 的 sink mutex 永远编译（单线程下无竞争锁开销可忽略）→ 删掉 `#ifdef`。GL 头 include 保留**单一** `#ifdef`（它本就是唯一接缝，合理）。
-- **防腐**：`ES_BUILD_NATIVE` 提升为一等目标，**至少进 CI 做编译门禁**。否则"隔离"留下的 native 会再次 bit-rot，隔离即白做——这是本决议成立的硬前提。
+### 目标架构（web-only 收口）
+平台概念坍缩成**单一真相 = web**：删掉所有 `#ifndef ES_PLATFORM_WEB` native 臂与多臂 OS 分支，业务逻辑零双臂 `#ifdef`。保留的仅两类：① binding 边界文件的诚实单臂 `#ifdef ES_PLATFORM_WEB` 封套（标记 emscripten-only 代码，非业务污染）；② `Engine::getPlatformName` 的 WeChat/Web **运行时**变体（`ES_PLATFORM_WXGAME`，是 web 内的真实分支，非 native）。
+
+### F1 — ✅ 已落地（web-only 收口，分支 `rearch/f1-web-only` → master `5ac53d91`）
+五个原子批次，约 **1700 行 native 代码删除**：
+- **B1**（`5a24370d`）：删死代码孤儿 `LoaderJobQueue`（std::thread 池）+ `AsyncHandle<T>`——全仓零引用，C++ 侧异步加载本是虚的。RC6 流式真要异步时**重建 web-first `IAsyncLoader`**（JS Promise/主线程），不复活 native 线程池。
+- **B2**（`37481fcf`）：`Log` sink mutex 删除（web 单线程，唯一其它 mutex 用户是被删的 `HotReloadManager`）。
+- **B3**（`1e3b5110`）：`ResourceManager`/`Texture` 塌成 web-only——删 `loadShaderFile`/`loadEngineShader`/`reloadShader`（native `ShaderFileLoader`+热重载）、`Texture::createFromFile`（stbi）、`loadTexture`/`loadBitmapFont` 的 native 臂；删 TU `stb_image_impl`/`HotReloadManager`/`ShaderLoader`。web 经 JS 解码 + `createTexture`/`registerExternalTexture` 上传，无 C++ 文件解码路径。
+- **B4**（`eb0a990e`）：`Engine`/`PathResolver`/`OpenGLHeaders`/`GLDevice` 多臂 OS 分支 → web/GLES3 单一真相。
+- **B5**（`5ac53d91`）：删 native 构建配置——CMake native 分支（`find_package(OpenGL)`/glfw/glad/OpenGL/nlohmann/`ES_PLATFORM_NATIVE`/`ES_SOURCE_DIR`）、`ESEngineConfig` OS/native/scripting 宏、third_party glfw/glad。`esengine` 无条件是 Emscripten 目标。
+
+**验证**：本机 MSVC 编译并运行 `tests/renderer/test_texture_fb`（直吃改过的 `Texture.cpp`）全绿——证明 ① 纹理仍正确走 GfxDevice，② **header-only / MockGfxDevice 原生验证能力在收口后依然可用**（不 link `esengine`，任意 C++20 工具链可跑）。`Log.cpp`/`PathResolver.cpp` 亦 MSVC 编译通过。Emscripten 全量构建经 CI `build.yml` 守门。
+
+> **遗留（可选 cosmetic）**：binding 边界仍有约 18 处单臂 `#ifdef ES_PLATFORM_WEB` 封套（含 2 个 EHT 生成文件）+ `Script.hpp` 的 `#ifdef ES_SCRIPTING_ENABLED`（宏现已永不定义）。皆为已激活的 web 代码（删之为行为 no-op），属诚实 emscripten 接缝标记，非业务污染——留待后续统一清扫或随 EHT 模板调整。
 
 ---
 
