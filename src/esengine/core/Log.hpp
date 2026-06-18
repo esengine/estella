@@ -23,9 +23,6 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
-#ifndef ES_PLATFORM_WEB
-#include <mutex>
-#endif
 #include <sstream>
 #include <string>
 #include <vector>
@@ -187,9 +184,6 @@ public:
 private:
     static LogLevel level_;
     static std::vector<std::pair<u32, LogSink>> sinks_;
-#ifndef ES_PLATFORM_WEB
-    static std::mutex sinkMutex_;
-#endif
     static u32 nextSinkId_;
 
     template<typename... Args>
