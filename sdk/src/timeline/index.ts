@@ -36,12 +36,8 @@ export {
 } from './TimelineUploader';
 
 export {
-    TimelineControl,
-    setTimelineHandle,
-    getTimelineHandle,
-    removeTimelineHandle,
-    clearTimelineHandles,
-    setTimelineModule,
+    Timeline,
+    TimelineApi,
 } from './TimelineControl';
 
 export {

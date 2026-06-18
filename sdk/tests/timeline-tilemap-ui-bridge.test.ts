@@ -10,9 +10,7 @@ import { WasmModuleAborted } from '../src/moduleHealth';
 import { CoreApiBridge } from '../src/CoreApiBridge';
 import { TilemapAPI, initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
 import { initUIHelpers, setUIRectSizeNative } from '../src/ui/uiHelpers';
-import {
-    TimelineControl, setTimelineModule, setTimelineHandle,
-} from '../src/timeline/TimelineControl';
+import { TimelineApi } from '../src/timeline/TimelineControl';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
 
@@ -108,14 +106,15 @@ describe('timeline bridge (control path)', () => {
         const raw = makeModule();
         const bridge = new CoreApiBridge('timeline');
         bridge.connect(raw);
-        setTimelineModule(bridge.module);     // exactly what TimelinePlugin does
-        setTimelineHandle(7 as unknown as Entity, 100);
+        const tl = new TimelineApi();
+        tl.setModule(bridge.module);          // exactly what TimelinePlugin does
+        tl.setHandle(7 as unknown as Entity, 100);
 
-        TimelineControl.play(7 as unknown as Entity);
+        tl.play(7 as unknown as Entity);
         expect((raw as unknown as { _tl_play: ReturnType<typeof vi.fn> })._tl_play)
             .toHaveBeenCalledWith(100);
 
         abort(raw);
-        expect(() => TimelineControl.play(7 as unknown as Entity)).toThrow(WasmModuleAborted);
+        expect(() => tl.play(7 as unknown as Entity)).toThrow(WasmModuleAborted);
     });
 });

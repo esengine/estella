@@ -32,7 +32,7 @@ export { AnimationPlugin, animationPlugin } from './animation';
 export { AudioPlugin, audioPlugin } from './audio';
 export { ParticlePlugin, particlePlugin } from './particle';
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';
-export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, clearTimelineHandles, getTimelineHandle, TimelinePlayer, type TimelinePlayerData, TimelineControl } from './timeline';
+export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, Timeline, TimelineApi, TimelinePlayer, type TimelinePlayerData } from './timeline';
 
 export interface CreateWebAppOptions extends WebAppOptions {
     spineProvider?: SpineWasmProvider;

@@ -8,7 +8,7 @@ import { Audio, type AudioAPI } from '../audio/Audio';
 import { WrapMode, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { parseTimelineAsset } from './TimelineLoader';
 import { uploadTimelineToWasm, type UploadResult } from './TimelineUploader';
-import { setTimelineHandle, setTimelineModule, removeTimelineHandle } from './TimelineControl';
+import { Timeline, TimelineApi } from './TimelineControl';
 import {
     resolveTrackTargets,
     advanceAndProcess,
@@ -92,9 +92,10 @@ export class TimelinePlugin implements Plugin {
     build(app: App): void {
         activeTimelinePlugin = this;
         const world = app.world;
+        app.insertResource(Timeline, new TimelineApi());
 
         world.onDespawn((entity: Entity) => {
-            removeTimelineHandle(entity);
+            app.getResource(Timeline).removeHandle(entity);
             this.handles_.delete(entity);
             this.animFramesStates_.delete(entity);
         });
@@ -106,13 +107,14 @@ export class TimelinePlugin implements Plugin {
                 if (!rawModule) return;
                 // Route the main module through the bridge once (re-connect only
                 // if the underlying module changes). Every `_tl_*` call below —
-                // and everything handed `module` (TimelineControl via
-                // setTimelineModule, the uploader, the runtime) — then inherits
-                // the terminal-abort guard.
+                // and everything handed `module` (the Timeline resource via
+                // setModule, the uploader, the runtime) — then inherits the
+                // terminal-abort guard.
                 if (this.bridge_.raw !== rawModule) this.bridge_.connect(rawModule);
                 const module = this.bridge_.module;
 
-                setTimelineModule(module);
+                const tl = app.getResource(Timeline);
+                tl.setModule(module);
                 const registry = world.getCppRegistry() as any;
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
 
@@ -129,7 +131,7 @@ export class TimelinePlugin implements Plugin {
                         if (!uploadResult.handle) continue;
                         resolveTrackTargets(world, module, uploadResult, entity);
                         this.handles_.set(entity, uploadResult);
-                        setTimelineHandle(entity, uploadResult.handle);
+                        tl.setHandle(entity, uploadResult.handle);
 
                         const afTracks = asset.tracks.filter(
                             (t): t is AnimFramesTrack => t.type === TrackType.AnimFrames,
