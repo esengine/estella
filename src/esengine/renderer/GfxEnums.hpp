@@ -81,6 +81,33 @@ enum class GfxPixelFormat : u8 {
 };
 
 // =============================================================================
+// Compressed Texture Format (GPU-compressed internal formats)
+// =============================================================================
+
+/**
+ * @brief GPU-compressed texture internal formats for compressedTexImage2D.
+ *
+ * @details Decoded textures stay compressed in VRAM (4–8× smaller than RGBA8),
+ *          the key constraint on mobile. Tiering:
+ *          - **ETC2/EAC** — core in the WebGL2 / GLES3 spec; available wherever
+ *            WebGL2 is, no extension. The safe baseline.
+ *          - **ASTC** — `WEBGL_compressed_texture_astc` (iOS A8+, most modern
+ *            Android); best quality/size. Query before use.
+ *          - **S3TC/DXT** — `WEBGL_compressed_texture_s3tc` (desktop GPUs).
+ *
+ *          Always gate ASTC/S3TC behind GfxDevice::supportsCompressedFormat and
+ *          fall back to the uncompressed RGBA8 path.
+ */
+enum class GfxCompressedFormat : u8 {
+    ETC2_RGB8,    ///< GL_COMPRESSED_RGB8_ETC2 (core)
+    ETC2_RGBA8,   ///< GL_COMPRESSED_RGBA8_ETC2_EAC (core)
+    ASTC_4x4,     ///< GL_COMPRESSED_RGBA_ASTC_4x4_KHR (extension)
+    ASTC_8x8,     ///< GL_COMPRESSED_RGBA_ASTC_8x8_KHR (extension)
+    S3TC_DXT1,    ///< GL_COMPRESSED_RGBA_S3TC_DXT1_EXT (extension)
+    S3TC_DXT5,    ///< GL_COMPRESSED_RGBA_S3TC_DXT5_EXT (extension)
+};
+
+// =============================================================================
 // Framebuffer Attachment
 // =============================================================================
 

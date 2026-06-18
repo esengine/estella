@@ -28,10 +28,14 @@ struct MockGfxDevice final : GfxDevice {
     int deleteTextureCalls = 0;
     int texImage2DCalls = 0;
     int texSubImage2DCalls = 0;
+    int compressedTexImage2DCalls = 0;
     int setTextureParamsCalls = 0;
     int generateMipmapsCalls = 0;
     u32 nextTextureId = 100;
     u32 lastDeletedTexture = 0;
+    GfxCompressedFormat lastCompressedFormat = GfxCompressedFormat::ETC2_RGBA8;
+    u32 lastCompressedByteLength = 0;
+    bool compressedSupported = true;  // toggle to exercise the RGBA8 fallback path
     int createFramebufferCalls = 0;
     int deleteFramebufferCalls = 0;
     int framebufferTexture2DCalls = 0;
@@ -119,6 +123,11 @@ struct MockGfxDevice final : GfxDevice {
     void deleteTexture(u32 id) override { ++deleteTextureCalls; lastDeletedTexture = id; }
     void texImage2D(u32, u32, u32, GfxPixelFormat, const void*) override { ++texImage2DCalls; }
     void texSubImage2D(u32, i32, i32, u32, u32, GfxPixelFormat, const void*) override { ++texSubImage2DCalls; }
+    void compressedTexImage2D(u32, u32, u32, GfxCompressedFormat format, const void*, u32 byteLength) override {
+        ++compressedTexImage2DCalls;
+        lastCompressedFormat = format;
+        lastCompressedByteLength = byteLength;
+    }
     void setTextureParams(u32, TextureFilter, TextureFilter, TextureWrap, TextureWrap) override { ++setTextureParamsCalls; }
     void generateMipmaps(u32) override { ++generateMipmapsCalls; }
     void pixelStorei(u32, i32) override {}
@@ -136,6 +145,7 @@ struct MockGfxDevice final : GfxDevice {
     u32 getError() override { return 0; }
     std::string getString(GfxStringName) override { return {}; }
     i32 getInt(GfxIntParam) override { return 16; }
+    bool supportsCompressedFormat(GfxCompressedFormat) override { return compressedSupported; }
 };
 
 }  // namespace esengine

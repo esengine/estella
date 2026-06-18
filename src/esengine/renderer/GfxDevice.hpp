@@ -267,6 +267,18 @@ public:
                                u32 width, u32 height,
                                GfxPixelFormat format, const void* data) = 0;
 
+    /**
+     * @brief Allocates texture storage from pre-compressed GPU block data.
+     * @param byteLength Size of the compressed payload in bytes.
+     * @details Pure addition alongside texImage2D — the uncompressed path is
+     *          unchanged. The caller must first confirm the backend supports
+     *          `format` (see supportsCompressedFormat) and fall back to RGBA8
+     *          otherwise. Data is uploaded as-is; no CPU-side decode.
+     */
+    virtual void compressedTexImage2D(u32 textureId, u32 width, u32 height,
+                                      GfxCompressedFormat format,
+                                      const void* data, u32 byteLength) = 0;
+
     /** @brief Sets texture filtering and wrap parameters */
     virtual void setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
                                   TextureWrap wrapS, TextureWrap wrapT) = 0;
@@ -326,6 +338,14 @@ public:
 
     /** @brief Queries a backend integer capability/limit */
     virtual i32 getInt(GfxIntParam name) = 0;
+
+    /**
+     * @brief Reports whether the backend can sample the given compressed format.
+     * @details ETC2/EAC is always true on a WebGL2/GLES3 backend (core spec);
+     *          ASTC and S3TC depend on driver extensions. Probe this before
+     *          calling compressedTexImage2D with a non-core format.
+     */
+    virtual bool supportsCompressedFormat(GfxCompressedFormat format) = 0;
 };
 
 }  // namespace esengine

@@ -94,3 +94,11 @@ add_executable(test_buffer_device
 )
 target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_buffer_device COMMAND test_buffer_device)
+
+# GfxDevice compressed-texture entry (RC6-A). Header-only: drives MockGfxDevice to
+# assert the compressed upload + capability-gated RGBA8 fallback. No GL, no emsdk.
+add_executable(test_compressed_format
+    renderer/test_compressed_format.cpp
+)
+target_include_directories(test_compressed_format PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_compressed_format COMMAND test_compressed_format)

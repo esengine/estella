@@ -102,6 +102,9 @@ public:
     void texSubImage2D(u32 textureId, i32 xoffset, i32 yoffset,
                        u32 width, u32 height,
                        GfxPixelFormat format, const void* data) override;
+    void compressedTexImage2D(u32 textureId, u32 width, u32 height,
+                              GfxCompressedFormat format,
+                              const void* data, u32 byteLength) override;
     void setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
                           TextureWrap wrapS, TextureWrap wrapT) override;
     void generateMipmaps(u32 textureId) override;
@@ -120,6 +123,7 @@ public:
     u32 getError() override;
     std::string getString(GfxStringName name) override;
     i32 getInt(GfxIntParam name) override;
+    bool supportsCompressedFormat(GfxCompressedFormat format) override;
 };
 
 }  // namespace esengine

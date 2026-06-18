@@ -13,8 +13,34 @@
 #include "OpenGLHeaders.hpp"
 #include "../core/Log.hpp"
 
+#include <cstring>
+
 #ifndef GL_DEPTH_STENCIL
     #define GL_DEPTH_STENCIL 0x84F9
+#endif
+#ifndef GL_NUM_EXTENSIONS
+    #define GL_NUM_EXTENSIONS 0x821D
+#endif
+// Compressed-texture internal formats. ETC2/EAC is core in GLES3/WebGL2; ASTC and
+// S3TC are extension tokens that may be absent from the core gl3.h, so fall back to
+// the literal enum values.
+#ifndef GL_COMPRESSED_RGB8_ETC2
+    #define GL_COMPRESSED_RGB8_ETC2 0x9274
+#endif
+#ifndef GL_COMPRESSED_RGBA8_ETC2_EAC
+    #define GL_COMPRESSED_RGBA8_ETC2_EAC 0x9278
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
+    #define GL_COMPRESSED_RGBA_ASTC_4x4_KHR 0x93B0
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_8x8_KHR
+    #define GL_COMPRESSED_RGBA_ASTC_8x8_KHR 0x93B7
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+    #define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+    #define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT 0x83F3
 #endif
 #ifndef GL_UNSIGNED_INT_24_8
     #define GL_UNSIGNED_INT_24_8 0x84FA
@@ -120,6 +146,30 @@ GLPixelFormatInfo toGLPixelFormat(GfxPixelFormat fmt) {
     case GfxPixelFormat::Depth24Stencil8:  return { GL_DEPTH24_STENCIL8,  GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8 };
     default:                               return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
     }
+}
+
+GLenum toGLCompressedFormat(GfxCompressedFormat fmt) {
+    switch (fmt) {
+    case GfxCompressedFormat::ETC2_RGB8:  return GL_COMPRESSED_RGB8_ETC2;
+    case GfxCompressedFormat::ETC2_RGBA8: return GL_COMPRESSED_RGBA8_ETC2_EAC;
+    case GfxCompressedFormat::ASTC_4x4:   return GL_COMPRESSED_RGBA_ASTC_4x4_KHR;
+    case GfxCompressedFormat::ASTC_8x8:   return GL_COMPRESSED_RGBA_ASTC_8x8_KHR;
+    case GfxCompressedFormat::S3TC_DXT1:  return GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+    case GfxCompressedFormat::S3TC_DXT5:  return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    default:                              return GL_COMPRESSED_RGBA8_ETC2_EAC;
+    }
+}
+
+// GLES3-correct extension probe (glGetString(GL_EXTENSIONS) returns null on a
+// core profile). Emscripten exposes WebGL extensions here under GL-style names.
+bool glExtensionPresent(const char* name) {
+    GLint count = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &count);
+    for (GLint i = 0; i < count; ++i) {
+        const char* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, static_cast<GLuint>(i)));
+        if (ext && std::strcmp(ext, name) == 0) return true;
+    }
+    return false;
 }
 
 GLenum toGLAttachment(GfxAttachment attachment) {
@@ -605,6 +655,15 @@ void GLDevice::texSubImage2D(u32 textureId, i32 xoffset, i32 yoffset,
                     gl.format, gl.type, data);
 }
 
+void GLDevice::compressedTexImage2D(u32 textureId, u32 width, u32 height,
+                                    GfxCompressedFormat format,
+                                    const void* data, u32 byteLength) {
+    glBindTexture(GL_TEXTURE_2D, textureId);
+    glCompressedTexImage2D(GL_TEXTURE_2D, 0, toGLCompressedFormat(format),
+                           static_cast<GLsizei>(width), static_cast<GLsizei>(height),
+                           0, static_cast<GLsizei>(byteLength), data);
+}
+
 void GLDevice::setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
                                 TextureWrap wrapS, TextureWrap wrapT) {
     glBindTexture(GL_TEXTURE_2D, textureId);
@@ -699,6 +758,23 @@ i32 GLDevice::getInt(GfxIntParam name) {
     GLint v = 0;
     glGetIntegerv(e, &v);
     return static_cast<i32>(v);
+}
+
+bool GLDevice::supportsCompressedFormat(GfxCompressedFormat format) {
+    switch (format) {
+    case GfxCompressedFormat::ETC2_RGB8:
+    case GfxCompressedFormat::ETC2_RGBA8:
+        return true;  // ETC2/EAC is core in GLES3 / WebGL2 — no extension needed
+    case GfxCompressedFormat::ASTC_4x4:
+    case GfxCompressedFormat::ASTC_8x8:
+        return glExtensionPresent("GL_KHR_texture_compression_astc_ldr")
+            || glExtensionPresent("WEBGL_compressed_texture_astc");
+    case GfxCompressedFormat::S3TC_DXT1:
+    case GfxCompressedFormat::S3TC_DXT5:
+        return glExtensionPresent("GL_EXT_texture_compression_s3tc")
+            || glExtensionPresent("WEBGL_compressed_texture_s3tc");
+    }
+    return false;
 }
 
 }  // namespace esengine
