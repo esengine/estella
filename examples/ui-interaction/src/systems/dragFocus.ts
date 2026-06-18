@@ -72,8 +72,8 @@ export const dragFocusSystem = defineSystem(
             return;
         }
 
-        const dragStartEntities = new Set(events.query('drag_start').map(e => e.entity));
-        const dragEndEntities = new Set(events.query('drag_end').map(e => e.entity));
+        const dragStartEntities = new Set(events.query('drag_start').map(e => e.target));
+        const dragEndEntities = new Set(events.query('drag_end').map(e => e.target));
 
         for (const e of dragStartEntities) {
             droppedEntities.delete(e);
