@@ -1,5 +1,6 @@
 import { log } from './logger';
 import { getDefaultContext, type WasmErrorHandler } from './context';
+import { WasmModuleAborted } from './moduleHealth';
 
 const THROTTLE_MS = 1000;
 
@@ -8,6 +9,13 @@ export function setWasmErrorHandler(handler: WasmErrorHandler | null): void {
 }
 
 export function handleWasmError(error: unknown, context: string): void {
+    // A module abort is terminal and unrecoverable — never swallow it into a
+    // default value. Rethrow so it propagates out of every catch-and-continue
+    // site (the module is dead; continuing would call into a corpse).
+    if (error instanceof WasmModuleAborted) {
+        throw error;
+    }
+
     const state = getDefaultContext().wasmError;
     const now = Date.now();
     if (now - state.lastReportTime < THROTTLE_MS) {

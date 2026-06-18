@@ -11,11 +11,13 @@ from ..field_utils import (
 class MetadataGenerator:
     """Generates component.generated.ts with defaults and metadata."""
 
-    def __init__(self, components: List[Component], enums: List[Enum]):
+    def __init__(self, components: List[Component], enums: List[Enum],
+                 abi_hash: str = ''):
         self.components = components
         self.enums = enums
         self.types = TypeSystem(enums)
         self._enum_values = build_enum_value_map(enums)
+        self.abi_hash = abi_hash
 
     def _get_asset_fields(self, comp: Component) -> List[Dict[str, str]]:
         fields = []
@@ -73,6 +75,14 @@ class MetadataGenerator:
             ' */',
             '',
             "import type { AssetFieldType } from './scene';",
+            '',
+            '/**',
+            ' * Single-source-of-truth hash of the C++/TS boundary ABI (component',
+            ' * schema + pointer layouts). The WASM module exposes the same digest via',
+            ' * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to',
+            ' * run on mismatch, because mismatched offsets read the wrong heap bytes.',
+            ' */',
+            f"export const ABI_LAYOUT_HASH = '{self.abi_hash}';",
             '',
             'export interface AssetFieldMeta {',
             '    field: string;',

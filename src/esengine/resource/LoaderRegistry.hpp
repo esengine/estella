@@ -61,7 +61,7 @@ public:
     template<typename T>
     void registerLoader(Unique<ResourceLoader<T>> loader) {
         auto wrapper = makeUnique<LoaderWrapper<T>>(std::move(loader));
-        loaders_[getTypeId<T>()] = std::move(wrapper);
+        loaders_[resourceTypeId<T>()] = std::move(wrapper);
     }
 
     /**
@@ -71,7 +71,7 @@ public:
      */
     template<typename T>
     ResourceLoader<T>* getLoader() {
-        auto it = loaders_.find(getTypeId<T>());
+        auto it = loaders_.find(resourceTypeId<T>());
         if (it == loaders_.end()) {
             return nullptr;
         }
@@ -86,7 +86,7 @@ public:
      */
     template<typename T>
     const ResourceLoader<T>* getLoader() const {
-        auto it = loaders_.find(getTypeId<T>());
+        auto it = loaders_.find(resourceTypeId<T>());
         if (it == loaders_.end()) {
             return nullptr;
         }
@@ -101,7 +101,7 @@ public:
      */
     template<typename T>
     bool hasLoader() const {
-        return loaders_.find(getTypeId<T>()) != loaders_.end();
+        return loaders_.find(resourceTypeId<T>()) != loaders_.end();
     }
 
     /**
@@ -110,7 +110,7 @@ public:
      */
     template<typename T>
     void removeLoader() {
-        loaders_.erase(getTypeId<T>());
+        loaders_.erase(resourceTypeId<T>());
     }
 
     /**

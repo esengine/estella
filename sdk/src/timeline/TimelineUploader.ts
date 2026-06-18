@@ -1,6 +1,7 @@
 import type { ESEngineModule } from '../wasm';
 import type { TimelineAsset, PropertyTrack, Track } from './TimelineTypes';
 import { TrackType, InterpType } from './TimelineTypes';
+import { withScratch } from '../wasmScratch';
 export { AnimTargetField, AnimTargetComponent, FIELD_MAP, COMPONENT_MAP } from './animTargets.generated';
 import { AnimTargetField, AnimTargetComponent, FIELD_MAP, COMPONENT_MAP } from './animTargets.generated';
 
@@ -22,16 +23,16 @@ function resolveField(component: string, property: string): AnimTargetField {
     return FIELD_MAP[component]?.[property] ?? AnimTargetField.CustomField;
 }
 
-function allocString(module: ESEngineModule, str: string): [number, number] {
+function allocString(
+    module: ESEngineModule,
+    alloc: (size: number) => number,
+    str: string,
+): [number, number] {
     const encoder = new TextEncoder();
     const bytes = encoder.encode(str);
-    const ptr = module._malloc(bytes.length);
+    const ptr = alloc(bytes.length);
     new Uint8Array(module.HEAPU8.buffer, ptr, bytes.length).set(bytes);
     return [ptr, bytes.length];
-}
-
-function freePtr(module: ESEngineModule, ptr: number): void {
-    module._free(ptr);
 }
 
 export interface UploadedTrackInfo {
@@ -98,195 +99,173 @@ function uploadPropertyTrack(module: ESEngineModule, handle: number, track: Prop
         return;
     }
 
-    const [childPtr, childLen] = allocString(module, track.childPath);
+    withScratch(module, alloc => {
+        const [childPtr, childLen] = allocString(module, alloc, track.childPath);
 
-    const fieldsPtr = module._malloc(channelCount);
-    const fieldsArr = new Uint8Array(module.HEAPU8.buffer, fieldsPtr, channelCount);
-    for (let i = 0; i < channelCount; i++) {
-        fieldsArr[i] = resolveField(track.component, track.channels[i].property);
-    }
-
-    let totalKeyframes = 0;
-    const counts: number[] = [];
-    for (const ch of track.channels) {
-        counts.push(ch.keyframes.length);
-        totalKeyframes += ch.keyframes.length;
-    }
-
-    const countsPtr = module._malloc(channelCount * 4);
-    new Int32Array(module.HEAPU8.buffer, countsPtr, channelCount).set(counts);
-
-    const dataPtr = module._malloc(totalKeyframes * 5 * 4);
-    const dataArr = new Float32Array(module.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
-    let offset = 0;
-    for (const ch of track.channels) {
-        for (const kf of ch.keyframes) {
-            dataArr[offset++] = kf.time;
-            dataArr[offset++] = kf.value;
-            dataArr[offset++] = kf.inTangent;
-            dataArr[offset++] = kf.outTangent;
-            dataArr[offset++] = interpTypeToNum(kf.interpolation);
+        const fieldsPtr = alloc(channelCount);
+        const fieldsArr = new Uint8Array(module.HEAPU8.buffer, fieldsPtr, channelCount);
+        for (let i = 0; i < channelCount; i++) {
+            fieldsArr[i] = resolveField(track.component, track.channels[i].property);
         }
-    }
 
-    module._tl_addPropertyTrack(handle, childPtr, childLen, component,
-                                 fieldsPtr, channelCount, dataPtr, countsPtr);
+        let totalKeyframes = 0;
+        const counts: number[] = [];
+        for (const ch of track.channels) {
+            counts.push(ch.keyframes.length);
+            totalKeyframes += ch.keyframes.length;
+        }
 
-    freePtr(module, childPtr);
-    freePtr(module, fieldsPtr);
-    freePtr(module, countsPtr);
-    freePtr(module, dataPtr);
+        const countsPtr = alloc(channelCount * 4);
+        new Int32Array(module.HEAPU8.buffer, countsPtr, channelCount).set(counts);
+
+        const dataPtr = alloc(totalKeyframes * 5 * 4);
+        const dataArr = new Float32Array(module.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
+        let offset = 0;
+        for (const ch of track.channels) {
+            for (const kf of ch.keyframes) {
+                dataArr[offset++] = kf.time;
+                dataArr[offset++] = kf.value;
+                dataArr[offset++] = kf.inTangent;
+                dataArr[offset++] = kf.outTangent;
+                dataArr[offset++] = interpTypeToNum(kf.interpolation);
+            }
+        }
+
+        module._tl_addPropertyTrack(handle, childPtr, childLen, component,
+                                     fieldsPtr, channelCount, dataPtr, countsPtr);
+    });
 }
 
 function uploadCustomPropertyTrack(module: ESEngineModule, handle: number, track: PropertyTrack): void {
     const channelCount = track.channels.length;
 
-    const [childPtr, childLen] = allocString(module, track.childPath);
-    const [compPtr, compLen] = allocString(module, track.component);
+    withScratch(module, alloc => {
+        const [childPtr, childLen] = allocString(module, alloc, track.childPath);
+        const [compPtr, compLen] = allocString(module, alloc, track.component);
 
-    const pathStrings = track.channels.map(c => new TextEncoder().encode(c.property));
-    let totalPathBytes = 0;
-    for (const p of pathStrings) totalPathBytes += p.length;
+        const pathStrings = track.channels.map(c => new TextEncoder().encode(c.property));
+        let totalPathBytes = 0;
+        for (const p of pathStrings) totalPathBytes += p.length;
 
-    const fieldPathsPtr = module._malloc(totalPathBytes);
-    let pathOffset = 0;
-    for (const p of pathStrings) {
-        new Uint8Array(module.HEAPU8.buffer, fieldPathsPtr + pathOffset, p.length).set(p);
-        pathOffset += p.length;
-    }
-
-    const fieldPathLensPtr = module._malloc(channelCount * 4);
-    new Int32Array(module.HEAPU8.buffer, fieldPathLensPtr, channelCount).set(pathStrings.map(p => p.length));
-
-    let totalKeyframes = 0;
-    const counts: number[] = [];
-    for (const ch of track.channels) {
-        counts.push(ch.keyframes.length);
-        totalKeyframes += ch.keyframes.length;
-    }
-
-    const countsPtr = module._malloc(channelCount * 4);
-    new Int32Array(module.HEAPU8.buffer, countsPtr, channelCount).set(counts);
-
-    const dataPtr = module._malloc(totalKeyframes * 5 * 4);
-    const dataArr = new Float32Array(module.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
-    let dOffset = 0;
-    for (const ch of track.channels) {
-        for (const kf of ch.keyframes) {
-            dataArr[dOffset++] = kf.time;
-            dataArr[dOffset++] = kf.value;
-            dataArr[dOffset++] = kf.inTangent;
-            dataArr[dOffset++] = kf.outTangent;
-            dataArr[dOffset++] = interpTypeToNum(kf.interpolation);
+        const fieldPathsPtr = alloc(totalPathBytes);
+        let pathOffset = 0;
+        for (const p of pathStrings) {
+            new Uint8Array(module.HEAPU8.buffer, fieldPathsPtr + pathOffset, p.length).set(p);
+            pathOffset += p.length;
         }
-    }
 
-    module._tl_addCustomPropertyTrack(handle, childPtr, childLen, compPtr, compLen,
-                                       fieldPathsPtr, fieldPathLensPtr, channelCount,
-                                       dataPtr, countsPtr);
+        const fieldPathLensPtr = alloc(channelCount * 4);
+        new Int32Array(module.HEAPU8.buffer, fieldPathLensPtr, channelCount).set(pathStrings.map(p => p.length));
 
-    freePtr(module, childPtr);
-    freePtr(module, compPtr);
-    freePtr(module, fieldPathsPtr);
-    freePtr(module, fieldPathLensPtr);
-    freePtr(module, countsPtr);
-    freePtr(module, dataPtr);
+        let totalKeyframes = 0;
+        const counts: number[] = [];
+        for (const ch of track.channels) {
+            counts.push(ch.keyframes.length);
+            totalKeyframes += ch.keyframes.length;
+        }
+
+        const countsPtr = alloc(channelCount * 4);
+        new Int32Array(module.HEAPU8.buffer, countsPtr, channelCount).set(counts);
+
+        const dataPtr = alloc(totalKeyframes * 5 * 4);
+        const dataArr = new Float32Array(module.HEAPU8.buffer, dataPtr, totalKeyframes * 5);
+        let dOffset = 0;
+        for (const ch of track.channels) {
+            for (const kf of ch.keyframes) {
+                dataArr[dOffset++] = kf.time;
+                dataArr[dOffset++] = kf.value;
+                dataArr[dOffset++] = kf.inTangent;
+                dataArr[dOffset++] = kf.outTangent;
+                dataArr[dOffset++] = interpTypeToNum(kf.interpolation);
+            }
+        }
+
+        module._tl_addCustomPropertyTrack(handle, childPtr, childLen, compPtr, compLen,
+                                           fieldPathsPtr, fieldPathLensPtr, channelCount,
+                                           dataPtr, countsPtr);
+    });
 }
 
 function uploadSpineTrack(module: ESEngineModule, handle: number, track: Track): void {
     if (track.type !== TrackType.Spine) return;
-    const [childPtr, childLen] = allocString(module, track.childPath);
-    const clipCount = track.clips.length;
+    withScratch(module, alloc => {
+        const [childPtr, childLen] = allocString(module, alloc, track.childPath);
+        const clipCount = track.clips.length;
 
-    const floatsPtr = module._malloc(clipCount * 4 * 4);
-    const floats = new Float32Array(module.HEAPU8.buffer, floatsPtr, clipCount * 4);
-    const animPtrsPtr = module._malloc(clipCount * 4);
-    const animPtrs = new Uint32Array(module.HEAPU8.buffer, animPtrsPtr, clipCount);
-    const animLensPtr = module._malloc(clipCount * 4);
-    const animLens = new Int32Array(module.HEAPU8.buffer, animLensPtr, clipCount);
+        const floatsPtr = alloc(clipCount * 4 * 4);
+        const floats = new Float32Array(module.HEAPU8.buffer, floatsPtr, clipCount * 4);
+        const animPtrsPtr = alloc(clipCount * 4);
+        const animPtrs = new Uint32Array(module.HEAPU8.buffer, animPtrsPtr, clipCount);
+        const animLensPtr = alloc(clipCount * 4);
+        const animLens = new Int32Array(module.HEAPU8.buffer, animLensPtr, clipCount);
 
-    const animStrPtrs: number[] = [];
-    for (let i = 0; i < clipCount; i++) {
-        const clip = track.clips[i];
-        floats[i * 4] = clip.start;
-        floats[i * 4 + 1] = clip.duration;
-        floats[i * 4 + 2] = clip.speed;
-        floats[i * 4 + 3] = clip.loop ? 1.0 : 0.0;
-        const [aPtr, aLen] = allocString(module, clip.animation);
-        animPtrs[i] = aPtr;
-        animLens[i] = aLen;
-        animStrPtrs.push(aPtr);
-    }
+        for (let i = 0; i < clipCount; i++) {
+            const clip = track.clips[i];
+            floats[i * 4] = clip.start;
+            floats[i * 4 + 1] = clip.duration;
+            floats[i * 4 + 2] = clip.speed;
+            floats[i * 4 + 3] = clip.loop ? 1.0 : 0.0;
+            const [aPtr, aLen] = allocString(module, alloc, clip.animation);
+            animPtrs[i] = aPtr;
+            animLens[i] = aLen;
+        }
 
-    module._tl_addSpineTrack(handle, childPtr, childLen,
-                              floatsPtr, animPtrsPtr, animLensPtr, clipCount, track.blendIn);
-
-    freePtr(module, childPtr);
-    freePtr(module, floatsPtr);
-    freePtr(module, animPtrsPtr);
-    freePtr(module, animLensPtr);
-    for (const p of animStrPtrs) freePtr(module, p);
+        module._tl_addSpineTrack(handle, childPtr, childLen,
+                                  floatsPtr, animPtrsPtr, animLensPtr, clipCount, track.blendIn);
+    });
 }
 
 function uploadAudioTrack(module: ESEngineModule, handle: number, track: Track): void {
     if (track.type !== TrackType.Audio) return;
-    const [childPtr, childLen] = allocString(module, track.childPath);
-    const eventCount = track.events.length;
+    withScratch(module, alloc => {
+        const [childPtr, childLen] = allocString(module, alloc, track.childPath);
+        const eventCount = track.events.length;
 
-    const floatsPtr = module._malloc(eventCount * 2 * 4);
-    const floats = new Float32Array(module.HEAPU8.buffer, floatsPtr, eventCount * 2);
-    const clipPtrsPtr = module._malloc(eventCount * 4);
-    const clipPtrs = new Uint32Array(module.HEAPU8.buffer, clipPtrsPtr, eventCount);
-    const clipLensPtr = module._malloc(eventCount * 4);
-    const clipLens = new Int32Array(module.HEAPU8.buffer, clipLensPtr, eventCount);
+        const floatsPtr = alloc(eventCount * 2 * 4);
+        const floats = new Float32Array(module.HEAPU8.buffer, floatsPtr, eventCount * 2);
+        const clipPtrsPtr = alloc(eventCount * 4);
+        const clipPtrs = new Uint32Array(module.HEAPU8.buffer, clipPtrsPtr, eventCount);
+        const clipLensPtr = alloc(eventCount * 4);
+        const clipLens = new Int32Array(module.HEAPU8.buffer, clipLensPtr, eventCount);
 
-    const strPtrs: number[] = [];
-    for (let i = 0; i < eventCount; i++) {
-        const evt = track.events[i];
-        floats[i * 2] = evt.time;
-        floats[i * 2 + 1] = evt.volume;
-        const [cPtr, cLen] = allocString(module, evt.clip);
-        clipPtrs[i] = cPtr;
-        clipLens[i] = cLen;
-        strPtrs.push(cPtr);
-    }
+        for (let i = 0; i < eventCount; i++) {
+            const evt = track.events[i];
+            floats[i * 2] = evt.time;
+            floats[i * 2 + 1] = evt.volume;
+            const [cPtr, cLen] = allocString(module, alloc, evt.clip);
+            clipPtrs[i] = cPtr;
+            clipLens[i] = cLen;
+        }
 
-    module._tl_addAudioTrack(handle, childPtr, childLen,
-                              floatsPtr, clipPtrsPtr, clipLensPtr, eventCount);
-
-    freePtr(module, childPtr);
-    freePtr(module, floatsPtr);
-    freePtr(module, clipPtrsPtr);
-    freePtr(module, clipLensPtr);
-    for (const p of strPtrs) freePtr(module, p);
+        module._tl_addAudioTrack(handle, childPtr, childLen,
+                                  floatsPtr, clipPtrsPtr, clipLensPtr, eventCount);
+    });
 }
 
 function uploadActivationTrack(module: ESEngineModule, handle: number, track: Track): void {
     if (track.type !== TrackType.Activation) return;
-    const [childPtr, childLen] = allocString(module, track.childPath);
+    withScratch(module, alloc => {
+        const [childPtr, childLen] = allocString(module, alloc, track.childPath);
 
-    const rangesPtr = module._malloc(track.ranges.length * 2 * 4);
-    const rangesArr = new Float32Array(module.HEAPU8.buffer, rangesPtr, track.ranges.length * 2);
-    for (let i = 0; i < track.ranges.length; i++) {
-        rangesArr[i * 2] = track.ranges[i].start;
-        rangesArr[i * 2 + 1] = track.ranges[i].end;
-    }
+        const rangesPtr = alloc(track.ranges.length * 2 * 4);
+        const rangesArr = new Float32Array(module.HEAPU8.buffer, rangesPtr, track.ranges.length * 2);
+        for (let i = 0; i < track.ranges.length; i++) {
+            rangesArr[i * 2] = track.ranges[i].start;
+            rangesArr[i * 2 + 1] = track.ranges[i].end;
+        }
 
-    module._tl_addActivationTrack(handle, childPtr, childLen,
-                                   rangesPtr, track.ranges.length);
-
-    freePtr(module, childPtr);
-    freePtr(module, rangesPtr);
+        module._tl_addActivationTrack(handle, childPtr, childLen,
+                                       rangesPtr, track.ranges.length);
+    });
 }
 
 function uploadSpriteAnimTrack(module: ESEngineModule, handle: number, track: Track): void {
     if (track.type !== TrackType.SpriteAnim) return;
-    const [childPtr, childLen] = allocString(module, track.childPath);
-    const [clipPtr, clipLen] = allocString(module, track.clip);
+    withScratch(module, alloc => {
+        const [childPtr, childLen] = allocString(module, alloc, track.childPath);
+        const [clipPtr, clipLen] = allocString(module, alloc, track.clip);
 
-    module._tl_addSpriteAnimTrack(handle, childPtr, childLen,
-                                   clipPtr, clipLen, track.startTime);
-
-    freePtr(module, childPtr);
-    freePtr(module, clipPtr);
+        module._tl_addSpriteAnimTrack(handle, childPtr, childLen,
+                                       clipPtr, clipLen, track.startTime);
+    });
 }

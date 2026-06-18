@@ -2,6 +2,7 @@ import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { platformCreateCanvas, platformCreateImage } from '../../platform';
 import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';
+import { withMalloc } from '../../wasmScratch';
 
 /**
  * Texture import-time settings. Applied when the GL texture is first uploaded,
@@ -67,10 +68,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         width: number, height: number, pixels: Uint8Array, flipY: boolean,
     ): Promise<TextureResult> {
         const rm = requireResourceManager();
-        const ptr = this.module_._malloc(pixels.length);
-        this.module_.HEAPU8.set(pixels, ptr);
-        const handle = rm.createTexture(width, height, ptr, pixels.length, 1, flipY);
-        this.module_._free(ptr);
+        const handle = withMalloc(this.module_, pixels.length, ptr => {
+            this.module_.HEAPU8.set(pixels, ptr);
+            return rm.createTexture(width, height, ptr, pixels.length, 1, flipY);
+        });
         return { handle, width, height };
     }
 
@@ -194,10 +195,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         unpremultiplyAlpha(pixels);
 
         const rm = requireResourceManager();
-        const ptr = this.module_._malloc(pixels.length);
-        this.module_.HEAPU8.set(pixels, ptr);
-        const handle = rm.createTexture(width, height, ptr, pixels.length, 1, flip);
-        this.module_._free(ptr);
+        const handle = withMalloc(this.module_, pixels.length, ptr => {
+            this.module_.HEAPU8.set(pixels, ptr);
+            return rm.createTexture(width, height, ptr, pixels.length, 1, flip);
+        });
 
         return { handle, width, height };
     }

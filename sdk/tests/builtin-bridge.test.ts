@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { BuiltinBridge } from '../src/ecs/BuiltinBridge';
-import { COMPONENT_META } from '../src/component.generated';
+import { COMPONENT_META, ABI_LAYOUT_HASH } from '../src/component.generated';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 
 function stubMethod() { return undefined; }
@@ -194,5 +194,60 @@ describe('BuiltinBridge', () => {
         expect(v.ok).toBe(true);
         expect(v.wasmOnly).toEqual([]);
         expect(v.sdkOnly).toEqual([]);
+    });
+
+    // -------------------------------------------------------------------------
+    // ABI layout-hash handshake. The WASM module exposes getAbiLayoutHash();
+    // a mismatch means the loaded binary and this SDK were generated from
+    // different component schemas, so pointer offsets read the wrong bytes.
+    // This is ALWAYS fatal — even in non-strict mode.
+    // -------------------------------------------------------------------------
+
+    it('connects when the module ABI hash matches the SDK bundle', () => {
+        const bridge = new BuiltinBridge();
+        const reg = makeCompleteRegistry() as unknown as CppRegistry;
+        const module = {
+            getBuiltinComponentNames: () => Object.keys(COMPONENT_META),
+            getAbiLayoutHash: () => ABI_LAYOUT_HASH,
+        } as unknown as ESEngineModule;
+
+        expect(() => { bridge.connect(reg, module, { strict: true }); }).not.toThrow();
+        expect(bridge.verify().abiMismatch).toBeNull();
+    });
+
+    it('refuses to connect on ABI hash mismatch even in non-strict mode', () => {
+        const bridge = new BuiltinBridge();
+        const reg = makeCompleteRegistry() as unknown as CppRegistry;
+        const module = {
+            getBuiltinComponentNames: () => Object.keys(COMPONENT_META),
+            getAbiLayoutHash: () => 'deadbeefdeadbeef',
+        } as unknown as ESEngineModule;
+
+        let caught: Error | null = null;
+        try {
+            // No { strict: true } — a hash mismatch must be fatal regardless.
+            bridge.connect(reg, module);
+        } catch (e) {
+            caught = e as Error;
+        }
+
+        expect(caught).not.toBeNull();
+        expect(caught!.message).toContain('ABI layout hash mismatch');
+        expect(caught!.message).toContain(ABI_LAYOUT_HASH);
+        expect(caught!.message).toContain('deadbeefdeadbeef');
+        // Fatal connect must leave the bridge disconnected.
+        expect(bridge.hasCpp).toBe(false);
+    });
+
+    it('skips the hash handshake when the module lacks getAbiLayoutHash', () => {
+        // Older WASM builds predate the handshake — connect must still succeed.
+        const bridge = new BuiltinBridge();
+        const reg = makeCompleteRegistry() as unknown as CppRegistry;
+        const module = {
+            getBuiltinComponentNames: () => Object.keys(COMPONENT_META),
+        } as unknown as ESEngineModule;
+
+        expect(() => { bridge.connect(reg, module, { strict: true }); }).not.toThrow();
+        expect(bridge.verify().abiMismatch).toBeNull();
     });
 });

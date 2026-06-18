@@ -5,13 +5,11 @@
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { World } from '../src/world';
 import { Transform, Children, Name, getComponent } from '../src/component';
 import { UIRect, type UIRectData } from '../src/ui/core/ui-rect';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
-import { loadWasmModule } from './helpers/loadWasm';
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 import {
     WrapMode,
     TrackType,
@@ -19,9 +17,6 @@ import {
     type PropertyTrack,
 } from '../src/timeline/TimelineTypes';
 import { setNestedProperty } from '../src/timeline/TimelinePlugin';
-
-const WASM_PATH = resolve(__dirname, '../../desktop/public/wasm/esengine.wasm');
-const HAS_WASM = existsSync(WASM_PATH);
 
 describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
     let module: ESEngineModule;

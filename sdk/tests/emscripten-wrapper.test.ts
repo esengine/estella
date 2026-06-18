@@ -2,17 +2,12 @@
  * Diagnostic test: verify Object.entries behavior with Emscripten reference wrappers
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { App } from '../src/app';
 import { Transform } from '../src/component';
 import { UIRect } from '../src/ui/core/ui-rect';
 import type { UIRectData } from '../src/ui/core/ui-rect';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
-import { loadWasmModule } from './helpers/loadWasm';
-
-const WASM_PATH = resolve(__dirname, '../../desktop/public/wasm/esengine.wasm');
-const HAS_WASM = existsSync(WASM_PATH);
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('Emscripten wrapper diagnostics', () => {
     let module: ESEngineModule;

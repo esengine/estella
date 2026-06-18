@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { App } from '../src/app';
 import { Transform, Sprite, Canvas } from '../src/component';
 import type { TransformData } from '../src/component';
@@ -17,10 +15,7 @@ import type { ScrollViewData } from '../src/ui/ScrollView';
 import { UIInteraction } from '../src/ui/behavior/interactable';
 import { Interactable } from '../src/ui/behavior/interactable';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
-import { loadWasmModule } from './helpers/loadWasm';
-
-const WASM_PATH = resolve(__dirname, '../../desktop/public/wasm/esengine.wasm');
-const HAS_WASM = existsSync(WASM_PATH);
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
     let module: ESEngineModule;

@@ -740,10 +740,6 @@ u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
     return Entity::fromRaw(entity).generation();
 }
 
-u32 registry_getSchemaPoolVersion(ecs::Registry& registry, u32 poolId) {
-    return registry.getSchemaPoolVersion(poolId);
-}
-
 void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t bufferPtr, int count, float ppu) {
     const float* buffer = reinterpret_cast<const float*>(bufferPtr);
     for (int i = 0; i < count; i++) {
