@@ -4,7 +4,7 @@ import type { ShaderHandle } from '../material';
 import { Material } from '../material';
 import { handleWasmError } from '../wasmError';
 import { CoreApiBridge } from '../CoreApiBridge';
-import { PostProcessStack, getCameraBindings, getStacks } from './PostProcessStack';
+import { PostProcessStack, getCameraBindings, getStacks, createStack as createPostProcessStack } from './PostProcessStack';
 import { POSTPROCESS_VERTEX } from './shaders';
 
 const bridge = new CoreApiBridge('postprocess');
@@ -78,7 +78,7 @@ export function syncStackToWasm(stack: PostProcessStack): void {
 
 export const PostProcess = {
     createStack(): PostProcessStack {
-        return new PostProcessStack();
+        return createPostProcessStack();
     },
 
     bind(camera: Entity, stack: PostProcessStack): void {

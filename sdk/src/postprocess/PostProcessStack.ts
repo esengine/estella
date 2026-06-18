@@ -9,13 +9,23 @@ export interface PassConfig {
     vec4Uniforms: Map<string, Vec4>;
 }
 
-export class PostProcessRegistry {
+/**
+ * Owns the post-process stacks, their camera bindings, and the id counter.
+ * A stack registers into the state it is created with — no global. B2b-4 makes
+ * this a per-App resource; until then a single module-level instance is used.
+ */
+export class PostProcessState {
     nextStackId = 1;
     readonly stacks: Map<number, PostProcessStack> = new Map();
     readonly cameraBindings: Map<Entity, PostProcessStack> = new Map();
 
+    /** Create a stack owned by (and registered in) this state. */
+    createStack(): PostProcessStack {
+        return new PostProcessStack(this);
+    }
+
     reset(): void {
-        for (const stack of this.stacks.values()) {
+        for (const stack of [...this.stacks.values()]) {
             stack.destroy();
         }
         this.stacks.clear();
@@ -24,37 +34,33 @@ export class PostProcessRegistry {
     }
 }
 
-let activeRegistry = new PostProcessRegistry();
-
-export function getPostProcessRegistry(): PostProcessRegistry {
-    return activeRegistry;
-}
-
-export function setPostProcessRegistry(registry: PostProcessRegistry): void {
-    activeRegistry = registry;
-}
+// B2b-1: still a module singleton; becomes a per-App resource in B2b-4.
+const activeState = new PostProcessState();
 
 export function getStacks(): Map<number, PostProcessStack> {
-    return activeRegistry.stacks;
+    return activeState.stacks;
 }
 
 export function getCameraBindings(): Map<Entity, PostProcessStack> {
-    return activeRegistry.cameraBindings;
+    return activeState.cameraBindings;
 }
 
-export function resetNextStackId(): void {
-    activeRegistry.nextStackId = 1;
+/** Create a stack in the active state (intermediate; per-App in B2b-4). */
+export function createStack(): PostProcessStack {
+    return activeState.createStack();
 }
 
 export class PostProcessStack {
     readonly id: number;
+    private readonly state_: PostProcessState;
     private passes_: PassConfig[] = [];
     private destroyed_ = false;
     private dirty_ = true;
 
-    constructor() {
-        this.id = activeRegistry.nextStackId++;
-        activeRegistry.stacks.set(this.id, this);
+    constructor(state: PostProcessState) {
+        this.state_ = state;
+        this.id = state.nextStackId++;
+        state.stacks.set(this.id, this);
     }
 
     addPass(name: string, shader: ShaderHandle): this {
@@ -159,12 +165,12 @@ export class PostProcessStack {
         if (this.destroyed_) return;
         this.destroyed_ = true;
 
-        for (const [camera, stack] of activeRegistry.cameraBindings) {
+        for (const [camera, stack] of this.state_.cameraBindings) {
             if (stack === this) {
-                activeRegistry.cameraBindings.delete(camera);
+                this.state_.cameraBindings.delete(camera);
             }
         }
 
-        activeRegistry.stacks.delete(this.id);
+        this.state_.stacks.delete(this.id);
     }
 }
