@@ -16,6 +16,7 @@ import {
     type PhysicsModuleFactory,
 } from './PhysicsModuleLoader';
 import { setupPhysicsDebugDraw } from './PhysicsDebugDraw';
+import { PhysicsBridge } from './PhysicsBridge';
 import { PhysicsRuntime } from './PhysicsRuntime';
 import { Physics, PhysicsAPI } from './Physics';
 import { registerPhysicsSystem } from './PhysicsSystem';
@@ -68,6 +69,7 @@ export class PhysicsPlugin implements Plugin {
     private config_: ResolvedPhysicsConfig;
     private wasmUrl_: string;
     private factory_?: PhysicsModuleFactory;
+    private bridge_ = new PhysicsBridge();
 
     constructor(wasmUrl: string, config: PhysicsPluginConfig = {}, factory?: PhysicsModuleFactory) {
         this.wasmUrl_ = wasmUrl;
@@ -85,7 +87,16 @@ export class PhysicsPlugin implements Plugin {
         app.insertResource(PhysicsRuntime, { module: null, initPromise: null });
 
         const initPromise = loadPhysicsModule(this.wasmUrl_, this.factory_).then(
-            (module: PhysicsWasmModule) => {
+            (loaded: PhysicsWasmModule) => {
+                // Route the module through the single WASM bridge: this installs
+                // the terminal-abort guard and yields a guarded view in which
+                // every `_physics_*` call short-circuits after an abort. The
+                // guarded module has the same type, so every downstream call
+                // site (PhysicsSystem closures, the Physics API wrapper) gains
+                // abort safety without changing a single call.
+                this.bridge_.connect(loaded);
+                const module = this.bridge_.module;
+
                 module._physics_init(
                     this.config_.gravity.x,
                     this.config_.gravity.y,

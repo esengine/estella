@@ -5,6 +5,7 @@
 
 import type { Entity, Vec2 } from '../types';
 import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
+import { SpineModuleBridge } from './SpineBridge';
 import { log } from '../logger';
 import { withMalloc, withScratch } from '../wasmScratch';
 
@@ -59,11 +60,17 @@ export interface SpineEvent {
 export class SpineModuleController {
     private raw_: SpineWasmModule;
     private api_: SpineWrappedAPI;
+    private bridge_ = new SpineModuleBridge();
     private listeners_: Map<Entity, Map<SpineEventType, Set<SpineEventCallback>>>;
 
     constructor(raw: SpineWasmModule, api: SpineWrappedAPI) {
         this.raw_ = raw;
-        this.api_ = api;
+        // Guard the API call surface; the raw side module is the abort authority
+        // (it owns onAbort + the heap). Every `this.api_.*` call below is now
+        // abort-safe with no per-call change; `this.raw_` stays raw for the heap
+        // reads and withScratch allocations that must run even after an abort.
+        this.bridge_.connect(api, raw);
+        this.api_ = this.bridge_.module;
         this.listeners_ = new Map();
     }
 

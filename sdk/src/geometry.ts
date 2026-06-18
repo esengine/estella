@@ -6,6 +6,7 @@
  */
 
 import type { ESEngineModule } from './wasm';
+import { CoreApiBridge } from './CoreApiBridge';
 
 // =============================================================================
 // Types
@@ -40,6 +41,7 @@ export interface GeometryOptions {
 // Internal State
 // =============================================================================
 
+const bridge = new CoreApiBridge('geometry');
 let module: ESEngineModule | null = null;
 let vertexPtr: number = 0;
 let indexPtr: number = 0;
@@ -54,7 +56,8 @@ const LAYOUT_BUFFER_SIZE = 64;
 // =============================================================================
 
 export function initGeometryAPI(wasmModule: ESEngineModule): void {
-    module = wasmModule;
+    bridge.connect(wasmModule);
+    module = bridge.module;
     vertexPtr = module._malloc(VERTEX_BUFFER_SIZE * 4);
     indexPtr = module._malloc(INDEX_BUFFER_SIZE * 4);
     layoutPtr = module._malloc(LAYOUT_BUFFER_SIZE * 4);
@@ -69,6 +72,7 @@ export function shutdownGeometryAPI(): void {
         indexPtr = 0;
         layoutPtr = 0;
     }
+    bridge.disconnect();
     module = null;
 }
 

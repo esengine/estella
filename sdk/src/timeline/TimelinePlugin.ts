@@ -14,6 +14,7 @@ import {
     advanceAndProcess,
 } from './TimelineRuntime';
 import type { ESEngineModule } from '../wasm';
+import { CoreApiBridge } from '../CoreApiBridge';
 import type { Entity } from '../types';
 
 export { setNestedProperty } from './TimelineRuntime';
@@ -70,6 +71,7 @@ export class TimelinePlugin implements Plugin {
     private textureHandles_ = new Map<string, Map<string, number>>();
     private handles_ = new Map<number, UploadResult>();
     private animFramesStates_ = new Map<number, AnimFramesState>();
+    private bridge_ = new CoreApiBridge('timeline');
 
     registerAsset(path: string, asset: TimelineAsset): void {
         this.loadedAssets_.set(path, asset);
@@ -100,8 +102,15 @@ export class TimelinePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
-                const module = world.getWasmModule() as ESEngineModule;
-                if (!module) return;
+                const rawModule = world.getWasmModule() as ESEngineModule;
+                if (!rawModule) return;
+                // Route the main module through the bridge once (re-connect only
+                // if the underlying module changes). Every `_tl_*` call below —
+                // and everything handed `module` (TimelineControl via
+                // setTimelineModule, the uploader, the runtime) — then inherits
+                // the terminal-abort guard.
+                if (this.bridge_.raw !== rawModule) this.bridge_.connect(rawModule);
+                const module = this.bridge_.module;
 
                 setTimelineModule(module);
                 const registry = world.getCppRegistry() as any;

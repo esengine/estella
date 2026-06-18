@@ -1,4 +1,5 @@
 import type { ESEngineModule, CppRegistry } from './wasm';
+import { CoreApiBridge } from './CoreApiBridge';
 import { handleWasmError } from './wasmError';
 import { requireResourceManager } from './resourceManager';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
@@ -28,11 +29,13 @@ export interface RenderStats {
     culled: number;
 }
 
+const bridge = new CoreApiBridge('renderer');
 let module: ESEngineModule | null = null;
 let viewProjectionPtr: number = 0;
 
 export function initRendererAPI(wasmModule: ESEngineModule): void {
-    module = wasmModule;
+    bridge.connect(wasmModule);
+    module = bridge.module;
     viewProjectionPtr = module._malloc(16 * 4);
 }
 
@@ -41,6 +44,7 @@ export function shutdownRendererAPI(): void {
         module._free(viewProjectionPtr);
         viewProjectionPtr = 0;
     }
+    bridge.disconnect();
     module = null;
 }
 

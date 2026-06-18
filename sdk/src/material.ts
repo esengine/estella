@@ -5,6 +5,7 @@
  */
 
 import type { ESEngineModule } from './wasm';
+import { CoreApiBridge } from './CoreApiBridge';
 import { requireResourceManager } from './resourceManager';
 import type { Vec2, Vec3, Vec4 } from './types';
 import { BlendMode } from './blend';
@@ -95,6 +96,7 @@ export interface MaterialData {
 // Internal State
 // =============================================================================
 
+const bridge = new CoreApiBridge('material');
 let module: ESEngineModule | null = null;
 let nextMaterialId = 1;
 const materials = new Map<MaterialHandle, MaterialData>();
@@ -104,7 +106,8 @@ const materials = new Map<MaterialHandle, MaterialData>();
 // =============================================================================
 
 export function initMaterialAPI(wasmModule: ESEngineModule): void {
-    module = wasmModule;
+    bridge.connect(wasmModule);
+    module = bridge.module;
     registerMaterialCallback();
 }
 
@@ -118,6 +121,7 @@ export function shutdownMaterialAPI(): void {
     materialCallbackRegistered = false;
     encodedNameCache.clear();
     encoder = null;
+    bridge.disconnect();
     module = null;
 }
 

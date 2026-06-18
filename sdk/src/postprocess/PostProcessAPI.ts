@@ -3,13 +3,16 @@ import type { Entity } from '../types';
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
 import { handleWasmError } from '../wasmError';
+import { CoreApiBridge } from '../CoreApiBridge';
 import { PostProcessStack, getCameraBindings, getStacks } from './PostProcessStack';
 import { POSTPROCESS_VERTEX } from './shaders';
 
+const bridge = new CoreApiBridge('postprocess');
 let module: ESEngineModule | null = null;
 
 export function initPostProcessAPI(wasmModule: ESEngineModule): void {
-    module = wasmModule;
+    bridge.connect(wasmModule);
+    module = bridge.module;
 }
 
 export function shutdownPostProcessAPI(): void {
@@ -21,6 +24,7 @@ export function shutdownPostProcessAPI(): void {
     if (module && PostProcess.isInitialized()) {
         PostProcess.shutdown();
     }
+    bridge.disconnect();
     module = null;
 }
 

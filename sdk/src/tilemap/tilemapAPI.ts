@@ -1,5 +1,6 @@
 import type { ESEngineModule } from '../wasm';
 import { withMalloc } from '../wasmScratch';
+import { CoreApiBridge } from '../CoreApiBridge';
 
 interface TilemapModule {
     tilemap_initLayer(entity: number, width: number, height: number,
@@ -99,13 +100,16 @@ interface TilemapModule {
     _free(ptr: number): void;
 }
 
+const bridge = new CoreApiBridge('tilemap');
 let module_: TilemapModule | null = null;
 
 export function initTilemapAPI(m: ESEngineModule): void {
-    module_ = m as unknown as TilemapModule;
+    bridge.connect(m);
+    module_ = bridge.module as unknown as TilemapModule;
 }
 
 export function shutdownTilemapAPI(): void {
+    bridge.disconnect();
     module_ = null;
 }
 

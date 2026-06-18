@@ -11,6 +11,7 @@ import type { GeometryHandle } from './geometry';
 import type { ShaderHandle, MaterialHandle } from './material';
 import { Material, isTextureRef, classifyUniformArity, type UniformValue, type TextureRef } from './material';
 import { BlendMode } from './blend';
+import { CoreApiBridge } from './CoreApiBridge';
 import { handleWasmError } from './wasmError';
 import { log } from './logger';
 
@@ -20,6 +21,7 @@ export { BlendMode } from './blend';
 // Internal State
 // =============================================================================
 
+const bridge = new CoreApiBridge('draw');
 let module: ESEngineModule | null = null;
 let viewProjectionPtr: number = 0;
 let transformPtr: number = 0;
@@ -33,7 +35,8 @@ const uniformBuffer = new Float32Array(UNIFORMS_BUFFER_SIZE);
 // =============================================================================
 
 export function initDrawAPI(wasmModule: ESEngineModule): void {
-    module = wasmModule;
+    bridge.connect(wasmModule);
+    module = bridge.module;
     viewProjectionPtr = module._malloc(16 * 4);
     transformPtr = module._malloc(16 * 4);
     uniformsPtr = module._malloc(UNIFORMS_BUFFER_SIZE * 4);
@@ -54,6 +57,7 @@ export function shutdownDrawAPI(): void {
             uniformsPtr = 0;
         }
     }
+    bridge.disconnect();
     module = null;
 }
 

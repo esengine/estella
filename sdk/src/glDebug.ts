@@ -4,14 +4,18 @@
  */
 
 import type { ESEngineModule } from './wasm';
+import { CoreApiBridge } from './CoreApiBridge';
 
+const bridge = new CoreApiBridge('glDebug');
 let module: ESEngineModule | null = null;
 
 export function initGLDebugAPI(wasmModule: ESEngineModule): void {
-    module = wasmModule;
+    bridge.connect(wasmModule);
+    module = bridge.module;
 }
 
 export function shutdownGLDebugAPI(): void {
+    bridge.disconnect();
     module = null;
 }
 

@@ -1,13 +1,22 @@
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { Entity } from '../types';
+import { SpineCoreBridge } from './SpineBridge';
 
+const bridge = new SpineCoreBridge();
 let module: ESEngineModule | null = null;
 
 export function initSpineCppAPI(wasmModule: ESEngineModule): void {
-    module = wasmModule;
+    // Route through the single WASM bridge: every `spine_*` call below then
+    // short-circuits with WasmModuleAborted after an abort instead of touching
+    // a dead module. The optional-chaining call sites are unchanged — a missing
+    // binding still resolves to undefined (handled by `?? fallback`); only a
+    // post-abort call throws.
+    bridge.connect(wasmModule);
+    module = bridge.module;
 }
 
 export function shutdownSpineCppAPI(): void {
+    bridge.disconnect();
     module = null;
 }
 

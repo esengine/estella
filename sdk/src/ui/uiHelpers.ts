@@ -1,3 +1,4 @@
+import { CoreApiBridge } from '../CoreApiBridge';
 import { Sprite, Parent, Transform } from '../component';
 import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../component';
 import { Image } from './core/image';
@@ -80,11 +81,13 @@ export function computeUIRectLayout(
     };
 }
 
+const bridge = new CoreApiBridge('uiHelpers');
 let module_: ESEngineModule | null = null;
 let nativeRegistry_: CppRegistry | null = null;
 
 export function initUIHelpers(module: ESEngineModule, registry: CppRegistry): void {
-    module_ = module;
+    bridge.connect(module);
+    module_ = bridge.module;
     nativeRegistry_ = registry;
 }
 
