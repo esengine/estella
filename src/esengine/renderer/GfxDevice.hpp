@@ -22,6 +22,7 @@
 #include "GfxEnums.hpp"
 #include "Texture.hpp"
 
+#include <string>
 #include <vector>
 
 namespace esengine {
@@ -59,6 +60,9 @@ public:
 
     /** @brief Sets the clear color */
     virtual void setClearColor(f32 r, f32 g, f32 b, f32 a) = 0;
+
+    /** @brief Sets the value written to the stencil buffer by clear() */
+    virtual void setClearStencil(i32 value) = 0;
 
     /** @brief Clears framebuffer attachments */
     virtual void clear(bool color, bool depth, bool stencil) = 0;
@@ -133,11 +137,34 @@ public:
     // Shader Program
     // =========================================================================
 
+    /**
+     * @brief Compiles and links a GPU program from GLSL sources.
+     * @param vertexSrc   Vertex shader GLSL source (null-terminated).
+     * @param fragmentSrc Fragment shader GLSL source (null-terminated).
+     * @param bindings    Attribute location bindings applied before link (may be null if count==0).
+     * @param bindingCount Number of entries in @p bindings.
+     * @param outLog      Optional; receives the driver info log on failure.
+     * @param outFailedStage Optional; receives the stage that rejected the source.
+     * @return The linked program id, or 0 on failure.
+     * @details Collapses the multi-step GL shader protocol behind the device so
+     *          no upper layer ever issues raw shader GL. Uniform reflection is a
+     *          separate call (getActiveUniforms).
+     */
+    virtual u32 createProgram(const char* vertexSrc, const char* fragmentSrc,
+                              const GfxAttribBinding* bindings, u32 bindingCount,
+                              std::string* outLog, GfxShaderStage* outFailedStage) = 0;
+
+    /** @brief Deletes a shader program */
+    virtual void deleteProgram(u32 programId) = 0;
+
     /** @brief Binds a shader program */
     virtual void useProgram(u32 programId) = 0;
 
     /** @brief Gets a uniform location by name */
     virtual i32 getUniformLocation(u32 programId, const char* name) = 0;
+
+    /** @brief Gets a vertex attribute location by name (-1 if not found) */
+    virtual i32 getAttribLocation(u32 programId, const char* name) = 0;
 
     /** @brief Sets an integer uniform */
     virtual void setUniform1i(i32 location, i32 value) = 0;
@@ -249,6 +276,14 @@ public:
 
     /** @brief Sets pixel store parameter */
     virtual void pixelStorei(u32 pname, i32 param) = 0;
+
+    /**
+     * @brief Toggles vertical flip on subsequent texture uploads.
+     * @details WebGL-only (GL_UNPACK_FLIP_Y_WEBGL); a no-op on native, where
+     *          image data is flipped CPU-side at load time. Keeping the WebGL
+     *          constant inside the device avoids leaking it to upper layers.
+     */
+    virtual void setUnpackFlipY(bool enabled) = 0;
 
     // =========================================================================
     // Framebuffer

@@ -83,7 +83,7 @@ void PostProcessPipeline::ensureFBOs() {
         origSpec.height = height_;
         origSpec.depthStencil = false;
 
-        fboOriginal_ = Framebuffer::create(origSpec);
+        fboOriginal_ = Framebuffer::create(device_, origSpec);
         if (!fboOriginal_) {
             ES_LOG_ERROR("PostProcessPipeline: Failed to create original FBO");
             return;
@@ -98,8 +98,8 @@ void PostProcessPipeline::ensureFBOs() {
     spec.height = height_;
     spec.depthStencil = false;
 
-    fboA_ = Framebuffer::create(spec);
-    fboB_ = Framebuffer::create(spec);
+    fboA_ = Framebuffer::create(device_, spec);
+    fboB_ = Framebuffer::create(device_, spec);
 
     if (!fboA_ || !fboB_) {
         ES_LOG_ERROR("PostProcessPipeline: Failed to create framebuffers");
@@ -422,7 +422,7 @@ void PostProcessPipeline::ensureScreenFBO() {
     spec.height = height_;
     spec.depthStencil = false;
 
-    screenFBO_ = Framebuffer::create(spec);
+    screenFBO_ = Framebuffer::create(device_, spec);
     if (!screenFBO_) {
         ES_LOG_ERROR("PostProcessPipeline: Failed to create screen FBO");
         return;

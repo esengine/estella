@@ -59,12 +59,14 @@ bool Frustum::intersectsAABB(const glm::vec3& center, const glm::vec3& halfExten
     return true;
 }
 
-RenderFrame::RenderFrame(GfxDevice& device, RenderContext& context, resource::ResourceManager& resource_manager)
+RenderFrame::RenderFrame(GfxDevice& device, StateTracker& state_tracker, RenderContext& context,
+                         resource::ResourceManager& resource_manager)
     : device_(device)
     , context_(context)
     , resource_manager_(resource_manager)
-    , state_tracker_(device)
+    , state_tracker_(state_tracker)
     , pool_(device) {
+    target_manager_.setDevice(device);
 }
 
 RenderFrame::~RenderFrame() {
@@ -75,7 +77,8 @@ void RenderFrame::init(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    state_tracker_.init();
+    // state_tracker_ is inited once by EstellaContext (its owner); flush()/replay
+    // reset() it each frame, so no per-RenderFrame init is needed here.
 
 #ifdef ES_ENABLE_POSTPROCESS
     post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_);

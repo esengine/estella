@@ -31,6 +31,22 @@ public:
 
     void useProgram(u32 programId);
 
+    // -- Buffer / VAO / framebuffer binding (the binds resource classes used to
+    //    issue raw, silently desyncing this cache). Routing them here keeps the
+    //    cache authoritative for the whole engine.
+    void bindVertexArray(u32 vaoId);
+    void bindVertexBuffer(u32 bufferId);
+    void bindIndexBuffer(u32 bufferId);
+    void bindFramebuffer(u32 fboId);
+
+    /**
+     * @brief Drops the cached vertex/index buffer bindings.
+     * @details Use before re-issuing the explicit VBO+attrib+IBO rebind that
+     *          works around the WeChat WebGL VAO state-restoration bug, so the
+     *          rebinds are not deduped away.
+     */
+    void invalidateBufferBindings();
+
     void setDepthTest(bool enabled);
     void setDepthWrite(bool enabled);
 
@@ -62,6 +78,12 @@ private:
 
     u32 current_program_ = 0;
     std::array<u32, MAX_TEXTURE_SLOTS> bound_textures_{};
+
+    static constexpr u32 UNKNOWN_BINDING = 0xFFFFFFFFu;
+    u32 vao_bound_ = 0;
+    u32 vertex_buffer_bound_ = 0;
+    u32 index_buffer_bound_ = 0;
+    u32 framebuffer_bound_ = 0;
 
     i32 vp_x_ = -1, vp_y_ = -1;
     u32 vp_w_ = 0, vp_h_ = 0;
