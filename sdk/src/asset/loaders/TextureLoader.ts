@@ -3,6 +3,7 @@ import { platformCreateCanvas, platformCreateImage } from '../../platform';
 import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasmScratch';
+import { isKtx2, loadCompressedTexture, type BasisTranscoder } from '../compressed';
 
 /**
  * Texture import-time settings. Applied when the GL texture is first uploaded,
@@ -20,9 +21,16 @@ export type TextureImportSettingsResolver = (ref: string) => TextureImportSettin
 
 export class TextureLoader implements AssetLoader<TextureResult> {
     readonly type = 'texture';
-    readonly extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'];
+    readonly extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.ktx2'];
 
     private module_: ESEngineModule;
+    /**
+     * Basis transcoder for KTX2 assets, injected by the basis plugin (Batch C3).
+     * Null until registered — KTX2 loads then error with a clear message rather
+     * than silently falling back.
+     */
+    private transcoder_: BasisTranscoder | null = null;
+    setTranscoder(t: BasisTranscoder | null): void { this.transcoder_ = t; }
     private canvas_: HTMLCanvasElement | OffscreenCanvas | null = null;
     private ctx_: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
     /**
@@ -83,9 +91,32 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private async loadWithFlip(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
+        if (path.toLowerCase().endsWith('.ktx2')) {
+            return this.loadCompressed(path, ctx, settings);
+        }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
         const img = await this.loadImage(url);
         return this.createTextureFromImage(img, flip, settings);
+    }
+
+    /**
+     * Load a KTX2 (Basis) compressed texture: fetch the container, transcode to a
+     * device-supported GPU format (or RGBA8 fallback), and upload. KTX2 carries its
+     * own orientation, so the `flip` flag does not apply.
+     */
+    private async loadCompressed(
+        path: string, ctx: LoadContext, settings?: TextureImportSettings,
+    ): Promise<TextureResult> {
+        const buf = await ctx.backend.fetchBinary(ctx.catalog.getBuildPath(path));
+        const bytes = new Uint8Array(buf);
+        if (!isKtx2(bytes)) throw new Error(`TextureLoader: ${path} is not a KTX2 file`);
+        const gl = this.getWebGL2Context();
+        if (!gl) throw new Error('TextureLoader: KTX2 textures require a WebGL2 context');
+        if (!this.transcoder_) {
+            throw new Error('TextureLoader: no Basis transcoder registered (load the basis module before KTX2 assets)');
+        }
+        const r = loadCompressedTexture(gl, this.module_, this.transcoder_, bytes, settings);
+        return { handle: r.handle, width: r.width, height: r.height };
     }
 
     private loadImage(src: string): Promise<HTMLImageElement | ImageBitmap> {
