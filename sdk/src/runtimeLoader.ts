@@ -28,6 +28,7 @@ import { requireResourceManager } from './resourceManager';
 import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
 import { registerTilemapSource } from './tilemap/tilesetCache';
 import { log } from './logger';
+import { withMalloc } from './wasmScratch';
 
 // =============================================================================
 // Public Interface
@@ -60,19 +61,16 @@ function createTextureFromPixels(
     params?: TextureParams,
 ): number {
     const rm = requireResourceManager();
-    const ptr = module._malloc(result.pixels.length);
-    module.HEAPU8.set(result.pixels, ptr);
+    return withMalloc(module, result.pixels.length, ptr => {
+        module.HEAPU8.set(result.pixels, ptr);
 
-    let handle: number;
-    if (params && (params.filterMode || params.wrapMode) && rm.createTextureEx) {
-        const filter = FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1;
-        const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
-        handle = rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, 1, flipY, filter, wrap);
-    } else {
-        handle = rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
-    }
-    module._free(ptr);
-    return handle;
+        if (params && (params.filterMode || params.wrapMode) && rm.createTextureEx) {
+            const filter = FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1;
+            const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
+            return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, 1, flipY, filter, wrap);
+        }
+        return rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
+    });
 }
 
 async function loadTextures(

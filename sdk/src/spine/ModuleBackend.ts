@@ -3,6 +3,7 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import { log } from '../logger';
+import { withScratch } from '../wasmScratch';
 
 interface EntityInfo {
     skelHandle: number;
@@ -230,31 +231,30 @@ export class ModuleBackend {
             totalIdxBytes += e.indices.byteLength;
         }
 
-        const vertBase = coreModule._malloc(totalVertBytes);
-        const idxBase = coreModule._malloc(totalIdxBytes);
+        withScratch(coreModule, alloc => {
+            const vertBase = alloc(totalVertBytes);
+            const idxBase = alloc(totalIdxBytes);
 
-        let vOff = 0;
-        let iOff = 0;
-        for (const e of this.cachedEntries_) {
-            const vertPtr = vertBase + vOff;
-            const idxPtr = idxBase + iOff;
+            let vOff = 0;
+            let iOff = 0;
+            for (const e of this.cachedEntries_) {
+                const vertPtr = vertBase + vOff;
+                const idxPtr = idxBase + iOff;
 
-            coreModule.HEAPF32.set(e.vertices, vertPtr >> 2);
-            new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, e.indices.length).set(e.indices);
+                coreModule.HEAPF32.set(e.vertices, vertPtr >> 2);
+                new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, e.indices.length).set(e.indices);
 
-            submitFn.call(coreModule, registry,
-                vertPtr, e.vertices.length / 8,
-                idxPtr, e.indices.length,
-                e.textureId, e.blendMode,
-                e.entity, e.info.skeletonScale, e.info.flipX, e.info.flipY,
-                e.info.layer, 0);
+                submitFn.call(coreModule, registry,
+                    vertPtr, e.vertices.length / 8,
+                    idxPtr, e.indices.length,
+                    e.textureId, e.blendMode,
+                    e.entity, e.info.skeletonScale, e.info.flipX, e.info.flipY,
+                    e.info.layer, 0);
 
-            vOff += e.vertices.byteLength;
-            iOff += e.indices.byteLength;
-        }
-
-        coreModule._free(vertBase);
-        coreModule._free(idxBase);
+                vOff += e.vertices.byteLength;
+                iOff += e.indices.byteLength;
+            }
+        });
     }
 
     removeEntity(entity: Entity): void {

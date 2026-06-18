@@ -38,6 +38,7 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
 import { RigidBody, BoxCollider, CircleCollider, BodyType } from '../physics/PhysicsComponents';
 import { mergeCollisionTiles } from './collisionMerge';
 import { log } from '../logger';
+import { withMalloc } from '../wasmScratch';
 
 export interface TiledChunkData {
     x: number;
@@ -349,11 +350,10 @@ export async function parseTiledMap(
 
     const encoder = new TextEncoder();
     const encoded = encoder.encode(jsonString);
-    const ptr = api._malloc(encoded.byteLength);
-    api.HEAPU8.set(encoded, ptr);
-
-    const handle = api.tiled_loadMap(ptr, encoded.byteLength);
-    api._free(ptr);
+    const handle = withMalloc(api, encoded.byteLength, ptr => {
+        api.HEAPU8.set(encoded, ptr);
+        return api.tiled_loadMap(ptr, encoded.byteLength);
+    });
 
     if (handle === 0) return null;
 
@@ -367,10 +367,10 @@ export async function parseTiledMap(
             }
             const tsjContent = await resolveExternal(source);
             const tsjEncoded = encoder.encode(tsjContent);
-            const tsjPtr = api._malloc(tsjEncoded.byteLength);
-            api.HEAPU8.set(tsjEncoded, tsjPtr);
-            const ok = api.tiled_loadExternalTileset(handle, i, tsjPtr, tsjEncoded.byteLength);
-            api._free(tsjPtr);
+            const ok = withMalloc(api, tsjEncoded.byteLength, tsjPtr => {
+                api.HEAPU8.set(tsjEncoded, tsjPtr);
+                return api.tiled_loadExternalTileset(handle, i, tsjPtr, tsjEncoded.byteLength);
+            });
             if (!ok) {
                 api.tiled_freeMap(handle);
                 return null;
@@ -413,20 +413,21 @@ export async function parseTiledMap(
                     const cw = api.tiled_getLayerChunkWidth(handle, i, c);
                     const ch = api.tiled_getLayerChunkHeight(handle, i, c);
                     const count = cw * ch;
-                    const ptr = api._malloc(count * 2);
-                    api.tiled_getLayerChunkTiles(handle, i, c, ptr, count);
-                    const chunkTiles = new Uint16Array(count);
-                    chunkTiles.set(new Uint16Array(api.HEAPU8.buffer, ptr, count));
-                    api._free(ptr);
+                    const chunkTiles = withMalloc(api, count * 2, ptr => {
+                        api.tiled_getLayerChunkTiles(handle, i, c, ptr, count);
+                        const out = new Uint16Array(count);
+                        out.set(new Uint16Array(api.HEAPU8.buffer, ptr, count));
+                        return out;
+                    });
                     chunks.push({ x: cx, y: cy, width: cw, height: ch, tiles: chunkTiles });
                 }
             } else {
                 const tileCount = w * h;
-                const tilePtr = api._malloc(tileCount * 2);
-                api.tiled_getLayerTiles(handle, i, tilePtr, tileCount);
                 tiles = new Uint16Array(tileCount);
-                tiles.set(new Uint16Array(api.HEAPU8.buffer, tilePtr, tileCount));
-                api._free(tilePtr);
+                withMalloc(api, tileCount * 2, tilePtr => {
+                    api.tiled_getLayerTiles(handle, i, tilePtr, tileCount);
+                    tiles.set(new Uint16Array(api.HEAPU8.buffer, tilePtr, tileCount));
+                });
             }
 
             result.layers.push({
