@@ -122,5 +122,15 @@
 - **边界测试可在仓库内运行**：`sdk/tests/helpers/loadWasm.ts` 成为 WASM 路径单一来源（`$ESENGINE_WASM_DIR` → `build/wasm/web` → 旧 `desktop/public/wasm`），8 个集成测试文件不再各自硬编码不存在的 `desktop/public/wasm`。
 - 验证：SDK typecheck 通过；2012 个测试通过（含 3 个新握手测试，证明 mismatch 在非 strict 下也致命）；EHT 幂等。**待补**：C++ 侧 `static_assert` + `getAbiLayoutHash` 的实际编译验证需要 emsdk（随 CI web 构建门禁一起闭环）。
 
-### RC2 / RC3 / RC4 / RC5 — 未开始
-按执行顺序依次推进，全程在 RC1 的 `static_assert` + 握手护栏内进行。
+### RC4 身份 — ✅ 已落地并**编译+运行验证**
+- `core/Types.hpp`：单一全局 `getTypeId<T>()` 计数器拆为**按域独立**的计数器。新增域标签 `ComponentDomain/EventDomain/ServiceDomain/ResourceDomain` 与具名 helper `componentTypeId/eventTypeId/serviceTypeId/resourceTypeId`（各自 0 起、密集）。移除共享的 `getTypeId`/`nextTypeId`。
+- 调用点迁移：`Registry`→`componentTypeId`、`Dispatcher`→`eventTypeId`、`ServiceRegistry`→`serviceTypeId`、`LoaderRegistry`→`resourceTypeId`。组件 id 现在密集，`pools_` 向量与 128-bit 组件 mask 不再被无关的事件/服务/资源类型撑大或溢出。
+- 全仓已无 `getTypeId` 残留（仅本文档"病灶"描述保留旧名）。各容器（pools_/signals_/services_/loaders_）本就相互独立，跨域 id 无需全局唯一，故拆分零语义风险。
+- **验证**：用本机 MSVC（VS Build Tools）+ glm 编译一个独立 harness 包含全部四个被改头文件并运行通过。关键证据：先注册 6 个事件/服务/资源 id 后，组件 id 仍为 `0 1 2`（旧共享计数器下会是 `6 7 8`）；Registry emplace/has/tryGet/remove、Dispatcher trigger、ServiceRegistry 均跑通。
+- **顺带修复**：`SparseSet.hpp` 用了 `std::array<u32,4096>` 却没 `#include <array>`（依赖 Emscripten/libc++ 的传递包含，MSVC 下编译失败）——补上，消除一处潜在可移植性 bug。
+
+### 验证能力（已确认可用）
+本机**存在原生 C++ 工具链**：VS Build Tools（`D:\VisualStudioBuildTools`，cl.exe 14.50）+ ninja + cmake，doctest 已 vendored，glm 子模块已初始化。被改的 ECS/事件/服务/资源代码均为 header-only，可用独立 harness 直接编译+运行验证（如 RC4 所做）。完整 `esengine` 静态库的原生构建还需更多子模块/native 依赖（glfw/glad/box2d/spine 等），属后续 CI 门禁范畴。**结论**：RC2/RC3/RC5 的 header-only 部分可在本机即时编译验证，不再是纯人工审阅。
+
+### RC2 / RC3 / RC5 — 未开始
+按执行顺序依次推进，全程在 RC1 的 `static_assert` + 握手护栏内进行，并尽量用独立 harness 即时编译验证。
