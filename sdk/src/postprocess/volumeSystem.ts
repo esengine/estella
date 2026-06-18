@@ -1,10 +1,9 @@
 import { defineSystem } from '../system';
-import { defineResource } from '../resource';
+import { defineResource, Res } from '../resource';
 import { Query } from '../query';
 import type { Entity } from '../types';
 import { PostProcessVolume, Transform, Camera, type PostProcessVolumeData, type TransformData, type CameraData } from '../component';
-import { PostProcess } from './PostProcessAPI';
-import { PostProcessStack } from './PostProcessStack';
+import { PostProcess, type PostProcessApi } from './PostProcessAPI';
 import { getEffectDef } from './effects';
 import { blendVolumeEffects, type ActiveVolume } from './volumeBlending';
 import type { ShaderHandle } from '../material';
@@ -19,33 +18,34 @@ export const PostProcessVolumeConfigResource = defineResource<PostProcessVolumeC
     'PostProcessVolumeConfig'
 );
 
-const volumeStacks = new Map<Entity, PostProcessStack>();
-const volumeShaders = new Map<string, ShaderHandle>();
-
-function getOrCreateShader(key: string, factory: () => ShaderHandle): ShaderHandle {
-    const existing = volumeShaders.get(key);
+function getOrCreateShader(api: PostProcessApi, key: string, factory: () => ShaderHandle): ShaderHandle {
+    const existing = api.volumeShaders.get(key);
     if (existing !== undefined) return existing;
 
     const shader = factory();
-    volumeShaders.set(key, shader);
+    api.volumeShaders.set(key, shader);
     return shader;
 }
 
-function applyBlendedEffects(camera: Entity, effects: Map<string, { enabled: boolean; uniforms: Map<string, number> }>): void {
+function applyBlendedEffects(
+    api: PostProcessApi,
+    camera: Entity,
+    effects: Map<string, { enabled: boolean; uniforms: Map<string, number> }>,
+): void {
     if (effects.size === 0) {
-        const existing = volumeStacks.get(camera);
+        const existing = api.volumeStacks.get(camera);
         if (existing) {
-            PostProcess.unbind(camera);
+            api.unbind(camera);
             existing.destroy();
-            volumeStacks.delete(camera);
+            api.volumeStacks.delete(camera);
         }
         return;
     }
 
-    let stack = volumeStacks.get(camera);
+    let stack = api.volumeStacks.get(camera);
     if (!stack) {
-        stack = PostProcess.createStack();
-        volumeStacks.set(camera, stack);
+        stack = api.createStack();
+        api.volumeStacks.set(camera, stack);
     }
 
     stack.clearPasses();
@@ -58,14 +58,14 @@ function applyBlendedEffects(camera: Entity, effects: Map<string, { enabled: boo
 
         if (def.multiPass) {
             for (const subPass of def.multiPass) {
-                const shader = getOrCreateShader(subPass.name, subPass.factory);
+                const shader = getOrCreateShader(api, subPass.name, subPass.factory);
                 stack.addPass(subPass.name, shader);
                 for (const [uniformName, uniformValue] of effectData.uniforms) {
                     stack.setUniform(subPass.name, uniformName, uniformValue);
                 }
             }
         } else {
-            const shader = getOrCreateShader(effectType, def.factory);
+            const shader = getOrCreateShader(api, effectType, def.factory);
             stack.addPass(effectType, shader);
             for (const [uniformName, uniformValue] of effectData.uniforms) {
                 stack.setUniform(effectType, uniformName, uniformValue);
@@ -74,15 +74,19 @@ function applyBlendedEffects(camera: Entity, effects: Map<string, { enabled: boo
     }
 
     if (stack.enabledPassCount > 0) {
-        PostProcess.bind(camera, stack);
+        api.bind(camera, stack);
     } else {
-        PostProcess.unbind(camera);
+        api.unbind(camera);
     }
 }
 
 export const postProcessVolumeSystem = defineSystem(
-    [Query(PostProcessVolume, Transform), Query(Camera)],
-    (volumeQuery: Iterable<[Entity, PostProcessVolumeData, TransformData]>, cameraQuery: Iterable<[Entity, CameraData]>) => {
+    [Res(PostProcess), Query(PostProcessVolume, Transform), Query(Camera)],
+    (
+        api: PostProcessApi,
+        volumeQuery: Iterable<[Entity, PostProcessVolumeData, TransformData]>,
+        cameraQuery: Iterable<[Entity, CameraData]>,
+    ) => {
         const volumes: { data: PostProcessVolumeData; tx: { x: number; y: number } }[] = [];
         for (const [_entity, volumeData, transform] of volumeQuery) {
             volumes.push({ data: volumeData, tx: { x: transform.position.x, y: transform.position.y } });
@@ -101,22 +105,22 @@ export const postProcessVolumeSystem = defineSystem(
 
         for (const [cameraEntity, cameraData] of cameraQuery) {
             if (cameraData.isActive) {
-                applyBlendedEffects(cameraEntity, blended);
+                applyBlendedEffects(api, cameraEntity, blended);
             }
         }
     },
     { name: 'PostProcessVolumeSystem' }
 );
 
-export function cleanupVolumeSystem(): void {
-    for (const [camera, stack] of volumeStacks) {
-        PostProcess.unbind(camera);
+export function cleanupVolumeSystem(api: PostProcessApi): void {
+    for (const [camera, stack] of api.volumeStacks) {
+        api.unbind(camera);
         stack.destroy();
     }
-    volumeStacks.clear();
+    api.volumeStacks.clear();
 
-    for (const shader of volumeShaders.values()) {
+    for (const shader of api.volumeShaders.values()) {
         Material.releaseShader(shader);
     }
-    volumeShaders.clear();
+    api.volumeShaders.clear();
 }

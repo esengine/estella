@@ -1,5 +1,7 @@
 import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
+import type { ShaderHandle } from '../material';
+import { defineResource } from '../resource';
 import { handleWasmError } from '../wasmError';
 import { CoreApiBridge } from '../CoreApiBridge';
 import { PostProcessStack, PostProcessState } from './PostProcessStack';
@@ -13,9 +15,13 @@ export function initPostProcessAPI(wasmModule: ESEngineModule): void {
 }
 
 export function shutdownPostProcessAPI(): void {
-    PostProcess.state.reset();
-    if (module && PostProcess.isInitialized()) {
-        PostProcess.shutdown();
+    // Per-App state dies with its App; here we only tear down the shared module.
+    if (module) {
+        try {
+            if (module.postprocess_isInitialized()) module.postprocess_shutdown();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.shutdown');
+        }
     }
     bridge.disconnect();
     module = null;
@@ -79,6 +85,10 @@ export function syncStackToWasm(stack: PostProcessStack): void {
  */
 export class PostProcessApi {
     readonly state = new PostProcessState();
+
+    /** Volume-system bookkeeping (per-App): camera → the stack it created, and shared effect shaders. */
+    readonly volumeStacks = new Map<Entity, PostProcessStack>();
+    readonly volumeShaders = new Map<string, ShaderHandle>();
 
     // -- per-App state (stacks / bindings / screen stack) --------------------
 
@@ -204,14 +214,6 @@ export class PostProcessApi {
         }
     }
 
-    _cleanupDestroyedCameras(isValid: (e: Entity) => boolean): void {
-        for (const camera of this.state.cameraBindings.keys()) {
-            if (!isValid(camera)) {
-                this.state.cameraBindings.delete(camera);
-            }
-        }
-    }
-
     _beginScreenCapture(): void {
         try {
             getModule().postprocess_beginScreenCapture();
@@ -276,5 +278,8 @@ export class PostProcessApi {
     }
 }
 
-/** B2b-3a transitional default instance (becomes a per-App resource in B2b-3b). */
-export const PostProcess = new PostProcessApi();
+/**
+ * Per-App post-process resource. Published + injected into the render pipeline
+ * by `PostProcessPlugin`; read as `app.getResource(PostProcess)`.
+ */
+export const PostProcess = defineResource<PostProcessApi>(null!, 'PostProcess');

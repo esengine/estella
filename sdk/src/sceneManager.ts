@@ -134,12 +134,12 @@ class SceneContextImpl implements SceneContext {
     }
 
     bindPostProcess(camera: Entity, stack: PostProcessStack): void {
-        PostProcess.bind(camera, stack);
+        if (this.app_.hasResource(PostProcess)) this.app_.getResource(PostProcess).bind(camera, stack);
         this.instance_.postProcessBindings.set(camera, stack);
     }
 
     unbindPostProcess(camera: Entity): void {
-        PostProcess.unbind(camera);
+        if (this.app_.hasResource(PostProcess)) this.app_.getResource(PostProcess).unbind(camera);
         this.instance_.postProcessBindings.delete(camera);
     }
 
@@ -180,8 +180,9 @@ export class SceneManagerState {
             for (const id of instance.drawCallbacks.keys()) {
                 unregisterDrawCallback(id);
             }
+            const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
             for (const camera of instance.postProcessBindings.keys()) {
-                PostProcess.unbind(camera);
+                pp?.unbind(camera);
             }
         }
 
@@ -398,8 +399,9 @@ export class SceneManagerState {
         }
         instance.systemIds.length = 0;
 
+        const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
         for (const camera of instance.postProcessBindings.keys()) {
-            PostProcess.unbind(camera);
+            pp?.unbind(camera);
         }
         instance.postProcessBindings.clear();
 

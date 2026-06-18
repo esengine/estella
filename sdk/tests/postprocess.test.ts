@@ -6,7 +6,7 @@ vi.mock('../src/material', () => ({
 }));
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { PostProcess, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI } from '../src/postprocess';
+import { PostProcessApi, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI } from '../src/postprocess';
 import { Material } from '../src/material';
 import type { ESEngineModule } from '../src/wasm';
 
@@ -39,11 +39,13 @@ type MockModule = ReturnType<typeof createPostProcessMockModule>;
 
 describe('PostProcess API', () => {
     let mock: MockModule;
+    let pp: PostProcessApi;
 
     beforeEach(() => {
         mock = createPostProcessMockModule();
         initPostProcessAPI(mock as unknown as ESEngineModule);
         vi.clearAllMocks();
+        pp = new PostProcessApi();
     });
 
     afterEach(() => {
@@ -88,22 +90,22 @@ describe('PostProcess API', () => {
     describe('uninitialized guard', () => {
         it('should return false for isInitialized after shutdown', () => {
             shutdownPostProcessAPI();
-            expect(PostProcess.isInitialized()).toBe(false);
+            expect(pp.isInitialized()).toBe(false);
         });
 
         it('should return false from init after shutdown', () => {
             shutdownPostProcessAPI();
-            expect(PostProcess.init(800, 600)).toBe(false);
+            expect(pp.init(800, 600)).toBe(false);
         });
 
         it('should not throw from shutdown after shutdown', () => {
             shutdownPostProcessAPI();
-            expect(() => PostProcess.shutdown()).not.toThrow();
+            expect(() => pp.shutdown()).not.toThrow();
         });
 
         it('should not throw from setBypass after shutdown', () => {
             shutdownPostProcessAPI();
-            expect(() => PostProcess.setBypass(true)).not.toThrow();
+            expect(() => pp.setBypass(true)).not.toThrow();
         });
     });
 
@@ -113,25 +115,25 @@ describe('PostProcess API', () => {
 
     describe('pipeline lifecycle', () => {
         it('should call postprocess_init with width and height', () => {
-            PostProcess.init(1920, 1080);
+            pp.init(1920, 1080);
             expect(mock.postprocess_init).toHaveBeenCalledWith(1920, 1080);
         });
 
         it('should return the WASM result from init', () => {
             mock.postprocess_init.mockReturnValue(true);
-            expect(PostProcess.init(800, 600)).toBe(true);
+            expect(pp.init(800, 600)).toBe(true);
 
             mock.postprocess_init.mockReturnValue(false);
-            expect(PostProcess.init(800, 600)).toBe(false);
+            expect(pp.init(800, 600)).toBe(false);
         });
 
         it('should call postprocess_shutdown', () => {
-            PostProcess.shutdown();
+            pp.shutdown();
             expect(mock.postprocess_shutdown).toHaveBeenCalledOnce();
         });
 
         it('should call postprocess_resize with width and height', () => {
-            PostProcess.resize(1280, 720);
+            pp.resize(1280, 720);
             expect(mock.postprocess_resize).toHaveBeenCalledWith(1280, 720);
         });
     });
@@ -142,20 +144,20 @@ describe('PostProcess API', () => {
 
     describe('PostProcessStack', () => {
         it('should create a stack with unique id', () => {
-            const stack1 = PostProcess.createStack();
-            const stack2 = PostProcess.createStack();
+            const stack1 = pp.createStack();
+            const stack2 = pp.createStack();
             expect(stack1.id).not.toBe(stack2.id);
         });
 
         it('should add passes and track count', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 1);
             stack.addPass('blur', 2);
             expect(stack.passCount).toBe(2);
         });
 
         it('should remove passes by name', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 1);
             stack.addPass('blur', 2);
             stack.removePass('bloom');
@@ -164,7 +166,7 @@ describe('PostProcess API', () => {
         });
 
         it('should set pass enabled state', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 1);
             stack.setEnabled('bloom', false);
             expect(stack.enabledPassCount).toBe(0);
@@ -173,7 +175,7 @@ describe('PostProcess API', () => {
         });
 
         it('should set float uniforms on passes', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 1);
             stack.setUniform('bloom', 'u_intensity', 0.5);
             const pass = stack.passes[0];
@@ -181,7 +183,7 @@ describe('PostProcess API', () => {
         });
 
         it('should set vec4 uniforms on passes', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 1);
             stack.setUniformVec4('bloom', 'u_color', { x: 1, y: 0.5, z: 0.25, w: 1 });
             const pass = stack.passes[0];
@@ -189,7 +191,7 @@ describe('PostProcess API', () => {
         });
 
         it('should enable/disable all passes', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 1);
             stack.addPass('blur', 2);
             stack.setAllPassesEnabled(false);
@@ -199,14 +201,14 @@ describe('PostProcess API', () => {
         });
 
         it('should mark as destroyed after destroy()', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             expect(stack.isDestroyed).toBe(false);
             stack.destroy();
             expect(stack.isDestroyed).toBe(true);
         });
 
         it('should support chaining on addPass/removePass/setEnabled/setUniform', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             const result = stack
                 .addPass('bloom', 1)
                 .setEnabled('bloom', true)
@@ -222,26 +224,26 @@ describe('PostProcess API', () => {
 
     describe('camera binding', () => {
         it('should bind a stack to a camera entity', () => {
-            const stack = PostProcess.createStack();
-            PostProcess.bind(1 as any, stack);
-            expect(PostProcess.getStack(1 as any)).toBe(stack);
+            const stack = pp.createStack();
+            pp.bind(1 as any, stack);
+            expect(pp.getStack(1 as any)).toBe(stack);
         });
 
         it('should unbind a camera', () => {
-            const stack = PostProcess.createStack();
-            PostProcess.bind(1 as any, stack);
-            PostProcess.unbind(1 as any);
-            expect(PostProcess.getStack(1 as any)).toBeNull();
+            const stack = pp.createStack();
+            pp.bind(1 as any, stack);
+            pp.unbind(1 as any);
+            expect(pp.getStack(1 as any)).toBeNull();
         });
 
         it('should return null for unbound camera', () => {
-            expect(PostProcess.getStack(99 as any)).toBeNull();
+            expect(pp.getStack(99 as any)).toBeNull();
         });
 
         it('should throw when binding a destroyed stack', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.destroy();
-            expect(() => PostProcess.bind(1 as any, stack)).toThrow('destroyed');
+            expect(() => pp.bind(1 as any, stack)).toThrow('destroyed');
         });
     });
 
@@ -251,12 +253,12 @@ describe('PostProcess API', () => {
 
     describe('bypass mode', () => {
         it('should call postprocess_setBypass with true', () => {
-            PostProcess.setBypass(true);
+            pp.setBypass(true);
             expect(mock.postprocess_setBypass).toHaveBeenCalledWith(true);
         });
 
         it('should call postprocess_setBypass with false', () => {
-            PostProcess.setBypass(false);
+            pp.setBypass(false);
             expect(mock.postprocess_setBypass).toHaveBeenCalledWith(false);
         });
     });
@@ -267,17 +269,17 @@ describe('PostProcess API', () => {
 
     describe('_applyForCamera', () => {
         it('should set bypass=true when camera has no bound stack', () => {
-            PostProcess._applyForCamera(1 as any);
+            pp._applyForCamera(1 as any);
             expect(mock.postprocess_setBypass).toHaveBeenCalledWith(true);
         });
 
         it('should sync enabled passes to WASM when stack is bound', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 42);
             stack.setUniform('bloom', 'u_intensity', 0.5);
-            PostProcess.bind(1 as any, stack);
+            pp.bind(1 as any, stack);
 
-            PostProcess._applyForCamera(1 as any);
+            pp._applyForCamera(1 as any);
 
             expect(mock.postprocess_setBypass).toHaveBeenCalledWith(false);
             expect(mock.postprocess_clearPasses).toHaveBeenCalled();
@@ -286,22 +288,22 @@ describe('PostProcess API', () => {
         });
 
         it('should set bypass=true when all passes are disabled', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 42);
             stack.setEnabled('bloom', false);
-            PostProcess.bind(1 as any, stack);
+            pp.bind(1 as any, stack);
 
-            PostProcess._applyForCamera(1 as any);
+            pp._applyForCamera(1 as any);
             expect(mock.postprocess_setBypass).toHaveBeenCalledWith(true);
         });
 
         it('should sync vec4 uniforms to WASM', () => {
-            const stack = PostProcess.createStack();
+            const stack = pp.createStack();
             stack.addPass('bloom', 42);
             stack.setUniformVec4('bloom', 'u_color', { x: 1, y: 0.5, z: 0.25, w: 1 });
-            PostProcess.bind(1 as any, stack);
+            pp.bind(1 as any, stack);
 
-            PostProcess._applyForCamera(1 as any);
+            pp._applyForCamera(1 as any);
             expect(mock.postprocess_setUniformVec4).toHaveBeenCalledWith('bloom', 'u_color', 1, 0.5, 0.25, 1);
         });
     });
@@ -312,7 +314,7 @@ describe('PostProcess API', () => {
 
     describe('_resetAfterCamera', () => {
         it('should clear passes and set bypass=true', () => {
-            PostProcess._resetAfterCamera();
+            pp._resetAfterCamera();
             expect(mock.postprocess_clearPasses).toHaveBeenCalled();
             expect(mock.postprocess_setBypass).toHaveBeenCalledWith(true);
         });
@@ -381,22 +383,22 @@ describe('PostProcess API', () => {
     describe('WASM exception safety', () => {
         it('should return false when postprocess_init throws', () => {
             mock.postprocess_init.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(PostProcess.init(800, 600)).toBe(false);
+            expect(pp.init(800, 600)).toBe(false);
         });
 
         it('should not throw when postprocess_shutdown throws', () => {
             mock.postprocess_shutdown.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(() => PostProcess.shutdown()).not.toThrow();
+            expect(() => pp.shutdown()).not.toThrow();
         });
 
         it('should not throw when postprocess_resize throws', () => {
             mock.postprocess_resize.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(() => PostProcess.resize(800, 600)).not.toThrow();
+            expect(() => pp.resize(800, 600)).not.toThrow();
         });
 
         it('should return false when postprocess_isInitialized throws', () => {
             mock.postprocess_isInitialized.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(PostProcess.isInitialized()).toBe(false);
+            expect(pp.isInitialized()).toBe(false);
         });
     });
 });

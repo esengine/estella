@@ -90,18 +90,15 @@ export {
 
 export {
     PostProcess,
+    PostProcessApi,
     PostProcessStack,
     initPostProcessAPI,
     shutdownPostProcessAPI,
     type EffectDef,
     type EffectUniformDef,
-    type PostProcessEffectData,
     getEffectDef,
     getEffectTypes,
     getAllEffectDefs,
-    syncPostProcessVolume,
-    cleanupPostProcessVolume,
-    cleanupAllPostProcessVolumes,
 } from './postprocess';
 
 // =============================================================================

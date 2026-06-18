@@ -71,6 +71,8 @@ describe('RenderPipeline', () => {
         vi.clearAllMocks();
         mockCallbacks.clear();
         pipeline = new RenderPipeline();
+        // PostProcess is now injected (no longer a global the pipeline reaches for).
+        pipeline.setPostProcess(PostProcess as any);
         registry = { _cpp: {} as any };
         viewProjection = new Float32Array(16);
     });

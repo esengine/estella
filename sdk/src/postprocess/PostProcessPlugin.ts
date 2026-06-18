@@ -1,21 +1,26 @@
 import type { App, Plugin } from '../app';
 import { Schedule } from '../system';
-import { PostProcess } from './PostProcessAPI';
-import { cleanupAllPostProcessVolumes } from './sync';
+import { PostProcess, PostProcessApi } from './PostProcessAPI';
 import { postProcessVolumeSystem, cleanupVolumeSystem, PostProcessVolumeConfigResource } from './volumeSystem';
 
 export class PostProcessPlugin implements Plugin {
     name = 'postProcess';
 
     build(app: App): void {
+        // Per-App post-process API, injected into the render pipeline as an
+        // optional stage (the pipeline has no hard dependency on it).
+        const api = new PostProcessApi();
+        app.insertResource(PostProcess, api);
+        app.pipeline?.setPostProcess(api);
+
         app.insertResource(PostProcessVolumeConfigResource, { enabled: true });
         app.addSystemToSchedule(Schedule.PostUpdate, postProcessVolumeSystem);
     }
 
-    cleanup(): void {
-        cleanupAllPostProcessVolumes();
-        cleanupVolumeSystem();
-        PostProcess.setScreenStack(null);
+    cleanup(app?: App): void {
+        if (app?.hasResource(PostProcess)) {
+            cleanupVolumeSystem(app.getResource(PostProcess));
+        }
     }
 }
 

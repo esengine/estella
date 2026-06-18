@@ -6,7 +6,7 @@
 import type { CppRegistry } from './wasm';
 import type { Entity } from './types';
 import { Renderer } from './renderer';
-import { PostProcess } from './postprocess';
+import type { PostProcessApi } from './postprocess';
 import { Draw } from './draw';
 import { getDrawCallbacks, unregisterDrawCallback } from './customDraw';
 import { log } from './logger';
@@ -40,9 +40,19 @@ export class RenderPipeline {
     private lastHeight_ = 0;
     private activeScenes_: Set<string> | null = null;
     private preFlushCallbacks_: ((registry: { _cpp: CppRegistry }) => void)[] = [];
+    private postProcess_: PostProcessApi | null = null;
 
     setActiveScenes(scenes: Set<string> | null): void {
         this.activeScenes_ = scenes;
+    }
+
+    /**
+     * Inject this App's post-process API (by PostProcessPlugin). When null, the
+     * pipeline does no post-processing — it has no hard dependency on the
+     * post-process subsystem.
+     */
+    setPostProcess(pp: PostProcessApi | null): void {
+        this.postProcess_ = pp;
     }
 
     addPreFlushCallback(cb: (registry: { _cpp: CppRegistry }) => void): void {
@@ -54,19 +64,21 @@ export class RenderPipeline {
     }
 
     beginScreenCapture(): void {
-        if (PostProcess.screenStack && PostProcess.screenStack.enabledPassCount > 0) {
-            if (!PostProcess.isInitialized()) {
-                PostProcess.init(1, 1);
+        const pp = this.postProcess_;
+        if (pp && pp.screenStack && pp.screenStack.enabledPassCount > 0) {
+            if (!pp.isInitialized()) {
+                pp.init(1, 1);
             }
-            PostProcess._applyScreenStack();
-            PostProcess._beginScreenCapture();
+            pp._applyScreenStack();
+            pp._beginScreenCapture();
         }
     }
 
     endScreenCapture(): void {
-        if (PostProcess.screenStack && PostProcess.screenStack.enabledPassCount > 0) {
-            PostProcess._endScreenCapture();
-            PostProcess._executeScreenPasses();
+        const pp = this.postProcess_;
+        if (pp && pp.screenStack && pp.screenStack.enabledPassCount > 0) {
+            pp._endScreenCapture();
+            pp._executeScreenPasses();
         }
     }
 
@@ -104,13 +116,14 @@ export class RenderPipeline {
     renderCamera(params: CameraRenderParams): void {
         const { registry, viewProjection, viewportPixels: vp, clearFlags, elapsed, cameraEntity } = params;
 
-        const hasPostProcess = cameraEntity !== undefined && PostProcess.getStack(cameraEntity) !== null;
+        const pp = this.postProcess_;
+        const hasPostProcess = pp !== null && cameraEntity !== undefined && pp.getStack(cameraEntity) !== null;
 
         if (hasPostProcess) {
-            PostProcess._applyForCamera(cameraEntity!);
-            PostProcess.resize(vp.w, vp.h);
-            PostProcess.setOutputViewport(vp.x, vp.y, vp.w, vp.h);
-            PostProcess.begin();
+            pp!._applyForCamera(cameraEntity!);
+            pp!.resize(vp.w, vp.h);
+            pp!.setOutputViewport(vp.x, vp.y, vp.w, vp.h);
+            pp!.begin();
         }
 
         Renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
@@ -123,8 +136,8 @@ export class RenderPipeline {
         Renderer.end();
 
         if (hasPostProcess) {
-            PostProcess.end();
-            PostProcess._resetAfterCamera();
+            pp!.end();
+            pp!._resetAfterCamera();
         }
     }
 

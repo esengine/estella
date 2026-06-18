@@ -1,4 +1,4 @@
-import type { PostProcessVolumeData } from './sync';
+import type { PostProcessVolumeData } from '../component';
 
 export interface VolumeTransform {
     x: number;

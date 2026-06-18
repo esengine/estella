@@ -1,6 +1,6 @@
 export { PostProcessStack } from './PostProcessStack';
 export type { PassConfig } from './PostProcessStack';
-export { PostProcess, initPostProcessAPI, shutdownPostProcessAPI, syncStackToWasm } from './PostProcessAPI';
+export { PostProcess, PostProcessApi, initPostProcessAPI, shutdownPostProcessAPI, syncStackToWasm } from './PostProcessAPI';
 export { postProcessEffects } from './postProcessEffects';
 export { POSTPROCESS_VERTEX } from './shaders';
 export {
@@ -11,13 +11,6 @@ export {
     getEffectTypes,
     getAllEffectDefs,
 } from './effects';
-export {
-    type PostProcessEffectData,
-    type PostProcessVolumeData,
-    syncPostProcessVolume,
-    cleanupPostProcessVolume,
-    cleanupAllPostProcessVolumes,
-} from './sync';
 export {
     signedDistanceBox,
     signedDistanceSphere,

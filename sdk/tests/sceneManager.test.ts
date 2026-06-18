@@ -75,6 +75,9 @@ function createMockApp() {
     const entities = new Map<number, Map<symbol, any>>();
     let nextEntity = 1;
     const resources = new Map<any, any>();
+    // PostProcess is now a per-App resource; register the mock so sceneManager's
+    // app.getResource(PostProcess).bind/unbind hits the spies.
+    resources.set(PostProcess, PostProcess);
 
     const world = {
         spawn: vi.fn(() => {

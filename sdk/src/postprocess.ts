@@ -1,5 +1,6 @@
 export {
     PostProcess,
+    PostProcessApi,
     PostProcessStack,
     postProcessEffects,
     initPostProcessAPI,
@@ -13,11 +14,6 @@ export {
     getEffectDef,
     getEffectTypes,
     getAllEffectDefs,
-    type PostProcessEffectData,
-    type PostProcessVolumeData,
-    syncPostProcessVolume,
-    cleanupPostProcessVolume,
-    cleanupAllPostProcessVolumes,
     PostProcessPlugin,
     postProcessPlugin,
 } from './postprocess/index';
