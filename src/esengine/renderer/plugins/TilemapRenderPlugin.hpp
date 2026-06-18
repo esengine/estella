@@ -24,7 +24,7 @@ public:
 private:
     struct ChunkCache {
         std::vector<BatchVertex> vertices;
-        std::vector<u16> indices;
+        std::vector<u32> indices;
         bool has_animated_tiles = false;
     };
 
@@ -41,7 +41,7 @@ private:
     LayerChunkMap layer_caches_;
 
     std::vector<BatchVertex> vertices_;
-    std::vector<u16> indices_;
+    std::vector<u32> indices_;
 };
 
 }  // namespace esengine

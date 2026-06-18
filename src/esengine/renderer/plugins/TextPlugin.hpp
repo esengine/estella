@@ -14,7 +14,7 @@ public:
     void collect(RenderCollectContext& ctx) override;
 
 private:
-    static constexpr u16 QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };
+    static constexpr u32 QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };
 
     static u32 decodeUtf8(const char* data, u16 length, u16& pos);
 

@@ -61,7 +61,7 @@ void SpinePlugin::emitBatch(
     u32 baseVertex = vOff / sizeof(BatchVertex);
 
     for (auto& idx : indices_) {
-        idx = static_cast<u16>(idx + baseVertex);
+        idx = static_cast<u32>(idx + baseVertex);
     }
     u32 iOff = buffers.appendIndices(LayoutId::Batch, indices_.data(), static_cast<u32>(indices_.size()));
 
@@ -118,7 +118,7 @@ void SpinePlugin::emitRegionAttachment(
     f32 a = skelColor.a * slotColor.a * attachColor.a * tintColor.a;
     u32 pc = packColor(r, g, b, a);
 
-    u16 base = static_cast<u16>(vertices_.size());
+    u32 base = static_cast<u32>(vertices_.size());
 
     for (int j = 0; j < 4; ++j) {
         glm::vec4 pos(world_vertices_[j * 2], world_vertices_[j * 2 + 1], 0.0f, 1.0f);
@@ -174,7 +174,7 @@ void SpinePlugin::emitMeshAttachment(
     f32 a = skelColor.a * slotColor.a * attachColor.a * tintColor.a;
     u32 pc = packColor(r, g, b, a);
 
-    u16 base = static_cast<u16>(vertices_.size());
+    u32 base = static_cast<u32>(vertices_.size());
 
     if (clipper_.isClipping()) {
         clipper_.clipTriangles(world_vertices_.data(),
@@ -198,7 +198,7 @@ void SpinePlugin::emitMeshAttachment(
         }
 
         for (size_t j = 0; j < clippedTris.size(); ++j) {
-            indices_.push_back(static_cast<u16>(base + clippedTris[j]));
+            indices_.push_back(static_cast<u32>(base + clippedTris[j]));
         }
     } else {
         for (size_t j = 0; j < vertexCount; ++j) {
@@ -212,7 +212,7 @@ void SpinePlugin::emitMeshAttachment(
         }
 
         for (size_t j = 0; j < triangles.size(); ++j) {
-            indices_.push_back(static_cast<u16>(base + triangles[j]));
+            indices_.push_back(static_cast<u32>(base + triangles[j]));
         }
     }
 

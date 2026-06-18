@@ -31,9 +31,9 @@ void RenderFrame::submitTileQuad(
     u32 vOff = pool_.appendVertices(LayoutId::Batch, verts, sizeof(verts));
     u32 baseVertex = vOff / sizeof(BatchVertex);
 
-    u16 indices[6];
+    u32 indices[6];
     for (u32 i = 0; i < 6; ++i) {
-        indices[i] = static_cast<u16>(baseVertex + TILE_QUAD_IDX[i]);
+        indices[i] = static_cast<u32>(baseVertex + TILE_QUAD_IDX[i]);
     }
     u32 iOff = pool_.appendIndices(LayoutId::Batch, indices, 6);
 

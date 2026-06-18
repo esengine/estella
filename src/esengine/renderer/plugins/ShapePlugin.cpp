@@ -93,9 +93,9 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
         u32 vOff = buffers.appendVertices(LayoutId::Shape, verts, sizeof(verts));
         u32 baseVertex = vOff / sizeof(ShapeVertex);
 
-        u16 indices[6];
+        u32 indices[6];
         for (u32 i = 0; i < 6; ++i) {
-            indices[i] = static_cast<u16>(baseVertex + QUAD_INDICES[i]);
+            indices[i] = static_cast<u32>(baseVertex + QUAD_INDICES[i]);
         }
         u32 iOff = buffers.appendIndices(LayoutId::Shape, indices, 6);
 
@@ -138,8 +138,8 @@ void ShapePlugin::customDraw(
 
     state.device().drawElements(
         cmd.index_count,
-        GfxDataType::UnsignedShort,
-        static_cast<u32>(cmd.index_offset * sizeof(u16)));
+        GfxDataType::UnsignedInt,
+        static_cast<u32>(cmd.index_offset * sizeof(u32)));
 }
 
 }  // namespace esengine

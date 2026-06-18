@@ -186,9 +186,9 @@ void TextPlugin::emitGlyphQuad(
     u32 vOff = buffers.appendVertices(LayoutId::Batch, verts, sizeof(verts));
     u32 baseVertex = vOff / sizeof(BatchVertex);
 
-    u16 indices[6];
+    u32 indices[6];
     for (u32 i = 0; i < 6; ++i) {
-        indices[i] = static_cast<u16>(baseVertex + QUAD_INDICES[i]);
+        indices[i] = static_cast<u32>(baseVertex + QUAD_INDICES[i]);
     }
     u32 iOff = buffers.appendIndices(LayoutId::Batch, indices, 6);
 

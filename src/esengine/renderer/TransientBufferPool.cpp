@@ -80,8 +80,8 @@ void TransientBufferPool::writeVertices(LayoutId layout, u32 byteOffset, const v
     std::memcpy(stream(layout).vertex_staging.data() + byteOffset, data, byteSize);
 }
 
-void TransientBufferPool::writeIndices(LayoutId layout, u32 indexOffset, const u16* data, u32 count) {
-    std::memcpy(stream(layout).index_staging.data() + indexOffset, data, count * sizeof(u16));
+void TransientBufferPool::writeIndices(LayoutId layout, u32 indexOffset, const u32* data, u32 count) {
+    std::memcpy(stream(layout).index_staging.data() + indexOffset, data, count * sizeof(u32));
 }
 
 u32 TransientBufferPool::appendVertices(LayoutId layout, const void* data, u32 byteSize) {
@@ -90,7 +90,7 @@ u32 TransientBufferPool::appendVertices(LayoutId layout, const void* data, u32 b
     return offset;
 }
 
-u32 TransientBufferPool::appendIndices(LayoutId layout, const u16* data, u32 count) {
+u32 TransientBufferPool::appendIndices(LayoutId layout, const u32* data, u32 count) {
     u32 offset = allocIndices(layout, count);
     writeIndices(layout, offset, data, count);
     return offset;
@@ -110,12 +110,12 @@ void TransientBufferPool::upload() {
         }
 
         device_.bindIndexBuffer(s.ebo);
-        u32 eboBytes = s.index_write_pos * sizeof(u16);
-        u32 eboCapBytes = s.ebo_capacity * sizeof(u16);
+        u32 eboBytes = s.index_write_pos * sizeof(u32);
+        u32 eboCapBytes = s.ebo_capacity * sizeof(u32);
         if (eboBytes > eboCapBytes) {
             s.ebo_capacity = s.index_write_pos;
             device_.bufferData(GfxBufferTarget::Index, s.index_staging.data(),
-                                s.ebo_capacity * sizeof(u16), true);
+                                s.ebo_capacity * sizeof(u32), true);
         } else if (eboBytes > 0) {
             device_.bufferSubData(GfxBufferTarget::Index, 0, s.index_staging.data(), eboBytes);
         }
@@ -162,7 +162,7 @@ void TransientBufferPool::setupStream(LayoutId layout) {
     device_.bufferData(GfxBufferTarget::Vertex, nullptr, s.vbo_capacity, true);
 
     device_.bindIndexBuffer(s.ebo);
-    device_.bufferData(GfxBufferTarget::Index, nullptr, s.ebo_capacity * sizeof(u16), true);
+    device_.bufferData(GfxBufferTarget::Index, nullptr, s.ebo_capacity * sizeof(u32), true);
 
     s.vao = device_.createVertexArray();
     device_.bindVertexArray(s.vao);
