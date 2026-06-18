@@ -4,6 +4,7 @@
  */
 
 import { defineComponent, type ComponentDef } from '../component';
+import { defineResource } from '../resource';
 import type { Entity, TextureHandle } from '../types';
 import type { World } from '../world';
 import { Sprite, type SpriteData } from '../component';
@@ -36,82 +37,6 @@ export interface SpriteAnimClip {
     events?: SpriteAnimEvent[];
 }
 
-// =============================================================================
-// Clip Registry
-// =============================================================================
-
-const clipRegistry = new Map<string, SpriteAnimClip>();
-
-export function registerAnimClip(clip: SpriteAnimClip): void {
-    clipRegistry.set(clip.name, clip);
-}
-
-export function unregisterAnimClip(name: string): void {
-    clipRegistry.delete(name);
-}
-
-export function getAnimClip(name: string): SpriteAnimClip | undefined {
-    return clipRegistry.get(name);
-}
-
-export function clearAnimClips(): void {
-    clipRegistry.clear();
-}
-
-// =============================================================================
-// Frame Event Listeners
-// =============================================================================
-
-const animEventListeners = new Map<Entity, SpriteAnimEventHandler[]>();
-const globalAnimEventListeners: SpriteAnimEventHandler[] = [];
-
-export function onAnimEvent(entity: Entity, handler: SpriteAnimEventHandler): () => void {
-    let list = animEventListeners.get(entity);
-    if (!list) {
-        list = [];
-        animEventListeners.set(entity, list);
-    }
-    list.push(handler);
-    return () => {
-        const arr = animEventListeners.get(entity);
-        if (arr) {
-            const idx = arr.indexOf(handler);
-            if (idx >= 0) arr.splice(idx, 1);
-            if (arr.length === 0) animEventListeners.delete(entity);
-        }
-    };
-}
-
-export function onAnimEventGlobal(handler: SpriteAnimEventHandler): () => void {
-    globalAnimEventListeners.push(handler);
-    return () => {
-        const idx = globalAnimEventListeners.indexOf(handler);
-        if (idx >= 0) globalAnimEventListeners.splice(idx, 1);
-    };
-}
-
-export function removeAnimEventListeners(entity: Entity): void {
-    animEventListeners.delete(entity);
-}
-
-function fireAnimEvents(entity: Entity, clip: SpriteAnimClip, prevFrame: number, newFrame: number): void {
-    if (!clip.events || clip.events.length === 0) return;
-
-    for (const evt of clip.events) {
-        if (shouldFireEvent(evt.frame, prevFrame, newFrame, clip.frames.length, clip.loop)) {
-            const listeners = animEventListeners.get(entity);
-            if (listeners) {
-                for (const handler of listeners) {
-                    handler(evt, entity);
-                }
-            }
-            for (const handler of globalAnimEventListeners) {
-                handler(evt, entity);
-            }
-        }
-    }
-}
-
 export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, totalFrames: number, loop: boolean): boolean {
     if (prevFrame === newFrame && eventFrame === newFrame) return true;
     if (newFrame > prevFrame) {
@@ -121,6 +46,171 @@ export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame:
         return eventFrame > prevFrame || eventFrame <= newFrame;
     }
     return false;
+}
+
+// =============================================================================
+// SpriteAnimation — per-App clip registry + frame-event listeners + system
+// =============================================================================
+
+/**
+ * Owns one App's sprite-animation clip registry and frame-event listeners, and
+ * advances SpriteAnimator components. Published as the {@link SpriteAnimation}
+ * resource (B3); a default instance backs the legacy free functions until the
+ * per-App flip (B3b) routes registration/listeners through the owning App.
+ */
+export class SpriteAnimationApi {
+    private readonly clips = new Map<string, SpriteAnimClip>();
+    private readonly entityListeners = new Map<Entity, SpriteAnimEventHandler[]>();
+    private readonly globalListeners: SpriteAnimEventHandler[] = [];
+
+    // -- clip registry --------------------------------------------------------
+
+    registerClip(clip: SpriteAnimClip): void {
+        this.clips.set(clip.name, clip);
+    }
+
+    unregisterClip(name: string): void {
+        this.clips.delete(name);
+    }
+
+    getClip(name: string): SpriteAnimClip | undefined {
+        return this.clips.get(name);
+    }
+
+    clearClips(): void {
+        this.clips.clear();
+    }
+
+    // -- frame-event listeners ------------------------------------------------
+
+    onEvent(entity: Entity, handler: SpriteAnimEventHandler): () => void {
+        let list = this.entityListeners.get(entity);
+        if (!list) {
+            list = [];
+            this.entityListeners.set(entity, list);
+        }
+        list.push(handler);
+        return () => {
+            const arr = this.entityListeners.get(entity);
+            if (arr) {
+                const idx = arr.indexOf(handler);
+                if (idx >= 0) arr.splice(idx, 1);
+                if (arr.length === 0) this.entityListeners.delete(entity);
+            }
+        };
+    }
+
+    onEventGlobal(handler: SpriteAnimEventHandler): () => void {
+        this.globalListeners.push(handler);
+        return () => {
+            const idx = this.globalListeners.indexOf(handler);
+            if (idx >= 0) this.globalListeners.splice(idx, 1);
+        };
+    }
+
+    removeEntityListeners(entity: Entity): void {
+        this.entityListeners.delete(entity);
+    }
+
+    private fireEvents(entity: Entity, clip: SpriteAnimClip, prevFrame: number, newFrame: number): void {
+        if (!clip.events || clip.events.length === 0) return;
+
+        for (const evt of clip.events) {
+            if (shouldFireEvent(evt.frame, prevFrame, newFrame, clip.frames.length, clip.loop)) {
+                const listeners = this.entityListeners.get(entity);
+                if (listeners) {
+                    for (const handler of listeners) {
+                        handler(evt, entity);
+                    }
+                }
+                for (const handler of this.globalListeners) {
+                    handler(evt, entity);
+                }
+            }
+        }
+    }
+
+    // -- per-frame system -----------------------------------------------------
+
+    update(world: World, deltaTime: number): void {
+        const entities = world.getEntitiesWithComponents([SpriteAnimator]);
+
+        for (const entity of entities) {
+            const animator = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
+            if (!animator.enabled || !animator.playing || !animator.clip) continue;
+
+            const clip = this.clips.get(animator.clip);
+            if (!clip || clip.frames.length === 0) continue;
+
+            const currentFrame = clip.frames[animator.currentFrame];
+            const frameDuration = currentFrame?.duration ?? 1.0 / (clip.fps * animator.speed);
+
+            const needsInitialApply = animator.frameTimer === 0 && animator.currentFrame === 0;
+            const prevFrame = animator.currentFrame;
+
+            animator.frameTimer += deltaTime;
+
+            let frameChanged = needsInitialApply;
+            if (animator.frameTimer >= frameDuration) {
+                animator.frameTimer -= frameDuration;
+                animator.currentFrame++;
+
+                if (animator.currentFrame >= clip.frames.length) {
+                    if (animator.loop && clip.loop) {
+                        animator.currentFrame = 0;
+                    } else {
+                        animator.currentFrame = clip.frames.length - 1;
+                        animator.playing = false;
+                    }
+                }
+
+                frameChanged = true;
+            }
+
+            if (frameChanged) {
+                this.fireEvents(entity, clip, prevFrame, animator.currentFrame);
+            }
+
+            if (frameChanged && world.has(entity, Sprite)) {
+                const frame = clip.frames[animator.currentFrame];
+                const sprite = world.get(entity, Sprite) as SpriteData;
+                sprite.texture = frame.texture;
+                if (frame.uvOffset) {
+                    sprite.uvOffset = frame.uvOffset;
+                    sprite.uvScale = frame.uvScale!;
+                }
+                world.insert(entity, Sprite, sprite);
+            }
+
+            if (frameChanged) {
+                world.insert(entity, SpriteAnimator, animator);
+            }
+        }
+    }
+}
+
+/**
+ * Per-App sprite-animation resource (clip registry + frame-event listeners),
+ * published by `AnimationPlugin` (B3b). Read as `app.getResource(SpriteAnimation)`.
+ */
+export const SpriteAnimation = defineResource<SpriteAnimationApi>(null!, 'SpriteAnimation');
+
+// B3a: default instance backing the legacy free functions below (per-App in B3b).
+const defaultAnim = new SpriteAnimationApi();
+
+export function registerAnimClip(clip: SpriteAnimClip): void { defaultAnim.registerClip(clip); }
+export function unregisterAnimClip(name: string): void { defaultAnim.unregisterClip(name); }
+export function getAnimClip(name: string): SpriteAnimClip | undefined { return defaultAnim.getClip(name); }
+export function clearAnimClips(): void { defaultAnim.clearClips(); }
+
+export function onAnimEvent(entity: Entity, handler: SpriteAnimEventHandler): () => void {
+    return defaultAnim.onEvent(entity, handler);
+}
+export function onAnimEventGlobal(handler: SpriteAnimEventHandler): () => void {
+    return defaultAnim.onEventGlobal(handler);
+}
+export function removeAnimEventListeners(entity: Entity): void {
+    defaultAnim.removeEntityListeners(entity);
 }
 
 // =============================================================================
@@ -154,59 +244,7 @@ export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent(
 // =============================================================================
 
 export function spriteAnimatorSystemUpdate(world: World, deltaTime: number): void {
-    const entities = world.getEntitiesWithComponents([SpriteAnimator]);
-
-    for (const entity of entities) {
-        const animator = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
-        if (!animator.enabled || !animator.playing || !animator.clip) continue;
-
-        const clip = clipRegistry.get(animator.clip);
-        if (!clip || clip.frames.length === 0) continue;
-
-        const currentFrame = clip.frames[animator.currentFrame];
-        const frameDuration = currentFrame?.duration ?? 1.0 / (clip.fps * animator.speed);
-
-        const needsInitialApply = animator.frameTimer === 0 && animator.currentFrame === 0;
-        const prevFrame = animator.currentFrame;
-
-        animator.frameTimer += deltaTime;
-
-        let frameChanged = needsInitialApply;
-        if (animator.frameTimer >= frameDuration) {
-            animator.frameTimer -= frameDuration;
-            animator.currentFrame++;
-
-            if (animator.currentFrame >= clip.frames.length) {
-                if (animator.loop && clip.loop) {
-                    animator.currentFrame = 0;
-                } else {
-                    animator.currentFrame = clip.frames.length - 1;
-                    animator.playing = false;
-                }
-            }
-
-            frameChanged = true;
-        }
-
-        if (frameChanged) {
-            fireAnimEvents(entity, clip, prevFrame, animator.currentFrame);
-        }
-
-        if (frameChanged && world.has(entity, Sprite)) {
-            const frame = clip.frames[animator.currentFrame];
-            const sprite = world.get(entity, Sprite) as SpriteData;
-            sprite.texture = frame.texture;
-            if (frame.uvOffset) {
-                sprite.uvOffset = frame.uvOffset;
-                sprite.uvScale = frame.uvScale!;
-            }
-            world.insert(entity, Sprite, sprite);
-        }
-
-        if (frameChanged) {
-            world.insert(entity, SpriteAnimator, animator);
-        }
-    }
+    defaultAnim.update(world, deltaTime);
 }
 
 // =============================================================================
@@ -218,7 +256,7 @@ export function spriteAnimatorGotoFrame(
     frameIndex: number,
     andPlay: boolean = true,
 ): void {
-    const clip = clipRegistry.get(animator.clip);
+    const clip = defaultAnim.getClip(animator.clip);
     if (!clip || clip.frames.length === 0) return;
 
     animator.currentFrame = Math.max(0, Math.min(frameIndex, clip.frames.length - 1));
@@ -231,7 +269,7 @@ export function spriteAnimatorGotoLabel(
     label: string,
     andPlay: boolean = true,
 ): void {
-    const clip = clipRegistry.get(animator.clip);
+    const clip = defaultAnim.getClip(animator.clip);
     if (!clip || !clip.labels) return;
 
     const frameIndex = clip.labels[label];
