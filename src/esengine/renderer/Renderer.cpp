@@ -233,10 +233,10 @@ void BatchRenderer2D::init() {
     data_->vertices.reserve(MAX_VERTICES);
     data_->triVertices.reserve(MAX_VERTICES);
 
-    data_->vao = VertexArray::create();
+    data_->vao = VertexArray::create(device_);
 
     data_->vbo = makeShared<VertexBuffer>();
-    *data_->vbo = std::move(*VertexBuffer::create(MAX_VERTICES * sizeof(BatchVertex)));
+    *data_->vbo = std::move(*VertexBuffer::create(device_, MAX_VERTICES * sizeof(BatchVertex)));
     data_->vbo->setLayout({
         { ShaderDataType::Float2, "a_position" },
         { ShaderDataType::UByte4N, "a_color" },
@@ -256,7 +256,7 @@ void BatchRenderer2D::init() {
         indices[i + 5] = offset + 0;
         offset += 4;
     }
-    auto ibo = IndexBuffer::create(indices.data(), MAX_INDICES);
+    auto ibo = IndexBuffer::create(device_, indices.data(), MAX_INDICES);
     data_->vao->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
 
 #ifndef ES_PLATFORM_WEB

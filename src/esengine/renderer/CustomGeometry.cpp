@@ -16,18 +16,20 @@
 
 namespace esengine {
 
-void CustomGeometry::init(const f32* vertices, u32 vertexCount, const VertexLayout& layout, bool dynamic) {
+void CustomGeometry::init(GfxDevice& device, const f32* vertices, u32 vertexCount,
+                          const VertexLayout& layout, bool dynamic) {
+    device_ = &device;
     dynamic_ = dynamic;
     stride_ = layout.getStride();
     vertexCount_ = vertexCount * sizeof(f32) / stride_;
 
-    vao_ = VertexArray::create();
+    vao_ = VertexArray::create(device);
 
     if (dynamic) {
-        vbo_ = Shared<VertexBuffer>(VertexBuffer::create(vertexCount * sizeof(f32)));
+        vbo_ = Shared<VertexBuffer>(VertexBuffer::create(device, vertexCount * sizeof(f32)));
         vbo_->setDataRaw(vertices, vertexCount * sizeof(f32));
     } else {
-        vbo_ = Shared<VertexBuffer>(VertexBuffer::createRaw(vertices, vertexCount * sizeof(f32)));
+        vbo_ = Shared<VertexBuffer>(VertexBuffer::createRaw(device, vertices, vertexCount * sizeof(f32)));
     }
 
     vbo_->setLayout(layout);
@@ -35,16 +37,16 @@ void CustomGeometry::init(const f32* vertices, u32 vertexCount, const VertexLayo
 }
 
 void CustomGeometry::setIndices(const u16* indices, u32 indexCount) {
-    if (!vao_) return;
+    if (!vao_ || !device_) return;
 
-    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(indices, indexCount));
+    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, indices, indexCount));
     vao_->setIndexBuffer(ibo_);
 }
 
 void CustomGeometry::setIndices(const u32* indices, u32 indexCount) {
-    if (!vao_) return;
+    if (!vao_ || !device_) return;
 
-    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(indices, indexCount));
+    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, indices, indexCount));
     vao_->setIndexBuffer(ibo_);
 }
 

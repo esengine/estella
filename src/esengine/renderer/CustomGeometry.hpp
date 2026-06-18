@@ -42,7 +42,7 @@ public:
      * @param layout Vertex attribute layout
      * @param dynamic If true, allows vertex updates
      */
-    void init(const f32* vertices, u32 vertexCount, const VertexLayout& layout, bool dynamic = false);
+    void init(GfxDevice& device, const f32* vertices, u32 vertexCount, const VertexLayout& layout, bool dynamic = false);
 
     /**
      * @brief Sets indices for indexed rendering
@@ -108,6 +108,7 @@ public:
     bool isValid() const { return vao_ != nullptr; }
 
 private:
+    GfxDevice* device_ = nullptr;  ///< Set in init(); used to create index buffers later.
     Unique<VertexArray> vao_;
     Shared<VertexBuffer> vbo_;
     Shared<IndexBuffer> ibo_;

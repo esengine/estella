@@ -36,6 +36,16 @@ struct MockGfxDevice final : GfxDevice {
     int deleteFramebufferCalls = 0;
     int framebufferTexture2DCalls = 0;
     u32 nextFramebufferId = 500;
+    int createBufferCalls = 0;
+    int deleteBufferCalls = 0;
+    int bufferDataCalls = 0;
+    int bufferSubDataCalls = 0;
+    int createVertexArrayCalls = 0;
+    int deleteVertexArrayCalls = 0;
+    int enableVertexAttribCalls = 0;
+    int vertexAttribPointerCalls = 0;
+    u32 nextBufferId = 200;
+    u32 nextVaoId = 800;
     // last args
     u32 lastProgram = 0, lastVao = 0, lastVbo = 0, lastIbo = 0, lastFbo = 0;
     i32 lastUniform1iLoc = -999, lastUniform1iVal = 0;
@@ -87,18 +97,18 @@ struct MockGfxDevice final : GfxDevice {
     void setUniformMat4(i32, const f32*) override {}
     std::vector<GfxUniformInfo> getActiveUniforms(u32) override { ++getActiveUniformsCalls; return {}; }
 
-    u32 createBuffer() override { return 0; }
-    void deleteBuffer(u32) override {}
+    u32 createBuffer() override { ++createBufferCalls; return nextBufferId++; }
+    void deleteBuffer(u32) override { ++deleteBufferCalls; }
     void bindVertexBuffer(u32 bufferId) override { ++bindVertexBufferCalls; lastVbo = bufferId; }
     void bindIndexBuffer(u32 bufferId) override { ++bindIndexBufferCalls; lastIbo = bufferId; }
-    void bufferData(GfxBufferTarget, const void*, u32, bool) override {}
-    void bufferSubData(GfxBufferTarget, u32, const void*, u32) override {}
+    void bufferData(GfxBufferTarget, const void*, u32, bool) override { ++bufferDataCalls; }
+    void bufferSubData(GfxBufferTarget, u32, const void*, u32) override { ++bufferSubDataCalls; }
 
-    u32 createVertexArray() override { return 0; }
-    void deleteVertexArray(u32) override {}
+    u32 createVertexArray() override { ++createVertexArrayCalls; return nextVaoId++; }
+    void deleteVertexArray(u32) override { ++deleteVertexArrayCalls; }
     void bindVertexArray(u32 vaoId) override { ++bindVertexArrayCalls; lastVao = vaoId; }
-    void enableVertexAttrib(u32) override {}
-    void vertexAttribPointer(u32, i32, GfxDataType, bool, i32, u32) override {}
+    void enableVertexAttrib(u32) override { ++enableVertexAttribCalls; }
+    void vertexAttribPointer(u32, i32, GfxDataType, bool, i32, u32) override { ++vertexAttribPointerCalls; }
     void vertexAttribDivisor(u32, u32) override {}
 
     void drawElements(u32, GfxDataType, u32) override {}
