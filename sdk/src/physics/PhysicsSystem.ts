@@ -34,6 +34,7 @@ import {
     type CollisionEnterEvent,
     type SensorEvent,
 } from './PhysicsTypes';
+import { withMalloc } from '../wasmScratch';
 
 // =============================================================================
 // Canvas pixelsPerUnit live read
@@ -125,18 +126,18 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         const verts = poly.vertices;
         const count = Math.min(verts.length, 8);
         const byteSize = count * 2 * 4;
-        const ptr = module._malloc(byteSize);
-        const base = ptr >> 2;
-        for (let i = 0; i < count; i++) {
-            module.HEAPF32[base + i * 2] = verts[i].x;
-            module.HEAPF32[base + i * 2 + 1] = verts[i].y;
-        }
-        module._physics_addPolygonShape(
-            entity, ptr, count, poly.radius ?? 0,
-            poly.density, poly.friction, poly.restitution, poly.isSensor ? 1 : 0,
-            category, mask
-        );
-        module._free(ptr);
+        withMalloc(module, byteSize, ptr => {
+            const base = ptr >> 2;
+            for (let i = 0; i < count; i++) {
+                module.HEAPF32[base + i * 2] = verts[i].x;
+                module.HEAPF32[base + i * 2 + 1] = verts[i].y;
+            }
+            module._physics_addPolygonShape(
+                entity, ptr, count, poly.radius ?? 0,
+                poly.density, poly.friction, poly.restitution, poly.isSensor ? 1 : 0,
+                category, mask
+            );
+        });
     }
 
     if (world.has(entity, ChainCollider)) {
@@ -144,18 +145,18 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         const pts = chain.points;
         if (pts.length < 4) return;
         const byteSize = pts.length * 2 * 4;
-        const ptr = module._malloc(byteSize);
-        const base = ptr >> 2;
-        for (let i = 0; i < pts.length; i++) {
-            module.HEAPF32[base + i * 2] = pts[i].x;
-            module.HEAPF32[base + i * 2 + 1] = pts[i].y;
-        }
-        module._physics_addChainShape(
-            entity, ptr, pts.length, chain.isLoop ? 1 : 0,
-            chain.friction, chain.restitution,
-            chain.categoryBits ?? 0x0001, chain.maskBits ?? 0xFFFF
-        );
-        module._free(ptr);
+        withMalloc(module, byteSize, ptr => {
+            const base = ptr >> 2;
+            for (let i = 0; i < pts.length; i++) {
+                module.HEAPF32[base + i * 2] = pts[i].x;
+                module.HEAPF32[base + i * 2 + 1] = pts[i].y;
+            }
+            module._physics_addChainShape(
+                entity, ptr, pts.length, chain.isLoop ? 1 : 0,
+                chain.friction, chain.restitution,
+                chain.categoryBits ?? 0x0001, chain.maskBits ?? 0xFFFF
+            );
+        });
     }
 }
 
@@ -307,13 +308,13 @@ export function syncDynamicTransforms(
 
     if (!hasParented && engineMod?.registry_batchSyncPhysicsTransforms) {
         const byteLen = count * PHYSICS_BODY_BYTES;
-        const engineBuf = engineMod._malloc(byteLen);
-        engineMod.HEAPU8.set(
-            new Uint8Array(module.HEAPU8.buffer, ptr, byteLen),
-            engineBuf,
-        );
-        engineMod.registry_batchSyncPhysicsTransforms(registry, engineBuf, count, ppu);
-        engineMod._free(engineBuf);
+        withMalloc(engineMod, byteLen, engineBuf => {
+            engineMod.HEAPU8.set(
+                new Uint8Array(module.HEAPU8.buffer, ptr, byteLen),
+                engineBuf,
+            );
+            engineMod.registry_batchSyncPhysicsTransforms(registry, engineBuf, count, ppu);
+        });
         return;
     }
 

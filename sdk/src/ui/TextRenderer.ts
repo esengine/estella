@@ -15,6 +15,7 @@ import { parseRichText } from './RichTextParser';
 import { createFontSet, fontIndex, layoutRichText, measureLayoutWidth, type LayoutLine } from './RichTextLayout';
 import type { ImageResolver } from './ImageResolver';
 import { log } from '../logger';
+import { withMalloc } from '../wasmScratch';
 
 interface SizedRect {
     size: { x: number; y: number };
@@ -328,12 +329,10 @@ export class TextRenderer {
         const pixels = new Uint8Array(imageData.data.buffer);
 
         const rm = requireResourceManager();
-        const ptr = this.module._malloc(pixels.length);
-        this.module.HEAPU8.set(pixels, ptr);
-
-        const textureHandle = rm.createTexture(width, height, ptr, pixels.length, 1, true);
-
-        this.module._free(ptr);
+        const textureHandle = withMalloc(this.module, pixels.length, ptr => {
+            this.module.HEAPU8.set(pixels, ptr);
+            return rm.createTexture(width, height, ptr, pixels.length, 1, true);
+        });
 
         return { textureHandle, width, height };
     }

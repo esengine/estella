@@ -1,4 +1,5 @@
 import type { ESEngineModule } from '../wasm';
+import { withMalloc } from '../wasmScratch';
 
 interface TilemapModule {
     tilemap_initLayer(entity: number, width: number, height: number,
@@ -137,12 +138,13 @@ export const TilemapAPI = {
     },
 
     setTiles(entity: number, tiles: Uint16Array): void {
-        if (!module_) return;
+        const m = module_;
+        if (!m) return;
         const bytes = tiles.byteLength;
-        const ptr = module_._malloc(bytes);
-        new Uint16Array(module_.HEAPU8.buffer, ptr, tiles.length).set(tiles);
-        module_.tilemap_setTiles(entity, ptr, tiles.length);
-        module_._free(ptr);
+        withMalloc(m, bytes, ptr => {
+            new Uint16Array(m.HEAPU8.buffer, ptr, tiles.length).set(tiles);
+            m.tilemap_setTiles(entity, ptr, tiles.length);
+        });
     },
 
     hasLayer(entity: number): boolean {
@@ -191,17 +193,18 @@ export const TilemapAPI = {
 
     setTileAnimation(entity: number, tileId: number,
                      frames: { tileId: number; duration: number }[]): void {
-        if (!module_ || frames.length === 0) return;
+        const m = module_;
+        if (!m || frames.length === 0) return;
         const buf = new Uint32Array(frames.length * 2);
         for (let i = 0; i < frames.length; i++) {
             buf[i * 2] = frames[i].tileId;
             buf[i * 2 + 1] = frames[i].duration;
         }
         const bytes = buf.byteLength;
-        const ptr = module_._malloc(bytes);
-        new Uint32Array(module_.HEAPU8.buffer, ptr, buf.length).set(buf);
-        module_.tilemap_setTileAnimation(entity, tileId, ptr, frames.length);
-        module_._free(ptr);
+        withMalloc(m, bytes, ptr => {
+            new Uint32Array(m.HEAPU8.buffer, ptr, buf.length).set(buf);
+            m.tilemap_setTileAnimation(entity, tileId, ptr, frames.length);
+        });
     },
 
     advanceAnimations(entity: number, dtMs: number): void {
@@ -238,12 +241,13 @@ export const TilemapAPI = {
 
     setChunkTiles(entity: number, chunkX: number, chunkY: number,
                   tiles: Uint16Array, width: number, height: number): void {
-        if (!module_) return;
+        const m = module_;
+        if (!m) return;
         const bytes = tiles.byteLength;
-        const ptr = module_._malloc(bytes);
-        new Uint16Array(module_.HEAPU8.buffer, ptr, tiles.length).set(tiles);
-        module_.tilemap_setChunkTiles(entity, chunkX, chunkY, ptr, width, height);
-        module_._free(ptr);
+        withMalloc(m, bytes, ptr => {
+            new Uint16Array(m.HEAPU8.buffer, ptr, tiles.length).set(tiles);
+            m.tilemap_setChunkTiles(entity, chunkX, chunkY, ptr, width, height);
+        });
     },
 
     setGridType(entity: number, type: number): void {
