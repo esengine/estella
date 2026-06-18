@@ -13,20 +13,6 @@
 #include "Engine.hpp"
 #include "Log.hpp"
 
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#elif defined(__APPLE__)
-    #include <OpenGL/gl.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <GL/gl.h>
-    #ifndef GL_MAX_TEXTURE_SIZE
-        #define GL_MAX_TEXTURE_SIZE 0x0D33
-    #endif
-#endif
-
 namespace esengine {
 
 const char* Engine::getPlatformName() {
@@ -59,12 +45,6 @@ bool Engine::hasWebGL2() {
 #else
     return false;
 #endif
-}
-
-u32 Engine::getMaxTextureSize() {
-    GLint maxSize = 0;
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
-    return (maxSize > 0) ? static_cast<u32>(maxSize) : 2048;
 }
 
 }  // namespace esengine

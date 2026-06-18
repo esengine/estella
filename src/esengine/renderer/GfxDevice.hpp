@@ -320,6 +320,12 @@ public:
 
     /** @brief Queries the last error */
     virtual u32 getError() = 0;
+
+    /** @brief Queries a backend identification string (diagnostics) */
+    virtual std::string getString(GfxStringName name) = 0;
+
+    /** @brief Queries a backend integer capability/limit */
+    virtual i32 getInt(GfxIntParam name) = 0;
 };
 
 }  // namespace esengine
