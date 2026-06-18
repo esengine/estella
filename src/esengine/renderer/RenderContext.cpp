@@ -90,17 +90,20 @@ void RenderContext::initQuadData() {
 void RenderContext::initShaders() {
     auto colorParsed = resource::ShaderParser::parse(ShaderEmbeds::COLOR);
     colorShader_ = Shader::create(
+        device_,
         resource::ShaderParser::assembleStage(colorParsed, resource::ShaderStage::Vertex),
         resource::ShaderParser::assembleStage(colorParsed, resource::ShaderStage::Fragment)
     );
 
     auto spriteParsed = resource::ShaderParser::parse(ShaderEmbeds::SPRITE);
     textureShader_ = Shader::create(
+        device_,
         resource::ShaderParser::assembleStage(spriteParsed, resource::ShaderStage::Vertex),
         resource::ShaderParser::assembleStage(spriteParsed, resource::ShaderStage::Fragment)
     );
 
     extMeshShader_ = Shader::createWithBindings(
+        device_,
         ShaderSources::EXT_MESH_VERTEX,
         ShaderSources::EXT_MESH_FRAGMENT,
         {{0, "a_position"}, {1, "a_texCoord"}, {2, "a_color"}}

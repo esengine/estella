@@ -34,6 +34,8 @@
 #include <string>
 #include <unordered_map>
 
+namespace esengine { class GfxDevice; }
+
 namespace esengine::resource {
 
 // =============================================================================
@@ -96,8 +98,12 @@ public:
 
     /**
      * @brief Initializes the resource manager
+     * @param device The graphics device used to create all GPU resources
+     *        (shaders, textures, buffers). ResourceManager is the GPU-resource
+     *        factory, so it owns the single device reference the resource classes
+     *        route through.
      */
-    void init();
+    void init(GfxDevice& device);
 
     /**
      * @brief Shuts down and releases all resources
@@ -498,6 +504,7 @@ private:
 #endif
     LoaderRegistry loaderRegistry_;
     mutable ResourceStats stats_;
+    GfxDevice* device_ = nullptr;  ///< GPU device for resource creation (set in init)
     bool initialized_ = false;
 };
 

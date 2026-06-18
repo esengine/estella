@@ -29,6 +29,8 @@
 
 namespace esengine {
 
+class GfxDevice;
+
 struct AttribBinding {
     u32 index;
     const char* name;
@@ -100,7 +102,7 @@ public:
      * @param fragmentSrc Fragment shader GLSL source
      * @return Unique pointer to the shader, or nullptr on failure
      */
-    static Unique<Shader> create(const std::string& vertexSrc, const std::string& fragmentSrc);
+    static Unique<Shader> create(GfxDevice& device, const std::string& vertexSrc, const std::string& fragmentSrc);
 
     /**
      * @brief Creates a shader with explicit attribute bindings applied before linking
@@ -109,7 +111,8 @@ public:
      * @param bindings Attribute location bindings
      * @return Unique pointer to the shader, or nullptr on failure
      */
-    static Unique<Shader> createWithBindings(const std::string& vertexSrc, const std::string& fragmentSrc,
+    static Unique<Shader> createWithBindings(GfxDevice& device,
+                                              const std::string& vertexSrc, const std::string& fragmentSrc,
                                               std::initializer_list<AttribBinding> bindings);
 
     /**
@@ -118,7 +121,8 @@ public:
      * @param fragmentPath Path to fragment shader file
      * @return Unique pointer to the shader, or nullptr on failure
      */
-    static Unique<Shader> createFromFile(const std::string& vertexPath, const std::string& fragmentPath);
+    static Unique<Shader> createFromFile(GfxDevice& device,
+                                         const std::string& vertexPath, const std::string& fragmentPath);
 
     /**
      * @brief Creates a shader and exposes the driver log on failure
@@ -127,7 +131,8 @@ public:
      * so callers (notably ShaderLoader) can remap the GL log back to the
      * original .esshader file and line numbers.
      */
-    static ShaderCompileOutcome createEx(const std::string& vertexSrc,
+    static ShaderCompileOutcome createEx(GfxDevice& device,
+                                         const std::string& vertexSrc,
                                          const std::string& fragmentSrc,
                                          std::initializer_list<AttribBinding> bindings = {});
 
@@ -212,6 +217,7 @@ private:
 
     void reflectActiveUniforms();
 
+    GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     u32 programId_ = 0;
 
     /** @brief Cached uniform locations (mutable for const uniform setters) */

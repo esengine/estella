@@ -19,17 +19,20 @@
 #endif
 #include "../core/Log.hpp"
 #include "../platform/PathResolver.hpp"
+#include "../renderer/GfxDevice.hpp"
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
 #include "../renderer/Buffer.hpp"
 
 namespace esengine::resource {
 
-void ResourceManager::init() {
+void ResourceManager::init(GfxDevice& device) {
     if (initialized_) {
         ES_LOG_WARN("ResourceManager already initialized");
         return;
     }
+
+    device_ = &device;
 
 #ifndef ES_PLATFORM_WEB
     stbi_set_flip_vertically_on_load(true);
@@ -78,7 +81,7 @@ void ResourceManager::update() {
 // =============================================================================
 
 ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std::string& fragSrc) {
-    auto shader = Shader::create(vertSrc, fragSrc);
+    auto shader = Shader::create(*device_, vertSrc, fragSrc);
     if (!shader) {
         ES_LOG_ERROR("Failed to create shader from source");
         return ShaderHandle();
@@ -88,7 +91,7 @@ ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std
 
 ShaderHandle ResourceManager::createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,
                                                         std::initializer_list<AttribBinding> bindings) {
-    auto shader = Shader::createWithBindings(vertSrc, fragSrc, bindings);
+    auto shader = Shader::createWithBindings(*device_, vertSrc, fragSrc, bindings);
     if (!shader) {
         ES_LOG_ERROR("Failed to create shader with bindings from source");
         return ShaderHandle();
@@ -109,7 +112,7 @@ ShaderHandle ResourceManager::loadShader(const std::string& vertPath, const std:
     }
 
     // Load from files
-    auto shader = Shader::createFromFile(vertPath, fragPath);
+    auto shader = Shader::createFromFile(*device_, vertPath, fragPath);
     if (!shader) {
         stats_.cacheMisses++;
         return ShaderHandle();
@@ -128,7 +131,7 @@ ShaderHandle ResourceManager::loadShaderFile(const std::string& path, const std:
         return cached;
     }
 
-    ShaderFileLoader loader;
+    ShaderFileLoader loader(*device_);
     LoadRequest request;
     request.path = path;
     request.platform = platform;
@@ -164,7 +167,7 @@ ShaderHandle ResourceManager::loadEngineShader(const std::string& name, const st
 
     std::string path = PathResolver::editorPath("src/esengine/data/shaders/" + name + ".esshader");
 
-    ShaderFileLoader loader;
+    ShaderFileLoader loader(*device_);
     LoadRequest request;
     request.path = path;
     request.platform = platform;
@@ -203,7 +206,7 @@ u32 ResourceManager::getShaderRefCount(ShaderHandle handle) const {
 // =============================================================================
 
 TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
-    auto texture = Texture::create(spec);
+    auto texture = Texture::create(*device_, spec);
     if (!texture) {
         ES_LOG_ERROR("Failed to create texture from spec");
         return TextureHandle();
@@ -214,7 +217,7 @@ TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
 TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8> pixels,
                                               TextureFormat format, bool flipY) {
     std::vector<u8> pixelVec(pixels.begin(), pixels.end());
-    auto texture = Texture::create(width, height, pixelVec, format, flipY);
+    auto texture = Texture::create(*device_, width, height, pixelVec, format, flipY);
     if (!texture) {
         ES_LOG_ERROR("Failed to create texture from pixels");
         return TextureHandle();
@@ -235,7 +238,7 @@ TextureHandle ResourceManager::loadTexture(const std::string& path) {
     stats_.cacheMisses++;
     return TextureHandle();
 #else
-    auto texture = Texture::createFromFile(path);
+    auto texture = Texture::createFromFile(*device_, path);
     if (!texture) {
         stats_.cacheMisses++;
         return TextureHandle();
@@ -295,7 +298,7 @@ u32 ResourceManager::getTextureRefCount(TextureHandle handle) const {
 }
 
 TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 width, u32 height) {
-    auto texture = Texture::createFromExternalId(glTextureId, width, height, TextureFormat::RGBA8);
+    auto texture = Texture::createFromExternalId(*device_, glTextureId, width, height, TextureFormat::RGBA8);
     if (!texture) {
         ES_LOG_ERROR("Failed to register external texture (GL ID: {})", glTextureId);
         return TextureHandle();
@@ -549,7 +552,7 @@ void ResourceManager::reloadShader(ShaderHandle handle, const std::string& path)
 
     ES_LOG_INFO("HotReload: Reloading shader '{}'", path);
 
-    ShaderFileLoader loader;
+    ShaderFileLoader loader(*device_);
     LoadRequest request;
     request.path = path;
     auto result = loader.load(request);

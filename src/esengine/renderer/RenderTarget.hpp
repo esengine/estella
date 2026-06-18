@@ -18,7 +18,7 @@ public:
     RenderTarget(RenderTarget&&) = default;
     RenderTarget& operator=(RenderTarget&&) = default;
 
-    void init(u32 width, u32 height, bool depth = true, bool linearFilter = false);
+    void init(GfxDevice& device, u32 width, u32 height, bool depth = true, bool linearFilter = false);
     void shutdown();
 
     void bind();
@@ -50,12 +50,16 @@ public:
     RenderTargetManager() = default;
     ~RenderTargetManager() = default;
 
+    /** @brief Binds the device used to create render targets. Call once at setup. */
+    void setDevice(GfxDevice& device) { device_ = &device; }
+
     Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false);
     RenderTarget* get(Handle handle);
     void release(Handle handle);
     bool isValid(Handle handle) const;
 
 private:
+    GfxDevice* device_ = nullptr;
     std::vector<Unique<RenderTarget>> targets_;
     std::vector<Handle> free_list_;
     Handle next_handle_ = 1;
