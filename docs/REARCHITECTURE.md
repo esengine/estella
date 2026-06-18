@@ -147,5 +147,19 @@
   1. C++ 边界校验始终开启（不被 release 的 `ES_ASSERT` 剥离）——生成的 embind 包装已有 `valid(entity)` 守卫，需审计补齐其余入口（C++ harness 可验证）。
   2. 各子系统桥接（physics/spine/tilemap/timeline）调用前接 `throwIfModuleAborted` + 缓存 HEAP 视图处改为每次重读（目前只有主模块经 BuiltinBridge 装了 abort 守卫）。
 
-### RC5 — 未开始
-渲染单一路径 + GfxDevice 唯一入口 + u16→u32 + 统一 WasmBridge + 全 per-App。最大的一块，建议拆多批推进。
+### RC5 渲染唯一路径 — ✅ 渲染/GPU 部分已落地（SDK 部分待续）
+**已完成（PR #41–#47，已并入 master）**：
+- **GfxDevice 成为唯一 GPU 入口**：Shader/Texture/Framebuffer（`7a2b60f1`）、Buffer/VAO/IndexBuffer + CustomGeometry（`54db2398`）全部经 `GfxDevice`；**single GL boundary**——最后的裸 `gl*` 收口 + CI guard 防回归（`338caff2`，Batch 5b/6）。
+- **退役遗留渲染器**：删除 `Renderer`/`BatchRenderer2D`，`ImmediateDraw` 改建在 `TransientBufferPool` 上（`36c357db`，Batch 5）；清理 `RenderContext` 死 quad/shader 资源（`f11087c6`）；bind-coherence（PR #47）。
+- **索引 u16→u32**：批渲染索引加宽，消除 >65535 顶点静默回绕（`cb1678ef`）。
+- 验证：renderer 头文件已无 `Renderer`/`BatchRenderer2D` 类残留（仅注释引用）；GfxDevice 抽象由 MockGfxDevice harness 守护。
+
+**待续（SDK 侧，本批未做）**：
+- **统一 WasmBridge 基类**：SDK 仍只有 `BuiltinBridge`（`sdk/src/ecs/BuiltinBridge.ts:299`），病灶所述"五套桥接写法"尚未收敛到单一基类。
+- **全 per-App 状态**：Camera/Timeline/SpriteAnimator/postprocess 等进程级全局是否已迁 per-App 资源，待审计确认。
+
+### 地基收口（Foundation Consolidation）— 📋 已立项，RC6 前置（设计文档）
+见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）、F3 全 per-App 资源、F1 平台后端接缝（**保留 native 但隔离**，已拍板）、F4 重写 `ARCHITECTURE.md`。执行先于 RC6。
+
+### RC6 资产管线 — 📋 已立项（设计文档）
+见 [`REARCH_RC6_ASSETS.md`](./REARCH_RC6_ASSETS.md)：面向微信/移动端的资产管线根治——GPU 压缩纹理（keystone）、内容寻址身份、显存预算 + LRU 驱逐、运行时分包/流式 + 微信分包映射。属"能力/平台错配"根治，区别于 RC1–RC5 的"正确性根因"。
