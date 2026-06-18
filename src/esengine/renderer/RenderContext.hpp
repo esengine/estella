@@ -133,43 +133,17 @@ public:
     // =========================================================================
 
     /**
-     * @brief Gets the quad vertex array
-     * @return Pointer to the quad VAO
-     */
-    VertexArray* getQuadVAO() { return quadVAO_.get(); }
-
-    /**
-     * @brief Gets the color shader
-     * @return Pointer to the color shader
-     */
-    Shader* getColorShader() { return colorShader_.get(); }
-
-    /**
-     * @brief Gets the texture shader
-     * @return Pointer to the texture shader
-     */
-    Shader* getTextureShader() { return textureShader_.get(); }
-
-    Shader* getExtMeshShader() { return extMeshShader_.get(); }
-
-    /**
      * @brief Gets the white texture ID (for untextured quads)
      * @return GPU texture handle
      */
     u32 getWhiteTextureId() const { return whiteTextureId_; }
 
 private:
-    void initQuadData();
-    void initShaders();
     void initWhiteTexture();
 
     glm::mat4 viewProjection_{1.0f};
     RenderContextStats stats_;
 
-    Unique<VertexArray> quadVAO_;
-    Unique<Shader> colorShader_;
-    Unique<Shader> textureShader_;
-    Unique<Shader> extMeshShader_;
     u32 whiteTextureId_ = 0;
 
     GfxDevice& device_;
