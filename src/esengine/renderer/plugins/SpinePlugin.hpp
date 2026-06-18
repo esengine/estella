@@ -65,7 +65,7 @@ private:
     u32 batch_shader_id_ = 0;
 
     std::vector<BatchVertex> vertices_;
-    std::vector<u16> indices_;
+    std::vector<u32> indices_;
     std::vector<f32> world_vertices_;
     ::spine::SkeletonClipping clipper_;
 };

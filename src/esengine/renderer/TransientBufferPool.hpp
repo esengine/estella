@@ -41,10 +41,10 @@ public:
     u32 allocIndices(LayoutId layout, u32 count);
 
     void writeVertices(LayoutId layout, u32 byteOffset, const void* data, u32 byteSize);
-    void writeIndices(LayoutId layout, u32 indexOffset, const u16* data, u32 count);
+    void writeIndices(LayoutId layout, u32 indexOffset, const u32* data, u32 count);
 
     u32 appendVertices(LayoutId layout, const void* data, u32 byteSize);
-    u32 appendIndices(LayoutId layout, const u16* data, u32 count);
+    u32 appendIndices(LayoutId layout, const u32* data, u32 count);
 
     /** Upload every non-empty stream's staging to its VBO/EBO. */
     void upload();
@@ -66,7 +66,7 @@ private:
         u32 ebo = 0;
         u32 vao = 0;
         std::vector<u8> vertex_staging;
-        std::vector<u16> index_staging;
+        std::vector<u32> index_staging;  // 32-bit indices: a single Batch stream can exceed 65535 vertices
         u32 vertex_write_pos = 0;
         u32 index_write_pos = 0;
         u32 vbo_capacity = 0;
