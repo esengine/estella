@@ -57,8 +57,6 @@ class EditorAPIGenerator:
         lines.extend(self._gen_get_string())
         lines.extend(self._gen_embind())
         lines.append('')
-        lines.append('#endif  // ES_PLATFORM_WEB')
-        lines.append('')
         return '\n'.join(lines)
 
     def _gen_header(self) -> List[str]:
@@ -72,8 +70,6 @@ class EditorAPIGenerator:
             ' */',
             '',
             f'#define ES_EDITOR_API_SCHEMA_HASH "{schema_hash}"',
-            '',
-            '#ifdef ES_PLATFORM_WEB',
             '',
             '#include <emscripten/bind.h>',
             '#include <string>',

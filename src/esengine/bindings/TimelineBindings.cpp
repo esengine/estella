@@ -1,4 +1,3 @@
-#ifdef ES_PLATFORM_WEB
 #ifdef ES_ENABLE_TIMELINE
 
 #include <emscripten.h>
@@ -391,4 +390,3 @@ EMSCRIPTEN_BINDINGS(esengine_timeline) {
 }
 
 #endif  // ES_ENABLE_TIMELINE
-#endif  // ES_PLATFORM_WEB

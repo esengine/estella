@@ -1,4 +1,3 @@
-#ifdef ES_PLATFORM_WEB
 
 #include "EngineContext.hpp"
 
@@ -11,4 +10,3 @@ EngineContext& EngineContext::instance() {
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

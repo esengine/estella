@@ -1,4 +1,3 @@
-#ifdef ES_PLATFORM_WEB
 
 #include "RendererBindings.hpp"
 #include "ActiveContext.hpp"
@@ -818,4 +817,3 @@ void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

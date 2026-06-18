@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef ES_PLATFORM_WEB
 
 #include "../core/Types.hpp"
 #include <string>
@@ -153,4 +152,3 @@ void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t buff
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

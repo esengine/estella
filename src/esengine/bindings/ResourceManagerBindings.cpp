@@ -1,4 +1,3 @@
-#ifdef ES_PLATFORM_WEB
 
 #include "ResourceManagerBindings.hpp"
 #include "../resource/TextureMetadata.hpp"
@@ -163,4 +162,3 @@ void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

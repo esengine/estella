@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef ES_PLATFORM_WEB
 
 #include "../core/EstellaContext.hpp"
 
@@ -22,4 +21,3 @@ inline EstellaContext& activeCtx() {
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

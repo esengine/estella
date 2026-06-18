@@ -1,4 +1,3 @@
-#ifdef ES_PLATFORM_WEB
 #ifdef ES_ENABLE_TILEMAP
 
 #include "ActiveContext.hpp"
@@ -828,4 +827,3 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
 }
 
 #endif  // ES_ENABLE_TILEMAP
-#endif  // ES_PLATFORM_WEB

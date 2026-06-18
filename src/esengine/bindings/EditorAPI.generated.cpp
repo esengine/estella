@@ -7,8 +7,6 @@
 
 #define ES_EDITOR_API_SCHEMA_HASH "ec0e5e49aabdea7f"
 
-#ifdef ES_PLATFORM_WEB
-
 #include <emscripten/bind.h>
 #include <string>
 #include <vector>
@@ -2016,5 +2014,3 @@ EMSCRIPTEN_BINDINGS(esengine_editor_api) {
 
     emscripten::register_vector<std::string>("VectorString");
 }
-
-#endif  // ES_PLATFORM_WEB

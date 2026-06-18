@@ -9,7 +9,6 @@
  *            Licensed under the MIT License.
  */
 
-#ifdef ES_PLATFORM_WEB
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
@@ -742,4 +741,3 @@ int main() {
     return 0;
 }
 
-#endif  // ES_PLATFORM_WEB

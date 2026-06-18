@@ -1,4 +1,3 @@
-#ifdef ES_PLATFORM_WEB
 
 #include "ImmediateDrawBindings.hpp"
 #include "ActiveContext.hpp"
@@ -174,4 +173,3 @@ void draw_setDepthTest(bool enabled) {
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

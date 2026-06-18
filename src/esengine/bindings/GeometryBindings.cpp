@@ -1,4 +1,3 @@
-#ifdef ES_PLATFORM_WEB
 
 #include "GeometryBindings.hpp"
 #include "ActiveContext.hpp"
@@ -250,4 +249,3 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

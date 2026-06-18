@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef ES_PLATFORM_WEB
 
 #include "../core/Types.hpp"
 #include "../resource/ResourceManager.hpp"
@@ -44,4 +43,3 @@ void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

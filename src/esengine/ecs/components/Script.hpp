@@ -16,10 +16,6 @@
 #include <any>
 #include <unordered_map>
 
-#ifdef ES_SCRIPTING_ENABLED
-    #include <quickjs.h>
-#endif
-
 namespace esengine::ecs {
 
 /**
@@ -36,14 +32,6 @@ struct ScriptComponent {
     std::string scriptPath;          ///< Path to JavaScript file (if loading from file)
     std::string scriptSource;        ///< Inline JavaScript source code
     bool enabled = true;             ///< Whether the script should execute
-
-#ifdef ES_SCRIPTING_ENABLED
-    JSValue instance = JS_UNDEFINED; ///< JavaScript object instance
-    JSValue onInitFunc = JS_UNDEFINED;    ///< Cached onInit function
-    JSValue onUpdateFunc = JS_UNDEFINED;  ///< Cached onUpdate function
-    JSValue onDestroyFunc = JS_UNDEFINED; ///< Cached onDestroy function
-#endif
-
     bool isLoaded = false;           ///< Whether the script has been loaded
     std::string lastError;           ///< Last error message (if any)
 

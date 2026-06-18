@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef ES_PLATFORM_WEB
 
 #include "../core/Types.hpp"
 #include <string>
@@ -42,4 +41,3 @@ void postprocess_setScreenUniformVec4(const std::string& passName,
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB

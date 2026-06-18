@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef ES_PLATFORM_WEB
 
 #include "../core/Types.hpp"
 #include "../core/ServiceRegistry.hpp"
@@ -45,4 +44,3 @@ private:
 
 }  // namespace esengine
 
-#endif  // ES_PLATFORM_WEB
