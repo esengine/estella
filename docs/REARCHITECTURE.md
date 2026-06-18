@@ -142,10 +142,10 @@
 错误模型已定：**保持 `-fno-exceptions` + 显式状态 + onAbort 死亡标志**（不增体积/不降速）。
 - ✅ **错误通道（已完成）**：新增 `moduleHealth.ts`——`WasmModuleAborted` + 按模块的死亡标志 + `installAbortGuard`（挂 emscripten `Module.onAbort`，保留既有 handler）。`handleWasmError` 对 `WasmModuleAborted` **重抛不吞**（abort 是终态，吞掉就是继续调用尸体）。`BuiltinBridge` 在 `connect` 装守卫，并在唯一收口 `resolveAndCache_` 把四个边界方法包成"调用前短路 + 调用中 abort 则致命重抛"。验证：typecheck + 8 个新测试 + 全套 2020 测试通过。
 - ✅ **RAII `_malloc`（已完成）**：新增 `wasmScratch.ts`——`withScratch(mod, alloc => …)` / `withMalloc`，作用域内分配的所有缓冲在回调返回**或抛异常**时按逆序释放。把 9 个文件的全部瞬时分配站点（runtimeLoader、TextureLoader、PhysicsSystem×3、TimelineUploader×6、ModuleBackend、SpineController×4、tilemapAPI×3、tiledLoader×4、TextRenderer）迁到该助手；持久缓冲（material/draw/renderer/geometry 的 alloc-once）与已有 try/finally 的站点不动。验证：5 个新 helper 测试 + typecheck + 全套 2025 测试；逐一人工复核 TimelineUploader/SpineController 等复杂多缓冲迁移，行为逐字节保持。
-- ⏳ **RC3 剩余**（后续批次）：
-  1. 把 `getXxxPtr` 的指针失效守卫接到 RC2 的 `SparseSet::version()`（需加一个按组件取 version 的绑定 + BuiltinBridge 复核）。
-  2. C++ 边界校验始终开启（不被 release 的 `ES_ASSERT` 剥离）——目前生成的 embind 包装已有 `valid(entity)` 守卫，需审计补齐其余入口。
-  3. 各子系统桥接（physics/spine/tilemap/timeline）调用前接 `throwIfModuleAborted`。
+- ✅ **指针失效（已查清，主路径本就安全）**：复核 `BuiltinBridge.resolvePtrGetter/Setter` 后确认——活的 `getXxxPtr` 路径**每次访问都重新 `getPtrFn(e)` 取指针、并重新读 `mod.HEAPF32`**（emscripten 在堆增长时会替换 `Module.HEAPF32`）。所以对重分配与视图失效**都已天然安全**，无需把 version 接进来。RC2 新增的 `SparseSet::version()` 保留为"单一来源"，供未来任何**缓存**指针的调用方复核。真正的残留风险只在个别**缓存** HEAP 视图的子系统读取，属下条范畴。
+- ⏳ **RC3 剩余**（较低优先级 / 需 emsdk）：
+  1. C++ 边界校验始终开启（不被 release 的 `ES_ASSERT` 剥离）——生成的 embind 包装已有 `valid(entity)` 守卫，需审计补齐其余入口（C++ harness 可验证）。
+  2. 各子系统桥接（physics/spine/tilemap/timeline）调用前接 `throwIfModuleAborted` + 缓存 HEAP 视图处改为每次重读（目前只有主模块经 BuiltinBridge 装了 abort 守卫）。
 
 ### RC5 — 未开始
 渲染单一路径 + GfxDevice 唯一入口 + u16→u32 + 统一 WasmBridge + 全 per-App。最大的一块，建议拆多批推进。
