@@ -231,18 +231,14 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         src/esengine/platform/web/WebFileSystem.cpp
     )
 else()
+    # Web-only repo: the native platform layer (NativePlatform/NativeFileSystem/
+    # FileDialog) was removed in d9a08d87. Keep only the platform-agnostic
+    # sources a native tooling/test build still needs.
     list(APPEND ESENGINE_SOURCES
-        src/esengine/platform/native/NativePlatform.cpp
-        src/esengine/platform/native/NativeFileSystem.cpp
-        src/esengine/platform/FileDialog.cpp
         src/esengine/renderer/stb_image_impl.cpp
         src/esengine/resource/LoaderJobQueue.cpp
         src/esengine/resource/HotReloadManager.cpp
         src/esengine/resource/loaders/ShaderLoader.cpp
-    )
-    list(APPEND ESENGINE_HEADERS
-        src/esengine/platform/native/NativePlatform.hpp
-        src/esengine/platform/FileDialog.hpp
     )
 endif()
 

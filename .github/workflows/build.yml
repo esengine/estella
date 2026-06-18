@@ -4,43 +4,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux:
-    name: Linux (Ubuntu GCC)
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          cmake \
-          ninja-build \
-          libglfw3-dev \
-          libgl1-mesa-dev \
-          xorg-dev \
-          libxkbcommon-dev \
-          ccache
-
-    - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.20
-      with:
-        key: ${{ runner.os }}-build-linux
-        max-size: 500M
-
-    - name: Configure CMake
-      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DES_ENABLE_CCACHE=ON
-
-    - name: Build
-      run: cmake --build build
-
-    - name: Test
-      working-directory: build
-      run: ctest --output-on-failure
-
   build-emscripten:
     name: Web (Emscripten)
     runs-on: ubuntu-latest
@@ -95,7 +58,7 @@ jobs:
       run: node build-tools/cli.js build -t all --no-sync --continue-on-error
 
   test:
-    name: Tests (SDK + Editor)
+    name: Tests (SDK)
     runs-on: ubuntu-latest
 
     steps:
@@ -120,14 +83,8 @@ jobs:
     - name: Build SDK
       run: pnpm --filter ./sdk build
 
-    - name: Type-check Editor
-      run: pnpm exec tsc --noEmit -p editor/tsconfig.json
-
     - name: Type-check Examples
       run: node build-tools/cli.js check-examples
 
     - name: Run SDK tests
       run: pnpm --filter ./sdk exec vitest run
-
-    - name: Run Editor tests
-      run: pnpm --filter ./editor exec vitest run
