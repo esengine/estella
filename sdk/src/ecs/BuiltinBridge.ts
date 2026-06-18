@@ -8,7 +8,7 @@ import type { BuiltinComponentDef } from '../component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { validateComponentData, formatValidationErrors } from '../validation';
 import { handleWasmError } from '../wasmError';
-import { COMPONENT_META } from '../component.generated';
+import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';
 import { PTR_LAYOUTS } from '../ptrLayouts.generated';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
 
@@ -236,6 +236,16 @@ export interface BridgeVerification {
      * WASM. Only populated when the module exposes the reflection call.
      */
     readonly sdkOnly: readonly string[];
+    /**
+     * Set when the WASM module reports an ABI layout hash
+     * (`getAbiLayoutHash`) that differs from the SDK bundle's
+     * {@link ABI_LAYOUT_HASH}. A mismatch means the loaded WASM and this SDK
+     * were generated from different component schemas, so the byte offsets the
+     * SDK uses for fast pointer access read the wrong memory. This is always
+     * fatal — never tolerated even in non-strict mode. Null when the hashes
+     * match or the module predates the handshake (no `getAbiLayoutHash`).
+     */
+    readonly abiMismatch: { readonly sdk: string; readonly wasm: string } | null;
 }
 
 /** Options for {@link BuiltinBridge.connect}. */
@@ -255,6 +265,15 @@ const METHOD_PREFIXES = ['add', 'get', 'has', 'remove'] as const;
 
 function formatBridgeDiagnostic(v: BridgeVerification): string {
     const parts: string[] = [];
+    if (v.abiMismatch) {
+        parts.push(
+            `ABI layout hash mismatch: the WASM module was built from a different ` +
+            `component schema than this SDK bundle.\n` +
+            `  SDK  ABI_LAYOUT_HASH = ${v.abiMismatch.sdk}\n` +
+            `  WASM getAbiLayoutHash() = ${v.abiMismatch.wasm}\n` +
+            `  Fast pointer accessors would read the wrong bytes. This is fatal.`,
+        );
+    }
     if (v.missing.length > 0) {
         const detail = v.missing.map(m => `  - ${m.name}: missing ${m.methods.join(', ')}`).join('\n');
         parts.push(`C++ Registry is missing ${String(v.missing.length)} builtin component binding(s):\n${detail}`);
@@ -306,7 +325,13 @@ export class BuiltinBridge {
         this.builtinEntitySets_.clear();
 
         const verification = this.verifyAgainst_(cppRegistry, module);
-        if (options.strict && !verification.ok) {
+        // An ABI hash mismatch is ALWAYS fatal, even in non-strict mode: the
+        // loaded WASM and this SDK disagree on byte layout, so any fast-path
+        // pointer access silently corrupts memory. Other drift (missing
+        // bindings) is only fatal under strict mode so partial mock registries
+        // in unit tests keep working. Mock registries never expose
+        // getAbiLayoutHash, so they never hit the fatal path.
+        if (verification.abiMismatch || (options.strict && !verification.ok)) {
             this.cppRegistry_ = null;
             this.module_ = null;
             this.builtinMethodCache_.clear();
@@ -344,6 +369,7 @@ export class BuiltinBridge {
                 missing: [{ name: '<registry>', methods: ['connect() not called'] }],
                 wasmOnly: [],
                 sdkOnly: [],
+                abiMismatch: null,
             };
         }
         return this.verifyAgainst_(this.cppRegistry_, this.module_ ?? undefined);
@@ -384,8 +410,29 @@ export class BuiltinBridge {
             sdkOnly = Object.keys(COMPONENT_META).filter(n => !wasmSet.has(n));
         }
 
-        const ok = missing.length === 0 && wasmOnly.length === 0 && sdkOnly.length === 0;
-        return { ok, missing, wasmOnly, sdkOnly };
+        // ABI layout-hash handshake. The WASM module exposes the digest EHT
+        // baked into both sides from one schema parse; if it disagrees with the
+        // SDK's ABI_LAYOUT_HASH, the pointer offsets the SDK ships do not match
+        // the loaded binary and fast-path reads/writes would corrupt memory.
+        // Modules built before the handshake (no getAbiLayoutHash) skip it.
+        let abiMismatch: { sdk: string; wasm: string } | null = null;
+        const hashFn = (module as unknown as { getAbiLayoutHash?: () => string } | undefined)
+            ?.getAbiLayoutHash;
+        if (typeof hashFn === 'function') {
+            let wasmHash = '';
+            try {
+                wasmHash = hashFn();
+            } catch {
+                wasmHash = '';
+            }
+            if (wasmHash && wasmHash !== ABI_LAYOUT_HASH) {
+                abiMismatch = { sdk: ABI_LAYOUT_HASH, wasm: wasmHash };
+            }
+        }
+
+        const ok = missing.length === 0 && wasmOnly.length === 0
+            && sdkOnly.length === 0 && abiMismatch === null;
+        return { ok, missing, wasmOnly, sdkOnly, abiMismatch };
     }
 
     getBuiltinMethods(cppName: string): BuiltinMethods {

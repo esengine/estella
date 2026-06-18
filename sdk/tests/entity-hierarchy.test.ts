@@ -5,15 +5,10 @@
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { World } from '../src/world';
 import { Transform, Sprite, Parent, Children } from '../src/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
-import { loadWasmModule } from './helpers/loadWasm';
-
-const WASM_PATH = resolve(__dirname, '../../desktop/public/wasm/esengine.wasm');
-const HAS_WASM = existsSync(WASM_PATH);
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
     let module: ESEngineModule;
