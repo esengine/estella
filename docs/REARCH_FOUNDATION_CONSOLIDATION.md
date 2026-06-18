@@ -88,10 +88,34 @@ RC1–RC5 坍缩了五个正确性根因，但留下四处"半成品 / 未统一
 **子岔路（需在 B4 前拍板）**：模块绑定单例（geometry/draw/material/renderer/glDebug/postprocess module/tilemap/timeline/uiHelpers，F2 已收进 `CoreApiBridge`）持有的是 **wasm 模块**。若多 App **各自独立 wasm 模块**，这些单例（last-init-wins）也须 per-App——量很大；若多 App **共享同一模块**，它们是 per-module 而非 per-App，按 teardown 重置即可。取决于 `createWebApp(module)` 的实际用法。
 
 **批次顺序（每批独立验证、保持常绿）**：
-1. **B1 Camera**（最干净、无内部调用方）—— 确立 per-App 资源 API 模式样板。
-2. **B2 PostProcess + Timeline handles**（自包含）。
-3. **B3 SpriteAnimator**（含 LoadContext 改造：clip 注册按 app 路由）。
-4. **B4 模块绑定单例**——仅当"多 App 独立模块"成立（见子岔路）；否则降级为 teardown 重置。
+1. **B1 Camera** — ✅ 已落地（`95f74041`）：`CameraView` 资源 + per-App scratch 池。
+2. **B2a Timeline** — ✅ 已落地（`06e0268e`）：`Timeline` 资源，消除全局 handles 串味。
+3. **B2b PostProcess** — 🟡 设计已定（见下）。
+4. **B3 SpriteAnimator**（含 LoadContext 改造：clip 注册按 app 路由）。
+5. **B4 模块绑定单例**——仅当"多 App 独立模块"成立（见子岔路）；否则降级为 teardown 重置。
+
+### B2b PostProcess —— 拆 god-object，后处理成为可插拔渲染阶段
+**病灶**：`PostProcess`（`postprocess/PostProcessAPI.ts`）是四合一全局单例——混 ① wasm 调用 ② 状态（`stacks`/`cameraBindings`/`screenStack`）③ 着色器工厂 ④ 管线编排（`_applyForCamera`/`_applyScreenStack` 等）。叠加三处结构病：`renderPipeline.ts:9` 反向 `import` 全局并在热路径调 `PostProcess._*`（管线硬依赖全局）；状态散落 4+ 份全局（`activeRegistry`、`screenStack`、`sync.ts` 与 `volumeSystem.ts` 各一套 `volumeStacks/volumeShaders`）；`PostProcessStack` 构造即自注册全局 `activeRegistry`（`:56`）。`sync.ts` 与 `volumeSystem.ts` 是两套重复的 volume→stack。
+
+**目标架构（分层 + 依赖注入 + 可插拔）**：
+| 层 | 职责 | 归属 |
+|---|---|---|
+| `PostProcessDevice` | 薄 wasm 命令包装（`postprocess_*`），沿用 F2 守卫 | 模块级（共享，与 Renderer/Draw 同级；模块本身归 B4） |
+| `PostProcessStack` | 纯数据（passes+uniforms+dirty），去全局自注册 | 谁持有谁拥有 |
+| `PostProcessState` | per-App 资源：`stacks`/`cameraBindings`/`screenStack` + create/bind/unbind/setScreenStack | `defineResource` |
+| `PostProcessRenderer` | 编排：应用 stack 到相机/屏幕（读 State + 调 Device） | per-App，**注入 RenderPipeline** |
+| `postProcessEffects` | `createBlur/...` 纯着色器工厂 | 无状态模块 |
+
+- **依赖反转**：`RenderPipeline` 不再 import 全局，改持**可选** `postProcess_: PostProcessRenderer | null`（默认 null = 无后处理、零开销）；`PostProcessPlugin.build` 注入。后处理成为**可插拔渲染阶段**。
+- **单一 volume→stack**：删 `sync.ts` 重复路径，保留 ECS 组件驱动的 `volumeSystem`，经 `Res(PostProcessState)` 取状态。
+
+**子批次（build-green）**：
+1. **B2b-1** 数据净化：`PostProcessStack` 去全局自注册；`activeRegistry` → `PostProcessState` 类（暂单例，纯搬迁，无行为变化）。
+2. **B2b-2** 拆 `PostProcessDevice` + `postProcessEffects`，god-object 瘦身。
+3. **B2b-3** `PostProcessRenderer` + RenderPipeline 可选注入 + 插件注入；删管线对全局 `PostProcess` 的 import。
+4. **B2b-4** `PostProcessState` 转 per-App 资源；`volumeSystem` 经 `Res` 取状态；删 `sync.ts`。
+
+> 可行性：`RenderPipeline` 已 per-App（`app.setPipeline`，webAppFactory），DI 成立；`sync.ts` 是可删的重复路径。
 
 ---
 
