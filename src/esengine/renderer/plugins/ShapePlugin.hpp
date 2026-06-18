@@ -28,7 +28,7 @@ private:
         f32 shapeType, halfW, halfH, cornerRadius;
     };
 
-    static constexpr u16 QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };
+    static constexpr u32 QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };
 
     resource::ShaderHandle shape_shader_handle_;
     u32 shape_shader_id_ = 0;

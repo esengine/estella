@@ -8,7 +8,7 @@
 
 namespace esengine {
 
-static constexpr u16 QUAD_IDX[6] = { 0, 1, 2, 2, 3, 0 };
+static constexpr u32 QUAD_IDX[6] = { 0, 1, 2, 2, 3, 0 };
 
 void TilemapRenderPlugin::init(RenderFrameContext& ctx) {
     batch_shader_id_ = ctx.batch_shader_id;
@@ -77,7 +77,7 @@ void TilemapRenderPlugin::rebuildChunk(
             if (flipH) { u0 += layer.uv_tile_width; su = -su; }
             if (flipV) { v0 += layer.uv_tile_height; sv = -sv; }
 
-            u16 baseVertex = static_cast<u16>(cache.vertices.size());
+            u32 baseVertex = static_cast<u32>(cache.vertices.size());
             cache.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {u0, v0} });
             cache.vertices.push_back({ {worldX + hw, worldY - hh}, packedColor, {u0 + su, v0} });
             cache.vertices.push_back({ {worldX + hw, worldY + hh}, packedColor, {u0 + su, v0 + sv} });
@@ -179,9 +179,9 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
                 if (cache.indices.empty()) continue;
 
-                u16 baseVertex = static_cast<u16>(vertices_.size());
+                u32 baseVertex = static_cast<u32>(vertices_.size());
                 vertices_.insert(vertices_.end(), cache.vertices.begin(), cache.vertices.end());
-                for (u16 idx : cache.indices) {
+                for (u32 idx : cache.indices) {
                     indices_.push_back(baseVertex + idx);
                 }
             }
@@ -194,7 +194,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         u32 baseVertex = vOff / sizeof(BatchVertex);
 
         for (auto& idx : indices_) {
-            idx = static_cast<u16>(idx + baseVertex);
+            idx = static_cast<u32>(idx + baseVertex);
         }
         u32 iOff = buffers.appendIndices(LayoutId::Batch, indices_.data(), static_cast<u32>(indices_.size()));
 
