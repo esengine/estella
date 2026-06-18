@@ -494,7 +494,6 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("registry_getCameraEntities", &esengine::registry_getCameraEntities);
     emscripten::function("getChildEntities", &esengine::getChildEntities);
     emscripten::function("registry_getGeneration", &esengine::registry_getGeneration);
-    emscripten::function("registry_getSchemaPoolVersion", &esengine::registry_getSchemaPoolVersion);
     emscripten::function("registry_batchSyncPhysicsTransforms", &esengine::registry_batchSyncPhysicsTransforms);
 
     emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);

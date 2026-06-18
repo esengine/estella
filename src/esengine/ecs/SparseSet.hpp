@@ -80,6 +80,18 @@ public:
      * @return Const reference to the entity vector
      */
     virtual const std::vector<Entity>& entities() const = 0;
+
+    /**
+     * @brief Monotonic version, bumped whenever stored components may have
+     *        moved in memory (buffer reallocation on growth, or swap-and-pop
+     *        relocation on removal).
+     * @details Single source of truth for the cross-boundary pointer-staleness
+     *          guard: a raw component pointer handed to JS (e.g. getTransformPtr)
+     *          is only valid while this value is unchanged. Replaces the old
+     *          SchemaComponentPool::poolVersion (which lived in a now-deleted
+     *          parallel store and, notably, was not bumped on remove).
+     */
+    virtual u32 version() const = 0;
 };
 
 // =============================================================================
@@ -251,7 +263,14 @@ public:
 
         (*pages_[pageIndex])[offset] = static_cast<u32>(dense_.size());
         dense_.push_back(entity);
+
+        // Bump the version only when the component buffer actually reallocates
+        // (base pointer moves) — that is exactly when previously-handed-out raw
+        // pointers into components_ become stale. A non-reallocating append
+        // leaves existing component addresses intact, so no bump is needed.
+        const T* before = components_.data();
         components_.emplace_back(std::forward<Args>(args)...);
+        if (components_.data() != before) ++version_;
 
         return components_.back();
     }
@@ -266,6 +285,10 @@ public:
      */
     void remove(Entity entity) override {
         if (!contains(entity)) return;
+
+        // Swap-and-pop relocates the last component into the freed slot, so any
+        // raw pointer previously handed out for the moved entity is now stale.
+        ++version_;
 
         const u32 idx = entity.index();
         const auto pageIndex = idx / SPARSE_PAGE_SIZE;
@@ -312,12 +335,19 @@ public:
      * @brief Removes all components
      */
     void clear() override {
+        ++version_;
         pages_.clear();
         dense_.clear();
         components_.clear();
     }
 
+    /** @copydoc SparseSetBase::version() */
+    u32 version() const override { return version_; }
+
     void rebuildSparse() {
+        // Called after Registry::sort permutes dense_/components_ in place —
+        // component addresses changed, so any handed-out raw pointer is stale.
+        ++version_;
         pages_.clear();
         for (usize i = 0; i < dense_.size(); ++i) {
             const u32 idx = dense_[i].index();
@@ -426,6 +456,9 @@ private:
      * @details components_[i] belongs to entity dense_[i].
      */
     std::vector<T> components_;
+
+    /** @brief Pointer-staleness generation; see SparseSetBase::version(). */
+    u32 version_ = 0;
 };
 
 }  // namespace esengine::ecs
