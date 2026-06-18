@@ -74,6 +74,25 @@ RC1–RC5 坍缩了五个正确性根因，但留下四处"半成品 / 未统一
 - 所有子系统运行时状态改为 **per-App/per-World 资源**（`defineResource`），与 Tween/Audio/Scene 对齐。
 - **搭 F2 的车**：模块引用由 `WasmBridge` 基类按 App 持有；子系统状态挂 App 资源。App 销毁 = 状态随之回收，无需手动 reset/swap。
 
+### 执行计划（已拍板：**完整 per-App，接受公共 API 变更**，支持多 App 同时运行）
+**模式**：每个子系统的状态收进一个 per-App API 对象（构造时持 `app`），经 `defineResource` 注册，用户 `app.getResource(X)` 取用——与 `Tween`/`Audio`/`Scene` 完全一致；进程级全局 + 全局自由函数随之退役。
+
+**待迁清单与公共 API 影响**：
+| 子系统 | 现状全局 | 目标 | 公共 API 变更 | 牵连 |
+|---|---|---|---|---|
+| **Camera** | `app_`、`CameraUtils`（`Camera.ts:7/23`）、`cameraInfoPool_`（`CameraPlugin.ts:36`） | `Camera` 资源（API 对象持 app）+ 池移入实例 | `CameraUtils.x()` → `app.getResource(Camera).x()` | **无内部调用方**，最干净 |
+| **PostProcess** | `activeRegistry`/stacks（`PostProcessStack.ts:27`）、手动 `setPostProcessRegistry` | per-App 注册表资源 | 退役手动 swap | 中等 |
+| **Timeline** | `handles_` 全局（`TimelineControl.ts:3`，且与 plugin 实例的 `handles_` 重复） | handles 收进 per-App 资源 | `TimelineControl.play(entity)` → app 作用域 | 去重 |
+| **SpriteAnimator** | `clipRegistry`、`globalAnimEventListeners`（`SpriteAnimator.ts:43/66`） | `SpriteAnimation` 资源持 clips/listeners | `registerAnimClip(clip)` → 资源方法 | **牵连 LoadContext**：`AnimClipAssetLoader`/`runtimeLoader` 在资产加载期注册 clip，需把目标 app 的 clip 资源带进加载上下文 |
+
+**子岔路（需在 B4 前拍板）**：模块绑定单例（geometry/draw/material/renderer/glDebug/postprocess module/tilemap/timeline/uiHelpers，F2 已收进 `CoreApiBridge`）持有的是 **wasm 模块**。若多 App **各自独立 wasm 模块**，这些单例（last-init-wins）也须 per-App——量很大；若多 App **共享同一模块**，它们是 per-module 而非 per-App，按 teardown 重置即可。取决于 `createWebApp(module)` 的实际用法。
+
+**批次顺序（每批独立验证、保持常绿）**：
+1. **B1 Camera**（最干净、无内部调用方）—— 确立 per-App 资源 API 模式样板。
+2. **B2 PostProcess + Timeline handles**（自包含）。
+3. **B3 SpriteAnimator**（含 LoadContext 改造：clip 注册按 app 路由）。
+4. **B4 模块绑定单例**——仅当"多 App 独立模块"成立（见子岔路）；否则降级为 teardown 重置。
+
 ---
 
 ## F4：文档漂移 → 与代码对齐
