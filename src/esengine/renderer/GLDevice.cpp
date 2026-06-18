@@ -685,4 +685,28 @@ u32 GLDevice::getError() {
     return static_cast<u32>(glGetError());
 }
 
+std::string GLDevice::getString(GfxStringName name) {
+    GLenum e = GL_VERSION;
+    switch (name) {
+    case GfxStringName::Version:                e = GL_VERSION; break;
+    case GfxStringName::Renderer:               e = GL_RENDERER; break;
+    case GfxStringName::Vendor:                 e = GL_VENDOR; break;
+    case GfxStringName::ShadingLanguageVersion: e = GL_SHADING_LANGUAGE_VERSION; break;
+    }
+    const char* s = reinterpret_cast<const char*>(glGetString(e));
+    return s ? std::string(s) : std::string();
+}
+
+i32 GLDevice::getInt(GfxIntParam name) {
+    GLenum e = GL_MAX_TEXTURE_SIZE;
+    switch (name) {
+    case GfxIntParam::MaxTextureSize:       e = GL_MAX_TEXTURE_SIZE; break;
+    case GfxIntParam::MaxTextureImageUnits: e = GL_MAX_TEXTURE_IMAGE_UNITS; break;
+    case GfxIntParam::MaxVertexAttribs:     e = GL_MAX_VERTEX_ATTRIBS; break;
+    }
+    GLint v = 0;
+    glGetIntegerv(e, &v);
+    return static_cast<i32>(v);
+}
+
 }  // namespace esengine

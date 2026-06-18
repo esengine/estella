@@ -2,7 +2,6 @@
 
 #include "RendererBindings.hpp"
 #include "ActiveContext.hpp"
-#include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/RenderContext.hpp"
@@ -52,19 +51,9 @@ static EstellaContext& ctx() { return activeCtx(); }
 static u32 checkGLErrors(const char* context) {
     if (!g_glErrorCheckEnabled) return 0;
     u32 errorCount = 0;
-    GLenum err;
-    while ((err = static_cast<GLenum>(g_device->getError())) != GL_NO_ERROR) {
-        const char* errStr = "UNKNOWN";
-        switch (err) {
-            case GL_INVALID_ENUM: errStr = "INVALID_ENUM"; break;
-            case GL_INVALID_VALUE: errStr = "INVALID_VALUE"; break;
-            case GL_INVALID_OPERATION: errStr = "INVALID_OPERATION"; break;
-            case GL_INVALID_FRAMEBUFFER_OPERATION: errStr = "INVALID_FRAMEBUFFER_OPERATION"; break;
-            case GL_OUT_OF_MEMORY: errStr = "OUT_OF_MEMORY"; break;
-            case GL_CONTEXT_LOST: errStr = "CONTEXT_LOST"; break;
-            case GL_CONTEXT_LOST_WEBGL: errStr = "CONTEXT_LOST_WEBGL"; break;
-        }
-        ES_LOG_ERROR("[GL Error] {} (0x{:04X}) at: {}", errStr, static_cast<u32>(err), context);
+    u32 err;
+    while ((err = g_device->getError()) != 0) {
+        ES_LOG_ERROR("[GL Error] 0x{:04X} at: {}", err, context);
         errorCount++;
     }
     return errorCount;
@@ -610,29 +599,15 @@ void renderer_diagnose() {
         return;
     }
 
-    const char* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
-    const char* rendererStr = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
-    const char* vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
-    const char* slVersion = reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
-    ES_LOG_INFO("[Diagnose] GL Version: {}", version ? version : "null");
-    ES_LOG_INFO("[Diagnose] GL Renderer: {}", rendererStr ? rendererStr : "null");
-    ES_LOG_INFO("[Diagnose] GL Vendor: {}", vendor ? vendor : "null");
-    ES_LOG_INFO("[Diagnose] GLSL Version: {}", slVersion ? slVersion : "null");
-
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-    ES_LOG_INFO("[Diagnose] GL Viewport: {}x{} at ({},{})", viewport[2], viewport[3], viewport[0], viewport[1]);
+    ES_LOG_INFO("[Diagnose] GL Version: {}", g_device->getString(GfxStringName::Version));
+    ES_LOG_INFO("[Diagnose] GL Renderer: {}", g_device->getString(GfxStringName::Renderer));
+    ES_LOG_INFO("[Diagnose] GL Vendor: {}", g_device->getString(GfxStringName::Vendor));
+    ES_LOG_INFO("[Diagnose] GLSL Version: {}", g_device->getString(GfxStringName::ShadingLanguageVersion));
     ES_LOG_INFO("[Diagnose] Stored viewport: {}x{}", g_viewportWidth, g_viewportHeight);
+    ES_LOG_INFO("[Diagnose] Max texture units: {}", g_device->getInt(GfxIntParam::MaxTextureImageUnits));
+    ES_LOG_INFO("[Diagnose] Max vertex attribs: {}", g_device->getInt(GfxIntParam::MaxVertexAttribs));
 
-    GLint maxTextureUnits;
-    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
-    ES_LOG_INFO("[Diagnose] Max texture units: {}", maxTextureUnits);
-
-    GLint maxAttribs;
-    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxAttribs);
-    ES_LOG_INFO("[Diagnose] Max vertex attribs: {}", maxAttribs);
-
-    while (glGetError() != GL_NO_ERROR) {}
+    while (g_device->getError() != 0) {}
     ES_LOG_INFO("[Diagnose] No pending GL errors (cleared)");
 }
 
@@ -655,7 +630,7 @@ void renderer_clearAllClipRects() {
 }
 
 void renderer_clearStencil() {
-    glClearStencil(0);
+    g_device->setClearStencil(0);
     g_device->clear(false, false, true);
 }
 
