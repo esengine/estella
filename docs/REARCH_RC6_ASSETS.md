@@ -95,7 +95,7 @@
 
 ## 执行顺序（全程保持构建常绿，每批可独立验证）
 
-1. **Batch A — `GfxDevice` 压缩纹理入口 + 能力查询**：`compressedTexImage2D` + `GfxCompressedFormat` + `supportsCompressedFormat`；`GLDevice` 实现 ETC2 core + ASTC/S3TC 扩展探测。**纯加法，无压缩资产时零行为变化。**（header-only + MockGfxDevice 可即时验证。）
+1. **Batch A — `GfxDevice` 压缩纹理入口 + 能力查询 — ✅ 已落地**（分支 `rearch/rc6a-compressed-tex`，`df6c7366`）：`GfxCompressedFormat`（ETC2/EAC core 基线 + ASTC/S3TC 扩展层）、`compressedTexImage2D`（扩展单一 GPU 通道，非绕过）、`supportsCompressedFormat`（ETC2 报 core，ASTC/S3TC 经 `glGetStringi` GLES3 正确探测扩展）；`GLDevice` 实现 `glCompressedTexImage2D` + 压缩格式 GL token fallback 定义。`MockGfxDevice` 记录压缩上传 + 可调 `compressedSupported` 试 fallback 分支；`test_compressed_format` 断言"支持走压缩、不支持回退 RGBA8"的决策（Batch C 的 TextureLoader 将照此）。**纯加法，无压缩资产时零行为变化。** 本机 MSVC 验证通过 + 既有 harness 仍绿；Emscripten 全量构建经 CI 守门。
 2. **Batch B — 导入期 KTX2 编码 + 内容哈希命名 + manifest 扩展**：离线工具链；运行时仍可回退旧 RGBA8 路径。
 3. **Batch C — 运行时 Basis transcoder（side module）+ `TextureLoader` 压缩优先/回退**。
 4. **Batch D — 内容寻址缓存键**：`pathToId_`/`guidToTexture_` 收敛到 `contentHash`；去重生效。
