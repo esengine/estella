@@ -118,6 +118,8 @@ public:
 
     void setWireframe(bool enabled) override;
     u32 getError() override;
+    std::string getString(GfxStringName name) override;
+    i32 getInt(GfxIntParam name) override;
 };
 
 }  // namespace esengine

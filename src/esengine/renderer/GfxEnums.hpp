@@ -91,6 +91,25 @@ enum class GfxAttachment : u8 {
 };
 
 // =============================================================================
+// Backend Queries (diagnostics / capabilities)
+// =============================================================================
+
+/** @brief Backend identification strings. */
+enum class GfxStringName : u8 {
+    Version,
+    Renderer,
+    Vendor,
+    ShadingLanguageVersion,
+};
+
+/** @brief Backend integer capabilities/limits. */
+enum class GfxIntParam : u8 {
+    MaxTextureSize,
+    MaxTextureImageUnits,
+    MaxVertexAttribs,
+};
+
+// =============================================================================
 // Shader Program Creation
 // =============================================================================
 

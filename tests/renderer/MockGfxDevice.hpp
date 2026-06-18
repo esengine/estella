@@ -134,6 +134,8 @@ struct MockGfxDevice final : GfxDevice {
 
     void setWireframe(bool) override {}
     u32 getError() override { return 0; }
+    std::string getString(GfxStringName) override { return {}; }
+    i32 getInt(GfxIntParam) override { return 16; }
 };
 
 }  // namespace esengine

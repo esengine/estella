@@ -121,12 +121,6 @@ public:
      */
     static bool hasWebGL2();
 
-    /**
-     * @brief Gets the maximum supported texture size
-     * @return Maximum width/height in pixels
-     */
-    static u32 getMaxTextureSize();
-
     Engine() = delete;
 };
 
