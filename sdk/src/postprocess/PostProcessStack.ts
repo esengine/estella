@@ -10,14 +10,15 @@ export interface PassConfig {
 }
 
 /**
- * Owns the post-process stacks, their camera bindings, and the id counter.
- * A stack registers into the state it is created with — no global. B2b-4 makes
- * this a per-App resource; until then a single module-level instance is used.
+ * Owns one App's post-process stacks, camera bindings, screen stack, and id
+ * counter. A stack registers into the state it is created with — no global.
+ * Held by {@link PostProcessApi} (a per-App resource in B2b-3b).
  */
 export class PostProcessState {
     nextStackId = 1;
     readonly stacks: Map<number, PostProcessStack> = new Map();
     readonly cameraBindings: Map<Entity, PostProcessStack> = new Map();
+    screenStack: PostProcessStack | null = null;
 
     /** Create a stack owned by (and registered in) this state. */
     createStack(): PostProcessStack {
@@ -30,24 +31,9 @@ export class PostProcessState {
         }
         this.stacks.clear();
         this.cameraBindings.clear();
+        this.screenStack = null;
         this.nextStackId = 1;
     }
-}
-
-// B2b-1: still a module singleton; becomes a per-App resource in B2b-4.
-const activeState = new PostProcessState();
-
-export function getStacks(): Map<number, PostProcessStack> {
-    return activeState.stacks;
-}
-
-export function getCameraBindings(): Map<Entity, PostProcessStack> {
-    return activeState.cameraBindings;
-}
-
-/** Create a stack in the active state (intermediate; per-App in B2b-4). */
-export function createStack(): PostProcessStack {
-    return activeState.createStack();
 }
 
 export class PostProcessStack {

@@ -2,7 +2,7 @@ import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
 import { handleWasmError } from '../wasmError';
 import { CoreApiBridge } from '../CoreApiBridge';
-import { PostProcessStack, getCameraBindings, getStacks, createStack as createPostProcessStack } from './PostProcessStack';
+import { PostProcessStack, PostProcessState } from './PostProcessStack';
 
 const bridge = new CoreApiBridge('postprocess');
 let module: ESEngineModule | null = null;
@@ -13,11 +13,7 @@ export function initPostProcessAPI(wasmModule: ESEngineModule): void {
 }
 
 export function shutdownPostProcessAPI(): void {
-    for (const stack of getStacks().values()) {
-        stack.destroy();
-    }
-    getStacks().clear();
-    getCameraBindings().clear();
+    PostProcess.state.reset();
     if (module && PostProcess.isInitialized()) {
         PostProcess.shutdown();
     }
@@ -73,25 +69,47 @@ export function syncStackToWasm(stack: PostProcessStack): void {
     stack.clearDirty();
 }
 
-export const PostProcess = {
+/**
+ * Per-App post-process API. Owns this App's `state` (stacks, camera bindings,
+ * screen stack) and drives the shared C++ post-process pipeline via the module.
+ * The wasm-call methods are shared on the prototype; only `state` is per-App.
+ *
+ * B2b-3a: a single default instance is exported to keep call sites unchanged;
+ * B2b-3b flips this to a per-App `defineResource` injected into the pipeline.
+ */
+export class PostProcessApi {
+    readonly state = new PostProcessState();
+
+    // -- per-App state (stacks / bindings / screen stack) --------------------
+
+    get screenStack(): PostProcessStack | null {
+        return this.state.screenStack;
+    }
+
+    setScreenStack(stack: PostProcessStack | null): void {
+        this.state.screenStack = stack;
+    }
+
     createStack(): PostProcessStack {
-        return createPostProcessStack();
-    },
+        return this.state.createStack();
+    }
 
     bind(camera: Entity, stack: PostProcessStack): void {
         if (stack.isDestroyed) {
             throw new Error('Cannot bind a destroyed PostProcessStack');
         }
-        getCameraBindings().set(camera, stack);
-    },
+        this.state.cameraBindings.set(camera, stack);
+    }
 
     unbind(camera: Entity): void {
-        getCameraBindings().delete(camera);
-    },
+        this.state.cameraBindings.delete(camera);
+    }
 
     getStack(camera: Entity): PostProcessStack | null {
-        return getCameraBindings().get(camera) ?? null;
-    },
+        return this.state.cameraBindings.get(camera) ?? null;
+    }
+
+    // -- shared C++ pipeline commands ----------------------------------------
 
     init(width: number, height: number): boolean {
         try {
@@ -100,7 +118,7 @@ export const PostProcess = {
             handleWasmError(e, `PostProcess.init(${width}x${height})`);
             return false;
         }
-    },
+    }
 
     shutdown(): void {
         try {
@@ -108,7 +126,7 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess.shutdown');
         }
-    },
+    }
 
     resize(width: number, height: number): void {
         try {
@@ -116,7 +134,7 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, `PostProcess.resize(${width}x${height})`);
         }
-    },
+    }
 
     isInitialized(): boolean {
         if (!module) return false;
@@ -126,7 +144,7 @@ export const PostProcess = {
             handleWasmError(e, 'PostProcess.isInitialized');
             return false;
         }
-    },
+    }
 
     setBypass(bypass: boolean): void {
         try {
@@ -134,7 +152,7 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess.setBypass');
         }
-    },
+    }
 
     begin(): void {
         try {
@@ -142,7 +160,7 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess.begin');
         }
-    },
+    }
 
     end(): void {
         try {
@@ -150,7 +168,7 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess.end');
         }
-    },
+    }
 
     setOutputViewport(x: number, y: number, w: number, h: number): void {
         try {
@@ -158,22 +176,24 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess.setOutputViewport');
         }
-    },
+    }
+
+    // -- per-camera / screen orchestration (state + commands) ----------------
 
     _applyForCamera(camera: Entity): void {
-        const stack = getCameraBindings().get(camera);
+        const stack = this.state.cameraBindings.get(camera);
         if (!stack || stack.isDestroyed || stack.enabledPassCount === 0) {
-            PostProcess.setBypass(true);
+            this.setBypass(true);
             return;
         }
 
-        if (!PostProcess.isInitialized()) {
-            PostProcess.init(1, 1);
+        if (!this.isInitialized()) {
+            this.init(1, 1);
         }
 
-        PostProcess.setBypass(false);
+        this.setBypass(false);
         syncStackToWasm(stack);
-    },
+    }
 
     _resetAfterCamera(): void {
         try {
@@ -182,21 +202,15 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess._resetAfterCamera');
         }
-    },
+    }
 
     _cleanupDestroyedCameras(isValid: (e: Entity) => boolean): void {
-        for (const camera of getCameraBindings().keys()) {
+        for (const camera of this.state.cameraBindings.keys()) {
             if (!isValid(camera)) {
-                getCameraBindings().delete(camera);
+                this.state.cameraBindings.delete(camera);
             }
         }
-    },
-
-    screenStack: null as PostProcessStack | null,
-
-    setScreenStack(stack: PostProcessStack | null): void {
-        PostProcess.screenStack = stack;
-    },
+    }
 
     _beginScreenCapture(): void {
         try {
@@ -204,7 +218,7 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess._beginScreenCapture');
         }
-    },
+    }
 
     _endScreenCapture(): void {
         try {
@@ -212,10 +226,10 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess._endScreenCapture');
         }
-    },
+    }
 
     _applyScreenStack(): void {
-        const stack = PostProcess.screenStack;
+        const stack = this.state.screenStack;
         if (!stack || stack.isDestroyed || stack.enabledPassCount === 0) return;
 
         const m = getModule();
@@ -251,7 +265,7 @@ export const PostProcess = {
                 }
             }
         }
-    },
+    }
 
     _executeScreenPasses(): void {
         try {
@@ -259,5 +273,8 @@ export const PostProcess = {
         } catch (e) {
             handleWasmError(e, 'PostProcess._executeScreenPasses');
         }
-    },
-};
+    }
+}
+
+/** B2b-3a transitional default instance (becomes a per-App resource in B2b-3b). */
+export const PostProcess = new PostProcessApi();
