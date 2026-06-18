@@ -132,5 +132,11 @@
 ### 验证能力（已确认可用）
 本机**存在原生 C++ 工具链**：VS Build Tools（`D:\VisualStudioBuildTools`，cl.exe 14.50）+ ninja + cmake，doctest 已 vendored，glm 子模块已初始化。被改的 ECS/事件/服务/资源代码均为 header-only，可用独立 harness 直接编译+运行验证（如 RC4 所做）。完整 `esengine` 静态库的原生构建还需更多子模块/native 依赖（glfw/glad/box2d/spine 等），属后续 CI 门禁范畴。**结论**：RC2/RC3/RC5 的 header-only 部分可在本机即时编译验证，不再是纯人工审阅。
 
-### RC2 / RC3 / RC5 — 未开始
-按执行顺序依次推进，全程在 RC1 的 `static_assert` + 握手护栏内进行，并尽量用独立 harness 即时编译验证。
+### RC2 存储统一 — ✅ 已落地并**编译+运行验证**
+- **调研推翻了"四套并行实现"的前提**：`DynamicComponentPool` 是**纯死代码**（全仓无引用）；`SchemaComponentPool`/`SchemaRegistry` **几乎全死**（Registry 暴露 13 个包装，但只有 `getSchemaPoolVersion` 一个绑定有注册，且 SDK 侧零调用）；唯一活着的存储是 typed `SparseSet<T>`，而 JS 零拷贝**早已直接读 typed 存储的指针**（`getXxxPtr` 返回 `tryGet<T>()` 的 `T*`，按 keystone 偏移读 HEAP）。
+- 故根治改为**靠删除而非改造**：删 `DynamicComponent.hpp`、`SchemaComponent.hpp`；从 Registry 移除 `schemaRegistry_`、13 个 schema 包装、destroy 里的 schema 清理（销毁路径现为纯 mask 驱动的单一路径）；移除死绑定 `registry_getSchemaPoolVersion`（C++ impl/decl/注册 + `wasm.ts` 声明）。存储实现数 **3 → 1**，零 UB 风险（typed `std::vector<T>` 本就正确处理非平凡组件）。
+- `SparseSet` 新增 `version()`：在组件缓冲**重分配**（emplace 扩容）、**relocate**（remove swap-pop、sort/rebuildSparse）时自增——作为 RC3 跨界指针失效守卫的**单一来源**，取代已删除的 `SchemaComponentPool::poolVersion`（后者还漏了 remove 时不自增的 bug）。
+- **验证**：native MSVC harness 编译+运行通过（version() 在 fill/remove/clear 后均自增；destroy 后回收的实体无残留组件）；SDK typecheck + 2012 测试全过。
+
+### RC3 / RC5 — 未开始
+按执行顺序依次推进，全程在 RC1 的 `static_assert` + 握手护栏内进行，并尽量用独立 harness 即时编译验证。RC3 第一件事就是把 `getXxxPtr` 的失效守卫接到 RC2 新增的 `SparseSet::version()` 上。
