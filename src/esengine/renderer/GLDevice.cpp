@@ -624,12 +624,7 @@ void GLDevice::pixelStorei(u32 pname, i32 param) {
 }
 
 void GLDevice::setUnpackFlipY(bool enabled) {
-#ifdef ES_PLATFORM_WEB
     glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, enabled ? GL_TRUE : GL_FALSE);
-#else
-    // Native image data is flipped CPU-side at load (stbi_set_flip_vertically_on_load).
-    (void)enabled;
-#endif
 }
 
 // =============================================================================
@@ -674,11 +669,8 @@ void GLDevice::readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, voi
 // =============================================================================
 
 void GLDevice::setWireframe(bool enabled) {
-#ifndef ES_PLATFORM_WEB
-    glPolygonMode(GL_FRONT_AND_BACK, enabled ? GL_LINE : GL_FILL);
-#else
+    // glPolygonMode is not available in WebGL2 / GLES3; wireframe is a no-op.
     (void)enabled;
-#endif
 }
 
 u32 GLDevice::getError() {

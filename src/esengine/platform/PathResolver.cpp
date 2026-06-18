@@ -12,18 +12,6 @@
 #include "PathResolver.hpp"
 #include "../core/Log.hpp"
 
-#ifdef ES_PLATFORM_WEB
-    // Web platform - no executable path needed
-#elif defined(_WIN32) || defined(_WIN64)
-    #include <windows.h>
-#elif defined(__APPLE__)
-    #include <mach-o/dyld.h>
-    #include <limits.h>
-#elif defined(__linux__)
-    #include <unistd.h>
-    #include <limits.h>
-#endif
-
 #include <algorithm>
 
 namespace esengine {
@@ -35,17 +23,10 @@ bool PathResolver::initialized_ = false;
 void PathResolver::init() {
     if (initialized_) return;
 
-#ifdef ES_SOURCE_DIR
-    // Development mode: use source directory for editor assets
-    editorRoot_ = ES_SOURCE_DIR;
-    projectRoot_ = ES_SOURCE_DIR;
-    ES_LOG_INFO("PathResolver initialized (dev mode) - Editor root: {}", editorRoot_);
-#else
-    // Release mode: use executable directory
+    // Web has no executable/source directory; paths resolve relative to the VFS root.
     editorRoot_ = getExecutableDirectory();
     projectRoot_ = editorRoot_;
     ES_LOG_INFO("PathResolver initialized - Editor root: {}", editorRoot_);
-#endif
 
     initialized_ = true;
 }
@@ -106,70 +87,12 @@ std::string PathResolver::projectPath(const std::string& relativePath) {
 
 bool PathResolver::isAbsolutePath(const std::string& path) {
     if (path.empty()) return false;
-
-#if defined(_WIN32) || defined(_WIN64)
-    if (path.length() >= 2 && path[1] == ':') {
-        return true;
-    }
-    if (path.length() >= 2 && (path[0] == '\\' && path[1] == '\\')) {
-        return true;
-    }
-#else
-    if (path[0] == '/') {
-        return true;
-    }
-#endif
-
-    return false;
+    return path[0] == '/';
 }
 
 std::string PathResolver::getExecutableDirectory() {
-#ifdef ES_PLATFORM_WEB
+    // Web has no executable directory; assets resolve from the VFS root.
     return "";
-
-#elif defined(_WIN32) || defined(_WIN64)
-    char buffer[MAX_PATH];
-    DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
-    if (length > 0 && length < MAX_PATH) {
-        std::string path(buffer);
-        auto pos = path.find_last_of("\\/");
-        if (pos != std::string::npos) {
-            return path.substr(0, pos);
-        }
-    }
-    return ".";
-
-#elif defined(__APPLE__)
-    char buffer[PATH_MAX];
-    uint32_t size = sizeof(buffer);
-    if (_NSGetExecutablePath(buffer, &size) == 0) {
-        char realPath[PATH_MAX];
-        if (realpath(buffer, realPath)) {
-            std::string path(realPath);
-            auto pos = path.find_last_of('/');
-            if (pos != std::string::npos) {
-                return path.substr(0, pos);
-            }
-        }
-    }
-    return ".";
-
-#elif defined(__linux__)
-    char buffer[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
-    if (len != -1) {
-        buffer[len] = '\0';
-        std::string path(buffer);
-        auto pos = path.find_last_of('/');
-        if (pos != std::string::npos) {
-            return path.substr(0, pos);
-        }
-    }
-    return ".";
-
-#else
-    return ".";
-#endif
 }
 
 std::string PathResolver::normalizePath(const std::string& path) {
@@ -177,19 +100,11 @@ std::string PathResolver::normalizePath(const std::string& path) {
 
     std::string result = path;
 
-#if defined(_WIN32) || defined(_WIN64)
-    std::replace(result.begin(), result.end(), '/', '\\');
-
-    while (result.length() > 1 && result.back() == '\\') {
-        result.pop_back();
-    }
-#else
     std::replace(result.begin(), result.end(), '\\', '/');
 
     while (result.length() > 1 && result.back() == '/') {
         result.pop_back();
     }
-#endif
 
     return result;
 }

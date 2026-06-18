@@ -12,24 +12,13 @@
 #pragma once
 
 // =============================================================================
-// Platform-specific OpenGL Headers
+// OpenGL Headers
 // =============================================================================
 
-#ifdef ES_PLATFORM_WEB
-    // Web platform uses OpenGL ES 3.0
-    #include <GLES3/gl3.h>
-#elif defined(__APPLE__)
-    // macOS uses OpenGL framework
-    #include <OpenGL/gl3.h>
-#else
-    // Windows/Linux use GLAD for modern OpenGL
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <glad/glad.h>
-#endif
+// Web/wasm targets OpenGL ES 3.0 (WebGL 2.0).
+#include <GLES3/gl3.h>
 
-// GL blend equation constants/functions not present in all glad configurations
+// GL blend equation constants not guaranteed across all GLES3/WebGL2 headers
 #ifndef GL_FUNC_ADD
     #define GL_FUNC_ADD 0x8006
 #endif
@@ -43,7 +32,7 @@
     #define GL_BLEND_EQUATION 0x8009
 #endif
 
-// GL constants not present in all headers / glad configurations
+// GL constants not guaranteed across all GLES3/WebGL2 headers
 #ifndef GL_CONTEXT_LOST
     #define GL_CONTEXT_LOST 0x0507
 #endif
