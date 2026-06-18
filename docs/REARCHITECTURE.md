@@ -138,5 +138,14 @@
 - `SparseSet` 新增 `version()`：在组件缓冲**重分配**（emplace 扩容）、**relocate**（remove swap-pop、sort/rebuildSparse）时自增——作为 RC3 跨界指针失效守卫的**单一来源**，取代已删除的 `SchemaComponentPool::poolVersion`（后者还漏了 remove 时不自增的 bug）。
 - **验证**：native MSVC harness 编译+运行通过（version() 在 fill/remove/clear 后均自增；destroy 后回收的实体无残留组件）；SDK typecheck + 2012 测试全过。
 
-### RC3 / RC5 — 未开始
-按执行顺序依次推进，全程在 RC1 的 `static_assert` + 握手护栏内进行，并尽量用独立 harness 即时编译验证。RC3 第一件事就是把 `getXxxPtr` 的失效守卫接到 RC2 新增的 `SparseSet::version()` 上。
+### RC3 错误/生命周期 — 🟡 进行中（错误通道已落地并测试）
+错误模型已定：**保持 `-fno-exceptions` + 显式状态 + onAbort 死亡标志**（不增体积/不降速）。
+- ✅ **错误通道（已完成）**：新增 `moduleHealth.ts`——`WasmModuleAborted` + 按模块的死亡标志 + `installAbortGuard`（挂 emscripten `Module.onAbort`，保留既有 handler）。`handleWasmError` 对 `WasmModuleAborted` **重抛不吞**（abort 是终态，吞掉就是继续调用尸体）。`BuiltinBridge` 在 `connect` 装守卫，并在唯一收口 `resolveAndCache_` 把四个边界方法包成"调用前短路 + 调用中 abort 则致命重抛"。验证：typecheck + 8 个新测试 + 全套 2020 测试通过。
+- ⏳ **RC3 剩余**（后续批次）：
+  1. 把 `getXxxPtr` 的指针失效守卫接到 RC2 的 `SparseSet::version()`（需加一个按组件取 version 的绑定 + BuiltinBridge 复核）。
+  2. TS `_malloc/_free` 全部进 RAII `withMalloc()` 作用域（physics/timeline/runtimeLoader/tilemap…），抛异常也不泄漏。
+  3. C++ 边界校验始终开启（不被 release 的 `ES_ASSERT` 剥离）——目前生成的 embind 包装已有 `valid(entity)` 守卫，需审计补齐其余入口。
+  4. 各子系统桥接（physics/spine/tilemap/timeline）调用前接 `throwIfModuleAborted`。
+
+### RC5 — 未开始
+渲染单一路径 + GfxDevice 唯一入口 + u16→u32 + 统一 WasmBridge + 全 per-App。最大的一块，建议拆多批推进。

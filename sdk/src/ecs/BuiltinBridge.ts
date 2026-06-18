@@ -8,6 +8,7 @@ import type { BuiltinComponentDef } from '../component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { validateComponentData, formatValidationErrors } from '../validation';
 import { handleWasmError } from '../wasmError';
+import { installAbortGuard, throwIfModuleAborted, isModuleAborted, WasmModuleAborted } from '../moduleHealth';
 import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';
 import { PTR_LAYOUTS } from '../ptrLayouts.generated';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
@@ -324,6 +325,12 @@ export class BuiltinBridge {
         this.builtinMethodCache_.clear();
         this.builtinEntitySets_.clear();
 
+        // Install the terminal-abort guard so a C++ abort flips the module-dead
+        // flag and subsequent boundary calls short-circuit (see moduleHealth.ts).
+        if (module) {
+            installAbortGuard(module);
+        }
+
         const verification = this.verifyAgainst_(cppRegistry, module);
         // An ABI hash mismatch is ALWAYS fatal, even in non-strict mode: the
         // loaded WASM and this SDK disagree on byte layout, so any fast-path
@@ -459,11 +466,28 @@ export class BuiltinBridge {
                 `Expected: add${cppName}, get${cppName}, has${cppName}, remove${cppName}`,
             );
         }
+        // Gate every boundary call through the module-abort guard at this single
+        // chokepoint: refuse to call a dead module (pre-check), and if a call
+        // itself aborts the module, surface it as a fatal WasmModuleAborted
+        // rather than letting the corpse return undefined memory.
+        const guard = <A extends unknown[], R>(op: string, fn: (...a: A) => R): ((...a: A) => R) => {
+            return (...a: A): R => {
+                throwIfModuleAborted(this.module_, `${op}${cppName}`);
+                try {
+                    return fn(...a);
+                } catch (err) {
+                    if (isModuleAborted(this.module_)) {
+                        throw new WasmModuleAborted(`${op}${cppName}`, undefined, err);
+                    }
+                    throw err;
+                }
+            };
+        };
         const methods: BuiltinMethods = {
-            add: (addFn as (e: Entity, d: unknown) => void).bind(reg),
-            get: (getFn as (e: Entity) => unknown).bind(reg),
-            has: (hasFn as (e: Entity) => boolean).bind(reg),
-            remove: (removeFn as (e: Entity) => void).bind(reg),
+            add: guard('add', (addFn as (e: Entity, d: unknown) => void).bind(reg)),
+            get: guard('get', (getFn as (e: Entity) => unknown).bind(reg)),
+            has: guard('has', (hasFn as (e: Entity) => boolean).bind(reg)),
+            remove: guard('remove', (removeFn as (e: Entity) => void).bind(reg)),
         };
         this.builtinMethodCache_.set(cppName, methods);
         return methods;
