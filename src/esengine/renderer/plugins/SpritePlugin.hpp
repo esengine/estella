@@ -28,7 +28,7 @@ private:
         { 0.0f, 1.0f }
     };
 
-    static constexpr u16 QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };
+    static constexpr u32 QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };
 
     void emitQuad(
         TransientBufferPool& buffers, DrawList& draw_list,

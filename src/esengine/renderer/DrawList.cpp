@@ -103,8 +103,8 @@ void DrawList::execute(GfxDevice& device, StateTracker& state, TransientBufferPo
 
             device.drawElements(
                 cmd.index_count,
-                GfxDataType::UnsignedShort,
-                static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u16)));
+                GfxDataType::UnsignedInt,
+                static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)));
         }
 
         if (capture && capture->isCapturing()) {

@@ -11,7 +11,7 @@
 
 namespace esengine {
 
-static constexpr u16 QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };
+static constexpr u32 QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };
 
 void ParticlePlugin::init(RenderFrameContext& ctx) {
     batch_shader_id_ = ctx.batch_shader_id;
@@ -76,7 +76,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         u32 idxOffset = buffers.allocIndices(LayoutId::Batch, idxCount);
 
         auto* verts = reinterpret_cast<BatchVertex*>(buffers.vertexData(LayoutId::Batch) + vertByteOffset);
-        u16 baseVertex = static_cast<u16>(vertByteOffset / sizeof(BatchVertex));
+        u32 baseVertex = static_cast<u32>(vertByteOffset / sizeof(BatchVertex));
 
         u32 pi = 0;
         state->pool.forEachAlive([&](const particle::Particle& p) {
@@ -137,9 +137,9 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             verts[vi + 3].texCoord = { u0, v0 };
 
             u32 ii = pi * 6;
-            u16 bv = baseVertex + static_cast<u16>(vi);
+            u32 bv = baseVertex + static_cast<u32>(vi);
             // Patch base vertex into indices
-            u16 patched[6];
+            u32 patched[6];
             for (u32 q = 0; q < 6; ++q) {
                 patched[q] = bv + QUAD_INDICES[q];
             }
