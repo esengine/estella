@@ -17,25 +17,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(ES_DEBUG)
 endif()
 
-# Platform detection
-if(WIN32)
-    add_compile_definitions(ES_PLATFORM_WINDOWS)
-elseif(APPLE)
-    add_compile_definitions(ES_PLATFORM_MACOS)
-elseif(UNIX)
-    add_compile_definitions(ES_PLATFORM_LINUX)
-endif()
-
-# Native platform detection (for scripting support)
-if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
-    add_compile_definitions(ES_PLATFORM_NATIVE)
-endif()
-
-# Scripting support (Native platform only)
-if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
-    add_compile_definitions(ES_SCRIPTING_ENABLED)
-endif()
-
 # Export compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -106,9 +87,4 @@ message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  Web Build: ${ES_BUILD_WEB}")
 message(STATUS "  WxGame Build: ${ES_BUILD_WXGAME}")
 message(STATUS "  Build Tests: ${ES_BUILD_TESTS}")
-if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
-    message(STATUS "  Scripting Enabled: YES (QuickJS)")
-else()
-    message(STATUS "  Scripting Enabled: NO (Web platform)")
-endif()
 message(STATUS "  Box2D Physics: ${ES_ENABLE_BOX2D}")

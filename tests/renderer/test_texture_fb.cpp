@@ -13,15 +13,6 @@
 
 using namespace esengine;
 
-// Texture::createFromFile (native-only) references stb's file loader, which the
-// engine's stb impl compiles out (STBI_NO_STDIO). We never call createFromFile in
-// this harness, so stub the symbols to satisfy the linker without the decoder.
-extern "C" {
-    unsigned char* stbi_load(char const*, int*, int*, int*, int) { return nullptr; }
-    void stbi_image_free(void*) {}
-    char const* stbi_failure_reason() { return "stub"; }
-}
-
 static int g_failures = 0;
 #define CHECK(cond, msg)                                                        \
     do {                                                                        \

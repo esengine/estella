@@ -302,20 +302,14 @@ if(ES_ENABLE_SPINE)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_SPINE)
 endif()
 
-if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-    target_compile_options(esengine PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
-    target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
-    if(ES_BUILD_WXGAME)
-        target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
-    endif()
-else()
-    find_package(OpenGL REQUIRED)
-    target_compile_definitions(esengine PUBLIC ES_PLATFORM_NATIVE ES_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL nlohmann_json)
-    target_include_directories(esengine PUBLIC ${CMAKE_SOURCE_DIR}/third_party/glad/include)
-    if(WIN32)
-        target_compile_definitions(esengine PUBLIC ES_PLATFORM_WINDOWS)
-    endif()
+# ESEngine is a web-only engine: it targets Emscripten (WebGL2 / GLES3) and ships
+# as wasm for web, WeChat MiniGame, and the Tauri desktop shell. There is no native
+# GPU/runtime build. (The header-only / MockGfxDevice unit tests under tests/ still
+# compile on any C++20 toolchain — they don't link this target.)
+target_compile_options(esengine PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
+if(ES_BUILD_WXGAME)
+    target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
 endif()
 
 esengine_set_strict_warnings(esengine)
