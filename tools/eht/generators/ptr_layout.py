@@ -45,23 +45,48 @@ class PtrLayoutGenerator:
         self.layouts: List[Dict] = []
         self._compute()
 
-    def _get_size(self, cpp_type: str) -> Optional[int]:
+    # Sizes/alignments of space-occupying field types that are NOT exposed to
+    # JS via the pointer path but still occupy bytes in the struct, so the
+    # offset cursor must advance past them. Values are for the wasm32 target
+    # (emscripten libc++), verified against the compiler. A field whose space
+    # is not accounted for shifts every later field's offset — the exact bug
+    # the generated static_asserts in WebBindings.generated.cpp now catch.
+    NONPTR_SIZE_ALIGN = {
+        'std::string': (12, 4),
+        'glm::mat4': (64, 4),
+    }
+
+    ENUM_UNDERLYING_SIZE = {
+        'u8': 1, 'i8': 1, 'bool': 1,
+        'u16': 2, 'i16': 2,
+        'u32': 4, 'i32': 4, 'int': 4, 'unsigned': 4,
+        'u64': 8, 'i64': 8,
+    }
+
+    def _enum_size_align(self, t: str):
+        for e in self.types.enums:
+            if e.name == t or (e.namespace and f'{e.namespace}::{e.name}' == t):
+                sz = self.ENUM_UNDERLYING_SIZE.get(e.underlying_type, 4)
+                return (sz, sz)
+        return (1, 1)
+
+    def _field_size_align(self, cpp_type: str):
+        """Return (size, align) for ANY field type so the offset cursor can
+        advance past it, or None if the size is genuinely unknown."""
         t = self.types.clean_type(cpp_type)
         if t in self.TYPE_SIZES:
-            return self.TYPE_SIZES[t]
+            return (self.TYPE_SIZES[t], self.TYPE_ALIGNS[t])
         if self.types.is_handle(t):
-            return 4
+            return (4, 4)
         if self.types.is_enum(t):
-            return 1
+            return self._enum_size_align(t)
+        if t in self.NONPTR_SIZE_ALIGN:
+            return self.NONPTR_SIZE_ALIGN[t]
+        if t.startswith('std::function'):
+            return (24, 8)
+        if t.startswith('std::vector') or t in self.types.VECTOR_TYPES:
+            return (12, 4)
         return None
-
-    def _get_align(self, cpp_type: str) -> int:
-        t = self.types.clean_type(cpp_type)
-        if t in self.TYPE_ALIGNS:
-            return self.TYPE_ALIGNS[t]
-        if self.types.is_handle(t) or self.types.is_enum(t):
-            return 4 if self.types.is_handle(t) else 1
-        return 4
 
     def _get_ptr_type(self, cpp_type: str, prop: Property) -> Optional[str]:
         t = self.types.clean_type(cpp_type)
@@ -76,26 +101,31 @@ class PtrLayoutGenerator:
         return None
 
     def _compute(self):
+        import sys
         for comp in self.components:
             fields = []
             offset = 0
             for prop in comp.properties:
-                size = self._get_size(prop.cpp_type)
-                if size is None:
-                    continue
-                ptr_type = self._get_ptr_type(prop.cpp_type, prop)
-                if ptr_type is None:
-                    continue
-
-                align = self._get_align(prop.cpp_type)
+                sa = self._field_size_align(prop.cpp_type)
+                if sa is None:
+                    # Unknown size — every later offset would be unreliable, so
+                    # stop emitting accessors for this component rather than ship
+                    # wrong offsets. (The static_asserts would catch it anyway.)
+                    print(f"  WARNING: {comp.name}.{prop.name}: cannot size type "
+                          f"'{prop.cpp_type}' for pointer layout; truncating accessors",
+                          file=sys.stderr)
+                    break
+                size, align = sa
                 if offset % align != 0:
                     offset += align - (offset % align)
 
-                fields.append({
-                    'name': prop.name,
-                    'type': ptr_type,
-                    'offset': offset,
-                })
+                ptr_type = self._get_ptr_type(prop.cpp_type, prop)
+                if ptr_type is not None:
+                    fields.append({
+                        'name': prop.name,
+                        'type': ptr_type,
+                        'offset': offset,
+                    })
                 offset += size
 
             if fields:

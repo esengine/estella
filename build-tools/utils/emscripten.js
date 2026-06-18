@@ -39,13 +39,32 @@ export async function checkEmscripten() {
     }
 }
 
-export async function checkPython() {
-    try {
-        await runCommand('python3', ['--version'], { silent: true });
-        return true;
-    } catch {
-        return false;
+let cachedPython = null;
+
+/**
+ * Resolve a Python 3 interpreter. Prefers `python3`, falls back to `python`
+ * (Windows ships Python as `python`, not `python3`). Verifies the candidate
+ * actually reports Python 3 so a Windows Store alias stub doesn't pass.
+ * Returns the command name, or null if none found. Cached after first call.
+ */
+export async function resolvePython() {
+    if (cachedPython) return cachedPython;
+    for (const candidate of ['python3', 'python']) {
+        try {
+            const r = await runCommand(candidate, ['--version'], { silent: true });
+            if (/Python 3\./.test(`${r.stdout}${r.stderr}`)) {
+                cachedPython = candidate;
+                return candidate;
+            }
+        } catch {
+            // try next candidate
+        }
     }
+    return null;
+}
+
+export async function checkPython() {
+    return (await resolvePython()) !== null;
 }
 
 export async function checkEnvironment() {
