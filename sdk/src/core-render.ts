@@ -37,7 +37,7 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 // Camera
 // =============================================================================
 
-export { CameraUtils } from './camera/Camera';
+export { CameraView, CameraViewApi } from './camera/Camera';
 
 // =============================================================================
 // Draw API

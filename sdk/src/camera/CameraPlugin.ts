@@ -33,11 +33,9 @@ interface CameraInfo {
     cameraY: number;
 }
 
-const cameraInfoPool_: CameraInfo[] = [];
-
-function acquireCameraInfo(index: number): CameraInfo {
-    if (index < cameraInfoPool_.length) {
-        return cameraInfoPool_[index];
+function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
+    if (index < pool.length) {
+        return pool[index];
     }
     const info: CameraInfo = {
         entity: 0,
@@ -50,7 +48,7 @@ function acquireCameraInfo(index: number): CameraInfo {
         cameraX: 0,
         cameraY: 0,
     };
-    cameraInfoPool_.push(info);
+    pool.push(info);
     return info;
 }
 
@@ -98,6 +96,7 @@ export function collectCameras(
     height: number,
     world?: World,
     activeScenes?: Set<string>,
+    pool: CameraInfo[] = [],
 ): CameraInfo[] {
     if (width === 0 || height === 0) return [];
     const cameraEntities = module.registry_getCameraEntities(registry);
@@ -148,7 +147,7 @@ export function collectCameras(
         }
 
         const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
-        const cam = acquireCameraInfo(cameras.length);
+        const cam = acquireCameraInfo(pool, cameras.length);
         cam.entity = e;
         cam.viewProjection.set(multiply(projection, view));
         cam.viewportRect.x = camera.viewport.x;
@@ -179,9 +178,10 @@ function syncUICameraInfo(
     width: number,
     height: number,
     cameras?: CameraInfo[],
+    pool?: CameraInfo[],
 ): void {
     if (!cameras) {
-        cameras = collectCameras(module, cppRegistry, width, height);
+        cameras = collectCameras(module, cppRegistry, width, height, undefined, undefined, pool);
     }
     const uiCam = app.getResource(UICameraInfo);
     if (cameras.length > 0) {
@@ -218,6 +218,9 @@ export function cameraPlugin(
             const cppRegistry = app.world.getCppRegistry()!;
             const pipeline = app.pipeline!;
             const startTime = platformNow();
+            // Per-App scratch pool for collectCameras — one per plugin instance,
+            // so two Apps running at once never clobber each other's CameraInfo.
+            const cameraInfoPool: CameraInfo[] = [];
 
             const viewport = getViewportSize ?? (() => {
                 const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
@@ -233,7 +236,7 @@ export function cameraPlugin(
                 _params: [],
                 _fn: () => {
                     const { width, height } = viewport();
-                    syncUICameraInfo(app, module, cppRegistry, width, height);
+                    syncUICameraInfo(app, module, cppRegistry, width, height, undefined, cameraInfoPool);
                 },
             };
 
@@ -264,7 +267,7 @@ export function cameraPlugin(
                     }
 
                     pipeline.setActiveScenes(activeScenes ?? null);
-                    const cameras = collectCameras(module, cppRegistry, width, height, app.world, activeScenes);
+                    const cameras = collectCameras(module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool);
 
                     syncUICameraInfo(app, module, cppRegistry, width, height, cameras);
 

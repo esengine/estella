@@ -7,7 +7,7 @@ import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
-import { initCameraAPI, shutdownCameraAPI } from './camera/Camera';
+import { CameraView, CameraViewApi } from './camera/Camera';
 
 export const corePlugin: Plugin = {
     name: 'engineCore',
@@ -21,12 +21,11 @@ export const corePlugin: Plugin = {
         initPostProcessAPI(module);
         initRendererAPI(module);
         initGLDebugAPI(module);
-        initCameraAPI(app);
+        app.insertResource(CameraView, new CameraViewApi(app));
     },
 
     cleanup() {
         clearDrawCallbacks();
-        shutdownCameraAPI();
         shutdownGLDebugAPI();
         shutdownRendererAPI();
         shutdownPostProcessAPI();
