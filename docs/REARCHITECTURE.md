@@ -158,8 +158,12 @@
 - **统一 WasmBridge 基类**：SDK 仍只有 `BuiltinBridge`（`sdk/src/ecs/BuiltinBridge.ts:299`），病灶所述"五套桥接写法"尚未收敛到单一基类。
 - **全 per-App 状态**：Camera/Timeline/SpriteAnimator/postprocess 等进程级全局是否已迁 per-App 资源，待审计确认。
 
-### 地基收口（Foundation Consolidation）— 📋 已立项，RC6 前置（设计文档）
-见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）、F3 全 per-App 资源、F1 平台后端接缝（**保留 native 但隔离**，已拍板）、F4 重写 `ARCHITECTURE.md`。执行先于 RC6。
+### 地基收口（Foundation Consolidation）— 🟡 进行中，RC6 前置（设计文档）
+见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：
+- **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d`，五套桥接全部收敛，abort 守卫全子系统覆盖，2052 测试通过）。
+- F3 全 per-App 资源、F1 平台后端接缝（**保留 native 但隔离**，已拍板）、F4 重写 `ARCHITECTURE.md` — ⏳ 待做。
+
+执行先于 RC6。
 
 ### RC6 资产管线 — 📋 已立项（设计文档）
 见 [`REARCH_RC6_ASSETS.md`](./REARCH_RC6_ASSETS.md)：面向微信/移动端的资产管线根治——GPU 压缩纹理（keystone）、内容寻址身份、显存预算 + LRU 驱逐、运行时分包/流式 + 微信分包映射。属"能力/平台错配"根治，区别于 RC1–RC5 的"正确性根因"。

@@ -52,6 +52,15 @@ RC1–RC5 坍缩了五个正确性根因，但留下四处"半成品 / 未统一
 
 > 这是 keystone：它既是 RC5 SDK 尾巴的收口，也是 RC3 abort 覆盖的补全，还是 F3 的载体（基类持 per-App 模块引用）。
 
+### 实现 — ✅ 已落地（commit `ac390f7d`，分支 `rearch/f2-wasm-bridge`）
+- **`WasmBridge<M>`（`sdk/src/WasmBridge.ts`）**：`connect(module, healthModule?)` 装 abort 守卫并返回**同型守卫代理**——函数调用经 `throwIfModuleAborted` 前置 + 调用中 abort 则致命重抛；`HEAP*`、`_malloc/_free` 透传（让 `withScratch` 的 finally 在 abort 后仍能释放，不掩盖原错）。守卫包装按属性惰性缓存，稳态开销仅一次 proxy get + Map 查找。`healthModule` 参数支持"调用面与 abort 权威模块分离"（spine side module：守 `api`、health=`raw`）。
+- **`CoreApiBridge`（`sdk/src/CoreApiBridge.ts`）**：label 走构造参数的共享子类，用于主模块各 facet——renderer/draw/material/geometry/postprocess/glDebug + tilemap + timeline + uiHelpers。
+- **`PhysicsBridge` / `SpineCoreBridge` / `SpineModuleBridge`**：physics + spine 两个 surface（主模块 `spine_*` 与版本化 side module）。
+- **迁移方式**：每个子系统在其 init/connect 接缝处把存储的 module 引用替换为 `bridge.module`，**数百个调用点零改动**继承守卫。
+- **覆盖**：abort 守卫从"仅主模块经 BuiltinBridge"扩展到 physics / spine / tilemap / timeline / ui / 六个 core facet **全覆盖**——补全 RC3 空洞。
+- **验证**：29 个新测试（wasm-bridge 12 / spine-bridge 7 / core-bridge 4 / timeline-tilemap-ui 6）；typecheck 通过；全量 SDK 套件 **2052 通过 / 0 失败**。
+- **待闭环**：`ResourceManager`（经 `module.getResourceManager()` 的 embind 对象，非文档点名的 5 套之一）尚未经守卫——作为小后续。`Camera` 的 module 触点归 F3。
+
 ---
 
 ## F3：半 per-App → 全子系统 per-App 资源
