@@ -12,7 +12,7 @@ import type { AssetFieldType } from './scene';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'f5d18743d00de675';
+export const ABI_LAYOUT_HASH = '579120e76e895e7c';
 
 export interface AssetFieldMeta {
     field: string;

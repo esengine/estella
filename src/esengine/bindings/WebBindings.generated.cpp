@@ -1800,13 +1800,13 @@ EMSCRIPTEN_BINDINGS(esengine_reflection) {
 // compiler layout matches. A failure here means the TS pointer accessors would
 // read the wrong bytes -- fix the struct or regenerate EHT. DO NOT EDIT.
 
-static_assert(offsetof(esengine::ecs::BitmapText, color) == 0, "ABI offset drift: esengine::ecs::BitmapText.color (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::BitmapText, fontSize) == 16, "ABI offset drift: esengine::ecs::BitmapText.fontSize (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::BitmapText, align) == 20, "ABI offset drift: esengine::ecs::BitmapText.align (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::BitmapText, spacing) == 24, "ABI offset drift: esengine::ecs::BitmapText.spacing (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::BitmapText, layer) == 28, "ABI offset drift: esengine::ecs::BitmapText.layer (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::BitmapText, font) == 32, "ABI offset drift: esengine::ecs::BitmapText.font (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::BitmapText, enabled) == 36, "ABI offset drift: esengine::ecs::BitmapText.enabled (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::BitmapText, color) == 12, "ABI offset drift: esengine::ecs::BitmapText.color (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::BitmapText, fontSize) == 28, "ABI offset drift: esengine::ecs::BitmapText.fontSize (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::BitmapText, align) == 32, "ABI offset drift: esengine::ecs::BitmapText.align (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::BitmapText, spacing) == 36, "ABI offset drift: esengine::ecs::BitmapText.spacing (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::BitmapText, layer) == 40, "ABI offset drift: esengine::ecs::BitmapText.layer (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::BitmapText, font) == 44, "ABI offset drift: esengine::ecs::BitmapText.font (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::BitmapText, enabled) == 48, "ABI offset drift: esengine::ecs::BitmapText.enabled (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::Camera, projectionType) == 0, "ABI offset drift: esengine::ecs::Camera.projectionType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Camera, fov) == 4, "ABI offset drift: esengine::ecs::Camera.fov (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Camera, orthoSize) == 8, "ABI offset drift: esengine::ecs::Camera.orthoSize (EHT expected 8)");
@@ -1870,12 +1870,12 @@ static_assert(offsetof(esengine::ecs::FlexItem, flexShrink) == 4, "ABI offset dr
 static_assert(offsetof(esengine::ecs::FlexItem, flexBasis) == 8, "ABI offset drift: esengine::ecs::FlexItem.flexBasis (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::FlexItem, order) == 12, "ABI offset drift: esengine::ecs::FlexItem.order (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::FlexItem, alignSelf) == 16, "ABI offset drift: esengine::ecs::FlexItem.alignSelf (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::FlexItem, minWidth) == 20, "ABI offset drift: esengine::ecs::FlexItem.minWidth (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::FlexItem, minHeight) == 24, "ABI offset drift: esengine::ecs::FlexItem.minHeight (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::FlexItem, maxWidth) == 28, "ABI offset drift: esengine::ecs::FlexItem.maxWidth (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::FlexItem, maxHeight) == 32, "ABI offset drift: esengine::ecs::FlexItem.maxHeight (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::FlexItem, widthPercent) == 36, "ABI offset drift: esengine::ecs::FlexItem.widthPercent (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::FlexItem, heightPercent) == 40, "ABI offset drift: esengine::ecs::FlexItem.heightPercent (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::FlexItem, minWidth) == 36, "ABI offset drift: esengine::ecs::FlexItem.minWidth (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::FlexItem, minHeight) == 40, "ABI offset drift: esengine::ecs::FlexItem.minHeight (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::FlexItem, maxWidth) == 44, "ABI offset drift: esengine::ecs::FlexItem.maxWidth (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::FlexItem, maxHeight) == 48, "ABI offset drift: esengine::ecs::FlexItem.maxHeight (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::FlexItem, widthPercent) == 52, "ABI offset drift: esengine::ecs::FlexItem.widthPercent (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::FlexItem, heightPercent) == 56, "ABI offset drift: esengine::ecs::FlexItem.heightPercent (EHT expected 56)");
 static_assert(offsetof(esengine::ecs::GridLayout, direction) == 0, "ABI offset drift: esengine::ecs::GridLayout.direction (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::GridLayout, crossAxisCount) == 4, "ABI offset drift: esengine::ecs::GridLayout.crossAxisCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::GridLayout, itemSize) == 8, "ABI offset drift: esengine::ecs::GridLayout.itemSize (EHT expected 8)");
@@ -1937,16 +1937,16 @@ static_assert(offsetof(esengine::ecs::ShapeRenderer, size) == 20, "ABI offset dr
 static_assert(offsetof(esengine::ecs::ShapeRenderer, cornerRadius) == 28, "ABI offset drift: esengine::ecs::ShapeRenderer.cornerRadius (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, layer) == 32, "ABI offset drift: esengine::ecs::ShapeRenderer.layer (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, enabled) == 36, "ABI offset drift: esengine::ecs::ShapeRenderer.enabled (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, timeScale) == 0, "ABI offset drift: esengine::ecs::SpineAnimation.timeScale (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, loop) == 4, "ABI offset drift: esengine::ecs::SpineAnimation.loop (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, playing) == 5, "ABI offset drift: esengine::ecs::SpineAnimation.playing (EHT expected 5)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, flipX) == 6, "ABI offset drift: esengine::ecs::SpineAnimation.flipX (EHT expected 6)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, flipY) == 7, "ABI offset drift: esengine::ecs::SpineAnimation.flipY (EHT expected 7)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, color) == 8, "ABI offset drift: esengine::ecs::SpineAnimation.color (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, layer) == 24, "ABI offset drift: esengine::ecs::SpineAnimation.layer (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, skeletonScale) == 28, "ABI offset drift: esengine::ecs::SpineAnimation.skeletonScale (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, material) == 32, "ABI offset drift: esengine::ecs::SpineAnimation.material (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::SpineAnimation, enabled) == 36, "ABI offset drift: esengine::ecs::SpineAnimation.enabled (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, timeScale) == 48, "ABI offset drift: esengine::ecs::SpineAnimation.timeScale (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, loop) == 52, "ABI offset drift: esengine::ecs::SpineAnimation.loop (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, playing) == 53, "ABI offset drift: esengine::ecs::SpineAnimation.playing (EHT expected 53)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, flipX) == 54, "ABI offset drift: esengine::ecs::SpineAnimation.flipX (EHT expected 54)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, flipY) == 55, "ABI offset drift: esengine::ecs::SpineAnimation.flipY (EHT expected 55)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, color) == 56, "ABI offset drift: esengine::ecs::SpineAnimation.color (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, layer) == 72, "ABI offset drift: esengine::ecs::SpineAnimation.layer (EHT expected 72)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, skeletonScale) == 76, "ABI offset drift: esengine::ecs::SpineAnimation.skeletonScale (EHT expected 76)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, material) == 80, "ABI offset drift: esengine::ecs::SpineAnimation.material (EHT expected 80)");
+static_assert(offsetof(esengine::ecs::SpineAnimation, enabled) == 84, "ABI offset drift: esengine::ecs::SpineAnimation.enabled (EHT expected 84)");
 static_assert(offsetof(esengine::ecs::Sprite, texture) == 0, "ABI offset drift: esengine::ecs::Sprite.texture (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Sprite, color) == 4, "ABI offset drift: esengine::ecs::Sprite.color (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Sprite, size) == 20, "ABI offset drift: esengine::ecs::Sprite.size (EHT expected 20)");
@@ -1960,32 +1960,6 @@ static_assert(offsetof(esengine::ecs::Sprite, tileSize) == 60, "ABI offset drift
 static_assert(offsetof(esengine::ecs::Sprite, tileSpacing) == 68, "ABI offset drift: esengine::ecs::Sprite.tileSpacing (EHT expected 68)");
 static_assert(offsetof(esengine::ecs::Sprite, material) == 76, "ABI offset drift: esengine::ecs::Sprite.material (EHT expected 76)");
 static_assert(offsetof(esengine::ecs::Sprite, enabled) == 80, "ABI offset drift: esengine::ecs::Sprite.enabled (EHT expected 80)");
-static_assert(offsetof(esengine::ecs::StateVisuals, transitionFlags) == 0, "ABI offset drift: esengine::ecs::StateVisuals.transitionFlags (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::StateVisuals, fadeDuration) == 4, "ABI offset drift: esengine::ecs::StateVisuals.fadeDuration (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot0Color) == 8, "ABI offset drift: esengine::ecs::StateVisuals.slot0Color (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot0Sprite) == 24, "ABI offset drift: esengine::ecs::StateVisuals.slot0Sprite (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot0Scale) == 28, "ABI offset drift: esengine::ecs::StateVisuals.slot0Scale (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot1Color) == 32, "ABI offset drift: esengine::ecs::StateVisuals.slot1Color (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot1Sprite) == 48, "ABI offset drift: esengine::ecs::StateVisuals.slot1Sprite (EHT expected 48)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot1Scale) == 52, "ABI offset drift: esengine::ecs::StateVisuals.slot1Scale (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot2Color) == 56, "ABI offset drift: esengine::ecs::StateVisuals.slot2Color (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot2Sprite) == 72, "ABI offset drift: esengine::ecs::StateVisuals.slot2Sprite (EHT expected 72)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot2Scale) == 76, "ABI offset drift: esengine::ecs::StateVisuals.slot2Scale (EHT expected 76)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot3Color) == 80, "ABI offset drift: esengine::ecs::StateVisuals.slot3Color (EHT expected 80)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot3Sprite) == 96, "ABI offset drift: esengine::ecs::StateVisuals.slot3Sprite (EHT expected 96)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot3Scale) == 100, "ABI offset drift: esengine::ecs::StateVisuals.slot3Scale (EHT expected 100)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot4Color) == 104, "ABI offset drift: esengine::ecs::StateVisuals.slot4Color (EHT expected 104)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot4Sprite) == 120, "ABI offset drift: esengine::ecs::StateVisuals.slot4Sprite (EHT expected 120)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot4Scale) == 124, "ABI offset drift: esengine::ecs::StateVisuals.slot4Scale (EHT expected 124)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot5Color) == 128, "ABI offset drift: esengine::ecs::StateVisuals.slot5Color (EHT expected 128)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot5Sprite) == 144, "ABI offset drift: esengine::ecs::StateVisuals.slot5Sprite (EHT expected 144)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot5Scale) == 148, "ABI offset drift: esengine::ecs::StateVisuals.slot5Scale (EHT expected 148)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot6Color) == 152, "ABI offset drift: esengine::ecs::StateVisuals.slot6Color (EHT expected 152)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot6Sprite) == 168, "ABI offset drift: esengine::ecs::StateVisuals.slot6Sprite (EHT expected 168)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot6Scale) == 172, "ABI offset drift: esengine::ecs::StateVisuals.slot6Scale (EHT expected 172)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot7Color) == 176, "ABI offset drift: esengine::ecs::StateVisuals.slot7Color (EHT expected 176)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot7Sprite) == 192, "ABI offset drift: esengine::ecs::StateVisuals.slot7Sprite (EHT expected 192)");
-static_assert(offsetof(esengine::ecs::StateVisuals, slot7Scale) == 196, "ABI offset drift: esengine::ecs::StateVisuals.slot7Scale (EHT expected 196)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, cellSize) == 0, "ABI offset drift: esengine::ecs::TilemapLayer.cellSize (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, originOffset) == 8, "ABI offset drift: esengine::ecs::TilemapLayer.originOffset (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, tileset) == 16, "ABI offset drift: esengine::ecs::TilemapLayer.tileset (EHT expected 16)");
@@ -2030,7 +2004,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "f5d18743d00de675";
+static const char* kEsAbiLayoutHash = "579120e76e895e7c";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

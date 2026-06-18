@@ -2,7 +2,7 @@ import path from 'path';
 import { glob } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
-import { runCommand } from '../utils/emscripten.js';
+import { runCommand, resolvePython } from '../utils/emscripten.js';
 import { hashFiles, HashCache } from '../utils/hash.js';
 
 export async function runEht(options = {}) {
@@ -78,7 +78,8 @@ async function executeEht(rootDir, script) {
     const outputDir = path.join(rootDir, config.eht.outputDir);
     const tsOutputDir = path.join(rootDir, config.eht.tsOutputDir);
 
-    await runCommand('python3', [
+    const python = await resolvePython() ?? 'python3';
+    await runCommand(python, [
         script,
         '--input', path.join(rootDir, config.eht.inputDir),
         '--output', outputDir,
