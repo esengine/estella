@@ -160,8 +160,9 @@
 
 ### 地基收口（Foundation Consolidation）— 🟡 进行中，RC6 前置（设计文档）
 见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：
-- **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d`，五套桥接全部收敛，abort 守卫全子系统覆盖，2052 测试通过）。
-- F3 全 per-App 资源、F1 平台后端接缝（**保留 native 但隔离**，已拍板）、F4 重写 `ARCHITECTURE.md` — ⏳ 待做。
+- **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d` + RM 闭环 `41bea17a`，五套桥接全部收敛，abort 守卫全子系统覆盖）。
+- **F3 全 per-App 资源 — ✅ 已落地**（分支 `rearch/f3-per-app`）：Camera（`CameraView`）、Timeline（`Timeline`）、PostProcess（拆 god-object + 管线注入 + 删 sync.ts）、SpriteAnimator（`SpriteAnimation`）全部 per-App;模块绑定单例在单模块运行时下无需改（B4 关闭）。
+- F1 平台后端接缝（**保留 native 但隔离**，已拍板）、F4 重写 `ARCHITECTURE.md` — ⏳ 待做。
 
 执行先于 RC6。
 

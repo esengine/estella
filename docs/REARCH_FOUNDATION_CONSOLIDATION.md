@@ -92,7 +92,9 @@ RC1–RC5 坍缩了五个正确性根因，但留下四处"半成品 / 未统一
 2. **B2a Timeline** — ✅ 已落地（`06e0268e`）：`Timeline` 资源，消除全局 handles 串味。
 3. **B2b PostProcess** — ✅ 已落地（`1e27c712`/`a1f421b0`/`90b8cfdc`/`60937741`）：拆 god-object（Stack 数据 / Api 类 / effects 工厂）→ per-App `defineResource` + **管线依赖注入**（后处理成为可插拔渲染阶段，pipeline 不再硬依赖全局）+ 删 `sync.ts` 重复路径。两个 App 后处理状态完全隔离。
 4. **B3 SpriteAnimator** — ✅ 已落地（`c983106d`/`635d80a1`）：clip 注册表 + 帧事件监听器收进 per-App `SpriteAnimation` 资源；clip 注册按 app 路由（资产加载经 `ctx.getSpriteAnimation()` 惰性解析，仿 `getAudio`;运行时加载经 `app.getResource`）；`gotoFrame/gotoLabel` 转方法。两个 App 不再共享 clips/监听器。
-5. **B4 模块绑定单例** — ⏳ 仅当"多 App 独立模块"成立（见子岔路）；否则降级为 teardown 重置。
+5. **B4 模块绑定单例** — ✅ 关闭（已拍板：**单模块运行时**）。模块绑定单例（geometry/draw/material/renderer/glDebug/postprocess-module/tilemap/uiHelpers/timeline-module）持有的是 wasm 模块；`corePlugin.build` 每次建 App 都重新 `initXxxAPI(module)`，单模块运行时（WeChat 一游戏一模块；编辑器 F5 顺序销毁重建）下本就正确。仅"多 App 同时各带独立模块"才需 per-App，该场景不适用，故无需改动。
+
+> **F3 完成**：游戏状态子系统（Camera / Timeline / PostProcess / SpriteAnimator）全部 per-App 隔离；模块绑定单例在单模块运行时下正确，无需改。
 
 ### B2b PostProcess —— 拆 god-object，后处理成为可插拔渲染阶段
 **病灶**：`PostProcess`（`postprocess/PostProcessAPI.ts`）是四合一全局单例——混 ① wasm 调用 ② 状态（`stacks`/`cameraBindings`/`screenStack`）③ 着色器工厂 ④ 管线编排（`_applyForCamera`/`_applyScreenStack` 等）。叠加三处结构病：`renderPipeline.ts:9` 反向 `import` 全局并在热路径调 `PostProcess._*`（管线硬依赖全局）；状态散落 4+ 份全局（`activeRegistry`、`screenStack`、`sync.ts` 与 `volumeSystem.ts` 各一套 `volumeStacks/volumeShaders`）；`PostProcessStack` 构造即自注册全局 `activeRegistry`（`:56`）。`sync.ts` 与 `volumeSystem.ts` 是两套重复的 volume→stack。
