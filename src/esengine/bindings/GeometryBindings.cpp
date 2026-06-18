@@ -81,7 +81,7 @@ void geometry_init(u32 handle, uintptr_t verticesPtr, u32 vertexCount,
         attrs.emplace_back(static_cast<ShaderDataType>(layoutData[i]), ATTR_NAMES[i]);
     }
 
-    geom->init(vertices, vertexCount, VertexLayout(std::move(attrs)), dynamic);
+    geom->init(ctx().require<GfxDevice>(), vertices, vertexCount, VertexLayout(std::move(attrs)), dynamic);
 }
 
 void geometry_setIndices16(u32 handle, uintptr_t indicesPtr, u32 indexCount) {

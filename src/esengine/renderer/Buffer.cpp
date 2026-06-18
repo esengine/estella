@@ -1,8 +1,8 @@
 /**
  * @file    Buffer.cpp
- * @brief   GPU buffer implementations for vertex and index data
- * @details Implements VertexBuffer, IndexBuffer, and VertexArray classes
- *          for OpenGL/WebGL buffer management.
+ * @brief   GPU buffer implementations (device-backed)
+ * @details VertexBuffer, IndexBuffer and VertexArray delegate every GPU
+ *          operation to GfxDevice. This file contains no GL calls.
  *
  * @author  ESEngine Team
  * @date    2025
@@ -12,8 +12,8 @@
  */
 
 #include "Buffer.hpp"
+#include "GfxDevice.hpp"
 #include "../core/Log.hpp"
-#include "OpenGLHeaders.hpp"
 
 namespace esengine {
 
@@ -49,30 +49,46 @@ u32 shaderDataTypeComponentCount(ShaderDataType type) {
     }
 }
 
+namespace {
+
+GfxDataType toGfxDataType(ShaderDataType type) {
+    switch (type) {
+    case ShaderDataType::Int:
+    case ShaderDataType::Int2:
+    case ShaderDataType::Int3:
+    case ShaderDataType::Int4:
+        return GfxDataType::Int;
+    case ShaderDataType::Bool:
+    case ShaderDataType::UByte4N:
+        return GfxDataType::UnsignedByte;
+    default:
+        return GfxDataType::Float;
+    }
+}
+
+}  // namespace
+
 // ========================================
 // VertexBuffer
 // ========================================
 
 VertexBuffer::~VertexBuffer() {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    if (bufferId_ != 0) {
-        glDeleteBuffers(1, &bufferId_);
+    if (bufferId_ != 0 && device_) {
+        device_->deleteBuffer(bufferId_);
     }
-#endif
 }
 
 VertexBuffer::VertexBuffer(VertexBuffer&& other) noexcept
-    : bufferId_(other.bufferId_), layout_(std::move(other.layout_)) {
+    : device_(other.device_), bufferId_(other.bufferId_), layout_(std::move(other.layout_)) {
     other.bufferId_ = 0;
 }
 
 VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
     if (this != &other) {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-        if (bufferId_ != 0) {
-            glDeleteBuffers(1, &bufferId_);
+        if (bufferId_ != 0 && device_) {
+            device_->deleteBuffer(bufferId_);
         }
-#endif
+        device_ = other.device_;
         bufferId_ = other.bufferId_;
         layout_ = std::move(other.layout_);
         other.bufferId_ = 0;
@@ -80,62 +96,42 @@ VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
     return *this;
 }
 
-Unique<VertexBuffer> VertexBuffer::createRaw(const void* data, u32 sizeBytes) {
+Unique<VertexBuffer> VertexBuffer::createRaw(GfxDevice& device, const void* data, u32 sizeBytes) {
     auto buffer = makeUnique<VertexBuffer>();
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glGenBuffers(1, &buffer->bufferId_);
-    glBindBuffer(GL_ARRAY_BUFFER, buffer->bufferId_);
-    glBufferData(GL_ARRAY_BUFFER, sizeBytes, data, GL_STATIC_DRAW);
-#else
-    (void)data;
-    (void)sizeBytes;
-#endif
+    buffer->device_ = &device;
+    buffer->bufferId_ = device.createBuffer();
+    device.bindVertexBuffer(buffer->bufferId_);
+    device.bufferData(GfxBufferTarget::Vertex, data, sizeBytes, false);
     return buffer;
 }
 
-Unique<VertexBuffer> VertexBuffer::create(u32 size) {
+Unique<VertexBuffer> VertexBuffer::create(GfxDevice& device, u32 size) {
     auto buffer = makeUnique<VertexBuffer>();
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glGenBuffers(1, &buffer->bufferId_);
-    glBindBuffer(GL_ARRAY_BUFFER, buffer->bufferId_);
-    glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
-#else
-    (void)size;
-#endif
+    buffer->device_ = &device;
+    buffer->bufferId_ = device.createBuffer();
+    device.bindVertexBuffer(buffer->bufferId_);
+    device.bufferData(GfxBufferTarget::Vertex, nullptr, size, true);
     return buffer;
 }
 
 void VertexBuffer::bind() const {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindBuffer(GL_ARRAY_BUFFER, bufferId_);
-#endif
+    if (device_) device_->bindVertexBuffer(bufferId_);
 }
 
 void VertexBuffer::unbind() const {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-#endif
+    if (device_) device_->bindVertexBuffer(0);
 }
 
 void VertexBuffer::setDataRaw(const void* data, u32 sizeBytes) {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindBuffer(GL_ARRAY_BUFFER, bufferId_);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeBytes, data);
-#else
-    (void)data;
-    (void)sizeBytes;
-#endif
+    if (!device_) return;
+    device_->bindVertexBuffer(bufferId_);
+    device_->bufferSubData(GfxBufferTarget::Vertex, 0, data, sizeBytes);
 }
 
 void VertexBuffer::setSubDataRaw(const void* data, u32 sizeBytes, u32 offsetBytes) {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindBuffer(GL_ARRAY_BUFFER, bufferId_);
-    glBufferSubData(GL_ARRAY_BUFFER, offsetBytes, sizeBytes, data);
-#else
-    (void)data;
-    (void)sizeBytes;
-    (void)offsetBytes;
-#endif
+    if (!device_) return;
+    device_->bindVertexBuffer(bufferId_);
+    device_->bufferSubData(GfxBufferTarget::Vertex, offsetBytes, data, sizeBytes);
 }
 
 // ========================================
@@ -143,26 +139,23 @@ void VertexBuffer::setSubDataRaw(const void* data, u32 sizeBytes, u32 offsetByte
 // ========================================
 
 IndexBuffer::~IndexBuffer() {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    if (bufferId_ != 0) {
-        glDeleteBuffers(1, &bufferId_);
+    if (bufferId_ != 0 && device_) {
+        device_->deleteBuffer(bufferId_);
     }
-#endif
 }
 
 IndexBuffer::IndexBuffer(IndexBuffer&& other) noexcept
-    : bufferId_(other.bufferId_), count_(other.count_), is16Bit_(other.is16Bit_) {
+    : device_(other.device_), bufferId_(other.bufferId_), count_(other.count_), is16Bit_(other.is16Bit_) {
     other.bufferId_ = 0;
     other.count_ = 0;
 }
 
 IndexBuffer& IndexBuffer::operator=(IndexBuffer&& other) noexcept {
     if (this != &other) {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-        if (bufferId_ != 0) {
-            glDeleteBuffers(1, &bufferId_);
+        if (bufferId_ != 0 && device_) {
+            device_->deleteBuffer(bufferId_);
         }
-#endif
+        device_ = other.device_;
         bufferId_ = other.bufferId_;
         count_ = other.count_;
         is16Bit_ = other.is16Bit_;
@@ -172,66 +165,49 @@ IndexBuffer& IndexBuffer::operator=(IndexBuffer&& other) noexcept {
     return *this;
 }
 
-Unique<IndexBuffer> IndexBuffer::create(const u32* indices, u32 count) {
+Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, const u32* indices, u32 count) {
     auto buffer = makeUnique<IndexBuffer>();
+    buffer->device_ = &device;
     buffer->count_ = count;
     buffer->is16Bit_ = false;
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glGenBuffers(1, &buffer->bufferId_);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer->bufferId_);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(u32), indices, GL_STATIC_DRAW);
-#else
-    (void)indices;
-#endif
+    buffer->bufferId_ = device.createBuffer();
+    device.bindIndexBuffer(buffer->bufferId_);
+    device.bufferData(GfxBufferTarget::Index, indices, count * sizeof(u32), false);
     return buffer;
 }
 
-Unique<IndexBuffer> IndexBuffer::create(const u16* indices, u32 count) {
+Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, const u16* indices, u32 count) {
     auto buffer = makeUnique<IndexBuffer>();
+    buffer->device_ = &device;
     buffer->count_ = count;
     buffer->is16Bit_ = true;
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glGenBuffers(1, &buffer->bufferId_);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer->bufferId_);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(u16), indices, GL_STATIC_DRAW);
-#else
-    (void)indices;
-#endif
+    buffer->bufferId_ = device.createBuffer();
+    device.bindIndexBuffer(buffer->bufferId_);
+    device.bufferData(GfxBufferTarget::Index, indices, count * sizeof(u16), false);
     return buffer;
 }
 
 void IndexBuffer::bind() const {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferId_);
-#endif
+    if (device_) device_->bindIndexBuffer(bufferId_);
 }
 
 void IndexBuffer::unbind() const {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-#endif
+    if (device_) device_->bindIndexBuffer(0);
 }
 
 // ========================================
 // VertexArray
 // ========================================
 
-VertexArray::VertexArray() {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glGenVertexArrays(1, &arrayId_);
-#endif
-}
-
 VertexArray::~VertexArray() {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    if (arrayId_ != 0) {
-        glDeleteVertexArrays(1, &arrayId_);
+    if (arrayId_ != 0 && device_) {
+        device_->deleteVertexArray(arrayId_);
     }
-#endif
 }
 
 VertexArray::VertexArray(VertexArray&& other) noexcept
-    : arrayId_(other.arrayId_)
+    : device_(other.device_)
+    , arrayId_(other.arrayId_)
     , vertexAttribIndex_(other.vertexAttribIndex_)
     , vertexBuffers_(std::move(other.vertexBuffers_))
     , indexBuffer_(std::move(other.indexBuffer_)) {
@@ -241,11 +217,10 @@ VertexArray::VertexArray(VertexArray&& other) noexcept
 
 VertexArray& VertexArray::operator=(VertexArray&& other) noexcept {
     if (this != &other) {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-        if (arrayId_ != 0) {
-            glDeleteVertexArrays(1, &arrayId_);
+        if (arrayId_ != 0 && device_) {
+            device_->deleteVertexArray(arrayId_);
         }
-#endif
+        device_ = other.device_;
         arrayId_ = other.arrayId_;
         vertexAttribIndex_ = other.vertexAttribIndex_;
         vertexBuffers_ = std::move(other.vertexBuffers_);
@@ -256,79 +231,51 @@ VertexArray& VertexArray::operator=(VertexArray&& other) noexcept {
     return *this;
 }
 
-Unique<VertexArray> VertexArray::create() {
-    return makeUnique<VertexArray>();
+Unique<VertexArray> VertexArray::create(GfxDevice& device) {
+    auto vao = makeUnique<VertexArray>();
+    vao->device_ = &device;
+    vao->arrayId_ = device.createVertexArray();
+    return vao;
 }
 
 void VertexArray::bind() const {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindVertexArray(arrayId_);
-#endif
+    if (device_) device_->bindVertexArray(arrayId_);
 }
 
 void VertexArray::unbind() const {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    glBindVertexArray(0);
-#endif
+    if (device_) device_->bindVertexArray(0);
 }
 
 void VertexArray::addVertexBuffer(Shared<VertexBuffer> buffer) {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     ES_ASSERT(!buffer->getLayout().getAttributes().empty(), "Vertex buffer has no layout");
 
-    bind();
-    buffer->bind();
+    if (device_) {
+        device_->bindVertexArray(arrayId_);
+        buffer->bind();
 
-    const auto& layout = buffer->getLayout();
-    for (const auto& attr : layout) {
-        glEnableVertexAttribArray(vertexAttribIndex_);
-
-        GLenum glType = GL_FLOAT;
-        switch (attr.type) {
-        case ShaderDataType::Float:
-        case ShaderDataType::Float2:
-        case ShaderDataType::Float3:
-        case ShaderDataType::Float4:
-            glType = GL_FLOAT;
-            break;
-        case ShaderDataType::Int:
-        case ShaderDataType::Int2:
-        case ShaderDataType::Int3:
-        case ShaderDataType::Int4:
-            glType = GL_INT;
-            break;
-        case ShaderDataType::Bool:
-        case ShaderDataType::UByte4N:
-            glType = GL_UNSIGNED_BYTE;
-            break;
-        default:
-            break;
+        const auto& layout = buffer->getLayout();
+        for (const auto& attr : layout) {
+            bool normalized = attr.normalized || attr.type == ShaderDataType::UByte4N;
+            device_->enableVertexAttrib(vertexAttribIndex_);
+            device_->vertexAttribPointer(
+                vertexAttribIndex_,
+                static_cast<i32>(shaderDataTypeComponentCount(attr.type)),
+                toGfxDataType(attr.type),
+                normalized,
+                static_cast<i32>(layout.getStride()),
+                attr.offset
+            );
+            ++vertexAttribIndex_;
         }
-
-        GLboolean normalized = attr.normalized ? GL_TRUE : GL_FALSE;
-        if (attr.type == ShaderDataType::UByte4N) {
-            normalized = GL_TRUE;
-        }
-
-        glVertexAttribPointer(
-            vertexAttribIndex_,
-            shaderDataTypeComponentCount(attr.type),
-            glType,
-            normalized,
-            layout.getStride(),
-            reinterpret_cast<const void*>(static_cast<uintptr_t>(attr.offset))
-        );
-        ++vertexAttribIndex_;
     }
-#endif
     vertexBuffers_.push_back(std::move(buffer));
 }
 
 void VertexArray::setIndexBuffer(Shared<IndexBuffer> buffer) {
-#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
-    bind();
-    buffer->bind();
-#endif
+    if (device_) {
+        device_->bindVertexArray(arrayId_);
+        buffer->bind();
+    }
     indexBuffer_ = std::move(buffer);
 }
 

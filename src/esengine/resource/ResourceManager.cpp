@@ -382,7 +382,7 @@ void ResourceManager::removeTextureMetadata(TextureHandle handle) {
 // =============================================================================
 
 VertexBufferHandle ResourceManager::createVertexBuffer(u32 sizeBytes) {
-    auto buffer = VertexBuffer::create(sizeBytes);
+    auto buffer = VertexBuffer::create(*device_, sizeBytes);
     if (!buffer) {
         ES_LOG_ERROR("Failed to create dynamic vertex buffer");
         return VertexBufferHandle();
@@ -409,7 +409,7 @@ void ResourceManager::releaseVertexBuffer(VertexBufferHandle handle) {
 // =============================================================================
 
 IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u32> indices) {
-    auto buffer = IndexBuffer::create(indices.data(), static_cast<u32>(indices.size()));
+    auto buffer = IndexBuffer::create(*device_, indices.data(), static_cast<u32>(indices.size()));
     if (!buffer) {
         ES_LOG_ERROR("Failed to create index buffer (u32)");
         return IndexBufferHandle();
@@ -418,7 +418,7 @@ IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u32> indices) {
 }
 
 IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u16> indices) {
-    auto buffer = IndexBuffer::create(indices.data(), static_cast<u32>(indices.size()));
+    auto buffer = IndexBuffer::create(*device_, indices.data(), static_cast<u32>(indices.size()));
     if (!buffer) {
         ES_LOG_ERROR("Failed to create index buffer (u16)");
         return IndexBufferHandle();

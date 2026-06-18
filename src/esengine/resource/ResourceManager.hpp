@@ -514,7 +514,7 @@ private:
 
 template<typename T>
 VertexBufferHandle ResourceManager::createVertexBuffer(ConstSpan<T> data) {
-    auto buffer = VertexBuffer::create(data);
+    auto buffer = VertexBuffer::create(*device_, data);
     if (!buffer) return VertexBufferHandle();
     return vertexBuffers_.add(std::move(buffer));
 }

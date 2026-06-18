@@ -71,15 +71,15 @@ void RenderContext::initQuadData() {
 
     u16 indices[] = { 0, 1, 2, 2, 3, 0 };
 
-    quadVAO_ = VertexArray::create();
+    quadVAO_ = VertexArray::create(device_);
 
-    auto vbo = VertexBuffer::createRaw(vertices, sizeof(vertices));
+    auto vbo = VertexBuffer::createRaw(device_, vertices, sizeof(vertices));
     vbo->setLayout({
         { ShaderDataType::Float2, "a_position" },
         { ShaderDataType::Float2, "a_texCoord" }
     });
 
-    auto ibo = IndexBuffer::create(indices, 6);
+    auto ibo = IndexBuffer::create(device_, indices, 6);
 
     quadVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
     quadVAO_->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));

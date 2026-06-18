@@ -1,8 +1,9 @@
 /**
  * @file    Buffer.hpp
  * @brief   GPU buffer abstractions for vertex and index data
- * @details Provides cross-platform abstractions for OpenGL/WebGL buffer
- *          objects including VertexBuffer, IndexBuffer, and VertexArray.
+ * @details VertexBuffer, IndexBuffer and VertexArray are thin RAII handles over
+ *          GfxDevice. They hold no GL state directly — every GPU operation is
+ *          delegated to the device, so this layer has zero GL dependency.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -24,6 +25,8 @@
 #include <vector>
 
 namespace esengine {
+
+class GfxDevice;
 
 // =============================================================================
 // Shader Data Types
@@ -178,14 +181,14 @@ private:
 /**
  * @brief GPU buffer for vertex data
  *
- * @details Wraps OpenGL/WebGL Vertex Buffer Objects (VBOs). Supports both
- *          static and dynamic buffer usage.
+ * @details Wraps a GfxDevice vertex buffer object. Supports both static and
+ *          dynamic usage. All GPU work is delegated to the device.
  *
  * @code
  * struct Vertex { float x, y, u, v; };
  * std::vector<Vertex> vertices = {...};
  *
- * auto vbo = VertexBuffer::create(std::span(vertices));
+ * auto vbo = VertexBuffer::create(device, std::span(vertices));
  * vbo->setLayout({
  *     {ShaderDataType::Float2, "a_position"},
  *     {ShaderDataType::Float2, "a_texCoord"}
@@ -210,45 +213,40 @@ public:
     /**
      * @brief Creates a static buffer from a span
      * @tparam T Vertex type
+     * @param device Graphics device
      * @param data Span of vertex data
      * @return Unique pointer to the buffer
      */
     template<typename T>
-    static Unique<VertexBuffer> create(std::span<const T> data) {
-        return createRaw(data.data(), static_cast<u32>(data.size_bytes()));
+    static Unique<VertexBuffer> create(GfxDevice& device, std::span<const T> data) {
+        return createRaw(device, data.data(), static_cast<u32>(data.size_bytes()));
     }
 
     /**
      * @brief Creates a static buffer from a vector
-     * @tparam T Vertex type
-     * @param data Vector of vertex data
-     * @return Unique pointer to the buffer
      */
     template<typename T>
-    static Unique<VertexBuffer> create(const std::vector<T>& data) {
-        return create(std::span<const T>(data));
+    static Unique<VertexBuffer> create(GfxDevice& device, const std::vector<T>& data) {
+        return create(device, std::span<const T>(data));
     }
 
     /**
      * @brief Creates a static buffer from a C array
-     * @tparam T Vertex type
-     * @tparam N Array size
-     * @param data Array of vertex data
-     * @return Unique pointer to the buffer
      */
     template<typename T, usize N>
-    static Unique<VertexBuffer> create(const T (&data)[N]) {
-        return create(std::span<const T>(data, N));
+    static Unique<VertexBuffer> create(GfxDevice& device, const T (&data)[N]) {
+        return create(device, std::span<const T>(data, N));
     }
 
     /**
      * @brief Creates a dynamic buffer of specified size
+     * @param device Graphics device
      * @param sizeBytes Buffer size in bytes
      * @return Unique pointer to the buffer
      *
      * @details Use setData() to upload data later.
      */
-    static Unique<VertexBuffer> create(u32 sizeBytes);
+    static Unique<VertexBuffer> create(GfxDevice& device, u32 sizeBytes);
 
     // =========================================================================
     // Operations
@@ -262,8 +260,6 @@ public:
 
     /**
      * @brief Updates buffer data from a span
-     * @tparam T Vertex type
-     * @param data New vertex data
      */
     template<typename T>
     void setData(std::span<const T> data) {
@@ -272,8 +268,6 @@ public:
 
     /**
      * @brief Updates buffer data from a vector
-     * @tparam T Vertex type
-     * @param data New vertex data
      */
     template<typename T>
     void setData(const std::vector<T>& data) {
@@ -282,9 +276,6 @@ public:
 
     /**
      * @brief Updates buffer data from a C array
-     * @tparam T Vertex type
-     * @tparam N Array size
-     * @param data New vertex data
      */
     template<typename T, usize N>
     void setData(const T (&data)[N]) {
@@ -309,7 +300,7 @@ public:
 
     /**
      * @brief Gets the GPU buffer ID
-     * @return OpenGL buffer handle
+     * @return GPU buffer handle
      */
     u32 getId() const { return bufferId_; }
 
@@ -319,11 +310,12 @@ public:
 
     /**
      * @brief Creates a buffer from raw data pointer for internal use
+     * @param device Graphics device
      * @param data Pointer to vertex data
      * @param sizeBytes Size of data in bytes
      * @return Unique pointer to the buffer
      */
-    static Unique<VertexBuffer> createRaw(const void* data, u32 sizeBytes);
+    static Unique<VertexBuffer> createRaw(GfxDevice& device, const void* data, u32 sizeBytes);
 
     /**
      * @brief Updates buffer data from raw pointer (internal use)
@@ -341,6 +333,7 @@ public:
     void setSubDataRaw(const void* data, u32 sizeBytes, u32 offsetBytes);
 
 private:
+    GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     u32 bufferId_ = 0;
     VertexLayout layout_;
 };
@@ -352,12 +345,12 @@ private:
 /**
  * @brief GPU buffer for index data
  *
- * @details Wraps OpenGL/WebGL Element Buffer Objects (EBOs). Supports
- *          both 16-bit and 32-bit indices.
+ * @details Wraps a GfxDevice element buffer object. Supports both 16-bit and
+ *          32-bit indices.
  *
  * @code
  * std::vector<u32> indices = {0, 1, 2, 2, 3, 0};
- * auto ebo = IndexBuffer::create(std::span(indices));
+ * auto ebo = IndexBuffer::create(device, std::span(indices));
  * @endcode
  */
 class IndexBuffer {
@@ -375,60 +368,35 @@ public:
     // Type-Safe Creation Methods
     // =========================================================================
 
-    /**
-     * @brief Creates an index buffer from a span of 32-bit indices
-     * @param indices Span of index data
-     * @return Unique pointer to the buffer
-     */
-    static Unique<IndexBuffer> create(std::span<const u32> indices) {
-        return create(indices.data(), static_cast<u32>(indices.size()));
+    /** @brief Creates an index buffer from a span of 32-bit indices */
+    static Unique<IndexBuffer> create(GfxDevice& device, std::span<const u32> indices) {
+        return create(device, indices.data(), static_cast<u32>(indices.size()));
     }
 
-    /**
-     * @brief Creates an index buffer from a span of 16-bit indices
-     * @param indices Span of index data
-     * @return Unique pointer to the buffer
-     */
-    static Unique<IndexBuffer> create(std::span<const u16> indices) {
-        return create(indices.data(), static_cast<u32>(indices.size()));
+    /** @brief Creates an index buffer from a span of 16-bit indices */
+    static Unique<IndexBuffer> create(GfxDevice& device, std::span<const u16> indices) {
+        return create(device, indices.data(), static_cast<u32>(indices.size()));
     }
 
-    /**
-     * @brief Creates an index buffer from a vector of 32-bit indices
-     * @param indices Vector of index data
-     * @return Unique pointer to the buffer
-     */
-    static Unique<IndexBuffer> create(const std::vector<u32>& indices) {
-        return create(std::span<const u32>(indices));
+    /** @brief Creates an index buffer from a vector of 32-bit indices */
+    static Unique<IndexBuffer> create(GfxDevice& device, const std::vector<u32>& indices) {
+        return create(device, std::span<const u32>(indices));
     }
 
-    /**
-     * @brief Creates an index buffer from a vector of 16-bit indices
-     * @param indices Vector of index data
-     * @return Unique pointer to the buffer
-     */
-    static Unique<IndexBuffer> create(const std::vector<u16>& indices) {
-        return create(std::span<const u16>(indices));
+    /** @brief Creates an index buffer from a vector of 16-bit indices */
+    static Unique<IndexBuffer> create(GfxDevice& device, const std::vector<u16>& indices) {
+        return create(device, std::span<const u16>(indices));
     }
 
-    /**
-     * @brief Creates an index buffer with 32-bit indices from pointer
-     * @param indices Pointer to index data
-     * @param count Number of indices
-     * @return Unique pointer to the buffer
-     */
-    static Unique<IndexBuffer> create(const u32* indices, u32 count);
+    /** @brief Creates an index buffer with 32-bit indices from pointer */
+    static Unique<IndexBuffer> create(GfxDevice& device, const u32* indices, u32 count);
 
     /**
      * @brief Creates an index buffer with 16-bit indices from pointer
-     * @param indices Pointer to index data
-     * @param count Number of indices
-     * @return Unique pointer to the buffer
-     *
      * @details Use 16-bit indices for better performance when vertex
      *          count is under 65536.
      */
-    static Unique<IndexBuffer> create(const u16* indices, u32 count);
+    static Unique<IndexBuffer> create(GfxDevice& device, const u16* indices, u32 count);
 
     // =========================================================================
     // Operations
@@ -450,6 +418,7 @@ public:
     bool is16Bit() const { return is16Bit_; }
 
 private:
+    GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     u32 bufferId_ = 0;
     u32 count_ = 0;
     bool is16Bit_ = false;
@@ -462,27 +431,27 @@ private:
 /**
  * @brief Encapsulates vertex attribute configuration
  *
- * @details Wraps OpenGL/WebGL Vertex Array Objects. Stores the association
+ * @details Wraps a GfxDevice vertex array object. Stores the association
  *          between vertex buffers and their attribute layouts.
  *
  * @code
- * auto vao = VertexArray::create();
+ * auto vao = VertexArray::create(device);
  *
- * auto vbo = VertexBuffer::create(vertices);
+ * auto vbo = VertexBuffer::create(device, vertices);
  * vbo->setLayout({...});
  * vao->addVertexBuffer(std::move(vbo));
  *
- * auto ebo = IndexBuffer::create(indices, 6);
+ * auto ebo = IndexBuffer::create(device, indices, 6);
  * vao->setIndexBuffer(std::move(ebo));
  *
  * // Rendering
  * vao->bind();
- * device.drawElements(ebo->getCount(), GfxDataType::UnsignedShort, 0);
+ * device.drawElements(ebo->getCount(), GfxDataType::UnsignedInt, 0);
  * @endcode
  */
 class VertexArray {
 public:
-    VertexArray();
+    VertexArray() = default;
     ~VertexArray();
 
     // Non-copyable, movable
@@ -493,9 +462,10 @@ public:
 
     /**
      * @brief Creates a new vertex array
+     * @param device Graphics device
      * @return Unique pointer to the VAO
      */
-    static Unique<VertexArray> create();
+    static Unique<VertexArray> create(GfxDevice& device);
 
     /** @brief Binds the VAO for rendering */
     void bind() const;
@@ -508,8 +478,6 @@ public:
      * @param buffer Shared pointer to the vertex buffer
      *
      * @details The buffer's layout must be set before adding.
-     *          Multiple vertex buffers can be added for interleaved
-     *          or separate attribute streams.
      */
     void addVertexBuffer(Shared<VertexBuffer> buffer);
 
@@ -532,6 +500,7 @@ public:
     const Shared<IndexBuffer>& getIndexBuffer() const { return indexBuffer_; }
 
 private:
+    GfxDevice* device_ = nullptr;  ///< Set by create(); all GL goes through it.
     u32 arrayId_ = 0;
     u32 vertexAttribIndex_ = 0;
     std::vector<Shared<VertexBuffer>> vertexBuffers_;

@@ -82,3 +82,15 @@ target_include_directories(test_texture_fb PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/stb
 )
 add_test(NAME test_texture_fb COMMAND test_texture_fb)
+
+# Buffer + CustomGeometry decoupling: compiles the converted classes against a
+# MockGfxDevice. Linking proves they contain no GL; asserts confirm create/
+# upload/attribute-setup/bind/delete route through GfxDevice.
+add_executable(test_buffer_device
+    renderer/test_buffer_device.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Buffer.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/CustomGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_buffer_device COMMAND test_buffer_device)
