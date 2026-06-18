@@ -61,6 +61,11 @@ export interface LoadContext {
      * assets will fail to preload.
      */
     getAudio(): import('../audio/Audio').AudioAPI | null;
+    /**
+     * Sprite-animation API for the owning app (clip registry), resolved lazily
+     * like {@link getAudio}. Returns null when no AnimationPlugin is installed.
+     */
+    getSpriteAnimation(): import('../animation/SpriteAnimator').SpriteAnimationApi | null;
 }
 
 export interface AssetLoader<T> {

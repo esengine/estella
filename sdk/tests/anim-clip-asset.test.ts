@@ -5,11 +5,6 @@ import {
     isKnownAssetExtension,
 } from '../src/assetTypes';
 import {
-    registerAnimClip,
-    getAnimClip,
-    clearAnimClips,
-} from '../src/animation/SpriteAnimator';
-import {
     parseAnimClipData,
     extractAnimClipTexturePaths,
     type AnimClipAssetData,
@@ -70,10 +65,6 @@ describe('.esanim asset type', () => {
 // =============================================================================
 
 describe('parseAnimClipData', () => {
-    beforeEach(() => {
-        clearAnimClips();
-    });
-
     it('should parse valid clip data', () => {
         const json: AnimClipAssetData = {
             version: '1.0',

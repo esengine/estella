@@ -80,6 +80,7 @@ export interface AssetsOptions {
      * in any order. Pass null (or omit) if no audio support is needed.
      */
     getAudio?: () => import('../audio/Audio').AudioAPI | null;
+    getSpriteAnimation?: () => import('../animation/SpriteAnimator').SpriteAnimationApi | null;
 }
 
 export interface AssetBundle {
@@ -132,6 +133,7 @@ export class Assets {
 
     private module_: ESEngineModule;
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
+    private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationApi | null;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
@@ -151,6 +153,7 @@ export class Assets {
         this.catalog = options.catalog ?? Catalog.empty();
         this.module_ = options.module;
         this.getAudio_ = options.getAudio ?? (() => null);
+        this.getSpriteAnimation_ = options.getSpriteAnimation ?? (() => null);
 
         this.textureLoader_ = new TextureLoader(options.module);
         this.spineLoader_ = new SpineAssetLoader(options.module);
@@ -805,6 +808,9 @@ export class Assets {
             },
             getAudio() {
                 return self.getAudio_();
+            },
+            getSpriteAnimation() {
+                return self.getSpriteAnimation_();
             },
         };
         return this.loadContext_;

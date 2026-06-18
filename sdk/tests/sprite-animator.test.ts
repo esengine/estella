@@ -5,13 +5,9 @@ import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
 import {
     SpriteAnimator,
+    SpriteAnimationApi,
     type SpriteAnimatorData,
     type SpriteAnimClip,
-    registerAnimClip,
-    unregisterAnimClip,
-    getAnimClip,
-    clearAnimClips,
-    spriteAnimatorSystemUpdate,
 } from '../src/animation/SpriteAnimator';
 
 function createAnimTestWorld(): { world: World; registry: CppRegistry } {
@@ -50,11 +46,12 @@ function createAnimTestWorld(): { world: World; registry: CppRegistry } {
 
 describe('SpriteAnimator', () => {
     let world: World;
+    let anim: SpriteAnimationApi;
 
     beforeEach(() => {
         const ctx = createAnimTestWorld();
         world = ctx.world;
-        clearAnimClips();
+        anim = new SpriteAnimationApi();
     });
 
     // =========================================================================
@@ -100,27 +97,27 @@ describe('SpriteAnimator', () => {
         };
 
         it('should register and retrieve a clip', () => {
-            registerAnimClip(testClip);
-            const retrieved = getAnimClip('walk');
+            anim.registerClip(testClip);
+            const retrieved = anim.getClip('walk');
             expect(retrieved).toEqual(testClip);
         });
 
         it('should return undefined for unregistered clip', () => {
-            expect(getAnimClip('nonexistent')).toBeUndefined();
+            expect(anim.getClip('nonexistent')).toBeUndefined();
         });
 
         it('should unregister a clip', () => {
-            registerAnimClip(testClip);
-            unregisterAnimClip('walk');
-            expect(getAnimClip('walk')).toBeUndefined();
+            anim.registerClip(testClip);
+            anim.unregisterClip('walk');
+            expect(anim.getClip('walk')).toBeUndefined();
         });
 
         it('should clear all clips', () => {
-            registerAnimClip(testClip);
-            registerAnimClip({ ...testClip, name: 'run' });
-            clearAnimClips();
-            expect(getAnimClip('walk')).toBeUndefined();
-            expect(getAnimClip('run')).toBeUndefined();
+            anim.registerClip(testClip);
+            anim.registerClip({ ...testClip, name: 'run' });
+            anim.clearClips();
+            expect(anim.getClip('walk')).toBeUndefined();
+            expect(anim.getClip('run')).toBeUndefined();
         });
     });
 
@@ -141,7 +138,7 @@ describe('SpriteAnimator', () => {
         };
 
         beforeEach(() => {
-            registerAnimClip(walkClip);
+            anim.registerClip(walkClip);
         });
 
         it('should apply first frame texture on initial tick', () => {
@@ -149,7 +146,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, Sprite, { texture: 0 });
             world.insert(entity, SpriteAnimator, { clip: 'walk' });
 
-            spriteAnimatorSystemUpdate(world, 0.001);
+            anim.update(world, 0.001);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(10);
@@ -161,7 +158,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, SpriteAnimator, { clip: 'walk' });
 
             // fps=10, frameDuration=0.1s, dt=0.1 should advance one frame
-            spriteAnimatorSystemUpdate(world, 0.1);
+            anim.update(world, 0.1);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(20);
@@ -172,7 +169,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, Sprite, { texture: 10 });
             world.insert(entity, SpriteAnimator, { clip: 'walk' });
 
-            spriteAnimatorSystemUpdate(world, 0.05);
+            anim.update(world, 0.05);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(10);
@@ -184,9 +181,9 @@ describe('SpriteAnimator', () => {
             world.insert(entity, SpriteAnimator, { clip: 'walk' });
 
             // Advance through all 3 frames (3 * 0.1 = 0.3s)
-            spriteAnimatorSystemUpdate(world, 0.1);
-            spriteAnimatorSystemUpdate(world, 0.1);
-            spriteAnimatorSystemUpdate(world, 0.1);
+            anim.update(world, 0.1);
+            anim.update(world, 0.1);
+            anim.update(world, 0.1);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(10); // looped back to frame 0
@@ -199,14 +196,14 @@ describe('SpriteAnimator', () => {
                 fps: 10,
                 loop: false,
             };
-            registerAnimClip(noLoopClip);
+            anim.registerClip(noLoopClip);
 
             const entity = world.spawn();
             world.insert(entity, Sprite, { texture: 100 });
             world.insert(entity, SpriteAnimator, { clip: 'explode', loop: false });
 
-            spriteAnimatorSystemUpdate(world, 0.1); // frame 0 -> 1
-            spriteAnimatorSystemUpdate(world, 0.1); // frame 1 -> would be 2, clamp to 1
+            anim.update(world, 0.1); // frame 0 -> 1
+            anim.update(world, 0.1); // frame 1 -> would be 2, clamp to 1
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(200);
@@ -220,7 +217,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, Sprite, { texture: 10 });
             world.insert(entity, SpriteAnimator, { clip: 'walk', enabled: false });
 
-            spriteAnimatorSystemUpdate(world, 0.1);
+            anim.update(world, 0.1);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(10);
@@ -231,7 +228,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, Sprite, { texture: 10 });
             world.insert(entity, SpriteAnimator, { clip: 'walk', playing: false });
 
-            spriteAnimatorSystemUpdate(world, 0.1);
+            anim.update(world, 0.1);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(10);
@@ -242,7 +239,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, Sprite, { texture: 10 });
             world.insert(entity, SpriteAnimator, { clip: '' });
 
-            spriteAnimatorSystemUpdate(world, 0.1);
+            anim.update(world, 0.1);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(10);
@@ -253,7 +250,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, Sprite, { texture: 10 });
             world.insert(entity, SpriteAnimator, { clip: 'missing_clip' });
 
-            spriteAnimatorSystemUpdate(world, 0.1);
+            anim.update(world, 0.1);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(10);
@@ -265,7 +262,7 @@ describe('SpriteAnimator', () => {
             world.insert(entity, SpriteAnimator, { clip: 'walk', speed: 2.0 });
 
             // speed=2, fps=10, frameDuration=0.05s
-            spriteAnimatorSystemUpdate(world, 0.05);
+            anim.update(world, 0.05);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(20);
@@ -281,7 +278,7 @@ describe('SpriteAnimator', () => {
             world.insert(e2, SpriteAnimator, { clip: 'walk', speed: 2.0 });
 
             // e1: frameDuration=0.1, e2: frameDuration=0.05
-            spriteAnimatorSystemUpdate(world, 0.05);
+            anim.update(world, 0.05);
 
             const s1 = world.get(e1, Sprite) as SpriteData;
             const s2 = world.get(e2, Sprite) as SpriteData;

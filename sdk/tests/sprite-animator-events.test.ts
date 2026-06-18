@@ -1,19 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
+    SpriteAnimationApi,
     type SpriteAnimClip,
     type SpriteAnimEvent,
-    registerAnimClip,
-    clearAnimClips,
-    onAnimEvent,
-    onAnimEventGlobal,
-    removeAnimEventListeners,
 } from '../src/animation/SpriteAnimator';
 
 import { shouldFireEvent } from '../src/animation/SpriteAnimator';
 
 describe('SpriteAnimator Frame Events', () => {
+    let anim: SpriteAnimationApi;
+
     beforeEach(() => {
-        clearAnimClips();
+        anim = new SpriteAnimationApi();
     });
 
     describe('shouldFireEvent', () => {
@@ -45,7 +43,7 @@ describe('SpriteAnimator Frame Events', () => {
     describe('onAnimEvent', () => {
         it('registers and removes listener', () => {
             const handler = vi.fn();
-            const unsub = onAnimEvent(1 as any, handler);
+            const unsub = anim.onEvent(1 as any, handler);
             unsub();
         });
     });
@@ -53,7 +51,7 @@ describe('SpriteAnimator Frame Events', () => {
     describe('onAnimEventGlobal', () => {
         it('registers and removes global listener', () => {
             const handler = vi.fn();
-            const unsub = onAnimEventGlobal(handler);
+            const unsub = anim.onEventGlobal(handler);
             unsub();
         });
     });
@@ -61,9 +59,9 @@ describe('SpriteAnimator Frame Events', () => {
     describe('removeAnimEventListeners', () => {
         it('removes all listeners for entity', () => {
             const handler = vi.fn();
-            onAnimEvent(1 as any, handler);
-            onAnimEvent(1 as any, handler);
-            removeAnimEventListeners(1 as any);
+            anim.onEvent(1 as any, handler);
+            anim.onEvent(1 as any, handler);
+            anim.removeEntityListeners(1 as any);
         });
     });
 
@@ -79,7 +77,7 @@ describe('SpriteAnimator Frame Events', () => {
                     { frame: 2, name: 'end', data: { sound: 'swoosh' } },
                 ],
             };
-            registerAnimClip(clip);
+            anim.registerClip(clip);
             expect(clip.events).toHaveLength(2);
             expect(clip.events![0].name).toBe('hit');
             expect(clip.events![1].data).toEqual({ sound: 'swoosh' });

@@ -1,6 +1,5 @@
 import type { AssetLoader, LoadContext, AnimClipResult } from '../AssetLoader';
 import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from '../../animation/AnimClipLoader';
-import { registerAnimClip } from '../../animation/SpriteAnimator';
 import { log } from '../../logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
@@ -25,7 +24,7 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
         }
 
         const clip = parseAnimClipData(path, data, textureHandles);
-        registerAnimClip(clip);
+        ctx.getSpriteAnimation()?.registerClip(clip);
 
         return { clipId: path };
     }

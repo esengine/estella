@@ -20,7 +20,7 @@ import { getAssetTypeEntry } from './assetTypes';
 import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
 import { type AnimClipAssetData, extractAnimClipTexturePaths, parseAnimClipData } from './animation/AnimClipLoader';
-import { registerAnimClip } from './animation/SpriteAnimator';
+import { SpriteAnimation } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
 import { flushPendingSystems } from './app';
 import { updateCameraAspectRatio } from './scene';
@@ -372,10 +372,12 @@ async function preloadAudioClips(app: App, provider: RuntimeAssetProvider, audio
 // =============================================================================
 
 async function loadAnimClips(
+    app: App,
     module: ESEngineModule,
     provider: RuntimeAssetProvider,
     animClipPaths: Set<string>,
 ): Promise<void> {
+    const anim = app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null;
     for (const clipPath of animClipPaths) {
         try {
             const clipText = await provider.readText(clipPath);
@@ -394,7 +396,7 @@ async function loadAnimClips(
             }
 
             const clip = parseAnimClipData(clipPath, clipData, textureHandles);
-            registerAnimClip(clip);
+            anim?.registerClip(clip);
         } catch (err) {
             log.warn('runtime', `Failed to load animation clip: ${clipPath}`, err);
         }
@@ -490,7 +492,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
     const fontCache = await loadBitmapFonts(module, provider, getAssetPathsByType(discovered, 'font'));
     const materialCache = await loadMaterials(provider, getAssetPathsByType(discovered, 'material'));
-    await loadAnimClips(module, provider, getAssetPathsByType(discovered, 'anim-clip'));
+    await loadAnimClips(app, module, provider, getAssetPathsByType(discovered, 'anim-clip'));
     await loadTilemaps(module, provider, getAssetPathsByType(discovered, 'tilemap'));
     await preloadAudioClips(app, provider, getAssetPathsByType(discovered, 'audio'));
 

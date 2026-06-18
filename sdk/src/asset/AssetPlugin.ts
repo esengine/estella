@@ -5,6 +5,7 @@ import { HttpBackend } from './Backend';
 import { initBuiltinAssetFields } from './AssetFieldRegistry';
 import { AssetRefCounter } from './AssetRefCounter';
 import { Audio, type AudioAPI } from '../audio/Audio';
+import { SpriteAnimation, type SpriteAnimationApi } from '../animation/SpriteAnimator';
 import { log } from '../logger';
 
 export type AssetsData = AssetsClass;
@@ -31,6 +32,8 @@ export class AssetPlugin implements Plugin {
             module,
             getAudio: (): AudioAPI | null =>
                 app.hasResource(Audio) ? app.getResource(Audio) : null,
+            getSpriteAnimation: (): SpriteAnimationApi | null =>
+                app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null,
         });
 
         // Install the ref counter so resolveSceneAssetPaths records who

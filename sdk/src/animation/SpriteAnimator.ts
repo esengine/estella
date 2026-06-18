@@ -53,10 +53,10 @@ export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame:
 // =============================================================================
 
 /**
- * Owns one App's sprite-animation clip registry and frame-event listeners, and
- * advances SpriteAnimator components. Published as the {@link SpriteAnimation}
- * resource (B3); a default instance backs the legacy free functions until the
- * per-App flip (B3b) routes registration/listeners through the owning App.
+ * Owns one App's sprite-animation clip registry and frame-event listeners,
+ * advances SpriteAnimator components, and drives goto-frame/label. Published as
+ * the {@link SpriteAnimation} resource; read it as
+ * `app.getResource(SpriteAnimation)`.
  */
 export class SpriteAnimationApi {
     private readonly clips = new Map<string, SpriteAnimClip>();
@@ -187,31 +187,34 @@ export class SpriteAnimationApi {
             }
         }
     }
+
+    // -- goto frame / label ---------------------------------------------------
+
+    gotoFrame(animator: SpriteAnimatorData, frameIndex: number, andPlay: boolean = true): void {
+        const clip = this.clips.get(animator.clip);
+        if (!clip || clip.frames.length === 0) return;
+
+        animator.currentFrame = Math.max(0, Math.min(frameIndex, clip.frames.length - 1));
+        animator.frameTimer = 0;
+        animator.playing = andPlay;
+    }
+
+    gotoLabel(animator: SpriteAnimatorData, label: string, andPlay: boolean = true): void {
+        const clip = this.clips.get(animator.clip);
+        if (!clip || !clip.labels) return;
+
+        const frameIndex = clip.labels[label];
+        if (frameIndex === undefined) return;
+
+        this.gotoFrame(animator, frameIndex, andPlay);
+    }
 }
 
 /**
  * Per-App sprite-animation resource (clip registry + frame-event listeners),
- * published by `AnimationPlugin` (B3b). Read as `app.getResource(SpriteAnimation)`.
+ * published by `AnimationPlugin`. Read as `app.getResource(SpriteAnimation)`.
  */
 export const SpriteAnimation = defineResource<SpriteAnimationApi>(null!, 'SpriteAnimation');
-
-// B3a: default instance backing the legacy free functions below (per-App in B3b).
-const defaultAnim = new SpriteAnimationApi();
-
-export function registerAnimClip(clip: SpriteAnimClip): void { defaultAnim.registerClip(clip); }
-export function unregisterAnimClip(name: string): void { defaultAnim.unregisterClip(name); }
-export function getAnimClip(name: string): SpriteAnimClip | undefined { return defaultAnim.getClip(name); }
-export function clearAnimClips(): void { defaultAnim.clearClips(); }
-
-export function onAnimEvent(entity: Entity, handler: SpriteAnimEventHandler): () => void {
-    return defaultAnim.onEvent(entity, handler);
-}
-export function onAnimEventGlobal(handler: SpriteAnimEventHandler): () => void {
-    return defaultAnim.onEventGlobal(handler);
-}
-export function removeAnimEventListeners(entity: Entity): void {
-    defaultAnim.removeEntityListeners(entity);
-}
 
 // =============================================================================
 // SpriteAnimator Component
@@ -238,42 +241,3 @@ export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent(
 }, {
     assetFields: [{ field: 'clip', type: 'anim-clip' }],
 });
-
-// =============================================================================
-// SpriteAnimator System
-// =============================================================================
-
-export function spriteAnimatorSystemUpdate(world: World, deltaTime: number): void {
-    defaultAnim.update(world, deltaTime);
-}
-
-// =============================================================================
-// Goto Frame / Label
-// =============================================================================
-
-export function spriteAnimatorGotoFrame(
-    animator: SpriteAnimatorData,
-    frameIndex: number,
-    andPlay: boolean = true,
-): void {
-    const clip = defaultAnim.getClip(animator.clip);
-    if (!clip || clip.frames.length === 0) return;
-
-    animator.currentFrame = Math.max(0, Math.min(frameIndex, clip.frames.length - 1));
-    animator.frameTimer = 0;
-    animator.playing = andPlay;
-}
-
-export function spriteAnimatorGotoLabel(
-    animator: SpriteAnimatorData,
-    label: string,
-    andPlay: boolean = true,
-): void {
-    const clip = defaultAnim.getClip(animator.clip);
-    if (!clip || !clip.labels) return;
-
-    const frameIndex = clip.labels[label];
-    if (frameIndex === undefined) return;
-
-    spriteAnimatorGotoFrame(animator, frameIndex, andPlay);
-}

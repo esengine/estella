@@ -10,7 +10,7 @@ import { Time, type TimeData } from '../resource';
 import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { Tween, TweenAPI } from './Tween';
-import { spriteAnimatorSystemUpdate, removeAnimEventListeners } from './SpriteAnimator';
+import { SpriteAnimation, SpriteAnimationApi } from './SpriteAnimator';
 import { playModeOnly } from '../env';
 import { SystemLabel } from '../systemLabels';
 
@@ -22,11 +22,13 @@ export class AnimationPlugin implements Plugin {
         const registry = app.world.getCppRegistry() as CppRegistry;
         const tween = new TweenAPI(module, registry);
         app.insertResource(Tween, tween);
+        const anim = new SpriteAnimationApi();
+        app.insertResource(SpriteAnimation, anim);
         const world = app.world;
 
         world.onDespawn((entity: Entity) => {
             tween.cancelAll(entity);
-            removeAnimEventListeners(entity);
+            anim.removeEntityListeners(entity);
         });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
@@ -38,9 +40,9 @@ export class AnimationPlugin implements Plugin {
         ), { runIf: playModeOnly });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(Time)],
-            (time: TimeData) => {
-                spriteAnimatorSystemUpdate(world, time.delta);
+            [Res(Time), Res(SpriteAnimation)],
+            (time: TimeData, animApi: SpriteAnimationApi) => {
+                animApi.update(world, time.delta);
             },
             { name: 'SpriteAnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });

@@ -29,21 +29,13 @@ export {
 
 export {
     SpriteAnimator,
-    spriteAnimatorSystemUpdate,
-    registerAnimClip,
-    unregisterAnimClip,
-    getAnimClip,
-    clearAnimClips,
+    SpriteAnimation,
+    SpriteAnimationApi,
     type SpriteAnimatorData,
     type SpriteAnimClip,
     type SpriteAnimFrame,
     type SpriteAnimEvent,
     type SpriteAnimEventHandler,
-    spriteAnimatorGotoFrame,
-    spriteAnimatorGotoLabel,
-    onAnimEvent,
-    onAnimEventGlobal,
-    removeAnimEventListeners,
 } from './SpriteAnimator';
 
 export {
