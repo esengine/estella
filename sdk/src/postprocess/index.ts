@@ -1,6 +1,7 @@
 export { PostProcessStack } from './PostProcessStack';
 export type { PassConfig } from './PostProcessStack';
 export { PostProcess, initPostProcessAPI, shutdownPostProcessAPI, syncStackToWasm } from './PostProcessAPI';
+export { postProcessEffects } from './postProcessEffects';
 export { POSTPROCESS_VERTEX } from './shaders';
 export {
     type EffectDef,

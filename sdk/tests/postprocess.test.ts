@@ -6,7 +6,7 @@ vi.mock('../src/material', () => ({
 }));
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { PostProcess, PostProcessStack, initPostProcessAPI, shutdownPostProcessAPI } from '../src/postprocess';
+import { PostProcess, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI } from '../src/postprocess';
 import { Material } from '../src/material';
 import type { ESEngineModule } from '../src/wasm';
 
@@ -324,7 +324,7 @@ describe('PostProcess API', () => {
 
     describe('built-in effects', () => {
         it('should create blur shader using Material.createShader', () => {
-            const handle = PostProcess.createBlur();
+            const handle = postProcessEffects.createBlur();
             expect(Material.createShader).toHaveBeenCalledWith(
                 expect.stringContaining('a_position'),
                 expect.stringContaining('u_intensity'),
@@ -333,7 +333,7 @@ describe('PostProcess API', () => {
         });
 
         it('should create vignette shader using Material.createShader', () => {
-            const handle = PostProcess.createVignette();
+            const handle = postProcessEffects.createVignette();
             expect(Material.createShader).toHaveBeenCalledWith(
                 expect.stringContaining('a_position'),
                 expect.stringContaining('u_softness'),
@@ -342,7 +342,7 @@ describe('PostProcess API', () => {
         });
 
         it('should create grayscale shader using Material.createShader', () => {
-            const handle = PostProcess.createGrayscale();
+            const handle = postProcessEffects.createGrayscale();
             expect(Material.createShader).toHaveBeenCalledWith(
                 expect.stringContaining('a_position'),
                 expect.stringContaining('0.299'),
@@ -351,7 +351,7 @@ describe('PostProcess API', () => {
         });
 
         it('should create chromatic aberration shader using Material.createShader', () => {
-            const handle = PostProcess.createChromaticAberration();
+            const handle = postProcessEffects.createChromaticAberration();
             expect(Material.createShader).toHaveBeenCalledWith(
                 expect.stringContaining('a_position'),
                 expect.stringContaining('u_intensity'),
@@ -360,10 +360,10 @@ describe('PostProcess API', () => {
         });
 
         it('should use the shared POSTPROCESS_VERTEX shader for all effects', () => {
-            PostProcess.createBlur();
-            PostProcess.createVignette();
-            PostProcess.createGrayscale();
-            PostProcess.createChromaticAberration();
+            postProcessEffects.createBlur();
+            postProcessEffects.createVignette();
+            postProcessEffects.createGrayscale();
+            postProcessEffects.createChromaticAberration();
 
             const calls = (Material.createShader as ReturnType<typeof vi.fn>).mock.calls;
             const vertexShaders = calls.map((c: unknown[]) => c[0]);

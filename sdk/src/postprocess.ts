@@ -1,6 +1,7 @@
 export {
     PostProcess,
     PostProcessStack,
+    postProcessEffects,
     initPostProcessAPI,
     shutdownPostProcessAPI,
     syncStackToWasm,
