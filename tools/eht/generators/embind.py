@@ -6,10 +6,16 @@ from ..type_system import TypeSystem
 
 
 class EmbindGenerator:
-    def __init__(self, components: List[Component], enums: List[Enum]):
+    def __init__(self, components: List[Component], enums: List[Enum],
+                 layout_asserts: str = '', abi_hash: str = ''):
         self.components = components
         self.enums = enums
         self.types = TypeSystem(enums)
+        # C++ static_assert(offsetof) block from PtrLayoutGenerator, and the
+        # single-source-of-truth ABI hash. Both injected so the boundary
+        # contract lives in one generated TU. See tools/eht/abi.py.
+        self.layout_asserts = layout_asserts
+        self.abi_hash = abi_hash
 
     def generate(self) -> str:
         lines = self._gen_header()
@@ -19,10 +25,39 @@ class EmbindGenerator:
         lines.extend(self._gen_components())
         lines.extend(self._gen_registry())
         lines.extend(self._gen_reflection())
+        lines.extend(self._gen_layout_asserts())
+        lines.extend(self._gen_abi_hash())
         lines.append('')
         lines.append('#endif  // ES_PLATFORM_WEB')
         lines.append('')
         return '\n'.join(lines)
+
+    def _gen_layout_asserts(self) -> List[str]:
+        if not self.layout_asserts:
+            return []
+        return ['', self.layout_asserts]
+
+    def _gen_abi_hash(self) -> List[str]:
+        """Emit getAbiLayoutHash() — the runtime half of the boundary contract.
+
+        Returns the same digest EHT baked into the TS bundle as ABI_LAYOUT_HASH.
+        The SDK compares them at connect() and refuses to run on mismatch."""
+        return [
+            '',
+            '// =============================================================================',
+            '// ABI Hash -- runtime handshake against the SDK bundle',
+            '// =============================================================================',
+            '',
+            f'static const char* kEsAbiLayoutHash = "{self.abi_hash}";',
+            '',
+            'std::string esengineGetAbiLayoutHash() {',
+            '    return std::string(kEsAbiLayoutHash);',
+            '}',
+            '',
+            'EMSCRIPTEN_BINDINGS(esengine_abi) {',
+            '    emscripten::function("getAbiLayoutHash", &esengineGetAbiLayoutHash);',
+            '}',
+        ]
 
     def _gen_header(self) -> List[str]:
         return [
@@ -35,6 +70,8 @@ class EmbindGenerator:
             '#ifdef ES_PLATFORM_WEB',
             '',
             '#include <emscripten/bind.h>',
+            '#include <cstddef>',
+            '#include <string>',
             '#include "../ecs/Registry.hpp"',
             '#include "../math/Math.hpp"',
             '#include "../core/UITypes.hpp"',

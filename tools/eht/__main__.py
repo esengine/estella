@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from .parser import CppParser
+from .abi import compute_abi_hash
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
     AnimTargetGenerator, PtrLayoutGenerator, EditorAPIGenerator,
@@ -44,6 +45,15 @@ def main() -> int:
         print("Warning: No components found!")
         return 1
 
+    # ── Boundary ABI: single source of truth ──
+    # Compute pointer layouts and the ABI hash first; both the C++ bindings and
+    # the TS metadata embed the same hash so connect() can verify they match.
+    ptr_gen = PtrLayoutGenerator(cpp_parser.components, cpp_parser.enums)
+    abi_hash = compute_abi_hash(
+        cpp_parser.components, cpp_parser.enums, ptr_gen.layouts
+    )
+    print(f"ABI layout hash: {abi_hash}")
+
     # ── C++ Editor API ──
     editor_api_path = args.output / 'EditorAPI.generated.cpp'
     print(f"Generating: {editor_api_path}")
@@ -54,31 +64,40 @@ def main() -> int:
     args.output.mkdir(parents=True, exist_ok=True)
     embind_path = args.output / 'WebBindings.generated.cpp'
     print(f"Generating: {embind_path}")
-    embind_gen = EmbindGenerator(cpp_parser.components, cpp_parser.enums)
+    embind_gen = EmbindGenerator(
+        cpp_parser.components, cpp_parser.enums,
+        layout_asserts=ptr_gen.generate_layout_asserts(),
+        abi_hash=abi_hash,
+    )
     embind_path.write_text(embind_gen.generate(), encoding='utf-8')
+
+    # Resolve the TS source directory robustly. Callers historically pass either
+    # the package root (`sdk`) or the source dir (`sdk/src`); detect which by
+    # looking for the `ecs/` subfolder. Previously a `sdk/src` argument made every
+    # `/ 'src' /` path resolve to a non-existent `sdk/src/src`, silently skipping
+    # component.generated.ts / ptrLayouts / ptrAccessors. Generation must never
+    # silently no-op a file.
+    ts_root = args.ts_output
+    if (ts_root / 'ecs').is_dir():
+        ts_src_dir = ts_root
+    else:
+        ts_src_dir = ts_root / 'src'
+    ts_src_dir.mkdir(parents=True, exist_ok=True)
+
+    def write_ts(rel: str, content: str) -> None:
+        out = ts_src_dir / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Generating: {out}")
+        out.write_text(content, encoding='utf-8')
 
     # ── TypeScript Definitions ──
     ts_gen = TypeScriptGenerator(cpp_parser.components, cpp_parser.enums)
     ts_content = ts_gen.generate()
-
-    args.ts_output.mkdir(parents=True, exist_ok=True)
-    ts_path = args.ts_output / 'wasm.generated.ts'
-    print(f"Generating: {ts_path}")
-    ts_path.write_text(ts_content, encoding='utf-8')
-
-    ts_src_path = args.ts_output / 'src' / 'wasm.generated.ts'
-    if ts_src_path.parent.exists():
-        print(f"Generating: {ts_src_path}")
-        ts_src_path.write_text(ts_content, encoding='utf-8')
+    write_ts('wasm.generated.ts', ts_content)
 
     # ── Component Metadata ──
-    meta_gen = MetadataGenerator(cpp_parser.components, cpp_parser.enums)
-    meta_content = meta_gen.generate()
-
-    meta_path = args.ts_output / 'src' / 'component.generated.ts'
-    if meta_path.parent.exists():
-        print(f"Generating: {meta_path}")
-        meta_path.write_text(meta_content, encoding='utf-8')
+    meta_gen = MetadataGenerator(cpp_parser.components, cpp_parser.enums, abi_hash=abi_hash)
+    write_ts('component.generated.ts', meta_gen.generate())
 
     # ── Animation Targets ──
     anim_gen = AnimTargetGenerator(cpp_parser.components, cpp_parser.enums)
@@ -87,22 +106,11 @@ def main() -> int:
     print(f"Generating: {anim_hpp_path}")
     anim_hpp_path.write_text(anim_gen.generate_hpp(), encoding='utf-8')
 
-    anim_ts_path = args.ts_output / 'src' / 'timeline' / 'animTargets.generated.ts'
-    if anim_ts_path.parent.exists():
-        print(f"Generating: {anim_ts_path}")
-        anim_ts_path.write_text(anim_gen.generate_ts(), encoding='utf-8')
+    write_ts('timeline/animTargets.generated.ts', anim_gen.generate_ts())
 
     # ── Pointer Layouts & Accessors ──
-    ptr_gen = PtrLayoutGenerator(cpp_parser.components, cpp_parser.enums)
-    ptr_path = args.ts_output / 'src' / 'ptrLayouts.generated.ts'
-    if ptr_path.parent.exists():
-        print(f"Generating: {ptr_path}")
-        ptr_path.write_text(ptr_gen.generate(), encoding='utf-8')
-
-    accessor_path = args.ts_output / 'src' / 'ecs' / 'ptrAccessors.generated.ts'
-    if accessor_path.parent.exists():
-        print(f"Generating: {accessor_path}")
-        accessor_path.write_text(ptr_gen.generate_accessors(), encoding='utf-8')
+    write_ts('ptrLayouts.generated.ts', ptr_gen.generate())
+    write_ts('ecs/ptrAccessors.generated.ts', ptr_gen.generate_accessors())
 
     print("[OK] Done!")
     return 0

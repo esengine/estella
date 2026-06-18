@@ -4,8 +4,6 @@
  * in the editor, implying earlier textures are lost or overwritten.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { App } from '../src/app';
 import { Transform, Sprite, Canvas } from '../src/component';
 import type { SpriteData } from '../src/component';
@@ -19,10 +17,7 @@ import { textPlugin } from '../src/ui/TextPlugin';
 import { Text } from '../src/ui/core/text';
 import { INVALID_TEXTURE } from '../src/types';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
-import { loadWasmModule } from './helpers/loadWasm';
-
-const WASM_PATH = resolve(__dirname, '../../desktop/public/wasm/esengine.wasm');
-const HAS_WASM = existsSync(WASM_PATH);
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('Multiple Text Entities (WASM)', () => {
     let module: ESEngineModule;

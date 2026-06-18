@@ -99,11 +99,42 @@ class PtrLayoutGenerator:
                 offset += size
 
             if fields:
+                full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
                 self.layouts.append({
                     'name': comp.name,
+                    'cpp_full': full,
                     'ptrFn': f'get{comp.name}Ptr',
                     'fields': fields,
                 })
+
+    def generate_layout_asserts(self) -> str:
+        """Emit a C++ static_assert(offsetof) for every pointer-accessed field.
+
+        This makes the *compiler* the authority on struct layout: EHT computes
+        each offset, and these asserts prove the real compiler layout agrees.
+        Any divergence (a reordered/retyped field, a packing surprise EHT's
+        model doesn't capture) becomes a BUILD ERROR rather than a silent
+        cross-boundary heap-corruption at runtime. Injected into the web-only
+        WebBindings.generated.cpp, which already includes every component header.
+        """
+        lines = [
+            '// =============================================================================',
+            '// ABI Layout Asserts -- the compiler is the offset authority',
+            '// =============================================================================',
+            '// EHT computes each pointer-field offset; the asserts below prove the real',
+            '// compiler layout matches. A failure here means the TS pointer accessors would',
+            '// read the wrong bytes -- fix the struct or regenerate EHT. DO NOT EDIT.',
+            '',
+        ]
+        for layout in self.layouts:
+            full = layout['cpp_full']
+            for f in layout['fields']:
+                msg = f'ABI offset drift: {full}.{f["name"]} (EHT expected {f["offset"]})'
+                lines.append(
+                    f'static_assert(offsetof({full}, {f["name"]}) == {f["offset"]}, "{msg}");'
+                )
+        lines.append('')
+        return '\n'.join(lines)
 
     def generate(self) -> str:
         lines = [

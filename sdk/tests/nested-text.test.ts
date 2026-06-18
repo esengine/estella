@@ -6,8 +6,6 @@
  * only one text renders visually.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { App } from '../src/app';
 import { Transform, Sprite, Canvas } from '../src/component';
 import type { SpriteData } from '../src/component';
@@ -23,10 +21,7 @@ import type { TextData } from '../src/ui/core/text';
 import { textPlugin } from '../src/ui/TextPlugin';
 import { INVALID_TEXTURE } from '../src/types';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
-import { loadWasmModule } from './helpers/loadWasm';
-
-const WASM_PATH = resolve(__dirname, '../../desktop/public/wasm/esengine.wasm');
-const HAS_WASM = existsSync(WASM_PATH);
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('Nested Text Entities (WASM integration)', () => {
     let module: ESEngineModule;
