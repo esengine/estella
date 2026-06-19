@@ -10,6 +10,22 @@ import type { Registry as GeneratedRegistry } from './wasm.generated';
 // C++ Registry Interface
 // =============================================================================
 
+/**
+ * A JS-owned C++ EstellaContext instance (REARCH_ENGINE_INSTANCING N1). Created
+ * via `new module.EstellaContext()`, destroyed via `.delete()` — like Registry.
+ * Owns one engine's GPU + logic subsystems; `setActiveContext` selects which one
+ * the bindings route through.
+ */
+export interface CppEngineContext {
+    /** Initialize GPU subsystems against a WebGL context handle. Returns success. */
+    init(webglContextHandle: number): boolean;
+    /** Tear down all subsystems + the WebGL context. */
+    shutdown(): void;
+    isInitialized(): boolean;
+    /** Free the underlying C++ instance (embind ownership). */
+    delete(): void;
+}
+
 export interface CppRegistry extends GeneratedRegistry {
     delete(): void;
     removeParent(entity: Entity): void;
@@ -64,6 +80,8 @@ export interface SpineBounds {
 
 export interface ESEngineModule {
     Registry: new () => CppRegistry;
+    /** JS-newable engine context (REARCH_ENGINE_INSTANCING N1). */
+    EstellaContext: new () => CppEngineContext;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
     HEAPF32: Float32Array;
@@ -76,6 +94,12 @@ export interface ESEngineModule {
     initRendererWithCanvas(canvasSelector: string): boolean;
     initRendererWithContext(contextHandle: number): boolean;
     shutdownRenderer(): void;
+    /**
+     * Select which EstellaContext the bindings route through (REARCH_ENGINE_INSTANCING
+     * N1). Pass null to clear. Existing initRenderer paths still set it implicitly
+     * until N3; this lets the editor own contexts explicitly.
+     */
+    setActiveContext(ctx: CppEngineContext | null): void;
 
     GL: {
         registerContext(ctx: WebGLRenderingContext | WebGL2RenderingContext, options: {

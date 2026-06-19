@@ -320,6 +320,26 @@ EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
     emscripten::function("getCircleColliderPtr", &esengine::getCircleColliderPtr);
 }
 
+// Engine instancing (REARCH_ENGINE_INSTANCING.md, N1): expose EstellaContext as
+// a JS-newable instance + an explicit active-context setter, so the editor can
+// own / create / destroy isolated engine contexts rather than every App being
+// hard-bound to the process singleton (EngineContext::instance()). PURE ADDITION
+// — the existing initRenderer paths are untouched until N3 routes through these.
+// JS owns the instance (new module.EstellaContext() ... ctx.delete()), exactly
+// like new module.Registry().
+EMSCRIPTEN_BINDINGS(esengine_context) {
+    emscripten::class_<esengine::EstellaContext>("EstellaContext")
+        .constructor<>()
+        .function("init", &esengine::EstellaContext::init)
+        .function("shutdown", &esengine::EstellaContext::shutdown)
+        .function("isInitialized", &esengine::EstellaContext::isInitialized);
+    // Pointer (not reference) so JS can pass null to clear the active context.
+    emscripten::function(
+        "setActiveContext",
+        +[](esengine::EstellaContext* c) { esengine::g_activeContext = c; },
+        emscripten::allow_raw_pointers());
+}
+
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("initRenderer", &esengine::initRenderer);
     emscripten::function("initRendererWithCanvas", &esengine::initRendererWithCanvas);
