@@ -198,7 +198,12 @@ public:
         u32 di = denseIndexOf(entity);
         if (di == INVALID_INDEX || dense_[di] != entity) {
             ES_LOG_ERROR("SparseSet::get on an entity without this component (returning fallback)");
+            // Reset on every miss: get<T> is sometimes used as a writable accessor,
+            // so without this a caller writing through one miss would poison the
+            // shared static for the next miss. (A missing-component get is a logic
+            // error upstream; tryGet() is the checked, non-polluting alternative.)
             static T fallback{};
+            fallback = T{};
             return fallback;
         }
         return components_[di];

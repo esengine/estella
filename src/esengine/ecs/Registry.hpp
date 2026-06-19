@@ -309,7 +309,10 @@ public:
         auto* pool = getPool<T>();
         if (!pool) {
             ES_LOG_ERROR("Registry::get: component pool does not exist (returning fallback)");
+            // Reset each miss so a write through a prior miss can't poison the
+            // shared static (see SparseSet::get). tryGet() is the checked path.
             static T fallback{};
+            fallback = T{};
             return fallback;
         }
         return pool->get(entity);  // SparseSet::get is itself release-safe

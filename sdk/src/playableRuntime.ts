@@ -116,6 +116,8 @@ async function instantiateWasmModule(
 ): Promise<unknown | null> {
     try {
         const wasmBytes = decodeBase64ToWasm(wasmBase64);
+        let rejectOnError: (e: unknown) => void = () => {};
+        const errorGate = new Promise<never>((_, reject) => { rejectOnError = reject; });
         const opts: Record<string, unknown> = {
             instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
                 const response = new Response(wasmBytes.buffer as ArrayBuffer, {
@@ -128,14 +130,17 @@ async function instantiateWasmModule(
                             r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
                                     (r as WebAssembly.WebAssemblyInstantiatedSource).module),
                         ).catch(e => {
+                            // No failure channel in instantiateWasm: surface the error so
+                            // the factory promise rejects instead of hanging forever.
                             log.error('playable', 'WASM instantiation fallback failed', e);
+                            rejectOnError(e);
                         });
                     },
                 );
                 return {};
             },
         };
-        return await factory(opts);
+        return await Promise.race([factory(opts), errorGate]);
     } catch (e) {
         log.error('playable', 'WASM module init failed', e);
         return null;
@@ -158,7 +163,9 @@ function buildSpineManager(
         const ver = version as SpineVersion;
         factories.set(ver, async () => {
             const wasmBytes = decodeBase64ToWasm(entry.wasmBase64);
-            return entry.factory({
+            let rejectOnError: (e: unknown) => void = () => {};
+            const errorGate = new Promise<never>((_, reject) => { rejectOnError = reject; });
+            const modulePromise = entry.factory({
                 instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
                     const response = new Response(wasmBytes.buffer as ArrayBuffer, {
                         headers: { 'Content-Type': 'application/wasm' },
@@ -171,12 +178,14 @@ function buildSpineManager(
                                         (r as WebAssembly.WebAssemblyInstantiatedSource).module),
                             ).catch(e => {
                                 log.error('playable', 'Spine WASM instantiation fallback failed', e);
+                                rejectOnError(e);
                             });
                         },
                     );
                     return {};
                 },
             }) as Promise<SpineWasmModule>;
+            return Promise.race([modulePromise, errorGate]);
         });
     }
     return new SpineManager(module, factories);

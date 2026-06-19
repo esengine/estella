@@ -48,6 +48,20 @@ int main() {
         CHECK(v.dx == 0.0f, "get<Vel> with no Vel pool returns fallback (no OOB)");
     }
 
+    // --- A6b: writing through a missing-component get must not poison later misses ---
+    // Review finding: the static fallback is shared, so a write through one miss used
+    // to corrupt the value returned to the next miss. Reset-on-miss must prevent that.
+    {
+        Registry r;
+        Entity owner = r.create();
+        r.emplace<Pos>(owner, Pos{5.0f, 5.0f});  // creates the Pos pool
+        Entity a = r.create();
+        Entity b = r.create();
+        r.get<Pos>(a).x = 999.0f;                // write through a's fallback (a has no Pos)
+        CHECK(r.get<Pos>(b).x == 1.0f, "SparseSet::get fallback reset between misses (no pollution)");
+        CHECK(r.get<Pos>(owner).x == 5.0f, "real component unaffected by fallback writes");
+    }
+
     // --- A7: re-entrant destroy(entity) from onDestroy must not double-teardown ---
     {
         Registry r;
@@ -61,10 +75,13 @@ int main() {
         r.destroy(e);
         CHECK(r.entityCount() == 0u, "entity_count is 0 after re-entrant destroy (no underflow)");
 
-        // Old bug: idx pushed onto recycled_ twice -> two creates alias one index.
+        // Weak assertion (kept for documentation): create()'s `if (entityValid_[index])`
+        // guard masks the double-recycle — the duplicate idx is skipped on the second
+        // pop — so this passes even against the old code. The real, testable harm of
+        // double-recycle is the entity_count underflow asserted above.
         Entity a = r.create();
         Entity b = r.create();
-        CHECK(a.index() != b.index(), "indices not aliased after re-entrant destroy (no double-recycle)");
+        CHECK(a.index() != b.index(), "indices not aliased after re-entrant destroy");
         CHECK(r.valid(a) && r.valid(b), "both recreated entities are valid");
     }
 
