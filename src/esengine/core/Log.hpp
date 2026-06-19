@@ -20,6 +20,7 @@
 #include "Types.hpp"
 
 // Standard library
+#include <charconv>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -241,8 +242,16 @@ private:
             if (!fmt.empty() && fmt.back() == 'f') {
                 auto dotPos = fmt.find('.');
                 if (dotPos != std::string::npos) {
-                    int precision = std::stoi(fmt.substr(dotPos + 1, fmt.size() - dotPos - 2));
-                    oss << std::fixed << std::setprecision(precision);
+                    // Parse precision digits between '.' and the trailing 'f'.
+                    // from_chars never throws; std::stoi would abort the whole
+                    // module under -fno-exceptions on malformed specs like "{:.f}".
+                    int precision = 0;
+                    const char* begin = fmt.data() + dotPos + 1;
+                    const char* end = fmt.data() + fmt.size() - 1;  // exclude trailing 'f'
+                    auto res = std::from_chars(begin, end, precision);
+                    if (res.ptr != begin) {
+                        oss << std::fixed << std::setprecision(precision);
+                    }
                 }
             }
         }

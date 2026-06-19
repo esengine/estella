@@ -130,6 +130,14 @@ void BitmapFont::createLabelAtlas(resource::TextureHandle texture,
     line_height_ = static_cast<f32>(charHeight);
     base_ = line_height_;
 
+    // Guard against divide-by-zero (cols below, and `% cols` in the loop).
+    // ES_ASSERT is stripped in release, so these must be runtime checks.
+    if (charWidth == 0 || charHeight == 0 || texWidth < charWidth) {
+        ES_LOG_ERROR("BitmapFont::createLabelAtlas: invalid dimensions (char {}x{}, tex {}x{}); aborting atlas build",
+                     charWidth, charHeight, texWidth, texHeight);
+        return;
+    }
+
     u32 cols = texWidth / charWidth;
 
     u32 glyphIndex = 0;

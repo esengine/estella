@@ -191,14 +191,28 @@ public:
      * @note Asserts if the entity doesn't have a component
      */
     T& get(Entity entity) {
-        ES_ASSERT(contains(entity), "Entity does not have component");
-        return components_[denseIndexOf(entity)];
+        // Release-safe bounds check (ES_ASSERT is stripped in release builds).
+        // On a miss, log and return a fallback rather than read
+        // components_[INVALID_INDEX] out of bounds. Callers that have already
+        // proven membership should use getUnchecked() for the no-branch path.
+        u32 di = denseIndexOf(entity);
+        if (di == INVALID_INDEX || dense_[di] != entity) {
+            ES_LOG_ERROR("SparseSet::get on an entity without this component (returning fallback)");
+            static T fallback{};
+            return fallback;
+        }
+        return components_[di];
     }
 
     /** @copydoc get() */
     const T& get(Entity entity) const {
-        ES_ASSERT(contains(entity), "Entity does not have component");
-        return components_[denseIndexOf(entity)];
+        u32 di = denseIndexOf(entity);
+        if (di == INVALID_INDEX || dense_[di] != entity) {
+            ES_LOG_ERROR("SparseSet::get on an entity without this component (returning fallback)");
+            static const T fallback{};
+            return fallback;
+        }
+        return components_[di];
     }
 
     T& getUnchecked(Entity entity) {

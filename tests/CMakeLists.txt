@@ -102,3 +102,26 @@ add_executable(test_compressed_format
 )
 target_include_directories(test_compressed_format PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_compressed_format COMMAND test_compressed_format)
+
+# Log format-string precision parsing (Audit A1). Only needs Log.cpp.
+# Should be compiled with exceptions OFF to mirror the engine's release config:
+# proves malformed float specs like "{:.f}" no longer abort (the old std::stoi
+# path threw -> abort under -fno-exceptions).
+add_executable(test_log_format
+    core/test_log_format.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_log_format PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_options(test_log_format PRIVATE -fno-exceptions)
+add_test(NAME test_log_format COMMAND test_log_format)
+
+# Registry/SparseSet release-safety (Audit A6 + A7). Header-only against
+# Registry.hpp + Log.cpp (no esengine link). MUST stay free of -DES_DEBUG so
+# ES_ASSERT is stripped, matching the release config where the OOB read
+# (get on a non-member) and entity_count underflow (re-entrant destroy) appear.
+add_executable(test_registry_safety
+    ecs/test_registry_safety.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_registry_safety PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_registry_safety COMMAND test_registry_safety)

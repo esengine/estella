@@ -50,6 +50,23 @@ int main() {
         CHECK(d.texSubImage2DCalls == 1, "pixel upload routes through device.texSubImage2D");
     }
 
+    // --- A2 regression: setDataRaw rejects undersized buffer (no OOB upload) ---
+    // Audit A2: ES_ASSERT is stripped in release, so an undersized buffer used to
+    // reach texSubImage2D and read past its end. Guard must hold without asserts.
+    {
+        MockGfxDevice d;
+        TextureSpecification spec;
+        spec.width = 4; spec.height = 4; spec.format = TextureFormat::RGBA8;  // needs 4*4*4 = 64 bytes
+        auto tex = Texture::create(d, spec);
+        const int before = d.texSubImage2DCalls;
+        std::vector<u8> tooSmall(16, 0xAB);  // 16 < 64
+        tex->setDataRaw(tooSmall.data(), static_cast<u32>(tooSmall.size()));
+        CHECK(d.texSubImage2DCalls == before, "setDataRaw skips upload for undersized buffer (no OOB read)");
+        std::vector<u8> exact(64, 0xAB);
+        tex->setDataRaw(exact.data(), static_cast<u32>(exact.size()));
+        CHECK(d.texSubImage2DCalls == before + 1, "setDataRaw uploads when size is sufficient");
+    }
+
     // --- Framebuffer: color + depth-stencil ---
     {
         MockGfxDevice d;

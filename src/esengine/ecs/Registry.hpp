@@ -139,6 +139,12 @@ public:
 
         const u32 idx = entity.index();
 
+        // Mark invalid up-front so a re-entrant destroy(entity) from an onDestroy
+        // callback short-circuits at valid() above. Otherwise the teardown below
+        // runs twice: entity_count_ underflows and idx is pushed onto recycled_
+        // twice, later aliasing two distinct entities to the same index.
+        entityValid_[idx] = false;
+
         ++firing_destroy_;
         for (usize i = 0; i < on_destroy_entries_.size(); ++i) {
             if (on_destroy_entries_[i].dead) continue;
@@ -159,7 +165,6 @@ public:
         });
 
         component_masks_[idx].reset();
-        entityValid_[idx] = false;
         --entity_count_;
         recycled_.push(idx);
 
@@ -302,15 +307,23 @@ public:
     template<typename T>
     T& get(Entity entity) {
         auto* pool = getPool<T>();
-        ES_ASSERT(pool != nullptr, "Component pool does not exist");
-        return pool->get(entity);
+        if (!pool) {
+            ES_LOG_ERROR("Registry::get: component pool does not exist (returning fallback)");
+            static T fallback{};
+            return fallback;
+        }
+        return pool->get(entity);  // SparseSet::get is itself release-safe
     }
 
     /** @copydoc get() */
     template<typename T>
     const T& get(Entity entity) const {
         auto* pool = getPool<T>();
-        ES_ASSERT(pool != nullptr, "Component pool does not exist");
+        if (!pool) {
+            ES_LOG_ERROR("Registry::get: component pool does not exist (returning fallback)");
+            static const T fallback{};
+            return fallback;
+        }
         return pool->get(entity);
     }
 

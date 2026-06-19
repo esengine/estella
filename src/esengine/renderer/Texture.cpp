@@ -164,9 +164,15 @@ void Texture::setData(const std::vector<u8>& pixels) {
 }
 
 void Texture::setDataRaw(const void* data, u32 sizeBytes, bool flipY) {
-    [[maybe_unused]] u32 bpp = bytesPerPixel(format_);
-    ES_ASSERT(sizeBytes == width_ * height_ * bpp, "Data size mismatch");
-    (void)sizeBytes;
+    // Always-on size guard (independent of ES_ASSERT, which is stripped in release).
+    // texSubImage2D below reads width_*height_*bpp bytes from `data`; a smaller
+    // buffer would cause an out-of-bounds read of WASM linear memory.
+    u32 expectedSize = width_ * height_ * bytesPerPixel(format_);
+    if (sizeBytes < expectedSize) {
+        ES_LOG_ERROR("Texture::setDataRaw: data size {} < required {} for {}x{}; skipping upload to avoid OOB read",
+                     sizeBytes, expectedSize, width_, height_);
+        return;
+    }
 
     if (flipY) device_->setUnpackFlipY(true);
     device_->texSubImage2D(textureId_, 0, 0, width_, height_, toGfxPixelFormat(format_), data);
