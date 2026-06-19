@@ -24,6 +24,7 @@
 #include "Entity.hpp"
 #include "SparseSet.hpp"
 #include "View.hpp"
+#include "../events/Sink.hpp"
 
 // Standard library
 #include <algorithm>
@@ -145,18 +146,10 @@ public:
         // twice, later aliasing two distinct entities to the same index.
         entityValid_[idx] = false;
 
-        ++firing_destroy_;
-        for (usize i = 0; i < on_destroy_entries_.size(); ++i) {
-            if (on_destroy_entries_[i].dead) continue;
-            on_destroy_entries_[i].callback(entity);
-        }
-        --firing_destroy_;
-        if (firing_destroy_ == 0) {
-            on_destroy_entries_.erase(
-                std::remove_if(on_destroy_entries_.begin(), on_destroy_entries_.end(),
-                               [](const DestroyEntry& e) { return e.dead; }),
-                on_destroy_entries_.end());
-        }
+        // Signal handles re-entrant connect/disconnect during publish; its RAII
+        // Connection (via Sink::connect) keeps subscriber lifetimes safe in both
+        // teardown orders — Registry-first or system-first (RC12, fixes A12).
+        on_destroy_signal_.publish(entity);
 
         component_masks_[idx].forEachSet([&](u32 bit) {
             if (bit < pools_.size() && pools_[bit]) {
@@ -173,25 +166,16 @@ public:
 
     using DestroyCallback = std::function<void(Entity)>;
 
-    u32 onDestroy(DestroyCallback callback) {
-        u32 id = next_callback_id_++;
-        on_destroy_entries_.push_back({id, std::move(callback), false});
-        return id;
-    }
-
-    void removeOnDestroy(u32 callbackId) {
-        for (auto& entry : on_destroy_entries_) {
-            if (entry.id == callbackId) {
-                entry.dead = true;
-                if (firing_destroy_ == 0) {
-                    on_destroy_entries_.erase(
-                        std::remove_if(on_destroy_entries_.begin(), on_destroy_entries_.end(),
-                                       [](const DestroyEntry& e) { return e.dead; }),
-                        on_destroy_entries_.end());
-                }
-                return;
-            }
-        }
+    /**
+     * @brief Subscribe to entity destruction.
+     * @return An RAII Connection. The callback stays registered for as long as
+     *         the returned Connection is alive; on its destruction the callback
+     *         is removed. The Connection is also safe to outlive the Registry —
+     *         it no-ops against a destroyed signal — so subscribers and the
+     *         Registry can tear down in either order without a dangling callback.
+     */
+    [[nodiscard]] Connection onDestroy(DestroyCallback callback) {
+        return sink(on_destroy_signal_).connect(std::move(callback));
     }
 
     /**
@@ -593,15 +577,7 @@ private:
     /** @brief Type-erased component pools indexed by TypeId */
     std::vector<Unique<SparseSetBase>> pools_;
 
-    struct DestroyEntry {
-        u32 id;
-        DestroyCallback callback;
-        bool dead;
-    };
-
-    std::vector<DestroyEntry> on_destroy_entries_;
-    u32 next_callback_id_ = 0;
-    u32 firing_destroy_ = 0;
+    Signal<void(Entity)> on_destroy_signal_;
 };
 
 }  // namespace esengine::ecs

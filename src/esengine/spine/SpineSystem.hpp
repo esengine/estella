@@ -217,7 +217,7 @@ private:
 
     SpineResourceManager& resource_manager_;
     std::unordered_map<Entity, SpineInstance> instances_;
-    u32 destroy_callback_id_ = 0;
+    Connection destroy_conn_;  // RAII: auto-disconnects on system destruction
 
     std::array<f32, MAX_NATIVE_EVENTS * EVENT_STRIDE> native_event_buffer_{};
     std::array<NativeEventRecord, MAX_NATIVE_EVENTS> native_event_records_{};

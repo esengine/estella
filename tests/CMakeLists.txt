@@ -125,3 +125,17 @@ add_executable(test_registry_safety
 )
 target_include_directories(test_registry_safety PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_registry_safety COMMAND test_registry_safety)
+
+# onDestroy RAII Connection / dual-order teardown safety (RC12 B1, fixes A12).
+# Built with AddressSanitizer so the use-after-free the old bare-`this` callback
+# caused (in either teardown order) is actually caught, not just "didn't crash".
+add_executable(test_registry_ondestroy
+    ecs/test_registry_ondestroy.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_registry_ondestroy PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm)
+target_compile_options(test_registry_ondestroy PRIVATE -fsanitize=address)
+target_link_options(test_registry_ondestroy PRIVATE -fsanitize=address)
+add_test(NAME test_registry_ondestroy COMMAND test_registry_ondestroy)
