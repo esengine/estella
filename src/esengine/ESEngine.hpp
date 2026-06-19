@@ -42,10 +42,6 @@
 #include "renderer/Shader.hpp"
 #include "renderer/Texture.hpp"
 
-// Platform
-#include "platform/Platform.hpp"
-#include "platform/input/Input.hpp"
-
 // =============================================================================
 // Version Information
 // =============================================================================

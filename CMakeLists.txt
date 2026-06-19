@@ -59,7 +59,6 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/plugins/UIElementPlugin.cpp
     src/esengine/renderer/plugins/TextPlugin.cpp
     src/esengine/renderer/plugins/ShapePlugin.cpp
-    src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
     src/esengine/ecs/UILayoutSystem.cpp
@@ -159,9 +158,7 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/plugins/TextPlugin.hpp
     src/esengine/renderer/plugins/ShapePlugin.hpp
     src/esengine/renderer/plugins/SpinePlugin.hpp
-    src/esengine/platform/Platform.hpp
     src/esengine/platform/FileSystem.hpp
-    src/esengine/platform/input/Input.hpp
     src/esengine/events/Events.hpp
     src/esengine/events/Connection.hpp
     src/esengine/events/Signal.hpp
@@ -222,7 +219,6 @@ set(GENERATED_EDITOR_API "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/Edit
 set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm.generated.ts")
 
 list(APPEND ESENGINE_SOURCES
-    src/esengine/platform/web/WebPlatform.cpp
     src/esengine/platform/web/WebFileSystem.cpp
 )
 
