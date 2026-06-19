@@ -11,10 +11,11 @@ import {
   serializeScene,
   resetWorldTo,
 } from 'esengine';
-import type { App, ESEngineModule, SceneData } from 'esengine';
+import type { App, ESEngineModule, SceneData, ResourceDef } from 'esengine';
 import { SceneStore } from './SceneStore';
 import { SceneLoader } from './SceneLoader';
 import { checkEngineBuild } from './EngineGuard';
+import type { ReadonlyWorldT, WorldT } from './schema';
 
 // Scene the editor opens on boot (placeholder until a project/open-scene flow exists).
 const DEFAULT_SCENE_URL = '/scenes/sprite-rendering.esscene';
@@ -58,9 +59,26 @@ class EngineHostImpl {
     this.sceneBootstrap = fn;
   }
 
-  // Live handles read by the layered modules.
-  get app(): App | null {
-    return this.app_;
+  // — World access behind two doors (RC12 §E2) —
+  // The App is private: no module can reach `app.world` and write straight to
+  // the World, bypassing the command/undo layer. Reads get a read-only view;
+  // the single mutable door (mutableWorld) is used only by SceneCommands
+  // (undoable edits) and bulk scene load (ProjectStore / SceneLoader).
+
+  /** Read-only view of the live World — for reflection, picking, stats. */
+  get world(): ReadonlyWorldT | null {
+    return this.app_?.world ?? null;
+  }
+  /**
+   * The mutable World — the editor's single write door. Only SceneCommands and
+   * bulk scene load/reset should call this; everything else reads via `world`.
+   */
+  mutableWorld(): WorldT | null {
+    return this.app_?.world ?? null;
+  }
+  /** Read an app-scoped resource (e.g. Assets, CameraView). */
+  getResource<T>(resource: ResourceDef<T>): T | undefined {
+    return this.app_?.getResource(resource);
   }
   get module(): ESEngineModule | null {
     return this.module_;

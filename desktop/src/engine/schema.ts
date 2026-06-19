@@ -26,6 +26,17 @@ import type { NodeKind, EntityId, InspectorField } from '@/types';
 // Camera packs a vec4 `viewport` where the JS data exposes viewportX/Y/W/H).
 
 export type WorldT = App['world'];
+/**
+ * Read-only projection of the engine World: the query surface, with no mutators.
+ * EngineHost hands this out by default so reflection / picking / stats can read
+ * the live world but cannot write it — a write must go through the one mutable
+ * door (EngineHost.mutableWorld, used only by SceneCommands and bulk scene load).
+ * Adding a method here is the deliberate way to widen the read surface.
+ */
+export type ReadonlyWorldT = Pick<
+  WorldT,
+  'valid' | 'has' | 'get' | 'getAllEntities' | 'getWorldVersion'
+>;
 export type AnyComp = Parameters<WorldT['has']>[1];
 
 // — Presentation policy (editor-side, not engine schema) —
@@ -46,7 +57,7 @@ export function componentByName(name: string): AnyComp | undefined {
 
 /** Every editable component the entity currently carries, in display order. */
 export function inspectableComponents(
-  world: WorldT,
+  world: ReadonlyWorldT,
   entity: EntityId,
 ): Array<{ name: string; def: AnyComp; label: string }> {
   const out: Array<{ name: string; def: AnyComp; label: string }> = [];
@@ -130,7 +141,7 @@ export function inferField(key: string, v: unknown, isColor: boolean): Inspector
 
 // — Outliner kind/name (presentation; uses specific defs for icon mapping) —
 
-export function kindOf(world: WorldT, e: EntityId): NodeKind {
+export function kindOf(world: ReadonlyWorldT, e: EntityId): NodeKind {
   if (world.has(e, Camera)) return 'camera';
   if (world.has(e, SpineAnimation)) return 'spine';
   if (world.has(e, Canvas) || world.has(e, BitmapText)) return 'ui';
@@ -141,7 +152,7 @@ export function kindOf(world: WorldT, e: EntityId): NodeKind {
   return 'empty';
 }
 
-export function nameOf(world: WorldT, e: EntityId, kind: NodeKind): string {
+export function nameOf(world: ReadonlyWorldT, e: EntityId, kind: NodeKind): string {
   if (world.has(e, Name)) {
     const v = world.get(e, Name).value;
     if (v) return v;

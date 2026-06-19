@@ -135,7 +135,7 @@ class ProjectStoreImpl {
     this.adopt(opened);
     await window.estella.recents.add(opened.root, opened.manifest.name);
     EngineHost.setSceneBootstrap(() => this.loadCurrentScene());
-    if (EngineHost.app?.world) await this.loadCurrentScene();
+    if (EngineHost.world) await this.loadCurrentScene();
   }
 
   private adopt(opened: OpenedProject) {
@@ -172,7 +172,7 @@ class ProjectStoreImpl {
       );
     }
     const data = await this.resolveTextures(raw);
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (world) resetWorldTo(world, data);
     this.state = { ...st, currentScene: rel, lossy: dropped.length > 0 };
     this.emit();
@@ -214,7 +214,7 @@ class ProjectStoreImpl {
       // no textures dir — every ref blanks to 0
     }
 
-    const assets = EngineHost.app?.getResource(Assets) as unknown as AssetsLike | undefined;
+    const assets = EngineHost.getResource(Assets) as unknown as AssetsLike | undefined;
     const uuidToHandle = new Map<string, number>();
     if (assets) {
       for (const [uuid, rel] of uuidToPath) {
@@ -232,7 +232,7 @@ class ProjectStoreImpl {
 
   /** Serialize the live world; map texture handles back to `@uuid:` (portable). */
   private serializeCurrent(): SceneData {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (!world) throw new Error('engine not ready');
     return this.restoreAssetRefs(serializeScene(world, this.state?.name ?? 'scene'));
   }

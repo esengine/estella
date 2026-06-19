@@ -83,7 +83,7 @@ function applyFieldWrite(
   type: InspectorFieldType,
   value: InspectorFieldValue,
 ): void {
-  const world = EngineHost.app?.world;
+  const world = EngineHost.mutableWorld();
   if (!world || !world.valid(entity)) return;
   const def = componentByName(compName);
   if (!def) return;
@@ -165,7 +165,7 @@ export const SceneCommands = {
     type: InspectorFieldType,
     value: InspectorFieldValue,
   ): void {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (!world || !world.valid(entity) || !componentByName(compName)) return;
 
     const k = editKey(entity, compName, key);
@@ -193,7 +193,7 @@ export const SceneCommands = {
 
   /** Move an entity to a world position (keeps Z). Undoable like any field edit. */
   setEntityXY(id: EntityId, x: number, y: number): void {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (!world || !world.valid(id) || !world.has(id, Transform)) return;
     const z = world.get(id, Transform).position.z;
     this.setField(id, 'Transform', 'position', 'vec3', [x, y, z]);
@@ -204,7 +204,7 @@ export const SceneCommands = {
 
   /** Spawn a new empty entity (with a Transform). Returns its id. */
   addEntity(): EntityId | null {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (!world) return null;
     const e = world.spawn('Entity');
     world.insert(e, Transform, DEFAULT_TRANSFORM);
@@ -222,7 +222,7 @@ export const SceneCommands = {
 
   /** Delete an entity (undo re-creates it under the same stable handle). */
   deleteEntity(id: EntityId): void {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (!world || !world.valid(id)) return;
     const cap = captureEntity(world, id);
     if (!cap) return;
@@ -238,7 +238,7 @@ export const SceneCommands = {
 
   /** Duplicate an entity (offset slightly). Returns the new id. */
   duplicateEntity(id: EntityId): EntityId | null {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (!world || !world.valid(id)) return null;
     const cap = captureEntity(world, id);
     if (!cap) return null;
@@ -260,7 +260,7 @@ export const SceneCommands = {
 
   /** Rename an entity via its Name component (undoable). */
   renameEntity(id: EntityId, name: string): void {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.mutableWorld();
     if (!world || !world.valid(id)) return;
     const before = world.has(id, Name) ? world.get(id, Name).value : '';
     if (before === name) return;

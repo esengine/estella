@@ -9,7 +9,7 @@ interface CameraViewLike {
 }
 
 function cameraView(): CameraViewLike | null {
-  const cv = EngineHost.app?.getResource(CameraView) as unknown as CameraViewLike | undefined;
+  const cv = EngineHost.getResource(CameraView) as unknown as CameraViewLike | undefined;
   return cv ?? null;
 }
 
@@ -49,7 +49,7 @@ export const ViewportController = {
 
   /** Topmost sprite under a pointer (AABB test in world space), or null. */
   pickEntity(clientX: number, clientY: number): EntityId | null {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.world;
     const wp = this.canvasToWorld(clientX, clientY);
     if (!world || !wp) return null;
 
@@ -78,7 +78,7 @@ export const ViewportController = {
   },
 
   getEntityXY(id: EntityId): { x: number; y: number } | null {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
     return { x: t.position.x, y: t.position.y };
@@ -86,7 +86,7 @@ export const ViewportController = {
 
   /** Screen-space bounding rect (CSS px rel. canvas) of an entity, for the selection outline. */
   getEntityScreenRect(id: EntityId): { x: number; y: number; w: number; h: number } | null {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
 

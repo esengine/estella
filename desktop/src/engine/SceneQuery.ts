@@ -14,12 +14,12 @@ import {
 export const SceneQuery = {
   /** Monotonic counter; bump means the entity set / structure changed. */
   worldVersion(): number {
-    return EngineHost.app?.world.getWorldVersion() ?? -1;
+    return EngineHost.world?.getWorldVersion() ?? -1;
   },
 
   /** Build the outliner tree from the live World, nesting via the Parent component. */
   readSceneTree(): SceneNode[] {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.world;
     if (!world) return [];
 
     const ids = world.getAllEntities();
@@ -60,7 +60,7 @@ export const SceneQuery = {
 
   /** Inspect a single live entity (name, kind, which components it carries). */
   readEntity(id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.world;
     if (!world || !world.valid(id)) return null;
     const kind = kindOf(world, id);
     const components = inspectableComponents(world, id).map((c) => c.label);
@@ -69,7 +69,7 @@ export const SceneQuery = {
 
   /** Full editable inspector model for an entity — components from the engine registry. */
   readInspector(entity: EntityId): InspectorComponent[] {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.world;
     if (!world || !world.valid(entity)) return [];
 
     const out: InspectorComponent[] = [];
@@ -82,7 +82,7 @@ export const SceneQuery = {
 
   /** Read one inspector field's current value (for undo before/after capture). */
   getFieldValue(entity: EntityId, compName: string, key: string): InspectorFieldValue | null {
-    const world = EngineHost.app?.world;
+    const world = EngineHost.world;
     if (!world || !world.valid(entity)) return null;
     const def = componentByName(compName);
     if (!def || !world.has(entity, def)) return null;
