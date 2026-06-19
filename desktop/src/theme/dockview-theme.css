@@ -1,0 +1,64 @@
+/* =============================================================================
+   Estella dockview theme.
+
+   dockview 6 ships its themes (structure + `--dv-*` vars) scoped under built-in
+   theme classes. We layer on the dark `abyss` base for all structural rules,
+   then re-tint the variables to Estella's palette. The compound selector
+   `.dockview-theme-abyss.dockview-theme-estella` (specificity 0,2,0) outranks
+   abyss's own `.dockview-theme-abyss` (0,1,0), so our colors always win.
+
+   Apply with: className="dockview-theme-abyss dockview-theme-estella".
+   dockview.css must be imported before this file (see main.tsx).
+   ========================================================================== */
+
+.dockview-theme-abyss.dockview-theme-estella {
+  --dv-group-view-background-color: var(--panel);
+
+  /* Tab strip */
+  --dv-tabs-and-actions-container-background-color: var(--elevated);
+  --dv-tabs-and-actions-container-height: 34px;
+  --dv-tabs-and-actions-container-font-size: var(--fs-sm);
+  --dv-tab-divider-color: transparent;
+
+  /* Active group, focused tab */
+  --dv-activegroup-visiblepanel-tab-background-color: var(--panel);
+  --dv-activegroup-visiblepanel-tab-color: var(--text-hi);
+  /* Active group, background tabs */
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--elevated);
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-dim);
+  /* Inactive group */
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--elevated);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-faint);
+
+  /* Structure */
+  --dv-separator-border: var(--line);
+  --dv-paneview-header-border-color: var(--line);
+  --dv-active-sash-color: var(--star-line);
+  --dv-paneview-active-outline-color: var(--star);
+
+  /* Drag & drop */
+  --dv-drag-over-background-color: var(--star-dim);
+  --dv-drag-over-border-color: var(--star);
+
+  /* Misc */
+  --dv-icon-hover-background-color: var(--hover);
+  --dv-floating-box-shadow: var(--shadow-pop);
+  --dv-tabs-container-scrollbar-color: var(--line-strong);
+}
+
+/* The focused group gets a thin starlight top-edge — the one "glow" accent. */
+.dockview-theme-estella .dv-groupview.dv-active-group > .dv-tabs-and-actions-container {
+  box-shadow: inset 0 2px 0 -1px var(--star);
+}
+
+/* Tabs: hairline-separated, instrument-like, with a starlight underline when active. */
+.dockview-theme-estella .dv-tab {
+  border-right: 1px solid var(--line-soft);
+  padding: 0 12px;
+  letter-spacing: 0.01em;
+}
+.dockview-theme-estella .dv-tab.dv-active-tab {
+  box-shadow: inset 0 -2px 0 0 var(--star);
+}

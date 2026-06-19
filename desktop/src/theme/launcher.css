@@ -1,0 +1,584 @@
+/* =============================================================================
+   Estella Launcher (project browser). Stellar-instrument identity from
+   tokens.css; structure borrows Unity Hub (persistent top actions, build-aware
+   list) + UE5 (template gallery + create panel). Signature: projects on a star
+   chart — faint starfield, starlight glow on focus, a constellation mark.
+   ========================================================================== */
+
+.launcher {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--base);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------- top bar --- */
+/* Draggable; left padding clears the macOS traffic lights. */
+.launcher__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 54px;
+  flex-shrink: 0;
+  padding: 0 20px 0 78px;
+  border-bottom: 1px solid var(--line-soft);
+  -webkit-app-region: drag;
+}
+.launcher__bar-actions {
+  display: flex;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.lc-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lc-brand__mark {
+  width: 21px;
+  height: 21px;
+  fill: var(--star);
+  filter: drop-shadow(0 0 6px var(--star-line));
+}
+.lc-brand__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.12;
+}
+.lc-brand__text strong {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-hi);
+}
+.lc-brand__text span {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* ----------------------------------------------------------------- body --- */
+.launcher__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.launcher__rail {
+  display: flex;
+  flex-direction: column;
+  width: 208px;
+  flex-shrink: 0;
+  padding: 18px 14px 16px;
+  border-right: 1px solid var(--line-soft);
+}
+.lc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lc-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.lc-nav__item:hover {
+  background: var(--hover);
+  color: var(--text-hi);
+}
+/* Active = a clean starlight bar on the left + a soft left-to-right fade, not a
+   filled rounded pill. */
+.lc-nav__item.is-active {
+  color: var(--star-hi);
+  background: linear-gradient(90deg, var(--star-dim), transparent 70%);
+}
+.lc-nav__item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--star);
+  box-shadow: 0 0 6px var(--star-line);
+}
+.lc-nav__item.is-active svg {
+  color: var(--star);
+}
+
+.lc-rail__foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 8px;
+}
+.lc-constellation {
+  width: 104px;
+  height: auto;
+  opacity: 0.7;
+}
+.lc-constellation polyline {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.lc-constellation circle {
+  fill: var(--text-faint);
+}
+.lc-constellation__star {
+  fill: var(--star);
+  filter: drop-shadow(0 0 4px var(--star-line));
+}
+.lc-rail__foot .mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+
+/* ----------------------------------------------------------------- main --- */
+.launcher__main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Faint star chart behind the gallery — the signature, kept very quiet. */
+  background-image:
+    radial-gradient(circle at 82% 0%, rgba(77, 157, 255, 0.06), transparent 44%),
+    radial-gradient(rgba(122, 162, 247, 0.045) 1px, transparent 1.4px);
+  background-size: auto, 30px 30px;
+}
+
+.lc-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  padding: 26px 34px 8px;
+}
+.lc-head h1 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-hi);
+}
+.lc-head__sub {
+  margin: 6px 0 0;
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+}
+.lc-head__tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lc-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  width: 210px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text-faint);
+}
+.lc-search input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.lc-search input::placeholder {
+  color: var(--text-faint);
+}
+
+.lc-seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.lc-seg__btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  color: var(--text-dim);
+}
+.lc-seg__btn:hover {
+  color: var(--text-hi);
+}
+.lc-seg__btn.is-active {
+  background: var(--raised);
+  color: var(--star-hi);
+}
+
+/* ----------------------------------------------------------- grid cards --- */
+.proj-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 16px;
+  /* Top padding gives the selected/hover star-glow room — without it the
+     scroll container clips the top row's glow ring. */
+  padding: 14px 34px 28px;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.proj-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+}
+.proj-card:hover,
+.proj-card:focus-visible {
+  border-color: var(--star-line);
+  box-shadow: var(--star-glow);
+  transform: translateY(-2px);
+  outline: none;
+}
+.proj-card.is-selected {
+  border-color: var(--star);
+  box-shadow: var(--star-glow);
+}
+
+.proj-card__thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--void);
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background-image: radial-gradient(rgba(122, 162, 247, 0.07) 1px, transparent 1.3px);
+  background-size: 16px 16px;
+}
+.proj-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.proj-card__glyph {
+  font-size: 38px;
+  font-weight: 600;
+  color: var(--text-faint);
+  opacity: 0.55;
+}
+.proj-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px 12px;
+}
+.proj-card__name {
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: var(--text-hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.proj-card__meta {
+  font-size: var(--fs-2xs);
+  color: var(--star-hi);
+  opacity: 0.85;
+}
+.proj-card__path {
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.proj-card__desc {
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+.proj-card__build,
+.proj-card__tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+  background: rgba(8, 11, 18, 0.66);
+  border: 1px solid var(--line);
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  backdrop-filter: blur(2px);
+}
+.proj-card__tag {
+  color: var(--star-hi);
+  border-color: var(--star-line);
+}
+
+/* ----------------------------------------------------------- list view --- */
+.proj-list {
+  overflow-y: auto;
+  padding: 6px 34px 28px;
+}
+.proj-list__head,
+.proj-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 110px;
+  align-items: center;
+  gap: 12px;
+}
+.proj-list__head {
+  padding: 6px 12px;
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--line-soft);
+}
+.proj-list__num {
+  text-align: right;
+}
+.proj-row {
+  /* A <button> won't stretch to its container even as a grid (Chromium quirk) —
+     force full width so its columns line up with the (full-width) header. */
+  width: 100%;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.proj-row:hover,
+.proj-row:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+/* Name over path, both left-aligned to the column edge — so every row's text
+   starts at the same x and lines up under the "Project" header. */
+.proj-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.proj-row__name {
+  font-size: var(--fs-md);
+  color: var(--text-hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.proj-row__path {
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.proj-row__col {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.lc-badge {
+  padding: 2px 7px;
+  border-radius: var(--r-xs);
+  background: var(--input);
+  border: 1px solid var(--line);
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* --------------------------------------------------------- new project --- */
+.lc-new {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.lc-new__gallery {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lc-new .lc-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.lc-create {
+  width: 296px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 24px;
+  border-left: 1px solid var(--line-soft);
+  background: var(--panel);
+}
+.lc-create__hint {
+  margin: auto;
+  color: var(--text-faint);
+  font-size: var(--fs-md);
+}
+.lc-create__preview {
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+.lc-create__preview .proj-card__thumb {
+  border-bottom: none;
+}
+.lc-create__tpl {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-hi);
+}
+.lc-create__desc {
+  margin: 6px 0 18px;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.lc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.lc-field > span {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.lc-field input {
+  padding: 7px 10px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-hi);
+  font-size: var(--fs-sm);
+  outline: none;
+  min-width: 0;
+}
+.lc-field input:focus {
+  border-color: var(--star-line);
+}
+.lc-field__path {
+  display: flex;
+  gap: 6px;
+}
+.lc-field__path input {
+  flex: 1;
+}
+.lc-field__browse {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+}
+.lc-field__browse:hover {
+  color: var(--star-hi);
+  border-color: var(--star-line);
+}
+.lc-create__go {
+  margin-top: auto;
+  justify-content: center;
+}
+
+/* --------------------------------------------------------------- buttons --- */
+.lc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--input);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+.lc-btn:hover {
+  border-color: var(--star-line);
+  color: var(--star-hi);
+  background: var(--hover);
+}
+.lc-btn--primary {
+  background: var(--star-dim);
+  border-color: var(--star-line);
+  color: var(--star-hi);
+}
+.lc-btn--primary:hover {
+  background: var(--star-dim);
+  box-shadow: var(--star-glow);
+}
+.lc-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+}
+
+.lc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin: 64px auto;
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+}
+
+/* One quiet page-load moment; off when reduced motion is requested. */
+@media (prefers-reduced-motion: no-preference) {
+  .proj-grid,
+  .proj-list {
+    animation: lc-rise 0.3s ease-out both;
+  }
+  @keyframes lc-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}

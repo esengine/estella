@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-electron
+release
+*.log
+.DS_Store
+
+# Synced from the engine/SDK build (build-tools/tasks/sync.js) — generated, not source.
+public/sdk/
+public/wasm/

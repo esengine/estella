@@ -1,0 +1,70 @@
+/* =============================================================================
+   Estella Editor — design tokens
+   Identity: a precise stellar instrument. Deep ink-navy surfaces (cool, not
+   neutral gray), hairline structure, one luminous "starlight" accent, and a
+   monospace face reserved for live data so numbers read like an instrument.
+   ========================================================================== */
+
+:root {
+  /* — Surfaces: ink-navy ramp, coolest at the bottom (the viewport void) — */
+  --void: #080b12; /* viewport / deepest stage */
+  --base: #0e121b; /* app background behind panels */
+  --panel: #131826; /* panel body */
+  --elevated: #19202f; /* toolbars, tab strips, headers */
+  --raised: #20283a; /* popovers, dropdowns */
+  --input: #1b2336; /* fields, wells */
+  --hover: rgba(122, 162, 247, 0.08);
+  --pressed: rgba(122, 162, 247, 0.14);
+
+  /* — Structure: hairlines do the visual work, not boxes — */
+  --line: #222b3d;
+  --line-soft: #1a2130;
+  --line-strong: #2f3a52;
+
+  /* — Text — */
+  --text-hi: #eef2fb;
+  --text: #c4cde0;
+  --text-dim: #828ea6;
+  --text-faint: #56627c;
+
+  /* — Starlight accent (the single signature color) — */
+  --star: #4d9dff;
+  --star-hi: #74b3ff;
+  --star-dim: rgba(77, 157, 255, 0.16);
+  --star-line: rgba(77, 157, 255, 0.4);
+  --star-glow: 0 0 0 1px var(--star-line), 0 0 12px -2px rgba(77, 157, 255, 0.55);
+  --nebula: #9a6cff; /* secondary stellar, used sparingly */
+
+  /* — Semantic — */
+  --run: #43d39e; /* play / running */
+  --run-glow: 0 0 10px -1px rgba(67, 211, 158, 0.6);
+  --warn: #ffb454; /* supernova amber */
+  --error: #ff6b6b;
+
+  /* — Type — */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+
+  /* — Geometry — */
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 7px;
+  --r-lg: 10px;
+
+  --u: 4px; /* spacing unit */
+
+  /* — Chrome heights — */
+  --h-titlebar: 30px;
+  --h-toolbar: 42px;
+  --h-statusbar: 24px;
+
+  /* — Elevation — */
+  --shadow-pop: 0 8px 28px -6px rgba(0, 0, 0, 0.55), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.02) inset;
+}
