@@ -182,6 +182,12 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
 
     if (isBinary) {
         spSkeletonBinary* binary = spSkeletonBinary_create(handle.atlas);
+        if (!binary) {
+            g_ctx.lastError = "Failed to create skeleton binary reader";
+            destroySkeleton(handle);
+            g_ctx.skeletons.erase(id);
+            return -1;
+        }
         binary->scale = 1.0f;
         handle.skeletonData = spSkeletonBinary_readSkeletonData(
             binary, reinterpret_cast<const unsigned char*>(skelDataPtr), skelDataLen);
@@ -191,6 +197,12 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
         spSkeletonBinary_dispose(binary);
     } else {
         spSkeletonJson* json = spSkeletonJson_create(handle.atlas);
+        if (!json) {
+            g_ctx.lastError = "Failed to create skeleton json reader";
+            destroySkeleton(handle);
+            g_ctx.skeletons.erase(id);
+            return -1;
+        }
         json->scale = 1.0f;
         handle.skeletonData = spSkeletonJson_readSkeletonData(
             json, reinterpret_cast<const char*>(skelDataPtr));

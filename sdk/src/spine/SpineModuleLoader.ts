@@ -186,16 +186,23 @@ export function createSpineFactories(provider: SpineWasmProvider): Map<SpineVers
             const moduleFactory = (globalThis as any).__ESSpineModule__ as
                 (opts: Record<string, unknown>) => Promise<SpineWasmModule>;
             delete (globalThis as any).__ESSpineModule__;
-            return moduleFactory({
+            // emscripten's instantiateWasm has no failure channel: surface an async
+            // instantiation failure through a reject gate so the factory promise
+            // rejects instead of hanging the spine module load forever.
+            let rejectOnError: (e: unknown) => void = () => {};
+            const errorGate = new Promise<never>((_, reject) => { rejectOnError = reject; });
+            const modulePromise = moduleFactory({
                 instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
                     WebAssembly.instantiate(wasmBytes, imports).then(
                         r => cb(r.instance, r.module),
                     ).catch(e => {
                         log.error('spine', 'WASM instantiation failed', e);
+                        rejectOnError(e);
                     });
                     return {};
                 },
             });
+            return Promise.race([modulePromise, errorGate]);
         });
     }
 

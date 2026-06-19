@@ -86,15 +86,35 @@ function createPathResolver(index: ManifestIndex): (ref: string) => string {
 // Emscripten WASM Instantiation
 // =============================================================================
 
-function createWasmInstantiator(wasmPath: string) {
+function createWasmInstantiator(wasmPath: string, onError?: (e: unknown) => void) {
     return (imports: WebAssembly.Imports, successCallback: Function) => {
         platformInstantiateWasm(wasmPath, imports).then((result) => {
             successCallback(result.instance, result.module);
         }).catch((e) => {
             log.error('wechat', 'WASM instantiation failed', e);
+            // emscripten's instantiateWasm has no failure channel: on a failed
+            // async instantiation successCallback is never called and the factory
+            // promise hangs forever. Surface the error so the caller can reject.
+            onError?.(e);
         });
         return {};
     };
+}
+
+// Wraps an emscripten module factory so an async instantiateWasm failure rejects
+// the returned promise instead of hanging the module load indefinitely.
+function instantiateModule<T>(
+    factory: (opts: unknown) => Promise<T>,
+    wasmPath: string,
+    extraOpts: Record<string, unknown> = {},
+): Promise<T> {
+    let rejectOnError: (e: unknown) => void = () => {};
+    const errorGate = new Promise<never>((_, reject) => { rejectOnError = reject; });
+    const modulePromise = factory({
+        ...extraOpts,
+        instantiateWasm: createWasmInstantiator(wasmPath, rejectOnError),
+    });
+    return Promise.race([modulePromise, errorGate]);
 }
 
 async function initWasmModule<T>(
@@ -102,9 +122,7 @@ async function initWasmModule<T>(
     wasmPath: string,
 ): Promise<T | null> {
     try {
-        return await factory({
-            instantiateWasm: createWasmInstantiator(wasmPath),
-        });
+        return await instantiateModule(factory, wasmPath);
     } catch (e) {
         log.warn('wechat', `Failed to load WASM module: ${wasmPath}`, e);
         return null;
@@ -136,10 +154,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     canvas.width = info.windowWidth * info.pixelRatio;
     canvas.height = info.windowHeight * info.pixelRatio;
 
-    const module = await config.engineFactory({
-        canvas,
-        instantiateWasm: createWasmInstantiator('esengine.wasm'),
-    });
+    const module = await instantiateModule(config.engineFactory, 'esengine.wasm', { canvas });
 
     const gl = (canvas.getContext('webgl2') || canvas.getContext('webgl')) as WebGLRenderingContext | null;
     if (!gl) {
