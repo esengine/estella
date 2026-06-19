@@ -42,6 +42,8 @@ uint32_t levelUnits(const basist::ktx2_image_level_info& info, int target) {
 
 extern "C" {
 
+void es_basis_close();  // forward declaration (es_basis_open calls it)
+
 /** Initialize the transcoder lookup tables. Call once after module load. */
 void es_basis_init() {
     basist::basisu_transcoder_init();
