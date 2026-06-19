@@ -96,8 +96,12 @@
 ## 执行顺序（全程保持构建常绿，每批可独立验证）
 
 1. **Batch A — `GfxDevice` 压缩纹理入口 + 能力查询 — ✅ 已落地**（分支 `rearch/rc6a-compressed-tex`，`df6c7366`）：`GfxCompressedFormat`（ETC2/EAC core 基线 + ASTC/S3TC 扩展层）、`compressedTexImage2D`（扩展单一 GPU 通道，非绕过）、`supportsCompressedFormat`（ETC2 报 core，ASTC/S3TC 经 `glGetStringi` GLES3 正确探测扩展）；`GLDevice` 实现 `glCompressedTexImage2D` + 压缩格式 GL token fallback 定义。`MockGfxDevice` 记录压缩上传 + 可调 `compressedSupported` 试 fallback 分支；`test_compressed_format` 断言"支持走压缩、不支持回退 RGBA8"的决策（Batch C 的 TextureLoader 将照此）。**纯加法，无压缩资产时零行为变化。** 本机 MSVC 验证通过 + 既有 harness 仍绿；Emscripten 全量构建经 CI 守门。
-2. **Batch B — 导入期 KTX2 编码 + 内容哈希命名 + manifest 扩展**：离线工具链；运行时仍可回退旧 RGBA8 路径。
-3. **Batch C — 运行时 Basis transcoder（side module）+ `TextureLoader` 压缩优先/回退**。
+2. **Batch B — 导入期 KTX2 编码 + 内容哈希命名 + manifest 扩展 — 🟡 仓侧已落地**（`8ac4f78d`）：消费端就绪——`.ktx2` 注册为 binary texture 资产（`assetTypes`，`image/ktx2`，`wechatPackInclude:false`）；`AddressableManifestAsset` 加 `contentHash`（xxh3 物理身份 → 去重 + 不可变 `<hash>.<ext>` 永久缓存 URL）与 `compressedFormats`。**离线编码器（PNG→KTX2 + 算 hash）在编辑器资产管线侧（非本仓）**；backend 路径→hash 重写依赖 catalog + 真实 hash 资产，留后。
+3. **Batch C — 运行时 Basis transcoder + `TextureLoader` 压缩优先/回退 — ✅ 已落地**（`9c1e549c`/`f72f280c`/`109a504f`/`22b2a151`）：
+   - **C1 架构**：`sdk/src/asset/compressed.ts` —— KTX2 检测、WebGL 能力探测（ASTC>ETC2>S3TC，`getExtension` 同时探测+启用）、`BasisTranscoder` 注入接缝、**JS-direct `compressedTexImage2D` 上传 + RGBA8 回退**（镜像既有 PNG 路径，扩展名加 `.ktx2`）、`loadCompressedTexture` 编排。10 测试。
+   - **C3 transcoder 模块**：`basis_universal` vendor 成 submodule（pin `1aab02b`）；`BasisModuleEntry.cpp` —— `ktx2_transcoder` 的 C API（open/size/transcode/close，稳定整型格式契约）；CMake `basis_module`（`ES_ENABLE_BASIS`，仅编 `transcoder/basisu_transcoder.cpp`，`KTX2=1`/`ZSTD=0`）+ Emscripten 模块 flags（MODULARIZE，`ESBasisModule`，仿 spine）+ build.config/cli。**CI 确认编译+链接通过**（`✓ WASM basis: Build complete`；`-fno-exceptions/-rtti` 兼容）。
+   - **C3 运行时**：`basisTranscoder.ts` —— `BasisTranscoderImpl` 堆内 marshalling（仿 physics）实现 C1 接缝；`createBasisTranscoder(factory)` 供 app 注入 `TextureLoader.setTranscoder`（沿用 physics/spine 的"app 提供 factory"约定）。7 测试。
+   - **待接线**：app 级 `textureLoader.setTranscoder(await createBasisTranscoder(ESBasisModule))` + 提供 `ESBasisModule` factory；`basis.wasm` 的 wasm-opt 优化（当前 CI 报 wasm-opt 跳过，模块仍可用，属体积优化跟进）。
 4. **Batch D — 内容寻址缓存键**：`pathToId_`/`guidToTexture_` 收敛到 `contentHash`；去重生效。
 5. **Batch E — LRU + 显存预算驱逐**：三态生命周期 + 重载。
 6. **Batch F — 运行时 bundle/分包加载器 + 微信 `wx.loadSubpackage` / CDN 缓存映射**。
