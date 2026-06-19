@@ -550,6 +550,13 @@ export class App {
 
         this.pipeline_ = null;
         this.runner_ = null;
+        // Tear down the C++ engine context too (REARCH_ENGINE_INSTANCING N3/N4,
+        // closes I3): previously quit() only cleared JS state and dropped the
+        // module reference, so the EstellaContext was never shut down — it
+        // leaked its GPU subsystems + WebGL context, and a later init silently
+        // reused the stale (still-"initialized") singleton. shutdownRenderer is
+        // null-safe (no-op if no renderer was initialized, e.g. headless).
+        this.module_?.shutdownRenderer?.();
         this.module_ = null;
     }
 

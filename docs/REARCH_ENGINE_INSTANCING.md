@@ -116,8 +116,11 @@ physics/spine 的 `g_ctx` 在另一个 wasm，三选一：
 ### Phase 1 —— 主模块实例化（本期交付；可拆、每步可验证、全程构建常绿、零 ABI）
 - **N1（纯加法、解锁一切）**：给 `EstellaContext` 加 embind（newable + `init`/`shutdown`/`isInitialized`）+ 自由函数 `setActiveContext`/`createEngineContext`。`wasm.ts`/`wasm.generated.ts` 增类型。**不改任何现有路径**，只是让 JS 能 new/设活动。验证：单测 `new module.EstellaContext()` → `setActiveContext` → UI layout 走到该实例（而非单例）。
 - **N2（统一 ctx）**：6 份 file-local `ctx()` 收成单一定义、单一语义（`activeCtx() = g_activeContext ? *g_activeContext : 惰性默认`）；消除不对称回退（I2）。验证：headless 与 rendered 两路都不 null deref；require/tryGet 行为表一致。
-- **N3（JS App own context）**：`createWebApp` `new` 一个 cppContext、`init` + 启动时 `setActiveContext` 一次（非每帧）；删 `initRenderer` 硬绑单例（`WebSDKEntry.cpp:217/236`）+ `g_initialized` 早退，改为受注入。验证：单 App 行为不变（回归 SDK 2166 + editor build）；**双 context 隔离测试**——一个 realm 内 `new` 两个 EstellaContext 各渲染各的 canvas，断言实体数/material_cache/viewport 互不串。
-- **N4（销毁闭环）**：`cppContext.delete()` 路径 + shutdown/析构里 `if (g_activeContext==this) g_activeContext=nullptr` 防悬垂 + `app.quit` 串接 delete（补 I3）。验证：`create→init→quit→delete ×N` 无泄漏（service 计数归零 / WebGL context 不泄漏）、无早退复用。
+- **N3（已选 lean，已做）**：teardown 接进生命周期——`app.quit()` 调 `module.shutdownRenderer()`（补 I3：此前 quit 只清 JS 态、丢 module 引用，EstellaContext 从不 shutdown，GPU 子系统 + WebGL context 泄漏，再 init 复用陈旧单例）。`shutdownRenderer` 已对 null `g_activeContext` 安全（headless no-op）。
+  - **修正**：原稿说"删 `g_initialized` 早退"——**不对，保留它**。早退是正确的幂等守卫（已 init 别重复 init；EstellaContext::init 自身也有同样守卫）。真正的 bug 是缺 shutdown：补上 teardown 后，create→quit(→shutdown→initialized=false)→create 自然干净重 init，早退不再误触。
+  - **N3-full（已选延后）**：`createWebApp` `new` 自己的 cppContext + `setActiveContext`、退役 `initRenderer` 硬绑单例——最"先进"但要处理 canvas 创建路 + 4 个 runtime boot 入口（编辑器/wechat/playable/standalone），无运行时测试兜底。realm 架构（每 realm 一 App 一 context）下无额外收益,故延后至真出现"单 realm 内多 context"需求,或随编辑器 realm 消费者(N6)一起做。
+  - 验证：SDK 2170（含 `shutdownRenderer` headless 安全断言）；完整 render→quit→render 循环需 GL/编辑器环境,随 N6 消费者验证。
+- **N4（销毁闭环,部分随 N3）**：app.quit 串接已做（上）。剩余：N1 显式 context 的 `delete()` 若删的是当前活动 context,`g_activeContext` 会悬垂——当前靠 JS 纪律(delete 前 `setActiveContext(null)`,N1 测试已示范);结构化守卫(embind delete 钩子)留待 N6 编辑器 realm 消费者落地时一并做（那时才有真实的"建/销/重建"调用方）。
 
 ### 延后 / 被 realm 架构吃掉（非本期）
 - **~~N5 多-App 收口~~**：退役单例的"特权"在 N3 已做；剩下的"SDK module 级 `let module`×8 + `defaultContext_` 改 per-App"**仅"单 realm 内多 App"才需要**——realm 架构每 realm 一个 App、一份 JS context，天然隔离，故延后（出现真实需求再做）。

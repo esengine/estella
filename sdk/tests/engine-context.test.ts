@@ -42,6 +42,13 @@ describe.skipIf(!HAS_WASM)('Engine instancing (N1): EstellaContext embind', () =
         }
     });
 
+    it('shutdownRenderer is null-safe when no renderer was initialized', () => {
+        // app.quit() now calls this (REARCH_ENGINE_INSTANCING N3/N4). Headless —
+        // nothing was ever initialized — so it must be a safe no-op, not a crash.
+        expect(() => module.shutdownRenderer()).not.toThrow();
+        expect(() => module.shutdownRenderer()).not.toThrow(); // idempotent
+    });
+
     it('supports independent context instances (isolation precondition)', () => {
         const a = new module.EstellaContext();
         const b = new module.EstellaContext();
