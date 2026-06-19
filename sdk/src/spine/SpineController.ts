@@ -221,19 +221,24 @@ export class SpineModuleController {
     // Mesh Extraction
     // =========================================================================
 
-    extractMeshBatches(instanceId: number): {
-        vertices: Float32Array;
-        indices: Uint16Array;
-        textureId: number;
-        blendMode: number;
-    }[] {
+    /**
+     * Iterate this instance's mesh batches, invoking `cb` for each with Uint8Array
+     * views directly into spine wasm scratch — valid only for the duration of the
+     * call. No per-batch Float32Array/Uint16Array allocation and no copy out; the
+     * consumer copies the bytes straight into its own wasm heap while the view is
+     * live. Replaces extractMeshBatches, which allocated and cached two typed
+     * arrays per batch per frame (C7).
+     */
+    forEachMeshBatch(
+        instanceId: number,
+        cb: (
+            vertBytes: Uint8Array, indexBytes: Uint8Array,
+            vertexCount: number, indexCount: number,
+            textureId: number, blendMode: number,
+        ) => void,
+    ): void {
         const batchCount = this.api_.getMeshBatchCount(instanceId);
-        const batches: {
-            vertices: Float32Array;
-            indices: Uint16Array;
-            textureId: number;
-            blendMode: number;
-        }[] = [];
+        if (batchCount === 0) return;
 
         withMalloc(this.raw_, 8, metaPtr => {
             const texIdPtr = metaPtr;
@@ -244,30 +249,25 @@ export class SpineModuleController {
                 const indexCount = this.api_.getMeshBatchIndexCount(instanceId, i);
                 if (vertexCount <= 0 || indexCount <= 0) continue;
 
-                const vertBytes = vertexCount * 8 * 4;
-                const idxBytes = indexCount * 2;
+                const vertByteLen = vertexCount * 8 * 4;
+                const idxByteLen = indexCount * 2;
                 withScratch(this.raw_, alloc => {
-                    const vertPtr = alloc(vertBytes);
-                    const idxPtr = alloc(idxBytes);
+                    const vertPtr = alloc(vertByteLen);
+                    const idxPtr = alloc(idxByteLen);
 
                     this.api_.getMeshBatchData(
                         instanceId, i, vertPtr, idxPtr, texIdPtr, blendPtr);
 
-                    const vertices = new Float32Array(
-                        this.raw_.HEAPF32.buffer, vertPtr, vertexCount * 8);
-                    const indices = new Uint16Array(
-                        this.raw_.HEAPU8.buffer, idxPtr, indexCount);
-
-                    batches.push({
-                        vertices: new Float32Array(vertices),
-                        indices: new Uint16Array(indices),
-                        textureId: this.raw_.HEAPU32[texIdPtr >> 2],
-                        blendMode: this.raw_.HEAPU32[blendPtr >> 2],
-                    });
+                    cb(
+                        new Uint8Array(this.raw_.HEAPU8.buffer, vertPtr, vertByteLen),
+                        new Uint8Array(this.raw_.HEAPU8.buffer, idxPtr, idxByteLen),
+                        vertexCount, indexCount,
+                        this.raw_.HEAPU32[texIdPtr >> 2],
+                        this.raw_.HEAPU32[blendPtr >> 2],
+                    );
                 });
             }
         });
-        return batches;
     }
 
     // =========================================================================

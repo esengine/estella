@@ -91,9 +91,9 @@ export class SpineManager {
         }
     }
 
-    submitMeshes(registry: CppRegistry, frameCount: number = -1): void {
+    submitMeshes(registry: CppRegistry): void {
         for (const backend of this.backends_.values()) {
-            backend.extractAndSubmitMeshes(this.coreModule_, registry, frameCount);
+            backend.extractAndSubmitMeshes(this.coreModule_, registry);
         }
     }
 

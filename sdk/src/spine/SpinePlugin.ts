@@ -63,8 +63,7 @@ export class SpinePlugin implements Plugin {
             const app = this.app_;
             const pipeline = app.pipeline;
             pipeline?.addPreFlushCallback((registry) => {
-                const fc = app.getResource(Time).frameCount;
-                manager.submitMeshes(registry._cpp, fc);
+                manager.submitMeshes(registry._cpp);
             });
         }
     }
@@ -125,8 +124,7 @@ export class SpinePlugin implements Plugin {
             const manager = this.spineManager_;
             const pipeline = app.pipeline;
             pipeline?.addPreFlushCallback((registry) => {
-                const fc = app.getResource(Time).frameCount;
-                manager.submitMeshes(registry._cpp, fc);
+                manager.submitMeshes(registry._cpp);
             });
         }
     }

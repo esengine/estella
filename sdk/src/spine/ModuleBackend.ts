@@ -14,18 +14,10 @@ interface EntityInfo {
     layer: number;
 }
 
-type BatchEntry = {
-    vertices: Float32Array; indices: Uint16Array;
-    textureId: number; blendMode: number;
-    entity: number; info: EntityInfo;
-};
-
 export class ModuleBackend {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
     private disabledEntities_: Set<Entity> = new Set();
-    private cachedFrame_: number = -1;
-    private cachedEntries_: BatchEntry[] = [];
 
     constructor(controller: SpineModuleController) {
         this.controller_ = controller;
@@ -201,60 +193,29 @@ export class ModuleBackend {
         }
     }
 
-    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry, frameCount: number = -1): void {
+    extractAndSubmitMeshes(coreModule: ESEngineModule, registry: CppRegistry): void {
         const submitFn = coreModule.renderer_submitSpineBatchByEntity;
         if (!submitFn) return;
 
-        if (this.cachedFrame_ !== frameCount) {
-            this.cachedEntries_.length = 0;
-            for (const [entity, info] of this.entities_) {
-                if (this.disabledEntities_.has(entity)) continue;
-                const batches = this.controller_.extractMeshBatches(info.instanceId);
-                for (const batch of batches) {
-                    if (batch.vertices.length === 0 || batch.indices.length === 0) continue;
-                    this.cachedEntries_.push({
-                        vertices: batch.vertices, indices: batch.indices,
-                        textureId: batch.textureId, blendMode: batch.blendMode,
-                        entity: entity as number, info,
+        for (const [entity, info] of this.entities_) {
+            if (this.disabledEntities_.has(entity)) continue;
+            // One engine-side scratch arena per entity; each batch's spine-heap
+            // bytes are copied straight into it and submitted while the spine view
+            // is still live. No intermediate JS arrays, no per-frame cache (C7).
+            withScratch(coreModule, alloc => {
+                this.controller_.forEachMeshBatch(info.instanceId,
+                    (vertBytes, idxBytes, vertexCount, indexCount, textureId, blendMode) => {
+                        const dstVert = alloc(vertBytes.byteLength);
+                        const dstIdx = alloc(idxBytes.byteLength);
+                        coreModule.HEAPU8.set(vertBytes, dstVert);
+                        coreModule.HEAPU8.set(idxBytes, dstIdx);
+                        submitFn.call(coreModule, registry,
+                            dstVert, vertexCount, dstIdx, indexCount,
+                            textureId, blendMode, entity as number,
+                            info.skeletonScale, info.flipX, info.flipY, info.layer, 0);
                     });
-                }
-            }
-            this.cachedFrame_ = frameCount;
+            });
         }
-
-        if (this.cachedEntries_.length === 0) return;
-
-        let totalVertBytes = 0;
-        let totalIdxBytes = 0;
-        for (const e of this.cachedEntries_) {
-            totalVertBytes += e.vertices.byteLength;
-            totalIdxBytes += e.indices.byteLength;
-        }
-
-        withScratch(coreModule, alloc => {
-            const vertBase = alloc(totalVertBytes);
-            const idxBase = alloc(totalIdxBytes);
-
-            let vOff = 0;
-            let iOff = 0;
-            for (const e of this.cachedEntries_) {
-                const vertPtr = vertBase + vOff;
-                const idxPtr = idxBase + iOff;
-
-                coreModule.HEAPF32.set(e.vertices, vertPtr >> 2);
-                new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, e.indices.length).set(e.indices);
-
-                submitFn.call(coreModule, registry,
-                    vertPtr, e.vertices.length / 8,
-                    idxPtr, e.indices.length,
-                    e.textureId, e.blendMode,
-                    e.entity, e.info.skeletonScale, e.info.flipX, e.info.flipY,
-                    e.info.layer, 0);
-
-                vOff += e.vertices.byteLength;
-                iOff += e.indices.byteLength;
-            }
-        });
     }
 
     removeEntity(entity: Entity): void {
