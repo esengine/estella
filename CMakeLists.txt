@@ -16,6 +16,7 @@ option(ES_ENABLE_PARTICLES "Enable Particle system" ON)
 option(ES_ENABLE_TIMELINE "Enable Timeline animation" ON)
 option(ES_ENABLE_POSTPROCESS "Enable Post-processing pipeline" ON)
 option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
+option(ES_ENABLE_BASIS "Build the Basis Universal KTX2 transcoder module" OFF)
 option(ES_BUILD_MAIN_MODULE "Build as MAIN_MODULE for dynamic linking" OFF)
 option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
 
@@ -504,6 +505,28 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         es_apply_spine_module_settings(spine_module_38)
         set_target_properties(spine_module_38 PROPERTIES
             OUTPUT_NAME "spine38"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
+
+    # Basis Universal KTX2 transcoder module (compressed textures — RC6)
+    if(ES_ENABLE_BASIS)
+        add_executable(basis_module
+            src/esengine/bindings/BasisModuleEntry.cpp
+            third_party/basis_universal/transcoder/basisu_transcoder.cpp
+        )
+        target_include_directories(basis_module PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/basis_universal/transcoder
+        )
+        # ETC1S works without zstd; disabling it avoids the zstd dependency. UASTC
+        # assets must then be encoded without zstd supercompression.
+        target_compile_definitions(basis_module PRIVATE
+            BASISD_SUPPORT_KTX2=1
+            BASISD_SUPPORT_KTX2_ZSTD=0
+        )
+        es_apply_basis_module_settings(basis_module)
+        set_target_properties(basis_module PROPERTIES
+            OUTPUT_NAME "basis"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
         )
     endif()

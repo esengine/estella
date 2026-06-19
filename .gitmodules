@@ -31,3 +31,6 @@
 [submodule "tools/mcp-server"]
 	path = tools/mcp-server
 	url = https://github.com/esengine/estella-mcp-server.git
+[submodule "third_party/basis_universal"]
+	path = third_party/basis_universal
+	url = https://github.com/BinomialLLC/basis_universal.git

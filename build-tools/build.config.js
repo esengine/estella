@@ -54,6 +54,15 @@ export default {
                 'sdk/physics.wasm': 'wasm/web/physics.wasm',
             },
         },
+        basis: {
+            buildDir: 'build-basis',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],
+            targets: ['basis_module'],
+            outputs: {
+                'sdk/basis.js': 'wasm/web/basis.js',
+                'sdk/basis.wasm': 'wasm/web/basis.wasm',
+            },
+        },
         'web-main': {
             buildDir: 'build-web-main',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_BUILD_MAIN_MODULE=ON'],

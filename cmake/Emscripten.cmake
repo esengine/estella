@@ -309,6 +309,40 @@ function(es_apply_spine_module_settings TARGET_NAME)
 endfunction()
 
 # =============================================================================
+# Basis Universal KTX2 Transcoder Module (standalone WASM, no GL)
+# =============================================================================
+
+set(ES_EMSCRIPTEN_BASIS_MODULE_FLAGS
+    -sWASM=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sEXPORT_ES6=0
+    -sMODULARIZE=1
+    -sDYNAMIC_EXECUTION=0
+    -sFILESYSTEM=0
+    "-sEXPORT_NAME='ESBasisModule'"
+    "-sEXPORTED_FUNCTIONS=['_es_basis_init','_es_basis_open','_es_basis_get_width','_es_basis_get_height','_es_basis_transcoded_size','_es_basis_transcode','_es_basis_close','_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['cwrap','HEAPU8','HEAPU32']"
+    -O3
+    -flto
+    -Wl,--gc-sections
+    -fno-exceptions
+    -fno-rtti
+)
+
+function(es_apply_basis_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions -fno-rtti)
+
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_BASIS_MODULE_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+    endif()
+endfunction()
+
+# =============================================================================
 # Physics Module (standalone WASM, no GL)
 # =============================================================================
 
