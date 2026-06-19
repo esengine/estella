@@ -24,6 +24,10 @@ export interface AssetTypeEntry {
 
 const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'], contentType: 'image', editorType: 'texture', addressableType: 'texture', wechatPackInclude: false, hasTransitiveDeps: false },
+    // GPU-compressed texture container (Basis/KTX2). Decoded straight to a
+    // compressed GPU format at runtime; large, so it stays out of the WeChat
+    // main package (remote CDN, content-addressed).
+    { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esmaterial'], contentType: 'json', editorType: 'material', addressableType: 'material', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esshader'], contentType: 'text', editorType: 'shader', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
@@ -47,6 +51,7 @@ const MIME_MAP: Record<string, string> = {
     webp: 'image/webp',
     svg: 'image/svg+xml',
     bmp: 'image/bmp',
+    ktx2: 'image/ktx2',
     mp3: 'audio/mpeg',
     wav: 'audio/wav',
     ogg: 'audio/ogg',

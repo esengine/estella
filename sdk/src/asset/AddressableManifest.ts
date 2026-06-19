@@ -8,6 +8,15 @@ export interface AddressableManifestAsset {
     type: AddressableAssetType;
     size: number;
     labels: string[];
+    /**
+     * Content hash of the built bytes (xxh3), the asset's *physical* identity.
+     * Populated by the import pipeline. Lets the runtime dedupe by content and
+     * treat `<contentHash>.<ext>` as an immutable, permanently-cacheable URL
+     * (changing a file yields a new hash → a new URL, never a stale cache).
+     */
+    contentHash?: string;
+    /** GPU compressed formats this asset was encoded for (e.g. ['astc-4x4','etc2-rgba8']). */
+    compressedFormats?: string[];
     metadata?: {
         atlas?: string;
         atlasPage?: number;
