@@ -32,12 +32,13 @@ void DrawList::finalize() {
                   return a.key < b.key;
               });
 
-    std::vector<DrawCommand> sorted;
-    sorted.reserve(count);
+    // Gather into a reused scratch buffer (not a fresh per-frame vector) and swap
+    // it with commands_, so the allocation is amortized across frames.
+    sorted_scratch_.resize(count);
     for (u32 i = 0; i < count; ++i) {
-        sorted.push_back(commands_[sort_entries_[i].index]);
+        sorted_scratch_[i] = commands_[sort_entries_[i].index];
     }
-    commands_ = std::move(sorted);
+    commands_.swap(sorted_scratch_);
 
     merged_draw_calls_ = 0;
     u32 writeIdx = 0;

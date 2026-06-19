@@ -44,6 +44,8 @@ private:
 
     std::vector<DrawCommand> commands_;
     std::vector<SortEntry> sort_entries_;
+    std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
+                                               // per-frame heap alloc in finalize()
     u32 merged_draw_calls_ = 0;
 };
 

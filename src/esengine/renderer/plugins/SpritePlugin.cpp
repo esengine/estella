@@ -124,6 +124,7 @@ void SpritePlugin::emitQuad(
     BatchVertex verts[4];
     f32 ox = 0.5f - pivot.x;
     f32 oy = 0.5f - pivot.y;
+    const u32 packedColor = packColor(color);  // color is constant across the 4 verts
 
     if (std::abs(angle) > 0.001f) {
         f32 cosA = std::cos(angle);
@@ -135,7 +136,7 @@ void SpritePlugin::emitQuad(
                 position.x + lx * cosA - ly * sinA,
                 position.y + lx * sinA + ly * cosA
             );
-            verts[i].color = packColor(color);
+            verts[i].color = packedColor;
             verts[i].texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         }
     } else {
@@ -144,7 +145,7 @@ void SpritePlugin::emitQuad(
                 position.x + (QUAD_POSITIONS[i].x + ox) * size.x,
                 position.y + (QUAD_POSITIONS[i].y + oy) * size.y
             );
-            verts[i].color = packColor(color);
+            verts[i].color = packedColor;
             verts[i].texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         }
     }
