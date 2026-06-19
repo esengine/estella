@@ -20,7 +20,6 @@
 // Core
 #include "core/Types.hpp"
 #include "core/Log.hpp"
-#include "core/Engine.hpp"
 #include "core/EstellaContext.hpp"
 
 // Math

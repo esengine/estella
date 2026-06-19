@@ -35,7 +35,6 @@ add_subdirectory(third_party)
 # =============================================================================
 
 set(ESENGINE_SOURCES
-    src/esengine/core/Engine.cpp
     src/esengine/core/EstellaContext.cpp
     src/esengine/core/Log.cpp
     src/esengine/resource/ResourceManager.cpp
@@ -111,7 +110,6 @@ endif()
 set(ESENGINE_HEADERS
     src/esengine/ESEngine.hpp
     src/esengine/core/Types.hpp
-    src/esengine/core/Engine.hpp
     src/esengine/core/Log.hpp
     src/esengine/core/Reflection.hpp
     src/esengine/core/ServiceRegistry.hpp
@@ -135,7 +133,6 @@ set(ESENGINE_HEADERS
     src/esengine/resource/Handle.hpp
     src/esengine/resource/ResourcePool.hpp
     src/esengine/resource/ResourceManager.hpp
-    src/esengine/resource/Resource.hpp
     src/esengine/renderer/RenderContext.hpp
     src/esengine/renderer/Shader.hpp
     src/esengine/renderer/Buffer.hpp
