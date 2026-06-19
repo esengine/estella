@@ -18,6 +18,7 @@
 // =============================================================================
 
 // Project includes
+#include "../core/Log.hpp"
 #include "../core/Types.hpp"
 #include "Entity.hpp"
 
@@ -265,7 +266,10 @@ public:
      */
     template<typename... Args>
     T& emplace(Entity entity, Args&&... args) {
-        ES_ASSERT(!contains(entity), "Entity already has component");
+        // Release-safe: a duplicate emplace would append a second dense slot and
+        // overwrite the sparse->dense mapping, corrupting the set (ES_ASSERT is
+        // stripped in release). Degrade to returning the existing component.
+        ES_VERIFY(!contains(entity), return get(entity));
 
         const u32 idx = entity.index();
         const auto pageIndex = idx / SPARSE_PAGE_SIZE;
@@ -435,8 +439,12 @@ public:
      * @note Asserts if the entity is not in the set
      */
     usize indexOf(Entity entity) const {
-        ES_ASSERT(contains(entity), "Entity not in set");
-        return denseIndexOf(entity);
+        // Release-safe: a non-member would otherwise return INVALID_INDEX and be
+        // used as a dense-array subscript (OOB). Compute the dense index once and
+        // verify membership; callers must treat INVALID_INDEX as "not present".
+        const u32 di = denseIndexOf(entity);
+        ES_VERIFY(di != INVALID_INDEX && dense_[di] == entity, return INVALID_INDEX);
+        return di;
     }
 
 private:

@@ -112,6 +112,20 @@ jobs:
         shell: bash
         run: cp $(find node_modules/.pnpm -name 'esbuild.wasm' -path '*/esbuild-wasm/*' | head -1) desktop/public/esbuild.wasm
 
+      # Native ECS release-safety tests (ES_VERIFY guards + PackedId packing).
+      # Compiled WITHOUT -DES_DEBUG to mirror the shipped Release config (where
+      # ES_ASSERT is stripped) and under ASAN, so the OOB write / index-alias
+      # these guards prevent are caught deterministically. Header-only: needs
+      # only a C++20 compiler, no CMake/emsdk. MSVC has different sanitizer flags.
+      - name: Run ECS release-safety tests (ASAN, release-mirror)
+        if: matrix.platform != 'windows-latest'
+        shell: bash
+        run: |
+          c++ -std=c++20 -fsanitize=address -I src \
+            tests/ecs/test_registry_safety.cpp src/esengine/core/Log.cpp \
+            -o test_registry_safety
+          ./test_registry_safety
+
       # Type-check & test SDK first (editor depends on it)
       - name: Type-check SDK
         run: pnpm --filter ./sdk exec tsc --noEmit

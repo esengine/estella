@@ -15,6 +15,7 @@
 #include <cstdio>
 
 using esengine::Entity;
+using esengine::u32;
 using esengine::ecs::Registry;
 
 namespace {
@@ -28,6 +29,11 @@ static int g_failures = 0;
         if (!(cond)) { std::printf("FAIL: %s\n", msg); ++g_failures; }          \
         else { std::printf("ok:   %s\n", msg); }                                \
     } while (0)
+
+// Counts ES_VERIFY failures so tests can assert "the guard fired and we
+// degraded gracefully" rather than just "it didn't crash".
+static int g_verifyHits = 0;
+static void countingVerifyHook(const char*, const char*, int) { ++g_verifyHits; }
 
 int main() {
     // --- A6: get<T> on an entity without the component returns fallback (no OOB) ---
@@ -83,6 +89,93 @@ int main() {
         Entity b = r.create();
         CHECK(a.index() != b.index(), "indices not aliased after re-entrant destroy");
         CHECK(r.valid(a) && r.valid(b), "both recreated entities are valid");
+    }
+
+    // --- ES_VERIFY: emplace / emplaceOrReplace on an invalid entity is release-safe ---
+    // Without the guard, component_masks_[Entity{}.index() == 0xFFFFF] is an OOB
+    // write (ES_ASSERT is stripped here). The guard must fire and return a fallback.
+    {
+        esengine::detail::verifyHook() = countingVerifyHook;
+        Registry r;
+
+        g_verifyHits = 0;
+        Pos& p = r.emplace<Pos>(Entity{}, Pos{7.0f, 8.0f});
+        CHECK(g_verifyHits == 1, "emplace(invalid) fires the verify hook");
+        CHECK(p.x == 1.0f && p.y == 2.0f, "emplace(invalid) returns fallback defaults (no OOB write)");
+
+        g_verifyHits = 0;
+        Pos& p2 = r.emplaceOrReplace<Pos>(Entity{}, Pos{9.0f, 9.0f});
+        CHECK(g_verifyHits == 1, "emplaceOrReplace(invalid) fires the verify hook");
+        CHECK(p2.x == 1.0f, "emplaceOrReplace(invalid) returns fallback (no OOB write)");
+
+        esengine::detail::verifyHook() = nullptr;
+    }
+
+    // --- ES_VERIFY: restore() with an over-range (deserialized) index is refused ---
+    // This is the scene-loading path: a corrupt/huge index must not silently
+    // alias an existing slot via Entity::make's 20-bit mask.
+    {
+        esengine::detail::verifyHook() = countingVerifyHook;
+        Registry r;
+        Entity a = r.create();  // real entity at index 0
+
+        g_verifyHits = 0;
+        Entity bad = r.restore(Entity::INDEX_MASK + 1);  // beyond the 20-bit range
+        CHECK(g_verifyHits == 1, "restore(over-range) fires the verify hook");
+        CHECK(!bad.isValid(), "restore(over-range) returns INVALID_ENTITY (no silent alias)");
+        CHECK(r.valid(a), "the pre-existing entity is untouched after a bad restore");
+
+        // next_index_ must not be corrupted by the rejected restore: fresh
+        // allocation still works and does not alias the survivor.
+        Entity c = r.create();
+        CHECK(r.valid(c) && c.index() != a.index(), "create() still works after a rejected restore");
+
+        esengine::detail::verifyHook() = nullptr;
+    }
+
+    // --- ES_VERIFY: duplicate emplace degrades to the existing component ---
+    // A second emplace on the same entity would push a duplicate dense slot and
+    // overwrite the sparse mapping (corruption). The guard degrades to get().
+    {
+        esengine::detail::verifyHook() = countingVerifyHook;
+        Registry r;
+        Entity e = r.create();
+        r.emplace<Pos>(e, Pos{3.0f, 4.0f});
+
+        g_verifyHits = 0;
+        Pos& dup = r.emplace<Pos>(e, Pos{100.0f, 200.0f});  // duplicate
+        CHECK(g_verifyHits == 1, "duplicate emplace fires the verify hook");
+        CHECK(dup.x == 3.0f && dup.y == 4.0f, "duplicate emplace returns the existing component (no corruption)");
+        CHECK(r.get<Pos>(e).x == 3.0f, "entity still maps to the original component");
+
+        esengine::detail::verifyHook() = nullptr;
+    }
+
+    // --- PackedId / Entity 22+10 packing is correct and round-trips ---
+    {
+        CHECK(Entity::INDEX_BITS == 22u && Entity::GEN_BITS == 10u, "Entity split is 22+10");
+        CHECK(Entity::INDEX_MASK == 0x3FFFFFu, "index mask is 2^22-1");
+        CHECK(Entity::GEN_MASK == 0x3FFu, "generation mask is 2^10-1");
+
+        // Round-trip across the corners, including the max generation that would
+        // overflow a signed-32 shift on the JS side (here it's unsigned C++).
+        const u32 idxs[] = {0u, 1u, 1234u, Entity::INDEX_MASK};
+        const u32 gens[] = {1u, 2u, 512u, Entity::GEN_MASK};
+        bool roundtrip_ok = true;
+        for (u32 idx : idxs) {
+            for (u32 gen : gens) {
+                Entity e = Entity::make(idx, gen);
+                if (e.index() != idx || e.generation() != gen) roundtrip_ok = false;
+                if (Entity::fromRaw(e.id()) != e) roundtrip_ok = false;
+            }
+        }
+        CHECK(roundtrip_ok, "Entity::make/index/generation/fromRaw round-trip for all corners");
+
+        // PackedId is the single source the split is derived from.
+        using L = esengine::PackedId<22, 10>;
+        CHECK(L::pack(7u, 3u) == Entity::make(7u, 3u).raw, "PackedId::pack matches Entity::make");
+        CHECK(L::indexOf(L::pack(99u, 5u)) == 99u, "PackedId index round-trips");
+        CHECK(L::generationOf(L::pack(99u, 5u)) == 5u, "PackedId generation round-trips");
     }
 
     if (g_failures == 0) {

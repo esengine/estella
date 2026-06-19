@@ -23,25 +23,36 @@
  */
 export type Entity = number;
 
-/** Bit widths of the packed Entity representation (must match C++). */
-export const ENTITY_INDEX_BITS = 20;
-export const ENTITY_GEN_BITS = 12;
-export const ENTITY_INDEX_MASK = (1 << ENTITY_INDEX_BITS) - 1;
+/**
+ * Bit widths of the packed Entity representation. MUST match the C++ split
+ * (`PackedId<22, 10>` via `Entity::Layout` in core/Types.hpp / PackedId.hpp).
+ */
+export const ENTITY_INDEX_BITS = 22;
+export const ENTITY_GEN_BITS = 10;
+/** Number of representable indices (2^INDEX_BITS) — used for overflow-safe packing. */
+const ENTITY_INDEX_COUNT = 2 ** ENTITY_INDEX_BITS;
+export const ENTITY_INDEX_MASK = ENTITY_INDEX_COUNT - 1;
 export const ENTITY_GEN_MASK = (1 << ENTITY_GEN_BITS) - 1;
 
-/** 20-bit index portion of an Entity handle. */
+/** Index portion (low ENTITY_INDEX_BITS) of an Entity handle. */
 export function entityIndex(e: Entity): number {
+    // `& MASK` is correct even for e > 2^31: the low INDEX_BITS survive the
+    // int32 coercion, and MASK (2^22-1) is well within int32 range.
     return e & ENTITY_INDEX_MASK;
 }
 
-/** 12-bit generation portion of an Entity handle. */
+/** Generation portion (high ENTITY_GEN_BITS) of an Entity handle. */
 export function entityGeneration(e: Entity): number {
+    // `>>>` reads e as unsigned 32-bit, so this is correct for the full u32 range.
     return (e >>> ENTITY_INDEX_BITS) & ENTITY_GEN_MASK;
 }
 
 /** Construct an Entity from an index + generation pair. */
 export function makeEntity(index: number, generation: number): Entity {
-    return (((generation & ENTITY_GEN_MASK) << ENTITY_INDEX_BITS) | (index & ENTITY_INDEX_MASK)) as Entity;
+    // Build via multiply + `>>> 0` rather than `<<`: `gen << 22` would overflow
+    // int32 (go negative) for high generations. The product is < 2^32, and
+    // `>>> 0` coerces it to the same unsigned value C++ stores in Entity::raw.
+    return (((generation & ENTITY_GEN_MASK) * ENTITY_INDEX_COUNT + (index & ENTITY_INDEX_MASK)) >>> 0) as Entity;
 }
 
 /**

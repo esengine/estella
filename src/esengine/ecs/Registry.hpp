@@ -116,6 +116,11 @@ public:
      * @return The newly created Entity, or INVALID_ENTITY if index is already alive
      */
     Entity restore(u32 index) {
+        // Release-safe: reject a deserialized index beyond the addressable range
+        // up front, before mutating next_index_ below (activateIndex would also
+        // refuse, but only after next_index_ was already advanced, leaving the
+        // registry unable to allocate fresh indices).
+        ES_VERIFY(index <= Entity::INDEX_MASK, return INVALID_ENTITY);
         if (index < entityValid_.size() && entityValid_[index]) {
             return INVALID_ENTITY;
         }
@@ -206,11 +211,6 @@ public:
                generations_[idx] == entity.generation();
     }
 
-    /** @brief Gets the packed u64 handle (for legacy/FFI compatibility) */
-    u64 entityHandle(Entity entity) const {
-        return makeEntityHandle(entity.index(), entity.generation());
-    }
-
     usize entityCount() const {
         return entity_count_;
     }
@@ -245,7 +245,10 @@ public:
      */
     template<typename T, typename... Args>
     T& emplace(Entity entity, Args&&... args) {
-        ES_ASSERT(valid(entity), "Invalid entity");
+        // Release-safe: an invalid entity indexes component_masks_ out of bounds
+        // below (entity.index() of the invalid sentinel is 0xFFFFF), and
+        // ES_ASSERT is stripped in release -> OOB write. Degrade to a fallback.
+        ES_VERIFY(valid(entity), { static T fallback{}; fallback = T{}; return fallback; });
         auto& pool = assurePool<T>();
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
         component_masks_[entity.index()].set(componentTypeId<T>());
@@ -264,7 +267,8 @@ public:
      */
     template<typename T, typename... Args>
     T& emplaceOrReplace(Entity entity, Args&&... args) {
-        ES_ASSERT(valid(entity), "Invalid entity");
+        // Release-safe: see emplace() — invalid entity -> OOB write on the mask.
+        ES_VERIFY(valid(entity), { static T fallback{}; fallback = T{}; return fallback; });
         auto& pool = assurePool<T>();
 
         if (pool.contains(entity)) {
@@ -565,7 +569,11 @@ private:
      * @brief Activates an entity index: resizes arrays, bumps generation, returns packed Entity
      */
     Entity activateIndex(u32 index) {
-        ES_ASSERT(index <= Entity::INDEX_MASK, "Entity index overflow (20-bit limit exceeded)");
+        // Release-safe: an index beyond the 20-bit range would silently alias an
+        // existing slot via Entity::make's mask (ES_ASSERT is stripped in
+        // release). Refuse before any state mutation. restore() passes a
+        // deserialized index here, so this also guards scene loading.
+        ES_VERIFY(index <= Entity::INDEX_MASK, return INVALID_ENTITY);
         if (index >= entityValid_.size()) {
             entityValid_.resize(index + 1, false);
             generations_.resize(index + 1, 0);

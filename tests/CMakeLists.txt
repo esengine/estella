@@ -124,4 +124,10 @@ add_executable(test_registry_safety
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_registry_safety PRIVATE ${CMAKE_SOURCE_DIR}/src)
+# Run under AddressSanitizer: the bugs this guards (emplace-on-invalid OOB write,
+# over-range index alias) are memory-safety faults that only ASAN catches
+# deterministically. Skipped on MSVC (different sanitizer flag syntax).
+set(_es_safety_asan $<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>)
+target_compile_options(test_registry_safety PRIVATE $<${_es_safety_asan}:-fsanitize=address>)
+target_link_options(test_registry_safety PRIVATE $<${_es_safety_asan}:-fsanitize=address>)
 add_test(NAME test_registry_safety COMMAND test_registry_safety)

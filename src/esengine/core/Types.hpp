@@ -26,6 +26,9 @@
 #include <string>
 #include <vector>
 
+// Project includes
+#include "PackedId.hpp"
+
 namespace esengine {
 
 // =============================================================================
@@ -114,32 +117,38 @@ constexpr Shared<T> makeShared(Args&&... args) {
 /**
  * @brief Entity identifier with packed index + generation
  *
- * @details Entities pack a 20-bit index and 12-bit generation into a single
+ * @details Entities pack a 22-bit index and 10-bit generation into a single
  *          u32. The generation detects stale references after an entity is
- *          destroyed and its index recycled (ABA problem).
+ *          destroyed and its index recycled (ABA problem). The bit-packing
+ *          math lives once in @ref PackedId; this just wires Entity to it.
  *
- *          Layout: [generation(12) | index(20)]
- *          - Max entities:    1,048,575 (2^20 - 1)
- *          - Max generations: 4,095     (2^12 - 1) before wrap
+ *          Layout: [generation(10) | index(22)]
+ *          - Max entities:    4,194,303 (2^22 - 1)
+ *          - Max generations: 1,023     (2^10 - 1) before wrap
+ *
+ *          The split is u32 (4 bytes) on purpose — see PackedId.hpp for why
+ *          (FFI as a plain JS number, box2d 32-bit user-data, dense-array
+ *          cache behaviour). PackedId's static_assert enforces it.
  */
 struct Entity {
     u32 raw;
 
-    static constexpr u32 INDEX_BITS = 20;
-    static constexpr u32 GEN_BITS = 12;
-    static constexpr u32 INDEX_MASK = (1u << INDEX_BITS) - 1;
-    static constexpr u32 GEN_MASK = (1u << GEN_BITS) - 1;
+    using Layout = PackedId<22, 10>;
+    static constexpr u32 INDEX_BITS = Layout::INDEX_BITS;
+    static constexpr u32 GEN_BITS = Layout::GEN_BITS;
+    static constexpr u32 INDEX_MASK = Layout::INDEX_MASK;
+    static constexpr u32 GEN_MASK = Layout::GEN_MASK;
     static constexpr u32 INVALID_RAW = 0xFFFFFFFF;
 
     constexpr Entity() : raw(INVALID_RAW) {}
     explicit constexpr Entity(u32 r) : raw(r) {}
     explicit constexpr operator u32() const { return raw; }
 
-    /** @brief Gets the 20-bit entity index */
-    constexpr u32 index() const { return raw & INDEX_MASK; }
+    /** @brief Gets the entity index */
+    constexpr u32 index() const { return Layout::indexOf(raw); }
 
-    /** @brief Gets the 12-bit generation number */
-    constexpr u32 generation() const { return (raw >> INDEX_BITS) & GEN_MASK; }
+    /** @brief Gets the generation number */
+    constexpr u32 generation() const { return Layout::generationOf(raw); }
 
     /** @brief Checks if this is not the invalid sentinel */
     constexpr bool isValid() const { return raw != INVALID_RAW; }
@@ -151,9 +160,7 @@ struct Entity {
     static constexpr Entity fromRaw(u32 v) { return Entity(v); }
 
     /** @brief Creates an Entity from index and generation */
-    static constexpr Entity make(u32 idx, u32 gen) {
-        return Entity(((gen & GEN_MASK) << INDEX_BITS) | (idx & INDEX_MASK));
-    }
+    static constexpr Entity make(u32 idx, u32 gen) { return Entity(Layout::pack(idx, gen)); }
 
     constexpr bool operator==(Entity other) const { return raw == other.raw; }
     constexpr bool operator!=(Entity other) const { return raw != other.raw; }

@@ -21,6 +21,7 @@
 
 // Standard library
 #include <charconv>
+#include <cstdlib>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -324,5 +325,94 @@ private:
 #else
     #define ES_ASSERT(condition, message) ((void)0)
 #endif
+
+// =============================================================================
+// Verify Macro (always-on boundary guard)
+// =============================================================================
+
+namespace detail {
+
+/**
+ * @brief Optional sink invoked whenever an ES_VERIFY condition fails.
+ *
+ * @details ES_VERIFY always logs + recovers (in both debug and release). This
+ *          hook makes a failure *observable*: release-mode safety tests install
+ *          a counter to assert "the guard fired and we degraded gracefully",
+ *          and a dev build can install an aborting hook to fail loudly. Default
+ *          is null (log + recover only). Not thread-safe to set — install once
+ *          at startup or from a single-threaded test.
+ */
+using VerifyHook = void (*)(const char* cond, const char* file, int line);
+
+inline VerifyHook& verifyHook() {
+    static VerifyHook hook = nullptr;
+    return hook;
+}
+
+}  // namespace detail
+
+/**
+ * @brief Always-on boundary guard — the release-safe counterpart to ES_ASSERT.
+ *
+ * @details Unlike ES_ASSERT, which is stripped in release builds (leaving
+ *          boundary checks absent in shipped wasm), ES_VERIFY is compiled into
+ *          *every* build. On failure it logs an error, fires the optional
+ *          detail::verifyHook(), then runs the recovery statement(s) so the
+ *          caller degrades gracefully instead of falling through into an OOB
+ *          write / integer overflow / UB.
+ *
+ * @param cond  Boolean expression that must hold.
+ * @param ...   Recovery statement(s) run on failure (e.g. `return`,
+ *              `return fallback`, `continue`). Variadic so the recovery may
+ *              itself contain commas (e.g. brace-enclosed multi-statements).
+ *
+ * @par Discipline
+ * Use ES_VERIFY for any check that prevents OOB / overflow / UB on values
+ * derived from runtime data or external input (entity handles, deserialized
+ * indices, container subscripts). Reserve ES_ASSERT for pure-logic invariants
+ * that cannot happen if the surrounding code is correct.
+ *
+ * @code
+ * T& get(u32 i) {
+ *     static T fallback{};
+ *     ES_VERIFY(i < size_, { fallback = T{}; return fallback; });
+ *     return data_[i];
+ * }
+ * @endcode
+ */
+#define ES_VERIFY(cond, ...)                                                    \
+    do {                                                                        \
+        if (!(cond)) [[unlikely]] {                                             \
+            ES_LOG_ERROR("Verify failed: ({}) at {}:{}", #cond, __FILE__, __LINE__); \
+            if (auto _es_vh = ::esengine::detail::verifyHook()) {              \
+                _es_vh(#cond, __FILE__, __LINE__);                              \
+            }                                                                   \
+            __VA_ARGS__;                                                        \
+        }                                                                       \
+    } while (false)
+
+/**
+ * @brief Always-on **fatal** guard for invariants with no safe recovery.
+ *
+ * @details Use when a violated precondition leaves no valid value to return and
+ *          continuing would be UB (e.g. returning `*nullptr` from a `T&`
+ *          accessor). Unlike ES_ASSERT this is kept in release, so instead of a
+ *          message-less SEGV the build aborts with a clear diagnostic. Prefer
+ *          the recoverable ES_VERIFY whenever a sane fallback exists; reach for
+ *          this only when there genuinely isn't one.
+ *
+ * @param cond    Boolean expression that must hold.
+ * @param message Human-readable description of the invariant.
+ */
+#define ES_VERIFY_FATAL(cond, message)                                          \
+    do {                                                                        \
+        if (!(cond)) [[unlikely]] {                                             \
+            ES_LOG_FATAL("Fatal: {} ({}) at {}:{}", message, #cond, __FILE__, __LINE__); \
+            if (auto _es_vh = ::esengine::detail::verifyHook()) {              \
+                _es_vh(#cond, __FILE__, __LINE__);                              \
+            }                                                                   \
+            std::abort();                                                       \
+        }                                                                       \
+    } while (false)
 
 }  // namespace esengine

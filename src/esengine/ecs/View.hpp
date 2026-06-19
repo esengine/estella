@@ -68,6 +68,11 @@ public:
      * @return The current entity ID
      */
     Entity operator*() const {
+        // Kept as ES_ASSERT (not ES_VERIFY) deliberately: this is the ECS query
+        // hot path, and entities_ is structurally non-null for any iterator the
+        // View API hands out (begin()/end() always pass a live pointer). Only a
+        // manually default-constructed iterator violates it — a pure-logic
+        // misuse, not a runtime-data boundary — so no per-deref branch here.
         ES_ASSERT(entities_ != nullptr, "Dereferencing null ViewIterator");
         return (*entities_)[index_];
     }

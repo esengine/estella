@@ -16,6 +16,7 @@
 // Includes
 // =============================================================================
 
+#include "../core/Log.hpp"
 #include "../core/Types.hpp"
 
 #ifdef _MSC_VER
@@ -121,7 +122,10 @@ public:
 private:
     /** @brief Count trailing zeros; val must be non-zero */
     static u32 ctz64(u64 val) {
-        ES_ASSERT(val != 0, "ctz64 undefined for zero");
+        // Defense-in-depth: __builtin_ctzll(0) is UB. Callers guard with
+        // `while (word != 0)`, so this never fires in correct code, but the
+        // guard is always-on (ES_ASSERT is stripped in release). 64 = "no set bit".
+        ES_VERIFY(val != 0, return 64);
 #if defined(__GNUC__) || defined(__clang__)
         return static_cast<u32>(__builtin_ctzll(val));
 #elif defined(_MSC_VER)

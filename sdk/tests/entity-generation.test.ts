@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/world';
 import {
     ENTITY_GEN_BITS,
+    ENTITY_GEN_MASK,
     ENTITY_INDEX_BITS,
     ENTITY_INDEX_MASK,
     entityGeneration,
@@ -22,16 +23,25 @@ describe('Entity packing', () => {
         expect(entityGeneration(e)).toBe(7);
     });
 
-    it('uses the documented 20/12 bit layout', () => {
-        expect(ENTITY_INDEX_BITS).toBe(20);
-        expect(ENTITY_GEN_BITS).toBe(12);
-        expect(ENTITY_INDEX_MASK).toBe(0xFFFFF);
+    it('uses the documented 22/10 bit layout (matches C++ PackedId<22,10>)', () => {
+        expect(ENTITY_INDEX_BITS).toBe(22);
+        expect(ENTITY_GEN_BITS).toBe(10);
+        expect(ENTITY_INDEX_MASK).toBe(0x3FFFFF);
     });
 
     it('masks out-of-range index/generation to their documented widths', () => {
         const e = makeEntity(0xFFFFFFFF, 0xFFFFFFFF);
-        expect(entityIndex(e)).toBe(0xFFFFF);
-        expect(entityGeneration(e)).toBe(0xFFF);
+        expect(entityIndex(e)).toBe(0x3FFFFF);
+        expect(entityGeneration(e)).toBe(0x3FF);
+    });
+
+    it('packs a high generation without int32 overflow (stays unsigned)', () => {
+        // gen << 22 would overflow int32 to a negative number; makeEntity must
+        // produce the same unsigned u32 the C++ side stores in Entity::raw.
+        const e = makeEntity(7, ENTITY_GEN_MASK); // max generation
+        expect(e).toBeGreaterThan(0);             // not a negative int32
+        expect(entityIndex(e)).toBe(7);
+        expect(entityGeneration(e)).toBe(ENTITY_GEN_MASK);
     });
 
     it('treats both sentinels as invalid', () => {

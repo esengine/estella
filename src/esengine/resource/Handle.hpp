@@ -49,10 +49,13 @@ class Handle {
 public:
     using IdType = u32;
 
-    static constexpr u32 INDEX_BITS = 20;
-    static constexpr u32 GEN_BITS = 12;
-    static constexpr u32 INDEX_MASK = (1u << INDEX_BITS) - 1;
-    static constexpr u32 GEN_MASK = (1u << GEN_BITS) - 1;
+    // Bit-packing math is shared with Entity via PackedId (single source). The
+    // resource handle split stays 20+12 (independent of the ECS entity split).
+    using Layout = PackedId<20, 12>;
+    static constexpr u32 INDEX_BITS = Layout::INDEX_BITS;
+    static constexpr u32 GEN_BITS = Layout::GEN_BITS;
+    static constexpr u32 INDEX_MASK = Layout::INDEX_MASK;
+    static constexpr u32 GEN_MASK = Layout::GEN_MASK;
     static constexpr IdType INVALID = 0;
 
     /** @brief Creates an invalid handle */
@@ -70,7 +73,7 @@ public:
      * @param generation Reuse counter for the slot (max 4095)
      */
     static Handle fromParts(u32 index, u32 generation) {
-        return Handle(((generation & GEN_MASK) << INDEX_BITS) | (index & INDEX_MASK));
+        return Handle(Layout::pack(index, generation));
     }
 
     /** @brief Checks if the handle references a valid resource */
@@ -80,16 +83,16 @@ public:
     IdType id() const { return id_; }
 
     /** @brief Extracts the slot index from the packed handle */
-    u32 index() const { return id_ & INDEX_MASK; }
+    u32 index() const { return Layout::indexOf(id_); }
 
     /** @brief Extracts the generation from the packed handle */
-    u32 generation() const { return (id_ >> INDEX_BITS) & GEN_MASK; }
+    u32 generation() const { return Layout::generationOf(id_); }
 
     /** @brief Extracts index from a raw packed ID */
-    static u32 extractIndex(IdType packed) { return packed & INDEX_MASK; }
+    static u32 extractIndex(IdType packed) { return Layout::indexOf(packed); }
 
     /** @brief Extracts generation from a raw packed ID */
-    static u32 extractGeneration(IdType packed) { return (packed >> INDEX_BITS) & GEN_MASK; }
+    static u32 extractGeneration(IdType packed) { return Layout::generationOf(packed); }
 
     /** @brief Equality comparison */
     bool operator==(const Handle& other) const { return id_ == other.id_; }
