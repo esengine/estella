@@ -297,6 +297,10 @@ export function syncDynamicTransforms(
 
     const ptr = module._physics_getDynamicBodyTransforms();
     const baseU32 = ptr >> 2;
+    // physU32/physF32 view the PHYSICS heap. Safe to cache for the loop below: it
+    // only reads this transform buffer and makes engine-side reads — nothing
+    // allocates on the physics heap here. Do not add a physics-heap allocation in
+    // this loop without re-reading these views (RC12 B3).
     const physU32 = module.HEAPU32;
     const physF32 = module.HEAPF32;
 
@@ -321,6 +325,10 @@ export function syncDynamicTransforms(
     const getTransformPtr = engineMod?.getTransformPtr
         ? (e: Entity) => engineMod!.getTransformPtr(registry!, e as number)
         : null;
+    // engF32 views the ENGINE heap. Safe to cache: the loop only reads/writes
+    // existing Transform components (getTransformPtr + field writes) and makes
+    // engine-side reads — it never emplaces or _mallocs on the engine heap. Do
+    // not add an engine-heap allocation in this loop without re-reading (RC12 B3).
     const engF32 = engineMod?.HEAPF32;
     const addFn = (!getTransformPtr || !engF32)
         ? registry.addTransform.bind(registry)

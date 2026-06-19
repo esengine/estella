@@ -170,12 +170,15 @@ export class SpinePlugin implements Plugin {
             return;
         }
 
-        const f32 = coreModule.HEAPF32;
+        // Re-read coreModule.HEAPF32 on each access rather than caching the view:
+        // getEventRecord below is a wasm call that may grow the heap
+        // (ALLOW_MEMORY_GROWTH), which detaches a cached typed-array view and would
+        // make later reads land in the stale buffer (RC12 B3).
         const base = bufferPtr >> 2;
 
         for (let i = 0; i < count; i++) {
             const offset = base + i * EVENT_STRIDE;
-            const typeNum = f32[offset];
+            const typeNum = coreModule.HEAPF32[offset];
             const type = SPINE_TYPE_MAP[typeNum];
             if (type === null || type === undefined) continue;
 
@@ -185,13 +188,13 @@ export class SpinePlugin implements Plugin {
             const evt: SpineEvent = {
                 entity: record.entity as Entity,
                 type,
-                track: f32[offset + 1],
+                track: coreModule.HEAPF32[offset + 1],
                 animationName: record.animationName,
             };
             if (type === 'event') {
                 evt.eventName = record.eventName;
-                evt.floatValue = f32[offset + 2];
-                evt.intValue = f32[offset + 3];
+                evt.floatValue = coreModule.HEAPF32[offset + 2];
+                evt.intValue = coreModule.HEAPF32[offset + 3];
                 evt.stringValue = record.stringValue;
             }
             events.push(evt);

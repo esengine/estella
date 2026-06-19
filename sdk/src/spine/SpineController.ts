@@ -324,18 +324,20 @@ export class SpineModuleController {
 
         const EVENT_STRIDE = 4;
         const bufferPtr = this.api_.getEventBuffer();
-        const f32 = this.raw_.HEAPF32;
+        // Re-read this.raw_.HEAPF32 on each access rather than caching the view:
+        // the getEvent*Name/Value wasm calls below may grow the heap, which detaches
+        // a cached view and makes the next iteration's reads land stale (RC12 B3).
         const base = bufferPtr >> 2;
 
         const events: RawSpineEvent[] = [];
         for (let i = 0; i < count; i++) {
             const offset = base + i * EVENT_STRIDE;
-            const typeNum = f32[offset];
+            const typeNum = this.raw_.HEAPF32[offset];
             events.push({
                 type: typeNum,
-                track: f32[offset + 1],
-                floatValue: f32[offset + 2],
-                intValue: f32[offset + 3],
+                track: this.raw_.HEAPF32[offset + 1],
+                floatValue: this.raw_.HEAPF32[offset + 2],
+                intValue: this.raw_.HEAPF32[offset + 3],
                 animationName: this.api_.getEventAnimationName(i),
                 eventName: typeNum === 5 ? this.api_.getEventName(i) : '',
                 stringValue: typeNum === 5 ? this.api_.getEventStringValue(i) : '',
