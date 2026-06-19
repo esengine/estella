@@ -66,7 +66,15 @@ static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte 
 namespace esengine {
 
 static EngineContext& legacyCtx() { return EngineContext::instance(); }
-static EstellaContext& ctx() { return activeCtx(); }
+static EstellaContext& ctx() {
+    // The active context is installed by initRenderer (g_activeContext). Headless
+    // callers — tooling/tests that drive UI layout/hit-test without a GL context
+    // — never set it; fall back to the process singleton (whose constructor
+    // registers the GPU-independent logic systems) rather than dereferencing
+    // nullptr through activeCtx(). GPU services stay absent there, so the
+    // renderer bindings' tryGet<>() returns null exactly as before.
+    return g_activeContext ? activeCtx() : legacyCtx().context();
+}
 
 #define g_initialized (ctx().state().initialized)
 #define g_resourceManager (ctx().tryGet<resource::ResourceManager>())

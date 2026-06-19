@@ -52,7 +52,24 @@ namespace esengine {
 // needs local instance for non-web. For now we create a fresh system.
 #endif
 
-EstellaContext::EstellaContext() = default;
+EstellaContext::EstellaContext() {
+    // Logic systems must exist even for headless apps that never call init()
+    // (e.g. tooling / tests that drive UI layout without a GL context). Without
+    // this, the binding's require<UISystem>() returned a null reference and ran
+    // against wasm address 0 — silent memory corruption masked by the fact that
+    // address 0 is valid linear memory. See registerLogicSystems().
+    registerLogicSystems();
+}
+
+void EstellaContext::registerLogicSystems() {
+    // Idempotent: the constructor and initSubsystems both call this, and a
+    // shutdown()+init() cycle clears services_ and re-registers. UISystem is the
+    // membership sentinel for the whole logic-system set.
+    if (services_.getService<ecs::UISystem>()) return;
+    services_.registerOwned<ecs::TransformSystem>(makeUnique<ecs::TransformSystem>());
+    services_.registerOwned<ecs::UISystem>(makeUnique<ecs::UISystem>());
+    services_.registerOwned<animation::TweenSystem>(makeUnique<animation::TweenSystem>());
+}
 
 EstellaContext::~EstellaContext() {
     if (state_.initialized) {
@@ -105,9 +122,11 @@ void EstellaContext::initSubsystems() {
     auto* statePtr = stateTracker.get();
     services_.registerOwned<StateTracker>(std::move(stateTracker));
 
-    services_.registerOwned<ecs::TransformSystem>(makeUnique<ecs::TransformSystem>());
-    services_.registerOwned<ecs::UISystem>(makeUnique<ecs::UISystem>());
-    services_.registerOwned<animation::TweenSystem>(makeUnique<animation::TweenSystem>());
+    // GPU-independent logic systems (Transform/UI/Tween) are registered here too
+    // for the shutdown()+init() re-init path; the constructor already registered
+    // them for the headless/first-use path. Idempotent, so this is a no-op when
+    // they are already present.
+    registerLogicSystems();
 
 #ifdef ES_ENABLE_TIMELINE
     services_.registerOwned<animation::TimelineSystem>(makeUnique<animation::TimelineSystem>());

@@ -104,15 +104,12 @@ public:
     template<typename T>
     T& require() {
         T* svc = getService<T>();
-        // NOTE: this is the natural home for ES_VERIFY_FATAL (a missing required
-        // service has no safe T& to return, and *nullptr silently corrupts wasm
-        // address 0 rather than faulting). Deferred: turning it on surfaces
-        // ~33 existing call paths (UI layout/scrollview tests) that invoke
-        // require() on services they never register and "work" only via that
-        // null-address tolerance. Those callers must register/guard their
-        // services first; until then keep the debug-only assert to avoid
-        // destabilizing them. See foundation-audit follow-up.
-        ES_ASSERT(svc != nullptr, "Required service not registered");
+        // No safe T& to return if the service is missing — returning *nullptr is
+        // a silent wasm address-0 corruption, not a fault. require() means "must
+        // exist": abort with a clear diagnostic instead. (The UI logic systems
+        // this used to trip on are now registered unconditionally via
+        // EstellaContext::registerLogicSystems, so no normal path hits this.)
+        ES_VERIFY_FATAL(svc != nullptr, "Required service not registered");
         return *svc;
     }
 

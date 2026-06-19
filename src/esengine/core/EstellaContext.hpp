@@ -54,6 +54,13 @@ public:
 
 private:
     void initSubsystems();
+    /**
+     * Register the GPU-independent ECS logic systems (Transform/UI/Tween).
+     * Called from the constructor *and* initSubsystems so they exist even for
+     * headless apps that never call init() — otherwise require<UISystem>() etc.
+     * return a null reference (silent wasm address-0 corruption). Idempotent.
+     */
+    void registerLogicSystems();
 
     ServiceRegistry services_;
     EngineState state_;
