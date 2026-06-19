@@ -93,12 +93,17 @@ export function destroyTimelineHandle(module: ESEngineModule, handle: number): v
     if (handle) module._tl_destroy(handle);
 }
 
+// Lazily created (some target environments inject TextDecoder after module load)
+// and reused, instead of allocating a new TextDecoder for every decoded event.
+let sharedTextDecoder: TextDecoder | null = null;
+
 function decodeEventString(module: ESEngineModule, index: number): string {
     const ptr = module._tl_getEventString(index);
     const len = module._tl_getEventStringLen(index);
     if (!ptr || len <= 0) return '';
     const bytes = new Uint8Array(module.HEAPU8.buffer, ptr, len);
-    return new TextDecoder().decode(bytes);
+    if (!sharedTextDecoder) sharedTextDecoder = new TextDecoder();
+    return sharedTextDecoder.decode(bytes);
 }
 
 export function processTimelineEvents(world: any, module: ESEngineModule, audio: AudioAPI | null = null): void {
@@ -176,13 +181,18 @@ export function processCustomProperties(
     const count = module._tl_getCustomPropertyCount();
     if (count === 0) return;
 
+    // The property-track subset is constant for this uploadResult; compute it once
+    // instead of re-filtering (and allocating a new array) for every property —
+    // the old per-iteration filter was O(properties × tracks) per frame (M6).
+    const propertyTracks = uploadResult.tracks.filter(t => t.type === 'property');
+
     for (let i = 0; i < count; i++) {
         const entity = module._tl_getCustomPropertyEntity(i);
         const trackIndex = module._tl_getCustomPropertyTrackIndex(i);
         const channelIndex = module._tl_getCustomPropertyChannelIndex(i);
         const value = module._tl_getCustomPropertyValue(i);
 
-        const trackInfo = uploadResult.tracks.filter(t => t.type === 'property')[trackIndex];
+        const trackInfo = propertyTracks[trackIndex];
         if (!trackInfo?.component || !trackInfo.channelProperties) continue;
 
         const componentDef = getComponent(trackInfo.component);
