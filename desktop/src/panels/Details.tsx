@@ -7,6 +7,7 @@ import { SceneQuery } from '@/engine/SceneQuery';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { modelAddableComponentEntries } from '@/engine/schema';
+import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, EntityId } from '@/types';
@@ -191,6 +192,72 @@ function ColorControl({
   );
 }
 
+// An asset-ref field: a drop target showing the bound asset (texture thumbnail +
+// name) with a clear button. Drag-assign drops a project-relative path; clear
+// sets the ref to 0 (none). The ref itself is a portable `@uuid:` string.
+function AssetControl({
+  value,
+  assetType,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & {
+  value: string | number;
+  assetType?: string;
+  onChange: (v: string | number) => void;
+}) {
+  const [over, setOver] = useState(false);
+  const info = ProjectStore.assetInfo(value);
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setOver(false);
+    const path = e.dataTransfer.getData('application/x-estella-asset') || e.dataTransfer.getData('text/plain');
+    if (!path) return;
+    onBegin?.();
+    void ProjectStore.assetRefForPath(path, assetType).then((ref) => {
+      if (ref) onChange(ref);
+      onEnd?.();
+    });
+  };
+
+  return (
+    <div
+      className={`asset-field${over ? ' is-over' : ''}`}
+      title={info?.path}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!over) setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={onDrop}
+    >
+      <span className="asset-field__thumb">
+        {assetType === 'texture' && info ? (
+          <img src={`estella://project/${info.path}`} alt="" draggable={false} />
+        ) : (
+          <Box size={13} strokeWidth={1.6} />
+        )}
+      </span>
+      <span className="asset-field__name">{info ? info.name : 'None'}</span>
+      {info && (
+        <button
+          type="button"
+          className="asset-field__clear"
+          title="Clear"
+          onClick={() => {
+            onBegin?.();
+            onChange(0);
+            onEnd?.();
+          }}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 function FieldRow({
   entity,
   comp,
@@ -231,6 +298,17 @@ function FieldRow({
     case 'color':
       control = (
         <ColorControl value={field.value as string} onBegin={begin} onEnd={end} onChange={apply} />
+      );
+      break;
+    case 'asset':
+      control = (
+        <AssetControl
+          value={field.value as string | number}
+          assetType={field.assetType}
+          onBegin={begin}
+          onEnd={end}
+          onChange={apply}
+        />
       );
       break;
     default:

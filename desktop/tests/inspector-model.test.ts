@@ -91,4 +91,31 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
     expect(wave).toBeDefined();
     expect(wave!.fields.find((f) => f.key === 'amplitude')!.value).toBe(5);
   });
+
+  it('renders a component asset-ref field as an asset control, not a raw uuid', () => {
+    const ref = '@uuid:44444444-4444-4444-8444-444444444444';
+    const fresh = EditorSession.create();
+    fresh.model.adopt(
+      {
+        version: '1.0',
+        name: 's',
+        entities: [
+          {
+            id: 1,
+            name: 'S',
+            parent: null,
+            children: [],
+            components: [{ type: 'Sprite', data: { texture: ref, color: { r: 1, g: 1, b: 1, a: 1 } } }],
+          },
+        ],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const sprite = fresh.query.readInspector(1).find((c) => c.name === 'Sprite');
+    const tex = sprite!.fields.find((f) => f.key === 'texture');
+    // Sprite.texture is a builtin asset field → an asset control carrying the ref.
+    expect(tex!.type).toBe('asset');
+    expect(tex!.assetType).toBe('texture');
+    expect(tex!.value).toBe(ref);
+  });
 });

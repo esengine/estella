@@ -1136,6 +1136,63 @@
   color: var(--text-hi);
 }
 
+/* Inspector asset-ref control: thumbnail + name + clear; a drag-assign drop target. */
+.asset-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 4px 6px;
+  min-height: 28px;
+}
+.asset-field.is-over {
+  border-color: var(--star-line);
+  background: var(--star-soft, rgba(120, 160, 255, 0.1));
+}
+.asset-field__thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: var(--r-xs);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-dim);
+  overflow: hidden;
+}
+.asset-field__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.asset-field__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-hi);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset-field__clear {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.asset-field__clear:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-hi);
+}
+
 .text-input {
   width: 100%;
   background: var(--input);

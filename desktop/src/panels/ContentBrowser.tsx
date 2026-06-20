@@ -163,6 +163,14 @@ export function ContentBrowser() {
                 key={e.name}
                 type="button"
                 className="tile"
+                // Files are draggable onto inspector asset fields (drag-assign);
+                // the payload is the project-relative path, resolved to a @uuid: ref on drop.
+                draggable={!e.isDir}
+                onDragStart={(ev) => {
+                  ev.dataTransfer.effectAllowed = 'copy';
+                  ev.dataTransfer.setData('application/x-estella-asset', path);
+                  ev.dataTransfer.setData('text/plain', path);
+                }}
                 onDoubleClick={() => e.isDir && setCwd(path)}
                 onContextMenu={(ev) => {
                   ev.preventDefault();

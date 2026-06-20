@@ -60,6 +60,9 @@ class ProjectStoreImpl {
   /** uuid → project-relative path, scanned from `.meta` sidecars — the editor's
    *  asset registry. The engine `Assets` loader resolves refs through it. */
   private readonly uuidToPath = new Map<string, string>();
+  /** path → uuid (reverse), so a Content Browser drag (which carries a path) can
+   *  be turned into a portable `@uuid:` ref for the model. */
+  private readonly pathToUuid = new Map<string, string>();
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
@@ -202,10 +205,15 @@ class ProjectStoreImpl {
    */
   private async buildAssetRegistry(): Promise<void> {
     this.uuidToPath.clear();
+    this.pathToUuid.clear();
     if (!this.state) return;
     try {
       const { index } = await window.estella.project.scanAssets();
-      for (const e of index.entries) this.uuidToPath.set(e.uuid.toLowerCase(), e.path);
+      for (const e of index.entries) {
+        const uuid = e.uuid.toLowerCase();
+        this.uuidToPath.set(uuid, e.path);
+        this.pathToUuid.set(e.path, uuid);
+      }
     } catch (err) {
       console.warn('[project] asset scan failed', err);
     }
@@ -224,12 +232,48 @@ class ProjectStoreImpl {
     return this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase()) ?? null;
   }
 
-  /** The live GL handle for a uuid, from the latest preload result (any type). */
+  /** The live GL handle for a uuid. Textures read the engine's live cache (so a
+   *  just-assigned texture resolves); material/font fall back to the scene preload. */
   private handleForUuid(uuid: string): number {
+    const ref = UUID_PREFIX + uuid;
+    const tex = EngineHost.getResource(Assets)?.getTexture(ref);
+    if (tex) return tex.handle;
     const path = this.uuidToPath.get(uuid.toLowerCase());
     const r = this.lastAssetResult;
     if (!path || !r) return 0;
-    return r.textureHandles.get(path) ?? r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
+    return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
+  }
+
+  /** Display info for an asset ref (`@uuid:`), or null (none / unresolved). For
+   *  the inspector's asset control: the project-relative path + a leaf name. */
+  assetInfo(ref: unknown): { path: string; name: string } | null {
+    if (typeof ref !== 'string' || !ref.startsWith(UUID_PREFIX)) return null;
+    const path = this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase());
+    return path ? { path, name: path.split('/').pop() ?? path } : null;
+  }
+
+  /**
+   * Turn a Content-Browser drag (a project-relative path) into a portable
+   * `@uuid:` ref, preloading the asset so the Reconciler's synchronous projection
+   * finds its handle when the model field is set. Textures resolve live; other
+   * types are best-effort (resolved at scene load). Returns null if the path
+   * isn't a tracked asset.
+   */
+  async assetRefForPath(path: string, assetType?: string): Promise<string | null> {
+    const uuid = this.pathToUuid.get(path);
+    if (!uuid) return null;
+    const ref = UUID_PREFIX + uuid;
+    const assets = EngineHost.getResource(Assets);
+    if (assets) {
+      try {
+        if (assetType === 'material') await assets.loadMaterial(ref);
+        else if (assetType === 'font') await assets.loadFont(ref);
+        else await assets.loadTexture(ref);
+      } catch {
+        // non-loadable for this slot — the field still stores the ref losslessly
+      }
+    }
+    return ref;
   }
 
   /**

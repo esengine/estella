@@ -96,18 +96,6 @@ export function componentCategory(name: string, isUser = false): string {
   return 'Other';
 }
 
-/** The editable fields of one component (its live data introspected by shape). */
-export function componentFields(def: AnyComp, data: Record<string, unknown>): InspectorField[] {
-  const colorKeys = new Set<string>(def.colorKeys);
-  const fields: InspectorField[] = [];
-  for (const key of Object.keys(def._default as Record<string, unknown>)) {
-    if (DERIVED_FIELDS.has(key)) continue;
-    const f = inferField(key, data[key], colorKeys.has(key));
-    if (f) fields.push(f);
-  }
-  return fields;
-}
-
 // — Field value inference (matches the JS data shape world.get/set use) —
 
 const RAD2DEG = 180 / Math.PI;
@@ -175,6 +163,8 @@ export interface UserComponentSchema {
   isTag: boolean;
   default: Record<string, unknown>;
   colorKeys: string[];
+  /** Asset-ref fields (e.g. `[{field:'texture', type:'texture'}]`). */
+  assetFields?: Array<{ field: string; type: string }>;
 }
 
 const userSchemas = new Map<string, UserComponentSchema>();
@@ -197,23 +187,76 @@ export function isColorKey(compType: string, key: string): boolean {
   return new Set(userSchema(compType)?.colorKeys ?? []).has(key);
 }
 
+// — Asset-ref fields (which component fields hold a texture/material/font/... ref) —
+//
+// Editor presentation policy (like COMPONENT_CATEGORY): the engine's
+// AssetFieldRegistry isn't exported from the built `esengine` types, so the
+// builtin map is mirrored here; user/script components declare their asset fields
+// in schemas.json. The inspector renders these as an asset control, not a raw
+// `@uuid:` string. Mirror of sdk AssetFieldRegistry.initBuiltinAssetFields.
+const BUILTIN_ASSET_FIELDS: Record<string, Record<string, string>> = {
+  Sprite: { texture: 'texture', material: 'material' },
+  SpineAnimation: { material: 'material' },
+  BitmapText: { font: 'font' },
+  Image: { texture: 'texture', material: 'material' },
+  UIRenderer: { texture: 'texture', material: 'material' },
+  SpriteAnimator: { clip: 'anim-clip' },
+  AudioSource: { clip: 'audio' },
+  ParticleEmitter: { texture: 'texture', material: 'material' },
+  Tilemap: { source: 'tilemap' },
+  TilemapLayer: { tileset: 'texture' },
+  TimelinePlayer: { timeline: 'timeline' },
+};
+
+/** The asset kind a component field holds (texture/material/font/...), or null. */
+export function assetFieldType(compType: string, key: string): string | null {
+  const builtin = BUILTIN_ASSET_FIELDS[compType]?.[key];
+  if (builtin) return builtin;
+  for (const f of userSchema(compType)?.assetFields ?? []) if (f.field === key) return f.type;
+  return null;
+}
+
 /**
- * The editable fields of a component from the MODEL's stored data, resolving the
- * field shape from (in order): the engine registry, the user schema, or — as a
- * best-effort fallback — the data values themselves. `DERIVED_FIELDS` are skipped.
+ * Build one inspector field: an **asset control** for asset-ref fields (carrying
+ * the `@uuid:` ref or 0 for none), else a value-shape-inferred control.
+ */
+function fieldFor(
+  compType: string,
+  key: string,
+  value: unknown,
+  isColor: boolean,
+): InspectorField | null {
+  const at = assetFieldType(compType, key);
+  if (at) {
+    return {
+      key,
+      label: prettyLabel(key),
+      type: 'asset',
+      value: typeof value === 'string' ? value : 0,
+      assetType: at,
+    };
+  }
+  return inferField(key, value, isColor);
+}
+
+/**
+ * The editable fields of a component from the MODEL's stored data. Field shape
+ * comes from (in order): the engine registry, the user schema, or — as a
+ * best-effort fallback — the data values themselves; asset-ref fields become an
+ * asset control. `DERIVED_FIELDS` are skipped.
  */
 export function inspectorFields(compType: string, data: Record<string, unknown>): InspectorField[] {
   const def = componentByName(compType);
-  if (def) return componentFields(def, data);
-
-  const schema = userSchema(compType);
-  const colorKeys = new Set(schema?.colorKeys ?? []);
-  const keys = schema ? Object.keys(schema.default) : Object.keys(data);
+  const schema = def ? undefined : userSchema(compType);
+  const colorKeys = new Set<string>(def ? def.colorKeys : (schema?.colorKeys ?? []));
+  const defaults = def ? componentDefaults(def) : schema?.default;
+  // Field order: the registered / schema defaults; else the stored data's keys.
+  const keys = defaults ? Object.keys(defaults) : Object.keys(data);
   const fields: InspectorField[] = [];
   for (const key of keys) {
     if (DERIVED_FIELDS.has(key)) continue;
-    const v = key in data ? data[key] : schema?.default[key];
-    const f = inferField(key, v, colorKeys.has(key));
+    const value = key in data ? data[key] : defaults?.[key];
+    const f = fieldFor(compType, key, value, colorKeys.has(key));
     if (f) fields.push(f);
   }
   return fields;

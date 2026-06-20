@@ -32,7 +32,8 @@ export type InspectorFieldType =
   | 'vec2'
   | 'vec3'
   | 'angle' // 2D rotation: a quaternion shown/edited as Z degrees
-  | 'color';
+  | 'color'
+  | 'asset'; // a texture/material/font/... ref (@uuid: string, or 0 for none)
 
 export type InspectorFieldValue =
   | number
@@ -47,6 +48,8 @@ export interface InspectorField {
   label: string;
   type: InspectorFieldType;
   value: InspectorFieldValue;
+  /** For `type: 'asset'` — the asset kind (texture/material/font/...). */
+  assetType?: string;
 }
 
 export interface InspectorComponent {
