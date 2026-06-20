@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Mirror the editor shell's CSP exactly so the headless host is a faithful
+         reproduction of the live renderer (same embind 'unsafe-eval', same asset
+         origins) — a render that fails here for a CSP reason would fail there too. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: estella:; font-src 'self' data:; connect-src 'self' ws: estella:; worker-src 'self' blob:;"
+    />
+    <title>Estella Headless</title>
+  </head>
+  <body>
+    <script type="module" src="/src/headless.ts"></script>
+  </body>
+</html>

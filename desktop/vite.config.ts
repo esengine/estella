@@ -12,6 +12,16 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      // Two renderer entries: the editor shell (index) and the headless render
+      // host (headless) used for automation/verification — see headless.html.
+      input: {
+        index: fileURLToPath(new URL('./index.html', import.meta.url)),
+        headless: fileURLToPath(new URL('./headless.html', import.meta.url)),
+      },
+    },
+  },
   plugins: [
     react(),
     electron({

@@ -162,6 +162,29 @@ class EngineHostImpl {
     return restored;
   }
 
+  // — Headless / automation drive (see docs/REARCH_EDITOR_AUTOMATION.md) —
+  // The live editor lets the engine drive its own rAF loop (app.run()); a
+  // headless render host or a verification/automation driver instead advances
+  // frames itself, so it can capture a deterministic, reproducible frame. These
+  // mediate the private App so encapsulation (the two-door world access) holds.
+
+  /**
+   * Advance the engine by exactly one frame with a fixed delta — no rAF, no
+   * wall-clock. The same per-frame work app.run()'s loop does, driven manually.
+   * No-op until booted. Do not mix with a running app.run() loop.
+   */
+  async tick(delta: number): Promise<void> {
+    await this.app_?.tick(delta);
+  }
+
+  /**
+   * Bulk-load a scene into the live World, resolving asset refs via the manifest
+   * (same door the boot bootstrap uses). Returns the spawned entity count.
+   */
+  async loadScene(sceneUrl: string, manifestUrl?: string): Promise<number> {
+    return this.app_ ? SceneLoader.loadInto(this.app_, sceneUrl, manifestUrl) : 0;
+  }
+
   private resize() {
     const canvas = this.canvas_;
     const parent = canvas?.parentElement;
@@ -177,76 +200,111 @@ class EngineHostImpl {
     if (this.booted) return;
     this.booted = true;
     this.setStatus('booting');
-
     try {
-      // Early build-consistency check: compare the wasm's stamped manifest
-      // (variant / ABI / provenance) against this SDK before the heavy
-      // instantiate. Advisory only — the runtime bridge handshake is the
-      // authoritative fatal layout check (reads the real binary).
-      const guard = await checkEngineBuild();
-      if (guard.level === 'warn') console.warn('[engine]', guard.message);
-      else console.info('[engine]', guard.message);
-
-      // The glue lives under public/. Vite's import-analysis rejects static
-      // imports of public files, so build the specifier at runtime from the
-      // origin — non-analyzable, so Vite emits a native dynamic import (allowed
-      // by CSP script-src 'self', no eval needed).
-      // NOTE: works in dev (http origin); production packaging will need a
-      // custom protocol or relative base since file:// roots differently.
-      const glueUrl = `${location.origin}/wasm/esengine.js`;
-      const { default: createModule } = (await import(/* @vite-ignore */ glueUrl)) as {
-        default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
-      };
       const canvas = this.ensureCanvas();
+      await this.bootCore(canvas, { runLoop: true, loadInitialScene: true });
+    } catch (err) {
+      this.swallowUnwind(err);
+    }
+  }
 
-      const module = await createModule({
-        canvas,
-        // The glue resolves esengine.wasm relative to itself; pin it explicitly.
-        locateFile: (path: string) => `/wasm/${path}`,
-        print: (text: string) => console.log('[wasm]', text),
-        printErr: (text: string) => console.warn('[wasm]', text),
-      });
-      this.module_ = module;
+  /**
+   * Boot the engine without a DOM viewport or a self-driving loop, for the
+   * headless render host (see docs/REARCH_EDITOR_AUTOMATION.md): a fixed-size
+   * offscreen canvas, no initial scene (the driver loads one), and frames
+   * advanced manually via tick() so captures are deterministic. Resolves once
+   * the engine is ready; the driver then does loadScene → step → captureViewport.
+   */
+  async bootHeadless(size: { width: number; height: number }): Promise<void> {
+    if (this.booted) return;
+    this.booted = true;
+    this.setStatus('booting');
+    try {
+      const canvas = this.ensureCanvas();
+      canvas.width = size.width;
+      canvas.height = size.height;
+      await this.bootCore(canvas, { runLoop: false, loadInitialScene: false });
+    } catch (err) {
+      this.swallowUnwind(err);
+    }
+  }
 
-      // Bind the renderer to a context WE create on this canvas (rather than the
-      // engine's default '#canvas' selector) so the viewport works embedded
-      // under any element id. Mirrors the wechat runtime path.
-      const gl = canvas.getContext('webgl2', {
-        alpha: false,
-        antialias: true,
-        depth: true,
-        stencil: true,
-        premultipliedAlpha: false,
-      }) as WebGL2RenderingContext | null;
-      if (!gl) throw new Error('WebGL2 is not available in this renderer.');
+  // The shared boot sequence: instantiate the wasm, bind a WebGL2 context, build
+  // the App, open in edit mode. The DOM viewport (boot) then drives the engine's
+  // own rAF loop and loads an initial scene; the headless host (bootHeadless)
+  // does neither — it advances frames via tick() and loads scenes on demand.
+  private async bootCore(
+    canvas: HTMLCanvasElement,
+    opts: { runLoop: boolean; loadInitialScene: boolean },
+  ) {
+    // Early build-consistency check: compare the wasm's stamped manifest
+    // (variant / ABI / provenance) against this SDK before the heavy
+    // instantiate. Advisory only — the runtime bridge handshake is the
+    // authoritative fatal layout check (reads the real binary).
+    const guard = await checkEngineBuild();
+    if (guard.level === 'warn') console.warn('[engine]', guard.message);
+    else console.info('[engine]', guard.message);
 
-      const glHandle = module.GL.registerContext(gl, {
-        majorVersion: 2,
-        minorVersion: 0,
-        enableExtensionsByDefault: true,
-      });
+    // The glue lives under public/. Vite's import-analysis rejects static
+    // imports of public files, so build the specifier at runtime from the
+    // origin — non-analyzable, so Vite emits a native dynamic import (allowed
+    // by CSP script-src 'self', no eval needed).
+    // NOTE: works in dev (http origin); production packaging will need a
+    // custom protocol or relative base since file:// roots differently.
+    const glueUrl = `${location.origin}/wasm/esengine.js`;
+    const { default: createModule } = (await import(/* @vite-ignore */ glueUrl)) as {
+      default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
+    };
 
-      const app = createWebApp(module, {
-        glContextHandle: glHandle,
-        getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
-        // The per-version spine side modules are served next to esengine.wasm
-        // (same /wasm/ dir as locateFile above), so the web spine provider can
-        // load 3.8/4.1 assets in the viewport, not just the engine-linked 4.2.
-        wasmBaseUrl: '/wasm',
-      });
-      this.app_ = app;
+    const module = await createModule({
+      canvas,
+      // The glue resolves esengine.wasm relative to itself; pin it explicitly.
+      locateFile: (path: string) => `/wasm/${path}`,
+      print: (text: string) => console.log('[wasm]', text),
+      printErr: (text: string) => console.warn('[wasm]', text),
+    });
+    this.module_ = module;
 
-      // Mark this an editor host and open in edit mode: gameplay systems
-      // (particle/animation/physics/timeline/…, gated on env.playModeOnly) are
-      // frozen so simulation doesn't fight edits, while render/transform/camera
-      // keep ticking. Play mode is toggled later via setRunMode.
-      setEditorMode(true);
-      setPlayMode(false);
+    // Bind the renderer to a context WE create on this canvas (rather than the
+    // engine's default '#canvas' selector) so the viewport works embedded
+    // under any element id. Mirrors the wechat runtime path.
+    const gl = canvas.getContext('webgl2', {
+      alpha: false,
+      antialias: true,
+      depth: true,
+      stencil: true,
+      premultipliedAlpha: false,
+    }) as WebGL2RenderingContext | null;
+    if (!gl) throw new Error('WebGL2 is not available in this renderer.');
 
-      // Register the reactive bridge before the scene spawns so the initial
-      // entities push through too.
-      SceneStore.install();
+    const glHandle = module.GL.registerContext(gl, {
+      majorVersion: 2,
+      minorVersion: 0,
+      enableExtensionsByDefault: true,
+    });
 
+    const app = createWebApp(module, {
+      glContextHandle: glHandle,
+      getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
+      // The per-version spine side modules are served next to esengine.wasm
+      // (same /wasm/ dir as locateFile above), so the web spine provider can
+      // load 3.8/4.1 assets in the viewport, not just the engine-linked 4.2.
+      wasmBaseUrl: '/wasm',
+    });
+    this.app_ = app;
+
+    // Mark this an editor host and open in edit mode: gameplay systems
+    // (particle/animation/physics/timeline/…, gated on env.playModeOnly) are
+    // frozen so simulation doesn't fight edits, while render/transform/camera
+    // keep ticking. Play mode is toggled later via setRunMode.
+    setEditorMode(true);
+    setPlayMode(false);
+
+    // Register the reactive bridge before the scene spawns so the initial
+    // entities push through too.
+    SceneStore.install();
+
+    if (opts.loadInitialScene) {
       // Load the opened project's scene if the launcher set a bootstrap;
       // otherwise the in-repo placeholder scene (dev). Falls back to the
       // in-code scene on failure.
@@ -260,12 +318,12 @@ class EngineHostImpl {
         console.warn('[engine] scene load failed; using placeholder', err);
         this.setupScene(app);
       }
+    }
 
-      // Loop started — report ready before run() in case it never resolves.
-      this.setStatus('ready');
+    // Report ready before run() (the DOM path) in case the loop never resolves.
+    this.setStatus('ready');
+    if (opts.runLoop) {
       void Promise.resolve(app.run()).catch((err) => this.swallowUnwind(err));
-    } catch (err) {
-      this.swallowUnwind(err);
     }
   }
 
