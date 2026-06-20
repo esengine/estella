@@ -11,6 +11,7 @@ import {
   resolveInRoot,
 } from './projectFs';
 import { listRecents, addRecent, listTemplates, createFromTemplate } from './launcher';
+import { buildProjectScripts } from './buildScripts';
 import type { WorkspaceState } from '../src/project/format';
 
 // Custom scheme that serves files from the open project root (sandboxed). Lets
@@ -130,6 +131,10 @@ ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
 );
 ipcMain.handle('fs:readdir', (_e, relPath: string) => readDirInRoot(requireRoot(), relPath));
 ipcMain.handle('workspace:save', (_e, ws: WorkspaceState) => saveWorkspace(requireRoot(), ws));
+
+// Bundle the open project's scripts (src/main.ts → .esengine/cache, esengine
+// external) for the isolated play realm (REARCH_EDITOR_REALM P1 / RC12 §E8-1).
+ipcMain.handle('project:buildScripts', () => buildProjectScripts(requireRoot()));
 
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));
