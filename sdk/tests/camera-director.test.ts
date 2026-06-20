@@ -8,7 +8,7 @@ import {
   lerpPOV,
   resolveMainPOV,
   BlendCurve,
-  DEFAULT_DIRECTOR,
+  createDirectorState,
   type CameraDirectorState,
 } from '../src/camera/CameraDirector';
 import type { CameraPOV } from '../src/camera/CameraPlugin';
@@ -32,7 +32,7 @@ const mkPOV = (over: Partial<CameraPOV>): CameraPOV => ({
   ...over,
 });
 const dir = (over?: Partial<CameraDirectorState>): CameraDirectorState => ({
-  ...DEFAULT_DIRECTOR,
+  ...createDirectorState(),
   ...over,
 });
 
@@ -108,5 +108,24 @@ describe('resolveMainPOV', () => {
     d.pendingTarget = 2;
     expect(resolveMainPOV(d, [A, B], 5, false)).toBe(A);
     expect(d.hasPending).toBe(true); // not consumed
+  });
+
+  it('shake offsets the rendered POV, decays, then expires (render path only)', () => {
+    const d = dir();
+    d.shakes.push({ amplitude: 50, rotation: 0, frequency: 10, duration: 1, startTime: -1, seed: 0 });
+    resolveMainPOV(d, [A], 0, true); // first advance sets startTime (e=0 → ~no offset)
+    const mid = resolveMainPOV(d, [A], 0.3, true);
+    expect(Math.abs(mid!.x)).toBeGreaterThan(0); // shaken off-center
+    expect(d.shakes.length).toBe(1);
+    const after = resolveMainPOV(d, [A], 1.2, true); // past duration
+    expect(after!.x).toBeCloseTo(0);
+    expect(d.shakes.length).toBe(0); // expired + dropped
+  });
+
+  it('peek does not age or drop shakes', () => {
+    const d = dir({ currentMain: A });
+    d.shakes.push({ amplitude: 50, rotation: 0, frequency: 10, duration: 1, startTime: -1, seed: 0 });
+    resolveMainPOV(d, [A], 0.3, false); // peek
+    expect(d.shakes.length).toBe(1);
   });
 });

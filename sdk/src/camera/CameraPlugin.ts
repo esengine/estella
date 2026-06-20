@@ -12,7 +12,7 @@ import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/UICameraInfo';
 import { ProjectionType, ScaleMode, SceneOwner, ClearFlags } from '../component';
 import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
-import { CameraDirector, DEFAULT_DIRECTOR, resolveMainPOV } from './CameraDirector';
+import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../renderPipeline';
 import { Renderer } from '../renderer';
 import { platformNow } from '../platform';
@@ -393,8 +393,9 @@ export function cameraPlugin(
             // it; the editor activates it in edit mode (see desktop EngineHost).
             app.insertResource(EditorView, { ...DEFAULT_EDITOR_VIEW });
             // The camera director: by default it just tracks the active camera;
-            // games call setViewTarget(app, entity, {time, curve}) to blend.
-            app.insertResource(CameraDirector, { ...DEFAULT_DIRECTOR });
+            // games call setViewTarget(app, entity, {time, curve}) to blend, or
+            // shakeCamera(app, {...}) to shake. Fresh state (own arrays) per App.
+            app.insertResource(CameraDirector, createDirectorState());
 
             const viewport = getViewportSize ?? (() => {
                 const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;

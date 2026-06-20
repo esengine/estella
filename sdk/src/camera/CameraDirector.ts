@@ -69,6 +69,16 @@ function clonePOV(p: CameraPOV): CameraPOV {
   return { ...p, viewport: { ...p.viewport } };
 }
 
+/** A transient camera shake — a decaying view-space perturbation (UE modifier). */
+export interface ActiveShake {
+  amplitude: number; // positional, world units
+  rotation: number; // rotational, radians
+  frequency: number; // Hz
+  duration: number; // seconds
+  startTime: number; // seconds; -1 until first applied
+  seed: number; // decorrelates concurrent shakes
+}
+
 export interface CameraDirectorState {
   /** Committed view-target entity, or -1 → fall back to the active/priority camera. */
   target: number;
@@ -85,6 +95,9 @@ export interface CameraDirectorState {
   curve: number;
   /** Last resolved main POV — also the snapshot source when a new blend starts. */
   currentMain: CameraPOV | null;
+  /** Active transient shakes (applied to the rendered POV, never to the Transform). */
+  shakes: ActiveShake[];
+  shakeSeq: number;
 }
 
 export const DEFAULT_DIRECTOR: CameraDirectorState = {
@@ -99,7 +112,14 @@ export const DEFAULT_DIRECTOR: CameraDirectorState = {
   duration: 0,
   curve: BlendCurve.EaseInOut,
   currentMain: null,
+  shakes: [],
+  shakeSeq: 0,
 };
+
+/** A fresh director state (own arrays) — use per App, not the shared default. */
+export function createDirectorState(): CameraDirectorState {
+  return { ...DEFAULT_DIRECTOR, from: null, currentMain: null, shakes: [] };
+}
 
 export const CameraDirector = defineResource<CameraDirectorState>(
   { ...DEFAULT_DIRECTOR },
@@ -122,6 +142,58 @@ export function setViewTarget(
   dir.pendingTarget = entity;
   dir.pendingTime = opts?.time ?? 0;
   dir.pendingCurve = opts?.curve ?? BlendCurve.EaseInOut;
+}
+
+/**
+ * Trigger a transient camera shake on the active view — a decaying perturbation
+ * applied to the rendered POV only (never to a camera's Transform, so it always
+ * recovers and never dirties the scene). The UE `StartCameraShake` analog.
+ */
+export function shakeCamera(
+  app: App,
+  opts?: { amplitude?: number; rotation?: number; frequency?: number; duration?: number },
+): void {
+  const dir = app.getResource(CameraDirector);
+  dir.shakes.push({
+    amplitude: opts?.amplitude ?? 12,
+    rotation: opts?.rotation ?? 0,
+    frequency: opts?.frequency ?? 22,
+    duration: opts?.duration ?? 0.4,
+    startTime: -1,
+    seed: dir.shakeSeq++,
+  });
+}
+
+// Deterministic smooth pseudo-noise in ~[-1, 1] (two decorrelated sines).
+const shakeNoise = (t: number, seed: number): number =>
+  Math.sin(t + seed * 1.3) * 0.6 + Math.sin(t * 1.7 + seed * 2.9) * 0.4;
+
+/**
+ * Apply + age the active shakes, returning the POV offset for rendering. Drops
+ * expired shakes. Mutates the shake list, so it runs only on the advancing
+ * (render) resolve — the peek resolve leaves the view un-shaken (so screen<->world
+ * doesn't jitter while the camera shakes).
+ */
+function applyShakes(dir: CameraDirectorState, pov: CameraPOV, now: number): CameraPOV {
+  if (dir.shakes.length === 0) return pov;
+  let ox = 0;
+  let oy = 0;
+  let orot = 0;
+  const alive: ActiveShake[] = [];
+  for (const s of dir.shakes) {
+    if (s.startTime < 0) s.startTime = now;
+    const e = now - s.startTime;
+    if (e >= s.duration || s.duration <= 0) continue; // expired → dropped
+    const decay = 1 - e / s.duration;
+    const phase = 2 * Math.PI * s.frequency * e;
+    ox += s.amplitude * decay * shakeNoise(phase, s.seed);
+    oy += s.amplitude * decay * shakeNoise(phase, s.seed + 11);
+    orot += s.rotation * decay * shakeNoise(phase, s.seed + 23);
+    alive.push(s);
+  }
+  dir.shakes = alive;
+  if (ox === 0 && oy === 0 && orot === 0) return pov;
+  return { ...pov, x: pov.x + ox, y: pov.y + oy, rotation: pov.rotation + orot };
 }
 
 /** The active camera by policy: isActive wins (authoritative), else highest priority. */
@@ -173,19 +245,22 @@ export function resolveMainPOV(
     (dir.target >= 0 ? candidates.find((c) => c.entity === dir.target) : undefined) ??
     pickActive(candidates);
 
+  let main: CameraPOV;
   if (dir.blending && dir.from) {
     const elapsed = now - dir.startTime;
     if (dir.duration <= 0 || elapsed >= dir.duration) {
       dir.blending = false;
       dir.from = null;
-      dir.currentMain = targetPOV;
-      return targetPOV;
+      main = targetPOV;
+    } else {
+      main = lerpPOV(dir.from, targetPOV, applyCurve(dir.curve, elapsed / dir.duration));
     }
-    const blended = lerpPOV(dir.from, targetPOV, applyCurve(dir.curve, elapsed / dir.duration));
-    dir.currentMain = blended;
-    return blended;
+  } else {
+    main = targetPOV;
   }
 
-  dir.currentMain = targetPOV;
-  return targetPOV;
+  // currentMain stays the pre-shake view (blend snapshot + screen<->world use it);
+  // shake is a render-only transient offset on top.
+  dir.currentMain = main;
+  return applyShakes(dir, main, now);
 }

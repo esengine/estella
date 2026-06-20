@@ -40,7 +40,7 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 export { CameraView, CameraViewApi } from './camera/Camera';
 export { EditorView, DEFAULT_EDITOR_VIEW } from './camera/EditorView';
 export type { EditorViewData } from './camera/EditorView';
-export { CameraDirector, setViewTarget, BlendCurve } from './camera/CameraDirector';
+export { CameraDirector, setViewTarget, shakeCamera, BlendCurve } from './camera/CameraDirector';
 export type { CameraDirectorState } from './camera/CameraDirector';
 export type { CameraPOV } from './camera/CameraPlugin';
 
