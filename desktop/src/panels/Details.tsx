@@ -4,8 +4,9 @@ import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery } from '@/engine/SceneQuery';
+import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
-import { addableComponentEntries } from '@/engine/schema';
+import { modelAddableComponentEntries } from '@/engine/schema';
 import { ContextMenu } from '@/components/Menu';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, EntityId } from '@/types';
@@ -345,7 +346,7 @@ export function Details() {
     );
   }
 
-  const world = EngineHost.world;
+  const modelEntity = SceneModel.entityBySource(selectedId);
 
   return (
     <div className="panel">
@@ -412,11 +413,11 @@ export function Details() {
           onClose={() => setCompMenu(null)}
         />
       )}
-      {addMenu && world && (
+      {addMenu && modelEntity && (
         <AddComponentMenu
           x={addMenu.x}
           y={addMenu.y}
-          entries={addableComponentEntries(world, selectedId)}
+          entries={modelAddableComponentEntries(modelEntity)}
           onAdd={(name) => SceneCommands.addComponent(selectedId, name)}
           onClose={() => setAddMenu(null)}
         />

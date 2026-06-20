@@ -11,6 +11,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneQuery } from '@/engine/SceneQuery';
+import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
@@ -152,11 +153,14 @@ export function Viewport() {
       const g = gizmoRef.current;
       const sel = selectionRef.current;
       if (!g || !sel) return;
-      const id = useSelection.getState().selectedId;
+      // Selection is a source id; the gizmo/outline reads World geometry, so
+      // resolve it to the runtime entity (absent if not currently spawned).
+      const sid = useSelection.getState().selectedId;
+      const rt = sid != null ? SceneModel.runtimeFor(sid) : undefined;
       const ready = EngineHost.getSnapshot().status === 'ready';
       const showG = useEditorStore.getState().showGizmos;
 
-      const pos = ready && id != null ? ViewportController.getEntityXY(id) : null;
+      const pos = ready && rt != null ? ViewportController.getEntityXY(rt) : null;
       const sc = pos ? ViewportController.worldToClient(pos.x, pos.y) : null;
       if (sc && showG) {
         g.style.transform = `translate(${sc.x}px, ${sc.y}px)`;
@@ -165,7 +169,7 @@ export function Viewport() {
         g.style.opacity = '0';
       }
 
-      const rect = ready && id != null ? ViewportController.getEntityScreenRect(id) : null;
+      const rect = ready && rt != null ? ViewportController.getEntityScreenRect(rt) : null;
       if (rect) {
         sel.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
         sel.style.width = `${rect.w}px`;
@@ -212,37 +216,41 @@ export function Viewport() {
     }
     if (e.button !== 0) return;
 
-    const id = ViewportController.pickEntity(e.clientX, e.clientY);
-    useSelection.getState().select(id);
-    if (id == null) return;
+    // Pick returns a runtime World entity (rendering domain); the editor selects
+    // and commands by stable source id. Resolve once: source id drives selection
+    // + SceneCommands; the runtime id drives ViewportController screen geometry.
+    const rtId = ViewportController.pickEntity(e.clientX, e.clientY);
+    const sourceId = rtId != null ? SceneModel.sourceFor(rtId) ?? null : null;
+    useSelection.getState().select(sourceId);
+    if (rtId == null || sourceId == null) return;
 
     if (tool === 'rotate') {
-      const c = entityClientCenter(id);
-      const startRot = (SceneQuery.getFieldValue(id, 'Transform', 'rotation') as number) ?? 0;
+      const c = entityClientCenter(rtId);
+      const startRot = (SceneQuery.getFieldValue(sourceId, 'Transform', 'rotation') as number) ?? 0;
       if (!c) return;
       SceneCommands.beginGesture('Rotate');
       dragRef.current = {
-        kind: 'rotate', id, cx: c.cx, cy: c.cy,
+        kind: 'rotate', id: sourceId, cx: c.cx, cy: c.cy,
         startAngle: Math.atan2(e.clientY - c.cy, e.clientX - c.cx), startRot,
       };
       stageRef.current?.setPointerCapture(e.pointerId);
     } else if (tool === 'scale') {
-      const c = entityClientCenter(id);
-      const s = (SceneQuery.getFieldValue(id, 'Transform', 'scale') as number[]) ?? [1, 1, 1];
+      const c = entityClientCenter(rtId);
+      const s = (SceneQuery.getFieldValue(sourceId, 'Transform', 'scale') as number[]) ?? [1, 1, 1];
       if (!c) return;
       SceneCommands.beginGesture('Scale');
       dragRef.current = {
-        kind: 'scale', id, cx: c.cx, cy: c.cy,
+        kind: 'scale', id: sourceId, cx: c.cx, cy: c.cy,
         startDist: Math.max(1, Math.hypot(e.clientX - c.cx, e.clientY - c.cy)),
         sx: s[0] ?? 1, sy: s[1] ?? 1, sz: s[2] ?? 1,
       };
       stageRef.current?.setPointerCapture(e.pointerId);
     } else {
       const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
-      const ep = ViewportController.getEntityXY(id);
+      const ep = ViewportController.getEntityXY(rtId);
       if (wp && ep) {
         SceneCommands.beginGesture('Move');
-        dragRef.current = { kind: 'move', id, dx: ep.x - wp.x, dy: ep.y - wp.y };
+        dragRef.current = { kind: 'move', id: sourceId, dx: ep.x - wp.x, dy: ep.y - wp.y };
         stageRef.current?.setPointerCapture(e.pointerId);
       }
     }

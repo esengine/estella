@@ -28,8 +28,14 @@ vi.mock('@/engine/EngineHost', () => ({
 import { useSelection } from '@/store/selectionStore';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { SceneModel } from '@/engine/SceneModel';
+import { Reconciler } from '@/engine/Reconciler';
+import type { SceneData } from 'esengine';
 
 const sel = () => useSelection.getState();
+
+const emptyScene = (): SceneData =>
+  ({ version: '1.0', name: 'test', entities: [] }) as unknown as SceneData;
 
 describe('SelectionStore — pure selection ops', () => {
   beforeEach(() => sel().select(null));
@@ -87,6 +93,10 @@ describe.skipIf(!HAS_WASM)('SelectionStore — engine-anchored self-healing', ()
     app.connectCpp(registry as never, module);
     host.world = app.world;
     SceneStore.install();
+    // Commands edit the model → Reconciler despawns the World entity → the engine
+    // bridge carries the despawn to the selection store (the self-heal path).
+    Reconciler.attach();
+    SceneModel.adopt(emptyScene(), new Map());
   });
   beforeEach(() => sel().select(null));
 

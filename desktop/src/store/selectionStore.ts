@@ -1,15 +1,16 @@
 import { create } from 'zustand';
-import { SceneStore } from '@/engine/SceneStore';
+import { SceneModel } from '@/engine/SceneModel';
 import type { EntityId } from '@/types';
 
 /**
- * Entity selection — engine-anchored.
+ * Entity selection — model-anchored (REARCH_EDITOR_MODEL.md).
  *
- * Selection holds ids, but the entities live in the engine World, so a selected
- * id can be destroyed out from under us (delete, undo-of-create, scene teardown).
- * Instead of scattering defensive `select(null)` after every such op, this store
- * listens for entity despawns and drops the dead id by hand — selection
- * self-heals, and stale-selection bugs become structurally impossible.
+ * Selection holds stable **source ids** (they survive undo/redo recreates, where
+ * the runtime World id changes). A selected entity can still be removed out from
+ * under us (delete, undo-of-create, scene reload). Instead of scattering
+ * defensive `select(null)` after every such op, this store listens for the
+ * model's `entityRemoved` event and drops the dead id — selection self-heals, and
+ * stale-selection bugs become structurally impossible.
  *
  * `selectedId` is the primary/active entity (drives the Details panel + viewport
  * gizmo); `selectedIds` is the full multi-selection set.
@@ -60,8 +61,10 @@ export const useSelection = create<SelectionState>((set) => ({
     }),
 }));
 
-// Engine-anchored self-healing: when an entity is despawned (delete, undo-of-create,
-// scene teardown), drop it from the selection by id — no manual deselect, no
-// validity race. Wholesale scene swaps (open project, play-stop) still call
-// select(null) explicitly, since ids can be reused by the incoming scene.
-SceneStore.onEntityDespawn((id) => useSelection.getState().dropId(id));
+// Model-anchored self-healing: when an entity is removed from the model (delete,
+// undo-of-create), drop it from the selection by source id — no manual deselect.
+// Wholesale scene swaps (open project, reload) emit `reset` and clear selection
+// explicitly (the bulk path), since source ids restart with the incoming scene.
+SceneModel.subscribe((ev) => {
+  if (ev.kind === 'entityRemoved') useSelection.getState().dropId(ev.sourceId);
+});

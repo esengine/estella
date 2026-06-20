@@ -1,18 +1,20 @@
 import { createStore } from 'zustand/vanilla';
-import { getDefaultContext } from 'esengine';
-import type { EditorBridge } from 'esengine';
+import { SceneModel, type ModelEvent } from './SceneModel';
 
 /**
- * Reactive mirror of the engine scene.
+ * Reactive mirror of the editor scene — the model-change bus.
  *
- * Registers an {@link EditorBridge} so the engine pushes every mutation
- * (spawn/despawn/parent/component add/remove/change) instead of the editor
- * polling. Panels subscribe via `useSyncExternalStore` and re-read through
- * `EngineHost`; this store only carries revision counters that say *what kind*
- * of thing changed:
+ * Model-authoritative data flow (REARCH_EDITOR_MODEL.md): the editor reacts to
+ * **model** events, not engine-pushed World mutations. This subscribes to the
+ * SceneModel and turns each change into a revision bump; panels subscribe via
+ * `useSyncExternalStore` and re-read through SceneQuery (which reads the model).
  *
- *  - `structureRevision` bumps on entity/parent/component add+remove (tree shape)
- *  - `revision` bumps on any change, incl. component-data edits (inspector values)
+ *  - `structureRevision` bumps when the tree shape / names / kinds change
+ *    (entity add+remove, parent, component add+remove, rename, reset)
+ *  - `revision` bumps on any change, incl. component-data field edits
+ *
+ * (The engine's EditorBridge — the old push source — is retired: the World is a
+ * derived projection now, so there is nothing to push back.)
  */
 class SceneStoreImpl {
   private installed = false;
@@ -20,34 +22,12 @@ class SceneStoreImpl {
     revision: 1,
     structureRevision: 1,
   }));
-  private readonly despawnListeners = new Set<(id: number) => void>();
 
-  /** Register the bridge on the engine's default context. Idempotent. */
+  /** Subscribe to the model as the change source. Idempotent. */
   install() {
     if (this.installed) return;
     this.installed = true;
-    const bridge: EditorBridge = {
-      registerComponent: () => {},
-      onEntitySpawned: () => this.bump(true),
-      onEntityDespawned: (e) => {
-        // Carry the dead id so consumers (SelectionStore) can drop references
-        // precisely. Fires BEFORE the entity is fully removed, so re-validating
-        // by world.valid() here would race — dropping by id is exact.
-        this.despawnListeners.forEach((l) => l(e as unknown as number));
-        this.bump(true);
-      },
-      onComponentAdded: () => this.bump(true),
-      onComponentRemoved: () => this.bump(true),
-      onParentChanged: () => this.bump(true),
-      onComponentChanged: () => this.bump(false),
-    };
-    getDefaultContext().editorBridge = bridge;
-  }
-
-  /** Subscribe to entity despawns by id (the self-healing hook for selection). */
-  onEntityDespawn(fn: (id: number) => void): () => void {
-    this.despawnListeners.add(fn);
-    return () => this.despawnListeners.delete(fn);
+    SceneModel.subscribe((ev) => this.bump(isStructural(ev)));
   }
 
   private bump(structural: boolean) {
@@ -60,6 +40,11 @@ class SceneStoreImpl {
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getRevision = (): number => this.store.getState().revision;
   getStructureRevision = (): number => this.store.getState().structureRevision;
+}
+
+/** A change affects the tree (shape / name / kind / add-menu), not just a field value. */
+function isStructural(ev: ModelEvent): boolean {
+  return ev.kind !== 'componentChanged';
 }
 
 export const SceneStore = new SceneStoreImpl();

@@ -1,10 +1,14 @@
 import { createStore } from 'zustand/vanilla';
-import { resetWorldTo, getComponent, Assets } from 'esengine';
+import { getComponent, Assets } from 'esengine';
 import type { SceneData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
+import { Reconciler } from '@/engine/Reconciler';
+import { EditorHistory } from '@/engine/EditorHistory';
+import { setUserSchemas, type UserComponentSchema } from '@/engine/schema';
+import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
-import { resolveLayout, type OpenedProject, type ProjectLayout, type WorkspaceState } from './format';
+import { resolveLayout, WORKSPACE_DIR, type OpenedProject, type ProjectLayout, type WorkspaceState } from './format';
 
 /**
  * Editor-side project/workspace model (RC12 §E7-3 / §E6-1).
@@ -78,6 +82,10 @@ function mapAssetRefs(value: unknown, resolve: (uuid: string) => number): unknow
 
 class ProjectStoreImpl {
   private readonly store = createStore<{ project: ProjectState | null }>(() => ({ project: null }));
+  /** Resolved `@uuid:` → GL handle map for the current scene's textures; the
+   *  Reconciler reads it (via the registered resolver) when projecting entities
+   *  recreated incrementally (duplicate, undo-of-delete) back into the World. */
+  private readonly uuidToHandle = new Map<string, number>();
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
   private get state(): ProjectState | null {
     return this.store.getState().project;
@@ -124,8 +132,25 @@ class ProjectStoreImpl {
   private async adopted(opened: OpenedProject): Promise<void> {
     this.adopt(opened);
     await window.estella.recents.add(opened.root, opened.manifest.name);
+    await this.loadUserSchemas();
     EngineHost.setSceneBootstrap(() => this.loadCurrentScene());
     if (EngineHost.world) await this.loadCurrentScene();
+  }
+
+  /**
+   * Load the project's component field schemas (`.esengine/cache/schemas.json`,
+   * built by extractSchemas) so the inspector can list + edit user/script
+   * components — which never run in the editor realm, so the engine registry
+   * doesn't know them. Missing/invalid cache → builtins only (run "Extract
+   * Schemas"); the components still round-trip losslessly through the model.
+   */
+  private async loadUserSchemas(): Promise<void> {
+    try {
+      const json = await window.estella.fs.read(`${WORKSPACE_DIR}/cache/schemas.json`);
+      setUserSchemas(JSON.parse(json) as UserComponentSchema[]);
+    } catch {
+      setUserSchemas([]);
+    }
   }
 
   private adopt(opened: OpenedProject) {
@@ -162,15 +187,16 @@ class ProjectStoreImpl {
       );
     }
     const data = await this.resolveTextures(raw);
-    const world = EngineHost.mutableWorld();
-    if (world) {
-      // resetWorldTo returns source-id → runtime entity. Adopt the raw scene
-      // (with @uuid: refs + any components/fields/invisible entities the World
-      // drops) as the editor's source of truth (REARCH_SERIALIZATION.md L1).
-      // The World is a lossy projection; the model is what save() serializes.
-      const entityMap = resetWorldTo(world, data);
-      SceneModel.adopt(raw, entityMap);
-    }
+    // A scene is a session document: replacing it clears the editor history +
+    // selection so undo closures can't reference the previous scene's entities
+    // (REARCH_EDITOR_MODEL.md §6). The Reconciler bulk path then builds the World
+    // from the resolved scene and adopts the raw scene (with @uuid: refs + any
+    // components/fields/invisible entities the World drops) as the source of
+    // truth. The World is a lossy projection; the model is what save() serializes.
+    EditorHistory.clear();
+    useSelection.getState().select(null);
+    Reconciler.setAssetResolver((uuid) => this.uuidToHandle.get(uuid) ?? 0);
+    Reconciler.adopt(raw, data);
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: rel } });
   }
@@ -184,6 +210,7 @@ class ProjectStoreImpl {
   private async resolveTextures(raw: SceneData): Promise<SceneData> {
     const st = this.state;
     const bridge = window.estella;
+    this.uuidToHandle.clear();
     if (!st) return raw;
 
     const referenced = new Set<string>();
@@ -211,18 +238,17 @@ class ProjectStoreImpl {
     }
 
     const assets = EngineHost.getResource(Assets) as unknown as AssetsLike | undefined;
-    const uuidToHandle = new Map<string, number>();
     if (assets) {
       for (const [uuid, rel] of uuidToPath) {
         try {
           const { handle } = await assets.loadTexture(`estella://project/${rel}`);
-          uuidToHandle.set(uuid, handle);
+          this.uuidToHandle.set(uuid, handle);
         } catch (err) {
           console.warn('[project] texture load failed', rel, err);
         }
       }
     }
-    return mapAssetRefs(raw, (uuid) => uuidToHandle.get(uuid) ?? 0) as SceneData;
+    return mapAssetRefs(raw, (uuid) => this.uuidToHandle.get(uuid) ?? 0) as SceneData;
   }
 
   /**

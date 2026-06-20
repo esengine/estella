@@ -1,20 +1,8 @@
-import {
-  getAllRegisteredComponents,
-  getUserComponents,
-  getComponent,
-  Sprite,
-  Camera,
-  Name,
-  Children,
-  ShapeRenderer,
-  Canvas,
-  BitmapText,
-  SpineAnimation,
-  TilemapLayer,
-  ParticleEmitter,
-} from 'esengine';
-import type { App } from 'esengine';
-import type { NodeKind, EntityId, InspectorField } from '@/types';
+import { getAllRegisteredComponents, getUserComponents, getComponent } from 'esengine';
+import type { App, SceneData } from 'esengine';
+import type { NodeKind, InspectorField } from '@/types';
+
+type SceneEntityLike = SceneData['entities'][number];
 
 // Shared engine-schema utilities. The set of components and their data shape are
 // owned by the ENGINE: `getComponentRegistry()` enumerates every registered
@@ -56,24 +44,9 @@ export function componentByName(name: string): AnyComp | undefined {
   return registryDef(name);
 }
 
-/** Every editable component the entity currently carries, in display order. */
-export function inspectableComponents(
-  world: ReadonlyWorldT,
-  entity: EntityId,
-): Array<{ name: string; def: AnyComp; label: string }> {
-  const out: Array<{ name: string; def: AnyComp; label: string }> = [];
-  for (const [name, rawDef] of getAllRegisteredComponents()) {
-    if (HIDDEN_COMPONENTS.has(name)) continue;
-    const def = rawDef as unknown as AnyComp;
-    if (!world.has(entity, def)) continue;
-    out.push({ name, def, label: prettyLabel(name) });
-  }
-  out.sort((a, b) => {
-    const ai = ORDER.indexOf(a.name);
-    const bi = ORDER.indexOf(b.name);
-    return (ai === -1 ? ORDER.length : ai) - (bi === -1 ? ORDER.length : bi);
-  });
-  return out;
+/** A component's registered default field values (the `_default` describing its shape). */
+export function componentDefaults(def: AnyComp): Record<string, unknown> {
+  return (def as unknown as { _default: Record<string, unknown> })._default;
 }
 
 // Add-Component picker categories, in display order (UE5 groups the picker by
@@ -121,38 +94,6 @@ export function componentCategory(name: string, isUser = false): string {
   if (/Sprite|Render|Mesh|Tilemap|Light|Font|Text(?!ure)/.test(name)) return 'Rendering';
   if (/Anim|Tween|Spine/.test(name)) return 'Animation';
   return 'Other';
-}
-
-/**
- * The Add-Component candidates as picker entries (name + label + category),
- * resolving user-vs-builtin once via the engine registry. One place owns the
- * category assignment so the panel stays presentation-only.
- */
-export function addableComponentEntries(
-  world: ReadonlyWorldT,
-  entity: EntityId,
-): Array<{ name: string; label: string; category: string }> {
-  const userNames = new Set(getUserComponents().keys());
-  return addableComponents(world, entity).map((c) => ({
-    name: c.name,
-    label: c.label,
-    category: componentCategory(c.name, userNames.has(c.name)),
-  }));
-}
-
-/** Registered components NOT yet on an entity — the "Add Component" candidates. */
-export function addableComponents(
-  world: ReadonlyWorldT,
-  entity: EntityId,
-): Array<{ name: string; def: AnyComp; label: string }> {
-  const out: Array<{ name: string; def: AnyComp; label: string }> = [];
-  for (const [name, rawDef] of getAllRegisteredComponents()) {
-    if (HIDDEN_COMPONENTS.has(name) || name === 'Transform') continue;
-    const def = rawDef as unknown as AnyComp;
-    if (world.has(entity, def)) continue;
-    out.push({ name, def, label: prettyLabel(name) });
-  }
-  return out.sort((a, b) => a.label.localeCompare(b.label));
 }
 
 /** The editable fields of one component (its live data introspected by shape). */
@@ -219,23 +160,126 @@ export function inferField(key: string, v: unknown, isColor: boolean): Inspector
   return null; // unknown shape — not editable here
 }
 
-// — Outliner kind/name (presentation; uses specific defs for icon mapping) —
+// — User-component schemas (the `schemas.json` consumer; REARCH_EDITOR_MODEL.md) —
+//
+// Project/script components never run in the editor realm, so they're absent
+// from the engine registry. Their field shapes come from `.esengine/cache/
+// schemas.json` (built by electron/extractSchemas.ts). The inspector resolves a
+// component's fields from the engine registry (builtins) or, failing that, this
+// schema source — and, failing both, infers controls from the stored data
+// values themselves so even schema-less components stay editable.
 
-export function kindOf(world: ReadonlyWorldT, e: EntityId): NodeKind {
-  if (world.has(e, Camera)) return 'camera';
-  if (world.has(e, SpineAnimation)) return 'spine';
-  if (world.has(e, Canvas) || world.has(e, BitmapText)) return 'ui';
-  if (world.has(e, Sprite) || world.has(e, ShapeRenderer) || world.has(e, TilemapLayer))
-    return 'sprite';
-  if (world.has(e, ParticleEmitter)) return 'sprite';
-  if (world.has(e, Children)) return 'group';
+/** A project component's field schema, as serialized in `schemas.json`. */
+export interface UserComponentSchema {
+  name: string;
+  isTag: boolean;
+  default: Record<string, unknown>;
+  colorKeys: string[];
+}
+
+const userSchemas = new Map<string, UserComponentSchema>();
+
+/** Replace the user-component schema source (called on project open). */
+export function setUserSchemas(schemas: UserComponentSchema[]): void {
+  userSchemas.clear();
+  for (const s of schemas) userSchemas.set(s.name, s);
+}
+
+/** The user schema for a component name, if any. */
+export function userSchema(name: string): UserComponentSchema | undefined {
+  return userSchemas.get(name);
+}
+
+/** Whether a component field renders as a color (registry colorKeys, then schema). */
+export function isColorKey(compType: string, key: string): boolean {
+  const def = componentByName(compType);
+  if (def) return new Set<string>(def.colorKeys).has(key);
+  return new Set(userSchema(compType)?.colorKeys ?? []).has(key);
+}
+
+/**
+ * The editable fields of a component from the MODEL's stored data, resolving the
+ * field shape from (in order): the engine registry, the user schema, or — as a
+ * best-effort fallback — the data values themselves. `DERIVED_FIELDS` are skipped.
+ */
+export function inspectorFields(compType: string, data: Record<string, unknown>): InspectorField[] {
+  const def = componentByName(compType);
+  if (def) return componentFields(def, data);
+
+  const schema = userSchema(compType);
+  const colorKeys = new Set(schema?.colorKeys ?? []);
+  const keys = schema ? Object.keys(schema.default) : Object.keys(data);
+  const fields: InspectorField[] = [];
+  for (const key of keys) {
+    if (DERIVED_FIELDS.has(key)) continue;
+    const v = key in data ? data[key] : schema?.default[key];
+    const f = inferField(key, v, colorKeys.has(key));
+    if (f) fields.push(f);
+  }
+  return fields;
+}
+
+// — Model-based reflection (the editor reads the model, not the World) —
+
+const orderIndex = (name: string): number => {
+  const i = ORDER.indexOf(name);
+  return i === -1 ? ORDER.length : i;
+};
+
+/** A source entity's editable component types (name + label), in display order. */
+export function modelInspectableComponents(
+  entity: SceneEntityLike,
+): Array<{ name: string; label: string }> {
+  return entity.components
+    .filter((c) => !HIDDEN_COMPONENTS.has(c.type))
+    .map((c) => ({ name: c.type, label: prettyLabel(c.type) }))
+    .sort((a, b) => orderIndex(a.name) - orderIndex(b.name));
+}
+
+/**
+ * Add-Component candidates for a source entity: registered components not yet on
+ * it, plus user (schemas.json) components absent from both the entity and the
+ * engine registry. Transform / structural components are excluded.
+ */
+export function modelAddableComponentEntries(
+  entity: SceneEntityLike,
+): Array<{ name: string; label: string; category: string }> {
+  const present = new Set(entity.components.map((c) => c.type));
+  const userNames = new Set(getUserComponents().keys());
+  const out: Array<{ name: string; label: string; category: string }> = [];
+  for (const [name] of getAllRegisteredComponents()) {
+    if (HIDDEN_COMPONENTS.has(name) || name === 'Transform' || present.has(name)) continue;
+    out.push({ name, label: prettyLabel(name), category: componentCategory(name, userNames.has(name)) });
+  }
+  for (const name of userSchemas.keys()) {
+    if (present.has(name) || componentByName(name)) continue;
+    out.push({ name, label: prettyLabel(name), category: 'Scripts' });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Outliner icon kind for a source entity (which components it carries). */
+export function modelKindOf(entity: SceneEntityLike): NodeKind {
+  const types = new Set(entity.components.map((c) => c.type));
+  if (types.has('Camera')) return 'camera';
+  if (types.has('SpineAnimation')) return 'spine';
+  if (types.has('Canvas') || types.has('BitmapText')) return 'ui';
+  if (types.has('Sprite') || types.has('ShapeRenderer') || types.has('TilemapLayer')) return 'sprite';
+  if (types.has('ParticleEmitter')) return 'sprite';
+  if (entity.children.length > 0) return 'group';
   return 'empty';
 }
 
-export function nameOf(world: ReadonlyWorldT, e: EntityId, kind: NodeKind): string {
-  if (world.has(e, Name)) {
-    const v = world.get(e, Name).value;
-    if (v) return v;
+/** Display name for a source entity (its name, or a kind-derived fallback). */
+export function modelNameOf(entity: SceneEntityLike, kind: NodeKind): string {
+  return entity.name || `${cap(kind)} ${entity.id}`;
+}
+
+/** A source entity reads as hidden if any component is explicitly disabled. */
+export function modelIsVisible(entity: SceneEntityLike): boolean {
+  for (const c of entity.components) {
+    const d = c.data as Record<string, unknown>;
+    if (d && typeof d === 'object' && 'enabled' in d && d.enabled === false) return false;
   }
-  return `${cap(kind)} ${e}`;
+  return true;
 }

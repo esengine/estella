@@ -10,7 +10,7 @@
  * EngineHost (the boot singleton that needs a canvas) is mocked to a per-test
  * headless World; tick() drives the real App so step() exercises the engine.
  */
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { App, Transform } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -48,6 +48,12 @@ vi.mock('@/engine/EngineHost', () => ({
 
 import { EditorControlSurface as API } from '@/engine/EditorControlSurface';
 import { EditorHistory } from '@/engine/EditorHistory';
+import { SceneModel } from '@/engine/SceneModel';
+import { Reconciler } from '@/engine/Reconciler';
+import type { SceneData } from 'esengine';
+
+const emptyScene = (): SceneData =>
+  ({ version: '1.0', name: 'test', entities: [] }) as unknown as SceneData;
 
 describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
   let module: ESEngineModule;
@@ -63,7 +69,13 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     host.ticks = 0;
     host.runMode = null;
     EditorHistory.clear();
+    SceneModel.clear();
+    // Commands edit the model; the Reconciler projects to the World.
+    Reconciler.attach();
+    SceneModel.adopt(emptyScene(), new Map());
   });
+
+  afterEach(() => Reconciler.detach());
 
   it('addEntity surfaces through the scene tree and stats', () => {
     const id = API.addEntity();
@@ -73,11 +85,12 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
   });
 
   it('setField writes a component field; surface undo reverts it', () => {
-    const id = API.addEntity()!;
+    const id = API.addEntity()!; // source id
+    const e = SceneModel.runtimeFor(id)!; // runtime World entity
     API.setField(id, 'Transform', 'position', 'vec3', [10, 20, 30]);
-    expect(host.world.get(id, Transform).position).toMatchObject({ x: 10, y: 20, z: 30 });
+    expect(host.world.get(e, Transform).position).toMatchObject({ x: 10, y: 20, z: 30 });
     API.undo();
-    expect(host.world.get(id, Transform).position).toMatchObject({ x: 0, y: 0, z: 0 });
+    expect(host.world.get(e, Transform).position).toMatchObject({ x: 0, y: 0, z: 0 });
   });
 
   it('step(n) drives exactly n deterministic ticks', async () => {

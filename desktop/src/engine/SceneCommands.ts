@@ -1,57 +1,30 @@
-import { Transform, Name, Parent, getAllRegisteredComponents } from 'esengine';
+import type { SceneData } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
-import { EngineHost } from './EngineHost';
 import { EditorHistory } from './EditorHistory';
-import { EntityHandles } from './EntityHandles';
 import { SceneModel } from './SceneModel';
-import { SceneQuery } from './SceneQuery';
-import { componentByName, inspectableComponents, angleZToQuat, hexToRgb, prettyLabel, type WorldT } from './schema';
+import {
+  componentByName,
+  componentDefaults,
+  userSchema,
+  angleZToQuat,
+  hexToRgb,
+  prettyLabel,
+} from './schema';
 
-// — Entity snapshot capture/restore for undoable create/delete —
-// Parent/Children carry entity-id references that go stale on re-create, so
-// hierarchy links aren't restored here (flat re-spawn). Refinement: remap ids.
-const STRUCTURAL_SKIP = new Set(['Parent', 'Children']);
+type SceneEntity = SceneData['entities'][number];
+type SceneComponent = SceneEntity['components'][number];
 
-interface CapturedEntity {
-  name: string;
-  comps: Array<{ name: string; data: unknown }>;
-}
-
-function captureEntity(world: WorldT, id: EntityId): CapturedEntity | null {
-  if (!world.valid(id)) return null;
-  let name = '';
-  const comps: Array<{ name: string; data: unknown }> = [];
-  for (const [compName, def] of getAllRegisteredComponents()) {
-    if (STRUCTURAL_SKIP.has(compName) || !world.has(id, def)) continue;
-    const data = structuredClone(world.get(id, def));
-    if (compName === 'Name') name = (data as { value?: string }).value ?? '';
-    comps.push({ name: compName, data });
-  }
-  return { name, comps };
-}
-
-function recreateEntity(world: WorldT, cap: CapturedEntity): EntityId {
-  const e = world.spawn();
-  for (const c of cap.comps) {
-    const def = componentByName(c.name);
-    if (def) world.insert(e, def, c.data as never);
-  }
-  return e;
-}
-
-// True if `ancestor` is `node` or sits above it (walking up Parent links) — used
-// to reject re-parenting an entity under one of its own descendants (a cycle).
-function isDescendant(world: WorldT, node: EntityId, ancestor: EntityId): boolean {
-  let cur: EntityId | null = node;
-  const seen = new Set<EntityId>();
-  while (cur != null && world.valid(cur)) {
-    if (cur === ancestor) return true;
-    if (seen.has(cur) || !world.has(cur, Parent)) break;
-    seen.add(cur);
-    cur = (world.get(cur, Parent) as unknown as { entity: EntityId }).entity;
-  }
-  return false;
-}
+// — Model-authoritative commands (REARCH_EDITOR_MODEL.md) —
+//
+// Every mutation edits the SceneModel ONLY (the single source of truth). The
+// model emits a change event; the Reconciler projects it to the World. Nothing
+// here touches the World — so the World is a pure derived projection that cannot
+// desync. Undo records MODEL operations (lossless by construction: the model
+// holds every component, incl. unknown ones + @uuid: refs + the parent link).
+//
+// All ids are stable **source ids** — the editor's id space (the viewport
+// resolves a runtime pick to its source id before calling in). A source id
+// survives undo/redo recreates, where the runtime World id changes.
 
 const DEFAULT_TRANSFORM = {
   position: { x: 0, y: 0, z: 0 },
@@ -59,90 +32,86 @@ const DEFAULT_TRANSFORM = {
   scale: { x: 1, y: 1, z: 1 },
 };
 
+// True if walking up from `nodeSrc` reaches `ancestorSrc` — used to reject
+// re-parenting an entity under one of its own descendants (a cycle). Reads the
+// model hierarchy (the truth), not the World.
+function isModelAncestor(nodeSrc: number, ancestorSrc: number): boolean {
+  let cur: number | null = nodeSrc;
+  const seen = new Set<number>();
+  while (cur != null) {
+    if (cur === ancestorSrc) return true;
+    if (seen.has(cur)) break;
+    seen.add(cur);
+    cur = SceneModel.entityBySource(cur)?.parent ?? null;
+  }
+  return false;
+}
+
 // — Field-edit gesture: coalesce a focus→blur / drag into a single undo step. —
 //
-// Undo recording is INTERNAL to this module: the only public write door is
-// `setField` (and `setEntityXY`, which routes through it), and it always
-// records. The raw, non-recording writer `applyFieldWrite` is module-private,
-// so no caller can mutate a field while skipping undo. Outside a gesture, one
-// `setField` = one undo step. Inside a gesture, writes coalesce — the BEFORE
-// value is captured on first touch of each field, the AFTER value read at
-// `endGesture`, and the pair recorded as one step.
+// Undo recording is INTERNAL: the only public write door is `setField` (and
+// `setEntityXY`, which routes through it), and it always records. Outside a
+// gesture, one `setField` = one undo step. Inside a gesture, writes coalesce —
+// the BEFORE model value is captured on first touch of each field, the AFTER
+// value read at `endGesture`, and the pair recorded as one model-op step.
 
 interface FieldEdit {
-  entity: EntityId;
+  sourceId: number;
   comp: string;
   key: string;
-  type: InspectorFieldType;
-  before: InspectorFieldValue;
+  before: unknown; // model (SceneData-format) value before the gesture
 }
 
 let gesture: { label: string; touched: Map<string, FieldEdit> } | null = null;
 
-const editKey = (entity: EntityId, comp: string, key: string) => `${entity}|${comp}|${key}`;
+const editKey = (sourceId: number, comp: string, key: string) => `${sourceId}|${comp}|${key}`;
 
-function fieldEqual(a: InspectorFieldValue, b: InspectorFieldValue): boolean {
-  if (Array.isArray(a) && Array.isArray(b)) {
-    return a.length === b.length && a.every((v, i) => v === b[i]);
-  }
-  return a === b;
+// Value equality over the SceneData-format shapes a field can hold (number /
+// bool / string / vec / quat / color object). JSON compare is exact for these.
+const valueEqual = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** The current model value of one field, or undefined. */
+function modelFieldValue(sourceId: number, comp: string, key: string): unknown {
+  const c = SceneModel.entityBySource(sourceId)?.components.find((c) => c.type === comp);
+  return c ? (c.data as Record<string, unknown>)[key] : undefined;
 }
 
-// Raw write straight through to the engine World — NO undo recording, NOT
-// exported. Besides `setField`, the only callers are the undo/redo closures
-// (which must re-apply without re-recording).
-function applyFieldWrite(
-  entity: EntityId,
-  compName: string,
-  key: string,
+/**
+ * Convert an inspector control value to its SceneData-format model value,
+ * merging into the current value where the control edits a slice (vec
+ * components keep the untouched axis; color keeps alpha). 2D rotation is stored
+ * as a quaternion; angle controls convert degrees↔quat.
+ */
+function toModelValue(
+  cur: Record<string, unknown>,
   type: InspectorFieldType,
+  key: string,
   value: InspectorFieldValue,
-): void {
-  const world = EngineHost.mutableWorld();
-  if (!world || !world.valid(entity)) return;
-  const def = componentByName(compName);
-  if (!def) return;
-
-  const cur = world.get(entity, def) as unknown as Record<string, unknown>;
-  const next: Record<string, unknown> = { ...cur };
-
+): unknown {
   switch (type) {
     case 'number':
-      next[key] = Number(value);
-      break;
+      return Number(value);
     case 'bool':
-      next[key] = Boolean(value);
-      break;
+      return Boolean(value);
     case 'string':
-      next[key] = String(value);
-      break;
+      return String(value);
     case 'vec2': {
       const [x, y] = value as [number, number];
-      next[key] = { ...(cur[key] as object), x, y };
-      break;
+      return { ...(cur[key] as object), x, y };
     }
     case 'vec3': {
       const [x, y, z] = value as [number, number, number];
-      next[key] = { ...(cur[key] as object), x, y, z };
-      break;
+      return { ...(cur[key] as object), x, y, z };
     }
     case 'angle':
-      next[key] = angleZToQuat(Number(value));
-      break;
+      return angleZToQuat(Number(value));
     case 'color': {
       const a = (cur[key] as { a?: number } | undefined)?.a ?? 1;
-      next[key] = { ...(cur[key] as object), ...hexToRgb(String(value)), a };
-      break;
+      return { ...(cur[key] as object), ...hexToRgb(String(value)), a };
     }
+    default:
+      return value;
   }
-
-  world.set(entity, def, next as unknown as Parameters<WorldT['set']>[2]);
-  // Dual-write to the source-of-truth model (JSON-first L3). next[key] is the
-  // SceneData-format value for this key; writing just the key preserves the
-  // model component's other fields — including @uuid: asset refs and
-  // schema-extra fields the World can't hold. Every field edit AND its undo/redo
-  // route through here, so the model stays in sync for free.
-  SceneModel.setField(entity, compName, key, next[key]);
 }
 
 export const SceneCommands = {
@@ -162,288 +131,199 @@ export const SceneCommands = {
     gesture = null;
     if (!g || g.touched.size === 0) return;
     const edits = [...g.touched.values()]
-      .map((e) => ({ ...e, after: SceneQuery.getFieldValue(e.entity, e.comp, e.key) }))
-      .filter((e) => e.after != null && !fieldEqual(e.before, e.after as InspectorFieldValue));
+      .map((e) => ({ ...e, after: structuredClone(modelFieldValue(e.sourceId, e.comp, e.key)) }))
+      .filter((e) => !valueEqual(e.before, e.after));
     if (edits.length === 0) return;
     EditorHistory.record(
       g.label,
-      () =>
-        edits.forEach((e) =>
-          applyFieldWrite(e.entity, e.comp, e.key, e.type, e.after as InspectorFieldValue),
-        ),
-      () => edits.forEach((e) => applyFieldWrite(e.entity, e.comp, e.key, e.type, e.before)),
+      () => edits.forEach((e) => SceneModel.setField(e.sourceId, e.comp, e.key, e.after)),
+      () => edits.forEach((e) => SceneModel.setField(e.sourceId, e.comp, e.key, e.before)),
     );
   },
 
   /**
-   * Write a single inspector field back to the engine (re-renders next frame).
-   * Always undoable: coalesced into an open gesture, else recorded as its own step.
+   * Write a single inspector field to the model (the Reconciler re-projects it
+   * to the World). Always undoable: coalesced into an open gesture, else its own step.
    */
   setField(
-    entity: EntityId,
+    sourceId: EntityId,
     compName: string,
     key: string,
     type: InspectorFieldType,
     value: InspectorFieldValue,
   ): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(entity) || !componentByName(compName)) return;
+    const e = SceneModel.entityBySource(sourceId);
+    if (!e) return;
+    const cur = (e.components.find((c) => c.type === compName)?.data as Record<string, unknown>) ?? {};
 
-    const k = editKey(entity, compName, key);
+    const k = editKey(sourceId, compName, key);
     const firstTouch = !gesture || !gesture.touched.has(k);
-    const before = firstTouch ? SceneQuery.getFieldValue(entity, compName, key) : null;
+    const before = firstTouch ? structuredClone(cur[key]) : undefined;
 
-    applyFieldWrite(entity, compName, key, type, value);
+    const after = toModelValue(cur, type, key, value);
+    SceneModel.setField(sourceId, compName, key, after);
 
     if (gesture) {
-      if (firstTouch && before != null) {
-        gesture.touched.set(k, { entity, comp: compName, key, type, before });
-      }
+      if (firstTouch) gesture.touched.set(k, { sourceId, comp: compName, key, before });
       return;
     }
     // No open gesture → this edit is its own undo step.
-    if (before == null) return;
-    const after = SceneQuery.getFieldValue(entity, compName, key);
-    if (after == null || fieldEqual(before, after)) return;
+    if (valueEqual(before, after)) return;
     EditorHistory.record(
       `Edit ${prettyLabel(key)}`,
-      () => applyFieldWrite(entity, compName, key, type, after),
-      () => applyFieldWrite(entity, compName, key, type, before),
+      () => SceneModel.setField(sourceId, compName, key, after),
+      () => SceneModel.setField(sourceId, compName, key, before),
     );
   },
 
   /** Move an entity to a world position (keeps Z). Undoable like any field edit. */
-  setEntityXY(id: EntityId, x: number, y: number): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id) || !world.has(id, Transform)) return;
-    const z = world.get(id, Transform).position.z;
-    this.setField(id, 'Transform', 'position', 'vec3', [x, y, z]);
+  setEntityXY(sourceId: EntityId, x: number, y: number): void {
+    const pos = modelFieldValue(sourceId, 'Transform', 'position') as { z?: number } | undefined;
+    if (pos === undefined && !SceneModel.entityBySource(sourceId)) return;
+    this.setField(sourceId, 'Transform', 'position', 'vec3', [x, y, pos?.z ?? 0]);
   },
 
-  // — Undoable entity lifecycle. Re-creating an entity changes its engine id,
-  //   so closures track a stable EntityHandle and resolve it live. —
+  // — Undoable entity lifecycle (model ops; the Reconciler re-spawns/-despawns) —
 
-  // Each lifecycle op dual-writes the source-of-truth model (JSON-first L3),
-  // keyed by a stable source id so undo/redo (which re-create entities under new
-  // runtime ids) keep the model in sync. The model holds the lossless record;
-  // the World is the projection.
-
-  /** Spawn a new empty entity (with a Transform). Returns its id. */
+  /** Spawn a new empty entity (with a Transform). Returns its source id. */
   addEntity(): EntityId | null {
-    const world = EngineHost.mutableWorld();
-    if (!world) return null;
-    const e = world.spawn('Entity');
-    world.insert(e, Transform, DEFAULT_TRANSFORM);
-    const cap = captureEntity(world, e);
-    const handle = EntityHandles.acquire(e);
-    const sourceId = SceneModel.addEntity(e, 'Entity', [
-      { type: 'Transform', data: structuredClone(DEFAULT_TRANSFORM) },
+    if (!SceneModel.current) return null;
+    const sourceId = SceneModel.addEntity('Entity', [
+      { type: 'Transform', data: structuredClone(DEFAULT_TRANSFORM) } as SceneComponent,
     ]);
-    let modelCap: ReturnType<typeof SceneModel.removeEntityBySource>;
+    let record: SceneEntity | undefined;
     EditorHistory.record(
       'Add Entity',
       () => {
-        if (!cap) return;
-        const nw = recreateEntity(world, cap);
-        EntityHandles.rebind(handle, nw);
-        if (modelCap) SceneModel.restoreEntity(modelCap, nw);
+        if (record) SceneModel.restoreEntity(record);
       },
       () => {
-        despawnHandle(world, handle);
-        modelCap = SceneModel.removeEntityBySource(sourceId);
+        record = SceneModel.removeEntityBySource(sourceId);
       },
     );
-    return e;
+    return sourceId;
   },
 
-  /** Delete an entity (undo re-creates it under the same stable handle). */
-  deleteEntity(id: EntityId): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id)) return;
-    const cap = captureEntity(world, id);
-    if (!cap) return;
-    const handle = EntityHandles.acquire(id);
-    const sourceId = SceneModel.sourceFor(id);
-    // Capture the FULL model record (incl. unknown components) for lossless undo.
-    const modelCap = sourceId !== undefined ? SceneModel.removeEntityBySource(sourceId) : undefined;
-    world.despawn(id);
-    EntityHandles.rebind(handle, null);
+  /** Delete an entity (undo re-creates it, losslessly, from the model record). */
+  deleteEntity(sourceId: EntityId): void {
+    const name = SceneModel.entityBySource(sourceId)?.name || 'Entity';
+    let record = SceneModel.removeEntityBySource(sourceId);
+    if (!record) return;
     EditorHistory.record(
-      `Delete ${cap.name || 'Entity'}`,
+      `Delete ${name}`,
       () => {
-        despawnHandle(world, handle);
-        if (sourceId !== undefined) SceneModel.removeEntityBySource(sourceId);
+        record = SceneModel.removeEntityBySource(record!.id) ?? record;
       },
       () => {
-        const nw = recreateEntity(world, cap);
-        EntityHandles.rebind(handle, nw);
-        if (modelCap) SceneModel.restoreEntity(modelCap, nw);
+        SceneModel.restoreEntity(record!);
       },
     );
   },
 
-  /** Duplicate an entity (offset slightly). Returns the new id. */
-  duplicateEntity(id: EntityId): EntityId | null {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id)) return null;
-    const cap = captureEntity(world, id);
-    if (!cap) return null;
-    const t = cap.comps.find((c) => c.name === 'Transform');
-    const pos = t && (t.data as { position?: { x: number; y: number } }).position;
+  /** Duplicate an entity (offset slightly, as a sibling). Returns the new source id. */
+  duplicateEntity(sourceId: EntityId): EntityId | null {
+    const src = SceneModel.entityBySource(sourceId);
+    if (!src) return null;
+    // Clone the SOURCE record (preserves unknown components/fields + @uuid: refs
+    // the World projection can't carry), with the standard paste offset.
+    const components = structuredClone(src.components) as SceneComponent[];
+    const pos = (components.find((c) => c.type === 'Transform')?.data as
+      | { position?: { x: number; y: number } }
+      | undefined)?.position;
     if (pos) {
       pos.x += 24;
       pos.y -= 24;
     }
-    const dup = recreateEntity(world, cap);
-    const handle = EntityHandles.acquire(dup);
-    // The model copy is from the SOURCE model entity (preserves unknown
-    // components/fields the World cap can't carry), with the same offset.
-    const srcId = SceneModel.sourceFor(id);
-    const srcEntity = srcId !== undefined
-      ? SceneModel.current?.entities.find((e) => e.id === srcId)
-      : undefined;
-    const dupComponents = srcEntity
-      ? (structuredClone(srcEntity.components) as typeof srcEntity.components)
-      : cap.comps.map((c) => ({
-          type: c.name,
-          data: structuredClone(c.data) as Record<string, unknown>,
-        }));
-    const mpos = (dupComponents.find((c) => c.type === 'Transform')?.data as
-      | { position?: { x: number; y: number } }
-      | undefined)?.position;
-    if (mpos) {
-      mpos.x += 24;
-      mpos.y -= 24;
-    }
-    const newSourceId = SceneModel.addEntity(dup, srcEntity?.name ?? cap.name, dupComponents);
-    let modelCap: ReturnType<typeof SceneModel.removeEntityBySource>;
+    const newSourceId = SceneModel.addEntity(src.name, components, src.parent ?? null);
+    let record: SceneEntity | undefined;
     EditorHistory.record(
-      `Duplicate ${cap.name || 'Entity'}`,
+      `Duplicate ${src.name || 'Entity'}`,
       () => {
-        const nw = recreateEntity(world, cap);
-        EntityHandles.rebind(handle, nw);
-        if (modelCap) SceneModel.restoreEntity(modelCap, nw);
+        if (record) SceneModel.restoreEntity(record);
       },
       () => {
-        despawnHandle(world, handle);
-        modelCap = SceneModel.removeEntityBySource(newSourceId);
+        record = SceneModel.removeEntityBySource(newSourceId);
       },
     );
-    return dup;
+    return newSourceId;
   },
 
-  /** Rename an entity via its Name component (undoable). */
-  renameEntity(id: EntityId, name: string): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id)) return;
-    const before = world.has(id, Name) ? world.get(id, Name).value : '';
-    if (before === name) return;
-    const handle = EntityHandles.acquire(id);
-    const setName = (value: string) => {
-      const live = EntityHandles.liveId(handle);
-      if (live != null && world.valid(live)) {
-        world.insert(live, Name, { value });
-        SceneModel.setName(live, value);
-      }
-    };
-    setName(name);
-    EditorHistory.record(`Rename ${name || 'Entity'}`, () => setName(name), () => setName(before));
+  /** Rename an entity (undoable). */
+  renameEntity(sourceId: EntityId, name: string): void {
+    const before = SceneModel.entityBySource(sourceId)?.name;
+    if (before === undefined || before === name) return;
+    SceneModel.setName(sourceId, name);
+    EditorHistory.record(
+      `Rename ${name || 'Entity'}`,
+      () => SceneModel.setName(sourceId, name),
+      () => SceneModel.setName(sourceId, before),
+    );
   },
 
   /**
-   * Re-parent an entity (drag-reparent): set/remove its Parent component on the
-   * World and mirror it in the source model. Undoable. Rejects self-parenting and
-   * cycles (parenting an entity under its own descendant); `parent: null` un-parents.
+   * Re-parent an entity (drag-reparent). Undoable. Rejects self-parenting and
+   * cycles (parenting under its own descendant); `parent: null` un-parents.
    */
-  setParent(id: EntityId, parent: EntityId | null): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id)) return;
-    if (parent != null && (parent === id || !world.valid(parent) || isDescendant(world, parent, id))) return;
-
-    const cur = world.has(id, Parent) ? (world.get(id, Parent) as unknown as { entity: EntityId }).entity : null;
-    const before = cur != null && cur !== id && world.valid(cur) ? cur : null;
+  setParent(sourceId: EntityId, parent: EntityId | null): void {
+    if (!SceneModel.entityBySource(sourceId)) return;
+    if (parent != null && (parent === sourceId || isModelAncestor(parent, sourceId))) return;
+    const before = SceneModel.entityBySource(sourceId)?.parent ?? null;
     if (before === parent) return;
-
-    const apply = (p: EntityId | null) => {
-      if (!world.valid(id)) return;
-      if (p != null && world.valid(p)) {
-        world.insert(id, Parent, { entity: p } as never);
-        SceneModel.setParent(id, p);
-      } else {
-        if (world.has(id, Parent)) world.remove(id, Parent);
-        SceneModel.setParent(id, null);
-      }
-    };
-    apply(parent);
-    EditorHistory.record('Reparent', () => apply(parent), () => apply(before));
+    SceneModel.setParent(sourceId, parent);
+    EditorHistory.record(
+      'Reparent',
+      () => SceneModel.setParent(sourceId, parent),
+      () => SceneModel.setParent(sourceId, before),
+    );
   },
 
-  /** Add a component (with its registered defaults) to an entity. Undoable. */
-  addComponent(id: EntityId, compName: string): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id)) return;
+  /** Add a component (with its registered/schema defaults) to an entity. Undoable. */
+  addComponent(sourceId: EntityId, compName: string): void {
+    const entity = SceneModel.entityBySource(sourceId);
+    if (!entity || entity.components.some((c) => c.type === compName)) return;
     const def = componentByName(compName);
-    if (!def || world.has(id, def)) return;
-    const data = structuredClone((def as unknown as { _default: unknown })._default);
-    const apply = () => {
-      if (world.valid(id) && !world.has(id, def)) {
-        world.insert(id, def, data as never);
-        SceneModel.setComponent(id, compName, data);
-      }
-    };
-    const undo = () => {
-      if (world.valid(id) && world.has(id, def)) {
-        world.remove(id, def);
-        SceneModel.removeComponent(id, compName);
-      }
-    };
-    apply();
-    EditorHistory.record(`Add ${prettyLabel(compName)}`, apply, undo);
+    // Builtins default from the engine registry; user/script components from the
+    // schemas.json shape; an unknown-but-named component starts empty.
+    const data = def
+      ? structuredClone(componentDefaults(def))
+      : structuredClone(userSchema(compName)?.default ?? {});
+    SceneModel.setComponent(sourceId, compName, data);
+    EditorHistory.record(
+      `Add ${prettyLabel(compName)}`,
+      () => SceneModel.setComponent(sourceId, compName, structuredClone(data)),
+      () => SceneModel.removeComponent(sourceId, compName),
+    );
   },
 
   /** Remove a component from an entity (Transform / Name are protected). Undoable. */
-  removeComponent(id: EntityId, compName: string): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id) || compName === 'Transform' || compName === 'Name') return;
-    const def = componentByName(compName);
-    if (!def || !world.has(id, def)) return;
-    const data = structuredClone(world.get(id, def));
-    const remove = () => {
-      if (world.valid(id) && world.has(id, def)) {
-        world.remove(id, def);
-        SceneModel.removeComponent(id, compName);
-      }
-    };
-    const restore = () => {
-      if (world.valid(id) && !world.has(id, def)) {
-        world.insert(id, def, data as never);
-        SceneModel.setComponent(id, compName, data);
-      }
-    };
-    remove();
-    EditorHistory.record(`Remove ${prettyLabel(compName)}`, remove, restore);
+  removeComponent(sourceId: EntityId, compName: string): void {
+    if (compName === 'Transform' || compName === 'Name') return;
+    const comp = SceneModel.entityBySource(sourceId)?.components.find((c) => c.type === compName);
+    if (!comp) return;
+    const data = structuredClone(comp.data);
+    SceneModel.removeComponent(sourceId, compName);
+    EditorHistory.record(
+      `Remove ${prettyLabel(compName)}`,
+      () => SceneModel.removeComponent(sourceId, compName),
+      () => SceneModel.setComponent(sourceId, compName, structuredClone(data)),
+    );
   },
 
   /**
    * Toggle an entity's editor visibility by flipping the `enabled` field of each
    * of its components that has one (coalesced into one undo step). Lossless +
-   * persisted; SceneQuery.readSceneTree reflects it as the row's visibility.
+   * persisted; SceneQuery reflects it as the row's visibility.
    */
-  setEntityVisible(id: EntityId, visible: boolean): void {
-    const world = EngineHost.mutableWorld();
-    if (!world || !world.valid(id)) return;
+  setEntityVisible(sourceId: EntityId, visible: boolean): void {
+    const entity = SceneModel.entityBySource(sourceId);
+    if (!entity) return;
     this.beginGesture(visible ? 'Show' : 'Hide');
-    for (const { name, def } of inspectableComponents(world, id)) {
-      const data = world.get(id, def) as unknown as Record<string, unknown>;
-      if ('enabled' in data) this.setField(id, name, 'enabled', 'bool', visible);
+    for (const comp of entity.components) {
+      const data = comp.data as Record<string, unknown>;
+      if (data && typeof data === 'object' && 'enabled' in data) {
+        this.setField(sourceId, comp.type, 'enabled', 'bool', visible);
+      }
     }
     this.endGesture();
   },
 };
-
-// Despawn the entity a handle currently points at (no-op if already deleted).
-function despawnHandle(world: WorldT, handle: number): void {
-  const id = EntityHandles.liveId(handle);
-  if (id != null && world.valid(id)) world.despawn(id);
-  EntityHandles.rebind(handle, null);
-}

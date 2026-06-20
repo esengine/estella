@@ -1,5 +1,8 @@
 import { loadSceneData, Assets } from 'esengine';
-import type { App } from 'esengine';
+import type { App, SceneData } from 'esengine';
+import { SceneModel } from './SceneModel';
+import { Reconciler } from './Reconciler';
+import { EditorHistory } from './EditorHistory';
 
 type SceneDataArg = Parameters<typeof loadSceneData>[1];
 
@@ -37,13 +40,20 @@ export const SceneLoader = {
   /**
    * Fetch an `.esscene` (SceneData JSON), resolve its `@uuid:` texture refs to
    * live texture handles via the engine Assets system + a uuid→url manifest,
-   * and spawn it into the world. Returns the entity count. Refs without a
-   * manifest entry (or a failed load) blank to 0 (solid-color sprite).
+   * spawn it into the world, and adopt the RAW scene as the editor model (the
+   * source of truth). Returns the entity count. Refs without a manifest entry
+   * (or a failed load) blank to 0 (solid-color sprite).
+   *
+   * Model-authoritative (REARCH_EDITOR_MODEL.md): the World is built directly
+   * here (the bulk projection), and the raw scene — with `@uuid:` refs + any
+   * components/fields the World drops — becomes the model. SceneModel.adopt
+   * emits `reset`; the Reconciler ignores it (the World is already built), while
+   * SceneStore bumps and panels re-read from the model.
    */
   async loadInto(app: App, sceneUrl: string, manifestUrl?: string): Promise<number> {
     const res = await fetch(sceneUrl);
     if (!res.ok) throw new Error(`scene fetch failed: ${res.status} ${sceneUrl}`);
-    const raw = await res.json();
+    const raw = (await res.json()) as SceneData;
 
     const uuidToHandle = await loadTextures(app, raw, manifestUrl);
 
@@ -51,7 +61,11 @@ export const SceneLoader = {
       s.startsWith(UUID_PREFIX) ? (uuidToHandle.get(s.slice(UUID_PREFIX.length)) ?? 0) : s,
     ) as SceneDataArg;
 
-    return loadSceneData(app.world, sceneData).size;
+    const map = loadSceneData(app.world, sceneData);
+    EditorHistory.clear();
+    Reconciler.setAssetResolver((uuid) => uuidToHandle.get(uuid) ?? 0);
+    SceneModel.adopt(raw, map as Map<number, number>);
+    return map.size;
   },
 };
 

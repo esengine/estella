@@ -7,8 +7,10 @@
  *          is a transport adapter over this object rather than a parallel API.
  *
  * Design and phasing: docs/REARCH_EDITOR_AUTOMATION.md. This adds no new truth —
- * commands route through SceneCommands (the undoable write boundary), reads
- * through SceneQuery / SceneModel, and observation reads the live canvas/World.
+ * commands route through SceneCommands (the model write boundary), reads through
+ * SceneQuery / SceneModel (the model is the source of truth; the World is a
+ * derived projection), and observation reads the live canvas/World. Ids are
+ * stable source ids (REARCH_EDITOR_MODEL.md).
  */
 import type {
   EntityId,
@@ -115,7 +117,7 @@ export const EditorControlSurface = {
   },
 
   // =========================================================================
-  // Queries — read-only reflection of the live World / scene truth
+  // Queries — read-only reflection of the scene model (the source of truth)
   // =========================================================================
 
   worldVersion(): number {

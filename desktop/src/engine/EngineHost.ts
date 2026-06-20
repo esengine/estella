@@ -10,11 +10,10 @@ import {
   EditorView,
   setEditorMode,
   setPlayMode,
-  serializeScene,
-  resetWorldTo,
 } from 'esengine';
-import type { App, ESEngineModule, SceneData, ResourceDef } from 'esengine';
+import type { App, ESEngineModule, ResourceDef } from 'esengine';
 import { SceneStore } from './SceneStore';
+import { Reconciler } from './Reconciler';
 import { SceneLoader } from './SceneLoader';
 import { checkEngineBuild } from './EngineGuard';
 import type { ReadonlyWorldT, WorldT } from './schema';
@@ -49,9 +48,9 @@ class EngineHostImpl {
 
   private readonly statusStore = createStore<EngineSnapshot>(() => ({ status: 'idle', error: null }));
 
-  // Play-state isolation: the scene captured when entering play, restored on stop.
+  // Play-state isolation: Stop rebuilds the World from the untouched edit model
+  // (model-authoritative), so no snapshot is needed — the model IS the truth.
   private playing_ = false;
-  private playSnapshot_: SceneData | null = null;
 
   // What to load once the engine is ready. Set by ProjectStore when a project
   // is opened from the launcher; absent → the in-repo placeholder scene (dev).
@@ -129,27 +128,25 @@ class EngineHostImpl {
 
   /**
    * Map the editor's play/pause UI state onto the engine, with play-state
-   * isolation: entering play snapshots the scene; Stop despawns the played
-   * scene and restores the snapshot, so try-playing never dirties the edit
-   * scene. Not playing ⇒ edit mode (gameplay frozen via env.playModeOnly, scene
-   * still rendered/editable); playing ⇒ gameplay runs; paused-while-playing
-   * halts every schedule. No-op until booted.
+   * isolation: entering play runs gameplay against the live World; Stop discards
+   * those mutations by rebuilding the World from the untouched edit MODEL
+   * (model-authoritative, REARCH_EDITOR_MODEL.md) — no snapshot, no stale id map.
+   * Not playing ⇒ edit mode (gameplay frozen via env.playModeOnly, scene still
+   * rendered/editable); playing ⇒ gameplay runs; paused-while-playing halts every
+   * schedule. No-op until booted.
    *
-   * @returns true if a play→edit restore happened (the caller should clear any
-   *          stale selection, since entity ids change on restore).
+   * @returns true if a play→edit rebuild happened. Selection survives it (source
+   *          ids are stable across the rebuild), so the caller need not clear it.
    */
   setRunMode(isPlaying: boolean, isPaused: boolean): boolean {
     const app = this.app_;
     if (!app) return false;
 
     let restored = false;
-    if (isPlaying && !this.playing_) {
-      // edit → play: capture the scene so Stop can restore it.
-      this.playSnapshot_ = serializeScene(app.world);
-    } else if (!isPlaying && this.playing_ && this.playSnapshot_) {
-      // play → edit (Stop): restore the pre-play scene (snapshot is reusable).
-      resetWorldTo(app.world, this.playSnapshot_);
-      this.playSnapshot_ = null;
+    if (!isPlaying && this.playing_) {
+      // play → edit (Stop): rebuild the World from the untouched edit model,
+      // discarding everything gameplay did to the World during play.
+      Reconciler.rebuildWorld();
       restored = true;
     }
     this.playing_ = isPlaying;
@@ -340,8 +337,11 @@ class EngineHostImpl {
     setEditorMode(true);
     setPlayMode(false);
 
-    // Register the reactive bridge before the scene spawns so the initial
-    // entities push through too.
+    // Model-authoritative data flow (REARCH_EDITOR_MODEL.md): commands mutate
+    // the SceneModel; the Reconciler is the single writer that follows into the
+    // World, and SceneStore turns model changes into panel reactivity. Attach
+    // the Reconciler FIRST so the World is projected before reactivity fires.
+    Reconciler.attach();
     SceneStore.install();
 
     if (opts.loadInitialScene) {

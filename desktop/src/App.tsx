@@ -7,7 +7,6 @@ import { EngineHost } from '@/engine/EngineHost';
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { useEditorStore } from '@/store/editorStore';
-import { useSelection } from '@/store/selectionStore';
 import { commands } from '@/commands';
 
 // The editor shell: fixed menu + toolbar on top, dockable workspace in the
@@ -33,14 +32,13 @@ export function App() {
   }, []);
 
   // Drive engine edit/play mode from the toolbar's play/pause state. Edit mode
-  // (the default) freezes gameplay systems so they don't fight scene edits;
-  // Stop restores the pre-play scene snapshot. A restore re-spawns entities
-  // with new ids, so any selection pointing at the played scene is now stale.
+  // (the default) freezes gameplay systems so they don't fight scene edits; Stop
+  // rebuilds the World from the untouched edit model (model-authoritative). The
+  // selection holds stable source ids, so it survives the rebuild — no clear.
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const isPaused = useEditorStore((s) => s.isPaused);
   useEffect(() => {
-    const restored = EngineHost.setRunMode(isPlaying, isPaused);
-    if (restored) useSelection.getState().select(null);
+    EngineHost.setRunMode(isPlaying, isPaused);
   }, [isPlaying, isPaused]);
 
   // The editor opens on the launcher (project browser); the shell + engine mount

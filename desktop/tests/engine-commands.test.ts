@@ -1,14 +1,16 @@
 /**
  * @file  Regression net for the editor's read/write/undo core (SceneCommands +
- *        SceneQuery) against a real headless World. This is the safety net for
- *        the JSON-first rewrite (REARCH_SERIALIZATION.md), which re-targets these
- *        modules from the live World to the data model.
+ *        SceneQuery) against a real headless World. Proves the model-authoritative
+ *        flow (REARCH_EDITOR_MODEL.md): commands edit the SceneModel by source id,
+ *        the Reconciler projects into the World, undo replays model ops — and the
+ *        World, a derived projection, reflects every step.
  *
  * EngineHost (the engine-boot singleton that needs a canvas + WebGL) is mocked
  * to return a per-test headless World built from the WASM SDK; the rest of the
- * editor logic (EditorHistory, EntityHandles, schema) runs for real.
+ * editor logic (SceneModel, Reconciler, EditorHistory, schema) runs for real.
+ * Commands return SOURCE ids; the World is asserted via SceneModel.runtimeFor.
  */
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { App, Transform, Parent, Sprite } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -28,7 +30,16 @@ vi.mock('@/engine/EngineHost', () => ({
 
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneQuery } from '@/engine/SceneQuery';
+import { SceneModel } from '@/engine/SceneModel';
+import { Reconciler } from '@/engine/Reconciler';
 import { EditorHistory } from '@/engine/EditorHistory';
+import type { SceneData } from 'esengine';
+
+const emptyScene = (): SceneData =>
+    ({ version: '1.0', name: 'test', entities: [] }) as unknown as SceneData;
+
+/** Resolve a source id to its current runtime World entity (for World asserts). */
+const rt = (sourceId: number): number => SceneModel.runtimeFor(sourceId)!;
 
 describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => {
     let module: ESEngineModule;
@@ -41,13 +52,20 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
         app.connectCpp(registry as never, module);
         host.world = app.world;
         EditorHistory.clear();
+        SceneModel.clear();
+        // Commands edit the model; the Reconciler projects to the World. Adopt an
+        // empty scene so the model has a current document for commands to grow.
+        Reconciler.attach();
+        SceneModel.adopt(emptyScene(), new Map());
     });
+
+    afterEach(() => Reconciler.detach());
 
     it('addEntity spawns an entity with a Transform; undo/redo round-trips', () => {
         const id = SceneCommands.addEntity();
         expect(id).not.toBeNull();
-        expect(host.world.valid(id!)).toBe(true);
-        expect(host.world.has(id!, Transform)).toBe(true);
+        expect(host.world.valid(rt(id!))).toBe(true);
+        expect(host.world.has(rt(id!), Transform)).toBe(true);
         expect(host.world.getAllEntities().length).toBe(1);
 
         EditorHistory.undo();
@@ -59,27 +77,29 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
 
     it('setField writes a component field; undo reverts to the prior value', () => {
         const id = SceneCommands.addEntity()!;
+        const e = rt(id);
         SceneCommands.setField(id, 'Transform', 'position', 'vec3', [10, 20, 30]);
-        expect(host.world.get(id, Transform).position).toMatchObject({ x: 10, y: 20, z: 30 });
+        expect(host.world.get(e, Transform).position).toMatchObject({ x: 10, y: 20, z: 30 });
 
         EditorHistory.undo();
-        expect(host.world.get(id, Transform).position).toMatchObject({ x: 0, y: 0, z: 0 });
+        expect(host.world.get(e, Transform).position).toMatchObject({ x: 0, y: 0, z: 0 });
 
         EditorHistory.redo();
-        expect(host.world.get(id, Transform).position).toMatchObject({ x: 10, y: 20, z: 30 });
+        expect(host.world.get(e, Transform).position).toMatchObject({ x: 10, y: 20, z: 30 });
     });
 
     it('a gesture coalesces multiple setField writes into one undo step', () => {
         const id = SceneCommands.addEntity()!;
+        const e = rt(id);
         SceneCommands.beginGesture('Drag');
         SceneCommands.setField(id, 'Transform', 'position', 'vec3', [1, 0, 0]);
         SceneCommands.setField(id, 'Transform', 'position', 'vec3', [2, 0, 0]);
         SceneCommands.setField(id, 'Transform', 'position', 'vec3', [3, 0, 0]);
         SceneCommands.endGesture();
-        expect(host.world.get(id, Transform).position.x).toBe(3);
+        expect(host.world.get(e, Transform).position.x).toBe(3);
 
         EditorHistory.undo(); // one step undoes the whole drag
-        expect(host.world.get(id, Transform).position.x).toBe(0);
+        expect(host.world.get(e, Transform).position.x).toBe(0);
     });
 
     it('deleteEntity removes the entity; undo re-creates it', () => {
@@ -111,47 +131,53 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
     it('setParent parents an entity (Parent component); undo un-parents it', () => {
         const parent = SceneCommands.addEntity()!;
         const child = SceneCommands.addEntity()!;
+        const childRt = rt(child);
+        const parentRt = rt(parent);
         SceneCommands.setParent(child, parent);
-        expect(host.world.has(child, Parent)).toBe(true);
-        expect((host.world.get(child, Parent) as { entity: number }).entity).toBe(parent);
+        expect(host.world.has(childRt, Parent)).toBe(true);
+        expect((host.world.get(childRt, Parent) as { entity: number }).entity).toBe(parentRt);
 
         EditorHistory.undo();
-        expect(host.world.has(child, Parent)).toBe(false);
+        expect(host.world.has(childRt, Parent)).toBe(false);
 
         EditorHistory.redo();
-        expect(host.world.has(child, Parent)).toBe(true);
+        expect(host.world.has(childRt, Parent)).toBe(true);
     });
 
     it('setParent rejects a cycle (parenting under a descendant)', () => {
         const a = SceneCommands.addEntity()!;
         const b = SceneCommands.addEntity()!;
+        const aRt = rt(a);
+        const bRt = rt(b);
         SceneCommands.setParent(b, a); // b under a
         SceneCommands.setParent(a, b); // a under b would cycle — rejected
-        expect(host.world.has(a, Parent)).toBe(false);
-        expect((host.world.get(b, Parent) as { entity: number }).entity).toBe(a);
+        expect(host.world.has(aRt, Parent)).toBe(false);
+        expect((host.world.get(bRt, Parent) as { entity: number }).entity).toBe(aRt);
     });
 
     it('addComponent inserts a component (with defaults); undo/redo round-trips', () => {
         const id = SceneCommands.addEntity()!;
-        expect(host.world.has(id, Sprite)).toBe(false);
+        const e = rt(id);
+        expect(host.world.has(e, Sprite)).toBe(false);
         SceneCommands.addComponent(id, 'Sprite');
-        expect(host.world.has(id, Sprite)).toBe(true);
+        expect(host.world.has(e, Sprite)).toBe(true);
 
         EditorHistory.undo();
-        expect(host.world.has(id, Sprite)).toBe(false);
+        expect(host.world.has(e, Sprite)).toBe(false);
         EditorHistory.redo();
-        expect(host.world.has(id, Sprite)).toBe(true);
+        expect(host.world.has(e, Sprite)).toBe(true);
     });
 
     it('removeComponent removes a component; undo restores it; Transform is protected', () => {
         const id = SceneCommands.addEntity()!;
+        const e = rt(id);
         SceneCommands.addComponent(id, 'Sprite');
         SceneCommands.removeComponent(id, 'Sprite');
-        expect(host.world.has(id, Sprite)).toBe(false);
+        expect(host.world.has(e, Sprite)).toBe(false);
         EditorHistory.undo();
-        expect(host.world.has(id, Sprite)).toBe(true);
+        expect(host.world.has(e, Sprite)).toBe(true);
 
         SceneCommands.removeComponent(id, 'Transform');
-        expect(host.world.has(id, Transform)).toBe(true);
+        expect(host.world.has(e, Transform)).toBe(true);
     });
 });
