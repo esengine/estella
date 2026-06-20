@@ -14,6 +14,7 @@ import {
 import { listRecents, addRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
+import { scanAssetDatabase } from './assetDb';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -155,6 +156,12 @@ ipcMain.handle('project:extractSchemas', async () => {
   const { register } = resolveScripts(manifest);
   return extractProjectSchemas(root, { entry: register, required: manifest.scripts?.register !== undefined });
 });
+
+// Scan the open project's `.meta` sidecars → the asset index (uuid↔path registry
+// + dependency graph) written to .esengine/cache/assets.json. The editor feeds
+// this into the engine Assets registry (one resolution path) and the Content
+// Browser; the cook walks `deps` (REARCH_ASSETS.md A2).
+ipcMain.handle('project:scanAssets', async () => scanAssetDatabase(requireRoot()));
 
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));

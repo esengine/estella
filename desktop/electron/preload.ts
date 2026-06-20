@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry } from '../src/project/format';
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
+import type { ScanAssetsResult } from './assetDb';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -30,6 +31,8 @@ const api = {
     buildScripts: (): Promise<BuildScriptsResult> => ipcRenderer.invoke('project:buildScripts'),
     /** Extract the project's component field schemas → .esengine/cache/schemas.json. */
     extractSchemas: (): Promise<ExtractSchemasResult> => ipcRenderer.invoke('project:extractSchemas'),
+    /** Scan the project's .meta sidecars → the asset index (registry + dep graph). */
+    scanAssets: (): Promise<ScanAssetsResult> => ipcRenderer.invoke('project:scanAssets'),
   },
   // New-project templates (launcher New tab).
   templates: {

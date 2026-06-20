@@ -194,48 +194,26 @@ class ProjectStoreImpl {
   }
 
   /**
-   * Scan `.meta` sidecars under the project's asset roots into a uuid→path
-   * registry, then point the engine `Assets` loader at it + the `estella://`
-   * transport. This is the ONE asset-resolution path: `Assets.resolveRef` turns
-   * `@uuid:` → path, the backend fetches `estella://project/<path>` (REARCH_ASSETS.md A1).
+   * Load the project's asset index (the main-process AssetDatabase scan,
+   * REARCH_ASSETS.md A2) into a uuid→path registry, then point the engine
+   * `Assets` loader at it + the `estella://` transport. This is the ONE
+   * asset-resolution path: `Assets.resolveRef` turns `@uuid:` → path, the backend
+   * fetches `estella://project/<path>`.
    */
   private async buildAssetRegistry(): Promise<void> {
-    const st = this.state;
     this.uuidToPath.clear();
-    if (!st) return;
-    // The conventional asset root(s): the top-level dir of the declared scenes /
-    // textures dirs (e.g. `assets`), which also holds prefabs/audio/etc.
-    const roots = new Set([st.layout.scenes, st.layout.textures].map((d) => d.split('/')[0]));
-    for (const root of roots) await this.scanMetaDir(root);
+    if (!this.state) return;
+    try {
+      const { index } = await window.estella.project.scanAssets();
+      for (const e of index.entries) this.uuidToPath.set(e.uuid.toLowerCase(), e.path);
+    } catch (err) {
+      console.warn('[project] asset scan failed', err);
+    }
 
     const assets = EngineHost.getResource(Assets);
     if (assets) {
       assets.baseUrl = 'estella://project';
       assets.setAssetRefResolver((ref) => this.resolveRef(ref));
-    }
-  }
-
-  /** Recursively collect `<file>.meta` → {uuid} under `dir` into uuidToPath. */
-  private async scanMetaDir(dir: string): Promise<void> {
-    let entries;
-    try {
-      entries = await window.estella.fs.readDir(dir);
-    } catch {
-      return; // dir absent
-    }
-    for (const e of entries) {
-      const p = `${dir}/${e.name}`;
-      if (e.isDir) {
-        await this.scanMetaDir(p);
-        continue;
-      }
-      if (!e.name.endsWith('.meta')) continue;
-      try {
-        const meta = JSON.parse(await window.estella.fs.read(p)) as { uuid?: string };
-        if (meta.uuid) this.uuidToPath.set(meta.uuid.toLowerCase(), p.replace(/\.meta$/, ''));
-      } catch {
-        // skip a malformed .meta
-      }
     }
   }
 
