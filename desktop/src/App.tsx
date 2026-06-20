@@ -8,6 +8,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { EngineHost } from '@/engine/EngineHost';
 import { ProjectStore } from '@/project/ProjectStore';
 import { Launcher } from '@/launcher/Launcher';
+import { Toaster } from '@/components/Toaster';
 import { useEditorStore } from '@/store/editorStore';
 
 // The editor shell: fixed menu + toolbar on top, dockable workspace in the
@@ -86,6 +87,7 @@ export function App() {
         <DockLayout />
       </main>
       <StatusBar />
+      <Toaster />
     </div>
   );
 }

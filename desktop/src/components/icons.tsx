@@ -15,6 +15,7 @@ import {
   Component,
   Blend,
   FileCode2,
+  File,
   type LucideIcon,
 } from 'lucide-react';
 import type { NodeKind, AssetType } from '@/types';
@@ -48,6 +49,7 @@ const ASSET_ICON: Record<AssetType, { icon: LucideIcon; tint: string }> = {
   prefab: { icon: Component, tint: '#ffb454' },
   material: { icon: Blend, tint: '#ff9d6f' },
   script: { icon: FileCode2, tint: '#9fb2d6' },
+  file: { icon: File, tint: 'var(--text-dim)' },
 };
 
 export function AssetIcon({ type, size = 22 }: { type: AssetType; size?: number }) {

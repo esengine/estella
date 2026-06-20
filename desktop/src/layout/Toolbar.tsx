@@ -20,6 +20,7 @@ import {
 import { useEditorStore } from '@/store/editorStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { ProjectStore } from '@/project/ProjectStore';
+import { Toasts } from '@/store/Toasts';
 import type { ToolMode } from '@/types';
 
 interface ToolDef {
@@ -161,7 +162,11 @@ export function Toolbar() {
           type="button"
           className="chip chip--accent"
           title="Build project scripts"
-          onClick={() => void window.estella?.project?.buildScripts?.().catch(() => {})}
+          onClick={() =>
+            void window.estella?.project?.buildScripts?.()
+              .then(() => Toasts.push('Built project scripts', 'success'))
+              .catch(() => Toasts.push('Build failed', 'error'))
+          }
         >
           <Hammer size={13} strokeWidth={1.85} />
           <span>Build</span>

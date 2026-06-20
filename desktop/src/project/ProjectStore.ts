@@ -2,6 +2,7 @@ import { resetWorldTo, getComponent, Assets } from 'esengine';
 import type { SceneData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
+import { Toasts } from '@/store/Toasts';
 import { resolveLayout, type OpenedProject, type ProjectLayout, type WorkspaceState } from './format';
 
 /**
@@ -261,6 +262,7 @@ class ProjectStoreImpl {
     if (!st || !st.currentScene) throw new Error('no scene to save');
     await this.writeScene(st.currentScene, this.serializeCurrent());
     await this.persistLastScene(st.currentScene);
+    Toasts.push(`Saved ${st.currentScene.split('/').pop()}`, 'success');
   }
 
   /** Write the current world to a project-relative path (explicit, no lossy guard). */
@@ -268,6 +270,7 @@ class ProjectStoreImpl {
     if (!this.state) throw new Error('no project open');
     await this.writeScene(relPath, this.serializeCurrent());
     await this.persistLastScene(relPath);
+    Toasts.push(`Saved ${relPath.split('/').pop()}`, 'success');
   }
 
   /** Prompt for a destination (Save-As) and write there. Returns the path or null. */

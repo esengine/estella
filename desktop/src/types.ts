@@ -65,7 +65,8 @@ export type AssetType =
   | 'audio'
   | 'prefab'
   | 'material'
-  | 'script';
+  | 'script'
+  | 'file';
 
 export interface AssetItem {
   id: string;

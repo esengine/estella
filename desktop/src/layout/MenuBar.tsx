@@ -7,6 +7,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
+import { Toasts } from '@/store/Toasts';
 import { MenuItems, type MenuItem } from '@/components/Menu';
 
 const LAYOUT_KEY = 'estella.editor.layout.v1';
@@ -116,8 +117,20 @@ export function MenuBar() {
     {
       title: 'Build',
       items: [
-        { label: 'Build Project Scripts', onClick: () => void window.estella?.project?.buildScripts?.().catch(() => {}), disabled: !project },
-        { label: 'Extract Component Schemas', onClick: () => void window.estella?.project?.extractSchemas?.().catch(() => {}), disabled: !project },
+        {
+          label: 'Build Project Scripts',
+          onClick: () => void window.estella?.project?.buildScripts?.()
+            .then(() => Toasts.push('Built project scripts', 'success'))
+            .catch(() => Toasts.push('Build failed', 'error')),
+          disabled: !project,
+        },
+        {
+          label: 'Extract Component Schemas',
+          onClick: () => void window.estella?.project?.extractSchemas?.()
+            .then(() => Toasts.push('Extracted component schemas', 'success'))
+            .catch(() => Toasts.push('Extract failed', 'error')),
+          disabled: !project,
+        },
       ],
     },
     {
