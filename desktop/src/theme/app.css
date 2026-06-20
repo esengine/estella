@@ -79,6 +79,12 @@
   box-shadow: var(--shadow-pop);
   -webkit-app-region: no-drag;
 }
+/* Right-click context menu — portaled to body, positioned at the cursor. */
+.menu-dropdown--ctx {
+  position: fixed;
+  top: auto;
+  min-width: 176px;
+}
 .menu-dropdown__item {
   display: flex;
   align-items: center;
@@ -440,6 +446,17 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.tree-row__rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--input);
+  border: 1px solid var(--star-line);
+  border-radius: var(--r-xs);
+  padding: 1px 5px;
+  color: var(--text-hi);
+  font-size: var(--fs-sm);
+  outline: none;
 }
 .tree-row__actions {
   display: flex;

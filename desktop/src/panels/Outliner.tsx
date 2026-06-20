@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronRight, Eye, EyeOff, Lock, Search, Plus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { EngineHost } from '@/engine/EngineHost';
@@ -8,15 +9,26 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { NodeIcon } from '@/components/icons';
 import type { SceneNode, EntityId } from '@/types';
 
-function Row({ node, depth }: { node: SceneNode; depth: number }) {
+interface RowProps {
+  node: SceneNode;
+  depth: number;
+  forceExpand: boolean;
+  renaming: EntityId | null;
+  onStartRename: (id: EntityId) => void;
+  onCommitRename: (id: EntityId, name: string) => void;
+  onContextMenu: (e: React.MouseEvent, id: EntityId) => void;
+}
+
+function Row({ node, depth, forceExpand, renaming, onStartRename, onCommitRename, onContextMenu }: RowProps) {
   const selectedId = useEditorStore((s) => s.selectedId);
   const select = useEditorStore((s) => s.select);
   const expanded = useEditorStore((s) => s.expanded);
   const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
 
   const hasChildren = !!node.children?.length;
-  const isOpen = expanded.has(node.id);
+  const isOpen = forceExpand || expanded.has(node.id);
   const isSelected = selectedId === node.id;
+  const isRenaming = renaming === node.id;
 
   return (
     <>
@@ -24,6 +36,7 @@ function Row({ node, depth }: { node: SceneNode; depth: number }) {
         className={`tree-row${isSelected ? ' is-selected' : ''}${node.visible ? '' : ' is-hidden'}`}
         style={{ paddingLeft: depth * 14 + 6 }}
         onClick={() => select(node.id)}
+        onContextMenu={(e) => onContextMenu(e, node.id)}
       >
         <button
           type="button"
@@ -40,26 +53,65 @@ function Row({ node, depth }: { node: SceneNode; depth: number }) {
           <NodeIcon kind={node.kind} />
         </span>
 
-        <span className="tree-row__name">{node.name}</span>
+        {isRenaming ? (
+          <input
+            className="tree-row__rename"
+            defaultValue={node.name}
+            autoFocus
+            spellCheck={false}
+            onClick={(e) => e.stopPropagation()}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              else if (e.key === 'Escape') {
+                e.currentTarget.value = node.name;
+                e.currentTarget.blur();
+              }
+            }}
+            onBlur={(e) => onCommitRename(node.id, e.target.value)}
+          />
+        ) : (
+          <span className="tree-row__name" onDoubleClick={() => onStartRename(node.id)}>
+            {node.name}
+          </span>
+        )}
 
         <span className="tree-row__actions">
           {node.locked && <Lock size={12} strokeWidth={1.85} className="tree-row__lock" />}
           <button type="button" className="tree-row__vis" title="Toggle visibility">
-            {node.visible ? (
-              <Eye size={13} strokeWidth={1.85} />
-            ) : (
-              <EyeOff size={13} strokeWidth={1.85} />
-            )}
+            {node.visible ? <Eye size={13} strokeWidth={1.85} /> : <EyeOff size={13} strokeWidth={1.85} />}
           </button>
         </span>
       </div>
 
       {hasChildren &&
         isOpen &&
-        node.children!.map((child) => <Row key={child.id} node={child} depth={depth + 1} />)}
+        node.children!.map((child) => (
+          <Row
+            key={child.id}
+            node={child}
+            depth={depth + 1}
+            forceExpand={forceExpand}
+            renaming={renaming}
+            onStartRename={onStartRename}
+            onCommitRename={onCommitRename}
+            onContextMenu={onContextMenu}
+          />
+        ))}
     </>
   );
 }
+
+// Keep a node if its name matches, or any descendant does (matches + ancestors).
+function filterNode(node: SceneNode, q: string): SceneNode | null {
+  if (node.name.toLowerCase().includes(q)) return node;
+  const kids = (node.children ?? [])
+    .map((c) => filterNode(c, q))
+    .filter((n): n is SceneNode => n != null);
+  return kids.length ? { ...node, children: kids } : null;
+}
+
+type CtxItem = { sep: true } | { label: string; shortcut?: string; onClick: () => void };
 
 export function Outliner() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
@@ -67,9 +119,19 @@ export function Outliner() {
   const structRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
   const initRef = useRef(false);
 
+  const [query, setQuery] = useState('');
+  const [renaming, setRenaming] = useState<EntityId | null>(null);
+  const [ctx, setCtx] = useState<{ x: number; y: number; id: EntityId } | null>(null);
+
   const tree = useMemo(
     () => (engine.status === 'ready' ? SceneQuery.readSceneTree() : []),
     [engine.status, structRev],
+  );
+
+  const q = query.trim().toLowerCase();
+  const shown = useMemo(
+    () => (q ? tree.map((n) => filterNode(n, q)).filter((n): n is SceneNode => n != null) : tree),
+    [tree, q],
   );
 
   // First time entities appear: expand groups, select the first root.
@@ -91,22 +153,76 @@ export function Outliner() {
     }
   }, [tree]);
 
+  // Dismiss the context menu on an outside press, scroll, or Escape.
+  useEffect(() => {
+    if (!ctx) return;
+    const close = () => setCtx(null);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setCtx(null);
+    window.addEventListener('mousedown', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [ctx]);
+
+  const select = (id: EntityId | null) => useEditorStore.getState().select(id);
+
+  const onContextMenu = (e: React.MouseEvent, id: EntityId) => {
+    e.preventDefault();
+    select(id);
+    setCtx({ x: e.clientX, y: e.clientY, id });
+  };
+  const commitRename = (id: EntityId, name: string) => {
+    setRenaming(null);
+    const trimmed = name.trim();
+    if (trimmed) SceneCommands.renameEntity(id, trimmed);
+  };
+  const addEntity = () => {
+    const id = SceneCommands.addEntity();
+    if (id != null) select(id);
+  };
+
+  const ctxItems: CtxItem[] = ctx
+    ? [
+        { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(ctx.id) },
+        {
+          label: 'Duplicate',
+          shortcut: '⌘D',
+          onClick: () => {
+            const d = SceneCommands.duplicateEntity(ctx.id);
+            if (d != null) select(d);
+          },
+        },
+        {
+          label: 'Delete',
+          shortcut: '⌫',
+          onClick: () => {
+            SceneCommands.deleteEntity(ctx.id);
+            select(null);
+          },
+        },
+        { sep: true },
+        { label: 'Add Entity', onClick: addEntity },
+      ]
+    : [];
+
   return (
     <div className="panel">
       <div className="panel__toolbar">
         <div className="searchbox">
           <Search size={13} strokeWidth={1.85} />
-          <input className="searchbox__input" placeholder="Search entities" spellCheck={false} />
+          <input
+            className="searchbox__input"
+            placeholder="Search entities"
+            spellCheck={false}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
-        <button
-          type="button"
-          className="iconbtn"
-          title="Add entity"
-          onClick={() => {
-            const id = SceneCommands.addEntity();
-            if (id != null) useEditorStore.getState().select(id);
-          }}
-        >
+        <button type="button" className="iconbtn" title="Add entity" onClick={addEntity}>
           <Plus size={15} strokeWidth={2} />
         </button>
       </div>
@@ -116,10 +232,58 @@ export function Outliner() {
             <Search size={22} strokeWidth={1.4} />
             <p>{engine.status === 'ready' ? 'No entities in scene.' : 'Waiting for engine…'}</p>
           </div>
+        ) : shown.length === 0 ? (
+          <div className="empty">
+            <Search size={22} strokeWidth={1.4} />
+            <p>No entities match “{query}”.</p>
+          </div>
         ) : (
-          tree.map((node) => <Row key={node.id} node={node} depth={0} />)
+          shown.map((node) => (
+            <Row
+              key={node.id}
+              node={node}
+              depth={0}
+              forceExpand={!!q}
+              renaming={renaming}
+              onStartRename={setRenaming}
+              onCommitRename={commitRename}
+              onContextMenu={onContextMenu}
+            />
+          ))
         )}
       </div>
+
+      {ctx &&
+        createPortal(
+          <div
+            className="menu-dropdown menu-dropdown--ctx"
+            role="menu"
+            style={{ left: ctx.x, top: ctx.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {ctxItems.map((it, i) =>
+              'sep' in it ? (
+                <div key={i} className="menu-dropdown__sep" />
+              ) : (
+                <button
+                  key={i}
+                  type="button"
+                  role="menuitem"
+                  className="menu-dropdown__item"
+                  onClick={() => {
+                    setCtx(null);
+                    it.onClick();
+                  }}
+                >
+                  <span className="menu-dropdown__check" />
+                  <span className="menu-dropdown__label">{it.label}</span>
+                  {it.shortcut ? <span className="menu-dropdown__shortcut">{it.shortcut}</span> : null}
+                </button>
+              ),
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
