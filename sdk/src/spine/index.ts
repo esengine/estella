@@ -9,3 +9,7 @@ export type { SpineEventCallback, ConstraintList, TransformMixData, PathMixData 
 export type { SpineModuleFactory, SpineWasmProvider } from './SpineModuleLoader';
 export { loadSpineModule, wrapSpineModule, createSpineFactories } from './SpineModuleLoader';
 export { WebSpineWasmProvider } from './WebSpineWasmProvider';
+// Shared spine scene loader — the editor loads spine entities through the same
+// single implementation the builder runtime uses (see ./loadSpineScene).
+export { loadSpineSceneEntities, loadSpineAssets, applySpineEntities } from './loadSpineScene';
+export type { RuntimeAssetProvider } from '../runtimeAssets';

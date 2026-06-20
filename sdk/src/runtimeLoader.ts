@@ -5,11 +5,11 @@
 
 import { SceneOwner } from './component';
 import { Material } from './material';
-import { loadSceneData, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, type AssetFieldType, type SceneData } from './scene';
+import { loadSceneData, getComponentAssetFieldDescriptors, type AssetFieldType, type SceneData } from './scene';
 import { discoverSceneAssets, getAssetPathsByType } from './asset/discoverAssets';
 import type { ESEngineModule } from './wasm';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
-import { SpineManager, type SpineVersion } from './spine/SpineManager';
+import { SpineManager } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { App } from './app';
@@ -28,50 +28,20 @@ import { requireResourceManager } from './resourceManager';
 import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
 import { registerTilemapSource } from './tilemap/tilesetCache';
 import { log } from './logger';
-import { withMalloc } from './wasmScratch';
+import { createTextureFromPixels, type RuntimeAssetProvider, type TextureParams } from './runtimeAssets';
+import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
 
 // =============================================================================
 // Public Interface
 // =============================================================================
 
-export interface RuntimeAssetProvider {
-    loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
-    loadPixelsRaw?(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
-    readText(ref: string): string | Promise<string>;
-    readBinary(ref: string): Uint8Array | Promise<Uint8Array>;
-    resolvePath(ref: string): string;
-}
+// RuntimeAssetProvider + createTextureFromPixels live in ./runtimeAssets so the
+// spine scene loader can share them without importing this module.
+export type { RuntimeAssetProvider } from './runtimeAssets';
 
 // =============================================================================
 // Texture Helpers
 // =============================================================================
-
-const FILTER_MODE_MAP: Record<string, number> = { 'nearest': 0, 'linear': 1 };
-const WRAP_MODE_MAP: Record<string, number> = { 'repeat': 0, 'clamp': 1, 'mirror': 2 };
-
-interface TextureParams {
-    filterMode?: string;
-    wrapMode?: string;
-}
-
-function createTextureFromPixels(
-    module: ESEngineModule,
-    result: { width: number; height: number; pixels: Uint8Array },
-    flipY: boolean = true,
-    params?: TextureParams,
-): number {
-    const rm = requireResourceManager();
-    return withMalloc(module, result.pixels.length, ptr => {
-        module.HEAPU8.set(result.pixels, ptr);
-
-        if (params && (params.filterMode || params.wrapMode) && rm.createTextureEx) {
-            const filter = FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1;
-            const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
-            return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, 1, flipY, filter, wrap);
-        }
-        return rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
-    });
-}
 
 async function loadTextures(
     module: ESEngineModule,
@@ -138,121 +108,6 @@ function resolveSceneAssetPaths(
             }
         }
     }
-}
-
-// =============================================================================
-// Spine Helpers
-// =============================================================================
-
-function parseAtlasTextures(content: string): string[] {
-    const textures: string[] = [];
-    for (const line of content.split('\n')) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.includes(':') && (/\.png$/i.test(trimmed) || /\.jpg$/i.test(trimmed))) {
-            textures.push(trimmed);
-        }
-    }
-    return textures;
-}
-
-function ensureVirtualDir(module: ESEngineModule, virtualPath: string): void {
-    const fs = module.FS;
-    if (!fs) return;
-    const dir = virtualPath.substring(0, virtualPath.lastIndexOf('/'));
-    if (!dir) return;
-    const parts = dir.split('/').filter(p => p);
-    let currentPath = '';
-    for (const part of parts) {
-        currentPath += '/' + part;
-        try { fs.mkdir(currentPath); } catch { /* already exists */ }
-    }
-}
-
-function writeToVirtualFS(module: ESEngineModule, virtualPath: string, data: string | Uint8Array): boolean {
-    const fs = module.FS;
-    if (!fs) return false;
-    try {
-        ensureVirtualDir(module, virtualPath);
-        fs.writeFile(virtualPath, data);
-        return true;
-    } catch (e) {
-        log.warn('runtime', `Failed to write virtual FS: ${virtualPath}`, e);
-        return false;
-    }
-}
-
-interface SpineAssetInfo {
-    version: SpineVersion | null;
-    skelData: Uint8Array | string;
-    atlasText: string;
-    textures: Map<string, { glId: number; w: number; h: number }>;
-}
-
-async function loadSpineAssetsToVirtualFS(
-    module: ESEngineModule,
-    provider: RuntimeAssetProvider,
-    spineManager: SpineManager | null | undefined,
-    spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
-): Promise<Map<string, SpineAssetInfo>> {
-    const assetInfoMap = new Map<string, SpineAssetInfo>();
-
-    for (const pair of spinePairs) {
-        const skelRef = pair.skeleton;
-        const atlasRef = pair.atlas;
-        const cacheKey = `${skelRef}:${atlasRef}`;
-
-        const atlasPath = provider.resolvePath(atlasRef);
-
-            try {
-                const atlasContent = await provider.readText(atlasRef);
-
-                const skelPath = provider.resolvePath(skelRef);
-                const isBinary = getAssetTypeEntry(skelPath)?.contentType === 'binary';
-                const skelData = isBinary
-                    ? await provider.readBinary(skelRef)
-                    : await provider.readText(skelRef);
-
-                const version = spineManager
-                    ? (typeof skelData === 'string'
-                        ? SpineManager.detectVersionJson(skelData)
-                        : SpineManager.detectVersion(skelData))
-                    : null;
-
-                const texNames = parseAtlasTextures(atlasContent);
-                const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-                const rm = requireResourceManager();
-                const textures = new Map<string, { glId: number; w: number; h: number }>();
-
-                for (const texName of texNames) {
-                    const texPath = atlasDir + '/' + texName;
-                    try {
-                        const result = provider.loadPixelsRaw
-                            ? await provider.loadPixelsRaw(texPath)
-                            : await provider.loadPixels(texPath);
-                        const handle = createTextureFromPixels(module, result, false);
-                        rm.registerTextureWithPath(handle, texPath);
-                        textures.set(texName, {
-                            glId: rm.getTextureGLId(handle),
-                            w: result.width,
-                            h: result.height,
-                        });
-                    } catch (err) {
-                        log.warn('runtime', `Failed to load texture: ${texPath}`, err);
-                    }
-                }
-
-                const isNative = !version || version === '4.2';
-                if (isNative) {
-                    writeToVirtualFS(module, atlasPath, atlasContent);
-                    writeToVirtualFS(module, skelPath, skelData);
-                }
-
-                assetInfoMap.set(cacheKey, { version, skelData, atlasText: atlasContent, textures });
-            } catch (err) {
-                log.warn('runtime', `Failed to load spine asset: skel=${skelRef} atlas=${atlasRef}`, err);
-            }
-    }
-    return assetInfoMap;
 }
 
 // =============================================================================
@@ -475,7 +330,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const textureCache = await loadTextures(module, sceneData, provider, getAssetPathsByType(discovered, 'texture'));
     applyTextureMetadata(sceneData, textureCache);
 
-    const spineAssetInfo = await loadSpineAssetsToVirtualFS(module, provider, spineManager, discovered.spines);
+    const spineAssetInfo = await loadSpineAssets(module, provider, spineManager, discovered.spines);
 
     if (physicsModule) {
         const config: PhysicsPluginConfig = {
@@ -504,39 +359,8 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         (module as ESEngineModule).transform_update(cppRegistry);
     }
 
-    if (spineManager && cppRegistry && spineAssetInfo.size > 0) {
-        for (const sceneEntity of sceneData.entities) {
-            for (const comp of sceneEntity.components) {
-                const spineDesc = getComponentSpineFieldDescriptor(comp.type);
-                if (!spineDesc || !comp.data) continue;
-                const skelRef = comp.data[spineDesc.skeletonField] as string;
-                const atlasRef = comp.data[spineDesc.atlasField] as string;
-                if (!skelRef || !atlasRef) continue;
-
-                const cacheKey = `${skelRef}:${atlasRef}`;
-                const info = spineAssetInfo.get(cacheKey);
-                if (!info || !info.version || info.version === '4.2') continue;
-
-                const entity = entityMap.get(sceneEntity.id);
-                if (entity === undefined) continue;
-
-                await spineManager.loadEntity(
-                    entity, info.skelData, info.atlasText, info.textures, cppRegistry);
-
-                spineManager.setEntityProps(entity, {
-                    skeletonScale: (comp.data.skeletonScale as number) ?? 1,
-                    flipX: (comp.data.flipX as boolean) ?? false,
-                    flipY: (comp.data.flipY as boolean) ?? false,
-                    layer: (comp.data.layer as number) ?? 0,
-                });
-                const skin = comp.data.skin as string;
-                if (skin) spineManager.setSkin(entity, skin);
-                const animation = comp.data.animation as string;
-                if (animation) {
-                    spineManager.setAnimation(entity, animation, comp.data.loop !== false);
-                }
-            }
-        }
+    if (spineManager && cppRegistry) {
+        await applySpineEntities({ spineManager, sceneData, entityMap, registry: cppRegistry, assetInfo: spineAssetInfo });
     }
 
     if (sceneName && app.hasResource(SceneManager)) {
