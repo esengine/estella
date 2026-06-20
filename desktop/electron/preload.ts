@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry } from '../src/project/format';
 import type { BuildScriptsResult } from './buildScripts';
+import type { ExtractSchemasResult } from './extractSchemas';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -27,6 +28,8 @@ const api = {
     chooseDirectory: (): Promise<string | null> => ipcRenderer.invoke('project:chooseDirectory'),
     /** Bundle the open project's scripts (src/main.ts) for the isolated play realm. */
     buildScripts: (): Promise<BuildScriptsResult> => ipcRenderer.invoke('project:buildScripts'),
+    /** Extract the project's component field schemas → .esengine/cache/schemas.json. */
+    extractSchemas: (): Promise<ExtractSchemasResult> => ipcRenderer.invoke('project:extractSchemas'),
   },
   // New-project templates (launcher New tab).
   templates: {
