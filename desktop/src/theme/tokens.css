@@ -18,6 +18,7 @@
   --input: #15161a; /* fields, wells (darker than panel) */
   --hover: rgba(255, 255, 255, 0.05);
   --pressed: rgba(255, 255, 255, 0.08);
+  --glass-rgb: 14, 15, 18; /* neutral base for floating overlays (was navy-tinted) */
 
   /* — Structure: neutral hairlines do the visual work, not boxes — */
   --line: #2b2e34;
@@ -41,6 +42,8 @@
   /* — Semantic (muted, flat) — */
   --run: #4cae87; /* play / running */
   --run-glow: 0 0 0 1px rgba(76, 174, 135, 0.45);
+  --create: #2c9a55; /* additive/create actions (UE5 "+Add" green), distinct from play */
+  --create-hi: #34b163;
   --warn: #e0a049; /* amber / warnings */
   --error: #e06464;
 
@@ -64,7 +67,7 @@
 
   /* — Chrome heights (tightened a notch for density) — */
   --h-titlebar: 28px;
-  --h-toolbar: 40px;
+  --h-toolbar: 36px;
   --h-statusbar: 22px;
 
   /* — Elevation — */

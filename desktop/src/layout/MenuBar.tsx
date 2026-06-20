@@ -4,11 +4,10 @@
 // the drag region; the menus + dropdowns opt out of dragging.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { EditorHistory } from '@/engine/EditorHistory';
-import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { Toasts } from '@/store/Toasts';
 import { MenuItems, type MenuItem } from '@/components/Menu';
+import { commands, formatKeybinding } from '@/commands';
 
 const LAYOUT_KEY = 'estella.editor.layout.v1';
 
@@ -34,14 +33,24 @@ export function MenuBar() {
   const [open, setOpen] = useState<string | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
-  // Re-render on history changes so undo/redo enabled state stays live.
-  useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
+  // Only the always-visible project label needs a live subscription. Menu items
+  // are rebuilt from the command registry each time a menu opens (a re-render),
+  // so their enabled / checked state reads fresh from the domain stores then.
   const project = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
-  const {
-    selectedId, select,
-    showGrid, showGizmos, snapping, toggleGrid, toggleGizmos, toggleSnapping,
-    openLauncher,
-  } = useEditorStore();
+
+  // Build a menu item from a registered command — one source for label, shortcut
+  // hint, action, enablement, and checked state.
+  const cmdItem = (id: string): MenuItem => {
+    const c = commands.get(id)!;
+    return {
+      label: c.label,
+      shortcut: c.keybinding ? formatKeybinding(c.keybinding) : undefined,
+      onClick: () => commands.run(id),
+      disabled: !commands.isEnabled(id),
+      checked: commands.isChecked(id),
+    };
+  };
+  const openLauncher = () => useEditorStore.getState().openLauncher();
 
   // Close the open menu on an outside click or Escape.
   useEffect(() => {
@@ -60,71 +69,45 @@ export function MenuBar() {
     };
   }, [open]);
 
-  const save = () => void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog());
-  const duplicate = () => {
-    if (selectedId == null) return;
-    const dup = SceneCommands.duplicateEntity(selectedId);
-    if (dup != null) select(dup);
-  };
-  const remove = () => {
-    const ids = [...useEditorStore.getState().selectedIds];
-    if (!ids.length) return;
-    ids.forEach((i) => SceneCommands.deleteEntity(i));
-    select(null);
-  };
-  const addEntity = () => {
-    const e = SceneCommands.addEntity();
-    if (e != null) select(e);
-  };
-
   const menus: MenuDef[] = [
     {
       title: 'File',
       items: [
-        { label: 'Open Project…', shortcut: '⌘O', onClick: () => void ProjectStore.openViaDialog().then((ok) => ok && select(null)) },
+        cmdItem('project.open'),
         { sep: true },
-        { label: 'Save Scene', shortcut: '⌘S', onClick: save, disabled: !project?.currentScene },
-        { label: 'Save Scene As…', shortcut: '⇧⌘S', onClick: () => void ProjectStore.saveAsViaDialog(), disabled: !project },
+        cmdItem('project.save'),
+        cmdItem('project.saveAs'),
         { sep: true },
-        { label: 'Close Project', onClick: openLauncher, disabled: !project },
+        cmdItem('project.close'),
       ],
     },
     {
       title: 'Edit',
-      items: [
-        { label: 'Undo', shortcut: '⌘Z', onClick: () => EditorHistory.undo(), disabled: !EditorHistory.canUndo() },
-        { label: 'Redo', shortcut: '⇧⌘Z', onClick: () => EditorHistory.redo(), disabled: !EditorHistory.canRedo() },
-      ],
+      items: [cmdItem('edit.undo'), cmdItem('edit.redo')],
     },
     {
       title: 'Entity',
       items: [
-        { label: 'Add Entity', onClick: addEntity },
+        cmdItem('entity.add'),
         { sep: true },
-        { label: 'Duplicate', shortcut: '⌘D', onClick: duplicate, disabled: selectedId == null },
-        { label: 'Delete', shortcut: '⌫', onClick: remove, disabled: selectedId == null },
+        cmdItem('entity.duplicate'),
+        cmdItem('entity.delete'),
         { sep: true },
-        { label: 'Deselect', onClick: () => select(null), disabled: selectedId == null },
+        cmdItem('entity.deselect'),
       ],
     },
     {
       title: 'View',
       items: [
-        { label: 'Show Grid', onClick: toggleGrid, checked: showGrid },
-        { label: 'Show Gizmos', onClick: toggleGizmos, checked: showGizmos },
-        { label: 'Snapping', onClick: toggleSnapping, checked: snapping },
+        cmdItem('view.toggleGrid'),
+        cmdItem('view.toggleGizmos'),
+        cmdItem('view.toggleSnapping'),
       ],
     },
     {
       title: 'Build',
       items: [
-        {
-          label: 'Build Project Scripts',
-          onClick: () => void window.estella?.project?.buildScripts?.()
-            .then(() => Toasts.push('Built project scripts', 'success'))
-            .catch(() => Toasts.push('Build failed', 'error')),
-          disabled: !project,
-        },
+        cmdItem('build.scripts'),
         {
           label: 'Extract Component Schemas',
           onClick: () => void window.estella?.project?.extractSchemas?.()

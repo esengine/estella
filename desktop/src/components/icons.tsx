@@ -16,6 +16,12 @@ import {
   Blend,
   FileCode2,
   File,
+  Type,
+  Grid3x3,
+  Sparkles,
+  Box,
+  Hexagon,
+  Link2,
   type LucideIcon,
 } from 'lucide-react';
 import type { NodeKind, AssetType } from '@/types';
@@ -38,17 +44,18 @@ export function NodeIcon({ kind, size = 14 }: { kind: NodeKind; size?: number })
   return <Glyph size={size} strokeWidth={1.75} />;
 }
 
-// Asset type → glyph + accent tint, so the content browser is scannable by color.
+// Asset type → glyph + muted type tint. Desaturated (vs candy colors) so the
+// content browser stays scannable by type but reads as a professional tool.
 const ASSET_ICON: Record<AssetType, { icon: LucideIcon; tint: string }> = {
   folder: { icon: Folder, tint: 'var(--star)' },
-  scene: { icon: Film, tint: '#ff8fa3' },
-  sprite: { icon: Image, tint: '#6fd3ff' },
-  texture: { icon: FileImage, tint: '#6fd3ff' },
-  spine: { icon: PersonStanding, tint: '#b69bff' },
-  audio: { icon: Music, tint: '#43d39e' },
-  prefab: { icon: Component, tint: '#ffb454' },
-  material: { icon: Blend, tint: '#ff9d6f' },
-  script: { icon: FileCode2, tint: '#9fb2d6' },
+  scene: { icon: Film, tint: '#c98a93' },
+  sprite: { icon: Image, tint: '#7fa6c4' },
+  texture: { icon: FileImage, tint: '#7fa6c4' },
+  spine: { icon: PersonStanding, tint: '#9b8fc0' },
+  audio: { icon: Music, tint: '#7faf9c' },
+  prefab: { icon: Component, tint: '#c2a274' },
+  material: { icon: Blend, tint: '#c0917a' },
+  script: { icon: FileCode2, tint: '#93a3bf' },
   file: { icon: File, tint: 'var(--text-dim)' },
 };
 
@@ -59,4 +66,36 @@ export function AssetIcon({ type, size = 22 }: { type: AssetType; size?: number 
 
 export function assetTint(type: AssetType): string {
   return ASSET_ICON[type].tint;
+}
+
+// Component (by registry name) → glyph, for the Add-Component picker. Known
+// builtins are mapped; the rest fall back by name heuristic, then a generic
+// component glyph. Inherits currentColor so callers control the tint.
+const COMPONENT_ICON: Record<string, LucideIcon> = {
+  Camera,
+  Sprite: Image,
+  ShapeRenderer: Square,
+  BitmapText: Type,
+  TilemapLayer: Grid3x3,
+  ParticleEmitter: Sparkles,
+  Canvas: LayoutPanelTop,
+  SpineAnimation: PersonStanding,
+  RigidBody: Box,
+};
+
+function componentGlyph(name: string): LucideIcon {
+  const hit = COMPONENT_ICON[name];
+  if (hit) return hit;
+  if (/Collider$/.test(name)) return Hexagon;
+  if (/Joint$/.test(name)) return Link2;
+  if (/Audio|Sound/.test(name)) return Volume2;
+  if (/Light/.test(name)) return Lightbulb;
+  if (/Particle|Emitter|Trail/.test(name)) return Sparkles;
+  if (/Text|Font|Label/.test(name)) return Type;
+  return Component;
+}
+
+export function ComponentIcon({ name, size = 14 }: { name: string; size?: number }) {
+  const Glyph = componentGlyph(name);
+  return <Glyph size={size} strokeWidth={1.75} />;
 }

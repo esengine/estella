@@ -1,5 +1,6 @@
 import {
   getAllRegisteredComponents,
+  getUserComponents,
   getComponent,
   Sprite,
   Camera,
@@ -73,6 +74,70 @@ export function inspectableComponents(
     return (ai === -1 ? ORDER.length : ai) - (bi === -1 ? ORDER.length : bi);
   });
   return out;
+}
+
+// Add-Component picker categories, in display order (UE5 groups the picker by
+// category). Editor-side presentation policy — the engine has no category metadata
+// today, so builtins are mapped/heuristic'd here; user/script components are
+// authoritatively bucketed under "Scripts" via the engine's getUserComponents().
+export const CATEGORY_ORDER = [
+  'Common',
+  'Rendering',
+  'Physics',
+  'Animation',
+  'UI',
+  'Audio',
+  'Effects',
+  'Scripts',
+  'Other',
+] as const;
+
+const COMPONENT_CATEGORY: Record<string, string> = {
+  Camera: 'Common',
+  Sprite: 'Rendering',
+  ShapeRenderer: 'Rendering',
+  BitmapText: 'Rendering',
+  TilemapLayer: 'Rendering',
+  Canvas: 'UI',
+  SpineAnimation: 'Animation',
+  ParticleEmitter: 'Effects',
+  RigidBody: 'Physics',
+};
+
+/**
+ * Classify a component into an Add-Component picker category. `isUser` (an
+ * engine-authoritative flag from getUserComponents) wins first — project/script
+ * components always land under "Scripts", never a name-heuristic bucket. Builtins
+ * use the explicit map, then name heuristics, then "Other".
+ */
+export function componentCategory(name: string, isUser = false): string {
+  if (isUser) return 'Scripts';
+  const hit = COMPONENT_CATEGORY[name];
+  if (hit) return hit;
+  if (/Collider$|Joint$|^RigidBody/.test(name)) return 'Physics';
+  if (/Audio|Sound/.test(name)) return 'Audio';
+  if (/Particle|Emitter|Trail|PostProcess/.test(name)) return 'Effects';
+  if (/Canvas|Widget|Layout|Button|Label/.test(name)) return 'UI';
+  if (/Sprite|Render|Mesh|Tilemap|Light|Font|Text(?!ure)/.test(name)) return 'Rendering';
+  if (/Anim|Tween|Spine/.test(name)) return 'Animation';
+  return 'Other';
+}
+
+/**
+ * The Add-Component candidates as picker entries (name + label + category),
+ * resolving user-vs-builtin once via the engine registry. One place owns the
+ * category assignment so the panel stays presentation-only.
+ */
+export function addableComponentEntries(
+  world: ReadonlyWorldT,
+  entity: EntityId,
+): Array<{ name: string; label: string; category: string }> {
+  const userNames = new Set(getUserComponents().keys());
+  return addableComponents(world, entity).map((c) => ({
+    name: c.name,
+    label: c.label,
+    category: componentCategory(c.name, userNames.has(c.name)),
+  }));
 }
 
 /** Registered components NOT yet on an entity — the "Add Component" candidates. */

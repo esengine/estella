@@ -16,7 +16,7 @@
 
   /* Tab strip */
   --dv-tabs-and-actions-container-background-color: var(--elevated);
-  --dv-tabs-and-actions-container-height: 34px;
+  --dv-tabs-and-actions-container-height: 28px;
   --dv-tabs-and-actions-container-font-size: var(--fs-sm);
   --dv-tab-divider-color: transparent;
 
@@ -48,9 +48,10 @@
   --dv-tabs-container-scrollbar-color: var(--line-strong);
 }
 
-/* The focused group gets a thin starlight top-edge — the one "glow" accent. */
+/* The focused group gets a subtle neutral top-edge; the active TAB carries the
+   one starlight accent (its underline), so blue stays reserved for selection. */
 .dockview-theme-estella .dv-groupview.dv-active-group > .dv-tabs-and-actions-container {
-  box-shadow: inset 0 2px 0 -1px var(--star);
+  box-shadow: inset 0 1px 0 0 var(--line-strong);
 }
 
 /* Tabs: hairline-separated, instrument-like, with a starlight underline when active. */

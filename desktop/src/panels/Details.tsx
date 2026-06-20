@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Box, ChevronDown, MoreHorizontal, Plus, Search } from 'lucide-react';
-import { useEditorStore } from '@/store/editorStore';
+import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery } from '@/engine/SceneQuery';
 import { SceneCommands } from '@/engine/SceneCommands';
-import { addableComponents } from '@/engine/schema';
-import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { addableComponentEntries } from '@/engine/schema';
+import { ContextMenu } from '@/components/Menu';
+import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, EntityId } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
@@ -293,7 +294,7 @@ function ComponentSection({
 export function Details() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const revision = useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
-  const selectedId = useEditorStore((s) => s.selectedId);
+  const selectedId = useSelection((s) => s.selectedId);
   const ready = engine.status === 'ready' && selectedId != null;
 
   const [query, setQuery] = useState('');
@@ -345,15 +346,6 @@ export function Details() {
   }
 
   const world = EngineHost.world;
-  const addItems: MenuItem[] =
-    addMenu && world
-      ? (() => {
-          const list = addableComponents(world, selectedId);
-          return list.length
-            ? list.map((c) => ({ label: c.label, onClick: () => SceneCommands.addComponent(selectedId, c.name) }))
-            : [{ label: 'All components added', onClick: () => {}, disabled: true }];
-        })()
-      : [];
 
   return (
     <div className="panel">
@@ -368,15 +360,30 @@ export function Details() {
         <span className="inspector-head__id mono">#{selectedId}</span>
       </div>
 
-      <div className="inspector-search">
-        <Search size={13} strokeWidth={1.9} />
-        <input
-          className="inspector-search__input"
-          placeholder="Search components"
-          value={query}
-          spellCheck={false}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <div className="inspector-bar">
+        <button
+          type="button"
+          className="add-component"
+          title="Add Component"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setAddMenu({ x: r.left, y: r.bottom + 4 });
+          }}
+        >
+          <Plus size={14} strokeWidth={2.4} />
+          Add
+          <ChevronDown size={12} strokeWidth={2.4} className="add-component__caret" />
+        </button>
+        <div className="inspector-search">
+          <Search size={13} strokeWidth={1.9} />
+          <input
+            className="inspector-search__input"
+            placeholder="Search"
+            value={query}
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="panel__body">
@@ -393,17 +400,6 @@ export function Details() {
         {query && visible.length === 0 && (
           <p className="inspector-note">No components match “{query}”.</p>
         )}
-
-        <button
-          type="button"
-          className="add-component"
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            setAddMenu({ x: r.left, y: r.bottom + 2 });
-          }}
-        >
-          <Plus size={15} strokeWidth={2} /> Add Component
-        </button>
       </div>
 
       {compMenu && (
@@ -416,7 +412,15 @@ export function Details() {
           onClose={() => setCompMenu(null)}
         />
       )}
-      {addMenu && <ContextMenu x={addMenu.x} y={addMenu.y} items={addItems} onClose={() => setAddMenu(null)} />}
+      {addMenu && world && (
+        <AddComponentMenu
+          x={addMenu.x}
+          y={addMenu.y}
+          entries={addableComponentEntries(world, selectedId)}
+          onAdd={(name) => SceneCommands.addComponent(selectedId, name)}
+          onClose={() => setAddMenu(null)}
+        />
+      )}
     </div>
   );
 }

@@ -92,7 +92,7 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  height: 26px;
+  height: 24px;
   padding: 0 8px 0 4px;
   border-radius: var(--r-xs);
   font-size: var(--fs-sm);
@@ -180,8 +180,8 @@
 .tbtn {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--r-sm);
   color: var(--text-dim);
   transition: background 0.12s, color 0.12s;
@@ -395,7 +395,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 24px;
+  height: 22px;
   padding-right: 6px;
   border-radius: var(--r-sm);
   color: var(--text);
@@ -569,7 +569,7 @@
   white-space: nowrap;
   font-size: var(--fs-2xs);
   color: var(--star-hi);
-  background: rgba(8, 11, 18, 0.7);
+  background: rgba(var(--glass-rgb), 0.7);
   padding: 2px 6px;
   border-radius: var(--r-xs);
   border: 1px solid var(--star-line);
@@ -598,7 +598,7 @@
   left: 12px;
   font-size: var(--fs-xs);
   color: var(--text-dim);
-  background: rgba(14, 15, 18, 0.62);
+  background: rgba(var(--glass-rgb), 0.62);
   padding: 3px 8px;
   border-radius: var(--r-sm);
   border: 1px solid var(--line);
@@ -614,7 +614,7 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
-  background: rgba(14, 15, 18, 0.72);
+  background: rgba(var(--glass-rgb), 0.72);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   backdrop-filter: blur(6px);
@@ -651,7 +651,7 @@
   padding: 0 10px;
   font-size: var(--fs-xs);
   color: var(--text);
-  background: rgba(19, 24, 38, 0.72);
+  background: rgba(var(--glass-rgb), 0.72);
   backdrop-filter: blur(8px);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -675,7 +675,7 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--run);
-  background: rgba(8, 11, 18, 0.8);
+  background: rgba(var(--glass-rgb), 0.8);
   border: 1px solid rgba(76, 174, 135, 0.5);
   padding: 4px 12px;
   border-radius: 999px;
@@ -698,7 +698,7 @@
   padding: 14px 18px;
   font-size: var(--fs-sm);
   color: var(--text);
-  background: rgba(13, 17, 27, 0.82);
+  background: rgba(var(--glass-rgb), 0.82);
   backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -761,16 +761,31 @@
   color: var(--text-faint);
 }
 
+/* Top inspector toolbar: UE5-style compact "+ Add" button + inline search field. */
+.inspector-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
 /* Inspector field/component search (UE5 Details filter). */
 .inspector-search {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  border-bottom: 1px solid var(--line-soft);
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   color: var(--text-faint);
-  flex-shrink: 0;
+}
+.inspector-search:focus-within {
+  border-color: var(--star-line);
 }
 .inspector-search__input {
   flex: 1;
@@ -792,7 +807,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 32px;
+  height: 28px;
   padding: 0 10px;
   background: var(--elevated);
   cursor: pointer;
@@ -1112,21 +1127,109 @@
 }
 
 .add-component {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: 12px 10px;
-  height: 30px;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 9px 0 8px;
   font-size: var(--fs-sm);
-  font-weight: 500;
-  color: var(--star-hi);
-  background: var(--star-dim);
-  border: 1px solid var(--star-line);
+  font-weight: 600;
+  white-space: nowrap;
+  color: #f3f6f4;
+  background: var(--create);
+  border: 1px solid var(--create);
   border-radius: var(--r-sm);
 }
 .add-component:hover {
-  background: rgba(76, 143, 214, 0.22);
+  background: var(--create-hi);
+  border-color: var(--create-hi);
+  color: #fff;
+}
+.add-component__caret {
+  opacity: 0.75;
+}
+
+/* UE5-style Add Component picker: search + category groups + icons, keyboard-nav. */
+.addcomp {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.addcomp__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.addcomp__input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-hi);
+  font-size: var(--fs-sm);
+}
+.addcomp__input::placeholder {
+  color: var(--text-faint);
+}
+.addcomp__list {
+  overflow-y: auto;
+  padding: 4px;
+}
+.addcomp__cat {
+  padding: 7px 8px 3px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.addcomp__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  color: var(--text);
+  text-align: left;
+}
+.addcomp__item.is-active {
+  background: var(--star-dim);
+  color: var(--text-hi);
+}
+.addcomp__icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+.addcomp__item.is-active .addcomp__icon {
+  color: var(--star-hi);
+}
+.addcomp__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+.addcomp__empty {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
 }
 
 .inspector-note {

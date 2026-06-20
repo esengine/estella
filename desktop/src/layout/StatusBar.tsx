@@ -1,13 +1,14 @@
 import { useSyncExternalStore } from 'react';
 import { Circle, Gauge, MousePointer2, Boxes } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { useSelection } from '@/store/selectionStore';
 import { StatsStore } from '@/engine/StatsStore';
 
 // Bottom status strip — live engine telemetry (real FPS / entity count / cursor
 // world position) reads in the mono face.
 export function StatusBar() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
-  const selectedId = useEditorStore((s) => s.selectedId);
+  const selectedIds = useSelection((s) => s.selectedIds);
   const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
 
   return (
@@ -18,7 +19,7 @@ export function StatusBar() {
           {isPlaying ? 'Running' : 'Edit Mode'}
         </span>
         <span className="statusbar__item">
-          {selectedId != null ? '1 selected' : 'No selection'}
+          {selectedIds.size ? `${selectedIds.size} selected` : 'No selection'}
         </span>
       </div>
 

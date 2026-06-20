@@ -326,7 +326,7 @@
   right: 8px;
   padding: 2px 6px;
   border-radius: var(--r-xs);
-  background: rgba(8, 11, 18, 0.66);
+  background: rgba(var(--glass-rgb), 0.66);
   border: 1px solid var(--line);
   font-size: var(--fs-2xs);
   color: var(--text-dim);

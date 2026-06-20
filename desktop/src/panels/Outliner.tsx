@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronRight, Eye, EyeOff, Lock, Search, Plus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery } from '@/engine/SceneQuery';
@@ -26,8 +27,8 @@ interface RowProps {
 
 function Row(props: RowProps) {
   const { node, depth, forceExpand, renaming, dropId } = props;
-  const selectedIds = useEditorStore((s) => s.selectedIds);
-  const selectedId = useEditorStore((s) => s.selectedId);
+  const selectedIds = useSelection((s) => s.selectedIds);
+  const selectedId = useSelection((s) => s.selectedId);
   const expanded = useEditorStore((s) => s.expanded);
   const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
 
@@ -177,15 +178,15 @@ export function Outliner() {
       });
     walk(tree);
     useEditorStore.getState().setExpanded(parents);
-    if (useEditorStore.getState().selectedId == null) {
-      useEditorStore.getState().select(tree[0].id);
+    if (useSelection.getState().selectedId == null) {
+      useSelection.getState().select(tree[0].id);
     }
   }, [tree]);
 
-  const select = (id: EntityId | null) => useEditorStore.getState().select(id);
+  const select = (id: EntityId | null) => useSelection.getState().select(id);
 
   const onRowClick = (id: EntityId, e: React.MouseEvent) => {
-    const store = useEditorStore.getState();
+    const store = useSelection.getState();
     if (e.metaKey || e.ctrlKey) {
       store.toggleSelect(id);
     } else if (e.shiftKey && store.selectedId != null) {
@@ -204,7 +205,7 @@ export function Outliner() {
     e.preventDefault();
     // Right-clicking outside the current selection selects just that entity;
     // right-clicking within it keeps the multi-selection (UE5 behaviour).
-    if (!useEditorStore.getState().selectedIds.has(id)) select(id);
+    if (!useSelection.getState().selectedIds.has(id)) select(id);
     setCtx({ x: e.clientX, y: e.clientY, id });
   };
   const commitRename = (id: EntityId, name: string) => {
@@ -217,7 +218,7 @@ export function Outliner() {
     if (id != null) select(id);
   };
   const selectionOrTarget = (id: EntityId): EntityId[] => {
-    const ids = useEditorStore.getState().selectedIds;
+    const ids = useSelection.getState().selectedIds;
     return ids.has(id) ? [...ids] : [id];
   };
 

@@ -1,3 +1,4 @@
+import { createStore } from 'zustand/vanilla';
 import {
   createWebApp,
   defineSystem,
@@ -6,6 +7,7 @@ import {
   Transform,
   Sprite,
   Camera,
+  EditorView,
   setEditorMode,
   setPlayMode,
   serializeScene,
@@ -45,8 +47,7 @@ class EngineHostImpl {
   private booted = false;
   private resizeObserver: ResizeObserver | null = null;
 
-  private snapshot: EngineSnapshot = { status: 'idle', error: null };
-  private readonly listeners = new Set<() => void>();
+  private readonly statusStore = createStore<EngineSnapshot>(() => ({ status: 'idle', error: null }));
 
   // Play-state isolation: the scene captured when entering play, restored on stop.
   private playing_ = false;
@@ -88,16 +89,12 @@ class EngineHostImpl {
   }
 
   // — Status as an external store (for useSyncExternalStore) —
-  subscribe = (fn: () => void): (() => void) => {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  };
-  getSnapshot = (): EngineSnapshot => this.snapshot;
+  subscribe = (fn: () => void): (() => void) => this.statusStore.subscribe(fn);
+  getSnapshot = (): EngineSnapshot => this.statusStore.getState();
 
   private setStatus(status: EngineStatus, error: string | null = null) {
-    this.snapshot = { status, error };
+    this.statusStore.setState({ status, error });
     window.estella?.reportEngineStatus?.(error ? `${status}: ${error}` : status);
-    this.listeners.forEach((l) => l());
   }
 
   private ensureCanvas(): HTMLCanvasElement {
@@ -157,9 +154,52 @@ class EngineHostImpl {
     }
     this.playing_ = isPlaying;
 
+    // The editor camera shows in edit mode; entering play switches the viewport
+    // to the scene's game camera (the real "Game" view). Toggling `active` keeps
+    // the editor view's pan/zoom intact across play→stop.
+    const view = this.getResource(EditorView);
+    if (view) view.active = !isPlaying;
+
     setPlayMode(isPlaying);
     app.setPaused(isPlaying && isPaused);
     return restored;
+  }
+
+  /**
+   * Seed the editor camera from the scene's active camera and activate it for
+   * edit mode. Called after a scene loads; navigation thereafter is independent
+   * of the scene — the editor view never writes back to a scene Camera entity,
+   * so panning/zooming the viewport never dirties or moves the game camera.
+   */
+  syncEditorViewToScene(): void {
+    const view = this.getResource(EditorView);
+    if (!view) return;
+    const cam = this.readSceneCamera();
+    if (cam) {
+      view.x = cam.x;
+      view.y = cam.y;
+      view.orthoSize = cam.orthoSize;
+    }
+    view.active = !this.playing_;
+  }
+
+  /** The active (or first) scene camera's center + ortho half-height, for seeding. */
+  private readSceneCamera(): { x: number; y: number; orthoSize: number } | null {
+    const world = this.world;
+    if (!world) return null;
+    let chosen: number | null = null;
+    for (const e of world.getAllEntities()) {
+      if (!world.has(e, Camera) || !world.has(e, Transform)) continue;
+      if (chosen == null) chosen = e;
+      if ((world.get(e, Camera) as { isActive?: boolean }).isActive) {
+        chosen = e;
+        break;
+      }
+    }
+    if (chosen == null) return null;
+    const t = world.get(chosen, Transform);
+    const c = world.get(chosen, Camera) as { orthoSize?: number };
+    return { x: t.position.x, y: t.position.y, orthoSize: c.orthoSize ?? 360 };
   }
 
   // — Headless / automation drive (see docs/REARCH_EDITOR_AUTOMATION.md) —
@@ -318,6 +358,7 @@ class EngineHostImpl {
         console.warn('[engine] scene load failed; using placeholder', err);
         this.setupScene(app);
       }
+      this.syncEditorViewToScene();
     }
 
     // Report ready before run() (the DOM path) in case the loop never resolves.
@@ -331,7 +372,7 @@ class EngineHostImpl {
   private swallowUnwind(err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     if (err === 'unwind' || msg.includes('unwind')) {
-      if (this.snapshot.status !== 'ready') this.setStatus('ready');
+      if (this.statusStore.getState().status !== 'ready') this.setStatus('ready');
       return;
     }
     console.error('[engine] boot failed', err);

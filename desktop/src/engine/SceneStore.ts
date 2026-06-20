@@ -1,3 +1,4 @@
+import { createStore } from 'zustand/vanilla';
 import { getDefaultContext } from 'esengine';
 import type { EditorBridge } from 'esengine';
 
@@ -14,10 +15,12 @@ import type { EditorBridge } from 'esengine';
  *  - `revision` bumps on any change, incl. component-data edits (inspector values)
  */
 class SceneStoreImpl {
-  private revision = 1;
-  private structureRevision = 1;
   private installed = false;
-  private readonly listeners = new Set<() => void>();
+  private readonly store = createStore<{ revision: number; structureRevision: number }>(() => ({
+    revision: 1,
+    structureRevision: 1,
+  }));
+  private readonly despawnListeners = new Set<(id: number) => void>();
 
   /** Register the bridge on the engine's default context. Idempotent. */
   install() {
@@ -26,7 +29,13 @@ class SceneStoreImpl {
     const bridge: EditorBridge = {
       registerComponent: () => {},
       onEntitySpawned: () => this.bump(true),
-      onEntityDespawned: () => this.bump(true),
+      onEntityDespawned: (e) => {
+        // Carry the dead id so consumers (SelectionStore) can drop references
+        // precisely. Fires BEFORE the entity is fully removed, so re-validating
+        // by world.valid() here would race — dropping by id is exact.
+        this.despawnListeners.forEach((l) => l(e as unknown as number));
+        this.bump(true);
+      },
       onComponentAdded: () => this.bump(true),
       onComponentRemoved: () => this.bump(true),
       onParentChanged: () => this.bump(true),
@@ -35,18 +44,22 @@ class SceneStoreImpl {
     getDefaultContext().editorBridge = bridge;
   }
 
-  private bump(structural: boolean) {
-    this.revision += 1;
-    if (structural) this.structureRevision += 1;
-    for (const l of this.listeners) l();
+  /** Subscribe to entity despawns by id (the self-healing hook for selection). */
+  onEntityDespawn(fn: (id: number) => void): () => void {
+    this.despawnListeners.add(fn);
+    return () => this.despawnListeners.delete(fn);
   }
 
-  subscribe = (fn: () => void): (() => void) => {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  };
-  getRevision = (): number => this.revision;
-  getStructureRevision = (): number => this.structureRevision;
+  private bump(structural: boolean) {
+    this.store.setState((s) => ({
+      revision: s.revision + 1,
+      structureRevision: structural ? s.structureRevision + 1 : s.structureRevision,
+    }));
+  }
+
+  subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
+  getRevision = (): number => this.store.getState().revision;
+  getStructureRevision = (): number => this.store.getState().structureRevision;
 }
 
 export const SceneStore = new SceneStoreImpl();

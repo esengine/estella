@@ -4,6 +4,8 @@
  *          store (same subscribe/getSnapshot shape as EngineHost / ProjectStore)
  *          so any module — React component or plain class — can post a toast.
  */
+import { createStore } from 'zustand/vanilla';
+
 export type ToastKind = 'info' | 'success' | 'warn' | 'error';
 
 export interface Toast {
@@ -13,34 +15,23 @@ export interface Toast {
 }
 
 class ToastsImpl {
-  private list: Toast[] = [];
-  private readonly listeners = new Set<() => void>();
+  private readonly store = createStore<{ list: Toast[] }>(() => ({ list: [] }));
   private seq = 0;
 
-  subscribe = (fn: () => void): (() => void) => {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  };
-  getSnapshot = (): Toast[] => this.list;
+  subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
+  getSnapshot = (): Toast[] => this.store.getState().list;
 
   /** Post a toast; it auto-dismisses after `ttl` ms (0 = sticky until clicked). */
   push(message: string, kind: ToastKind = 'info', ttl = 3200): number {
     const id = ++this.seq;
-    this.list = [...this.list, { id, kind, message }];
-    this.emit();
+    this.store.setState((s) => ({ list: [...s.list, { id, kind, message }] }));
     if (ttl > 0) setTimeout(() => this.dismiss(id), ttl);
     return id;
   }
   dismiss(id: number): void {
-    const next = this.list.filter((t) => t.id !== id);
-    if (next.length !== this.list.length) {
-      this.list = next;
-      this.emit();
-    }
-  }
-
-  private emit() {
-    for (const l of this.listeners) l();
+    const cur = this.store.getState().list;
+    const next = cur.filter((t) => t.id !== id);
+    if (next.length !== cur.length) this.store.setState({ list: next });
   }
 }
 

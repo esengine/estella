@@ -1,3 +1,4 @@
+import { createStore } from 'zustand/vanilla';
 import { resetWorldTo, getComponent, Assets } from 'esengine';
 import type { SceneData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -76,18 +77,14 @@ function mapAssetRefs(value: unknown, resolve: (uuid: string) => number): unknow
 }
 
 class ProjectStoreImpl {
-  private state: ProjectState | null = null;
-  private readonly listeners = new Set<() => void>();
-
-  subscribe = (fn: () => void): (() => void) => {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  };
-  getSnapshot = (): ProjectState | null => this.state;
-
-  private emit() {
-    for (const l of this.listeners) l();
+  private readonly store = createStore<{ project: ProjectState | null }>(() => ({ project: null }));
+  /** Read accessor so existing `this.state` reads stay unchanged after the move. */
+  private get state(): ProjectState | null {
+    return this.store.getState().project;
   }
+
+  subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
+  getSnapshot = (): ProjectState | null => this.store.getState().project;
 
   /** Show the OS folder picker and open the chosen project. */
   async openViaDialog(): Promise<boolean> {
@@ -132,15 +129,16 @@ class ProjectStoreImpl {
   }
 
   private adopt(opened: OpenedProject) {
-    this.state = {
-      root: opened.root,
-      name: opened.manifest.name,
-      layout: resolveLayout(opened.manifest),
-      workspace: opened.workspace,
-      defaultScene: opened.manifest.defaultScene,
-      currentScene: null,
-    };
-    this.emit();
+    this.store.setState({
+      project: {
+        root: opened.root,
+        name: opened.manifest.name,
+        layout: resolveLayout(opened.manifest),
+        workspace: opened.workspace,
+        defaultScene: opened.manifest.defaultScene,
+        currentScene: null,
+      },
+    });
   }
 
   /** Read + parse a project-relative `.esscene` (raw — refs unresolved). */
@@ -173,8 +171,8 @@ class ProjectStoreImpl {
       const entityMap = resetWorldTo(world, data);
       SceneModel.adopt(raw, entityMap);
     }
-    this.state = { ...st, currentScene: rel };
-    this.emit();
+    EngineHost.syncEditorViewToScene();
+    this.store.setState({ project: { ...st, currentScene: rel } });
   }
 
   /**
@@ -247,8 +245,7 @@ class ProjectStoreImpl {
     const st = this.state;
     if (!st) return;
     const workspace: WorkspaceState = { ...st.workspace, lastOpenedScene: relPath };
-    this.state = { ...st, workspace, currentScene: relPath };
-    this.emit();
+    this.store.setState({ project: { ...st, workspace, currentScene: relPath } });
     await window.estella.workspace.save(workspace);
   }
 

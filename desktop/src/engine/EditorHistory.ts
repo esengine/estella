@@ -1,3 +1,4 @@
+import { createStore } from 'zustand/vanilla';
 import { TransactionManager } from 'esengine';
 
 /**
@@ -10,8 +11,7 @@ import { TransactionManager } from 'esengine';
  */
 class EditorHistoryImpl {
   private readonly tm = new TransactionManager({ historyLimit: 200 });
-  private version = 0;
-  private readonly listeners = new Set<() => void>();
+  private readonly store = createStore<{ version: number }>(() => ({ version: 0 }));
 
   /** Register an already-applied mutation as one undo step (forward NOT run). */
   record(label: string, forward: () => void, reverse: () => void) {
@@ -53,14 +53,10 @@ class EditorHistoryImpl {
   }
 
   private bump() {
-    this.version += 1;
-    for (const l of this.listeners) l();
+    this.store.setState((s) => ({ version: s.version + 1 }));
   }
-  subscribe = (fn: () => void): (() => void) => {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  };
-  getVersion = (): number => this.version;
+  subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
+  getVersion = (): number => this.store.getState().version;
 }
 
 export const EditorHistory = new EditorHistoryImpl();

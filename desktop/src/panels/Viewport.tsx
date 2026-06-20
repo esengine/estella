@@ -5,6 +5,8 @@ import {
   Loader2, TriangleAlert, type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { useSelection } from '@/store/selectionStore';
+import { commands } from '@/commands';
 import { EngineHost } from '@/engine/EngineHost';
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands } from '@/engine/SceneCommands';
@@ -68,6 +70,13 @@ const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] 
   { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' },
 ];
 
+// Grid/angle/scale increments applied while the Snapping toggle is on. Fixed for
+// now — a future Preferences panel will make these user-configurable.
+const SNAP_MOVE = 10; // world units per grid step
+const SNAP_ROTATE = 15; // degrees
+const SNAP_SCALE = 0.1; // uniform scale step
+const snap = (v: number, step: number) => Math.round(v / step) * step;
+
 // Entity's screen-center in viewport (client) coordinates.
 function entityClientCenter(id: number): { cx: number; cy: number } | null {
   const pos = ViewportController.getEntityXY(id);
@@ -90,13 +99,9 @@ function VBtn({ icon: Icon, label, active, onClick }: { icon: LucideIcon; label:
 export function Viewport() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const tool = useEditorStore((s) => s.tool);
-  const setTool = useEditorStore((s) => s.setTool);
   const showGrid = useEditorStore((s) => s.showGrid);
   const showGizmos = useEditorStore((s) => s.showGizmos);
   const snapping = useEditorStore((s) => s.snapping);
-  const toggleGrid = useEditorStore((s) => s.toggleGrid);
-  const toggleGizmos = useEditorStore((s) => s.toggleGizmos);
-  const toggleSnapping = useEditorStore((s) => s.toggleSnapping);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
@@ -128,20 +133,6 @@ export function Viewport() {
     return () => stage.removeEventListener('wheel', onWheel);
   }, []);
 
-  // F = frame the selected entity (skip while typing).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-      if (e.key === 'f' || e.key === 'F') {
-        const id = useEditorStore.getState().selectedId;
-        if (id != null) ViewportController.frameEntity(id);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
   // Glue the gizmo + selection outline to the selected entity, every frame.
   useEffect(() => {
     let raf = 0;
@@ -150,7 +141,7 @@ export function Viewport() {
       const g = gizmoRef.current;
       const sel = selectionRef.current;
       if (!g || !sel) return;
-      const id = useEditorStore.getState().selectedId;
+      const id = useSelection.getState().selectedId;
       const ready = EngineHost.getSnapshot().status === 'ready';
       const showG = useEditorStore.getState().showGizmos;
 
@@ -190,7 +181,7 @@ export function Viewport() {
     if (e.button !== 0) return;
 
     const id = ViewportController.pickEntity(e.clientX, e.clientY);
-    useEditorStore.getState().select(id);
+    useSelection.getState().select(id);
     if (id == null) return;
 
     if (tool === 'rotate') {
@@ -230,22 +221,33 @@ export function Viewport() {
     if (wp) StatsStore.setCursor(wp.x, wp.y);
     const drag = dragRef.current;
     if (!drag) return;
+    const snapOn = useEditorStore.getState().snapping;
 
     if (drag.kind === 'pan') {
       ViewportController.panByClient(drag.px, drag.py, e.clientX, e.clientY);
       drag.px = e.clientX;
       drag.py = e.clientY;
     } else if (drag.kind === 'move') {
-      if (wp) SceneCommands.setEntityXY(drag.id, wp.x + drag.dx, wp.y + drag.dy);
+      if (wp) {
+        let x = wp.x + drag.dx;
+        let y = wp.y + drag.dy;
+        if (snapOn) { x = snap(x, SNAP_MOVE); y = snap(y, SNAP_MOVE); }
+        SceneCommands.setEntityXY(drag.id, x, y);
+      }
     } else if (drag.kind === 'rotate') {
       const angle = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
       const deltaDeg = ((angle - drag.startAngle) * 180) / Math.PI;
       // Screen y is down, so a clockwise screen drag is a negative world rotation.
-      SceneCommands.setField(drag.id, 'Transform', 'rotation', 'angle', drag.startRot - deltaDeg);
+      let rot = drag.startRot - deltaDeg;
+      if (snapOn) rot = snap(rot, SNAP_ROTATE);
+      SceneCommands.setField(drag.id, 'Transform', 'rotation', 'angle', rot);
     } else if (drag.kind === 'scale') {
       const dist = Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy);
       const f = dist / drag.startDist;
-      SceneCommands.setField(drag.id, 'Transform', 'scale', 'vec3', [drag.sx * f, drag.sy * f, drag.sz]);
+      let sx = drag.sx * f;
+      let sy = drag.sy * f;
+      if (snapOn) { sx = snap(sx, SNAP_SCALE); sy = snap(sy, SNAP_SCALE); }
+      SceneCommands.setField(drag.id, 'Transform', 'scale', 'vec3', [sx, sy, drag.sz]);
     }
   };
 
@@ -262,21 +264,14 @@ export function Viewport() {
     <div className="viewport">
       <div className="viewport__toolbar">
         {TOOLS.map((t) => (
-          <VBtn key={t.mode} icon={t.icon} label={`${t.label}  (${t.key})`} active={tool === t.mode} onClick={() => setTool(t.mode)} />
+          <VBtn key={t.mode} icon={t.icon} label={`${t.label}  (${t.key})`} active={tool === t.mode} onClick={() => commands.run(`tool.${t.mode}`)} />
         ))}
         <span className="viewport__toolbar-div" />
-        <VBtn icon={Grid3x3} label="Show Grid" active={showGrid} onClick={toggleGrid} />
-        <VBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={toggleGizmos} />
-        <VBtn icon={Magnet} label="Snapping" active={snapping} onClick={toggleSnapping} />
+        <VBtn icon={Grid3x3} label="Show Grid" active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
+        <VBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
+        <VBtn icon={Magnet} label="Snapping" active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
         <span className="viewport__toolbar-div" />
-        <VBtn
-          icon={Frame}
-          label="Frame Selected  (F)"
-          onClick={() => {
-            const id = useEditorStore.getState().selectedId;
-            if (id != null) ViewportController.frameEntity(id);
-          }}
-        />
+        <VBtn icon={Frame} label="Frame Selected  (F)" onClick={() => commands.run('view.frameSelected')} />
       </div>
 
       {/* The engine canvas mounts here; pointer events drive pick + transform + pan. */}

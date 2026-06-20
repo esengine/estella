@@ -1,3 +1,4 @@
+import { createStore } from 'zustand/vanilla';
 import { EngineHost } from './EngineHost';
 
 export interface StatsSnapshot {
@@ -10,8 +11,7 @@ export interface StatsSnapshot {
 // entity count, and the viewport cursor's world position. Updated a few times
 // a second (not per frame) to avoid churning the status bar.
 class StatsStoreImpl {
-  private snapshot: StatsSnapshot = { fps: 0, entities: 0, cursor: null };
-  private readonly listeners = new Set<() => void>();
+  private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, cursor: null }));
 
   private running = false;
   private frames = 0;
@@ -32,8 +32,9 @@ class StatsStoreImpl {
         const entities = EngineHost.world?.getAllEntities().length ?? 0;
         this.frames = 0;
         this.windowStart = t;
-        if (fps !== this.snapshot.fps || entities !== this.snapshot.entities) {
-          this.emit({ ...this.snapshot, fps, entities });
+        const cur = this.store.getState();
+        if (fps !== cur.fps || entities !== cur.entities) {
+          this.store.setState({ fps, entities });
         }
       }
     };
@@ -44,25 +45,17 @@ class StatsStoreImpl {
   setCursor(x: number, y: number) {
     const cx = Math.round(x);
     const cy = Math.round(y);
-    const cur = this.snapshot.cursor;
+    const cur = this.store.getState().cursor;
     if (cur && cur.x === cx && cur.y === cy) return;
-    this.emit({ ...this.snapshot, cursor: { x: cx, y: cy } });
+    this.store.setState({ cursor: { x: cx, y: cy } });
   }
 
   clearCursor() {
-    if (this.snapshot.cursor) this.emit({ ...this.snapshot, cursor: null });
+    if (this.store.getState().cursor) this.store.setState({ cursor: null });
   }
 
-  private emit(next: StatsSnapshot) {
-    this.snapshot = next;
-    for (const l of this.listeners) l();
-  }
-
-  subscribe = (fn: () => void): (() => void) => {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  };
-  getSnapshot = (): StatsSnapshot => this.snapshot;
+  subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
+  getSnapshot = (): StatsSnapshot => this.store.getState();
 }
 
 export const StatsStore = new StatsStoreImpl();

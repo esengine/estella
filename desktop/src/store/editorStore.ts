@@ -1,22 +1,12 @@
 import { create } from 'zustand';
 import type { EntityId, ToolMode } from '@/types';
 
-// Global editor state. Intentionally small for the static shell — it grows as
-// real selection/scene/asset operations are wired to the engine bridge.
+// Global editor UI state (tools, viewport toggles, play state, launcher gate).
+// Entity selection lives in its own engine-anchored store — see selectionStore.ts.
 interface EditorState {
   // Active manipulation tool (select / move / rotate / scale).
   tool: ToolMode;
   setTool: (tool: ToolMode) => void;
-
-  // Selection. `selectedId` is the PRIMARY/active entity (drives the Details
-  // panel + viewport gizmo); `selectedIds` is the full multi-selection set.
-  selectedId: EntityId | null;
-  selectedIds: Set<EntityId>;
-  select: (id: EntityId | null) => void;
-  /** Ctrl/Cmd-click: add/remove one entity from the selection. */
-  toggleSelect: (id: EntityId) => void;
-  /** Shift-click / box: replace the selection with a set, with a primary. */
-  selectMany: (ids: EntityId[], primary: EntityId) => void;
 
   // Expanded nodes in the outliner tree.
   expanded: Set<EntityId>;
@@ -48,23 +38,6 @@ interface EditorState {
 export const useEditorStore = create<EditorState>((set) => ({
   tool: 'move',
   setTool: (tool) => set({ tool }),
-
-  selectedId: null,
-  selectedIds: new Set<EntityId>(),
-  select: (selectedId) =>
-    set({ selectedId, selectedIds: selectedId != null ? new Set([selectedId]) : new Set() }),
-  toggleSelect: (id) =>
-    set((s) => {
-      const next = new Set(s.selectedIds);
-      if (next.has(id)) {
-        next.delete(id);
-        const primary = s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
-        return { selectedIds: next, selectedId: primary };
-      }
-      next.add(id);
-      return { selectedIds: next, selectedId: id };
-    }),
-  selectMany: (ids, primary) => set({ selectedIds: new Set(ids), selectedId: primary }),
 
   expanded: new Set<EntityId>(),
   toggleExpanded: (id) =>
