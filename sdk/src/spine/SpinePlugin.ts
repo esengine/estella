@@ -42,6 +42,7 @@ export class SpinePlugin implements Plugin {
     private spineManager_: SpineManager | null;
     private provider_: SpineWasmProvider | null;
     private app_: App | null = null;
+    private despawnUnsub_: (() => void) | null = null;
 
     constructor(managerOrProvider?: SpineManager | SpineWasmProvider) {
         if (managerOrProvider instanceof SpineManager) {
@@ -80,7 +81,7 @@ export class SpinePlugin implements Plugin {
 
         app.insertResource(SpineEvents, { events: [] });
 
-        app.world.onDespawn((entity: Entity) => {
+        this.despawnUnsub_ = app.world.onDespawn((entity: Entity) => {
             this.spineManager_?.removeEntity(entity);
         });
 
@@ -127,6 +128,18 @@ export class SpinePlugin implements Plugin {
                 manager.submitMeshes(registry._cpp);
             });
         }
+    }
+
+    /**
+     * Drop the world.onDespawn subscription and dispose the spine manager's
+     * native backends. Without this, a re-init left a stale despawn listener
+     * pointing at a dead manager and leaked the wasm-side spine resources.
+     */
+    cleanup(): void {
+        this.despawnUnsub_?.();
+        this.despawnUnsub_ = null;
+        this.spineManager_?.dispose();
+        this.app_ = null;
     }
 
     private collectAndPublishEvents_(app: App): void {

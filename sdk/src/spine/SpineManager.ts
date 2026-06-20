@@ -110,6 +110,21 @@ export class SpineManager {
         this.entityVersions_.delete(entity);
     }
 
+    /**
+     * Tear down every loaded runtime backend, freeing the native skeletons /
+     * atlases each holds. Idempotent — clearing the maps makes a second call a
+     * no-op. Called from SpinePlugin.cleanup() on app teardown so spine wasm
+     * resources don't leak across an engine re-init.
+     */
+    dispose(): void {
+        for (const backend of this.backends_.values()) {
+            backend.shutdown();
+        }
+        this.backends_.clear();
+        this.loadingBackends_.clear();
+        this.entityVersions_.clear();
+    }
+
     getEntityVersion(entity: Entity): SpineVersion | undefined {
         return this.entityVersions_.get(entity);
     }

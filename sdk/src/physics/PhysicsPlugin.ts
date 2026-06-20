@@ -70,6 +70,7 @@ export class PhysicsPlugin implements Plugin {
     private wasmUrl_: string;
     private factory_?: PhysicsModuleFactory;
     private bridge_ = new PhysicsBridge();
+    private module_: PhysicsWasmModule | null = null;
 
     constructor(wasmUrl: string, config: PhysicsPluginConfig = {}, factory?: PhysicsModuleFactory) {
         this.wasmUrl_ = wasmUrl;
@@ -96,6 +97,7 @@ export class PhysicsPlugin implements Plugin {
                 // abort safety without changing a single call.
                 this.bridge_.connect(loaded);
                 const module = this.bridge_.module;
+                this.module_ = module;
 
                 module._physics_init(
                     this.config_.gravity.x,
@@ -120,5 +122,16 @@ export class PhysicsPlugin implements Plugin {
             handleWasmError(e, 'PhysicsPlugin.init');
         });
         app.getResource(PhysicsRuntime).initPromise = initPromise;
+    }
+
+    /**
+     * Shut the native Box2D world down on app teardown. Without this,
+     * `_physics_shutdown` was dead code and the C++ physics world (bodies,
+     * joints, contact state) leaked across an engine re-init. The bridge-guarded
+     * module makes the call abort-safe; null after so a double cleanup is a no-op.
+     */
+    cleanup(): void {
+        this.module_?._physics_shutdown();
+        this.module_ = null;
     }
 }
