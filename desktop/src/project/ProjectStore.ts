@@ -1,6 +1,7 @@
 import { resetWorldTo, serializeScene, getComponent, getComponentAssetFields, Assets } from 'esengine';
 import type { SceneData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
+import { SceneModel } from '@/engine/SceneModel';
 import { resolveLayout, type OpenedProject, type ProjectLayout, type WorkspaceState } from './format';
 
 /**
@@ -173,7 +174,14 @@ class ProjectStoreImpl {
     }
     const data = await this.resolveTextures(raw);
     const world = EngineHost.mutableWorld();
-    if (world) resetWorldTo(world, data);
+    if (world) {
+      // resetWorldTo returns source-id → runtime entity. Adopt the raw scene
+      // (with @uuid: refs + any components/fields/invisible entities the World
+      // drops) as the editor's source of truth (REARCH_SERIALIZATION.md L1).
+      // The World is a lossy projection; the model is what L4 will save.
+      const entityMap = resetWorldTo(world, data);
+      SceneModel.adopt(raw, entityMap);
+    }
     this.state = { ...st, currentScene: rel, lossy: dropped.length > 0 };
     this.emit();
   }
