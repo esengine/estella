@@ -1,45 +1,48 @@
 /* =============================================================================
    Estella Editor — design tokens
-   Identity: a precise stellar instrument. Deep ink-navy surfaces (cool, not
-   neutral gray), hairline structure, one luminous "starlight" accent, and a
-   monospace face reserved for live data so numbers read like an instrument.
+   Identity: a precise, professional instrument. Near-neutral dark surfaces with
+   only a faint cool cast (not saturated navy), flat hairline structure (no
+   glows), one restrained blue accent, and a monospace face reserved for live
+   data so numbers read like an instrument. Tuned toward DCC-tool neutrality
+   (UE5 / Blender / VS Code) over decorative game-UI styling.
    ========================================================================== */
 
 :root {
-  /* — Surfaces: ink-navy ramp, coolest at the bottom (the viewport void) — */
-  --void: #080b12; /* viewport / deepest stage */
-  --base: #0e121b; /* app background behind panels */
-  --panel: #131826; /* panel body */
-  --elevated: #19202f; /* toolbars, tab strips, headers */
-  --raised: #20283a; /* popovers, dropdowns */
-  --input: #1b2336; /* fields, wells */
-  --hover: rgba(122, 162, 247, 0.08);
-  --pressed: rgba(122, 162, 247, 0.14);
+  /* — Surfaces: near-neutral dark ramp, a hair of cool cast, darkest at the
+       viewport void. Inputs sit DARKER than their panel (UE5-style wells). — */
+  --void: #0e0f12; /* viewport / deepest stage */
+  --base: #17181b; /* app background behind panels */
+  --panel: #1d1f23; /* panel body */
+  --elevated: #25272c; /* toolbars, tab strips, headers */
+  --raised: #2c2f35; /* popovers, dropdowns */
+  --input: #15161a; /* fields, wells (darker than panel) */
+  --hover: rgba(255, 255, 255, 0.05);
+  --pressed: rgba(255, 255, 255, 0.08);
 
-  /* — Structure: hairlines do the visual work, not boxes — */
-  --line: #222b3d;
-  --line-soft: #1a2130;
-  --line-strong: #2f3a52;
+  /* — Structure: neutral hairlines do the visual work, not boxes — */
+  --line: #2b2e34;
+  --line-soft: #232529;
+  --line-strong: #3a3e46;
 
-  /* — Text — */
-  --text-hi: #eef2fb;
-  --text: #c4cde0;
-  --text-dim: #828ea6;
-  --text-faint: #56627c;
+  /* — Text: neutral contrast ramp (blue cast removed) — */
+  --text-hi: #ecedf0;
+  --text: #c3c6cc;
+  --text-dim: #888c94;
+  --text-faint: #5b5f68;
 
-  /* — Starlight accent (the single signature color) — */
-  --star: #4d9dff;
-  --star-hi: #74b3ff;
-  --star-dim: rgba(77, 157, 255, 0.16);
-  --star-line: rgba(77, 157, 255, 0.4);
-  --star-glow: 0 0 0 1px var(--star-line), 0 0 12px -2px rgba(77, 157, 255, 0.55);
-  --nebula: #9a6cff; /* secondary stellar, used sparingly */
+  /* — Accent: one restrained blue. Flat — the glow is a crisp 1px ring, no blur. — */
+  --star: #4c8fd6;
+  --star-hi: #6ba6e6;
+  --star-dim: rgba(76, 143, 214, 0.15);
+  --star-line: rgba(76, 143, 214, 0.5);
+  --star-glow: 0 0 0 1px var(--star-line);
+  --nebula: #8d72d8; /* secondary accent, used sparingly */
 
-  /* — Semantic — */
-  --run: #43d39e; /* play / running */
-  --run-glow: 0 0 10px -1px rgba(67, 211, 158, 0.6);
-  --warn: #ffb454; /* supernova amber */
-  --error: #ff6b6b;
+  /* — Semantic (muted, flat) — */
+  --run: #4cae87; /* play / running */
+  --run-glow: 0 0 0 1px rgba(76, 174, 135, 0.45);
+  --warn: #e0a049; /* amber / warnings */
+  --error: #e06464;
 
   /* — Type — */
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -51,18 +54,18 @@
   --fs-md: 13px;
   --fs-lg: 15px;
 
-  /* — Geometry — */
+  /* — Geometry: crisper, more square (tool-like, less soft) — */
   --r-xs: 3px;
-  --r-sm: 5px;
-  --r-md: 7px;
-  --r-lg: 10px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
 
   --u: 4px; /* spacing unit */
 
-  /* — Chrome heights — */
-  --h-titlebar: 30px;
-  --h-toolbar: 42px;
-  --h-statusbar: 24px;
+  /* — Chrome heights (tightened a notch for density) — */
+  --h-titlebar: 28px;
+  --h-toolbar: 40px;
+  --h-statusbar: 22px;
 
   /* — Elevation — */
   --shadow-pop: 0 8px 28px -6px rgba(0, 0, 0, 0.55), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
