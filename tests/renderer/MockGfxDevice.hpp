@@ -32,6 +32,7 @@ struct MockGfxDevice final : GfxDevice {
     int setTextureParamsCalls = 0;
     int generateMipmapsCalls = 0;
     u32 nextTextureId = 100;
+    bool createTextureFails = false;  // toggle to exercise the OOM / lost-context path (createTexture -> 0)
     u32 lastDeletedTexture = 0;
     GfxCompressedFormat lastCompressedFormat = GfxCompressedFormat::ETC2_RGBA8;
     u32 lastCompressedByteLength = 0;
@@ -119,7 +120,7 @@ struct MockGfxDevice final : GfxDevice {
     void drawArrays(u32, u32) override {}
     void drawElementsInstanced(u32, GfxDataType, u32, u32) override {}
 
-    u32 createTexture() override { ++createTextureCalls; return nextTextureId++; }
+    u32 createTexture() override { ++createTextureCalls; return createTextureFails ? 0u : nextTextureId++; }
     void deleteTexture(u32 id) override { ++deleteTextureCalls; lastDeletedTexture = id; }
     void texImage2D(u32, u32, u32, GfxPixelFormat, const void*) override { ++texImage2DCalls; }
     void texSubImage2D(u32, i32, i32, u32, u32, GfxPixelFormat, const void*) override { ++texSubImage2DCalls; }

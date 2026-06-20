@@ -89,6 +89,19 @@ int main() {
         CHECK(d.bindVertexArrayCalls >= 1, "geom.bind routes through device");
     }
 
+    // --- CustomGeometry: an empty vertex layout must not divide-by-zero ---
+    // stride 0 would trap on the vertexCount divide; init must bail gracefully.
+    {
+        MockGfxDevice d;
+        float verts[] = { 0, 0, 0, 0 };
+        CustomGeometry geom;
+        geom.init(d, verts, 4, VertexLayout{});  // empty layout -> stride 0
+        CHECK(!geom.isValid(), "init with an empty layout leaves the geometry invalid (no crash)");
+        CHECK(d.createBufferCalls == 0, "no VBO is created for an empty layout");
+        geom.bind(d);
+        CHECK(d.bindVertexArrayCalls == 0, "bind on an empty-layout geometry is a no-op");
+    }
+
     if (g_failures == 0) {
         std::printf("\nALL BUFFER/GEOMETRY TESTS PASSED\n");
         return 0;

@@ -268,6 +268,9 @@ private:
     u32 width_ = 0;
     u32 height_ = 0;
     TextureFormat format_ = TextureFormat::None;
+    // False for textures wrapping an externally-owned GL id (createFromExternalId):
+    // the external owner frees it, so this wrapper must NOT delete it (double-free).
+    bool owns_ = true;
 };
 
 }  // namespace esengine

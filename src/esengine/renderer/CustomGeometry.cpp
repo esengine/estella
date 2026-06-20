@@ -21,6 +21,13 @@ void CustomGeometry::init(GfxDevice& device, const f32* vertices, u32 vertexCoun
     device_ = &device;
     dynamic_ = dynamic;
     stride_ = layout.getStride();
+    if (stride_ == 0) {
+        // An empty vertex layout would make the divide below a divide-by-zero
+        // (a wasm trap). Leave the geometry uninitialized: vao_ stays null, so
+        // isValid() is false and bind()/draw become no-ops.
+        ES_LOG_ERROR("CustomGeometry::init: empty vertex layout (stride 0); skipping setup");
+        return;
+    }
     vertexCount_ = vertexCount * sizeof(f32) / stride_;
 
     vao_ = VertexArray::create(device);

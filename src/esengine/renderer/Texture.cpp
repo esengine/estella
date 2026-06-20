@@ -38,7 +38,7 @@ u32 bytesPerPixel(TextureFormat format) {
 }  // namespace
 
 Texture::~Texture() {
-    if (textureId_ != 0 && device_) {
+    if (textureId_ != 0 && device_ && owns_) {
         device_->deleteTexture(textureId_);
     }
 }
@@ -48,7 +48,8 @@ Texture::Texture(Texture&& other) noexcept
     , textureId_(other.textureId_)
     , width_(other.width_)
     , height_(other.height_)
-    , format_(other.format_) {
+    , format_(other.format_)
+    , owns_(other.owns_) {
     other.textureId_ = 0;
     other.width_ = 0;
     other.height_ = 0;
@@ -57,7 +58,7 @@ Texture::Texture(Texture&& other) noexcept
 
 Texture& Texture::operator=(Texture&& other) noexcept {
     if (this != &other) {
-        if (textureId_ != 0 && device_) {
+        if (textureId_ != 0 && device_ && owns_) {
             device_->deleteTexture(textureId_);
         }
         device_ = other.device_;
@@ -65,6 +66,7 @@ Texture& Texture::operator=(Texture&& other) noexcept {
         width_ = other.width_;
         height_ = other.height_;
         format_ = other.format_;
+        owns_ = other.owns_;
         other.textureId_ = 0;
         other.width_ = 0;
         other.height_ = 0;
@@ -125,6 +127,7 @@ Unique<Texture> Texture::createFromExternalId(GfxDevice& device, u32 glTextureId
     texture->width_ = width;
     texture->height_ = height;
     texture->format_ = format;
+    texture->owns_ = false;  // external owner frees the GL id; don't double-free it
     return texture;
 }
 
@@ -134,6 +137,12 @@ bool Texture::initialize(const TextureSpecification& spec) {
     format_ = spec.format;
 
     textureId_ = device_->createTexture();
+    if (textureId_ == 0) {
+        // Out of memory or a lost context: surface the failure instead of
+        // returning a "valid" texture wrapping id 0 (which renders as black).
+        ES_LOG_ERROR("Texture::initialize: createTexture failed for {}x{}", width_, height_);
+        return false;
+    }
     device_->texImage2D(textureId_, width_, height_, toGfxPixelFormat(spec.format), nullptr);
     device_->setTextureParams(textureId_, spec.minFilter, spec.magFilter, spec.wrapS, spec.wrapT);
 

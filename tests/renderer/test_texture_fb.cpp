@@ -67,6 +67,39 @@ int main() {
         CHECK(d.texSubImage2DCalls == before + 1, "setDataRaw uploads when size is sufficient");
     }
 
+    // --- create() fails (returns null) when the device can't allocate a texture ---
+    // createTexture returns 0 on OOM / lost context; initialize() must surface that
+    // instead of returning a "valid" texture wrapping id 0 (which renders as black).
+    {
+        MockGfxDevice d;
+        d.createTextureFails = true;
+        TextureSpecification spec;
+        spec.width = 8; spec.height = 8; spec.format = TextureFormat::RGBA8;
+        auto tex = Texture::create(d, spec);
+        CHECK(tex == nullptr, "create returns null when device.createTexture fails");
+        CHECK(d.texImage2DCalls == 0, "no upload is attempted after a failed allocation");
+    }
+
+    // --- createFromExternalId must NOT delete the externally-owned GL texture ---
+    // The external owner frees that id; deleting it here too is a double-free.
+    {
+        MockGfxDevice d;
+        {
+            auto tex = Texture::createFromExternalId(d, 42, 8, 8);
+            CHECK(tex != nullptr && tex->getId() == 42, "wrapper holds the external id");
+        }
+        CHECK(d.deleteTextureCalls == 0, "destructor does NOT delete an externally-owned texture");
+    }
+
+    // --- an engine-owned texture IS still deleted on destruction ---
+    {
+        MockGfxDevice d;
+        TextureSpecification spec;
+        spec.width = 4; spec.height = 4; spec.format = TextureFormat::RGBA8;
+        { auto tex = Texture::create(d, spec); }
+        CHECK(d.deleteTextureCalls == 1, "destructor deletes an engine-owned texture");
+    }
+
     // --- Framebuffer: color + depth-stencil ---
     {
         MockGfxDevice d;
