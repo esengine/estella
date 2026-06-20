@@ -308,6 +308,9 @@ export class SceneManagerState {
         this.loadPromises_.set(name, loadPromise);
         try {
             return await loadPromise;
+        } catch (err) {
+            this.rollbackFailedLoad_(name, instance);
+            throw err;
         } finally {
             this.loadPromises_.delete(name);
         }
@@ -360,9 +363,29 @@ export class SceneManagerState {
         this.loadPromises_.set(name, loadPromise);
         try {
             return await loadPromise;
+        } catch (err) {
+            this.rollbackFailedLoad_(name, instance);
+            throw err;
         } finally {
             this.loadPromises_.delete(name);
         }
+    }
+
+    /**
+     * Roll back a load that threw partway. Without this, the half-registered
+     * instance stays in `scenes_` stuck at `status==='loading'` while its
+     * `loadPromise` is deleted in `finally` — so a retry hits the
+     * `status==='loading'` branch and returns the now-undefined loadPromise,
+     * wedging the scene so it can NEVER be loaded again. We also despawn any
+     * entities `setup`/`loadSceneData_` spawned before the throw, to avoid a leak.
+     */
+    private rollbackFailedLoad_(name: string, instance: SceneInstance): void {
+        for (const entity of instance.entities) {
+            if (this.app_.world.valid(entity)) this.app_.world.despawn(entity);
+        }
+        instance.entities.clear();
+        this.scenes_.delete(name);
+        this.contexts_.delete(name);
     }
 
     async unload(name: string, options?: TransitionOptions): Promise<void> {
@@ -373,7 +396,13 @@ export class SceneManagerState {
         instance.status = 'unloading';
 
         if (instance.config.cleanup) {
-            instance.config.cleanup(ctx);
+            try {
+                instance.config.cleanup(ctx);
+            } catch (err) {
+                // A throwing user cleanup must NOT abort the teardown below —
+                // that would leak every entity/system/texture the scene owns.
+                log.error('scene', `Scene "${name}" cleanup callback threw; continuing teardown`, err);
+            }
         }
 
         const keepPersistent = options?.keepPersistent ?? true;
