@@ -9,7 +9,9 @@
  *          back for reproducible verification.
  */
 import { EngineHost } from './engine/EngineHost';
-import { EditorControlSurface, type EditorControlSurfaceT } from './engine/EditorControlSurface';
+// From EditorSession: importing it constructs the default session (which wires the
+// Reconciler + SceneStore to the model) before the engine boots below.
+import { EditorControlSurface, type EditorControlSurfaceT } from './engine/EditorSession';
 
 declare global {
   interface Window {

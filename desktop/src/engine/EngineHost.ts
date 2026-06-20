@@ -12,8 +12,6 @@ import {
   setPlayMode,
 } from 'esengine';
 import type { App, ESEngineModule, ResourceDef } from 'esengine';
-import { SceneStore } from './SceneStore';
-import { Reconciler } from './Reconciler';
 import { SceneLoader } from './SceneLoader';
 import { checkEngineBuild } from './EngineGuard';
 import type { ReadonlyWorldT, WorldT } from './schema';
@@ -127,28 +125,23 @@ class EngineHostImpl {
   }
 
   /**
-   * Map the editor's play/pause UI state onto the engine, with play-state
-   * isolation: entering play runs gameplay against the live World; Stop discards
-   * those mutations by rebuilding the World from the untouched edit MODEL
-   * (model-authoritative, REARCH_EDITOR_MODEL.md) — no snapshot, no stale id map.
-   * Not playing ⇒ edit mode (gameplay frozen via env.playModeOnly, scene still
+   * Map the editor's play/pause UI state onto the engine (pure engine concern):
+   * not playing ⇒ edit mode (gameplay frozen via env.playModeOnly, scene still
    * rendered/editable); playing ⇒ gameplay runs; paused-while-playing halts every
    * schedule. No-op until booted.
    *
-   * @returns true if a play→edit rebuild happened. Selection survives it (source
-   *          ids are stable across the rebuild), so the caller need not clear it.
+   * Play-state isolation (rebuilding the World from the untouched edit MODEL on
+   * Stop) is orchestrated by the EditorSession/surface, not here — EngineHost is
+   * a pure engine host and does not know the Reconciler.
+   *
+   * @returns true if this was a play→edit (Stop) transition, so the caller
+   *          (the session) can rebuild the World from the model.
    */
   setRunMode(isPlaying: boolean, isPaused: boolean): boolean {
     const app = this.app_;
     if (!app) return false;
 
-    let restored = false;
-    if (!isPlaying && this.playing_) {
-      // play → edit (Stop): rebuild the World from the untouched edit model,
-      // discarding everything gameplay did to the World during play.
-      Reconciler.rebuildWorld();
-      restored = true;
-    }
+    const wasStop = !isPlaying && this.playing_;
     this.playing_ = isPlaying;
 
     // The editor camera shows in edit mode; entering play switches the viewport
@@ -159,7 +152,7 @@ class EngineHostImpl {
 
     setPlayMode(isPlaying);
     app.setPaused(isPlaying && isPaused);
-    return restored;
+    return wasStop;
   }
 
   /**
@@ -337,12 +330,11 @@ class EngineHostImpl {
     setEditorMode(true);
     setPlayMode(false);
 
-    // Model-authoritative data flow (REARCH_EDITOR_MODEL.md): commands mutate
-    // the SceneModel; the Reconciler is the single writer that follows into the
-    // World, and SceneStore turns model changes into panel reactivity. Attach
-    // the Reconciler FIRST so the World is projected before reactivity fires.
-    Reconciler.attach();
-    SceneStore.install();
+    // Model-authoritative wiring (Reconciler model→World projection + SceneStore
+    // reactivity) is owned by the EditorSession (constructed at app/headless
+    // entry), not here — EngineHost is a pure engine host (REARCH_EDITOR_MODEL.md
+    // P2). The session's wiring only subscribes the model, so it is in place
+    // before this boot loads the initial scene.
 
     if (opts.loadInitialScene) {
       // Load the opened project's scene if the launcher set a bootstrap;

@@ -3,7 +3,7 @@ import { MenuBar } from '@/layout/MenuBar';
 import { Toolbar } from '@/layout/Toolbar';
 import { StatusBar } from '@/layout/StatusBar';
 import { DockLayout } from '@/layout/DockLayout';
-import { EngineHost } from '@/engine/EngineHost';
+import { defaultSession } from '@/engine/EditorSession';
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { useEditorStore } from '@/store/editorStore';
@@ -38,7 +38,7 @@ export function App() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const isPaused = useEditorStore((s) => s.isPaused);
   useEffect(() => {
-    EngineHost.setRunMode(isPlaying, isPaused);
+    defaultSession.surface.setRunMode(isPlaying, isPaused);
   }, [isPlaying, isPaused]);
 
   // The editor opens on the launcher (project browser); the shell + engine mount

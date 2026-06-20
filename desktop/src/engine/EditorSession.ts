@@ -5,7 +5,7 @@ import { Reconciler, ReconcilerImpl } from './Reconciler';
 import { SceneCommands, SceneCommandsImpl } from './SceneCommands';
 import { SceneQuery, SceneQueryImpl } from './SceneQuery';
 import { useSelection, createSelectionStore, type SelectionStore } from '@/store/selectionStore';
-import { EditorControlSurface, EditorControlSurfaceImpl } from './EditorControlSurface';
+import { EditorControlSurfaceImpl } from './EditorControlSurface';
 
 /**
  * The single editor boundary (REARCH_EDITOR_MODEL.md §3.5, P2). One instance owns
@@ -85,9 +85,13 @@ export class EditorSession {
     selection: useSelection,
     commands: SceneCommands,
     query: SceneQuery,
-    surface: EditorControlSurface,
   });
 }
 
 /** The app's default editor session (the one the UI drives). */
 export const defaultSession = EditorSession.default;
+
+/** The app's default-session control surface — the ONE programmatic boundary for
+ *  the UI, the headless host, and the MCP server (REARCH_EDITOR_MODEL.md P2). */
+export const EditorControlSurface = defaultSession.surface;
+export type { EditorControlSurfaceT } from './EditorControlSurface';

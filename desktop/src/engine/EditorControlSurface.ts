@@ -24,10 +24,11 @@ import type {
 } from '@/types';
 import type { SceneData } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { SceneCommands, type SceneCommandsImpl } from './SceneCommands';
-import { SceneQuery, type SceneQueryImpl } from './SceneQuery';
-import { SceneModel, type SceneModelImpl } from './SceneModel';
-import { EditorHistory, type EditorHistoryImpl } from './EditorHistory';
+import type { SceneCommandsImpl } from './SceneCommands';
+import type { SceneQueryImpl } from './SceneQuery';
+import type { SceneModelImpl } from './SceneModel';
+import type { EditorHistoryImpl } from './EditorHistory';
+import type { ReconcilerImpl } from './Reconciler';
 
 /** A captured viewport frame: raw RGBA pixels (GL order: bottom-up rows). */
 export interface ViewportCapture {
@@ -42,6 +43,7 @@ export interface SurfaceSession {
   history: EditorHistoryImpl;
   commands: SceneCommandsImpl;
   query: SceneQueryImpl;
+  reconciler: ReconcilerImpl;
 }
 
 export class EditorControlSurfaceImpl {
@@ -62,12 +64,16 @@ export class EditorControlSurfaceImpl {
   }
 
   /**
-   * Switch edit↔play. Play runs gameplay against the live World; Stop rebuilds it
-   * from the untouched edit model (gameplay never dirties the edit scene). Returns
-   * true if a play→edit rebuild happened. Selection survives it (stable source ids).
+   * Switch edit↔play. Play runs gameplay against the live World; on Stop this
+   * rebuilds the World from the untouched edit model (this session's Reconciler)
+   * so gameplay never dirties the edit scene. Returns true if a play→edit rebuild
+   * happened. Selection survives it (stable source ids). The single run-mode
+   * boundary: EngineHost handles the pure engine flip, the session the rebuild.
    */
   setRunMode(playing: boolean, paused = false): boolean {
-    return EngineHost.setRunMode(playing, paused);
+    const wasStop = EngineHost.setRunMode(playing, paused);
+    if (wasStop) this.s.reconciler.rebuildWorld();
+    return wasStop;
   }
 
   /**
@@ -186,12 +192,7 @@ export class EditorControlSurfaceImpl {
   }
 }
 
-/** The app's default-session control surface. */
-export const EditorControlSurface = new EditorControlSurfaceImpl({
-  model: SceneModel,
-  history: EditorHistory,
-  commands: SceneCommands,
-  query: SceneQuery,
-});
-
+// The app's default-session surface is `EditorSession.default.surface`, exported
+// as `EditorControlSurface` from EditorSession.ts — one default surface, owned by
+// the session (no parallel singleton here).
 export type EditorControlSurfaceT = EditorControlSurfaceImpl;
