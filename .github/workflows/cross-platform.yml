@@ -136,15 +136,17 @@ jobs:
       - name: Build SDK
         run: pnpm --filter ./sdk build
 
-      # Now editor (depends on SDK build output)
+      # Now editor (depends on SDK build output). The editor package is
+      # @estella/editor at ./desktop — the old ./editor filter matched no
+      # package, so these steps silently no-op'd and never ran in CI.
       - name: Type-check Editor
-        run: pnpm --filter ./editor exec tsc --noEmit
+        run: pnpm --filter ./desktop run typecheck
 
       - name: Run Editor tests
-        run: pnpm --filter ./editor exec vitest run
+        run: pnpm --filter ./desktop run test
 
       - name: Build Editor
-        run: pnpm --filter ./editor build
+        run: pnpm --filter ./desktop run build
 
       # Build WASM targets individually and verify outputs
       - name: Build Web target

@@ -9,7 +9,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "esengine": "workspace:*",
@@ -30,6 +32,7 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-plugin-electron": "^1.0.4",
-    "vite-plugin-electron-renderer": "^1.0.0"
+    "vite-plugin-electron-renderer": "^1.0.0",
+    "vitest": "^2.1.0"
   }
 }
