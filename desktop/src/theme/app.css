@@ -583,10 +583,50 @@
   left: 12px;
   font-size: var(--fs-xs);
   color: var(--text-dim);
-  background: rgba(8, 11, 18, 0.55);
+  background: rgba(14, 15, 18, 0.62);
   padding: 3px 8px;
   border-radius: var(--r-sm);
   border: 1px solid var(--line);
+}
+
+/* Floating viewport toolbar (gizmo mode + view toggles + frame), UE5-style. */
+.viewport__toolbar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(14, 15, 18, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  backdrop-filter: blur(6px);
+}
+.viewport__toolbar-div {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--line-strong);
+}
+.vbtn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--text-dim);
+  transition: background 0.12s, color 0.12s;
+}
+.vbtn:hover {
+  color: var(--text-hi);
+  background: var(--hover);
+}
+.vbtn.is-active {
+  color: var(--star-hi);
+  background: var(--star-dim);
+  box-shadow: inset 0 0 0 1px var(--star-line);
 }
 .vchip {
   display: flex;

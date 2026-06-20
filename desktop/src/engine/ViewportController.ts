@@ -1,4 +1,4 @@
-import { CameraView, Sprite, Transform } from 'esengine';
+import { Camera, CameraView, Sprite, Transform } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 
@@ -11,6 +11,22 @@ interface CameraViewLike {
 function cameraView(): CameraViewLike | null {
   const cv = EngineHost.getResource(CameraView) as unknown as CameraViewLike | undefined;
   return cv ?? null;
+}
+
+// The active scene camera entity (or the first camera). Editor navigation writes
+// it directly on the live World — NOT through SceneCommands/SceneModel — so it
+// moves the rendered view without going on the undo stack or dirtying the saved
+// scene (an editor camera, reset to the scene's camera on reload).
+function activeCameraId(): EntityId | null {
+  const world = EngineHost.world;
+  if (!world) return null;
+  let first: EntityId | null = null;
+  for (const e of world.getAllEntities()) {
+    if (!world.has(e, Camera) || !world.has(e, Transform)) continue;
+    if (first == null) first = e;
+    if ((world.get(e, Camera) as { isActive?: boolean }).isActive) return e;
+  }
+  return first;
 }
 
 /** DOM pointer position → engine screen space (buffer px, y-up). */
@@ -120,5 +136,38 @@ export const ViewportController = {
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  },
+
+  /** Pan the editor view by a CSS-pixel drag (prev→cur); moves the live camera. */
+  panByClient(prevX: number, prevY: number, curX: number, curY: number): void {
+    const world = EngineHost.mutableWorld();
+    const cam = activeCameraId();
+    if (!world || cam == null) return;
+    const a = this.canvasToWorld(prevX, prevY);
+    const b = this.canvasToWorld(curX, curY);
+    if (!a || !b) return;
+    const t = world.get(cam, Transform) as unknown as { position: { x: number; y: number; z: number } };
+    const next = { ...t, position: { ...t.position, x: t.position.x + (a.x - b.x), y: t.position.y + (a.y - b.y) } };
+    world.set(cam, Transform, next as never);
+  },
+
+  /** Zoom the editor view: factor > 1 zooms out, < 1 zooms in (camera orthoSize). */
+  zoomBy(factor: number): void {
+    const world = EngineHost.mutableWorld();
+    const cam = activeCameraId();
+    if (!world || cam == null) return;
+    const c = world.get(cam, Camera) as unknown as { orthoSize: number };
+    const next = { ...c, orthoSize: Math.max(8, Math.min(40000, c.orthoSize * factor)) };
+    world.set(cam, Camera, next as never);
+  },
+
+  /** Center the editor view on an entity (frame-selected). */
+  frameEntity(id: EntityId): void {
+    const world = EngineHost.mutableWorld();
+    const cam = activeCameraId();
+    const pos = this.getEntityXY(id);
+    if (!world || cam == null || !pos) return;
+    const t = world.get(cam, Transform) as unknown as { position: { x: number; y: number; z: number } };
+    world.set(cam, Transform, { ...t, position: { ...t.position, x: pos.x, y: pos.y } } as never);
   },
 };

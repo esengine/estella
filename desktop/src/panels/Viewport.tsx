@@ -1,15 +1,19 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { Video, Maximize, Sun, Layers, Frame, Loader2, TriangleAlert } from 'lucide-react';
+import {
+  MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Magnet, Frame,
+  Loader2, TriangleAlert, type LucideIcon,
+} from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { SceneQuery } from '@/engine/SceneQuery';
 import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
 
-// Visual manipulation glyph, centered on the selected entity. Functionally we
-// only translate (drag-to-move) for now; the glyph reflects the active tool.
+// Visual manipulation glyph, centered on the selected entity, reflecting the
+// active tool. The drag itself (below) now applies move / rotate / scale.
 function GizmoGlyph({ tool }: { tool: ToolMode }) {
   if (tool === 'rotate') {
     return (
@@ -51,13 +55,54 @@ function GizmoGlyph({ tool }: { tool: ToolMode }) {
   );
 }
 
+type Drag =
+  | { kind: 'move'; id: number; dx: number; dy: number }
+  | { kind: 'rotate'; id: number; cx: number; cy: number; startAngle: number; startRot: number }
+  | { kind: 'scale'; id: number; cx: number; cy: number; startDist: number; sx: number; sy: number; sz: number }
+  | { kind: 'pan'; px: number; py: number };
+
+const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] = [
+  { mode: 'select', icon: MousePointer2, label: 'Select', key: 'Q' },
+  { mode: 'move', icon: Move, label: 'Move', key: 'W' },
+  { mode: 'rotate', icon: RotateCw, label: 'Rotate', key: 'E' },
+  { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' },
+];
+
+// Entity's screen-center in viewport (client) coordinates.
+function entityClientCenter(id: number): { cx: number; cy: number } | null {
+  const pos = ViewportController.getEntityXY(id);
+  const canvas = EngineHost.canvas;
+  if (!pos || !canvas) return null;
+  const cv = ViewportController.worldToClient(pos.x, pos.y);
+  if (!cv) return null;
+  const rect = canvas.getBoundingClientRect();
+  return { cx: rect.left + cv.x, cy: rect.top + cv.y };
+}
+
+function VBtn({ icon: Icon, label, active, onClick }: { icon: LucideIcon; label: string; active?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={`vbtn${active ? ' is-active' : ''}`} title={label} aria-label={label} aria-pressed={active} onClick={onClick}>
+      <Icon size={14} strokeWidth={1.9} />
+    </button>
+  );
+}
+
 export function Viewport() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const tool = useEditorStore((s) => s.tool);
+  const setTool = useEditorStore((s) => s.setTool);
+  const showGrid = useEditorStore((s) => s.showGrid);
+  const showGizmos = useEditorStore((s) => s.showGizmos);
+  const snapping = useEditorStore((s) => s.snapping);
+  const toggleGrid = useEditorStore((s) => s.toggleGrid);
+  const toggleGizmos = useEditorStore((s) => s.toggleGizmos);
+  const toggleSnapping = useEditorStore((s) => s.toggleSnapping);
+
   const stageRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: number; dx: number; dy: number } | null>(null);
+  const dragRef = useRef<Drag | null>(null);
+  const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
 
   // Mount the live engine canvas into the stage; it survives panel re-docking.
@@ -69,7 +114,35 @@ export function Viewport() {
     return () => EngineHost.detach();
   }, []);
 
-  // Glue the gizmo to the selected entity's screen position, every frame.
+  // Wheel = zoom about the view (native non-passive listener so we can preventDefault).
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const orthoFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1; // larger orthoSize = zoom out
+      ViewportController.zoomBy(orthoFactor);
+      setZoomPct((z) => Math.max(10, Math.min(800, Math.round(z / orthoFactor))));
+    };
+    stage.addEventListener('wheel', onWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // F = frame the selected entity (skip while typing).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if (e.key === 'f' || e.key === 'F') {
+        const id = useEditorStore.getState().selectedId;
+        if (id != null) ViewportController.frameEntity(id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Glue the gizmo + selection outline to the selected entity, every frame.
   useEffect(() => {
     let raf = 0;
     const tick = () => {
@@ -79,10 +152,11 @@ export function Viewport() {
       if (!g || !sel) return;
       const id = useEditorStore.getState().selectedId;
       const ready = EngineHost.getSnapshot().status === 'ready';
+      const showG = useEditorStore.getState().showGizmos;
 
       const pos = ready && id != null ? ViewportController.getEntityXY(id) : null;
       const sc = pos ? ViewportController.worldToClient(pos.x, pos.y) : null;
-      if (sc) {
+      if (sc && showG) {
         g.style.transform = `translate(${sc.x}px, ${sc.y}px)`;
         g.style.opacity = '1';
       } else {
@@ -104,16 +178,48 @@ export function Viewport() {
   }, []);
 
   const onPointerDown = (e: ReactPointerEvent) => {
-    if (engine.status !== 'ready' || e.button !== 0) return;
+    if (engine.status !== 'ready') return;
+
+    // Middle / right drag = pan the view.
+    if (e.button === 1 || e.button === 2) {
+      e.preventDefault();
+      dragRef.current = { kind: 'pan', px: e.clientX, py: e.clientY };
+      stageRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+    if (e.button !== 0) return;
+
     const id = ViewportController.pickEntity(e.clientX, e.clientY);
     useEditorStore.getState().select(id);
-    if (id != null) {
+    if (id == null) return;
+
+    if (tool === 'rotate') {
+      const c = entityClientCenter(id);
+      const startRot = (SceneQuery.getFieldValue(id, 'Transform', 'rotation') as number) ?? 0;
+      if (!c) return;
+      SceneCommands.beginGesture('Rotate');
+      dragRef.current = {
+        kind: 'rotate', id, cx: c.cx, cy: c.cy,
+        startAngle: Math.atan2(e.clientY - c.cy, e.clientX - c.cx), startRot,
+      };
+      stageRef.current?.setPointerCapture(e.pointerId);
+    } else if (tool === 'scale') {
+      const c = entityClientCenter(id);
+      const s = (SceneQuery.getFieldValue(id, 'Transform', 'scale') as number[]) ?? [1, 1, 1];
+      if (!c) return;
+      SceneCommands.beginGesture('Scale');
+      dragRef.current = {
+        kind: 'scale', id, cx: c.cx, cy: c.cy,
+        startDist: Math.max(1, Math.hypot(e.clientX - c.cx, e.clientY - c.cy)),
+        sx: s[0] ?? 1, sy: s[1] ?? 1, sz: s[2] ?? 1,
+      };
+      stageRef.current?.setPointerCapture(e.pointerId);
+    } else {
       const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
       const ep = ViewportController.getEntityXY(id);
       if (wp && ep) {
-        // Open one gesture for the whole drag; SceneCommands records it on end.
         SceneCommands.beginGesture('Move');
-        dragRef.current = { id, dx: ep.x - wp.x, dy: ep.y - wp.y };
+        dragRef.current = { kind: 'move', id, dx: ep.x - wp.x, dy: ep.y - wp.y };
         stageRef.current?.setPointerCapture(e.pointerId);
       }
     }
@@ -123,7 +229,24 @@ export function Viewport() {
     const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
     if (wp) StatsStore.setCursor(wp.x, wp.y);
     const drag = dragRef.current;
-    if (drag && wp) SceneCommands.setEntityXY(drag.id, wp.x + drag.dx, wp.y + drag.dy);
+    if (!drag) return;
+
+    if (drag.kind === 'pan') {
+      ViewportController.panByClient(drag.px, drag.py, e.clientX, e.clientY);
+      drag.px = e.clientX;
+      drag.py = e.clientY;
+    } else if (drag.kind === 'move') {
+      if (wp) SceneCommands.setEntityXY(drag.id, wp.x + drag.dx, wp.y + drag.dy);
+    } else if (drag.kind === 'rotate') {
+      const angle = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+      const deltaDeg = ((angle - drag.startAngle) * 180) / Math.PI;
+      // Screen y is down, so a clockwise screen drag is a negative world rotation.
+      SceneCommands.setField(drag.id, 'Transform', 'rotation', 'angle', drag.startRot - deltaDeg);
+    } else if (drag.kind === 'scale') {
+      const dist = Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy);
+      const f = dist / drag.startDist;
+      SceneCommands.setField(drag.id, 'Transform', 'scale', 'vec3', [drag.sx * f, drag.sy * f, drag.sz]);
+    }
   };
 
   const endDrag = (e: ReactPointerEvent) => {
@@ -131,25 +254,32 @@ export function Viewport() {
     if (!drag) return;
     stageRef.current?.releasePointerCapture(e.pointerId);
     dragRef.current = null;
-    // Close the gesture: SceneCommands records the whole drag as one undo step
-    // (a no-op if the pointer never moved the entity).
-    SceneCommands.endGesture();
+    // Camera pan is a direct view write (no undo); edits close their gesture.
+    if (drag.kind !== 'pan') SceneCommands.endGesture();
   };
 
   return (
     <div className="viewport">
-      <div className="viewport__overlay viewport__overlay--tl">
-        <button type="button" className="vchip"><Video size={13} strokeWidth={1.85} /> Perspective: 2D</button>
-        <button type="button" className="vchip"><Sun size={13} strokeWidth={1.85} /> Lit</button>
-        <button type="button" className="vchip"><Layers size={13} strokeWidth={1.85} /> Show</button>
+      <div className="viewport__toolbar">
+        {TOOLS.map((t) => (
+          <VBtn key={t.mode} icon={t.icon} label={`${t.label}  (${t.key})`} active={tool === t.mode} onClick={() => setTool(t.mode)} />
+        ))}
+        <span className="viewport__toolbar-div" />
+        <VBtn icon={Grid3x3} label="Show Grid" active={showGrid} onClick={toggleGrid} />
+        <VBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={toggleGizmos} />
+        <VBtn icon={Magnet} label="Snapping" active={snapping} onClick={toggleSnapping} />
+        <span className="viewport__toolbar-div" />
+        <VBtn
+          icon={Frame}
+          label="Frame Selected  (F)"
+          onClick={() => {
+            const id = useEditorStore.getState().selectedId;
+            if (id != null) ViewportController.frameEntity(id);
+          }}
+        />
       </div>
 
-      <div className="viewport__overlay viewport__overlay--tr">
-        <button type="button" className="vchip vchip--icon" title="Camera bookmarks"><Frame size={14} strokeWidth={1.85} /></button>
-        <button type="button" className="vchip vchip--icon" title="Maximize"><Maximize size={14} strokeWidth={1.85} /></button>
-      </div>
-
-      {/* The engine canvas mounts here; pointer events drive pick + drag-move. */}
+      {/* The engine canvas mounts here; pointer events drive pick + transform + pan. */}
       <div
         ref={stageRef}
         className="viewport__stage"
@@ -159,6 +289,7 @@ export function Viewport() {
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onPointerLeave={() => StatsStore.clearCursor()}
+        onContextMenu={(e) => e.preventDefault()}
       />
 
       <div ref={selectionRef} className="viewport__selection" aria-hidden="true" />
@@ -186,7 +317,7 @@ export function Viewport() {
         </div>
       )}
 
-      <div className="viewport__overlay viewport__overlay--bl mono">1920 × 1080 · 100%</div>
+      <div className="viewport__overlay viewport__overlay--bl mono">{zoomPct}%</div>
 
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>
