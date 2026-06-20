@@ -1,10 +1,25 @@
 # REARCH — Model-Authoritative Editor (unidirectional data flow)
 
-Status: **P1 implemented** (2026-06-20); P2/P3 proposed. Authoritative plan for
-inverting the editor's data flow from *dual-write* to a single source of truth
-with derived projections. This is the natural completion of
+Status: **P1 + P2-core implemented** (2026-06-20); P3 proposed. Authoritative
+plan for inverting the editor's data flow from *dual-write* to a single source of
+truth with derived projections. This is the natural completion of
 `REARCH_SERIALIZATION.md` (JSON-first model) and the prerequisite for
 `REARCH_EDITOR_REALM.md` (isolated play).
+
+**P2-core done** — the engine-state singletons are now instance classes wired by
+constructor injection (`SceneModelImpl`/`EditorHistoryImpl`/`SceneStoreImpl`/
+`ReconcilerImpl`/`SceneCommandsImpl`/`SceneQueryImpl` + `createSelectionStore`).
+A new `desktop/src/engine/EditorSession.ts` owns the whole graph as ONE instance;
+`EditorControlSurface` is its façade (`EditorControlSurfaceImpl(session)`).
+`EditorSession.create()` builds an isolated session (fresh model/history/.../World
+projection) for a headless host, the MCP server, or a test — proven by migrating
+every wasm test to a per-test session (no shared-singleton `clear()`). The app's
+default-session singletons are preserved, so the UI/EngineHost are unchanged.
+**Remaining P2 (gradual):** route the UI through `session`/the surface (full H2
+closure) and decouple EngineHost from the default-session reconciler — these need
+no new design, just mechanical migration; genuine multi-World sessions await the
+engine-instancing pillar. RESUME: finish P2 UI-routing **or** start **P3**
+(isolated play realm).
 
 **P1 done** — commands mutate the `SceneModel` (by stable source id) only; a new
 `desktop/src/engine/Reconciler.ts` projects model→World (the World is now a pure

@@ -4,16 +4,15 @@
  *        know them — their field shapes come from `schemas.json`. The inspector
  *        reads the MODEL, so it lists + edits them and the model round-trips
  *        losslessly. No World / wasm needed: unknown components are model-only
- *        (the Reconciler skips projecting them), so this is a pure model+schema
- *        test — SceneCommands/SceneQuery don't even import EngineHost.
+ *        (the Reconciler skips projecting them; the session's World is null here).
+ *
+ * Runs in an isolated EditorSession (P2) — fresh model/query/commands/history,
+ * no shared-singleton state to clear.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { SceneData } from 'esengine';
-import { SceneModel } from '@/engine/SceneModel';
-import { SceneQuery } from '@/engine/SceneQuery';
-import { SceneCommands } from '@/engine/SceneCommands';
+import { EditorSession } from '@/engine/EditorSession';
 import { setUserSchemas } from '@/engine/schema';
-import { EditorHistory } from '@/engine/EditorHistory';
 
 const WAVE_SCHEMA = {
   name: 'WaveMotion',
@@ -49,27 +48,27 @@ function sceneWithWave(): SceneData {
 }
 
 describe('Unknown-component inspector (schemas.json consumer)', () => {
+  let S: EditorSession;
   beforeEach(() => {
-    SceneModel.clear();
-    EditorHistory.clear();
     setUserSchemas([WAVE_SCHEMA]);
+    S = EditorSession.create();
     // Bind source id 1 to a placeholder runtime id; unknown components are never
-    // projected, so the value is irrelevant — the model is the truth here.
-    SceneModel.adopt(sceneWithWave(), new Map([[1, 1]]));
+    // projected (and the session's World is null), so the model is the truth here.
+    S.model.adopt(sceneWithWave(), new Map([[1, 1]]));
   });
 
   it('lists an unknown component with its schema fields', () => {
-    const wave = SceneQuery.readInspector(1).find((c) => c.name === 'WaveMotion');
+    const wave = S.query.readInspector(1).find((c) => c.name === 'WaveMotion');
     expect(wave).toBeDefined();
     expect(wave!.fields.map((f) => f.key).sort()).toEqual(['amplitude', 'phase']);
     expect(wave!.fields.find((f) => f.key === 'amplitude')!.value).toBe(5);
   });
 
   it('edits an unknown component field; the model round-trips losslessly', () => {
-    SceneCommands.setField(1, 'WaveMotion', 'amplitude', 'number', 9);
-    expect(SceneQuery.getFieldValue(1, 'WaveMotion', 'amplitude')).toBe(9);
+    S.commands.setField(1, 'WaveMotion', 'amplitude', 'number', 9);
+    expect(S.query.getFieldValue(1, 'WaveMotion', 'amplitude')).toBe(9);
 
-    const saved = SceneModel.serialize()!;
+    const saved = S.model.serialize()!;
     const wave = saved.entities[0].components.find((c) => c.type === 'WaveMotion')!.data as {
       amplitude: number;
       phase: number;
@@ -79,16 +78,16 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
   });
 
   it('undo reverts an unknown-component edit', () => {
-    SceneCommands.setField(1, 'WaveMotion', 'amplitude', 'number', 9);
-    EditorHistory.undo();
-    expect(SceneQuery.getFieldValue(1, 'WaveMotion', 'amplitude')).toBe(5);
+    S.commands.setField(1, 'WaveMotion', 'amplitude', 'number', 9);
+    S.history.undo();
+    expect(S.query.getFieldValue(1, 'WaveMotion', 'amplitude')).toBe(5);
   });
 
   it('infers editable fields from the data even without a schema', () => {
     setUserSchemas([]); // no schemas.json for this component
-    SceneModel.clear();
-    SceneModel.adopt(sceneWithWave(), new Map([[1, 1]]));
-    const wave = SceneQuery.readInspector(1).find((c) => c.name === 'WaveMotion');
+    const fresh = EditorSession.create();
+    fresh.model.adopt(sceneWithWave(), new Map([[1, 1]]));
+    const wave = fresh.query.readInspector(1).find((c) => c.name === 'WaveMotion');
     expect(wave).toBeDefined();
     expect(wave!.fields.find((f) => f.key === 'amplitude')!.value).toBe(5);
   });

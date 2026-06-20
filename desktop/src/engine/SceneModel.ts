@@ -38,7 +38,7 @@ type Listener = (ev: ModelEvent) => void;
  * but only the Reconciler writes it — via {@link bindRuntime}/{@link unbindRuntime}
  * as it spawns/despawns — so the map can never go stale against the World.
  */
-class SceneModelImpl {
+export class SceneModelImpl {
   private data: SceneData | null = null;
   /** runtime World entity → source entity id (Reconciler-maintained). */
   private readonly runtimeToSource = new Map<EntityId, number>();
@@ -274,4 +274,5 @@ class SceneModelImpl {
   }
 }
 
+/** The app's default-session model. Other sessions construct their own SceneModelImpl. */
 export const SceneModel = new SceneModelImpl();

@@ -1,6 +1,6 @@
 import type { SceneNode, NodeKind, EntityId, InspectorComponent, InspectorFieldValue } from '@/types';
-import { SceneStore } from './SceneStore';
-import { SceneModel } from './SceneModel';
+import { SceneStore, SceneStoreImpl } from './SceneStore';
+import { SceneModel, SceneModelImpl } from './SceneModel';
 import {
   inspectorFields,
   inferField,
@@ -18,16 +18,24 @@ import {
  * still reads the World for camera-derived screen geometry (pick / gizmo /
  * selection outline) via ViewportController; that is rendering, the engine's
  * domain. All ids here are stable **source ids**.
+ *
+ * An instance bound to a session's model + store; `SceneQuery` is the app's
+ * default-session one.
  */
-export const SceneQuery = {
+export class SceneQueryImpl {
+  constructor(
+    private readonly model: SceneModelImpl,
+    private readonly store: SceneStoreImpl,
+  ) {}
+
   /** Monotonic counter; bump means the scene structure changed (for observers). */
   worldVersion(): number {
-    return SceneStore.getStructureRevision();
-  },
+    return this.store.getStructureRevision();
+  }
 
   /** Build the outliner tree from the model, nesting via parent/children links. */
   readSceneTree(): SceneNode[] {
-    const data = SceneModel.current;
+    const data = this.model.current;
     if (!data) return [];
     const byId = new Map(data.entities.map((e) => [e.id, e]));
 
@@ -48,22 +56,20 @@ export const SceneQuery = {
     };
 
     // Roots = entities with no parent, or whose parent no longer exists.
-    return data.entities
-      .filter((e) => e.parent == null || !byId.has(e.parent))
-      .map(build);
-  },
+    return data.entities.filter((e) => e.parent == null || !byId.has(e.parent)).map(build);
+  }
 
   /** Inspect a single source entity (name, kind, which components it carries). */
   readEntity(id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
-    const e = SceneModel.entityBySource(id);
+    const e = this.model.entityBySource(id);
     if (!e) return null;
     const kind = modelKindOf(e);
     return { name: modelNameOf(e, kind), kind, components: modelInspectableComponents(e).map((c) => c.label) };
-  },
+  }
 
   /** Full editable inspector model for a source entity — fields resolved per component. */
   readInspector(id: EntityId): InspectorComponent[] {
-    const e = SceneModel.entityBySource(id);
+    const e = this.model.entityBySource(id);
     if (!e) return [];
     const out: InspectorComponent[] = [];
     for (const { name, label } of modelInspectableComponents(e)) {
@@ -71,14 +77,17 @@ export const SceneQuery = {
       out.push({ name, label, fields: inspectorFields(name, data) });
     }
     return out;
-  },
+  }
 
   /** Read one inspector field's current value (for undo before/after capture). */
   getFieldValue(id: EntityId, compName: string, key: string): InspectorFieldValue | null {
-    const comp = SceneModel.entityBySource(id)?.components.find((c) => c.type === compName);
+    const comp = this.model.entityBySource(id)?.components.find((c) => c.type === compName);
     if (!comp) return null;
     const data = comp.data as Record<string, unknown>;
     const f = inferField(key, data[key], isColorKey(compName, key));
     return f ? f.value : null;
-  },
-};
+  }
+}
+
+/** The app's default-session query surface. Other sessions construct their own SceneQueryImpl(model, store). */
+export const SceneQuery = new SceneQueryImpl(SceneModel, SceneStore);

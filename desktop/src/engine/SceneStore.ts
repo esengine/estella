@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { SceneModel, type ModelEvent } from './SceneModel';
+import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
 
 /**
  * Reactive mirror of the editor scene — the model-change bus.
@@ -16,18 +16,20 @@ import { SceneModel, type ModelEvent } from './SceneModel';
  * (The engine's EditorBridge — the old push source — is retired: the World is a
  * derived projection now, so there is nothing to push back.)
  */
-class SceneStoreImpl {
+export class SceneStoreImpl {
   private installed = false;
   private readonly store = createStore<{ revision: number; structureRevision: number }>(() => ({
     revision: 1,
     structureRevision: 1,
   }));
 
+  constructor(private readonly model: SceneModelImpl) {}
+
   /** Subscribe to the model as the change source. Idempotent. */
   install() {
     if (this.installed) return;
     this.installed = true;
-    SceneModel.subscribe((ev) => this.bump(isStructural(ev)));
+    this.model.subscribe((ev) => this.bump(isStructural(ev)));
   }
 
   private bump(structural: boolean) {
@@ -47,4 +49,5 @@ function isStructural(ev: ModelEvent): boolean {
   return ev.kind !== 'componentChanged';
 }
 
-export const SceneStore = new SceneStoreImpl();
+/** The app's default-session store. Other sessions construct their own SceneStoreImpl(model). */
+export const SceneStore = new SceneStoreImpl(SceneModel);

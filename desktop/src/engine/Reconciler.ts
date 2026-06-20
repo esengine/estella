@@ -2,7 +2,7 @@ import { Name, Parent, resetWorldTo } from 'esengine';
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
-import { SceneModel, type ModelEvent } from './SceneModel';
+import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
 import { componentByName, componentDefaults, type AnyComp, type WorldT } from './schema';
 
 /**
@@ -14,7 +14,7 @@ import { componentByName, componentDefaults, type AnyComp, type WorldT } from '.
  * response. There is no other path from a command to the World, so the two
  * cannot diverge.
  *
- * It owns the source↔runtime entity binding (via SceneModel.bindRuntime/
+ * It owns the source↔runtime entity binding (via this.model.bindRuntime/
  * unbindRuntime) since it is what spawns and despawns. Components the engine
  * doesn't know stay in the model only — the World is a lossy render projection,
  * so unknown components / schema-extra fields / `@uuid:` refs never reach it.
@@ -27,14 +27,16 @@ const STRUCTURAL = new Set(['Name', 'Parent', 'Children']);
 type AssetResolver = (uuid: string) => number;
 const UNRESOLVED: AssetResolver = () => 0;
 
-class ReconcilerImpl {
+export class ReconcilerImpl {
   private unsubscribe: (() => void) | null = null;
   private resolveAsset: AssetResolver = UNRESOLVED;
+
+  constructor(private readonly model: SceneModelImpl) {}
 
   /** Begin projecting model changes to the World. Idempotent. */
   attach(): void {
     if (this.unsubscribe) return;
-    this.unsubscribe = SceneModel.subscribe((ev) => this.onEvent(ev));
+    this.unsubscribe = this.model.subscribe((ev) => this.onEvent(ev));
   }
 
   detach(): void {
@@ -55,14 +57,14 @@ class ReconcilerImpl {
   /**
    * Bulk path (boot / project load / play-stop): build the World from a resolved
    * scene and adopt the raw scene as the model. `resetWorldTo` returns source-id
-   * → runtime; SceneModel.adopt records the map and announces a `reset`. This
+   * → runtime; this.model.adopt records the map and announces a `reset`. This
    * reconciler ignores its own `reset` (the World is already built here).
    */
   adopt(rawData: SceneData, resolvedData: SceneData): void {
     const world = EngineHost.mutableWorld();
     if (!world) return;
     const map = resetWorldTo(world, resolvedData as never) as Map<number, EntityId>;
-    SceneModel.adopt(rawData, map);
+    this.model.adopt(rawData, map);
   }
 
   /**
@@ -73,11 +75,11 @@ class ReconcilerImpl {
    */
   rebuildWorld(): void {
     const world = EngineHost.mutableWorld();
-    const data = SceneModel.current;
+    const data = this.model.current;
     if (!world || !data) return;
     const resolved = this.resolveRefs(data) as SceneData;
     const map = resetWorldTo(world, resolved as never) as Map<number, EntityId>;
-    SceneModel.adopt(data, map);
+    this.model.adopt(data, map);
   }
 
   // ── Event projection ──────────────────────────────────────────────────────
@@ -104,40 +106,40 @@ class ReconcilerImpl {
 
   private spawnEntity(sourceId: number): void {
     const world = EngineHost.mutableWorld();
-    const entity = SceneModel.entityBySource(sourceId);
+    const entity = this.model.entityBySource(sourceId);
     if (!world || !entity) return;
 
     const rt = world.spawn();
-    SceneModel.bindRuntime(sourceId, rt);
+    this.model.bindRuntime(sourceId, rt);
     if (entity.name) world.insert(rt, Name, { value: entity.name } as never);
     for (const comp of entity.components) {
       this.insertComponent(world, rt, comp.type, comp.data as Record<string, unknown>);
     }
     // Link to a parent that is already spawned…
     if (entity.parent != null) {
-      const pr = SceneModel.runtimeFor(entity.parent);
+      const pr = this.model.runtimeFor(entity.parent);
       if (pr != null) world.insert(rt, Parent, { entity: pr } as never);
     }
     // …and re-link any already-spawned children (undo-of-delete restores a
     // parent after its children, so the children await this re-parent).
     for (const childId of entity.children) {
-      const cr = SceneModel.runtimeFor(childId);
+      const cr = this.model.runtimeFor(childId);
       if (cr != null) world.insert(cr, Parent, { entity: rt } as never);
     }
   }
 
   private despawnEntity(sourceId: number): void {
     const world = EngineHost.mutableWorld();
-    const rt = SceneModel.runtimeFor(sourceId);
+    const rt = this.model.runtimeFor(sourceId);
     if (world && rt != null && world.valid(rt)) world.despawn(rt);
-    SceneModel.unbindRuntime(sourceId);
+    this.model.unbindRuntime(sourceId);
   }
 
   private projectComponent(sourceId: number, type: string): void {
     if (STRUCTURAL.has(type)) return; // identity/structure handled by name/parent
     const world = EngineHost.mutableWorld();
-    const rt = SceneModel.runtimeFor(sourceId);
-    const entity = SceneModel.entityBySource(sourceId);
+    const rt = this.model.runtimeFor(sourceId);
+    const entity = this.model.entityBySource(sourceId);
     if (!world || rt == null || !entity) return;
     const def = componentByName(type);
     if (!def) return; // unknown component — lives in the model only
@@ -151,7 +153,7 @@ class ReconcilerImpl {
   private removeComponent(sourceId: number, type: string): void {
     if (STRUCTURAL.has(type)) return;
     const world = EngineHost.mutableWorld();
-    const rt = SceneModel.runtimeFor(sourceId);
+    const rt = this.model.runtimeFor(sourceId);
     if (!world || rt == null) return;
     const def = componentByName(type);
     if (def && world.has(rt, def)) world.remove(rt, def);
@@ -159,18 +161,18 @@ class ReconcilerImpl {
 
   private projectParent(sourceId: number): void {
     const world = EngineHost.mutableWorld();
-    const rt = SceneModel.runtimeFor(sourceId);
-    const entity = SceneModel.entityBySource(sourceId);
+    const rt = this.model.runtimeFor(sourceId);
+    const entity = this.model.entityBySource(sourceId);
     if (!world || rt == null || !entity) return;
-    const pr = entity.parent != null ? SceneModel.runtimeFor(entity.parent) : undefined;
+    const pr = entity.parent != null ? this.model.runtimeFor(entity.parent) : undefined;
     if (pr != null) world.insert(rt, Parent, { entity: pr } as never);
     else if (world.has(rt, Parent)) world.remove(rt, Parent);
   }
 
   private projectName(sourceId: number): void {
     const world = EngineHost.mutableWorld();
-    const rt = SceneModel.runtimeFor(sourceId);
-    const entity = SceneModel.entityBySource(sourceId);
+    const rt = this.model.runtimeFor(sourceId);
+    const entity = this.model.entityBySource(sourceId);
     if (!world || rt == null || !entity) return;
     world.insert(rt, Name, { value: entity.name } as never);
   }
@@ -218,4 +220,5 @@ class ReconcilerImpl {
   }
 }
 
-export const Reconciler = new ReconcilerImpl();
+/** The app's default-session reconciler. Other sessions construct their own ReconcilerImpl(model). */
+export const Reconciler = new ReconcilerImpl(SceneModel);

@@ -9,7 +9,7 @@ import { TransactionManager } from 'esengine';
  * before/after and calls {@link record} so the pair becomes undoable without
  * re-running the forward closure. Panels subscribe for undo/redo availability.
  */
-class EditorHistoryImpl {
+export class EditorHistoryImpl {
   private readonly tm = new TransactionManager({ historyLimit: 200 });
   private readonly store = createStore<{ version: number }>(() => ({ version: 0 }));
 
@@ -59,4 +59,5 @@ class EditorHistoryImpl {
   getVersion = (): number => this.store.getState().version;
 }
 
+/** The app's default-session history. Other sessions construct their own EditorHistoryImpl. */
 export const EditorHistory = new EditorHistoryImpl();

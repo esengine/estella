@@ -1,16 +1,18 @@
 /**
  * @file    EditorControlSurface.ts
- * @brief   The single canonical programmatic entry to the editor — lifecycle,
- *          commands, queries, and observation — composed over the existing
+ * @brief   The single canonical programmatic entry to a session — lifecycle,
+ *          commands, queries, and observation — composed over the session's
  *          engine modules. One surface, three consumers: the React UI, the
  *          headless verification host, and (later) the editor MCP server, which
  *          is a transport adapter over this object rather than a parallel API.
  *
- * Design and phasing: docs/REARCH_EDITOR_AUTOMATION.md. This adds no new truth —
- * commands route through SceneCommands (the model write boundary), reads through
+ * Design and phasing: docs/REARCH_EDITOR_AUTOMATION.md + REARCH_EDITOR_MODEL.md
+ * (P2: the session boundary). This adds no new truth — commands route through
+ * the session's SceneCommands (the model write boundary), reads through its
  * SceneQuery / SceneModel (the model is the source of truth; the World is a
- * derived projection), and observation reads the live canvas/World. Ids are
- * stable source ids (REARCH_EDITOR_MODEL.md).
+ * derived projection), and observation reads the live canvas/World (process-
+ * level engine). Ids are stable source ids. The surface is an instance over a
+ * session; `EditorControlSurface` is the app's default-session one.
  */
 import type {
   EntityId,
@@ -22,10 +24,10 @@ import type {
 } from '@/types';
 import type { SceneData } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { SceneCommands } from './SceneCommands';
-import { SceneQuery } from './SceneQuery';
-import { SceneModel } from './SceneModel';
-import { EditorHistory } from './EditorHistory';
+import { SceneCommands, type SceneCommandsImpl } from './SceneCommands';
+import { SceneQuery, type SceneQueryImpl } from './SceneQuery';
+import { SceneModel, type SceneModelImpl } from './SceneModel';
+import { EditorHistory, type EditorHistoryImpl } from './EditorHistory';
 
 /** A captured viewport frame: raw RGBA pixels (GL order: bottom-up rows). */
 export interface ViewportCapture {
@@ -34,9 +36,20 @@ export interface ViewportCapture {
   height: number;
 }
 
-export const EditorControlSurface = {
+/** The session parts the surface needs (the EditorSession satisfies this). */
+export interface SurfaceSession {
+  model: SceneModelImpl;
+  history: EditorHistoryImpl;
+  commands: SceneCommandsImpl;
+  query: SceneQueryImpl;
+}
+
+export class EditorControlSurfaceImpl {
+  constructor(private readonly s: SurfaceSession) {}
+
   // =========================================================================
-  // Lifecycle — drive the engine deterministically and switch run mode
+  // Lifecycle — drive the engine deterministically and switch run mode.
+  // The engine (wasm / canvas / World) is process-level — shared via EngineHost.
   // =========================================================================
 
   /**
@@ -46,16 +59,16 @@ export const EditorControlSurface = {
    */
   async loadScene(sceneUrl: string, manifestUrl?: string): Promise<number> {
     return EngineHost.loadScene(sceneUrl, manifestUrl);
-  },
+  }
 
   /**
-   * Switch edit↔play. Play snapshots the scene; Stop restores it (gameplay never
-   * dirties the edit scene). Returns true if a play→edit restore happened (entity
-   * ids changed — drop any cached selection).
+   * Switch edit↔play. Play runs gameplay against the live World; Stop rebuilds it
+   * from the untouched edit model (gameplay never dirties the edit scene). Returns
+   * true if a play→edit rebuild happened. Selection survives it (stable source ids).
    */
   setRunMode(playing: boolean, paused = false): boolean {
     return EngineHost.setRunMode(playing, paused);
-  },
+  }
 
   /**
    * Advance the engine by exactly `frames` fixed-delta ticks — no rAF, no
@@ -65,37 +78,37 @@ export const EditorControlSurface = {
    */
   async step(frames = 1, dt = 1 / 60): Promise<void> {
     for (let i = 0; i < frames; i++) await EngineHost.tick(dt);
-  },
+  }
 
   undo(): void {
-    EditorHistory.undo();
-  },
+    this.s.history.undo();
+  }
   redo(): void {
-    EditorHistory.redo();
-  },
+    this.s.history.redo();
+  }
   canUndo(): boolean {
-    return EditorHistory.canUndo();
-  },
+    return this.s.history.canUndo();
+  }
   canRedo(): boolean {
-    return EditorHistory.canRedo();
-  },
+    return this.s.history.canRedo();
+  }
 
   // =========================================================================
   // Commands — mutations, all undoable, through the SceneCommands write door
   // =========================================================================
 
   addEntity(): EntityId | null {
-    return SceneCommands.addEntity();
-  },
+    return this.s.commands.addEntity();
+  }
   deleteEntity(id: EntityId): void {
-    SceneCommands.deleteEntity(id);
-  },
+    this.s.commands.deleteEntity(id);
+  }
   duplicateEntity(id: EntityId): EntityId | null {
-    return SceneCommands.duplicateEntity(id);
-  },
+    return this.s.commands.duplicateEntity(id);
+  }
   renameEntity(id: EntityId, name: string): void {
-    SceneCommands.renameEntity(id, name);
-  },
+    this.s.commands.renameEntity(id, name);
+  }
   setField(
     entity: EntityId,
     component: string,
@@ -103,42 +116,42 @@ export const EditorControlSurface = {
     type: InspectorFieldType,
     value: InspectorFieldValue,
   ): void {
-    SceneCommands.setField(entity, component, key, type, value);
-  },
+    this.s.commands.setField(entity, component, key, type, value);
+  }
   setEntityXY(id: EntityId, x: number, y: number): void {
-    SceneCommands.setEntityXY(id, x, y);
-  },
+    this.s.commands.setEntityXY(id, x, y);
+  }
   /** Coalesce a burst of setField writes (a drag) into one undo step. */
   beginGesture(label: string): void {
-    SceneCommands.beginGesture(label);
-  },
+    this.s.commands.beginGesture(label);
+  }
   endGesture(): void {
-    SceneCommands.endGesture();
-  },
+    this.s.commands.endGesture();
+  }
 
   // =========================================================================
-  // Queries — read-only reflection of the scene model (the source of truth)
+  // Queries — read-only reflection of the session's scene model (the truth)
   // =========================================================================
 
   worldVersion(): number {
-    return SceneQuery.worldVersion();
-  },
+    return this.s.query.worldVersion();
+  }
   getSceneTree(): SceneNode[] {
-    return SceneQuery.readSceneTree();
-  },
+    return this.s.query.readSceneTree();
+  }
   getEntity(id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
-    return SceneQuery.readEntity(id);
-  },
+    return this.s.query.readEntity(id);
+  }
   getInspector(entity: EntityId): InspectorComponent[] {
-    return SceneQuery.readInspector(entity);
-  },
+    return this.s.query.readInspector(entity);
+  }
   getFieldValue(entity: EntityId, component: string, key: string): InspectorFieldValue | null {
-    return SceneQuery.getFieldValue(entity, component, key);
-  },
+    return this.s.query.getFieldValue(entity, component, key);
+  }
   /** The lossless JSON-first scene truth (deep clone), or null if none loaded. */
   serializeScene(): SceneData | null {
-    return SceneModel.serialize();
-  },
+    return this.s.model.serialize();
+  }
 
   // =========================================================================
   // Observation — runtime evidence for verification (the headless-gap closer)
@@ -165,12 +178,20 @@ export const EditorControlSurface = {
     const rgba = new Uint8Array(width * height * 4);
     gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
     return { rgba, width, height };
-  },
+  }
 
   /** Live counts for quick assertions (entity count is headless-friendly). */
   getStats(): { entities: number } {
     return { entities: EngineHost.world?.getAllEntities().length ?? 0 };
-  },
-};
+  }
+}
 
-export type EditorControlSurfaceT = typeof EditorControlSurface;
+/** The app's default-session control surface. */
+export const EditorControlSurface = new EditorControlSurfaceImpl({
+  model: SceneModel,
+  history: EditorHistory,
+  commands: SceneCommands,
+  query: SceneQuery,
+});
+
+export type EditorControlSurfaceT = EditorControlSurfaceImpl;

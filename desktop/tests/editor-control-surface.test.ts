@@ -1,14 +1,15 @@
 /**
  * @file  Regression net for EditorControlSurface — the one canonical
- *        programmatic entry to the editor (docs/REARCH_EDITOR_AUTOMATION.md).
- *        Proves the surface delegates correctly to the command/query core and
- *        that step() drives deterministic ticks, all against a real headless
- *        World. captureViewport needs a WebGL2 canvas, so here we only assert it
- *        fails clearly without a render host (covered end-to-end by the headless
- *        editor window, not the pure-node harness).
+ *        programmatic entry to a session (REARCH_EDITOR_MODEL.md P2 +
+ *        docs/REARCH_EDITOR_AUTOMATION.md). Proves the surface delegates to its
+ *        session's command/query core and that step() drives deterministic ticks,
+ *        all against a real headless World. captureViewport needs a WebGL2 canvas,
+ *        so here we only assert it fails clearly without a render host (covered
+ *        end-to-end by the headless editor window, not the pure-node harness).
  *
- * EngineHost (the boot singleton that needs a canvas) is mocked to a per-test
- * headless World; tick() drives the real App so step() exercises the engine.
+ * Each test uses its own isolated EditorSession; the engine (boot singleton that
+ * needs a canvas) is mocked to a per-test headless World; tick() drives the real
+ * App so step() exercises the engine.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { App, Transform } from 'esengine';
@@ -46,10 +47,7 @@ vi.mock('@/engine/EngineHost', () => ({
   },
 }));
 
-import { EditorControlSurface as API } from '@/engine/EditorControlSurface';
-import { EditorHistory } from '@/engine/EditorHistory';
-import { SceneModel } from '@/engine/SceneModel';
-import { Reconciler } from '@/engine/Reconciler';
+import { EditorSession } from '@/engine/EditorSession';
 import type { SceneData } from 'esengine';
 
 const emptyScene = (): SceneData =>
@@ -57,6 +55,7 @@ const emptyScene = (): SceneData =>
 
 describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
   let module: ESEngineModule;
+  let S: EditorSession;
   beforeAll(async () => {
     module = await loadWasmModule();
   });
@@ -68,42 +67,39 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     host.app = app;
     host.ticks = 0;
     host.runMode = null;
-    EditorHistory.clear();
-    SceneModel.clear();
-    // Commands edit the model; the Reconciler projects to the World.
-    Reconciler.attach();
-    SceneModel.adopt(emptyScene(), new Map());
+    S = EditorSession.create();
+    S.model.adopt(emptyScene(), new Map());
   });
 
-  afterEach(() => Reconciler.detach());
+  afterEach(() => S.dispose());
 
   it('addEntity surfaces through the scene tree and stats', () => {
-    const id = API.addEntity();
+    const id = S.surface.addEntity();
     expect(id).not.toBeNull();
-    expect(API.getSceneTree().length).toBe(1);
-    expect(API.getStats().entities).toBe(1);
+    expect(S.surface.getSceneTree().length).toBe(1);
+    expect(S.surface.getStats().entities).toBe(1);
   });
 
   it('setField writes a component field; surface undo reverts it', () => {
-    const id = API.addEntity()!; // source id
-    const e = SceneModel.runtimeFor(id)!; // runtime World entity
-    API.setField(id, 'Transform', 'position', 'vec3', [10, 20, 30]);
+    const id = S.surface.addEntity()!; // source id
+    const e = S.model.runtimeFor(id)!; // runtime World entity
+    S.surface.setField(id, 'Transform', 'position', 'vec3', [10, 20, 30]);
     expect(host.world.get(e, Transform).position).toMatchObject({ x: 10, y: 20, z: 30 });
-    API.undo();
+    S.surface.undo();
     expect(host.world.get(e, Transform).position).toMatchObject({ x: 0, y: 0, z: 0 });
   });
 
   it('step(n) drives exactly n deterministic ticks', async () => {
-    await API.step(3, 1 / 60);
+    await S.surface.step(3, 1 / 60);
     expect(host.ticks).toBe(3);
   });
 
   it('setRunMode delegates play/pause state to the host', () => {
-    API.setRunMode(true, true);
+    S.surface.setRunMode(true, true);
     expect(host.runMode).toEqual([true, true]);
   });
 
   it('captureViewport fails clearly without a render host', () => {
-    expect(() => API.captureViewport()).toThrow(/render host/);
+    expect(() => S.surface.captureViewport()).toThrow(/render host/);
   });
 });

@@ -1,17 +1,18 @@
 /**
- * @file  SelectionStore — engine-anchored entity selection.
+ * @file  SelectionStore — model-anchored entity selection.
  *
  * Covers the pure selection ops and, crucially, the SELF-HEALING property that
- * lets every call site stop hand-clearing selection: when an entity is despawned
- * the scene bridge carries its id to the store, which drops it — no manual
- * deselect, no world.valid() race (the despawn notify fires before removal).
+ * lets every call site stop hand-clearing selection: when an entity is removed
+ * from the model the selection store drops it — no manual deselect. The
+ * self-healing test runs in its own isolated EditorSession (REARCH_EDITOR_MODEL
+ * P2): the session's selection self-heals on its own model's `entityRemoved`.
  *
  * EngineHost is mocked to a headless World built from the WASM SDK (same harness
- * as engine-commands.test.ts); SceneStore + SceneCommands run for real.
+ * as engine-commands.test.ts); the session's reconciler projects into it.
  */
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { App } from 'esengine';
-import type { ESEngineModule } from 'esengine';
+import type { ESEngineModule, SceneData } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 const host = vi.hoisted(() => ({ world: null as unknown as App['world'] }));
@@ -26,18 +27,13 @@ vi.mock('@/engine/EngineHost', () => ({
 }));
 
 import { useSelection } from '@/store/selectionStore';
-import { SceneStore } from '@/engine/SceneStore';
-import { SceneCommands } from '@/engine/SceneCommands';
-import { SceneModel } from '@/engine/SceneModel';
-import { Reconciler } from '@/engine/Reconciler';
-import type { SceneData } from 'esengine';
-
-const sel = () => useSelection.getState();
+import { EditorSession } from '@/engine/EditorSession';
 
 const emptyScene = (): SceneData =>
   ({ version: '1.0', name: 'test', entities: [] }) as unknown as SceneData;
 
 describe('SelectionStore — pure selection ops', () => {
+  const sel = () => useSelection.getState();
   beforeEach(() => sel().select(null));
 
   it('select / toggleSelect / selectMany maintain the set + primary', () => {
@@ -83,42 +79,40 @@ describe('SelectionStore — pure selection ops', () => {
   });
 });
 
-describe.skipIf(!HAS_WASM)('SelectionStore — engine-anchored self-healing', () => {
-  // One World + one bridge install for the whole block, so the default context
-  // (which notifyBridge reads) stays consistent across tests.
+describe.skipIf(!HAS_WASM)('SelectionStore — model-anchored self-healing', () => {
+  let S: EditorSession;
+  const sel = () => S.selection.getState();
+  // One World for the block; a fresh session per test isolates selection + model.
   beforeAll(async () => {
     const module: ESEngineModule = await loadWasmModule();
     const app = App.new();
     const registry = new module.Registry();
     app.connectCpp(registry as never, module);
     host.world = app.world;
-    SceneStore.install();
-    // Commands edit the model → Reconciler despawns the World entity → the engine
-    // bridge carries the despawn to the selection store (the self-heal path).
-    Reconciler.attach();
-    SceneModel.adopt(emptyScene(), new Map());
   });
-  beforeEach(() => sel().select(null));
+  beforeEach(() => {
+    S = EditorSession.create();
+    S.model.adopt(emptyScene(), new Map());
+  });
 
-  it('a deleted entity auto-drops from the selection via the scene bridge', () => {
-    const id = SceneCommands.addEntity()!;
+  it('a deleted entity auto-drops from the selection via the model', () => {
+    const id = S.commands.addEntity()!;
     sel().select(id);
     expect(sel().selectedId).toBe(id);
 
-    // Delete via the command path → world.despawn → onEntityDespawned bridge →
-    // SelectionStore.dropId. The selection clears itself, no manual deselect.
-    SceneCommands.deleteEntity(id);
+    // Delete via the command path → model entityRemoved → selection.dropId.
+    S.commands.deleteEntity(id);
     expect(sel().selectedId).toBeNull();
     expect(sel().selectedIds.size).toBe(0);
   });
 
   it('deleting one of a multi-selection keeps the survivors selected', () => {
-    const a = SceneCommands.addEntity()!;
-    const b = SceneCommands.addEntity()!;
+    const a = S.commands.addEntity()!;
+    const b = S.commands.addEntity()!;
     sel().selectMany([a, b], b);
     expect(sel().selectedIds.size).toBe(2);
 
-    SceneCommands.deleteEntity(b); // bridge drops b; a survives and becomes primary
+    S.commands.deleteEntity(b); // model drops b; a survives and becomes primary
     expect(sel().selectedIds.has(b)).toBe(false);
     expect(sel().selectedIds.has(a)).toBe(true);
     expect(sel().selectedId).toBe(a);

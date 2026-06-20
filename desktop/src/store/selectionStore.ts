@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { SceneModel } from '@/engine/SceneModel';
+import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
 import type { EntityId } from '@/types';
 
 /**
@@ -28,43 +28,55 @@ interface SelectionState {
   dropId: (id: EntityId) => void;
 }
 
-export const useSelection = create<SelectionState>((set) => ({
-  selectedId: null,
-  selectedIds: new Set<EntityId>(),
+export type SelectionStore = ReturnType<typeof createSelectionStore>;
 
-  select: (selectedId) =>
-    set({ selectedId, selectedIds: selectedId != null ? new Set([selectedId]) : new Set() }),
+/**
+ * Build a selection store bound to a model. Model-anchored self-healing: when an
+ * entity is removed from the model (delete, undo-of-create), it drops from the
+ * selection by source id — no manual deselect. Wholesale scene swaps (open
+ * project, reload) clear selection explicitly (the bulk path), since source ids
+ * restart with the incoming scene. One per EditorSession.
+ */
+export function createSelectionStore(model: SceneModelImpl) {
+  const useStore = create<SelectionState>((set) => ({
+    selectedId: null,
+    selectedIds: new Set<EntityId>(),
 
-  toggleSelect: (id) =>
-    set((s) => {
-      const next = new Set(s.selectedIds);
-      if (next.has(id)) {
+    select: (selectedId) =>
+      set({ selectedId, selectedIds: selectedId != null ? new Set([selectedId]) : new Set() }),
+
+    toggleSelect: (id) =>
+      set((s) => {
+        const next = new Set(s.selectedIds);
+        if (next.has(id)) {
+          next.delete(id);
+          const primary =
+            s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
+          return { selectedIds: next, selectedId: primary };
+        }
+        next.add(id);
+        return { selectedIds: next, selectedId: id };
+      }),
+
+    selectMany: (ids, primary) => set({ selectedIds: new Set(ids), selectedId: primary }),
+
+    dropId: (id) =>
+      set((s) => {
+        if (s.selectedId !== id && !s.selectedIds.has(id)) return s;
+        const next = new Set(s.selectedIds);
         next.delete(id);
         const primary =
           s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
         return { selectedIds: next, selectedId: primary };
-      }
-      next.add(id);
-      return { selectedIds: next, selectedId: id };
-    }),
+      }),
+  }));
 
-  selectMany: (ids, primary) => set({ selectedIds: new Set(ids), selectedId: primary }),
+  model.subscribe((ev) => {
+    if (ev.kind === 'entityRemoved') useStore.getState().dropId(ev.sourceId);
+  });
 
-  dropId: (id) =>
-    set((s) => {
-      if (s.selectedId !== id && !s.selectedIds.has(id)) return s;
-      const next = new Set(s.selectedIds);
-      next.delete(id);
-      const primary =
-        s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
-      return { selectedIds: next, selectedId: primary };
-    }),
-}));
+  return useStore;
+}
 
-// Model-anchored self-healing: when an entity is removed from the model (delete,
-// undo-of-create), drop it from the selection by source id — no manual deselect.
-// Wholesale scene swaps (open project, reload) emit `reset` and clear selection
-// explicitly (the bulk path), since source ids restart with the incoming scene.
-SceneModel.subscribe((ev) => {
-  if (ev.kind === 'entityRemoved') useSelection.getState().dropId(ev.sourceId);
-});
+/** The app's default-session selection. Other sessions build their own via createSelectionStore. */
+export const useSelection = createSelectionStore(SceneModel);
