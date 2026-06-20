@@ -16,6 +16,15 @@ export class AsyncCache<T> {
     private pending_ = new Map<string, PendingEntry<T>>();
     private failed_ = new Map<string, FailedEntry>();
 
+    /**
+     * @param dispose_ Optional releaser for a value whose load finishes AFTER
+     *   its getOrLoad already timed out — the caller got the timeout rejection,
+     *   so that late value has no owner and would otherwise leak (e.g. a GL
+     *   texture created past the deadline; audit A17). NOT called for
+     *   invalidate()/clearAll(), whose in-flight results still reach the caller.
+     */
+    constructor(private dispose_?: (value: T) => void) {}
+
     async getOrLoad(key: string, loader: () => Promise<T>, timeout = RuntimeConfig.assetLoadTimeout): Promise<T> {
         const cached = this.cache_.get(key);
         if (cached !== undefined) {
@@ -38,21 +47,38 @@ export class AsyncCache<T> {
         entry.promise = (async () => {
             const loaderPromise = loader();
 
-            const result = await (timeout > 0
-                ? Promise.race([
-                    loaderPromise,
-                    new Promise<never>((_, reject) =>
-                        setTimeout(() => {
-                            entry.aborted = true;
-                            reject(new Error(`AsyncCache timeout: ${key} (${timeout}ms)`));
-                        }, timeout)
-                    ),
-                ])
-                : loaderPromise);
-
-            if (!entry.aborted) {
-                this.cache_.set(key, result);
+            if (timeout <= 0) {
+                const result = await loaderPromise;
+                if (!entry.aborted) this.cache_.set(key, result);
+                this.pending_.delete(key);
+                return result;
             }
+
+            let timedOut = false;
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            // The loader keeps running even when the deadline wins the race. If
+            // it produces a value after timing out, that value has no owner —
+            // release it so it doesn't leak (audit A17).
+            void loaderPromise.then(
+                (late) => { if (timedOut) this.disposeAbandoned_(key, late); },
+                () => { /* loader rejected — nothing to release */ },
+            );
+
+            const result = await Promise.race([
+                loaderPromise,
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => {
+                        timedOut = true;
+                        entry.aborted = true;
+                        reject(new Error(`AsyncCache timeout: ${key} (${timeout}ms)`));
+                    }, timeout);
+                }),
+            ]);
+
+            // Loader won the race: cancel the deadline so it can't abort after
+            // the fact, then cache (unless invalidate() aborted it in-flight).
+            clearTimeout(timer);
+            if (!entry.aborted) this.cache_.set(key, result);
             this.pending_.delete(key);
             return result;
         })();
@@ -70,6 +96,16 @@ export class AsyncCache<T> {
                 }
             }
             throw err;
+        }
+    }
+
+    /** Release a value that was abandoned by a timeout; never throws upward. */
+    private disposeAbandoned_(key: string, value: T): void {
+        if (!this.dispose_) return;
+        try {
+            this.dispose_(value);
+        } catch (e) {
+            log.warn('asset', `AsyncCache: releasing abandoned "${key}" threw`, e);
         }
     }
 

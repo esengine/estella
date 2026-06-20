@@ -139,7 +139,11 @@ export class Assets {
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
     private spineLoader_: SpineAssetLoader;
 
-    private textureCache_ = new AsyncCache<TextureResult>();
+    private textureCache_ = new AsyncCache<TextureResult>((result) => {
+        // A texture whose load finished after its getOrLoad timed out has no
+        // owner; release its GL handle so it doesn't leak VRAM (audit A17).
+        requireResourceManager().releaseTexture(result.handle);
+    });
     private textureRefCounts_ = new Map<string, number>();
     private genericCache_ = new Map<string, AsyncCache<unknown>>();
     private loadContext_: LoadContext | null = null;
