@@ -10,7 +10,8 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../world';
 import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/UICameraInfo';
-import { ProjectionType, ScaleMode, SceneOwner } from '../component';
+import { ProjectionType, ScaleMode, SceneOwner, ClearFlags } from '../component';
+import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
 import { RenderPipeline } from '../renderPipeline';
 import { Renderer } from '../renderer';
 import { platformNow } from '../platform';
@@ -168,6 +169,70 @@ export function collectCameras(
 }
 
 // =============================================================================
+// Editor View (dedicated editor camera — overrides scene cameras when active)
+// =============================================================================
+
+/**
+ * Build a full-frame CameraInfo from the editor view, reusing the SAME VP math
+ * primitives (ortho / invertTranslation / multiply) as scene cameras — only the
+ * camera *configuration* differs (full-frame viewport, raw orthoSize, no canvas
+ * design-resolution scaling). This is what makes the editor view a first-class
+ * peer of scene cameras rather than a separate view-math implementation.
+ */
+export function editorCameraInfo(
+    view: EditorViewData,
+    width: number,
+    height: number,
+    pool: CameraInfo[],
+): CameraInfo {
+    const aspect = height > 0 ? width / height : 1;
+    const halfH = view.orthoSize;
+    const halfW = halfH * aspect;
+    const FAR = 100000;
+    const projection = ortho(-halfW, halfW, -halfH, halfH, -FAR, FAR);
+    const v = invertTranslation(view.x, view.y, 0);
+    const cam = acquireCameraInfo(pool, 0);
+    cam.entity = -1; // synthetic — not a scene entity
+    cam.viewProjection.set(multiply(projection, v));
+    cam.viewportRect.x = 0;
+    cam.viewportRect.y = 0;
+    cam.viewportRect.w = 1;
+    cam.viewportRect.h = 1;
+    cam.clearFlags = ClearFlags.ColorAndDepth;
+    cam.priority = 0;
+    cam.halfW = halfW;
+    cam.halfH = halfH;
+    cam.cameraX = view.x;
+    cam.cameraY = view.y;
+    return cam;
+}
+
+/**
+ * The cameras to render + sync this frame: the editor view (a single full-frame
+ * camera) when it is active, otherwise the scene's game cameras. One decision
+ * point shared by the UICameraInfo sync and the render system, so what is drawn
+ * and what screen<->world resolves to can never diverge.
+ */
+function resolveCameras(
+    app: App,
+    module: ESEngineModule,
+    cppRegistry: CppRegistry,
+    width: number,
+    height: number,
+    world: World | undefined,
+    activeScenes: Set<string> | undefined,
+    pool: CameraInfo[],
+): CameraInfo[] {
+    if (app.hasResource(EditorView)) {
+        const view = app.getResource(EditorView);
+        if (view.active && width > 0 && height > 0) {
+            return [editorCameraInfo(view, width, height, pool)];
+        }
+    }
+    return collectCameras(module, cppRegistry, width, height, world, activeScenes, pool);
+}
+
+// =============================================================================
 // UICameraInfo Sync
 // =============================================================================
 
@@ -222,6 +287,10 @@ export function cameraPlugin(
             // so two Apps running at once never clobber each other's CameraInfo.
             const cameraInfoPool: CameraInfo[] = [];
 
+            // The editor view is inactive by default — shipped games never touch
+            // it; the editor activates it in edit mode (see desktop EngineHost).
+            app.insertResource(EditorView, { ...DEFAULT_EDITOR_VIEW });
+
             const viewport = getViewportSize ?? (() => {
                 const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
                 return {
@@ -236,7 +305,8 @@ export function cameraPlugin(
                 _params: [],
                 _fn: () => {
                     const { width, height } = viewport();
-                    syncUICameraInfo(app, module, cppRegistry, width, height, undefined, cameraInfoPool);
+                    const cameras = resolveCameras(app, module, cppRegistry, width, height, undefined, undefined, cameraInfoPool);
+                    syncUICameraInfo(app, module, cppRegistry, width, height, cameras);
                 },
             };
 
@@ -267,7 +337,7 @@ export function cameraPlugin(
                     }
 
                     pipeline.setActiveScenes(activeScenes ?? null);
-                    const cameras = collectCameras(module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool);
+                    const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool);
 
                     syncUICameraInfo(app, module, cppRegistry, width, height, cameras);
 

@@ -38,6 +38,8 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 // =============================================================================
 
 export { CameraView, CameraViewApi } from './camera/Camera';
+export { EditorView, DEFAULT_EDITOR_VIEW } from './camera/EditorView';
+export type { EditorViewData } from './camera/EditorView';
 
 // =============================================================================
 // Draw API
