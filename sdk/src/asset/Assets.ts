@@ -141,7 +141,7 @@ export class Assets {
 
     private textureCache_ = new AsyncCache<TextureResult>((result) => {
         // A texture whose load finished after its getOrLoad timed out has no
-        // owner; release its GL handle so it doesn't leak VRAM (audit A17).
+        // owner; release its GL handle so it doesn't leak VRAM.
         requireResourceManager().releaseTexture(result.handle);
     });
     private textureRefCounts_ = new Map<string, number>();

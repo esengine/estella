@@ -1,6 +1,6 @@
 /**
  * @file    plugin-cleanup.test.ts
- * @brief   Regression net for audit A19 — Physics/Spine plugins must release
+ * @brief   Physics/Spine plugins must release
  *          their native module + world listeners on app teardown (App calls
  *          plugin.cleanup() at shutdown). Before this, `_physics_shutdown` was
  *          dead code, the spine backends were never disposed, and the
@@ -12,7 +12,7 @@ import { SpineManager } from '../src/spine/SpineManager';
 import { SpinePlugin } from '../src/spine/SpinePlugin';
 import { PhysicsPlugin } from '../src/physics/PhysicsPlugin';
 
-describe('SpineManager.dispose (A19)', () => {
+describe('SpineManager.dispose', () => {
     it('shuts down every backend and clears all state, idempotently', () => {
         const mgr = new SpineManager({} as any, new Map());
         const backendA = { shutdown: vi.fn() };
@@ -37,7 +37,7 @@ describe('SpineManager.dispose (A19)', () => {
     });
 });
 
-describe('SpinePlugin.cleanup (A19)', () => {
+describe('SpinePlugin.cleanup', () => {
     it('unsubscribes the despawn listener and disposes the spine manager', () => {
         const plugin = new SpinePlugin();
         const unsub = vi.fn();
@@ -63,7 +63,7 @@ describe('SpinePlugin.cleanup (A19)', () => {
     });
 });
 
-describe('PhysicsPlugin.cleanup (A19)', () => {
+describe('PhysicsPlugin.cleanup', () => {
     it('shuts down the native physics world and nulls the module', () => {
         const plugin = new PhysicsPlugin('fake://physics.wasm');
         const shutdown = vi.fn();

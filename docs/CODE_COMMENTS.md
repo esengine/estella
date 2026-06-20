@@ -12,7 +12,8 @@
 - **解释 why，不复述 what。** 注释讲"为什么这么写 / 不变量 / 陷阱 / 契约"，不要把代码再用英文念一遍。
 - **简洁、现在时、完整句子，首字母大写。**
 - **不留注释掉的死代码** —— 删就删（git 记得住）。
-- **带出处**：引用审计/设计依据时给标识，如 `audit A17`、`RC12 §E8`、`sceneManager.ts:264`。
+- **自包含**：注释把"为什么"直接讲清楚，**能独立看懂**。
+- **不要在注释里写内部/临时的流程代号**（审计编号如 `A20`、工单号、私有缩写）——代码读者查不到、而且会过时（那些文档常常根本没进仓库）。确需指向长期存在的**已提交**文档时，写**真实路径**，如 `docs/REARCH_EDITOR_REALM.md`；`file.ts:123` 这种可定位的引用可以。
 
 ## 1. 文件头 `@file` / `@brief`
 
@@ -56,8 +57,14 @@
 
 ```ts
 // The loader keeps running even when the deadline wins the race; release
-// whatever it produces so a post-deadline GL texture doesn't leak (audit A17).
+// whatever it produces so a post-deadline GL texture doesn't leak.
 clearTimeout(timer);
+```
+
+反例（**禁止**，注释里塞内部审计代号，读者无从查起）：
+
+```ts
+// Release it instead of leaking it (audit A20).   // ❌ "A20" 是什么？
 ```
 
 反例（**禁止**，复述代码）：
@@ -79,10 +86,10 @@ i++;
 
 ## 5. TODO / FIXME
 
-带上下文或标识，不留裸 `// TODO`：
+说清"要做什么 / 为什么"，不留裸 `// TODO`，也不要塞内部代号：
 
 ```ts
-// TODO(audit A15c): guard stride_ === 0 before the divide.
+// TODO: guard against stride_ === 0 before the divide (lost-context path).
 ```
 
 ## 6. C++ 特例
@@ -108,4 +115,4 @@ i++;
 - [ ] 新增/改动的导出 API 有 `/** */`，且讲的是 why/契约而非签名？
 - [ ] 内联注释解释的是"为什么"，没有复述代码？
 - [ ] 没有注释掉的死代码、没有裸 TODO？
-- [ ] 引用审计/设计点时带了标识（`audit A17` / `RC12 §E8` / `file:line`）？
+- [ ] 注释**自包含**，没有内部流程代号（如 `audit A20`、工单号）？指向文档时用的是已提交文件的真实路径？

@@ -1,6 +1,6 @@
 /**
  * @file    async-cache-leak.test.ts
- * @brief   Regression net for audit A17 — when a load times out, the loader
+ * @brief   When a load times out, the loader
  *          keeps running; its late result used to be dropped on the floor (the
  *          caller already got the timeout rejection), leaking whatever it had
  *          allocated (e.g. a GL texture = VRAM). AsyncCache now releases such
@@ -11,7 +11,7 @@ import { AsyncCache } from '../src/asset/AsyncCache';
 
 const after = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-describe('AsyncCache abandoned-load disposal (A17)', () => {
+describe('AsyncCache abandoned-load disposal', () => {
     it('disposes a value whose load finishes AFTER the timeout', async () => {
         const disposed: number[] = [];
         const cache = new AsyncCache<number>((v) => disposed.push(v));

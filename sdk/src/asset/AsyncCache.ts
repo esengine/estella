@@ -20,7 +20,7 @@ export class AsyncCache<T> {
      * @param dispose_ Optional releaser for a value whose load finishes AFTER
      *   its getOrLoad already timed out — the caller got the timeout rejection,
      *   so that late value has no owner and would otherwise leak (e.g. a GL
-     *   texture created past the deadline; audit A17). NOT called for
+     *   texture created past the deadline). NOT called for
      *   invalidate()/clearAll(), whose in-flight results still reach the caller.
      */
     constructor(private dispose_?: (value: T) => void) {}
@@ -58,7 +58,7 @@ export class AsyncCache<T> {
             let timer: ReturnType<typeof setTimeout> | undefined;
             // The loader keeps running even when the deadline wins the race. If
             // it produces a value after timing out, that value has no owner —
-            // release it so it doesn't leak (audit A17).
+            // release it so it doesn't leak.
             void loaderPromise.then(
                 (late) => { if (timedOut) this.disposeAbandoned_(key, late); },
                 () => { /* loader rejected — nothing to release */ },

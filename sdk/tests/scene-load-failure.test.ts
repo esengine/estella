@@ -1,11 +1,11 @@
 /**
  * @file    scene-load-failure.test.ts
- * @brief   Regression net for the audit's A18 (scene lifecycle robustness):
- *          A18a — a load that throws partway must NOT wedge the scene (a retry
- *                 has to start fresh, not resolve to undefined forever), and any
- *                 entities spawned before the throw must be cleaned up.
- *          A18b — a user `cleanup` callback that throws must NOT abort unload's
- *                 entity teardown (which would leak the scene's entities).
+ * @brief   Scene lifecycle robustness on failure paths:
+ *          (1) a load that throws partway must NOT wedge the scene — a retry has
+ *              to start fresh (not resolve to undefined forever), and any
+ *              entities spawned before the throw must be cleaned up;
+ *          (2) a user `cleanup` callback that throws must NOT abort unload's
+ *              entity teardown (which would leak the scene's entities).
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
@@ -76,7 +76,7 @@ function createMockApp() {
     };
 }
 
-describe('SceneManager load-failure recovery (A18a)', () => {
+describe('SceneManager load-failure recovery', () => {
     let app: ReturnType<typeof createMockApp>;
     let manager: SceneManagerState;
 
@@ -138,7 +138,7 @@ describe('SceneManager load-failure recovery (A18a)', () => {
     });
 });
 
-describe('SceneManager unload teardown robustness (A18b)', () => {
+describe('SceneManager unload teardown robustness', () => {
     let app: ReturnType<typeof createMockApp>;
     let manager: SceneManagerState;
 
