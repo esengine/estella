@@ -10,7 +10,7 @@ import { postProcessPlugin } from './postprocess';
 import { timelinePlugin } from './timeline';
 import { timerPlugin } from './timer';
 import { lifecyclePlugin } from './lifecycle';
-import { SpinePlugin } from './spine';
+import { SpinePlugin, WebSpineWasmProvider } from './spine';
 import type { SpineWasmProvider } from './spine';
 
 export { uiPlugins };
@@ -36,12 +36,21 @@ export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAss
 
 export interface CreateWebAppOptions extends WebAppOptions {
     spineProvider?: SpineWasmProvider;
+    /**
+     * Base URL the per-version spine side modules (spine38.js/.wasm, …) are served
+     * from — usually the same directory as esengine.wasm. When set (and no explicit
+     * spineProvider is given) a WebSpineWasmProvider is wired so 3.8/4.1 assets load
+     * in the browser. Without either, only the engine-linked 4.2 runs.
+     */
+    wasmBaseUrl?: string;
 }
 
 const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
-    const spinePlugin = new SpinePlugin(options?.spineProvider);
+    const spineProvider = options?.spineProvider
+        ?? (options?.wasmBaseUrl ? new WebSpineWasmProvider(options.wasmBaseUrl) : undefined);
+    const spinePlugin = new SpinePlugin(spineProvider);
     const plugins = [...uiPlugins, ...basePlugins, spinePlugin, ...(options?.plugins ?? [])];
     return _createWebApp(module, { ...options, plugins });
 }

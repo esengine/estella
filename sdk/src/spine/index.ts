@@ -8,3 +8,4 @@ export { SpineModuleController } from './SpineController';
 export type { SpineEventCallback, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 export type { SpineModuleFactory, SpineWasmProvider } from './SpineModuleLoader';
 export { loadSpineModule, wrapSpineModule, createSpineFactories } from './SpineModuleLoader';
+export { WebSpineWasmProvider } from './WebSpineWasmProvider';
