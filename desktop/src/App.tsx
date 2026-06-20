@@ -33,8 +33,8 @@ export function App() {
           if (ok) store.select(null); // entity ids change on load — drop stale selection
         });
       } else if (mod && key === 's') {
-        // Save (E7-4): ⌘S overwrites the current scene; ⇧⌘S is Save-As. ⌘S
-        // falls back to Save-As when overwrite is blocked (lossy / no scene).
+        // Save (E7-4): ⌘S overwrites the current scene (lossless, JSON-first);
+        // ⇧⌘S is Save-As. ⌘S falls back to Save-As when there's no current scene.
         e.preventDefault();
         if (e.shiftKey) void ProjectStore.saveAsViaDialog();
         else void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog());

@@ -1,4 +1,4 @@
-import { resetWorldTo, serializeScene, getComponent, getComponentAssetFields, Assets } from 'esengine';
+import { resetWorldTo, getComponent, Assets } from 'esengine';
 import type { SceneData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
@@ -32,13 +32,6 @@ interface ProjectState {
   defaultScene?: string;
   /** The scene currently loaded into the world (project-relative path). */
   currentScene: string | null;
-  /**
-   * True if the loaded scene carried component types this editor's engine has
-   * not registered (its `src/` code isn't loaded) — they were dropped on load,
-   * so overwriting the source file would lose them. Blocks overwrite-save until
-   * project code loading lands; Save-As to a new file stays available.
-   */
-  lossy: boolean;
 }
 
 /** Component types in `data` that the engine doesn't know — dropped on load. */
@@ -84,8 +77,6 @@ function mapAssetRefs(value: unknown, resolve: (uuid: string) => number): unknow
 class ProjectStoreImpl {
   private state: ProjectState | null = null;
   private readonly listeners = new Set<() => void>();
-  /** Texture GL handle → asset uuid for the loaded scene; reverses refs on save. */
-  private handleToUuid = new Map<number, string>();
 
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
@@ -147,7 +138,6 @@ class ProjectStoreImpl {
       workspace: opened.workspace,
       defaultScene: opened.manifest.defaultScene,
       currentScene: null,
-      lossy: false,
     };
     this.emit();
   }
@@ -167,9 +157,9 @@ class ProjectStoreImpl {
     const dropped = unknownComponentTypes(raw);
     if (dropped.length > 0) {
       console.warn(
-        `[project] scene "${rel}" uses components this editor hasn't loaded ` +
-        `(${dropped.join(', ')}); they are dropped on load — overwrite-save is ` +
-        `blocked until project code loading lands. Use Save As.`,
+        `[project] scene "${rel}" uses components this editor's engine hasn't ` +
+        `loaded (${dropped.join(', ')}); they don't render in the viewport, but ` +
+        `are preserved verbatim in the source-of-truth model and on save (JSON-first).`,
       );
     }
     const data = await this.resolveTextures(raw);
@@ -178,11 +168,11 @@ class ProjectStoreImpl {
       // resetWorldTo returns source-id → runtime entity. Adopt the raw scene
       // (with @uuid: refs + any components/fields/invisible entities the World
       // drops) as the editor's source of truth (REARCH_SERIALIZATION.md L1).
-      // The World is a lossy projection; the model is what L4 will save.
+      // The World is a lossy projection; the model is what save() serializes.
       const entityMap = resetWorldTo(world, data);
       SceneModel.adopt(raw, entityMap);
     }
-    this.state = { ...st, currentScene: rel, lossy: dropped.length > 0 };
+    this.state = { ...st, currentScene: rel };
     this.emit();
   }
 
@@ -195,7 +185,6 @@ class ProjectStoreImpl {
   private async resolveTextures(raw: SceneData): Promise<SceneData> {
     const st = this.state;
     const bridge = window.estella;
-    this.handleToUuid = new Map();
     if (!st) return raw;
 
     const referenced = new Set<string>();
@@ -229,7 +218,6 @@ class ProjectStoreImpl {
         try {
           const { handle } = await assets.loadTexture(`estella://project/${rel}`);
           uuidToHandle.set(uuid, handle);
-          this.handleToUuid.set(handle, uuid);
         } catch (err) {
           console.warn('[project] texture load failed', rel, err);
         }
@@ -238,28 +226,16 @@ class ProjectStoreImpl {
     return mapAssetRefs(raw, (uuid) => uuidToHandle.get(uuid) ?? 0) as SceneData;
   }
 
-  /** Serialize the live world; map texture handles back to `@uuid:` (portable). */
+  /**
+   * Serialize the editor's source-of-truth model — lossless (JSON-first L4).
+   * The model retains everything the World drops (unknown components/fields,
+   * invisible entities, `@uuid:` asset refs), so this no longer reads from the
+   * World and needs no handle→uuid restoration.
+   */
   private serializeCurrent(): SceneData {
-    const world = EngineHost.mutableWorld();
-    if (!world) throw new Error('engine not ready');
-    return this.restoreAssetRefs(serializeScene(world, this.state?.name ?? 'scene'));
-  }
-
-  /** Replace texture-handle values in asset fields with their `@uuid:` refs. */
-  private restoreAssetRefs(data: SceneData): SceneData {
-    if (this.handleToUuid.size === 0) return data;
-    for (const entity of data.entities ?? []) {
-      for (const comp of entity.components ?? []) {
-        const cdata = comp.data as Record<string, unknown>;
-        for (const field of getComponentAssetFields(comp.type)) {
-          const v = cdata[field];
-          if (typeof v === 'number' && this.handleToUuid.has(v)) {
-            cdata[field] = `${UUID_PREFIX}${this.handleToUuid.get(v)}`;
-          }
-        }
-      }
-    }
-    return data;
+    const model = SceneModel.serialize();
+    if (!model) throw new Error('no scene loaded');
+    return { ...model, name: this.state?.name ?? model.name };
   }
 
   private async writeScene(relPath: string, data: SceneData): Promise<void> {
@@ -276,19 +252,13 @@ class ProjectStoreImpl {
   }
 
   /**
-   * Overwrite the current scene file. Refuses when the load was lossy (would
-   * clobber components this editor dropped) — the caller should fall back to
-   * {@link saveAsViaDialog}.
+   * Overwrite the current scene file — now lossless (JSON-first L4): the saved
+   * data comes from the source-of-truth model, which preserves components this
+   * editor's engine never loaded. The old lossy overwrite-block is gone.
    */
   async save(): Promise<void> {
     const st = this.state;
     if (!st || !st.currentScene) throw new Error('no scene to save');
-    if (st.lossy) {
-      throw new Error(
-        'overwrite-save blocked: the scene has components this editor did not ' +
-        'load (they would be lost). Use Save As to write a new file.',
-      );
-    }
     await this.writeScene(st.currentScene, this.serializeCurrent());
     await this.persistLastScene(st.currentScene);
   }

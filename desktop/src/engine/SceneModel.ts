@@ -2,6 +2,7 @@ import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 
 type SceneEntity = SceneData['entities'][number];
+type SceneComponent = SceneEntity['components'][number];
 
 /**
  * The editor's source-of-truth scene data model — JSON-first (REARCH_SERIALIZATION.md, L1).
@@ -22,6 +23,8 @@ class SceneModelImpl {
   private readonly runtimeToSource = new Map<EntityId, number>();
   /** source entity id → runtime World entity (absent for visible:false / unspawned). */
   private readonly sourceToRuntime = new Map<number, EntityId>();
+  /** Allocator for source ids of entities created after load (added/duplicated). */
+  private nextSourceId = 1;
 
   /**
    * Adopt a freshly-loaded scene as the editor truth.
@@ -32,6 +35,9 @@ class SceneModelImpl {
     this.data = loaded;
     this.runtimeToSource.clear();
     this.sourceToRuntime.clear();
+    let maxId = 0;
+    for (const e of loaded.entities) if (e.id > maxId) maxId = e.id;
+    this.nextSourceId = maxId + 1;
     for (const [sourceId, runtime] of entityMap) {
       this.sourceToRuntime.set(sourceId, runtime);
       this.runtimeToSource.set(runtime, sourceId);
@@ -42,11 +48,76 @@ class SceneModelImpl {
     this.data = null;
     this.runtimeToSource.clear();
     this.sourceToRuntime.clear();
+    this.nextSourceId = 1;
+  }
+
+  // ── Mutations (JSON-first L3) ────────────────────────────────────────────
+  // SceneCommands dual-writes here alongside the World so the model stays the
+  // lossless truth. Field edits address the live runtime entity; entity
+  // lifecycle addresses the stable source id (survives undo/redo recreates,
+  // where the runtime id changes). All are no-ops if no scene is loaded.
+
+  /**
+   * Update one field of a component on a runtime entity's source record.
+   * Preserves every other field — including `@uuid:` asset refs and schema-extra
+   * fields the World can't hold — so the model stays lossless. Mirrors the
+   * per-key value SceneCommands writes to the World.
+   */
+  setField(runtime: EntityId, compType: string, key: string, value: unknown): void {
+    const e = this.sourceEntity(runtime);
+    if (!e) return;
+    let comp = e.components.find((c) => c.type === compType);
+    if (!comp) {
+      comp = { type: compType, data: {} } as SceneComponent;
+      e.components.push(comp);
+    }
+    (comp.data as Record<string, unknown>)[key] = value;
+  }
+
+  /** Set a runtime entity's name (stored top-level in SceneData, not as a component). */
+  setName(runtime: EntityId, name: string): void {
+    const e = this.sourceEntity(runtime);
+    if (e) e.name = name;
+  }
+
+  /** Add a new source entity (for a freshly-spawned runtime entity). Returns its source id. */
+  addEntity(runtime: EntityId, name: string, components: SceneComponent[]): number {
+    const id = this.nextSourceId++;
+    if (this.data) this.data.entities.push({ id, name, parent: null, children: [], components });
+    this.bindRuntime(id, runtime);
+    return id;
+  }
+
+  /** Remove + return a source entity by id (kept by undo closures to restore later). */
+  removeEntityBySource(sourceId: number): SceneEntity | undefined {
+    const rt = this.sourceToRuntime.get(sourceId);
+    if (rt !== undefined) this.runtimeToSource.delete(rt);
+    this.sourceToRuntime.delete(sourceId);
+    if (!this.data) return undefined;
+    const idx = this.data.entities.findIndex((e) => e.id === sourceId);
+    return idx >= 0 ? this.data.entities.splice(idx, 1)[0] : undefined;
+  }
+
+  /** Re-insert a previously-removed source entity, bound to a (re-created) runtime entity. */
+  restoreEntity(entity: SceneEntity, runtime: EntityId): void {
+    if (this.data) this.data.entities.push(entity);
+    this.bindRuntime(entity.id, runtime);
+  }
+
+  /** Point a source id at its current runtime entity (call after a recreate). */
+  bindRuntime(sourceId: number, runtime: EntityId): void {
+    this.sourceToRuntime.set(sourceId, runtime);
+    this.runtimeToSource.set(runtime, sourceId);
   }
 
   /** The current scene truth, or null if none loaded. */
   get current(): SceneData | null {
     return this.data;
+  }
+
+  /** A deep clone of the scene truth, for lossless save (JSON-first L4). */
+  serialize(): SceneData | null {
+    return this.data ? (JSON.parse(JSON.stringify(this.data)) as SceneData) : null;
   }
 
   /** The source entity record backing a runtime World entity, if tracked. */

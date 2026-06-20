@@ -3,6 +3,7 @@ import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types'
 import { EngineHost } from './EngineHost';
 import { EditorHistory } from './EditorHistory';
 import { EntityHandles } from './EntityHandles';
+import { SceneModel } from './SceneModel';
 import { SceneQuery } from './SceneQuery';
 import { componentByName, angleZToQuat, hexToRgb, prettyLabel, type WorldT } from './schema';
 
@@ -122,6 +123,12 @@ function applyFieldWrite(
   }
 
   world.set(entity, def, next as unknown as Parameters<WorldT['set']>[2]);
+  // Dual-write to the source-of-truth model (JSON-first L3). next[key] is the
+  // SceneData-format value for this key; writing just the key preserves the
+  // model component's other fields — including @uuid: asset refs and
+  // schema-extra fields the World can't hold. Every field edit AND its undo/redo
+  // route through here, so the model stays in sync for free.
+  SceneModel.setField(entity, compName, key, next[key]);
 }
 
 export const SceneCommands = {
@@ -202,6 +209,11 @@ export const SceneCommands = {
   // — Undoable entity lifecycle. Re-creating an entity changes its engine id,
   //   so closures track a stable EntityHandle and resolve it live. —
 
+  // Each lifecycle op dual-writes the source-of-truth model (JSON-first L3),
+  // keyed by a stable source id so undo/redo (which re-create entities under new
+  // runtime ids) keep the model in sync. The model holds the lossless record;
+  // the World is the projection.
+
   /** Spawn a new empty entity (with a Transform). Returns its id. */
   addEntity(): EntityId | null {
     const world = EngineHost.mutableWorld();
@@ -210,12 +222,22 @@ export const SceneCommands = {
     world.insert(e, Transform, DEFAULT_TRANSFORM);
     const cap = captureEntity(world, e);
     const handle = EntityHandles.acquire(e);
+    const sourceId = SceneModel.addEntity(e, 'Entity', [
+      { type: 'Transform', data: structuredClone(DEFAULT_TRANSFORM) },
+    ]);
+    let modelCap: ReturnType<typeof SceneModel.removeEntityBySource>;
     EditorHistory.record(
       'Add Entity',
       () => {
-        if (cap) EntityHandles.rebind(handle, recreateEntity(world, cap));
+        if (!cap) return;
+        const nw = recreateEntity(world, cap);
+        EntityHandles.rebind(handle, nw);
+        if (modelCap) SceneModel.restoreEntity(modelCap, nw);
       },
-      () => despawnHandle(world, handle),
+      () => {
+        despawnHandle(world, handle);
+        modelCap = SceneModel.removeEntityBySource(sourceId);
+      },
     );
     return e;
   },
@@ -227,12 +249,22 @@ export const SceneCommands = {
     const cap = captureEntity(world, id);
     if (!cap) return;
     const handle = EntityHandles.acquire(id);
+    const sourceId = SceneModel.sourceFor(id);
+    // Capture the FULL model record (incl. unknown components) for lossless undo.
+    const modelCap = sourceId !== undefined ? SceneModel.removeEntityBySource(sourceId) : undefined;
     world.despawn(id);
     EntityHandles.rebind(handle, null);
     EditorHistory.record(
       `Delete ${cap.name || 'Entity'}`,
-      () => despawnHandle(world, handle),
-      () => EntityHandles.rebind(handle, recreateEntity(world, cap)),
+      () => {
+        despawnHandle(world, handle);
+        if (sourceId !== undefined) SceneModel.removeEntityBySource(sourceId);
+      },
+      () => {
+        const nw = recreateEntity(world, cap);
+        EntityHandles.rebind(handle, nw);
+        if (modelCap) SceneModel.restoreEntity(modelCap, nw);
+      },
     );
   },
 
@@ -250,10 +282,38 @@ export const SceneCommands = {
     }
     const dup = recreateEntity(world, cap);
     const handle = EntityHandles.acquire(dup);
+    // The model copy is from the SOURCE model entity (preserves unknown
+    // components/fields the World cap can't carry), with the same offset.
+    const srcId = SceneModel.sourceFor(id);
+    const srcEntity = srcId !== undefined
+      ? SceneModel.current?.entities.find((e) => e.id === srcId)
+      : undefined;
+    const dupComponents = srcEntity
+      ? (structuredClone(srcEntity.components) as typeof srcEntity.components)
+      : cap.comps.map((c) => ({
+          type: c.name,
+          data: structuredClone(c.data) as Record<string, unknown>,
+        }));
+    const mpos = (dupComponents.find((c) => c.type === 'Transform')?.data as
+      | { position?: { x: number; y: number } }
+      | undefined)?.position;
+    if (mpos) {
+      mpos.x += 24;
+      mpos.y -= 24;
+    }
+    const newSourceId = SceneModel.addEntity(dup, srcEntity?.name ?? cap.name, dupComponents);
+    let modelCap: ReturnType<typeof SceneModel.removeEntityBySource>;
     EditorHistory.record(
       `Duplicate ${cap.name || 'Entity'}`,
-      () => EntityHandles.rebind(handle, recreateEntity(world, cap)),
-      () => despawnHandle(world, handle),
+      () => {
+        const nw = recreateEntity(world, cap);
+        EntityHandles.rebind(handle, nw);
+        if (modelCap) SceneModel.restoreEntity(modelCap, nw);
+      },
+      () => {
+        despawnHandle(world, handle);
+        modelCap = SceneModel.removeEntityBySource(newSourceId);
+      },
     );
     return dup;
   },
@@ -267,7 +327,10 @@ export const SceneCommands = {
     const handle = EntityHandles.acquire(id);
     const setName = (value: string) => {
       const live = EntityHandles.liveId(handle);
-      if (live != null && world.valid(live)) world.insert(live, Name, { value });
+      if (live != null && world.valid(live)) {
+        world.insert(live, Name, { value });
+        SceneModel.setName(live, value);
+      }
     };
     setName(name);
     EditorHistory.record(`Rename ${name || 'Entity'}`, () => setName(name), () => setName(before));
