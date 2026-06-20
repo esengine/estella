@@ -229,6 +229,10 @@ class EngineHostImpl {
       const app = createWebApp(module, {
         glContextHandle: glHandle,
         getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
+        // The per-version spine side modules are served next to esengine.wasm
+        // (same /wasm/ dir as locateFile above), so the web spine provider can
+        // load 3.8/4.1 assets in the viewport, not just the engine-linked 4.2.
+        wasmBaseUrl: '/wasm',
       });
       this.app_ = app;
 
