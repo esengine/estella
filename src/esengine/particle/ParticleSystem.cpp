@@ -10,8 +10,8 @@ ParticleSystem::ParticleSystem()
 }
 
 void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
-    if (destroy_callback_id_ == 0) {
-        destroy_callback_id_ = registry.onDestroy([this](Entity entity) {
+    if (!destroyConn_.isConnected()) {
+        destroyConn_ = registry.onDestroyScoped([this](Entity entity) {
             states_.erase(entity);
         });
     }

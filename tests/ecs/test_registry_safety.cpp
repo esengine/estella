@@ -91,6 +91,27 @@ int main() {
         CHECK(r.valid(a) && r.valid(b), "both recreated entities are valid");
     }
 
+    // --- onDestroyScoped: the RAII Connection auto-unregisters on scope exit ---
+    // A system that stores the raw callback id but forgets to removeOnDestroy
+    // leaves a dangling `this` in the registry (the ParticleSystem / SpineSystem
+    // bug). The scoped variant makes that impossible: the callback is gone once
+    // the returned Connection is destroyed. ASAN here would catch a disconnect
+    // that reached into freed memory.
+    {
+        Registry r;
+        int hits = 0;
+        {
+            auto conn = r.onDestroyScoped([&](Entity) { ++hits; });
+            Entity e = r.create();
+            r.destroy(e);
+            CHECK(hits == 1, "scoped onDestroy fires while the Connection is alive");
+        }
+        // Connection destroyed -> callback unregistered.
+        Entity e2 = r.create();
+        r.destroy(e2);
+        CHECK(hits == 1, "callback no longer fires once the Connection is destroyed");
+    }
+
     // --- ES_VERIFY: emplace / emplaceOrReplace on an invalid entity is release-safe ---
     // Without the guard, component_masks_[Entity{}.index() == 0xFFFFF] is an OOB
     // write (ES_ASSERT is stripped here). The guard must fire and return a fallback.

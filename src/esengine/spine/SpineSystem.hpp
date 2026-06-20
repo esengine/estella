@@ -217,7 +217,9 @@ private:
 
     SpineResourceManager& resource_manager_;
     std::unordered_map<Entity, SpineInstance> instances_;
-    u32 destroy_callback_id_ = 0;
+    // RAII: auto-unregisters from the registry's onDestroy on teardown, so a
+    // destroyed system never leaves a dangling `this` in the registry.
+    Connection destroyConn_;
 
     std::array<f32, MAX_NATIVE_EVENTS * EVENT_STRIDE> native_event_buffer_{};
     std::array<NativeEventRecord, MAX_NATIVE_EVENTS> native_event_records_{};

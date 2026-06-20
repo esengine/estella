@@ -43,8 +43,8 @@ void SpineSystem::update(ecs::Registry& registry, f32 deltaTime) {
         }
     }
 
-    if (destroy_callback_id_ == 0) {
-        destroy_callback_id_ = registry.onDestroy([this](Entity entity) {
+    if (!destroyConn_.isConnected()) {
+        destroyConn_ = registry.onDestroyScoped([this](Entity entity) {
             instances_.erase(entity);
         });
     }

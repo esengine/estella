@@ -24,6 +24,7 @@
 #include "Entity.hpp"
 #include "SparseSet.hpp"
 #include "View.hpp"
+#include "../events/Connection.hpp"
 
 // Standard library
 #include <algorithm>
@@ -197,6 +198,18 @@ public:
                 return;
             }
         }
+    }
+
+    /**
+     * RAII variant of onDestroy: the returned Connection auto-unregisters the
+     * callback when it is destroyed, so a subscriber that holds it as a member
+     * can never leak a dangling `this` into the registry. Prefer this over the
+     * raw onDestroy()/removeOnDestroy() pair.
+     */
+    [[nodiscard]] Connection onDestroyScoped(DestroyCallback callback) {
+        u32 id = onDestroy(std::move(callback));
+        return Connection(static_cast<CallbackId>(id),
+                          [this](CallbackId cid) { removeOnDestroy(static_cast<u32>(cid)); });
     }
 
     /**
@@ -608,7 +621,9 @@ private:
     };
 
     std::vector<DestroyEntry> on_destroy_entries_;
-    u32 next_callback_id_ = 0;
+    // Starts at 1: id 0 is reserved as "no connection" (Connection's
+    // INVALID_CALLBACK_ID) and as the not-yet-registered sentinel.
+    u32 next_callback_id_ = 1;
     u32 firing_destroy_ = 0;
 };
 

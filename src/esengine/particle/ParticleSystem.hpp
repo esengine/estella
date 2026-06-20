@@ -56,7 +56,9 @@ private:
     std::unordered_map<Entity, EmitterState> states_;
     std::mt19937 rng_;
     std::vector<u32> dead_particle_indices_;
-    u32 destroy_callback_id_ = 0;
+    // RAII: auto-unregisters from the registry's onDestroy when this system is
+    // destroyed, so a torn-down system never leaves a dangling `this` behind.
+    Connection destroyConn_;
 };
 
 }  // namespace esengine::particle
