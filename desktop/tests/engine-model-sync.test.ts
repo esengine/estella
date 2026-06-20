@@ -121,6 +121,32 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         expect(saved.entities[0].components.some((c) => c.type === 'WaveMotion')).toBe(true);
     });
 
+    it('delete of a parent cascades to its children (model + World); undo restores the subtree', () => {
+        const childSrc = S.model.addEntity(
+            'Child',
+            [{ type: 'WaveMotion', data: { amplitude: 3 } }] as never,
+            1,
+        );
+        const childRt = S.model.runtimeFor(childSrc)!;
+        expect(host.world.valid(childRt)).toBe(true);
+
+        S.commands.deleteEntity(1); // delete the PARENT (Hero) — the subtree goes
+        expect(S.model.entityBySource(1)).toBeUndefined();
+        expect(S.model.entityBySource(childSrc)).toBeUndefined();
+        expect(host.world.valid(runtime1)).toBe(false);
+        expect(host.world.valid(childRt)).toBe(false); // child despawned with its parent
+
+        S.history.undo();
+        // Model: both back, the child still parented to the restored parent.
+        expect(S.model.entityBySource(1)).toBeDefined();
+        expect(S.model.entityBySource(childSrc)?.parent).toBe(1);
+        // World: both respawned, the child re-parented to the new parent runtime.
+        const newParentRt = S.model.runtimeFor(1)!;
+        const newChildRt = S.model.runtimeFor(childSrc)!;
+        expect(host.world.has(newChildRt, Parent)).toBe(true);
+        expect((host.world.get(newChildRt, Parent) as { entity: number }).entity).toBe(newParentRt);
+    });
+
     it('delete of a parented entity with an unknown component → undo restores model + World + parent link', () => {
         // Add a child of Hero (source 1) carrying an unknown component.
         const childSrc = S.model.addEntity(

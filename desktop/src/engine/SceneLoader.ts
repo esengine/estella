@@ -6,98 +6,64 @@ import { EditorHistory } from './EditorHistory';
 
 type SceneDataArg = Parameters<typeof loadSceneData>[1];
 
-// Minimal structural view of the engine Assets resource we use.
-interface AssetsLike {
-  loadTexture(ref: string): Promise<{ handle: number }>;
-}
-
 const UUID_PREFIX = '@uuid:';
-
-// Walk every string in the SceneData; `fn` may return a replacement value.
-function mapStrings(value: unknown, fn: (s: string) => unknown): unknown {
-  if (typeof value === 'string') return fn(value);
-  if (Array.isArray(value)) return value.map((v) => mapStrings(v, fn));
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = mapStrings(v, fn);
-    }
-    return out;
-  }
-  return value;
-}
-
-function collectUuids(sceneData: unknown): Set<string> {
-  const uuids = new Set<string>();
-  mapStrings(sceneData, (s) => {
-    if (s.startsWith(UUID_PREFIX)) uuids.add(s.slice(UUID_PREFIX.length));
-    return s;
-  });
-  return uuids;
-}
 
 export const SceneLoader = {
   /**
-   * Fetch an `.esscene` (SceneData JSON), resolve its `@uuid:` texture refs to
-   * live texture handles via the engine Assets system + a uuid→url manifest,
-   * spawn it into the world, and adopt the RAW scene as the editor model (the
-   * source of truth). Returns the entity count. Refs without a manifest entry
-   * (or a failed load) blank to 0 (solid-color sprite).
+   * Fetch an `.esscene` (SceneData JSON) and load it through the engine's own
+   * asset system — the ONE asset-resolution path (REARCH_ASSETS.md). A uuid→url
+   * manifest feeds the ref resolver; `Assets.preloadSceneAssets` loads every
+   * referenced type (not just textures), and a resolved copy builds the World.
+   * The raw scene (with `@uuid:` refs + components/fields the World drops) is
+   * adopted as the editor model (the source of truth). Returns the entity count.
    *
-   * Model-authoritative (REARCH_EDITOR_MODEL.md): the World is built directly
-   * here (the bulk projection), and the raw scene — with `@uuid:` refs + any
-   * components/fields the World drops — becomes the model. SceneModel.adopt
-   * emits `reset`; the Reconciler ignores it (the World is already built), while
-   * SceneStore bumps and panels re-read from the model.
+   * This is the dev-fallback / automation transport (a manifest of absolute
+   * URLs); the editor's project transport (estella:// + .meta) lives in
+   * ProjectStore. Both now go through the same engine `Assets` loader.
+   *
+   * Model-authoritative (REARCH_EDITOR_MODEL.md): SceneModel.adopt emits `reset`;
+   * the Reconciler ignores it (the World is already built here) while SceneStore
+   * bumps and panels re-read from the model.
    */
   async loadInto(app: App, sceneUrl: string, manifestUrl?: string): Promise<number> {
     const res = await fetch(sceneUrl);
     if (!res.ok) throw new Error(`scene fetch failed: ${res.status} ${sceneUrl}`);
     const raw = (await res.json()) as SceneData;
 
-    const uuidToHandle = await loadTextures(app, raw, manifestUrl);
+    const uuidToUrl = await fetchManifest(manifestUrl);
+    const assets = app.getResource(Assets);
+    let resolved: SceneData = raw;
+    if (assets) {
+      assets.baseUrl = ''; // manifest URLs are absolute / root-relative
+      assets.setAssetRefResolver((ref) =>
+        ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? null) : ref,
+      );
+      const result = await assets.preloadSceneAssets(raw);
+      resolved = JSON.parse(JSON.stringify(raw)) as SceneData; // resolveSceneAssetPaths mutates
+      assets.resolveSceneAssetPaths(resolved, result);
+      // Incremental recreate (duplicate / undo) re-resolves textures from the
+      // engine's live cache (just loaded above).
+      Reconciler.setAssetResolver((uuid) => assets.getTexture(UUID_PREFIX + uuid)?.handle ?? 0);
+    }
 
-    const sceneData = mapStrings(raw, (s) =>
-      s.startsWith(UUID_PREFIX) ? (uuidToHandle.get(s.slice(UUID_PREFIX.length)) ?? 0) : s,
-    ) as SceneDataArg;
-
-    const map = loadSceneData(app.world, sceneData);
+    const map = loadSceneData(app.world, resolved as SceneDataArg);
     EditorHistory.clear();
-    Reconciler.setAssetResolver((uuid) => uuidToHandle.get(uuid) ?? 0);
     SceneModel.adopt(raw, map as Map<number, number>);
     return map.size;
   },
 };
 
-async function loadTextures(
-  app: App,
-  sceneData: unknown,
-  manifestUrl?: string,
-): Promise<Map<string, number>> {
-  const handles = new Map<string, number>();
-  if (!manifestUrl) return handles;
-
-  let manifest: Record<string, string>;
+/** Fetch a uuid→url asset manifest (the dev/automation transport). Empty if absent. */
+async function fetchManifest(manifestUrl?: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!manifestUrl) return out;
   try {
     const res = await fetch(manifestUrl);
-    if (!res.ok) return handles;
-    manifest = await res.json();
+    if (!res.ok) return out;
+    const json = (await res.json()) as Record<string, string>;
+    for (const [uuid, url] of Object.entries(json)) out.set(uuid, url);
   } catch {
-    return handles;
+    // no manifest — refs blank to 0
   }
-
-  const assets = app.getResource(Assets) as unknown as AssetsLike | undefined;
-  if (!assets) return handles;
-
-  for (const uuid of collectUuids(sceneData)) {
-    const url = manifest[uuid];
-    if (!url) continue;
-    try {
-      const { handle } = await assets.loadTexture(url);
-      handles.set(uuid, handle);
-    } catch (err) {
-      console.warn('[engine] texture load failed', url, err);
-    }
-  }
-  return handles;
+  return out;
 }

@@ -33,30 +33,45 @@ export class SceneQueryImpl {
     return this.store.getStructureRevision();
   }
 
-  /** Build the outliner tree from the model, nesting via parent/children links. */
+  /**
+   * Build the outliner tree from the model. Nesting is derived from each entity's
+   * `parent` field (the authoritative tree position) — grouped into a parent→
+   * children index — so every entity appears exactly once: under its parent if it
+   * exists, else as a root. This is robust to a `children[]` array that drifted
+   * out of sync (e.g. a hand-edited / malformed scene), which a children-driven
+   * walk would silently drop or double-count.
+   */
   readSceneTree(): SceneNode[] {
     const data = this.model.current;
     if (!data) return [];
-    const byId = new Map(data.entities.map((e) => [e.id, e]));
+
+    const ids = new Set(data.entities.map((e) => e.id));
+    const childrenOf = new Map<number, Array<(typeof data.entities)[number]>>();
+    const roots: Array<(typeof data.entities)[number]> = [];
+    for (const e of data.entities) {
+      if (e.parent != null && ids.has(e.parent)) {
+        const arr = childrenOf.get(e.parent);
+        if (arr) arr.push(e);
+        else childrenOf.set(e.parent, [e]);
+      } else {
+        roots.push(e); // no parent, or a dangling parent → a scene root
+      }
+    }
 
     const build = (e: (typeof data.entities)[number]): SceneNode => {
       const kind = modelKindOf(e);
-      const kids = e.children
-        .map((cid) => byId.get(cid))
-        .filter((c): c is typeof e => c != null)
-        .map(build);
+      const kids = childrenOf.get(e.id)?.map(build);
       return {
         id: e.id,
         name: modelNameOf(e, kind),
         kind,
         visible: modelIsVisible(e),
         locked: false,
-        children: kids.length ? kids : undefined,
+        children: kids && kids.length ? kids : undefined,
       };
     };
 
-    // Roots = entities with no parent, or whose parent no longer exists.
-    return data.entities.filter((e) => e.parent == null || !byId.has(e.parent)).map(build);
+    return roots.map(build);
   }
 
   /** Inspect a single source entity (name, kind, which components it carries). */

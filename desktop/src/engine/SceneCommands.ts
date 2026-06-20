@@ -207,18 +207,31 @@ export class SceneCommandsImpl {
     return sourceId;
   }
 
-  /** Delete an entity (undo re-creates it, losslessly, from the model record). */
+  /**
+   * Delete an entity AND its descendants (the World despawns children with their
+   * parent, so the model removes the whole subtree to stay consistent). Undo
+   * re-creates the subtree losslessly, parent-before-child. Records are kept
+   * parent-first so restore re-links each child to its (already-restored) parent.
+   */
   deleteEntity(sourceId: EntityId): void {
-    const name = this.model.entityBySource(sourceId)?.name || 'Entity';
-    let record = this.model.removeEntityBySource(sourceId);
-    if (!record) return;
+    const entity = this.model.entityBySource(sourceId);
+    if (!entity) return;
+    const name = entity.name || 'Entity';
+    const remove = (): SceneEntity[] =>
+      this.model
+        .collectSubtree(sourceId)
+        .map((id) => this.model.removeEntityBySource(id))
+        .filter((r): r is SceneEntity => r !== undefined);
+
+    let records = remove();
+    if (records.length === 0) return;
     this.history.record(
       `Delete ${name}`,
       () => {
-        record = this.model.removeEntityBySource(record!.id) ?? record;
+        records = remove(); // redo
       },
       () => {
-        this.model.restoreEntity(record!);
+        for (const r of records) this.model.restoreEntity(r); // parent-first
       },
     );
   }

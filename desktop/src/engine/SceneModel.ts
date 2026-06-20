@@ -257,6 +257,23 @@ export class SceneModelImpl {
     return this.data?.entities.find((e) => e.id === sourceId);
   }
 
+  /**
+   * A source id + all its descendants, **parent-before-child** — for recursive
+   * delete (the World despawns a parent's children too, so the model must remove
+   * the whole subtree to stay consistent) and ordered restore on undo.
+   */
+  collectSubtree(sourceId: number): number[] {
+    const out: number[] = [];
+    const visit = (id: number): void => {
+      const e = this.entityBySource(id);
+      if (!e) return;
+      out.push(id);
+      for (const child of e.children) visit(child);
+    };
+    visit(sourceId);
+    return out;
+  }
+
   /** The source entity record backing a runtime World entity, if tracked. */
   sourceEntity(runtime: EntityId): SceneEntity | undefined {
     const sourceId = this.runtimeToSource.get(runtime);
