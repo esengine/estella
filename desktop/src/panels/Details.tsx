@@ -1,5 +1,5 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
-import { Box, ChevronDown, MoreHorizontal, Plus } from 'lucide-react';
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Box, ChevronDown, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
@@ -10,8 +10,8 @@ import type { InspectorComponent, InspectorField, EntityId } from '@/types';
 const AXES = ['x', 'y', 'z'];
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 
-// Each control reports gesture boundaries (onBegin/onEnd) so one focus→blur or
-// one click becomes a single undo step; onCommit applies the value live.
+// Each control reports gesture boundaries (onBegin/onEnd) so one focus→blur, one
+// click, or one drag-scrub becomes a single undo step; onCommit applies live.
 interface ControlGesture {
   onBegin?: () => void;
   onEnd?: () => void;
@@ -26,12 +26,46 @@ function NumField({
 }: ControlGesture & { value: number; suffix?: string; onCommit: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
+  // Drag-to-scrub (the UE5 numeric idiom): press + drag horizontally to nudge
+  // the value; a press with no drag falls through to focusing the field to type.
+  const scrub = useRef<{ x: number; base: number; moved: boolean } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+    if (editing || e.button !== 0) return;
+    e.preventDefault(); // don't focus yet — let a press-without-drag focus on pointerup
+    scrub.current = { x: e.clientX, base: value, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLInputElement>) => {
+    const s = scrub.current;
+    if (!s) return;
+    const dx = e.clientX - s.x;
+    if (!s.moved) {
+      if (Math.abs(dx) < 3) return; // movement threshold separates scrub from click
+      s.moved = true;
+      onBegin?.();
+    }
+    const step = e.shiftKey ? 0.01 : e.altKey ? 1 : 0.1; // Shift = fine, Alt = coarse
+    onCommit(Math.round((s.base + dx * step) * 1000) / 1000);
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
+    const s = scrub.current;
+    scrub.current = null;
+    if (!s) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    if (s.moved) onEnd?.();
+    else e.currentTarget.focus(); // a click → type
+  };
+
   return (
     <span className="num-wrap">
       <input
-        className="num num--solo"
+        className="num num--solo num--scrub"
         value={editing ? text : fmt(value)}
         spellCheck={false}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
         onFocus={() => {
           setText(fmt(value));
           setEditing(true);
@@ -162,8 +196,8 @@ function FieldRow({
   comp: string;
   field: InspectorField;
 }) {
-  // The gesture (focus→blur, or one click) coalesces into a single undo step;
-  // SceneCommands owns the before/after capture and recording.
+  // The gesture (focus→blur, one click, or a drag-scrub) coalesces into a single
+  // undo step; SceneCommands owns the before/after capture and recording.
   const apply = (value: number | boolean | string | number[]) =>
     SceneCommands.setField(entity, comp, field.key, field.type, value as never);
   const begin = () => SceneCommands.beginGesture(`Edit ${field.label}`);
@@ -209,27 +243,42 @@ function FieldRow({
   );
 }
 
-function ComponentSection({ entity, comp }: { entity: EntityId; comp: InspectorComponent }) {
+function ComponentSection({
+  entity,
+  comp,
+  collapsed,
+  onToggle,
+}: {
+  entity: EntityId;
+  comp: InspectorComponent;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   return (
     <section className="cblock">
-      <header className="cblock__head">
-        <ChevronDown size={13} strokeWidth={2} className="cblock__twist" />
-        <input
-          type="checkbox"
-          className="cblock__enable"
-          defaultChecked
-          onClick={(e) => e.stopPropagation()}
+      <header className="cblock__head" onClick={onToggle}>
+        <ChevronDown
+          size={13}
+          strokeWidth={2}
+          className={`cblock__twist${collapsed ? ' is-collapsed' : ''}`}
         />
         <span className="cblock__name">{comp.label}</span>
-        <button type="button" className="cblock__more" title="Component options">
+        <button
+          type="button"
+          className="cblock__more"
+          title="Component options"
+          onClick={(e) => e.stopPropagation()}
+        >
           <MoreHorizontal size={15} strokeWidth={2} />
         </button>
       </header>
-      <div className="cblock__fields">
-        {comp.fields.map((f) => (
-          <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} />
-        ))}
-      </div>
+      {!collapsed && (
+        <div className="cblock__fields">
+          {comp.fields.map((f) => (
+            <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -240,6 +289,15 @@ export function Details() {
   const selectedId = useEditorStore((s) => s.selectedId);
   const ready = engine.status === 'ready' && selectedId != null;
 
+  const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+
   const entity = useMemo(
     () => (ready ? SceneQuery.readEntity(selectedId!) : null),
     [ready, selectedId, revision],
@@ -248,6 +306,23 @@ export function Details() {
     () => (ready ? SceneQuery.readInspector(selectedId!) : []),
     [ready, selectedId, revision],
   );
+
+  // Inspector search: keep components whose name matches (all fields), or that
+  // have any matching field (only the matches), like UE5's Details filter.
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return components;
+    const out: InspectorComponent[] = [];
+    for (const c of components) {
+      if (c.label.toLowerCase().includes(q)) {
+        out.push(c);
+        continue;
+      }
+      const fields = c.fields.filter((f) => f.label.toLowerCase().includes(q));
+      if (fields.length) out.push({ ...c, fields });
+    }
+    return out;
+  }, [components, query]);
 
   if (!entity || selectedId == null) {
     return (
@@ -273,10 +348,30 @@ export function Details() {
         <span className="inspector-head__id mono">#{selectedId}</span>
       </div>
 
+      <div className="inspector-search">
+        <Search size={13} strokeWidth={1.9} />
+        <input
+          className="inspector-search__input"
+          placeholder="Search components"
+          value={query}
+          spellCheck={false}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
       <div className="panel__body">
-        {components.map((comp) => (
-          <ComponentSection key={comp.name} entity={selectedId} comp={comp} />
+        {visible.map((comp) => (
+          <ComponentSection
+            key={comp.name}
+            entity={selectedId}
+            comp={comp}
+            collapsed={collapsed.has(comp.name)}
+            onToggle={() => toggle(comp.name)}
+          />
         ))}
+        {query && visible.length === 0 && (
+          <p className="inspector-note">No components match “{query}”.</p>
+        )}
 
         <button type="button" className="add-component">
           <Plus size={15} strokeWidth={2} /> Add Component

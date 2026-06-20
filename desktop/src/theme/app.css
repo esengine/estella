@@ -689,6 +689,30 @@
   color: var(--text-faint);
 }
 
+/* Inspector field/component search (UE5 Details filter). */
+.inspector-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.inspector-search__input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-hi);
+  font-size: var(--fs-sm);
+}
+.inspector-search__input::placeholder {
+  color: var(--text-faint);
+}
+
 .cblock {
   border-bottom: 1px solid var(--line-soft);
 }
@@ -699,10 +723,19 @@
   height: 32px;
   padding: 0 10px;
   background: var(--elevated);
+  cursor: pointer;
+  user-select: none;
+}
+.cblock__head:hover {
+  background: var(--raised);
 }
 .cblock__twist {
   color: var(--text-dim);
   flex-shrink: 0;
+  transition: transform 0.12s;
+}
+.cblock__twist.is-collapsed {
+  transform: rotate(-90deg);
 }
 .cblock__enable {
   appearance: none;
@@ -831,6 +864,13 @@
 .num--solo {
   background: none;
   border: none;
+}
+/* Drag-to-scrub affordance: ew-resize when idle, text caret when typing. */
+.num--scrub {
+  cursor: ew-resize;
+}
+.num--scrub:focus {
+  cursor: text;
 }
 .num__unit {
   font-size: var(--fs-2xs);
