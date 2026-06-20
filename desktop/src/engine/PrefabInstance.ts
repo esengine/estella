@@ -56,7 +56,7 @@ export function expandInstance(
   prefab: PrefabData,
   delta: PrefabInstanceDelta,
   allocateId: () => number,
-): ProcessedEntity[] {
+): { entities: ProcessedEntity[]; rootId: number } {
   const { entities, rootId } = flattenPrefab(prefab, delta.overrides, {
     allocateId,
     loadPrefab: () => null, // nested prefabs: PF2-later
@@ -88,14 +88,17 @@ export function expandInstance(
   });
 
   const all = [...kept, ...added];
-  // Rebuild children arrays from parent links so the subtree stays consistent
-  // (kept entities' children may reference removed ids).
-  const byId = new Map(all.map((e) => [e.id, e]));
-  for (const e of all) e.children = [];
-  for (const e of all) {
+  rebuildChildren(all);
+  return { entities: all, rootId };
+}
+
+/** Rebuild every entity's `children` array from its `parent` link (consistency). */
+function rebuildChildren(entities: ProcessedEntity[]): void {
+  const byId = new Map(entities.map((e) => [e.id, e]));
+  for (const e of entities) e.children = [];
+  for (const e of entities) {
     if (e.parent != null) byId.get(e.parent)?.children.push(e.id);
   }
-  return all;
 }
 
 /**
@@ -118,4 +121,54 @@ export function collapseInstance(
     parentId: u.parent != null ? (byId.get(u.parent)?.prefabEntityId ?? null) : null,
   }));
   return { prefab: prefabRef, overrides, added, removed: orphanedSourceIds };
+}
+
+// ── Scene ⇄ model boundary ──────────────────────────────────────────────────
+// A prefab instance is ONE entry in the scene file and an expanded subtree in
+// the model. The instance root keeps a stable scene id across save/load (other
+// entities may parent to it); the internal entities are re-allocated each load.
+
+/** A prefab instance as it lives in the scene FILE: a delta + where it attaches. */
+export interface PrefabInstanceEntry extends PrefabInstanceDelta {
+  /** The instance root's stable scene source id. */
+  id: number;
+  /** The instance root's scene parent (its attach point), or null = scene root. */
+  parent: number | null;
+}
+
+/**
+ * Expand a scene instance entry into model entities: flatten the asset + delta,
+ * pin the instance root to the entry's stable `id` (re-allocating only the
+ * internal entities), and attach the root under the entry's scene `parent`.
+ */
+export function expandEntry(
+  prefab: PrefabData,
+  entry: PrefabInstanceEntry,
+  allocateId: () => number,
+): { entities: ProcessedEntity[]; rootId: number } {
+  const { entities, rootId } = expandInstance(prefab, entry, allocateId);
+  // Pin the root to the persisted scene id (external refs target it); internal
+  // entities keep their fresh ids. Remap the root id + any parent pointing at it.
+  for (const e of entities) {
+    if (e.id === rootId) e.id = entry.id;
+    if (e.parent === rootId) e.parent = entry.id;
+  }
+  const root = entities.find((e) => e.id === entry.id);
+  if (root) root.parent = entry.parent; // attach under the scene parent
+  rebuildChildren(entities);
+  return { entities, rootId: entry.id };
+}
+
+/**
+ * Collapse an expanded instance subtree (root `rootId`, attached under
+ * `sceneParent`) back to a scene entry — the inverse of {@link expandEntry}.
+ */
+export function collapseEntry(
+  prefab: PrefabData,
+  prefabRef: string,
+  expanded: readonly ProcessedEntity[],
+  rootId: number,
+  sceneParent: number | null,
+): PrefabInstanceEntry {
+  return { id: rootId, parent: sceneParent, ...collapseInstance(prefab, prefabRef, expanded) };
 }

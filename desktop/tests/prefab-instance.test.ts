@@ -9,7 +9,14 @@
 import { describe, it, expect } from 'vitest';
 import { migratePrefabData } from 'esengine';
 import type { PrefabData } from 'esengine';
-import { expandInstance, collapseInstance, type PrefabInstanceDelta } from '@/engine/PrefabInstance';
+import {
+  expandInstance,
+  collapseInstance,
+  expandEntry,
+  collapseEntry,
+  type PrefabInstanceDelta,
+  type PrefabInstanceEntry,
+} from '@/engine/PrefabInstance';
 
 function turretPrefab(): PrefabData {
   return migratePrefabData({
@@ -70,7 +77,7 @@ describe('Prefab instance expand/collapse round-trip', () => {
     };
 
     let nid = 0;
-    const expanded = expandInstance(prefab, delta, () => nid++);
+    const { entities: expanded } = expandInstance(prefab, delta, () => nid++);
     const back = collapseInstance(prefab, REF, expanded);
 
     expect(back.prefab).toBe(REF);
@@ -93,7 +100,7 @@ describe('Prefab instance expand/collapse round-trip', () => {
     const prefab = turretPrefab();
     const delta: PrefabInstanceDelta = { prefab: REF, overrides: [], added: [], removed: ['scope'] };
     let nid = 0;
-    const expanded = expandInstance(prefab, delta, () => nid++);
+    const { entities: expanded } = expandInstance(prefab, delta, () => nid++);
     // root + barrel kept; scope removed; nothing added.
     expect(expanded.map((e) => e.prefabEntityId).sort()).toEqual(['barrel', 'root']);
     const root = expanded.find((e) => e.prefabEntityId === 'root')!;
@@ -105,9 +112,62 @@ describe('Prefab instance expand/collapse round-trip', () => {
     const prefab = turretPrefab();
     const delta: PrefabInstanceDelta = { prefab: REF, overrides: [], added: [], removed: [] };
     let nid = 0;
-    const back = collapseInstance(prefab, REF, expandInstance(prefab, delta, () => nid++));
+    const back = collapseInstance(prefab, REF, expandInstance(prefab, delta, () => nid++).entities);
     expect(back.overrides).toEqual([]);
     expect(back.added).toEqual([]);
     expect(back.removed).toEqual([]);
+  });
+
+  // ── Scene ⇄ model boundary (expandEntry / collapseEntry) ──
+  it('expandEntry pins the root to the entry id + attaches under the scene parent', () => {
+    const prefab = turretPrefab();
+    const entry: PrefabInstanceEntry = {
+      id: 100, // stable scene id of the instance root
+      parent: 7, // attaches under scene entity 7
+      prefab: REF,
+      overrides: [],
+      added: [],
+      removed: [],
+    };
+    let nid = 200; // fresh model ids for the internals
+    const { entities, rootId } = expandEntry(prefab, entry, () => nid++);
+    expect(rootId).toBe(100);
+    const root = entities.find((e) => e.id === 100)!;
+    expect(root.prefabEntityId).toBe('root');
+    expect(root.parent).toBe(7); // scene parent
+    // The barrel's parent points at the pinned root id, not the allocated one.
+    const barrel = entities.find((e) => e.prefabEntityId === 'barrel')!;
+    expect(barrel.parent).toBe(100);
+    expect(root.children).toContain(barrel.id);
+  });
+
+  it('a scene instance entry round-trips through expandEntry → collapseEntry', () => {
+    const prefab = turretPrefab();
+    const entry: PrefabInstanceEntry = {
+      id: 100,
+      parent: 7,
+      prefab: REF,
+      overrides: [
+        { prefabEntityId: 'root', type: 'property', componentType: 'Transform', propertyName: 'position', value: { x: 9, y: 0, z: 0 } },
+        { prefabEntityId: 'barrel', type: 'name', value: 'BigBarrel' },
+      ],
+      added: [
+        { prefabEntityId: 'addon1', name: 'Muzzle', components: [{ type: 'Sprite', data: {} }], visible: true, parentId: 'root' },
+      ],
+      removed: ['scope'],
+    };
+    let nid = 200;
+    const { entities, rootId } = expandEntry(prefab, entry, () => nid++);
+    const back = collapseEntry(prefab, REF, entities, rootId, entry.parent);
+
+    expect(back.id).toBe(100); // stable root id preserved
+    expect(back.parent).toBe(7); // scene attach point preserved
+    expect(back.removed.sort()).toEqual(['scope']);
+    expect(back.added.map((a) => a.prefabEntityId)).toEqual(['addon1']);
+    expect(back.added[0].parentId).toBe('root');
+    expect(
+      back.overrides.find((o) => o.type === 'property' && o.prefabEntityId === 'root')?.value,
+    ).toEqual({ x: 9, y: 0, z: 0 });
+    expect(back.overrides.find((o) => o.type === 'name' && o.prefabEntityId === 'barrel')?.value).toBe('BigBarrel');
   });
 });
