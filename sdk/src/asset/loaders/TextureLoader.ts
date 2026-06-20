@@ -185,19 +185,31 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             wrap === 'mirror' ? gl.MIRRORED_REPEAT :
             gl.REPEAT;
 
-        const texture = gl.createTexture()!;
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip ? 1 : 0);
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img as any);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, glMinFilter);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, glMagFilter);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, glWrap);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, glWrap);
-        if (useMipmaps) {
-            gl.generateMipmap(gl.TEXTURE_2D);
+        // createTexture returns null on a lost context — don't `!`-assert it
+        // into the calls below.
+        const texture = gl.createTexture();
+        if (!texture) {
+            throw new Error('TextureLoader: gl.createTexture() returned null (GL context lost?)');
         }
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+        try {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip ? 1 : 0);
+            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img as any);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, glMinFilter);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, glMagFilter);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, glWrap);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, glWrap);
+            if (useMipmaps) {
+                gl.generateMipmap(gl.TEXTURE_2D);
+            }
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+        } catch (err) {
+            // Upload threw (e.g. context lost mid-call); release the GL texture
+            // instead of leaking it.
+            gl.deleteTexture(texture);
+            throw err;
+        }
 
         const glObj = this.module_.GL;
         const glTextureId = glObj.getNewId(glObj.textures);

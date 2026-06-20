@@ -167,9 +167,15 @@ export function uploadCompressedTexture(
     if (internalFormat == null) throw new Error(`compressed upload: no GL internalformat for ${fmt}`);
     const texture = gl.createTexture();
     if (!texture) throw new Error('compressed upload: gl.createTexture failed');
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.compressedTexImage2D(gl.TEXTURE_2D, 0, internalFormat, t.width, t.height, 0, t.data);
-    applyParams(gl, opts);
+    try {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.compressedTexImage2D(gl.TEXTURE_2D, 0, internalFormat, t.width, t.height, 0, t.data);
+        applyParams(gl, opts);
+    } catch (err) {
+        // Release the GL texture if the upload throws — don't leak it.
+        gl.deleteTexture(texture);
+        throw err;
+    }
     return { handle: registerGlTexture(module, texture, t.width, t.height), width: t.width, height: t.height };
 }
 
@@ -179,9 +185,15 @@ export function uploadRgbaTexture(
 ): UploadedTexture {
     const texture = gl.createTexture();
     if (!texture) throw new Error('rgba upload: gl.createTexture failed');
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, r.width, r.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, r.data);
-    applyParams(gl, opts);
+    try {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, r.width, r.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, r.data);
+        applyParams(gl, opts);
+    } catch (err) {
+        // Release the GL texture if the upload throws — don't leak it.
+        gl.deleteTexture(texture);
+        throw err;
+    }
     return { handle: registerGlTexture(module, texture, r.width, r.height), width: r.width, height: r.height };
 }
 
