@@ -15,6 +15,7 @@ import { listRecents, addRecent, listTemplates, createFromTemplate } from './lau
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
 import { scanAssetDatabase } from './assetDb';
+import { cookAssets } from './cookAssets';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -162,6 +163,16 @@ ipcMain.handle('project:extractSchemas', async () => {
 // this into the engine Assets registry (one resolution path) and the Content
 // Browser; the cook walks `deps` (REARCH_ASSETS.md A2).
 ipcMain.handle('project:scanAssets', async () => scanAssetDatabase(requireRoot()));
+
+// Cook the project's assets for shipping: from the entry scene, walk the
+// dependency graph to the reachable assets, stage them into `outDir`, and emit
+// the runtime manifest — culling unreferenced assets (REARCH_ASSETS.md A4).
+ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
+  const root = requireRoot();
+  const manifest = await readManifest(root);
+  const entry = manifest.defaultScene;
+  return cookAssets(root, { entryScenes: entry ? [entry] : [], outDir: outDir ?? 'build' });
+});
 
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));

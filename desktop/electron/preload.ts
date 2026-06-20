@@ -3,6 +3,7 @@ import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntr
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScanAssetsResult } from './assetDb';
+import type { CookResult } from './cookAssets';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -33,6 +34,8 @@ const api = {
     extractSchemas: (): Promise<ExtractSchemasResult> => ipcRenderer.invoke('project:extractSchemas'),
     /** Scan the project's .meta sidecars → the asset index (registry + dep graph). */
     scanAssets: (): Promise<ScanAssetsResult> => ipcRenderer.invoke('project:scanAssets'),
+    /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
+    cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
   },
   // New-project templates (launcher New tab).
   templates: {
