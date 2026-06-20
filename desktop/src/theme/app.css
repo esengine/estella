@@ -77,6 +77,8 @@
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   box-shadow: var(--shadow-pop);
+  max-height: 60vh;
+  overflow-y: auto;
   -webkit-app-region: no-drag;
 }
 /* Right-click context menu — portaled to body, positioned at the cursor. */

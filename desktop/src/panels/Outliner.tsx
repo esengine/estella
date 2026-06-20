@@ -93,7 +93,15 @@ function Row(props: RowProps) {
 
         <span className="tree-row__actions">
           {node.locked && <Lock size={12} strokeWidth={1.85} className="tree-row__lock" />}
-          <button type="button" className="tree-row__vis" title="Toggle visibility">
+          <button
+            type="button"
+            className="tree-row__vis"
+            title="Toggle visibility"
+            onClick={(e) => {
+              e.stopPropagation();
+              SceneCommands.setEntityVisible(node.id, !node.visible);
+            }}
+          >
             {node.visible ? <Eye size={13} strokeWidth={1.85} /> : <EyeOff size={13} strokeWidth={1.85} />}
           </button>
         </span>

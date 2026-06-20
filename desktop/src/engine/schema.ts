@@ -75,6 +75,21 @@ export function inspectableComponents(
   return out;
 }
 
+/** Registered components NOT yet on an entity — the "Add Component" candidates. */
+export function addableComponents(
+  world: ReadonlyWorldT,
+  entity: EntityId,
+): Array<{ name: string; def: AnyComp; label: string }> {
+  const out: Array<{ name: string; def: AnyComp; label: string }> = [];
+  for (const [name, rawDef] of getAllRegisteredComponents()) {
+    if (HIDDEN_COMPONENTS.has(name) || name === 'Transform') continue;
+    const def = rawDef as unknown as AnyComp;
+    if (world.has(entity, def)) continue;
+    out.push({ name, def, label: prettyLabel(name) });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
 /** The editable fields of one component (its live data introspected by shape). */
 export function componentFields(def: AnyComp, data: Record<string, unknown>): InspectorField[] {
   const colorKeys = new Set<string>(def.colorKeys);

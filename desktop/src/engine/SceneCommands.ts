@@ -5,7 +5,7 @@ import { EditorHistory } from './EditorHistory';
 import { EntityHandles } from './EntityHandles';
 import { SceneModel } from './SceneModel';
 import { SceneQuery } from './SceneQuery';
-import { componentByName, angleZToQuat, hexToRgb, prettyLabel, type WorldT } from './schema';
+import { componentByName, inspectableComponents, angleZToQuat, hexToRgb, prettyLabel, type WorldT } from './schema';
 
 // — Entity snapshot capture/restore for undoable create/delete —
 // Parent/Children carry entity-id references that go stale on re-create, so
@@ -376,6 +376,68 @@ export const SceneCommands = {
     };
     apply(parent);
     EditorHistory.record('Reparent', () => apply(parent), () => apply(before));
+  },
+
+  /** Add a component (with its registered defaults) to an entity. Undoable. */
+  addComponent(id: EntityId, compName: string): void {
+    const world = EngineHost.mutableWorld();
+    if (!world || !world.valid(id)) return;
+    const def = componentByName(compName);
+    if (!def || world.has(id, def)) return;
+    const data = structuredClone((def as unknown as { _default: unknown })._default);
+    const apply = () => {
+      if (world.valid(id) && !world.has(id, def)) {
+        world.insert(id, def, data as never);
+        SceneModel.setComponent(id, compName, data);
+      }
+    };
+    const undo = () => {
+      if (world.valid(id) && world.has(id, def)) {
+        world.remove(id, def);
+        SceneModel.removeComponent(id, compName);
+      }
+    };
+    apply();
+    EditorHistory.record(`Add ${prettyLabel(compName)}`, apply, undo);
+  },
+
+  /** Remove a component from an entity (Transform / Name are protected). Undoable. */
+  removeComponent(id: EntityId, compName: string): void {
+    const world = EngineHost.mutableWorld();
+    if (!world || !world.valid(id) || compName === 'Transform' || compName === 'Name') return;
+    const def = componentByName(compName);
+    if (!def || !world.has(id, def)) return;
+    const data = structuredClone(world.get(id, def));
+    const remove = () => {
+      if (world.valid(id) && world.has(id, def)) {
+        world.remove(id, def);
+        SceneModel.removeComponent(id, compName);
+      }
+    };
+    const restore = () => {
+      if (world.valid(id) && !world.has(id, def)) {
+        world.insert(id, def, data as never);
+        SceneModel.setComponent(id, compName, data);
+      }
+    };
+    remove();
+    EditorHistory.record(`Remove ${prettyLabel(compName)}`, remove, restore);
+  },
+
+  /**
+   * Toggle an entity's editor visibility by flipping the `enabled` field of each
+   * of its components that has one (coalesced into one undo step). Lossless +
+   * persisted; SceneQuery.readSceneTree reflects it as the row's visibility.
+   */
+  setEntityVisible(id: EntityId, visible: boolean): void {
+    const world = EngineHost.mutableWorld();
+    if (!world || !world.valid(id)) return;
+    this.beginGesture(visible ? 'Show' : 'Hide');
+    for (const { name, def } of inspectableComponents(world, id)) {
+      const data = world.get(id, def) as unknown as Record<string, unknown>;
+      if ('enabled' in data) this.setField(id, name, 'enabled', 'bool', visible);
+    }
+    this.endGesture();
   },
 };
 

@@ -132,6 +132,21 @@ class SceneModelImpl {
     }
   }
 
+  /** Remove a component from a runtime entity's source record. */
+  removeComponent(runtime: EntityId, compType: string): void {
+    const e = this.sourceEntity(runtime);
+    if (e) e.components = e.components.filter((c) => c.type !== compType);
+  }
+
+  /** Add or replace a whole component's data on a runtime entity's source record. */
+  setComponent(runtime: EntityId, compType: string, data: unknown): void {
+    const e = this.sourceEntity(runtime);
+    if (!e) return;
+    const existing = e.components.find((c) => c.type === compType);
+    if (existing) existing.data = data as Record<string, unknown>;
+    else e.components.push({ type: compType, data: data as Record<string, unknown> } as SceneComponent);
+  }
+
   /** The current scene truth, or null if none loaded. */
   get current(): SceneData | null {
     return this.data;

@@ -9,7 +9,7 @@
  * editor logic (EditorHistory, EntityHandles, schema) runs for real.
  */
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { App, Transform, Parent } from 'esengine';
+import { App, Transform, Parent, Sprite } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -129,5 +129,29 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
         SceneCommands.setParent(a, b); // a under b would cycle — rejected
         expect(host.world.has(a, Parent)).toBe(false);
         expect((host.world.get(b, Parent) as { entity: number }).entity).toBe(a);
+    });
+
+    it('addComponent inserts a component (with defaults); undo/redo round-trips', () => {
+        const id = SceneCommands.addEntity()!;
+        expect(host.world.has(id, Sprite)).toBe(false);
+        SceneCommands.addComponent(id, 'Sprite');
+        expect(host.world.has(id, Sprite)).toBe(true);
+
+        EditorHistory.undo();
+        expect(host.world.has(id, Sprite)).toBe(false);
+        EditorHistory.redo();
+        expect(host.world.has(id, Sprite)).toBe(true);
+    });
+
+    it('removeComponent removes a component; undo restores it; Transform is protected', () => {
+        const id = SceneCommands.addEntity()!;
+        SceneCommands.addComponent(id, 'Sprite');
+        SceneCommands.removeComponent(id, 'Sprite');
+        expect(host.world.has(id, Sprite)).toBe(false);
+        EditorHistory.undo();
+        expect(host.world.has(id, Sprite)).toBe(true);
+
+        SceneCommands.removeComponent(id, 'Transform');
+        expect(host.world.has(id, Transform)).toBe(true);
     });
 });

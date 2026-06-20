@@ -8,7 +8,18 @@ import {
   kindOf,
   nameOf,
   componentByName,
+  type ReadonlyWorldT,
 } from './schema';
+
+// An entity reads as hidden if any of its components is explicitly disabled
+// (`enabled: false`) — the editor's visibility toggle flips those.
+function isVisible(world: ReadonlyWorldT, id: EntityId): boolean {
+  for (const { def } of inspectableComponents(world, id)) {
+    const data = world.get(id, def) as unknown as Record<string, unknown>;
+    if ('enabled' in data && data.enabled === false) return false;
+  }
+  return true;
+}
 
 // Read-only reflection of the live engine World into editor view-models.
 export const SceneQuery = {
@@ -49,7 +60,7 @@ export const SceneQuery = {
         id: e,
         name: nameOf(world, e, kind),
         kind,
-        visible: true,
+        visible: isVisible(world, e),
         locked: false,
         children: kids?.map(build),
       };

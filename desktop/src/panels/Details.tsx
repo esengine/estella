@@ -5,6 +5,8 @@ import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery } from '@/engine/SceneQuery';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { addableComponents } from '@/engine/schema';
+import { ContextMenu, type MenuItem } from '@/components/Menu';
 import type { InspectorComponent, InspectorField, EntityId } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
@@ -248,11 +250,13 @@ function ComponentSection({
   comp,
   collapsed,
   onToggle,
+  onMore,
 }: {
   entity: EntityId;
   comp: InspectorComponent;
   collapsed: boolean;
   onToggle: () => void;
+  onMore: (e: React.MouseEvent, name: string) => void;
 }) {
   return (
     <section className="cblock">
@@ -267,7 +271,10 @@ function ComponentSection({
           type="button"
           className="cblock__more"
           title="Component options"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMore(e, comp.name);
+          }}
         >
           <MoreHorizontal size={15} strokeWidth={2} />
         </button>
@@ -291,6 +298,8 @@ export function Details() {
 
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [compMenu, setCompMenu] = useState<{ x: number; y: number; comp: string } | null>(null);
+  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
   const toggle = (name: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -335,6 +344,17 @@ export function Details() {
     );
   }
 
+  const world = EngineHost.world;
+  const addItems: MenuItem[] =
+    addMenu && world
+      ? (() => {
+          const list = addableComponents(world, selectedId);
+          return list.length
+            ? list.map((c) => ({ label: c.label, onClick: () => SceneCommands.addComponent(selectedId, c.name) }))
+            : [{ label: 'All components added', onClick: () => {}, disabled: true }];
+        })()
+      : [];
+
   return (
     <div className="panel">
       <div className="inspector-head">
@@ -367,16 +387,36 @@ export function Details() {
             comp={comp}
             collapsed={collapsed.has(comp.name)}
             onToggle={() => toggle(comp.name)}
+            onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
           />
         ))}
         {query && visible.length === 0 && (
           <p className="inspector-note">No components match “{query}”.</p>
         )}
 
-        <button type="button" className="add-component">
+        <button
+          type="button"
+          className="add-component"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setAddMenu({ x: r.left, y: r.bottom + 2 });
+          }}
+        >
           <Plus size={15} strokeWidth={2} /> Add Component
         </button>
       </div>
+
+      {compMenu && (
+        <ContextMenu
+          x={compMenu.x}
+          y={compMenu.y}
+          items={[
+            { label: 'Remove Component', onClick: () => SceneCommands.removeComponent(selectedId, compMenu.comp) },
+          ]}
+          onClose={() => setCompMenu(null)}
+        />
+      )}
+      {addMenu && <ContextMenu x={addMenu.x} y={addMenu.y} items={addItems} onClose={() => setAddMenu(null)} />}
     </div>
   );
 }
