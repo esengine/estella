@@ -579,6 +579,30 @@
   filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.6));
 }
 
+/* Scene-camera gizmo: a camera icon at the camera + its authored view rect. */
+.viewport__cam-gizmo {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.viewport__cam-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -8px 0 0 -8px;
+  color: var(--star-hi);
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.75));
+}
+.viewport__cam-rect {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px dashed var(--star-line);
+  border-radius: 2px;
+  background: rgba(76, 143, 214, 0.04);
+}
+
 .viewport__overlay {
   position: absolute;
   display: flex;
@@ -1416,6 +1440,45 @@
 }
 .logline--success .logline__msg {
   color: var(--run);
+}
+.log__search {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 7px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+}
+.log__search:focus-within {
+  border-color: var(--star-line);
+}
+.log__search input {
+  width: 110px;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-hi);
+  font-size: var(--fs-xs);
+}
+.log__search input::placeholder {
+  color: var(--text-faint);
+}
+.pill__badge {
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  color: var(--text);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.log__empty {
+  padding: 16px 12px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
 }
 
 /* ----------------------------------------------------------------- toasts --- */

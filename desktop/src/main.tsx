@@ -16,6 +16,10 @@ import './theme/dockview-theme.css';
 import './theme/app.css';
 import './theme/launcher.css';
 import { App } from './App';
+import { LogStore } from './store/LogStore';
+
+// Capture console (editor + SDK + wasm) into the Output Log panel from startup.
+LogStore.install();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

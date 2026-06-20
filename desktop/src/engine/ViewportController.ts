@@ -1,4 +1,4 @@
-import { CameraView, EditorView, Sprite, Transform } from 'esengine';
+import { Camera, CameraView, EditorView, Sprite, Transform } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 
@@ -155,5 +155,52 @@ export const ViewportController = {
     if (!view || !pos) return;
     view.x = pos.x;
     view.y = pos.y;
+  },
+
+  /** Ids of the scene's camera entities — the camera-gizmo set (structural). */
+  cameraIds(): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (world.has(e, Camera) && world.has(e, Transform)) out.push(e);
+    }
+    return out;
+  },
+
+  /**
+   * Screen-space icon position + authored view rect (CSS px) of a scene camera,
+   * for drawing its gizmo. The rect is the camera's authored framing (orthoSize
+   * half-height × the viewport aspect) — what that game camera is set to see.
+   */
+  getCameraGizmo(
+    id: EntityId,
+  ): { cx: number; cy: number; rect: { x: number; y: number; w: number; h: number } } | null {
+    const world = EngineHost.world;
+    const canvas = EngineHost.canvas;
+    if (!world || !canvas || !world.valid(id) || !world.has(id, Camera) || !world.has(id, Transform)) {
+      return null;
+    }
+    const t = world.get(id, Transform);
+    const c = world.get(id, Camera) as { orthoSize?: number };
+    const halfH = c.orthoSize ?? 360;
+    const aspect = canvas.height > 0 ? canvas.width / canvas.height : 1;
+    const halfW = halfH * aspect;
+    const x = t.position.x;
+    const y = t.position.y;
+    const center = this.worldToClient(x, y);
+    if (!center) return null;
+    const corners = [
+      [x - halfW, y - halfH],
+      [x + halfW, y - halfH],
+      [x + halfW, y + halfH],
+      [x - halfW, y + halfH],
+    ].map(([wx, wy]) => this.worldToClient(wx, wy));
+    if (corners.some((p) => !p)) return null;
+    const xs = corners.map((p) => p!.x);
+    const ys = corners.map((p) => p!.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return { cx: center.x, cy: center.y, rect: { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY } };
   },
 };

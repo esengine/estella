@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Magnet, Frame,
-  Loader2, TriangleAlert, type LucideIcon,
+  Camera, Loader2, TriangleAlert, type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
@@ -11,6 +11,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneQuery } from '@/engine/SceneQuery';
+import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
 
@@ -110,6 +111,16 @@ export function Viewport() {
   const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
 
+  // Scene cameras don't render in edit mode (the viewport is the editor camera),
+  // so draw each as a gizmo (icon + authored view rect). The id set updates on
+  // structural change; the rAF below positions them every frame.
+  const structRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
+  const camRefs = useRef(new Map<number, HTMLDivElement | null>());
+  const camIds = useMemo(
+    () => (engine.status === 'ready' ? ViewportController.cameraIds() : []),
+    [structRev, engine.status],
+  );
+
   // Mount the live engine canvas into the stage; it survives panel re-docking.
   useEffect(() => {
     const stage = stageRef.current;
@@ -162,6 +173,27 @@ export function Viewport() {
         sel.style.opacity = '1';
       } else {
         sel.style.opacity = '0';
+      }
+
+      // Scene-camera gizmos — only in edit mode (in play the viewport IS the
+      // game camera), and only when gizmos are on.
+      const camsOn = ready && showG && !useEditorStore.getState().isPlaying;
+      for (const [cid, wrap] of camRefs.current) {
+        if (!wrap) continue;
+        const cg = camsOn ? ViewportController.getCameraGizmo(cid) : null;
+        if (cg) {
+          wrap.style.opacity = '1';
+          const icon = wrap.firstElementChild as HTMLElement | null;
+          const rectEl = wrap.lastElementChild as HTMLElement | null;
+          if (icon) icon.style.transform = `translate(${cg.cx}px, ${cg.cy}px)`;
+          if (rectEl) {
+            rectEl.style.transform = `translate(${cg.rect.x}px, ${cg.rect.y}px)`;
+            rectEl.style.width = `${cg.rect.w}px`;
+            rectEl.style.height = `${cg.rect.h}px`;
+          }
+        } else {
+          wrap.style.opacity = '0';
+        }
       }
     };
     raf = requestAnimationFrame(tick);
@@ -286,6 +318,22 @@ export function Viewport() {
         onPointerLeave={() => StatsStore.clearCursor()}
         onContextMenu={(e) => e.preventDefault()}
       />
+
+      {/* Scene-camera gizmos (icon + authored view rect); positioned by the rAF. */}
+      {camIds.map((id) => (
+        <div
+          key={id}
+          ref={(el) => {
+            if (el) camRefs.current.set(id, el);
+            else camRefs.current.delete(id);
+          }}
+          className="viewport__cam-gizmo"
+          aria-hidden="true"
+        >
+          <Camera className="viewport__cam-icon" size={15} strokeWidth={1.75} />
+          <div className="viewport__cam-rect" />
+        </div>
+      ))}
 
       <div ref={selectionRef} className="viewport__selection" aria-hidden="true" />
 
