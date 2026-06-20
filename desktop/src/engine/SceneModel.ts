@@ -110,6 +110,28 @@ class SceneModelImpl {
     this.runtimeToSource.set(runtime, sourceId);
   }
 
+  /**
+   * Re-parent a runtime entity in the source model (mirrors the World's Parent
+   * component). Keeps both the child's `parent` link and the old/new parents'
+   * `children` arrays consistent so the saved scene's hierarchy stays correct.
+   */
+  setParent(runtimeChild: EntityId, runtimeParent: EntityId | null): void {
+    const child = this.sourceEntity(runtimeChild);
+    if (!child || !this.data) return;
+    const newParentId = runtimeParent != null ? this.sourceFor(runtimeParent) ?? null : null;
+    if (child.parent === newParentId) return;
+
+    if (child.parent != null) {
+      const old = this.data.entities.find((e) => e.id === child.parent);
+      if (old) old.children = old.children.filter((c) => c !== child.id);
+    }
+    child.parent = newParentId;
+    if (newParentId != null) {
+      const np = this.data.entities.find((e) => e.id === newParentId);
+      if (np && !np.children.includes(child.id)) np.children.push(child.id);
+    }
+  }
+
   /** The current scene truth, or null if none loaded. */
   get current(): SceneData | null {
     return this.data;

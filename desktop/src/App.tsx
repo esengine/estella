@@ -53,8 +53,9 @@ export function App() {
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        if (sel != null) {
-          SceneCommands.deleteEntity(sel);
+        const ids = [...store.selectedIds];
+        if (ids.length) {
+          ids.forEach((id) => SceneCommands.deleteEntity(id));
           store.select(null);
         }
       }

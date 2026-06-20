@@ -9,7 +9,7 @@
  * editor logic (EditorHistory, EntityHandles, schema) runs for real.
  */
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { App, Transform } from 'esengine';
+import { App, Transform, Parent } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -106,5 +106,28 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
         SceneCommands.addEntity();
         const tree = SceneQuery.readSceneTree();
         expect(tree.length).toBe(2);
+    });
+
+    it('setParent parents an entity (Parent component); undo un-parents it', () => {
+        const parent = SceneCommands.addEntity()!;
+        const child = SceneCommands.addEntity()!;
+        SceneCommands.setParent(child, parent);
+        expect(host.world.has(child, Parent)).toBe(true);
+        expect((host.world.get(child, Parent) as { entity: number }).entity).toBe(parent);
+
+        EditorHistory.undo();
+        expect(host.world.has(child, Parent)).toBe(false);
+
+        EditorHistory.redo();
+        expect(host.world.has(child, Parent)).toBe(true);
+    });
+
+    it('setParent rejects a cycle (parenting under a descendant)', () => {
+        const a = SceneCommands.addEntity()!;
+        const b = SceneCommands.addEntity()!;
+        SceneCommands.setParent(b, a); // b under a
+        SceneCommands.setParent(a, b); // a under b would cycle — rejected
+        expect(host.world.has(a, Parent)).toBe(false);
+        expect((host.world.get(b, Parent) as { entity: number }).entity).toBe(a);
     });
 });

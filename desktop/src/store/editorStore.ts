@@ -8,9 +8,15 @@ interface EditorState {
   tool: ToolMode;
   setTool: (tool: ToolMode) => void;
 
-  // Currently selected entity (drives Details panel + viewport gizmo).
+  // Selection. `selectedId` is the PRIMARY/active entity (drives the Details
+  // panel + viewport gizmo); `selectedIds` is the full multi-selection set.
   selectedId: EntityId | null;
+  selectedIds: Set<EntityId>;
   select: (id: EntityId | null) => void;
+  /** Ctrl/Cmd-click: add/remove one entity from the selection. */
+  toggleSelect: (id: EntityId) => void;
+  /** Shift-click / box: replace the selection with a set, with a primary. */
+  selectMany: (ids: EntityId[], primary: EntityId) => void;
 
   // Expanded nodes in the outliner tree.
   expanded: Set<EntityId>;
@@ -44,7 +50,21 @@ export const useEditorStore = create<EditorState>((set) => ({
   setTool: (tool) => set({ tool }),
 
   selectedId: null,
-  select: (selectedId) => set({ selectedId }),
+  selectedIds: new Set<EntityId>(),
+  select: (selectedId) =>
+    set({ selectedId, selectedIds: selectedId != null ? new Set([selectedId]) : new Set() }),
+  toggleSelect: (id) =>
+    set((s) => {
+      const next = new Set(s.selectedIds);
+      if (next.has(id)) {
+        next.delete(id);
+        const primary = s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
+        return { selectedIds: next, selectedId: primary };
+      }
+      next.add(id);
+      return { selectedIds: next, selectedId: id };
+    }),
+  selectMany: (ids, primary) => set({ selectedIds: new Set(ids), selectedId: primary }),
 
   expanded: new Set<EntityId>(),
   toggleExpanded: (id) =>

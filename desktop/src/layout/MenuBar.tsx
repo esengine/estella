@@ -67,8 +67,9 @@ export function MenuBar() {
     if (dup != null) select(dup);
   };
   const remove = () => {
-    if (selectedId == null) return;
-    SceneCommands.deleteEntity(selectedId);
+    const ids = [...useEditorStore.getState().selectedIds];
+    if (!ids.length) return;
+    ids.forEach((i) => SceneCommands.deleteEntity(i));
     select(null);
   };
   const addEntity = () => {

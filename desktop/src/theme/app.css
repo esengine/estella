@@ -417,6 +417,15 @@
   width: 2px;
   background: var(--star);
 }
+/* The primary (active) entity within a multi-selection reads a touch stronger. */
+.tree-row.is-primary.is-selected {
+  background: rgba(76, 143, 214, 0.22);
+}
+/* Drag-to-reparent drop target. */
+.tree-row.is-drop {
+  background: var(--star-dim);
+  box-shadow: inset 0 0 0 1px var(--star-line);
+}
 .tree-row.is-hidden {
   opacity: 0.45;
 }

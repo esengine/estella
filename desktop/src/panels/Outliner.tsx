@@ -14,29 +14,44 @@ interface RowProps {
   depth: number;
   forceExpand: boolean;
   renaming: EntityId | null;
+  dropId: EntityId | null;
   onStartRename: (id: EntityId) => void;
   onCommitRename: (id: EntityId, name: string) => void;
   onContextMenu: (e: React.MouseEvent, id: EntityId) => void;
+  onRowClick: (id: EntityId, e: React.MouseEvent) => void;
+  onDragStartRow: (id: EntityId, e: React.DragEvent) => void;
+  onDragOverRow: (id: EntityId, e: React.DragEvent) => void;
+  onDropRow: (id: EntityId, e: React.DragEvent) => void;
 }
 
-function Row({ node, depth, forceExpand, renaming, onStartRename, onCommitRename, onContextMenu }: RowProps) {
+function Row(props: RowProps) {
+  const { node, depth, forceExpand, renaming, dropId } = props;
+  const selectedIds = useEditorStore((s) => s.selectedIds);
   const selectedId = useEditorStore((s) => s.selectedId);
-  const select = useEditorStore((s) => s.select);
   const expanded = useEditorStore((s) => s.expanded);
   const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
 
   const hasChildren = !!node.children?.length;
   const isOpen = forceExpand || expanded.has(node.id);
-  const isSelected = selectedId === node.id;
+  const isSelected = selectedIds.has(node.id);
   const isRenaming = renaming === node.id;
 
   return (
     <>
       <div
-        className={`tree-row${isSelected ? ' is-selected' : ''}${node.visible ? '' : ' is-hidden'}`}
+        className={
+          `tree-row${isSelected ? ' is-selected' : ''}` +
+          `${selectedId === node.id ? ' is-primary' : ''}` +
+          `${node.visible ? '' : ' is-hidden'}` +
+          `${dropId === node.id ? ' is-drop' : ''}`
+        }
         style={{ paddingLeft: depth * 14 + 6 }}
-        onClick={() => select(node.id)}
-        onContextMenu={(e) => onContextMenu(e, node.id)}
+        draggable={!isRenaming}
+        onClick={(e) => props.onRowClick(node.id, e)}
+        onContextMenu={(e) => props.onContextMenu(e, node.id)}
+        onDragStart={(e) => props.onDragStartRow(node.id, e)}
+        onDragOver={(e) => props.onDragOverRow(node.id, e)}
+        onDrop={(e) => props.onDropRow(node.id, e)}
       >
         <button
           type="button"
@@ -68,10 +83,10 @@ function Row({ node, depth, forceExpand, renaming, onStartRename, onCommitRename
                 e.currentTarget.blur();
               }
             }}
-            onBlur={(e) => onCommitRename(node.id, e.target.value)}
+            onBlur={(e) => props.onCommitRename(node.id, e.target.value)}
           />
         ) : (
-          <span className="tree-row__name" onDoubleClick={() => onStartRename(node.id)}>
+          <span className="tree-row__name" onDoubleClick={() => props.onStartRename(node.id)}>
             {node.name}
           </span>
         )}
@@ -87,16 +102,7 @@ function Row({ node, depth, forceExpand, renaming, onStartRename, onCommitRename
       {hasChildren &&
         isOpen &&
         node.children!.map((child) => (
-          <Row
-            key={child.id}
-            node={child}
-            depth={depth + 1}
-            forceExpand={forceExpand}
-            renaming={renaming}
-            onStartRename={onStartRename}
-            onCommitRename={onCommitRename}
-            onContextMenu={onContextMenu}
-          />
+          <Row key={child.id} {...props} node={child} depth={depth + 1} />
         ))}
     </>
   );
@@ -111,14 +117,26 @@ function filterNode(node: SceneNode, q: string): SceneNode | null {
   return kids.length ? { ...node, children: kids } : null;
 }
 
+// Flatten the visible tree (respecting expansion) into render order — for shift-range select.
+function flatVisible(nodes: SceneNode[], expanded: Set<EntityId>, forceExpand: boolean, out: EntityId[]) {
+  for (const n of nodes) {
+    out.push(n.id);
+    if ((forceExpand || expanded.has(n.id)) && n.children?.length) {
+      flatVisible(n.children, expanded, forceExpand, out);
+    }
+  }
+}
+
 export function Outliner() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
-  // Rebuild the tree only when the engine pushes a structural change.
   const structRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
+  const expanded = useEditorStore((s) => s.expanded);
   const initRef = useRef(false);
+  const dragIds = useRef<EntityId[] | null>(null);
 
   const [query, setQuery] = useState('');
   const [renaming, setRenaming] = useState<EntityId | null>(null);
+  const [dropId, setDropId] = useState<EntityId | null>(null);
   const [ctx, setCtx] = useState<{ x: number; y: number; id: EntityId } | null>(null);
 
   const tree = useMemo(
@@ -131,6 +149,11 @@ export function Outliner() {
     () => (q ? tree.map((n) => filterNode(n, q)).filter((n): n is SceneNode => n != null) : tree),
     [tree, q],
   );
+  const flatIds = useMemo(() => {
+    const out: EntityId[] = [];
+    flatVisible(shown, expanded, !!q, out);
+    return out;
+  }, [shown, expanded, q]);
 
   // First time entities appear: expand groups, select the first root.
   useEffect(() => {
@@ -153,9 +176,27 @@ export function Outliner() {
 
   const select = (id: EntityId | null) => useEditorStore.getState().select(id);
 
+  const onRowClick = (id: EntityId, e: React.MouseEvent) => {
+    const store = useEditorStore.getState();
+    if (e.metaKey || e.ctrlKey) {
+      store.toggleSelect(id);
+    } else if (e.shiftKey && store.selectedId != null) {
+      const a = flatIds.indexOf(store.selectedId);
+      const b = flatIds.indexOf(id);
+      if (a >= 0 && b >= 0) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        store.selectMany(flatIds.slice(lo, hi + 1), id);
+      } else store.select(id);
+    } else {
+      store.select(id);
+    }
+  };
+
   const onContextMenu = (e: React.MouseEvent, id: EntityId) => {
     e.preventDefault();
-    select(id);
+    // Right-clicking outside the current selection selects just that entity;
+    // right-clicking within it keeps the multi-selection (UE5 behaviour).
+    if (!useEditorStore.getState().selectedIds.has(id)) select(id);
     setCtx({ x: e.clientX, y: e.clientY, id });
   };
   const commitRename = (id: EntityId, name: string) => {
@@ -166,6 +207,35 @@ export function Outliner() {
   const addEntity = () => {
     const id = SceneCommands.addEntity();
     if (id != null) select(id);
+  };
+  const selectionOrTarget = (id: EntityId): EntityId[] => {
+    const ids = useEditorStore.getState().selectedIds;
+    return ids.has(id) ? [...ids] : [id];
+  };
+
+  // — Drag-to-reparent —
+  const onDragStartRow = (id: EntityId, e: React.DragEvent) => {
+    dragIds.current = selectionOrTarget(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(id));
+  };
+  const onDragOverRow = (id: EntityId, e: React.DragEvent) => {
+    if (!dragIds.current) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dropId !== id) setDropId(id);
+  };
+  const reparent = (target: EntityId | null) => {
+    const ids = dragIds.current;
+    dragIds.current = null;
+    setDropId(null);
+    if (!ids) return;
+    for (const child of ids) if (child !== target) SceneCommands.setParent(child, target);
+  };
+  const onDropRow = (id: EntityId, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    reparent(id);
   };
 
   const ctxItems: MenuItem[] = ctx
@@ -183,11 +253,12 @@ export function Outliner() {
           label: 'Delete',
           shortcut: '⌫',
           onClick: () => {
-            SceneCommands.deleteEntity(ctx.id);
+            selectionOrTarget(ctx.id).forEach((i) => SceneCommands.deleteEntity(i));
             select(null);
           },
         },
         { sep: true },
+        { label: 'Unparent', onClick: () => selectionOrTarget(ctx.id).forEach((i) => SceneCommands.setParent(i, null)) },
         { label: 'Add Entity', onClick: addEntity },
       ]
     : [];
@@ -209,7 +280,16 @@ export function Outliner() {
           <Plus size={15} strokeWidth={2} />
         </button>
       </div>
-      <div className="panel__body tree">
+      <div
+        className="panel__body tree"
+        onDragOver={(e) => {
+          if (dragIds.current) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          reparent(null); // drop into empty space = un-parent to the scene root
+        }}
+      >
         {tree.length === 0 ? (
           <div className="empty">
             <Search size={22} strokeWidth={1.4} />
@@ -228,9 +308,14 @@ export function Outliner() {
               depth={0}
               forceExpand={!!q}
               renaming={renaming}
+              dropId={dropId}
               onStartRename={setRenaming}
               onCommitRename={commitRename}
               onContextMenu={onContextMenu}
+              onRowClick={onRowClick}
+              onDragStartRow={onDragStartRow}
+              onDragOverRow={onDragOverRow}
+              onDropRow={onDropRow}
             />
           ))
         )}

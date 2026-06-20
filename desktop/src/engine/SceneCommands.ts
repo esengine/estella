@@ -1,4 +1,4 @@
-import { Transform, Name, getAllRegisteredComponents } from 'esengine';
+import { Transform, Name, Parent, getAllRegisteredComponents } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EngineHost } from './EngineHost';
 import { EditorHistory } from './EditorHistory';
@@ -37,6 +37,20 @@ function recreateEntity(world: WorldT, cap: CapturedEntity): EntityId {
     if (def) world.insert(e, def, c.data as never);
   }
   return e;
+}
+
+// True if `ancestor` is `node` or sits above it (walking up Parent links) — used
+// to reject re-parenting an entity under one of its own descendants (a cycle).
+function isDescendant(world: WorldT, node: EntityId, ancestor: EntityId): boolean {
+  let cur: EntityId | null = node;
+  const seen = new Set<EntityId>();
+  while (cur != null && world.valid(cur)) {
+    if (cur === ancestor) return true;
+    if (seen.has(cur) || !world.has(cur, Parent)) break;
+    seen.add(cur);
+    cur = (world.get(cur, Parent) as unknown as { entity: EntityId }).entity;
+  }
+  return false;
 }
 
 const DEFAULT_TRANSFORM = {
@@ -334,6 +348,34 @@ export const SceneCommands = {
     };
     setName(name);
     EditorHistory.record(`Rename ${name || 'Entity'}`, () => setName(name), () => setName(before));
+  },
+
+  /**
+   * Re-parent an entity (drag-reparent): set/remove its Parent component on the
+   * World and mirror it in the source model. Undoable. Rejects self-parenting and
+   * cycles (parenting an entity under its own descendant); `parent: null` un-parents.
+   */
+  setParent(id: EntityId, parent: EntityId | null): void {
+    const world = EngineHost.mutableWorld();
+    if (!world || !world.valid(id)) return;
+    if (parent != null && (parent === id || !world.valid(parent) || isDescendant(world, parent, id))) return;
+
+    const cur = world.has(id, Parent) ? (world.get(id, Parent) as unknown as { entity: EntityId }).entity : null;
+    const before = cur != null && cur !== id && world.valid(cur) ? cur : null;
+    if (before === parent) return;
+
+    const apply = (p: EntityId | null) => {
+      if (!world.valid(id)) return;
+      if (p != null && world.valid(p)) {
+        world.insert(id, Parent, { entity: p } as never);
+        SceneModel.setParent(id, p);
+      } else {
+        if (world.has(id, Parent)) world.remove(id, Parent);
+        SceneModel.setParent(id, null);
+      }
+    };
+    apply(parent);
+    EditorHistory.record('Reparent', () => apply(parent), () => apply(before));
   },
 };
 
