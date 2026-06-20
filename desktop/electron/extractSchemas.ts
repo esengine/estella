@@ -24,9 +24,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const DEFAULT_SRC_DIR = 'src';
-/** The pure declaration module (only defineComponent/defineTag, no app startup). */
-const DEFAULT_DECL_ENTRY = 'components.ts';
+/** Default pure declaration module (only defineComponent/defineTag, no startup). */
+const DEFAULT_DECL_ENTRY = 'src/components.ts';
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
 const OUTPUT = 'schemas.json';
@@ -91,17 +90,33 @@ function esengineAnchor(): Plugin {
   };
 }
 
+/** Write the schemas artifact and return its absolute path. */
+function writeSchemas(root: string, schemas: ComponentSchema[]): string {
+  const outputPath = path.join(root, CACHE_DIR, OUTPUT);
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, JSON.stringify(schemas, null, 2) + '\n');
+  return outputPath;
+}
+
 /**
- * Extract `<root>/<srcDir>/<entry>` → `<root>/.esengine/cache/schemas.json`.
- * Never throws — failures come back as `{ ok:false, errors }`.
+ * Extract the project's component schemas from `<root>/<entry>` (project-relative,
+ * default `src/components.ts`) → `<root>/.esengine/cache/schemas.json`. Never
+ * throws — failures come back as `{ ok:false, errors }`.
+ *
+ * A missing entry: if `required` (the manifest explicitly named it) it's an
+ * error; otherwise the project simply has no custom components → an empty
+ * artifact is written and `ok:true` returned.
  */
 export async function extractProjectSchemas(
   root: string,
-  opts?: { srcDir?: string; entry?: string },
+  opts?: { entry?: string; required?: boolean },
 ): Promise<ExtractSchemasResult> {
-  const declPath = path.join(root, opts?.srcDir ?? DEFAULT_SRC_DIR, opts?.entry ?? DEFAULT_DECL_ENTRY);
+  const declPath = path.join(root, opts?.entry ?? DEFAULT_DECL_ENTRY);
   if (!existsSync(declPath)) {
-    return { ok: false, outputPath: null, schemas: [], errors: [`declaration entry not found: ${declPath}`], warnings: [] };
+    if (opts?.required) {
+      return { ok: false, outputPath: null, schemas: [], errors: [`declaration entry not found: ${declPath}`], warnings: [] };
+    }
+    return { ok: true, outputPath: writeSchemas(root, []), schemas: [], errors: [], warnings: [] };
   }
 
   // Generated entry: install a fresh context FIRST (top-level, so it runs before
@@ -139,11 +154,7 @@ export async function extractProjectSchemas(
       .map(toSchema)
       .sort((a, b) => a.name.localeCompare(b.name)); // deterministic output
 
-    const outputPath = path.join(root, CACHE_DIR, OUTPUT);
-    mkdirSync(path.dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, JSON.stringify(schemas, null, 2) + '\n');
-
-    return { ok: true, outputPath, schemas, errors: [], warnings };
+    return { ok: true, outputPath: writeSchemas(root, schemas), schemas, errors: [], warnings };
   } catch (err) {
     const e = err as { errors?: { text: string }[]; warnings?: { text: string }[]; message?: string };
     return {

@@ -73,16 +73,46 @@ describe('extractProjectSchemas (P2)', () => {
         expect(onDisk).toEqual(res.schemas);
     });
 
-    it('reports a clean failure when the declaration entry is missing', async () => {
+    it('treats a missing DEFAULT declaration as a component-less project (empty artifact, ok)', async () => {
         const empty = mkdtempSync(path.join(tmpdir(), 'estella-schema-empty-'));
         try {
             const res = await extractProjectSchemas(empty);
+            expect(res.ok).toBe(true);
+            expect(res.schemas).toEqual([]);
+            expect(res.outputPath).toBe(path.join(empty, '.esengine/cache/schemas.json'));
+            expect(JSON.parse(readFileSync(res.outputPath!, 'utf8'))).toEqual([]);
+        } finally {
+            rmSync(empty, { recursive: true, force: true });
+        }
+    });
+
+    it('errors when an EXPLICITLY-declared entry is missing (required)', async () => {
+        const empty = mkdtempSync(path.join(tmpdir(), 'estella-schema-req-'));
+        try {
+            const res = await extractProjectSchemas(empty, { entry: 'src/decls.ts', required: true });
             expect(res.ok).toBe(false);
             expect(res.outputPath).toBeNull();
-            expect(res.schemas).toEqual([]);
             expect(res.errors.join(' ')).toMatch(/declaration entry not found/);
         } finally {
             rmSync(empty, { recursive: true, force: true });
+        }
+    });
+
+    it('honors a custom declaration entry path', async () => {
+        const proj = mkdtempSync(path.join(tmpdir(), 'estella-schema-custom-'));
+        try {
+            mkdirSync(path.join(proj, 'game'), { recursive: true });
+            writeFileSync(
+                path.join(proj, 'game', 'decls.ts'),
+                `import { defineComponent } from 'esengine';\n` +
+                    `export const Spin = defineComponent('Spin', { rpm: 33 });\n`,
+            );
+            const res = await extractProjectSchemas(proj, { entry: 'game/decls.ts' });
+            expect(res.ok).toBe(true);
+            expect(res.schemas.map((s) => s.name)).toEqual(['Spin']);
+            expect(res.schemas[0].default).toEqual({ rpm: 33 });
+        } finally {
+            rmSync(proj, { recursive: true, force: true });
         }
     });
 });

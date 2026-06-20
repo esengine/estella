@@ -40,6 +40,20 @@ export interface DesignResolution {
   height: number;
 }
 
+/**
+ * Script entry points (REARCH_EDITOR_REALM §E8 / P3). Splitting declaration from
+ * startup is what lets the editor extract a component schema WITHOUT executing
+ * project startup: schema extraction imports ONLY `register`, the play-realm
+ * bundle is built from `main`. Both default (see {@link DEFAULT_SCRIPTS}) so most
+ * projects need no entry here.
+ */
+export interface ProjectScripts {
+  /** Pure declaration module — `defineComponent`/`defineTag` only, no startup. */
+  register?: string;
+  /** Startup/entry module — `createWebApp`/`run`; the play-realm bundle entry. */
+  main?: string;
+}
+
 /** Committed project identity + config (`project.esproject`). */
 export interface ProjectManifest {
   /** Manifest schema version (migration-aware; rejects newer than supported). */
@@ -57,6 +71,8 @@ export interface ProjectManifest {
   spineVersion?: string;
   /** Per-path overrides of {@link DEFAULT_LAYOUT}. */
   layout?: Partial<ProjectLayout>;
+  /** Declaration/startup entry points (defaults in {@link DEFAULT_SCRIPTS}). */
+  scripts?: ProjectScripts;
   /** One-line summary, shown when the project is used as a New-project template. */
   description?: string;
   /** Short category label for the template gallery (e.g. "2D", "Physics"). */
@@ -134,6 +150,13 @@ export function parseManifest(raw: unknown): ProjectManifest {
   if (o.layout && typeof o.layout === 'object') {
     manifest.layout = o.layout as Partial<ProjectLayout>;
   }
+  if (o.scripts && typeof o.scripts === 'object') {
+    const s = o.scripts as Record<string, unknown>;
+    const scripts: ProjectScripts = {};
+    if (typeof s.register === 'string') scripts.register = s.register;
+    if (typeof s.main === 'string') scripts.main = s.main;
+    if (scripts.register !== undefined || scripts.main !== undefined) manifest.scripts = scripts;
+  }
   if (typeof o.description === 'string') manifest.description = o.description;
   if (typeof o.tag === 'string') manifest.tag = o.tag;
   return manifest;
@@ -142,6 +165,17 @@ export function parseManifest(raw: unknown): ProjectManifest {
 /** Effective layout = defaults overlaid with the manifest's overrides. */
 export function resolveLayout(manifest: Pick<ProjectManifest, 'layout'>): ProjectLayout {
   return { ...DEFAULT_LAYOUT, ...(manifest.layout ?? {}) };
+}
+
+/** Default script entries — the convention most projects follow without config. */
+export const DEFAULT_SCRIPTS: Required<ProjectScripts> = {
+  register: 'src/components.ts',
+  main: 'src/main.ts',
+};
+
+/** Effective script entries = defaults overlaid with the manifest's overrides. */
+export function resolveScripts(manifest: Pick<ProjectManifest, 'scripts'>): Required<ProjectScripts> {
+  return { ...DEFAULT_SCRIPTS, ...(manifest.scripts ?? {}) };
 }
 
 /** A fresh manifest for `new project`. */

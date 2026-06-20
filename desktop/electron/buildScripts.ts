@@ -16,8 +16,8 @@ import path from 'node:path';
 
 /** esengine and any subpath import are left for the realm's import map to resolve. */
 const EXTERNAL = ['esengine', 'esengine/*'];
-const DEFAULT_SRC_DIR = 'src';
-const DEFAULT_ENTRY = 'main.ts';
+/** Default startup entry (project-relative). */
+const DEFAULT_ENTRY = 'src/main.ts';
 /** Local, gitignored build cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
 const OUTPUT = 'scripts.mjs';
@@ -31,14 +31,15 @@ export interface BuildScriptsResult {
 }
 
 /**
- * Bundle `<root>/<srcDir>/<entry>` → `<root>/.esengine/cache/scripts.mjs`,
- * esengine external. Never throws — failures come back as `{ ok:false, errors }`.
+ * Bundle `<root>/<entry>` (project-relative, default `src/main.ts`) →
+ * `<root>/.esengine/cache/scripts.mjs`, esengine external. Never throws —
+ * failures come back as `{ ok:false, errors }`.
  */
 export async function buildProjectScripts(
   root: string,
-  opts?: { srcDir?: string; entry?: string },
+  opts?: { entry?: string },
 ): Promise<BuildScriptsResult> {
-  const entryPath = path.join(root, opts?.srcDir ?? DEFAULT_SRC_DIR, opts?.entry ?? DEFAULT_ENTRY);
+  const entryPath = path.join(root, opts?.entry ?? DEFAULT_ENTRY);
   if (!existsSync(entryPath)) {
     return { ok: false, outputPath: null, errors: [`script entry not found: ${entryPath}`], warnings: [] };
   }

@@ -14,6 +14,7 @@ import {
   WORKSPACE_DIR,
   WORKSPACE_FILE,
   parseManifest,
+  type ProjectManifest,
   type OpenedProject,
   type WorkspaceState,
   type DirEntry,
@@ -33,13 +34,18 @@ export function resolveInRoot(root: string, relPath: string): string {
   return resolved;
 }
 
-/** Open a project: require + parse `project.esproj`, load workspace if present. */
-export async function openProject(root: string): Promise<OpenedProject> {
+/** Require + parse a project's `project.esproject` manifest (no workspace load). */
+export async function readManifest(root: string): Promise<ProjectManifest> {
   const manifestPath = path.join(root, PROJECT_MANIFEST_FILE);
   if (!existsSync(manifestPath)) {
     throw new Error(`not an Estella project (missing ${PROJECT_MANIFEST_FILE}): ${root}`);
   }
-  const manifest = parseManifest(JSON.parse(await readFile(manifestPath, 'utf8')));
+  return parseManifest(JSON.parse(await readFile(manifestPath, 'utf8')));
+}
+
+/** Open a project: require + parse `project.esproject`, load workspace if present. */
+export async function openProject(root: string): Promise<OpenedProject> {
+  const manifest = await readManifest(root);
 
   let workspace: WorkspaceState = {};
   const wsPath = path.join(root, WORKSPACE_DIR, WORKSPACE_FILE);

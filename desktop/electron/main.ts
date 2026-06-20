@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   openProject,
+  readManifest,
   readInRoot,
   writeInRoot,
   readDirInRoot,
@@ -13,6 +14,7 @@ import {
 import { listRecents, addRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
+import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
 // Custom scheme that serves files from the open project root (sandboxed). Lets
@@ -133,14 +135,26 @@ ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
 ipcMain.handle('fs:readdir', (_e, relPath: string) => readDirInRoot(requireRoot(), relPath));
 ipcMain.handle('workspace:save', (_e, ws: WorkspaceState) => saveWorkspace(requireRoot(), ws));
 
-// Bundle the open project's scripts (src/main.ts → .esengine/cache, esengine
-// external) for the isolated play realm (REARCH_EDITOR_REALM P1 / RC12 §E8-1).
-ipcMain.handle('project:buildScripts', () => buildProjectScripts(requireRoot()));
+// Bundle the open project's startup script (manifest scripts.main, default
+// src/main.ts → .esengine/cache, esengine external) for the isolated play realm
+// (REARCH_EDITOR_REALM P1/P3 / RC12 §E8-1).
+ipcMain.handle('project:buildScripts', async () => {
+  const root = requireRoot();
+  const { main } = resolveScripts(await readManifest(root));
+  return buildProjectScripts(root, { entry: main });
+});
 
-// Extract the open project's component field schemas (src/components.ts →
-// .esengine/cache/schemas.json) so the editor main realm can inspect unknown
-// components without executing project code (REARCH_EDITOR_REALM P2).
-ipcMain.handle('project:extractSchemas', () => extractProjectSchemas(requireRoot()));
+// Extract the open project's component field schemas (manifest scripts.register,
+// default src/components.ts → .esengine/cache/schemas.json) so the editor main
+// realm can inspect unknown components without executing project code. An
+// explicitly-declared register that's missing is an error; the default merely
+// being absent means the project has no custom components (REARCH_EDITOR_REALM P2/P3).
+ipcMain.handle('project:extractSchemas', async () => {
+  const root = requireRoot();
+  const manifest = await readManifest(root);
+  const { register } = resolveScripts(manifest);
+  return extractProjectSchemas(root, { entry: register, required: manifest.scripts?.register !== undefined });
+});
 
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));
