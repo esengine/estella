@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
 import { ChevronRight, Eye, EyeOff, Lock, Search, Plus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { EngineHost } from '@/engine/EngineHost';
@@ -7,6 +6,7 @@ import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery } from '@/engine/SceneQuery';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { NodeIcon } from '@/components/icons';
+import { ContextMenu, type MenuItem } from '@/components/Menu';
 import type { SceneNode, EntityId } from '@/types';
 
 interface RowProps {
@@ -111,8 +111,6 @@ function filterNode(node: SceneNode, q: string): SceneNode | null {
   return kids.length ? { ...node, children: kids } : null;
 }
 
-type CtxItem = { sep: true } | { label: string; shortcut?: string; onClick: () => void };
-
 export function Outliner() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   // Rebuild the tree only when the engine pushes a structural change.
@@ -153,21 +151,6 @@ export function Outliner() {
     }
   }, [tree]);
 
-  // Dismiss the context menu on an outside press, scroll, or Escape.
-  useEffect(() => {
-    if (!ctx) return;
-    const close = () => setCtx(null);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setCtx(null);
-    window.addEventListener('mousedown', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [ctx]);
-
   const select = (id: EntityId | null) => useEditorStore.getState().select(id);
 
   const onContextMenu = (e: React.MouseEvent, id: EntityId) => {
@@ -185,7 +168,7 @@ export function Outliner() {
     if (id != null) select(id);
   };
 
-  const ctxItems: CtxItem[] = ctx
+  const ctxItems: MenuItem[] = ctx
     ? [
         { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(ctx.id) },
         {
@@ -253,37 +236,7 @@ export function Outliner() {
         )}
       </div>
 
-      {ctx &&
-        createPortal(
-          <div
-            className="menu-dropdown menu-dropdown--ctx"
-            role="menu"
-            style={{ left: ctx.x, top: ctx.y }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            {ctxItems.map((it, i) =>
-              'sep' in it ? (
-                <div key={i} className="menu-dropdown__sep" />
-              ) : (
-                <button
-                  key={i}
-                  type="button"
-                  role="menuitem"
-                  className="menu-dropdown__item"
-                  onClick={() => {
-                    setCtx(null);
-                    it.onClick();
-                  }}
-                >
-                  <span className="menu-dropdown__check" />
-                  <span className="menu-dropdown__label">{it.label}</span>
-                  {it.shortcut ? <span className="menu-dropdown__shortcut">{it.shortcut}</span> : null}
-                </button>
-              ),
-            )}
-          </div>,
-          document.body,
-        )}
+      {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
     </div>
   );
 }

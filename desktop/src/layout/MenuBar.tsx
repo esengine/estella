@@ -3,17 +3,13 @@
 // The window is frameless (titleBarStyle: hiddenInset) so this strip doubles as
 // the drag region; the menus + dropdowns opt out of dragging.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Check } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
+import { MenuItems, type MenuItem } from '@/components/Menu';
 
 const LAYOUT_KEY = 'estella.editor.layout.v1';
-
-type MenuItem =
-  | { sep: true }
-  | { label: string; shortcut?: string; onClick: () => void; disabled?: boolean; checked?: boolean };
 
 interface MenuDef {
   title: string;
@@ -62,12 +58,6 @@ export function MenuBar() {
       window.removeEventListener('keydown', onKey);
     };
   }, [open]);
-
-  // Run an item's action, then close the menu.
-  const run = (fn: () => void) => () => {
-    setOpen(null);
-    fn();
-  };
 
   const save = () => void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog());
   const duplicate = () => {
@@ -170,26 +160,7 @@ export function MenuBar() {
             </button>
             {open === m.title && (
               <div className="menu-dropdown" role="menu">
-                {m.items.map((it, i) =>
-                  'sep' in it ? (
-                    <div key={i} className="menu-dropdown__sep" />
-                  ) : (
-                    <button
-                      key={i}
-                      type="button"
-                      role="menuitem"
-                      className="menu-dropdown__item"
-                      disabled={it.disabled}
-                      onClick={run(it.onClick)}
-                    >
-                      <span className="menu-dropdown__check">
-                        {it.checked ? <Check size={13} strokeWidth={2.2} /> : null}
-                      </span>
-                      <span className="menu-dropdown__label">{it.label}</span>
-                      {it.shortcut ? <span className="menu-dropdown__shortcut">{it.shortcut}</span> : null}
-                    </button>
-                  ),
-                )}
+                <MenuItems items={m.items} onSelect={() => setOpen(null)} />
               </div>
             )}
           </div>
