@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { EditorHistory } from '@/engine/EditorHistory';
+import { ProjectStore } from '@/project/ProjectStore';
 import type { ToolMode } from '@/types';
 
 interface ToolDef {
@@ -73,6 +74,8 @@ export function Toolbar() {
     toggleSnapping,
     showGrid,
     toggleGrid,
+    showGizmos,
+    toggleGizmos,
     isPlaying,
     isPaused,
     togglePlay,
@@ -88,7 +91,11 @@ export function Toolbar() {
   return (
     <div className="toolbar">
       <div className="toolbar__group">
-        <TBtn icon={Save} label="Save Scene  ⌘S" />
+        <TBtn
+          icon={Save}
+          label="Save Scene  ⌘S"
+          onClick={() => void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog())}
+        />
       </div>
 
       <span className="toolbar__div" />
@@ -145,12 +152,17 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar__group toolbar__right">
-        <TBtn icon={Eye} label="View Options" />
+        <TBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={toggleGizmos} />
         <button type="button" className="chip" title="Build target">
           <Smartphone size={13} strokeWidth={1.85} />
           <span>Web</span>
         </button>
-        <button type="button" className="chip chip--accent" title="Build project">
+        <button
+          type="button"
+          className="chip chip--accent"
+          title="Build project scripts"
+          onClick={() => void window.estella?.project?.buildScripts?.().catch(() => {})}
+        >
           <Hammer size={13} strokeWidth={1.85} />
           <span>Build</span>
         </button>
