@@ -16,7 +16,7 @@ import { RenderPipeline } from '../renderPipeline';
 import { Renderer } from '../renderer';
 import { platformNow } from '../platform';
 import { SceneManager } from '../sceneManager';
-import { ortho, perspective, invertTranslation, multiply, IDENTITY } from '../math/mat4';
+import { ortho, perspective, invertViewZ, multiply, IDENTITY } from '../math/mat4';
 
 // =============================================================================
 // Camera Info
@@ -87,6 +87,109 @@ function computeEffectiveOrthoSize(
 }
 
 // =============================================================================
+// Camera POV (authored view parameters, decoupled from the baked matrix)
+// =============================================================================
+
+/**
+ * A camera's authored point-of-view — the view *parameters*, separate from the
+ * computed view-projection matrix. This is the seam a camera director will blend
+ * over (interpolating x / y / rotation / orthoSize between two POVs) before one
+ * view is built and handed to the renderer. The POV holds only authored values;
+ * `buildCameraInfo` applies presentation (canvas design-resolution scaling, the
+ * projection, the rotation) when turning a POV into the renderer-facing CameraInfo.
+ */
+export interface CameraPOV {
+    entity: number; // source entity, or -1 for a synthetic POV (e.g. the editor view)
+    x: number;
+    y: number;
+    z: number;
+    rotation: number; // Z rotation, radians
+    projection: number; // ProjectionType
+    orthoSize: number; // authored ortho half-height
+    fov: number;
+    near: number;
+    far: number;
+    viewport: { x: number; y: number; z: number; w: number };
+    clearFlags: number;
+    priority: number;
+}
+
+function readCameraPOV(
+    entity: number,
+    camera: ReturnType<CppRegistry['getCamera']>,
+    transform: ReturnType<CppRegistry['getTransform']>,
+): CameraPOV {
+    const q = transform.rotation;
+    return {
+        entity,
+        x: transform.position.x,
+        y: transform.position.y,
+        z: transform.position.z,
+        rotation: 2 * Math.atan2(q.z, q.w), // quaternion → Z angle (2D convention)
+        projection: camera.projectionType,
+        orthoSize: camera.orthoSize,
+        fov: camera.fov,
+        near: camera.nearPlane,
+        far: camera.farPlane,
+        viewport: { x: camera.viewport.x, y: camera.viewport.y, z: camera.viewport.z, w: camera.viewport.w },
+        clearFlags: camera.clearFlags,
+        priority: camera.priority,
+    };
+}
+
+/**
+ * Build the renderer-facing CameraInfo from a POV. `canvas` (when given) applies
+ * the design-resolution ortho scaling for scene cameras; pass null to use the raw
+ * orthoSize (the editor view does this, for predictable zoom). Rotation is applied
+ * here via invertViewZ.
+ */
+export function buildCameraInfo(
+    pov: CameraPOV,
+    width: number,
+    height: number,
+    canvas: ReturnType<typeof findCanvasData>,
+    pool: CameraInfo[],
+    index: number,
+): CameraInfo {
+    const aspect = (pov.viewport.z * width) / (pov.viewport.w * height);
+    let projection: Float32Array;
+    let halfW = 0;
+    let halfH = 0;
+
+    if (pov.projection === ProjectionType.Orthographic) {
+        halfH = pov.orthoSize;
+        if (canvas) {
+            const baseOrthoSize = canvas.designResolution.y / 2;
+            const designAspect = canvas.designResolution.x / canvas.designResolution.y;
+            halfH = computeEffectiveOrthoSize(
+                baseOrthoSize, designAspect, aspect,
+                canvas.scaleMode, canvas.matchWidthOrHeight,
+            );
+        }
+        halfW = halfH * aspect;
+        projection = ortho(-halfW, halfW, -halfH, halfH, -pov.far, pov.far);
+    } else {
+        projection = perspective(pov.fov * Math.PI / 180, aspect, pov.near, pov.far);
+    }
+
+    const view = invertViewZ(pov.x, pov.y, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
+    const cam = acquireCameraInfo(pool, index);
+    cam.entity = pov.entity;
+    cam.viewProjection.set(multiply(projection, view));
+    cam.viewportRect.x = pov.viewport.x;
+    cam.viewportRect.y = pov.viewport.y;
+    cam.viewportRect.w = pov.viewport.z;
+    cam.viewportRect.h = pov.viewport.w;
+    cam.clearFlags = pov.clearFlags;
+    cam.priority = pov.priority;
+    cam.halfW = halfW;
+    cam.halfH = halfH;
+    cam.cameraX = pov.x;
+    cam.cameraY = pov.y;
+    return cam;
+}
+
+// =============================================================================
 // Camera Collection
 // =============================================================================
 
@@ -116,52 +219,8 @@ export function collectCameras(
     const cameras: CameraInfo[] = [];
 
     for (const e of filtered) {
-        const camera = registry.getCamera(e);
-        const transform = registry.getTransform(e);
-
-        const aspect = (camera.viewport.z * width) / (camera.viewport.w * height);
-        let projection: Float32Array;
-        let camHalfW = 0;
-        let camHalfH = 0;
-
-        if (camera.projectionType === ProjectionType.Orthographic) {
-            camHalfH = camera.orthoSize;
-
-            if (canvas) {
-                const baseOrthoSize = canvas.designResolution.y / 2;
-                const designAspect = canvas.designResolution.x / canvas.designResolution.y;
-                camHalfH = computeEffectiveOrthoSize(
-                    baseOrthoSize, designAspect, aspect,
-                    canvas.scaleMode, canvas.matchWidthOrHeight,
-                );
-            }
-
-            camHalfW = camHalfH * aspect;
-            projection = ortho(-camHalfW, camHalfW, -camHalfH, camHalfH, -camera.farPlane, camera.farPlane);
-        } else {
-            projection = perspective(
-                camera.fov * Math.PI / 180,
-                aspect,
-                camera.nearPlane,
-                camera.farPlane,
-            );
-        }
-
-        const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
-        const cam = acquireCameraInfo(pool, cameras.length);
-        cam.entity = e;
-        cam.viewProjection.set(multiply(projection, view));
-        cam.viewportRect.x = camera.viewport.x;
-        cam.viewportRect.y = camera.viewport.y;
-        cam.viewportRect.w = camera.viewport.z;
-        cam.viewportRect.h = camera.viewport.w;
-        cam.clearFlags = camera.clearFlags;
-        cam.priority = camera.priority;
-        cam.halfW = camHalfW;
-        cam.halfH = camHalfH;
-        cam.cameraX = transform.position.x;
-        cam.cameraY = transform.position.y;
-        cameras.push(cam);
+        const pov = readCameraPOV(e, registry.getCamera(e), registry.getTransform(e));
+        cameras.push(buildCameraInfo(pov, width, height, canvas, pool, cameras.length));
     }
 
     cameras.sort((a, b) => a.priority - b.priority);
@@ -185,26 +244,24 @@ export function editorCameraInfo(
     height: number,
     pool: CameraInfo[],
 ): CameraInfo {
-    const aspect = height > 0 ? width / height : 1;
-    const halfH = view.orthoSize;
-    const halfW = halfH * aspect;
-    const FAR = 100000;
-    const projection = ortho(-halfW, halfW, -halfH, halfH, -FAR, FAR);
-    const v = invertTranslation(view.x, view.y, 0);
-    const cam = acquireCameraInfo(pool, 0);
-    cam.entity = -1; // synthetic — not a scene entity
-    cam.viewProjection.set(multiply(projection, v));
-    cam.viewportRect.x = 0;
-    cam.viewportRect.y = 0;
-    cam.viewportRect.w = 1;
-    cam.viewportRect.h = 1;
-    cam.clearFlags = ClearFlags.ColorAndDepth;
-    cam.priority = 0;
-    cam.halfW = halfW;
-    cam.halfH = halfH;
-    cam.cameraX = view.x;
-    cam.cameraY = view.y;
-    return cam;
+    // The editor view is just another POV (synthetic entity -1, full-frame).
+    // null canvas → raw orthoSize (no design-resolution scaling) for predictable zoom.
+    const pov: CameraPOV = {
+        entity: -1,
+        x: view.x,
+        y: view.y,
+        z: 0,
+        rotation: 0,
+        projection: ProjectionType.Orthographic,
+        orthoSize: view.orthoSize,
+        fov: 0,
+        near: 0,
+        far: 100000,
+        viewport: { x: 0, y: 0, z: 1, w: 1 },
+        clearFlags: ClearFlags.ColorAndDepth,
+        priority: 0,
+    };
+    return buildCameraInfo(pov, width, height, null, pool, 0);
 }
 
 /**

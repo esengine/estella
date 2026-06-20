@@ -54,6 +54,29 @@ export function invertTranslation(x: number, y: number, z: number): Float32Array
     return m;
 }
 
+const _viewZM = new Float32Array(16);
+
+/**
+ * Inverse of a 2D rigid camera transform: rotateZ(-θ) · translate(-x,-y,-z),
+ * i.e. the view matrix of a camera at (x,y,z) rotated θ about Z (cosT/sinT =
+ * cos/sin θ). With θ = 0 (cosT=1, sinT=0) this equals {@link invertTranslation},
+ * so non-rotated cameras are byte-for-byte unchanged.
+ */
+export function invertViewZ(
+    x: number, y: number, z: number,
+    cosT: number, sinT: number,
+): Float32Array {
+    const m = _viewZM;
+    m[0] = cosT; m[1] = -sinT; m[2]  = 0; m[3]  = 0;
+    m[4] = sinT; m[5] = cosT;  m[6]  = 0; m[7]  = 0;
+    m[8] = 0;    m[9] = 0;     m[10] = 1; m[11] = 0;
+    m[12] = -(cosT * x + sinT * y);
+    m[13] = sinT * x - cosT * y;
+    m[14] = -z;
+    m[15] = 1;
+    return m;
+}
+
 const _mulM = new Float32Array(16);
 
 export function multiply(a: Float32Array, b: Float32Array): Float32Array {
