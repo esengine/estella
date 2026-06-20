@@ -17,16 +17,20 @@ import { resolveLayout, WORKSPACE_DIR, type OpenedProject, type ProjectLayout, t
  * directory, loads its scene into the live engine World via `resetWorldTo`, and
  * saves back. The bridge sandboxes every fs path to the open project root.
  *
- * Texture `@uuid:` refs resolve through the `estella://` custom protocol
- * (electron/main) which serves the project's files — so project textures
- * actually render. On save, texture handles are mapped back to `@uuid:` using
- * each component's asset fields, keeping saved scenes portable.
+ * Assets resolve through the engine's own asset system (REARCH_ASSETS.md A1):
+ * the editor builds a uuid→path registry from `.meta` sidecars, points the
+ * engine `Assets` loader at the `estella://` transport (electron/main serves
+ * project files), and preloads EVERY referenced asset type — not just textures.
+ * The lossless model keeps `@uuid:` refs verbatim, so save stays portable.
  */
 
 const UUID_PREFIX = '@uuid:';
 
-interface AssetsLike {
-  loadTexture(ref: string): Promise<{ handle: number }>;
+/** The subset of the engine's SceneAssetResult the Reconciler resolver reads. */
+interface PreloadResult {
+  textureHandles: Map<string, number>;
+  materialHandles: Map<string, number>;
+  fontHandles: Map<string, number>;
 }
 
 interface ProjectState {
@@ -51,41 +55,14 @@ function unknownComponentTypes(data: SceneData): string[] {
   return [...unknown];
 }
 
-/** Collect every `@uuid:<id>` referenced anywhere in the scene. */
-function collectUuids(value: unknown, into: Set<string>): void {
-  if (typeof value === 'string') {
-    if (value.startsWith(UUID_PREFIX)) into.add(value.slice(UUID_PREFIX.length));
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const v of value) collectUuids(v, into);
-    return;
-  }
-  if (value && typeof value === 'object') {
-    for (const v of Object.values(value as Record<string, unknown>)) collectUuids(v, into);
-  }
-}
-
-/** Replace `@uuid:<id>` refs with a resolved asset handle (or 0 if unresolved). */
-function mapAssetRefs(value: unknown, resolve: (uuid: string) => number): unknown {
-  if (typeof value === 'string') {
-    return value.startsWith(UUID_PREFIX) ? resolve(value.slice(UUID_PREFIX.length)) : value;
-  }
-  if (Array.isArray(value)) return value.map((v) => mapAssetRefs(v, resolve));
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = mapAssetRefs(v, resolve);
-    return out;
-  }
-  return value;
-}
-
 class ProjectStoreImpl {
   private readonly store = createStore<{ project: ProjectState | null }>(() => ({ project: null }));
-  /** Resolved `@uuid:` → GL handle map for the current scene's textures; the
-   *  Reconciler reads it (via the registered resolver) when projecting entities
-   *  recreated incrementally (duplicate, undo-of-delete) back into the World. */
-  private readonly uuidToHandle = new Map<string, number>();
+  /** uuid → project-relative path, scanned from `.meta` sidecars — the editor's
+   *  asset registry. The engine `Assets` loader resolves refs through it. */
+  private readonly uuidToPath = new Map<string, string>();
+  /** The latest scene preload result; the Reconciler resolver reads handles from
+   *  it for entities recreated incrementally (duplicate / undo / play-stop). */
+  private lastAssetResult: PreloadResult | null = null;
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
   private get state(): ProjectState | null {
     return this.store.getState().project;
@@ -186,7 +163,20 @@ class ProjectStoreImpl {
         `are preserved verbatim in the source-of-truth model and on save (JSON-first).`,
       );
     }
-    const data = await this.resolveTextures(raw);
+    // Build the uuid→path registry + point the engine Assets loader at the
+    // estella:// transport, then preload EVERY referenced asset type (textures,
+    // materials, fonts, audio, spine, …) through the engine's own system, and
+    // resolve a COPY of the scene (refs → handles) for the World.
+    await this.buildAssetRegistry();
+    const assets = EngineHost.getResource(Assets);
+    let resolved: SceneData = raw;
+    if (assets) {
+      const result = await assets.preloadSceneAssets(raw);
+      resolved = JSON.parse(JSON.stringify(raw)) as SceneData; // resolveSceneAssetPaths mutates
+      assets.resolveSceneAssetPaths(resolved, result);
+      this.lastAssetResult = result; // narrowed to the handle maps the resolver reads
+    }
+
     // A scene is a session document: replacing it clears the editor history +
     // selection so undo closures can't reference the previous scene's entities
     // (REARCH_EDITOR_MODEL.md §6). The Reconciler bulk path then builds the World
@@ -195,60 +185,73 @@ class ProjectStoreImpl {
     // truth. The World is a lossy projection; the model is what save() serializes.
     EditorHistory.clear();
     useSelection.getState().select(null);
-    Reconciler.setAssetResolver((uuid) => this.uuidToHandle.get(uuid) ?? 0);
-    Reconciler.adopt(raw, data);
+    // Incremental recreate (duplicate / undo / play-stop) re-resolves @uuid:→handle
+    // from the same preload result — for all types, not just textures.
+    Reconciler.setAssetResolver((uuid) => this.handleForUuid(uuid));
+    Reconciler.adopt(raw, resolved);
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: rel } });
   }
 
   /**
-   * Resolve the scene's `@uuid:` texture refs to live GL handles by loading the
-   * files through the `estella://` protocol; records handle→uuid for save.
-   * Unresolved refs blank to 0 (solid color). Textures only — material/font
-   * refs aren't served yet.
+   * Scan `.meta` sidecars under the project's asset roots into a uuid→path
+   * registry, then point the engine `Assets` loader at it + the `estella://`
+   * transport. This is the ONE asset-resolution path: `Assets.resolveRef` turns
+   * `@uuid:` → path, the backend fetches `estella://project/<path>` (REARCH_ASSETS.md A1).
    */
-  private async resolveTextures(raw: SceneData): Promise<SceneData> {
+  private async buildAssetRegistry(): Promise<void> {
     const st = this.state;
-    const bridge = window.estella;
-    this.uuidToHandle.clear();
-    if (!st) return raw;
+    this.uuidToPath.clear();
+    if (!st) return;
+    // The conventional asset root(s): the top-level dir of the declared scenes /
+    // textures dirs (e.g. `assets`), which also holds prefabs/audio/etc.
+    const roots = new Set([st.layout.scenes, st.layout.textures].map((d) => d.split('/')[0]));
+    for (const root of roots) await this.scanMetaDir(root);
 
-    const referenced = new Set<string>();
-    collectUuids(raw, referenced);
-    if (referenced.size === 0) return raw;
-
-    // uuid → texture path, from the `.meta` sidecars in the textures dir.
-    const uuidToPath = new Map<string, string>();
-    try {
-      for (const entry of await bridge.fs.readDir(st.layout.textures)) {
-        if (entry.isDir || !entry.name.endsWith('.meta')) continue;
-        try {
-          const meta = JSON.parse(
-            await bridge.fs.read(`${st.layout.textures}/${entry.name}`),
-          ) as { uuid?: string };
-          if (meta.uuid && referenced.has(meta.uuid)) {
-            uuidToPath.set(meta.uuid, `${st.layout.textures}/${entry.name.replace(/\.meta$/, '')}`);
-          }
-        } catch {
-          // skip a malformed .meta
-        }
-      }
-    } catch {
-      // no textures dir — every ref blanks to 0
-    }
-
-    const assets = EngineHost.getResource(Assets) as unknown as AssetsLike | undefined;
+    const assets = EngineHost.getResource(Assets);
     if (assets) {
-      for (const [uuid, rel] of uuidToPath) {
-        try {
-          const { handle } = await assets.loadTexture(`estella://project/${rel}`);
-          this.uuidToHandle.set(uuid, handle);
-        } catch (err) {
-          console.warn('[project] texture load failed', rel, err);
-        }
+      assets.baseUrl = 'estella://project';
+      assets.setAssetRefResolver((ref) => this.resolveRef(ref));
+    }
+  }
+
+  /** Recursively collect `<file>.meta` → {uuid} under `dir` into uuidToPath. */
+  private async scanMetaDir(dir: string): Promise<void> {
+    let entries;
+    try {
+      entries = await window.estella.fs.readDir(dir);
+    } catch {
+      return; // dir absent
+    }
+    for (const e of entries) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDir) {
+        await this.scanMetaDir(p);
+        continue;
+      }
+      if (!e.name.endsWith('.meta')) continue;
+      try {
+        const meta = JSON.parse(await window.estella.fs.read(p)) as { uuid?: string };
+        if (meta.uuid) this.uuidToPath.set(meta.uuid.toLowerCase(), p.replace(/\.meta$/, ''));
+      } catch {
+        // skip a malformed .meta
       }
     }
-    return mapAssetRefs(raw, (uuid) => this.uuidToHandle.get(uuid) ?? 0) as SceneData;
+  }
+
+  /** Resolve a serialized asset ref to a project-relative path for the engine
+   *  loader: `@uuid:` → path (null if unknown); a plain path passes through. */
+  private resolveRef(ref: string): string | null {
+    if (!ref.startsWith(UUID_PREFIX)) return ref;
+    return this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase()) ?? null;
+  }
+
+  /** The live GL handle for a uuid, from the latest preload result (any type). */
+  private handleForUuid(uuid: string): number {
+    const path = this.uuidToPath.get(uuid.toLowerCase());
+    const r = this.lastAssetResult;
+    if (!path || !r) return 0;
+    return r.textureHandles.get(path) ?? r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
   }
 
   /**
