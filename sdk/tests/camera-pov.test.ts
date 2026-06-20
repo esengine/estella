@@ -13,6 +13,7 @@ function ndc(vp: Float32Array, x: number, y: number) {
 
 const pov = (over: Partial<CameraPOV>): CameraPOV => ({
   entity: -1,
+  isActive: true,
   x: 0,
   y: 0,
   z: 0,

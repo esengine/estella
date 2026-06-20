@@ -12,6 +12,7 @@ import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/UICameraInfo';
 import { ProjectionType, ScaleMode, SceneOwner, ClearFlags } from '../component';
 import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
+import { CameraDirector, DEFAULT_DIRECTOR, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../renderPipeline';
 import { Renderer } from '../renderer';
 import { platformNow } from '../platform';
@@ -100,6 +101,7 @@ function computeEffectiveOrthoSize(
  */
 export interface CameraPOV {
     entity: number; // source entity, or -1 for a synthetic POV (e.g. the editor view)
+    isActive: boolean; // the authoritative "this is the main camera" flag (director input)
     x: number;
     y: number;
     z: number;
@@ -122,6 +124,7 @@ function readCameraPOV(
     const q = transform.rotation;
     return {
         entity,
+        isActive: camera.isActive,
         x: transform.position.x,
         y: transform.position.y,
         z: transform.position.z,
@@ -193,15 +196,15 @@ export function buildCameraInfo(
 // Camera Collection
 // =============================================================================
 
-export function collectCameras(
+/** Authored POVs of the scene's cameras (scene-filtered), no matrices built yet. */
+function collectCameraPOVs(
     module: ESEngineModule,
     registry: CppRegistry,
     width: number,
     height: number,
     world?: World,
     activeScenes?: Set<string>,
-    pool: CameraInfo[] = [],
-): CameraInfo[] {
+): CameraPOV[] {
     if (width === 0 || height === 0) return [];
     const cameraEntities = module.registry_getCameraEntities(registry);
     if (cameraEntities.length === 0) return [];
@@ -213,19 +216,33 @@ export function collectCameras(
             return activeScenes.has(owner.scene);
         })
         : cameraEntities;
-    if (filtered.length === 0) return [];
 
-    const canvas = findCanvasData(module, registry);
-    const cameras: CameraInfo[] = [];
-
+    const out: CameraPOV[] = [];
     for (const e of filtered) {
-        const pov = readCameraPOV(e, registry.getCamera(e), registry.getTransform(e));
-        cameras.push(buildCameraInfo(pov, width, height, canvas, pool, cameras.length));
+        out.push(readCameraPOV(e, registry.getCamera(e), registry.getTransform(e)));
     }
+    return out;
+}
 
+export function collectCameras(
+    module: ESEngineModule,
+    registry: CppRegistry,
+    width: number,
+    height: number,
+    world?: World,
+    activeScenes?: Set<string>,
+    pool: CameraInfo[] = [],
+): CameraInfo[] {
+    const povs = collectCameraPOVs(module, registry, width, height, world, activeScenes);
+    if (povs.length === 0) return [];
+    const canvas = findCanvasData(module, registry);
+    const cameras = povs.map((pov, i) => buildCameraInfo(pov, width, height, canvas, pool, i));
     cameras.sort((a, b) => a.priority - b.priority);
     return cameras;
 }
+
+const isFullFrame = (v: { x: number; y: number; z: number; w: number }): boolean =>
+    v.x === 0 && v.y === 0 && v.z === 1 && v.w === 1;
 
 // =============================================================================
 // Editor View (dedicated editor camera — overrides scene cameras when active)
@@ -248,6 +265,7 @@ export function editorCameraInfo(
     // null canvas → raw orthoSize (no design-resolution scaling) for predictable zoom.
     const pov: CameraPOV = {
         entity: -1,
+        isActive: true,
         x: view.x,
         y: view.y,
         z: 0,
@@ -265,10 +283,13 @@ export function editorCameraInfo(
 }
 
 /**
- * The cameras to render + sync this frame: the editor view (a single full-frame
- * camera) when it is active, otherwise the scene's game cameras. One decision
- * point shared by the UICameraInfo sync and the render system, so what is drawn
- * and what screen<->world resolves to can never diverge.
+ * The cameras to render + sync this frame, as ONE shared decision (so what's
+ * drawn and what screen<->world resolves to can't diverge):
+ *  1. the editor view, if active (a single full-frame camera); else
+ *  2. the camera director's resolved MAIN view (the active full-frame camera,
+ *     or a view-target blend) at index 0, plus any sub-viewport overlay cameras.
+ * `advance` ticks the director's blend; the early UICameraInfo sync peeks (false)
+ * so it doesn't double-advance the same frame's blend.
  */
 function resolveCameras(
     app: App,
@@ -279,6 +300,8 @@ function resolveCameras(
     world: World | undefined,
     activeScenes: Set<string> | undefined,
     pool: CameraInfo[],
+    now: number,
+    advance: boolean,
 ): CameraInfo[] {
     if (app.hasResource(EditorView)) {
         const view = app.getResource(EditorView);
@@ -286,7 +309,29 @@ function resolveCameras(
             return [editorCameraInfo(view, width, height, pool)];
         }
     }
-    return collectCameras(module, cppRegistry, width, height, world, activeScenes, pool);
+
+    const povs = collectCameraPOVs(module, cppRegistry, width, height, world, activeScenes);
+    if (povs.length === 0) return [];
+    const canvas = findCanvasData(module, cppRegistry);
+    const fullFrame = povs.filter((p) => isFullFrame(p.viewport));
+    const overlays = povs.filter((p) => !isFullFrame(p.viewport)).sort((a, b) => a.priority - b.priority);
+
+    const out: CameraInfo[] = [];
+    // The director resolves ONE main view from the full-frame candidates (active
+    // camera + view-target blending); index 0 → it also drives screen<->world.
+    if (fullFrame.length > 0 && app.hasResource(CameraDirector)) {
+        const main = resolveMainPOV(app.getResource(CameraDirector), fullFrame, now, advance);
+        if (main) out.push(buildCameraInfo(main, width, height, canvas, pool, out.length));
+    } else {
+        for (const p of fullFrame.slice().sort((a, b) => a.priority - b.priority)) {
+            out.push(buildCameraInfo(p, width, height, canvas, pool, out.length));
+        }
+    }
+    // Sub-viewport cameras render on top (minimaps, picture-in-picture).
+    for (const p of overlays) {
+        out.push(buildCameraInfo(p, width, height, canvas, pool, out.length));
+    }
+    return out;
 }
 
 // =============================================================================
@@ -347,6 +392,9 @@ export function cameraPlugin(
             // The editor view is inactive by default — shipped games never touch
             // it; the editor activates it in edit mode (see desktop EngineHost).
             app.insertResource(EditorView, { ...DEFAULT_EDITOR_VIEW });
+            // The camera director: by default it just tracks the active camera;
+            // games call setViewTarget(app, entity, {time, curve}) to blend.
+            app.insertResource(CameraDirector, { ...DEFAULT_DIRECTOR });
 
             const viewport = getViewportSize ?? (() => {
                 const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
@@ -362,7 +410,10 @@ export function cameraPlugin(
                 _params: [],
                 _fn: () => {
                     const { width, height } = viewport();
-                    const cameras = resolveCameras(app, module, cppRegistry, width, height, undefined, undefined, cameraInfoPool);
+                    const now = (platformNow() - startTime) / 1000;
+                    // Peek (advance=false): this early sync must not tick the director's
+                    // blend — the render system (end of frame) is the authoritative tick.
+                    const cameras = resolveCameras(app, module, cppRegistry, width, height, undefined, undefined, cameraInfoPool, now, false);
                     syncUICameraInfo(app, module, cppRegistry, width, height, cameras);
                 },
             };
@@ -394,7 +445,8 @@ export function cameraPlugin(
                     }
 
                     pipeline.setActiveScenes(activeScenes ?? null);
-                    const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool);
+                    // Authoritative tick (advance=true): ticks the director's blend.
+                    const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool, elapsed, true);
 
                     syncUICameraInfo(app, module, cppRegistry, width, height, cameras);
 
