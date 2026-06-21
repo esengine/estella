@@ -7,6 +7,7 @@ import { defineResource, Res } from './resource';
 import { defineSystem } from './system';
 import { Schedule } from './system';
 import { Time } from './resource';
+import { playModeOnly } from './env';
 import type { Plugin } from './app';
 
 // =============================================================================
@@ -220,6 +221,7 @@ export const timerPlugin: Plugin = {
     name: 'Timer',
     build(app) {
         app.insertResource(TimerRes, new TimerManager());
-        app.addSystemToSchedule(Schedule.PreUpdate, timerSystem);
+        // Timers advance game time — frozen in editor edit mode.
+        app.addSystemToSchedule(Schedule.PreUpdate, timerSystem, { runIf: playModeOnly });
     },
 };

@@ -5,6 +5,7 @@ import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { Tilemap } from './components';
+import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource } from './tilesetCache';
 import { getTextureDimensions } from '../resourceManager';
 import { Time } from '../resource';
@@ -37,6 +38,23 @@ export class TilemapPlugin implements Plugin {
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
         initTilemapAPI(module);
+
+        // Tile chunks live in a C++ blob, not the component's field record, so
+        // teach the scene (de)serializer to carry them out-of-band instead of
+        // hardcoding TilemapLayer knowledge in scene.ts.
+        registerSceneComponentCodec('TilemapLayer', {
+            exportData: (entity, data) => {
+                const blob = TilemapAPI.exportChunks(entity);
+                if (blob) data.chunks = blob;
+            },
+            outOfBandFields: ['chunks'],
+            importData: (entity, outOfBand) => {
+                const blob = outOfBand.chunks;
+                if (typeof blob === 'string' && blob !== '') {
+                    TilemapAPI.importChunks(entity, blob);
+                }
+            },
+        });
 
         const world = app.world;
         const initializedLayers = this.initializedLayers_;

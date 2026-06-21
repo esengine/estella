@@ -5,7 +5,10 @@
 
 import type { App, Plugin } from '../app';
 import type { SystemDef } from '../system';
-import { Schedule } from '../system';
+import { Schedule, defineSystem } from '../system';
+import { Res, Time, type TimeData } from '../resource';
+import { playModeOnly } from '../env';
+import { followUpdate } from './FollowTarget';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../world';
 import type { Entity } from '../types';
@@ -480,6 +483,15 @@ export function cameraPlugin(
                     }
                 },
             };
+
+            // Per-camera follow (Cinemachine vcam Body): damp FollowTarget cameras
+            // toward their target each frame, BEFORE camera collection, so the
+            // director blends already-followed POVs. Play mode only (gameplay).
+            app.addSystemToSchedule(Schedule.Update, defineSystem(
+                [Res(Time)],
+                (time: TimeData) => followUpdate(app.world, time.delta),
+                { name: 'CameraFollowSystem' },
+            ), { runIf: playModeOnly });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

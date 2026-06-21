@@ -6,10 +6,14 @@ import { INVALID_ENTITY } from '../src/types';
 import {
     loadSceneData,
     loadSceneWithAssets,
+    resetWorldTo,
     loadComponent,
     remapEntityFields,
     findEntityByName,
     updateCameraAspectRatio,
+    migrateSceneData,
+    SCENE_FORMAT_VERSION,
+    registerSceneComponentCodec,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
     getComponentSpineFieldDescriptor,
@@ -211,86 +215,24 @@ describe('Scene', () => {
             expect(transform.position.y).toBe(20);
         });
 
-        it('should convert LocalTransform to Transform', () => {
+        it('should carry out-of-band codec fields around insert (strip + replay)', () => {
+            const captured: Record<string, unknown> = {};
+            registerSceneComponentCodec('Sprite', {
+                outOfBandFields: ['_blob'],
+                importData: (_entity, oob) => { captured.blob = oob._blob; },
+            });
             const entity = world.spawn();
-            const compData: SceneComponentData = {
-                type: 'LocalTransform',
-                data: { position: { x: 5, y: 5, z: 0 } },
-            };
-            loadComponent(world, entity, compData);
-
-            expect(compData.type).toBe('Transform');
-            expect(world.has(entity, Transform)).toBe(true);
-        });
-
-        it('should convert WorldTransform to Transform', () => {
-            const entity = world.spawn();
-            const compData: SceneComponentData = {
-                type: 'WorldTransform',
-                data: {},
-            };
-            loadComponent(world, entity, compData);
-
-            expect(compData.type).toBe('Transform');
-        });
-
-        it('should convert legacy UIRect anchor to anchorMin/anchorMax', () => {
-            const entity = world.spawn();
+            // `_blob` is not a Sprite field; the codec must strip it before
+            // insert (so validation/insert don't choke) and replay it after.
             loadComponent(world, entity, {
-                type: 'UIRect',
-                data: { anchor: { x: 0.5, y: 0.5 } },
+                type: 'Sprite',
+                data: { texture: 0, _blob: 'XYZ' },
             });
 
-            const rect = world.get(entity, UIRect);
-            expect(rect.anchorMin).toEqual({ x: 0.5, y: 0.5 });
-            expect(rect.anchorMax).toEqual({ x: 0.5, y: 0.5 });
-        });
-
-        it('should not overwrite existing anchorMin with legacy anchor', () => {
-            const compData = {
-                type: 'UIRect',
-                data: {
-                    anchor: { x: 0, y: 0 },
-                    anchorMin: { x: 0.1, y: 0.1 },
-                    anchorMax: { x: 0.9, y: 0.9 },
-                } as Record<string, unknown>,
-            };
-
-            expect(compData.data.anchorMin).toEqual({ x: 0.1, y: 0.1 });
-            expect(compData.data.anchor).toBeDefined();
-
-            // When anchorMin exists, anchor field is NOT converted
-            // (anchor stays in data, conversion is skipped)
-            loadComponent(world, world.spawn(), {
-                type: 'UIRect',
-                data: { anchorMin: { x: 0.1, y: 0.1 }, anchorMax: { x: 0.9, y: 0.9 } },
-            });
-
-            const entity = world.getEntitiesWithComponents([UIRect])[0];
-            const rect = world.get(entity, UIRect);
-            expect(rect.anchorMin).toEqual({ x: 0.1, y: 0.1 });
-        });
-
-        it('should convert UIMask mode string "scissor" to 0', () => {
-            const entity = world.spawn();
-            loadComponent(world, entity, {
-                type: 'UIMask',
-                data: { mode: 'scissor' },
-            });
-
-            const mask = world.get(entity, UIMask);
-            expect(mask.mode).toBe(0);
-        });
-
-        it('should convert UIMask mode string "stencil" to 1', () => {
-            const entity = world.spawn();
-            loadComponent(world, entity, {
-                type: 'UIMask',
-                data: { mode: 'stencil' },
-            });
-
-            const mask = world.get(entity, UIMask);
-            expect(mask.mode).toBe(1);
+            expect(captured.blob).toBe('XYZ');
+            expect(world.has(entity, Sprite)).toBe(true);
+            // Cleanup: unregister so the codec doesn't leak into other tests.
+            registerSceneComponentCodec('Sprite', {});
         });
 
         it('should warn for unknown component type', () => {
@@ -322,6 +264,119 @@ describe('Scene', () => {
                 expect.stringContaining('Unknown component type: NonExistentComponent'),
             );
             warnSpy.mockRestore();
+        });
+    });
+
+    // =========================================================================
+    // migrateSceneData (versioned, non-mutating)
+    // =========================================================================
+
+    describe('migrateSceneData', () => {
+        const oneCompScene = (comp: SceneComponentData, version = '1.0'): SceneData => ({
+            version,
+            name: 't',
+            entities: [{ id: 0, name: 'E', parent: null, children: [], components: [comp] }],
+        });
+
+        it('converts LocalTransform / WorldTransform to Transform', () => {
+            expect(
+                migrateSceneData(oneCompScene({ type: 'LocalTransform', data: { position: { x: 5, y: 5, z: 0 } } }))
+                    .data.entities[0].components[0].type,
+            ).toBe('Transform');
+            expect(
+                migrateSceneData(oneCompScene({ type: 'WorldTransform', data: {} }))
+                    .data.entities[0].components[0].type,
+            ).toBe('Transform');
+        });
+
+        it('splits legacy UIRect.anchor into anchorMin/anchorMax', () => {
+            const { data } = migrateSceneData(oneCompScene({ type: 'UIRect', data: { anchor: { x: 0.5, y: 0.5 } } }));
+            const d = data.entities[0].components[0].data;
+            expect(d.anchorMin).toEqual({ x: 0.5, y: 0.5 });
+            expect(d.anchorMax).toEqual({ x: 0.5, y: 0.5 });
+            expect(d.anchor).toBeUndefined();
+        });
+
+        it('does not overwrite an existing anchorMin', () => {
+            const { data } = migrateSceneData(oneCompScene({
+                type: 'UIRect',
+                data: { anchor: { x: 0, y: 0 }, anchorMin: { x: 0.1, y: 0.1 }, anchorMax: { x: 0.9, y: 0.9 } },
+            }));
+            expect(data.entities[0].components[0].data.anchorMin).toEqual({ x: 0.1, y: 0.1 });
+        });
+
+        it('converts UIMask mode strings to ints', () => {
+            expect(migrateSceneData(oneCompScene({ type: 'UIMask', data: { mode: 'scissor' } }))
+                .data.entities[0].components[0].data.mode).toBe(0);
+            expect(migrateSceneData(oneCompScene({ type: 'UIMask', data: { mode: 'stencil' } }))
+                .data.entities[0].components[0].data.mode).toBe(1);
+        });
+
+        it('reports migrated=true for legacy data, false for current', () => {
+            expect(migrateSceneData(oneCompScene({ type: 'LocalTransform', data: {} })).migrated).toBe(true);
+            expect(migrateSceneData(oneCompScene({ type: 'Transform', data: { position: { x: 0, y: 0, z: 0 } } })).migrated).toBe(false);
+        });
+
+        it('stamps the current format version', () => {
+            expect(migrateSceneData(oneCompScene({ type: 'Transform', data: {} }, '0.9')).data.version)
+                .toBe(SCENE_FORMAT_VERSION);
+        });
+
+        it('rejects data newer than the engine supports', () => {
+            expect(() => migrateSceneData({ version: '99.0', name: 't', entities: [] }))
+                .toThrow(/newer than this engine/);
+        });
+
+        it('does not mutate the caller input (snapshots stay reusable)', () => {
+            const input = oneCompScene({ type: 'LocalTransform', data: { position: { x: 5, y: 5, z: 0 } } });
+            migrateSceneData(input);
+            expect(input.entities[0].components[0].type).toBe('LocalTransform');
+            expect(input.version).toBe('1.0');
+        });
+    });
+
+    // =========================================================================
+    // resetWorldTo (play-state restore)
+    // =========================================================================
+
+    describe('resetWorldTo', () => {
+        const snapshot = (): SceneData => ({
+            version: '1.0',
+            name: 'snap',
+            entities: [
+                { id: 0, name: 'A', parent: null, children: [1], components: [{ type: 'Transform', data: { position: { x: 1, y: 2, z: 0 } } }] },
+                { id: 1, name: 'B', parent: 0, children: [], components: [{ type: 'Transform', data: { position: { x: 3, y: 4, z: 0 } } }] },
+            ],
+        });
+
+        it('despawns all entities and reloads the snapshot', () => {
+            const snap = snapshot();
+            loadSceneData(world, snap);
+            expect(world.getAllEntities().length).toBe(2);
+
+            // Mutate the live world (as Play would): add an entity.
+            const extra = world.spawn();
+            world.insert(extra, Transform, { position: { x: 9, y: 9, z: 0 } });
+            expect(world.getAllEntities().length).toBe(3);
+
+            resetWorldTo(world, snap);
+
+            // Extra is gone; A and B are back with their original transforms.
+            const xs = world.getEntitiesWithComponents([Transform])
+                .map(e => world.get(e, Transform).position.x)
+                .sort((a, b) => a - b);
+            expect(xs).toEqual([1, 3]);
+        });
+
+        it('restores repeatedly from the same snapshot (non-mutating)', () => {
+            const snap = snapshot();
+            loadSceneData(world, snap);
+            world.despawn(world.getAllEntities()[0]);
+            resetWorldTo(world, snap);
+            expect(world.getAllEntities().length).toBe(2);
+            world.despawn(world.getAllEntities()[0]);
+            resetWorldTo(world, snap);
+            expect(world.getAllEntities().length).toBe(2);
         });
     });
 
@@ -629,7 +684,7 @@ describe('Scene', () => {
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledTimes(1);
             const entity = world.getEntitiesWithComponents([Sprite])[0];
             const sprite = world.get(entity, Sprite);
             expect(sprite.texture).toBe(42);
@@ -683,7 +738,7 @@ describe('Scene', () => {
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledTimes(1);
         });
 
         it('should call preloadSceneAssets for spine assets', async () => {
@@ -708,7 +763,7 @@ describe('Scene', () => {
             };
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledTimes(1);
         });
 
         it('should handle texture load failure gracefully', async () => {
@@ -861,7 +916,7 @@ describe('Scene', () => {
 
             await loadSceneWithAssets(world, sceneData, { assets: mockAssets });
 
-            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledWith(sceneData, undefined);
+            expect(mockAssets.preloadSceneAssets).toHaveBeenCalledTimes(1);
             expect(mockAssets.resolveSceneAssetPaths).toHaveBeenCalled();
         });
 

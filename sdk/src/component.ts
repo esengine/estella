@@ -122,8 +122,11 @@ function createComponentDef<T extends object>(
     };
 }
 
-export function getComponentRegistry(): Map<string, ComponentDef<any>> {
-    return getDefaultContext().componentRegistry;
+// User components live in the per-app AppContext registry (reset-able). Builtins
+// are global and live in `builtinRegistry` (declared further below). The public
+// catalogue accessors merge the two — see getComponentRegistry().
+function userComponents(): Map<string, AnyComponentDef> {
+    return getDefaultContext().componentRegistry as Map<string, AnyComponentDef>;
 }
 
 export function defineComponent<T extends object>(
@@ -131,56 +134,47 @@ export function defineComponent<T extends object>(
     defaults: T,
     metadata?: ComponentMetadata,
 ): ComponentDef<T> {
-    const userExisting = getComponentRegistry().get(name);
-    if (userExisting) return userExisting as ComponentDef<T>;
+    const existing = userComponents().get(name);
+    if (existing) return existing as ComponentDef<T>;
 
-    const globalExisting = componentRegistry.get(name);
-    if (globalExisting) {
+    if (builtinRegistry.has(name)) {
         throw new Error(
-            `Component name collision: user component "${name}" conflicts with an existing ${globalExisting._builtin ? 'builtin' : 'user'} component of the same name`
+            `Component name collision: user component "${name}" conflicts with an existing builtin component of the same name`
         );
     }
 
     const def = createComponentDef(name, defaults, metadata);
-    getComponentRegistry().set(name, def);
-    componentRegistry.set(name, def);
+    userComponents().set(name, def);
     registerToEditor(name, defaults as Record<string, unknown>, false);
     return def;
 }
 
 export function defineTag(name: string): ComponentDef<{}> {
-    const userExisting = getComponentRegistry().get(name);
-    if (userExisting) return userExisting as ComponentDef<{}>;
+    const existing = userComponents().get(name);
+    if (existing) return existing as ComponentDef<{}>;
 
-    const globalExisting = componentRegistry.get(name);
-    if (globalExisting) {
+    if (builtinRegistry.has(name)) {
         throw new Error(
-            `Component name collision: tag "${name}" conflicts with an existing ${globalExisting._builtin ? 'builtin' : 'user'} component of the same name`
+            `Component name collision: tag "${name}" conflicts with an existing builtin component of the same name`
         );
     }
 
     const def = createComponentDef(name, {});
-    getComponentRegistry().set(name, def);
-    componentRegistry.set(name, def);
+    userComponents().set(name, def);
     registerToEditor(name, {}, true);
     return def;
 }
 
 export function getUserComponent(name: string): ComponentDef<any> | undefined {
-    return getComponentRegistry().get(name);
+    return userComponents().get(name) as ComponentDef<any> | undefined;
 }
 
 export function clearUserComponents(): void {
-    const userRegistry = getComponentRegistry();
-    for (const name of userRegistry.keys()) {
-        componentRegistry.delete(name);
-    }
-    userRegistry.clear();
+    userComponents().clear();
 }
 
 export function unregisterComponent(name: string): void {
-    getComponentRegistry().delete(name);
-    componentRegistry.delete(name);
+    userComponents().delete(name);
 }
 
 function registerToEditor(
@@ -219,18 +213,33 @@ export function isBuiltinComponent(comp: AnyComponentDef): comp is BuiltinCompon
     return comp._builtin === true;
 }
 
-const componentRegistry = new Map<string, AnyComponentDef>();
+// Global builtin (C++-backed) component types — defined once at module load and
+// shared across every context. User components are per-AppContext (see above).
+const builtinRegistry = new Map<string, AnyComponentDef>();
 
 export function registerComponent(name: string, def: AnyComponentDef): void {
-    componentRegistry.set(name, def);
+    builtinRegistry.set(name, def);
 }
 
+/** Complete catalogue: global builtins + the current context's user components. */
+export function getComponentRegistry(): Map<string, AnyComponentDef> {
+    const all = new Map<string, AnyComponentDef>(builtinRegistry);
+    for (const [name, def] of userComponents()) all.set(name, def);
+    return all;
+}
+
+/** @deprecated Alias of {@link getComponentRegistry}; kept for back-compat. */
 export function getAllRegisteredComponents(): Map<string, AnyComponentDef> {
-    return componentRegistry;
+    return getComponentRegistry();
+}
+
+/** Just the current context's user/script components (excludes builtins). */
+export function getUserComponents(): Map<string, AnyComponentDef> {
+    return userComponents();
 }
 
 export function getComponent(name: string): AnyComponentDef | undefined {
-    return componentRegistry.get(name) ?? getUserComponent(name);
+    return builtinRegistry.get(name) ?? userComponents().get(name);
 }
 
 function detectColorKeys(defaults: unknown): readonly string[] {
@@ -249,7 +258,7 @@ function detectColorKeys(defaults: unknown): readonly string[] {
 }
 
 export function defineBuiltin<T>(name: string, defaults: T, metadata?: ComponentMetadata): BuiltinComponentDef<T> {
-    const existing = componentRegistry.get(name);
+    const existing = builtinRegistry.get(name) ?? userComponents().get(name);
     if (existing) {
         if (existing._builtin) return existing as BuiltinComponentDef<T>;
         throw new Error(
@@ -271,7 +280,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         animatableFields: meta?.animatableFields ?? [],
         discoverAssets: metadata?.discoverAssets,
     };
-    componentRegistry.set(name, def);
+    builtinRegistry.set(name, def);
     return def;
 }
 

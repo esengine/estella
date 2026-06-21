@@ -41,6 +41,8 @@ export { CameraView, CameraViewApi } from './camera/Camera';
 export { EditorView, DEFAULT_EDITOR_VIEW } from './camera/EditorView';
 export type { EditorViewData } from './camera/EditorView';
 export { CameraDirector, setViewTarget, shakeCamera, BlendCurve } from './camera/CameraDirector';
+export { FollowTarget } from './camera/FollowTarget';
+export type { FollowTargetData } from './camera/FollowTarget';
 export type { CameraDirectorState } from './camera/CameraDirector';
 export type { CameraPOV } from './camera/CameraPlugin';
 

@@ -21,3 +21,19 @@ export { diffAgainstSource } from './diff';
 export type { DiffOptions } from './diff';
 export { validateOverrides } from './validate';
 export type { ValidateResult, StaleOverride } from './validate';
+
+export {
+    expandInstance,
+    collapseInstance,
+    expandEntry,
+    collapseEntry,
+    rebuildChildren,
+    extractPrefab,
+} from './sceneInstance';
+export type {
+    AddedEntity,
+    PrefabInstanceDelta,
+    PrefabInstanceEntry,
+    SyncPrefabResolver,
+    ExtractEntity,
+} from './sceneInstance';

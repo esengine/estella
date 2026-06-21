@@ -4,7 +4,7 @@
  */
 
 import { Entity, entityGeneration, entityIndex, makeEntity } from './types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getComponentRegistry, Name } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getUserComponents, Name } from './component';
 import type { CppRegistry, ESEngineModule } from './wasm';
 import { handleWasmError } from './wasmError';
 import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './ecs/BuiltinBridge';
@@ -576,7 +576,7 @@ export class World {
         }
         const ids = this.scripts_.getEntityComponentIds(entity);
         if (ids) {
-            const registry = getComponentRegistry();
+            const registry = getUserComponents();
             for (const id of ids) {
                 for (const [name, def] of registry) {
                     if (def._id === id) {

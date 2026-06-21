@@ -56,6 +56,17 @@ export class AppContext {
     editorBridge: EditorBridge | null = null;
     readonly wasmError: WasmErrorState = { handler: null, lastReportTime: 0, suppressedCount: 0 };
 
+    /**
+     * Run mode. `editorMode` = an editor host is attached (vs a standalone
+     * runtime); `playMode` = within an editor, gameplay is running. Gameplay
+     * systems gate on these via {@link playModeOnly} (`env.ts`). Kept here so
+     * all app-scoped mutable state lives on one context (with componentRegistry
+     * / editorBridge / pendingSystems) rather than in a separate module global,
+     * so isolated Apps get isolated run modes.
+     */
+    editorMode = false;
+    playMode = false;
+
     /** @brief Drain all pending systems and clear the queue */
     drainPendingSystems(): PendingSystemEntry[] {
         const drained = this.pendingSystems.splice(0);
@@ -70,6 +81,8 @@ export class AppContext {
         this.wasmError.handler = null;
         this.wasmError.lastReportTime = 0;
         this.wasmError.suppressedCount = 0;
+        this.editorMode = false;
+        this.playMode = false;
     }
 }
 

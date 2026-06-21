@@ -5,10 +5,14 @@ import {
     defineTag,
     getComponent,
     getUserComponent,
+    getUserComponents,
+    getComponentRegistry,
+    getAllRegisteredComponents,
     getComponentDefaults,
     clearUserComponents,
     unregisterComponent,
 } from '../src/component';
+import { AppContext, getDefaultContext, setDefaultContext } from '../src/context';
 
 describe('Component Registry', () => {
     beforeEach(() => {
@@ -224,5 +228,55 @@ describe('Component Registry', () => {
             expect(getUserComponent('Tag2')).toBe(Tag2);
             expect(getUserComponent('Comp2')).toBe(Comp2);
         });
+    });
+});
+
+// Two-tier registry invariants: builtins are GLOBAL (one module-level registry),
+// user components are PER-CONTEXT (AppContext) and must not leak across contexts.
+describe('Component registry tiers (builtins global, user per-context)', () => {
+    beforeEach(() => clearUserComponents());
+
+    it('getComponentRegistry merges builtins + the current context user components', () => {
+        const Builtin = defineBuiltin('TierBuiltin', { v: 0 });
+        const User = defineComponent('TierUser', { v: 0 });
+
+        const all = getComponentRegistry();
+        expect(all.get('TierBuiltin')).toBe(Builtin);
+        expect(all.get('TierUser')).toBe(User);
+        // getAllRegisteredComponents is an alias of the complete view.
+        expect(getAllRegisteredComponents().get('TierBuiltin')).toBe(Builtin);
+        // getComponent resolves both tiers.
+        expect(getComponent('TierBuiltin')).toBe(Builtin);
+        expect(getComponent('TierUser')).toBe(User);
+    });
+
+    it('getUserComponents excludes builtins', () => {
+        defineBuiltin('TierBuiltin2', { v: 0 });
+        const User = defineComponent('TierUser2', { v: 0 });
+        const users = getUserComponents();
+        expect(users.get('TierUser2')).toBe(User);
+        expect(users.has('TierBuiltin2')).toBe(false);
+    });
+
+    it('user components do NOT leak across contexts; builtins stay global', () => {
+        const Builtin = defineBuiltin('TierBuiltinGlobal', { v: 0 });
+        defineComponent('TierUserA', { v: 0 });
+        expect(getComponentRegistry().has('TierUserA')).toBe(true);
+
+        const original = getDefaultContext();
+        setDefaultContext(new AppContext());
+        try {
+            // Fresh context: the user component is isolated (no leak)…
+            expect(getComponentRegistry().has('TierUserA')).toBe(false);
+            expect(getUserComponents().has('TierUserA')).toBe(false);
+            // …but the builtin is still globally visible.
+            expect(getComponent('TierBuiltinGlobal')).toBe(Builtin);
+            expect(getComponentRegistry().has('TierBuiltinGlobal')).toBe(true);
+        } finally {
+            setDefaultContext(original);
+        }
+
+        // Restored context still has the original user component.
+        expect(getComponentRegistry().has('TierUserA')).toBe(true);
     });
 });
