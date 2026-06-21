@@ -78,6 +78,8 @@ export function MenuBar() {
         cmdItem('project.save'),
         cmdItem('project.saveAs'),
         { sep: true },
+        cmdItem('project.export'),
+        { sep: true },
         cmdItem('project.close'),
       ],
     },

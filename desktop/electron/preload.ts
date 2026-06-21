@@ -4,6 +4,7 @@ import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScanAssetsResult } from './assetDb';
 import type { CookResult } from './cookAssets';
+import type { ExportGameResult } from './exportGame';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -36,6 +37,8 @@ const api = {
     scanAssets: (): Promise<ScanAssetsResult> => ipcRenderer.invoke('project:scanAssets'),
     /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
     cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
+    /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
+    exportGame: (outDir?: string): Promise<ExportGameResult> => ipcRenderer.invoke('project:exportGame', outDir),
     /** Show a file picker and import the chosen files into `destDir` (writes .meta);
      *  null if cancelled. */
     importAssets: (destDir: string): Promise<{ imported: string[]; skipped: string[] } | null> =>

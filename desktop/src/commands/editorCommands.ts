@@ -45,6 +45,13 @@ commands.register({
   run: () => void ProjectStore.saveAsViaDialog(),
 });
 commands.register({
+  id: 'project.export',
+  label: 'Export Game…',
+  category: 'File',
+  isEnabled: () => !!ProjectStore.getSnapshot(),
+  run: () => void ProjectStore.exportGame(),
+});
+commands.register({
   id: 'project.close',
   label: 'Close Project',
   category: 'File',

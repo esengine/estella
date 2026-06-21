@@ -24,6 +24,7 @@ import { scanAssetDatabase } from './assetDb';
 import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, IMPORT_EXTENSIONS } from './importAssets';
+import { exportGame } from './exportGame';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -253,6 +254,24 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
   const manifest = await readManifest(root);
   const entry = manifest.defaultScene;
   return cookAssets(root, { entryScenes: entry ? [entry] : [], outDir: outDir ?? 'build' });
+});
+
+// Export a runnable web build (play == ship): cook + game host + wasm + index.html.
+ipcMain.handle('project:exportGame', async (_e, outDir?: string) => {
+  const root = requireRoot();
+  const manifest = await readManifest(root);
+  const entryScene = manifest.defaultScene;
+  if (!entryScene) throw new Error('project has no defaultScene to export');
+  const publicWasm = path.join(VITE_PUBLIC, 'wasm');
+  const wasmDir = existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm');
+  return exportGame({
+    root,
+    entryScene,
+    gameHostEntry: path.join(process.env.APP_ROOT!, 'src', 'gameHost.ts'),
+    wasmDir,
+    outDir: outDir ?? 'dist-game',
+    title: manifest.name,
+  });
 });
 
 ipcMain.handle('recents:list', () => listRecents());
