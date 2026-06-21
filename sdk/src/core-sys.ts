@@ -145,6 +145,11 @@ export {
 } from './playableRuntime';
 
 export {
+    initPlayRealmRuntime,
+    type PlayRealmRuntimeConfig,
+} from './playRealmRuntime';
+
+export {
     RuntimeConfig,
     applyBuildRuntimeConfig,
     type RuntimeBuildConfig,
