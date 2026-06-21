@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:render": "vite build && electron scripts/headless-verify.mjs",
+    "verify:smoke": "vite build && electron scripts/headless-smoke.mjs",
     "mcp": "electron electron/mcp/server.mjs",
     "mcp:smoke": "vite build && node electron/mcp/smoke.mjs"
   },
