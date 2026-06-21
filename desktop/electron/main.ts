@@ -27,15 +27,26 @@ import { importAssets, IMPORT_EXTENSIONS } from './importAssets';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
-// Custom scheme that serves files from the open project root (sandboxed). Lets
-// the engine fetch project assets (textures via Assets.loadTexture → fetch) and
-// is the foundation for file:// packaging. Must be declared before app ready.
+// Two privileged custom schemes (must be declared before app ready):
+//  • estella:// serves files from the open project root (sandboxed) — lets the
+//    engine fetch project assets (textures via Assets.loadTexture → fetch).
+//  • app://     serves the built renderer (dist/) so the editor + play realm load
+//    over a STABLE origin instead of file://. Under file:// the engine glue path
+//    `${location.origin}/wasm/esengine.js` resolves to the filesystem root (404);
+//    app:// gives a real origin where `/wasm/...` + the play iframe resolve.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'estella',
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
   },
+  {
+    scheme: 'app',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
 ]);
+
+// The app:// renderer origin (host is arbitrary; `local` keeps URLs readable).
+const APP_ORIGIN = 'app://local';
 
 const ASSET_MIME: Record<string, string> = {
   png: 'image/png',
@@ -46,6 +57,26 @@ const ASSET_MIME: Record<string, string> = {
   json: 'application/json',
   esscene: 'application/json',
   fnt: 'text/plain',
+};
+
+// MIME for serving the built renderer over app:// (wasm MUST be application/wasm
+// for streaming compile; js/mjs must be a script type).
+const APP_MIME: Record<string, string> = {
+  html: 'text/html',
+  js: 'text/javascript',
+  mjs: 'text/javascript',
+  css: 'text/css',
+  json: 'application/json',
+  wasm: 'application/wasm',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  woff: 'font/woff',
+  woff2: 'font/woff2',
+  ttf: 'font/ttf',
+  ktx2: 'image/ktx2',
 };
 
 // The engine's Emscripten/embind glue requires 'unsafe-eval' in the renderer
@@ -102,7 +133,9 @@ function createWindow() {
     win.loadURL(VITE_DEV_SERVER_URL);
     win.webContents.openDevTools({ mode: 'detach' });
   } else {
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'));
+    // Load over app:// (not file://) so the engine glue + play realm resolve from
+    // a real origin. handleApp serves dist/.
+    win.loadURL(`${APP_ORIGIN}/index.html`);
   }
 }
 
@@ -273,8 +306,29 @@ async function handleEstella(request: Request): Promise<Response> {
   }
 }
 
+// app://local/<path> → the built renderer (dist/). Serves index.html, the wasm
+// glue + binary, the play realm host page, and bundled assets over a stable
+// origin. Path-escape guarded to dist/.
+async function handleApp(request: Request): Promise<Response> {
+  try {
+    const rel = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '') || 'index.html';
+    const abs = path.join(RENDERER_DIST, rel);
+    if (abs !== RENDERER_DIST && !abs.startsWith(RENDERER_DIST + path.sep)) {
+      return new Response('forbidden', { status: 403 });
+    }
+    const bytes = await readFile(abs);
+    const ext = path.extname(abs).slice(1).toLowerCase();
+    return new Response(new Uint8Array(bytes), {
+      headers: { 'content-type': APP_MIME[ext] ?? 'application/octet-stream' },
+    });
+  } catch (err) {
+    return new Response(String(err), { status: 404 });
+  }
+}
+
 app.whenReady().then(() => {
   protocol.handle('estella', handleEstella);
+  protocol.handle('app', handleApp);
   createWindow();
 });
 
