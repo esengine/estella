@@ -59,8 +59,9 @@ export function App() {
         useEditorStore.getState().stop();
         return;
       }
-      dockApi.openGame();
       void PlayRealm.start(payload);
+      // 'window' → a Game dock tab; 'viewport' → the Viewport mounts it (PIE).
+      if (useEditorStore.getState().playTarget === 'window') dockApi.openGame();
     } else {
       PlayRealm.stop();
       dockApi.closeGame();

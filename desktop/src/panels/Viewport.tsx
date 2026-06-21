@@ -8,6 +8,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { commands } from '@/commands';
 import { EngineHost } from '@/engine/EngineHost';
+import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneQuery } from '@/engine/SceneQuery';
@@ -121,12 +122,14 @@ function OvTool({
 
 export function Viewport() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
+  const playTarget = useEditorStore((s) => s.playTarget);
   const tool = useEditorStore((s) => s.tool);
   const showGrid = useEditorStore((s) => s.showGrid);
   const showGizmos = useEditorStore((s) => s.showGizmos);
   const snapping = useEditorStore((s) => s.snapping);
 
   const stageRef = useRef<HTMLDivElement>(null);
+  const playHostRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -153,6 +156,16 @@ export function Viewport() {
     StatsStore.start();
     return () => EngineHost.detach();
   }, []);
+
+  // Play In Viewport (UE5 PIE): host the realm iframe over the stage while playing
+  // here; App.start() already booted the realm — we just re-parent its iframe.
+  const playInViewport = isPlaying && playTarget === 'viewport';
+  useEffect(() => {
+    if (!playInViewport) return;
+    const host = playHostRef.current;
+    if (host) PlayRealm.attach(host);
+    return () => PlayRealm.detach();
+  }, [playInViewport]);
 
   // Wheel = zoom about the view (native non-passive listener so we can preventDefault).
   useEffect(() => {
@@ -397,6 +410,21 @@ export function Viewport() {
           <div className="viewport__cam-rect" />
         </div>
       ))}
+
+      {/* Play In Viewport: the realm iframe fills the stage; a thin badge marks PIE. */}
+      {playInViewport && (
+        <div className="viewport__play">
+          <div className="viewport__play-host" ref={playHostRef} />
+          <button
+            type="button"
+            className="viewport__play-stop"
+            title="Stop (Esc)"
+            onClick={() => useEditorStore.getState().stop()}
+          >
+            ● Playing · Stop
+          </button>
+        </div>
+      )}
 
       <div ref={selectionRef} className="viewport__selection" aria-hidden="true" />
 

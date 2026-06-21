@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { PlayRealm } from '@/engine/PlayRealm';
+import { useEditorStore } from '@/store/editorStore';
 
 // The "Game" dock panel: hosts the isolated play-realm iframe (PlayRealm owns the
 // element + re-parents it here, so the realm survives panel remounts). The host
@@ -8,12 +9,17 @@ import { PlayRealm } from '@/engine/PlayRealm';
 export function GamePanel() {
   const hostRef = useRef<HTMLDivElement>(null);
   const { playing, ready, error } = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
+  const playTarget = useEditorStore((s) => s.playTarget);
 
+  // Only host the realm iframe in 'window' mode — in 'viewport' mode the Viewport
+  // owns it (one iframe, one mount). Guards against a stale Game tab stealing it.
   useEffect(() => {
     const el = hostRef.current;
-    if (el) PlayRealm.attach(el);
-    return () => PlayRealm.detach();
-  }, []);
+    if (el && playTarget === 'window') PlayRealm.attach(el);
+    return () => {
+      if (playTarget === 'window') PlayRealm.detach();
+    };
+  }, [playTarget]);
 
   const overlay = error
     ? `Play failed: ${error}`

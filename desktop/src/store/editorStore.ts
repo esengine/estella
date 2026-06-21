@@ -19,6 +19,9 @@ interface EditorState {
   togglePlay: () => void;
   togglePause: () => void;
   stop: () => void;
+  // Where Play runs: in the Viewport (UE5 PIE, default) or a separate Game tab.
+  playTarget: 'viewport' | 'window';
+  setPlayTarget: (t: 'viewport' | 'window') => void;
 
   // Launcher (project browser) vs editor shell. The editor opens on the
   // launcher until a project is opened/created; `enterEditor` dismisses it.
@@ -65,6 +68,15 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((s) => ({ isPlaying: !s.isPlaying, isPaused: false })),
   togglePause: () => set((s) => ({ isPaused: !s.isPaused })),
   stop: () => set({ isPlaying: false, isPaused: false }),
+  // Guarded: this store is imported in pure-node tests where localStorage is absent.
+  playTarget:
+    (typeof localStorage !== 'undefined'
+      ? (localStorage.getItem('estella.playTarget') as 'viewport' | 'window' | null)
+      : null) || 'viewport',
+  setPlayTarget: (playTarget) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('estella.playTarget', playTarget);
+    set({ playTarget });
+  },
 
   showLauncher: true,
   enterEditor: () => set({ showLauncher: false }),

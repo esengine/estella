@@ -14,6 +14,8 @@ import {
   Square as Stop,
   Eye,
   Hammer,
+  Monitor,
+  AppWindow,
   type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
@@ -65,6 +67,8 @@ function TBtn({
 export function Toolbar() {
   // Reactive display state (tool / toggles / play); actions dispatch through the
   // command registry so menu, toolbar, and keyboard share one implementation.
+  const playTarget = useEditorStore((s) => s.playTarget);
+  const setPlayTarget = useEditorStore((s) => s.setPlayTarget);
   const { tool, snapping, showGrid, showGizmos, isPlaying, isPaused, togglePause, stop } =
     useEditorStore();
 
@@ -139,6 +143,15 @@ export function Toolbar() {
         </button>
         <button type="button" className="play-side" title="Stop" disabled={!isPlaying} onClick={stop}>
           <Stop size={12} strokeWidth={1.9} fill="currentColor" />
+        </button>
+        <button
+          type="button"
+          className="play-side play-mode"
+          title={`Play in ${playTarget === 'viewport' ? 'Viewport' : 'New Window'} — click to switch`}
+          disabled={isPlaying}
+          onClick={() => setPlayTarget(playTarget === 'viewport' ? 'window' : 'viewport')}
+        >
+          {playTarget === 'viewport' ? <Monitor size={13} strokeWidth={1.9} /> : <AppWindow size={13} strokeWidth={1.9} />}
         </button>
       </div>
 
