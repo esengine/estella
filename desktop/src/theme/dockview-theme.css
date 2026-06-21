@@ -98,3 +98,23 @@
   background: var(--srf-2);
   z-index: 1;
 }
+
+/* Per-panel collapse chevron in the group header (rightHeaderActionsComponent) —
+   the design's `.pcol`. Collapses the panel to its tab bar; rotates when collapsed. */
+.dockview-theme-estella .dv-collapse {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 100%;
+  color: var(--text-mute);
+  transition: color var(--t-fast);
+}
+.dockview-theme-estella .dv-collapse:hover {
+  color: var(--text);
+}
+.dockview-theme-estella .dv-collapse svg {
+  transition: transform var(--t-fast) var(--e-out);
+}
+.dockview-theme-estella .dv-collapse svg.is-collapsed {
+  transform: rotate(180deg);
+}

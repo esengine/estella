@@ -1,5 +1,11 @@
-import type { FC } from 'react';
-import { DockviewReact, type DockviewReadyEvent, type IDockviewPanelProps } from 'dockview';
+import { useEffect, useState, type FC } from 'react';
+import {
+  DockviewReact,
+  type DockviewReadyEvent,
+  type IDockviewPanelProps,
+  type IDockviewHeaderActionsProps,
+} from 'dockview';
+import { ChevronDown } from 'lucide-react';
 import { Outliner } from '@/panels/Outliner';
 import { Viewport } from '@/panels/Viewport';
 import { Details } from '@/panels/Details';
@@ -61,6 +67,32 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   });
 }
 
+// A collapse/expand chevron in every dock group's header (the design's `.pcol`).
+// Collapses the group to its tab bar by height; hidden on the Viewport/Game group
+// (the center stage isn't an accordion). State follows the live group height, so
+// it stays correct after splitter drags and layout restores.
+function CollapseHeaderAction(props: IDockviewHeaderActionsProps) {
+  const collapsible = !props.panels.some((p) => p.id === 'viewport' || p.id === 'game');
+  const [collapsed, setCollapsed] = useState(() => dockApi.groupCollapsed(props.api));
+  useEffect(() => {
+    const d = props.api.onDidDimensionsChange(() => setCollapsed(dockApi.groupCollapsed(props.api)));
+    return () => d.dispose();
+  }, [props.api]);
+  if (!collapsible) return null;
+  return (
+    <button
+      type="button"
+      className="dv-collapse"
+      title={collapsed ? 'Expand panel' : 'Collapse panel'}
+      aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+      aria-expanded={!collapsed}
+      onClick={() => dockApi.setGroupCollapsed(props.api, props.group.id, !collapsed)}
+    >
+      <ChevronDown size={14} strokeWidth={2} className={collapsed ? 'is-collapsed' : ''} />
+    </button>
+  );
+}
+
 export function DockLayout() {
   const onReady = (event: DockviewReadyEvent) => {
     const { api } = event;
@@ -88,6 +120,7 @@ export function DockLayout() {
     <DockviewReact
       className="dockview-theme-abyss dockview-theme-estella"
       components={components}
+      rightHeaderActionsComponent={CollapseHeaderAction}
       onReady={onReady}
     />
   );
