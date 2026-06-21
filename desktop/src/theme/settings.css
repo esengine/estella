@@ -192,7 +192,11 @@
   font-family: var(--mono);
   font-size: var(--fs-xs);
   color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--t-fast), color var(--t-fast);
 }
+.set-key:hover { border-color: var(--border-line); }
+.set-key.capturing { border-color: var(--acc); color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
 .set-swatches { display: flex; gap: 6px; }
 .set-swatch {
   width: 22px;

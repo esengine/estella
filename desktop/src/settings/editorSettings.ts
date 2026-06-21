@@ -12,7 +12,6 @@ import { settingsRegistry } from './registry';
 import { useEditorStore } from '@/store/editorStore';
 import { LogStore } from '@/store/LogStore';
 import { commands } from '@/commands';
-import { formatKeybinding } from '@/commands/keybinding';
 
 const root = () => document.documentElement.style;
 
@@ -125,9 +124,12 @@ settingsRegistry.register({
   effect: (v) => LogStore.setCap(v),
 });
 
-// ── Keyboard Shortcuts (read-only, generated from the command registry) ──────
-// Editing is a later feature; here we surface the live bindings so they're
-// discoverable in one place (the design's "快捷键" section).
+// ── Keyboard Shortcuts (editable, bound to the command registry overrides) ───
+// Each keybound command gets a row; the value is the effective chord, bound to
+// the registry so rebinding persists + takes effect, and reset clears the override.
+const primaryChord = (kb: ReturnType<typeof commands.keybindingFor>): string =>
+  (Array.isArray(kb) ? kb[0] : kb) ?? '';
+
 for (const cmd of commands.all()) {
   if (!cmd.keybinding) continue;
   settingsRegistry.register({
@@ -138,6 +140,10 @@ for (const cmd of commands.all()) {
     group: cmd.category ?? 'General',
     label: cmd.label,
     commandId: cmd.id,
-    default: formatKeybinding(cmd.keybinding),
+    default: primaryChord(cmd.keybinding),
+    bind: {
+      get: () => primaryChord(commands.keybindingFor(cmd.id)),
+      set: (chord) => commands.setKeybinding(cmd.id, chord),
+    },
   });
 }

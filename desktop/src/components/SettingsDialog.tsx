@@ -12,7 +12,8 @@ import { Settings as SettingsIcon, Search, X, RotateCcw } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
-import type { Setting, NumberSetting } from '@/settings/types';
+import { eventToChord, formatKeybinding } from '@/commands/keybinding';
+import type { Setting, NumberSetting, KeybindingSetting } from '@/settings/types';
 
 const CATEGORY_LABEL: Record<string, string> = {
   editor: 'Editor',
@@ -80,6 +81,41 @@ function NumberControl({ setting }: { setting: NumberSetting }) {
   );
 }
 
+// Click to capture the next chord (Esc cancels). Bound to the command registry,
+// so the new binding persists and takes effect immediately.
+function KeybindCapture({ setting }: { setting: KeybindingSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const chord = useSettings((s) => s.getValue<string>(setting.id));
+  const [capturing, setCapturing] = useState(false);
+  useEffect(() => {
+    if (!capturing) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        setCapturing(false);
+        return;
+      }
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return; // wait for the real key
+      setValue(setting.id, eventToChord(e));
+      setCapturing(false);
+    };
+    // Capture phase + stopPropagation so neither commands nor the dialog Esc fire.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [capturing, setting.id, setValue]);
+  return (
+    <button
+      type="button"
+      className={`set-key${capturing ? ' capturing' : ''}`}
+      title="Click to rebind"
+      onClick={() => setCapturing((c) => !c)}
+    >
+      {capturing ? 'Press keys…' : formatKeybinding(chord) || 'Unbound'}
+    </button>
+  );
+}
+
 function Control({ setting }: { setting: Setting }) {
   const setValue = useSettings((s) => s.setValue);
   const value = useSettings((s) => s.getValue(setting.id));
@@ -135,16 +171,15 @@ function Control({ setting }: { setting: Setting }) {
         </div>
       );
     case 'keybinding':
-      return <span className="set-key">{setting.default}</span>;
+      return <KeybindCapture setting={setting} />;
   }
 }
 
 function Row({ setting }: { setting: Setting }) {
   const isChanged = useSettings((s) => s.isChanged(setting.id));
   const reset = useSettings((s) => s.reset);
-  const resettable = setting.type !== 'keybinding';
   return (
-    <div className={`set-row${isChanged && resettable ? ' changed' : ''}`}>
+    <div className={`set-row${isChanged ? ' changed' : ''}`}>
       <div>
         <div className="sn">{setting.label}</div>
         {setting.description && <div className="sd">{setting.description}</div>}
@@ -152,17 +187,13 @@ function Row({ setting }: { setting: Setting }) {
       <div className="set-ctrl">
         <Control setting={setting} />
       </div>
-      {resettable ? (
-        <span
-          className={`set-reset${isChanged ? ' show' : ''}`}
-          title="Reset to default"
-          onClick={() => isChanged && reset(setting.id)}
-        >
-          {isChanged && <RotateCcw size={11} strokeWidth={2} />}
-        </span>
-      ) : (
-        <span className="set-reset" />
-      )}
+      <span
+        className={`set-reset${isChanged ? ' show' : ''}`}
+        title="Reset to default"
+        onClick={() => isChanged && reset(setting.id)}
+      >
+        {isChanged && <RotateCcw size={11} strokeWidth={2} />}
+      </span>
     </div>
   );
 }

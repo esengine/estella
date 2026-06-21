@@ -11,6 +11,7 @@ import { settingsRegistry } from '@/settings/registry';
 import { useSettings } from '@/store/settingsStore';
 import { useEditorStore } from '@/store/editorStore';
 import { LogStore } from '@/store/LogStore';
+import { commands } from '@/commands';
 
 describe('settings registry', () => {
   it('registers the editor sections', () => {
@@ -53,5 +54,15 @@ describe('settings store', () => {
     s.setValue('viewport.showGrid', false);
     expect(useEditorStore.getState().showGrid).toBe(false);
     expect(s.getValue('viewport.showGrid')).toBe(false);
+  });
+
+  it('a keybinding setting rebinds the command and reset clears the override', () => {
+    const s = useSettings.getState();
+    s.setValue('shortcut.tool.move', 'x');
+    expect(commands.keybindingFor('tool.move')).toBe('x');
+    expect(commands.hasOverride('tool.move')).toBe(true);
+    s.reset('shortcut.tool.move'); // → default 'w', clears override
+    expect(commands.hasOverride('tool.move')).toBe(false);
+    expect(commands.keybindingFor('tool.move')).toBe('w');
   });
 });
