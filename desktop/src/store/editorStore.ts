@@ -22,6 +22,10 @@ interface EditorState {
   // Where Play runs: in the Viewport (UE5 PIE, default) or a separate Game tab.
   playTarget: 'viewport' | 'window';
   setPlayTarget: (t: 'viewport' | 'window') => void;
+  // Which world the Outliner/Details inspect: the edit scene or the live game
+  // (UE5 world picker). Auto-flips to 'game' on Play, 'editor' on Stop.
+  inspectWorld: 'editor' | 'game';
+  setInspectWorld: (w: 'editor' | 'game') => void;
 
   // Launcher (project browser) vs editor shell. The editor opens on the
   // launcher until a project is opened/created; `enterEditor` dismisses it.
@@ -77,6 +81,8 @@ export const useEditorStore = create<EditorState>((set) => ({
     if (typeof localStorage !== 'undefined') localStorage.setItem('estella.playTarget', playTarget);
     set({ playTarget });
   },
+  inspectWorld: 'editor',
+  setInspectWorld: (inspectWorld) => set({ inspectWorld }),
 
   showLauncher: true,
   enterEditor: () => set({ showLauncher: false }),

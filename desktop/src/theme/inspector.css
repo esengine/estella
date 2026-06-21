@@ -141,3 +141,6 @@
 .insp-empty .et { font-size: var(--fs-md); color: var(--text-dim); font-weight: 600; }
 .insp-empty .es { font-size: var(--fs-sm); line-height: 1.5; }
 .filter-empty { padding: 24px; text-align: center; color: var(--text-mute); font-size: var(--fs-sm); }
+
+/* Live "Game" inspector banner (UE5 PIE Details) — editing the running game. */
+.game-live { padding: 6px 12px; font-size: var(--fs-xs); font-weight: 500; color: var(--run-hi); background: rgba(70, 160, 74, 0.12); border-bottom: 1px solid var(--border); flex-shrink: 0; }

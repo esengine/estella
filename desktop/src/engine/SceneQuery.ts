@@ -1,3 +1,4 @@
+import type { SceneData } from 'esengine';
 import type { SceneNode, NodeKind, EntityId, InspectorComponent, InspectorFieldValue } from '@/types';
 import { SceneStore, SceneStoreImpl } from './SceneStore';
 import { SceneModel, SceneModelImpl } from './SceneModel';
@@ -10,6 +11,56 @@ import {
   modelNameOf,
   modelIsVisible,
 } from './schema';
+
+type SceneEntity = SceneData['entities'][number];
+
+// ── Pure view-model builders over a SceneData ────────────────────────────────
+// Shared by SceneQuery (the editor model) and PlayInspect (a live realm snapshot
+// from serializeScene) — same view-models, different source. Ids are whatever the
+// source uses (editor source ids / realm runtime ids).
+
+/** Outliner tree from a SceneData; nesting derived from each entity's `parent`. */
+export function buildSceneTree(data: SceneData | null): SceneNode[] {
+  if (!data) return [];
+  const ids = new Set(data.entities.map((e) => e.id));
+  const childrenOf = new Map<number, SceneEntity[]>();
+  const roots: SceneEntity[] = [];
+  for (const e of data.entities) {
+    if (e.parent != null && ids.has(e.parent)) {
+      const arr = childrenOf.get(e.parent);
+      if (arr) arr.push(e);
+      else childrenOf.set(e.parent, [e]);
+    } else {
+      roots.push(e); // no parent, or a dangling parent → a scene root
+    }
+  }
+  const build = (e: SceneEntity): SceneNode => {
+    const kind = modelKindOf(e);
+    const kids = childrenOf.get(e.id)?.map(build);
+    return { id: e.id, name: modelNameOf(e, kind), kind, visible: modelIsVisible(e), locked: false, children: kids && kids.length ? kids : undefined };
+  };
+  return roots.map(build);
+}
+
+/** Name/kind/components for one entity in a SceneData. */
+export function buildEntityInfo(data: SceneData | null, id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
+  const e = data?.entities.find((x) => x.id === id);
+  if (!e) return null;
+  const kind = modelKindOf(e);
+  return { name: modelNameOf(e, kind), kind, components: modelInspectableComponents(e).map((c) => c.label) };
+}
+
+/** Full inspector model for one entity in a SceneData. */
+export function buildInspector(data: SceneData | null, id: EntityId): InspectorComponent[] {
+  const e = data?.entities.find((x) => x.id === id);
+  if (!e) return [];
+  const out: InspectorComponent[] = [];
+  for (const { name, label } of modelInspectableComponents(e)) {
+    const cdata = (e.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
+    out.push({ name, label, fields: inspectorFields(name, cdata) });
+  }
+  return out;
+}
 
 /**
  * Read-only projection of the editor's source-of-truth model into view-models
@@ -42,56 +93,17 @@ export class SceneQueryImpl {
    * walk would silently drop or double-count.
    */
   readSceneTree(): SceneNode[] {
-    const data = this.model.current;
-    if (!data) return [];
-
-    const ids = new Set(data.entities.map((e) => e.id));
-    const childrenOf = new Map<number, Array<(typeof data.entities)[number]>>();
-    const roots: Array<(typeof data.entities)[number]> = [];
-    for (const e of data.entities) {
-      if (e.parent != null && ids.has(e.parent)) {
-        const arr = childrenOf.get(e.parent);
-        if (arr) arr.push(e);
-        else childrenOf.set(e.parent, [e]);
-      } else {
-        roots.push(e); // no parent, or a dangling parent → a scene root
-      }
-    }
-
-    const build = (e: (typeof data.entities)[number]): SceneNode => {
-      const kind = modelKindOf(e);
-      const kids = childrenOf.get(e.id)?.map(build);
-      return {
-        id: e.id,
-        name: modelNameOf(e, kind),
-        kind,
-        visible: modelIsVisible(e),
-        locked: false,
-        children: kids && kids.length ? kids : undefined,
-      };
-    };
-
-    return roots.map(build);
+    return buildSceneTree(this.model.current);
   }
 
   /** Inspect a single source entity (name, kind, which components it carries). */
   readEntity(id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
-    const e = this.model.entityBySource(id);
-    if (!e) return null;
-    const kind = modelKindOf(e);
-    return { name: modelNameOf(e, kind), kind, components: modelInspectableComponents(e).map((c) => c.label) };
+    return buildEntityInfo(this.model.current, id);
   }
 
   /** Full editable inspector model for a source entity — fields resolved per component. */
   readInspector(id: EntityId): InspectorComponent[] {
-    const e = this.model.entityBySource(id);
-    if (!e) return [];
-    const out: InspectorComponent[] = [];
-    for (const { name, label } of modelInspectableComponents(e)) {
-      const data = (e.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
-      out.push({ name, label, fields: inspectorFields(name, data) });
-    }
-    return out;
+    return buildInspector(this.model.current, id);
   }
 
   /** Read one inspector field's current value (for undo before/after capture). */

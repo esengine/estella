@@ -12,6 +12,7 @@ import { BuildDialog } from '@/components/BuildDialog';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
 import { PlayRealm } from '@/engine/PlayRealm';
+import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
@@ -60,10 +61,14 @@ export function App() {
         return;
       }
       void PlayRealm.start(payload);
+      PlayInspect.start(); // poll the running game for live inspect/debug
+      useEditorStore.getState().setInspectWorld('game'); // flip Outliner/Details to the live game
       // 'window' → a Game dock tab; 'viewport' → the Viewport mounts it (PIE).
       if (useEditorStore.getState().playTarget === 'window') dockApi.openGame();
     } else {
       PlayRealm.stop();
+      PlayInspect.stop();
+      useEditorStore.getState().setInspectWorld('editor');
       dockApi.closeGame();
     }
   }, [isPlaying]);

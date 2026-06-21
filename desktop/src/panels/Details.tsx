@@ -25,11 +25,13 @@ import { AssetIcon, assetTint } from '@/components/icons';
 import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, TYPE_CODE, IMAGE_RE } from '@/project/assetMeta';
 import { useSelection } from '@/store/selectionStore';
+import { useEditorStore } from '@/store/editorStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
-import { SceneQuery } from '@/engine/SceneQuery';
+import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery';
 import { SceneModel } from '@/engine/SceneModel';
-import { SceneCommands } from '@/engine/SceneCommands';
+import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
+import { PlayInspect } from '@/engine/PlayInspect';
 import { modelAddableComponentEntries } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
@@ -351,11 +353,15 @@ function AssetControl({
   );
 }
 
-function FieldRow({ entity, comp, field }: { entity: EntityId; comp: string; field: InspectorField }) {
+// A field write override (the live "Game" inspector routes edits to the realm
+// instead of the undoable SceneCommands path). When set, gestures are no-ops.
+type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[]) => void;
+
+function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: string; field: InspectorField; write?: FieldWrite }) {
   const apply = (value: number | boolean | string | number[]) =>
-    SceneCommands.setField(entity, comp, field.key, field.type, value as never);
-  const begin = () => SceneCommands.beginGesture(`Edit ${field.label}`);
-  const end = () => SceneCommands.endGesture();
+    write ? write(field.key, field.type, value) : SceneCommands.setField(entity, comp, field.key, field.type, value as never);
+  const begin = () => (write ? undefined : SceneCommands.beginGesture(`Edit ${field.label}`));
+  const end = () => (write ? undefined : SceneCommands.endGesture());
 
   // Scalars (number/angle) scrub from the label; vectors from their axis tabs.
   const isScalar = field.type === 'number' || field.type === 'angle';
@@ -411,12 +417,14 @@ function ComponentSection({
   collapsed,
   onToggle,
   onMore,
+  write,
 }: {
   entity: EntityId;
   comp: InspectorComponent;
   collapsed: boolean;
   onToggle: () => void;
-  onMore: (e: React.MouseEvent, name: string) => void;
+  onMore?: (e: React.MouseEvent, name: string) => void;
+  write?: FieldWrite;
 }) {
   const Icon = componentIcon(comp.name);
   return (
@@ -433,28 +441,83 @@ function ComponentSection({
           <Icon size={13} strokeWidth={1.9} />
         </span>
         <span className="comp-name">{comp.label}</span>
-        <button
-          type="button"
-          className="comp-menu"
-          title="Component options"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMore(e, comp.name);
-          }}
-        >
-          <MoreHorizontal size={13} strokeWidth={2} />
-        </button>
+        {onMore && (
+          <button
+            type="button"
+            className="comp-menu"
+            title="Component options"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMore(e, comp.name);
+            }}
+          >
+            <MoreHorizontal size={13} strokeWidth={2} />
+          </button>
+        )}
       </header>
       <div className="comp-body">
         <div className="cinner">
           <div className="comp-fields">
             {comp.fields.map((f) => (
-              <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} />
+              <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} write={write} />
             ))}
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+// The live "Game" inspector (UE5 PIE Details): reads the running realm snapshot +
+// routes edits to the realm (live, reverts on Stop). Structure is read-only here
+// (no add/remove/rename of the running game) — just live value debugging.
+function GameDetails() {
+  const { snapshot, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = (name: string) =>
+    setCollapsed((s) => {
+      const n = new Set(s);
+      if (n.has(name)) n.delete(name);
+      else n.add(name);
+      return n;
+    });
+
+  const info = selection != null ? buildEntityInfo(snapshot, selection) : null;
+  const inspector = selection != null ? buildInspector(snapshot, selection) : [];
+  const compData = (name: string): Record<string, unknown> =>
+    (snapshot?.entities.find((e) => e.id === selection)?.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
+
+  return (
+    <div className="insp">
+      <div className="game-live">● Playing — live values (revert on Stop)</div>
+      {selection == null || !info ? (
+        <div className="empty">
+          <p>Select a running entity in the Outliner to inspect + tweak it live.</p>
+        </div>
+      ) : (
+        <>
+          <div className="ent-head">
+            <span className="ent-name">{info.name}</span>
+            <span className="ent-meta">
+              <span className="pill">{info.kind}</span>
+              <span className="pill">#{selection}</span>
+            </span>
+          </div>
+          {inspector.map((comp) => (
+            <ComponentSection
+              key={comp.name}
+              entity={selection}
+              comp={comp}
+              collapsed={collapsed.has(comp.name)}
+              onToggle={() => toggle(comp.name)}
+              write={(key, type, value) =>
+                PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
+              }
+            />
+          ))}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -516,7 +579,13 @@ function AssetInspector({ path }: { path: string }) {
   );
 }
 
+// Dispatcher: the live game inspector during PIE, the edit inspector otherwise.
 export function Details() {
+  const inspectWorld = useEditorStore((s) => s.inspectWorld);
+  return inspectWorld === 'game' ? <GameDetails /> : <EditorDetails />;
+}
+
+function EditorDetails() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const revision = useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
   const selectedId = useSelection((s) => s.selectedId);

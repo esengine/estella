@@ -46,7 +46,7 @@ const valueEqual = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JS
  * components keep the untouched axis; color keeps alpha). 2D rotation is stored
  * as a quaternion; angle controls convert degrees↔quat.
  */
-function toModelValue(
+export function toModelValue(
   cur: Record<string, unknown>,
   type: InspectorFieldType,
   key: string,

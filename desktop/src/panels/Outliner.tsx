@@ -4,9 +4,10 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
-import { SceneQuery } from '@/engine/SceneQuery';
+import { SceneQuery, buildSceneTree } from '@/engine/SceneQuery';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
+import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
 import { NodeIcon } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
@@ -163,10 +164,58 @@ function flatVisible(nodes: SceneNode[], expanded: Set<EntityId>, forceExpand: b
   }
 }
 
+// The live "Game" tree (UE5 PIE world): a read-only view of the running realm's
+// entities (from PlayInspect's snapshot); click selects into PlayInspect, which
+// the Details panel inspects/edits live. Always-expanded (transient debug view).
+function GameRow({ node, depth, selection }: { node: SceneNode; depth: number; selection: EntityId | null }) {
+  return (
+    <>
+      <div
+        className={`row${selection === node.id ? ' sel' : ''}`}
+        style={{ paddingLeft: depth * 14 }}
+        onClick={() => PlayInspect.select(node.id)}
+      >
+        <span className="twist leaf">
+          <ChevronRight size={9} strokeWidth={3} />
+        </span>
+        <span className="ricon">
+          <NodeIcon kind={node.kind} />
+        </span>
+        <span className="rname">{node.name}</span>
+        <span className="rtype">{KIND_TYPE[node.kind] ?? 'Entity'}</span>
+      </div>
+      {node.children?.map((c) => <GameRow key={c.id} node={c} depth={depth + 1} selection={selection} />)}
+    </>
+  );
+}
+
+function GameTree() {
+  const { snapshot, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
+  const tree = useMemo(() => buildSceneTree(snapshot), [snapshot]);
+  if (tree.length === 0) {
+    return (
+      <div className="empty">
+        <Search size={22} strokeWidth={1.4} />
+        <p>Waiting for the running game…</p>
+      </div>
+    );
+  }
+  return (
+    <>
+      {tree.map((n) => (
+        <GameRow key={n.id} node={n} depth={0} selection={selection} />
+      ))}
+    </>
+  );
+}
+
 export function Outliner() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const structRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
   const expanded = useEditorStore((s) => s.expanded);
+  const isPlaying = useEditorStore((s) => s.isPlaying);
+  const inspectWorld = useEditorStore((s) => s.inspectWorld);
+  const setInspectWorld = useEditorStore((s) => s.setInspectWorld);
   const initRef = useRef(false);
   const dragIds = useRef<EntityId[] | null>(null);
 
@@ -314,8 +363,28 @@ export function Outliner() {
       ]
     : [];
 
+  // While playing, a UE5-style world picker switches the outliner (+ Details)
+  // between the edit scene and the live running game.
+  const gameMode = inspectWorld === 'game';
+
   return (
     <div className="panel">
+      {isPlaying && (
+        <div className="world-pick">
+          <button type="button" className={gameMode ? '' : 'on'} onClick={() => setInspectWorld('editor')}>
+            Editor
+          </button>
+          <button type="button" className={gameMode ? 'on' : ''} onClick={() => setInspectWorld('game')}>
+            Game
+          </button>
+        </div>
+      )}
+      {gameMode ? (
+        <div className="pbody">
+          <GameTree />
+        </div>
+      ) : (
+        <>
       <div className="phead">
         <div className="search">
           <Search size={13} strokeWidth={1.85} />
@@ -378,8 +447,10 @@ export function Outliner() {
           ))
         )}
       </div>
+        </>
+      )}
 
-      {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
+      {ctx && !gameMode && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
     </div>
   );
 }
