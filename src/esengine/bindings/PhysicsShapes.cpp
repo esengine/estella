@@ -174,4 +174,21 @@ void physics_addChainShape(uint32_t entityId, uintptr_t pointsPtr, int pointCoun
     b2CreateChain(it->second, &chainDef);
 }
 
+// Destroy all of an entity's shapes while KEEPING the body, so the reconciler can
+// rebuild colliders in place (velocity, pose, contacts-elsewhere, and joints are
+// preserved — far cheaper and less disruptive than destroying the whole body).
+// Chain shapes (b2CreateChain) aren't tracked in entityToShapes and so aren't
+// cleared here; chains are static level geometry and aren't runtime-rebuilt.
+EMSCRIPTEN_KEEPALIVE
+void physics_clearShapes(uint32_t entityId) {
+    auto it = g_ctx.entityToShapes.find(entityId);
+    if (it == g_ctx.entityToShapes.end()) return;
+    for (b2ShapeId shapeId : it->second) {
+        if (b2Shape_IsValid(shapeId)) {
+            b2DestroyShape(shapeId, false); // mass is recomputed when shapes are re-added
+        }
+    }
+    it->second.clear();
+}
+
 } // extern "C"

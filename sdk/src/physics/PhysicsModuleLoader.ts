@@ -13,6 +13,10 @@ export interface PhysicsWasmModule {
         fixedRotation: number, bullet: number): void;
     _physics_destroyBody(entityId: number): void;
     _physics_hasBody(entityId: number): number;
+    /** Enable/disable a body in place (keeps shapes/velocity/joints). */
+    _physics_setBodyEnabled(entityId: number, enabled: number): void;
+    /** Destroy all of an entity's shapes, keeping the body, for in-place rebuild. */
+    _physics_clearShapes(entityId: number): void;
 
     _physics_addBoxShape(entityId: number, halfW: number, halfH: number,
         offX: number, offY: number, radius: number,
@@ -213,6 +217,8 @@ export async function loadPhysicsSideModule(
         _physics_createBody: cwrap('physics_createBody', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createBody'],
         _physics_destroyBody: cwrap('physics_destroyBody', null, ['number']) as PhysicsWasmModule['_physics_destroyBody'],
         _physics_hasBody: cwrap('physics_hasBody', 'number', ['number']) as PhysicsWasmModule['_physics_hasBody'],
+        _physics_setBodyEnabled: cwrap('physics_setBodyEnabled', null, ['number', 'number']) as PhysicsWasmModule['_physics_setBodyEnabled'],
+        _physics_clearShapes: cwrap('physics_clearShapes', null, ['number']) as PhysicsWasmModule['_physics_clearShapes'],
 
         _physics_addBoxShape: cwrap('physics_addBoxShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addBoxShape'],
         _physics_addCircleShape: cwrap('physics_addCircleShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addCircleShape'],

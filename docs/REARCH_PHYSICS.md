@@ -1,9 +1,10 @@
 # Physics Architecture — Audit & Rearchitecture
 
-**Status (2026-06-21):** audit complete; **P1 in progress** (FixedUpdate determinism +
-render interpolation). Physics core = **Box2D 3.2.0** (the v3 rewrite) in a side wasm
-module (`third_party/box2d`, C++ bindings `src/esengine/bindings/Physics*.cpp`), wrapped
-by the TS SDK (`sdk/src/physics/*`).
+**Status (2026-06-21):** audit complete; **P1 DONE** (FixedUpdate determinism + render
+interpolation); **P2 DONE** (unified reconciler — runtime collider/joint/enabled
+mutability). Physics core = **Box2D 3.2.0** (the v3 rewrite) in a side wasm module
+(`third_party/box2d`, C++ bindings `src/esengine/bindings/Physics*.cpp`), wrapped by the
+TS SDK (`sdk/src/physics/*`).
 
 ## Verdict
 
@@ -64,8 +65,20 @@ in the integration layer.
 
 - **P1 — FixedUpdate determinism + render interpolation (together).** Highest correctness +
   visible-quality win. SDK-only (no wasm rebuild). See below.
-- **P2 — runtime collider/joint/`enabled` mutability.** Unblocks editor live-edit and the
-  physics project-settings.
+- **P2 — runtime collider/joint/`enabled` mutability (DONE).** A unified declarative
+  reconciler replaces the ad-hoc imperative loop: Box2D is a reconciled cache of each
+  entity's component structure, kept in sync with minimal *in-place* Box2D v3 ops that
+  preserve simulation state — never destroy-and-rebuild the body. Two new C++ primitives:
+  `physics_setBodyEnabled` (`b2Body_Enable/Disable` — toggles `RigidBody.enabled` keeping
+  shapes/velocity/joints) and `physics_clearShapes` (`b2DestroyShape` over the body's
+  shapes, so colliders rebuild in place with the body — and its velocity/pose/contacts —
+  intact). The reconciler (`PhysicsSystem.ts`) drives them off uniform `isChangedSince`
+  dirty checks across RigidBody + every collider (`colliderSignature`) + every joint
+  (`jointChangedOrGone`): body create/destroy/enable-disable/props; shapes rebuilt on
+  collider set/field change; joints destroyed+recreated on change/removal. **Build note:**
+  the physics wasm was rebuilt with emscripten 5.0.6 — required dropping the now-removed
+  `-sRELOCATABLE=1` flag (`cmake/Emscripten.cmake`; `-sSIDE_MODULE=2` already implies it).
+  Chain colliders aren't runtime-rebuilt (their `b2ChainId` isn't tracked — static geometry).
 - **P3 — `b2World_GetBodyEvents` + contact hit events + world-toggle config surface** (the
   config surface feeds the project-settings flow). Touches C++.
 - **P4 — batched writeback + identity-leak fixes + query `ppu` from live Canvas.**

@@ -530,6 +530,49 @@ interface CachedBodyProps {
     angularDamping: number;
     fixedRotation: boolean;
     bullet: boolean;
+    /** Last-applied RigidBody.enabled — drives in-place enable/disable. */
+    enabled: boolean;
+    /** Bitmask of present collider components — drives shape rebuild on change. */
+    colliderSig: number;
+}
+
+// The collider component types, in shape-add order. Their index is a stable bit
+// in the per-entity collider signature (presence) — a change in the set, or any
+// present collider's fields, triggers an in-place shape rebuild.
+const COLLIDER_TYPES = [
+    BoxCollider, CircleCollider, CapsuleCollider, SegmentCollider, PolygonCollider, ChainCollider,
+] as const;
+
+const JOINT_TYPES = [RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint] as const;
+
+/** Bitmask of which collider components an entity currently has. @internal */
+export function colliderSignature(world: App['world'], entity: Entity): number {
+    let sig = 0;
+    for (let i = 0; i < COLLIDER_TYPES.length; i++) {
+        if (world.has(entity, COLLIDER_TYPES[i])) sig |= 1 << i;
+    }
+    return sig;
+}
+
+/** True if any present collider component changed since `sinceTick`. */
+function collidersChangedSince(world: App['world'], entity: Entity, sinceTick: number): boolean {
+    for (const C of COLLIDER_TYPES) {
+        if (world.has(entity, C) && world.isChangedSince(entity, C, sinceTick)) return true;
+    }
+    return false;
+}
+
+/**
+ * For a tracked joint entity (invariant: ≤1 joint component): whether its joint
+ * was removed, or its definition changed since `sinceTick` — either way the old
+ * Box2D joint must be destroyed (createPendingJoints re-adds it if still present).
+ * @internal
+ */
+export function jointChangedOrGone(world: App['world'], entity: Entity, sinceTick: number): boolean {
+    for (const J of JOINT_TYPES) {
+        if (world.has(entity, J)) return world.isChangedSince(entity, J, sinceTick);
+    }
+    return true; // no joint component left → gone
 }
 
 /**
@@ -588,31 +631,32 @@ export function registerPhysicsSystem(
                 const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
                 const currentEntities = new Set<Entity>();
 
+                // ── Unified body + collider reconcile ───────────────────────
+                // Each entity's Box2D body is a reconciled projection of its
+                // components: create on first enable, then bring the body in line
+                // (enable/disable, props, shapes) with minimal in-place ops that
+                // preserve simulation state — never destroy-and-rebuild.
                 for (const entity of entities) {
                     currentEntities.add(entity);
+                    const rb = world.get(entity, RigidBody) as RigidBodyData;
 
                     if (!trackedEntities.has(entity)) {
-                        const rb = world.get(entity, RigidBody) as RigidBodyData;
-                        if (!rb.enabled) continue;
+                        if (!rb.enabled) continue; // lazy-create on first enable
                         const wt = world.get(entity, Transform) as TransformData;
                         const hasParent = world.has(entity, Parent);
                         const posX = hasParent ? wt.worldPosition.x : wt.position.x;
                         const posY = hasParent ? wt.worldPosition.y : wt.position.y;
                         const rot = hasParent ? wt.worldRotation : wt.rotation;
-                        const angle = quatToAngleZ(rot);
 
                         module._physics_createBody(
                             entity, rb.bodyType,
-                            posX * invPpu, posY * invPpu, angle,
+                            posX * invPpu, posY * invPpu, quatToAngleZ(rot),
                             rb.gravityScale, rb.linearDamping, rb.angularDamping,
-                            rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
+                            rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0,
                         );
-
                         addShapeForEntity(app, module, entity, config.collisionLayerMasks);
                         trackedEntities.add(entity);
-                        if (world.has(entity, Parent)) {
-                            parentedBodies.add(entity);
-                        }
+                        if (hasParent) parentedBodies.add(entity);
                         cachedProps.set(entity, {
                             bodyType: rb.bodyType,
                             gravityScale: rb.gravityScale,
@@ -620,56 +664,84 @@ export function registerPhysicsSystem(
                             angularDamping: rb.angularDamping,
                             fixedRotation: rb.fixedRotation,
                             bullet: rb.bullet,
+                            enabled: true,
+                            colliderSig: colliderSignature(world, entity),
                         });
-                    } else {
-                        if (world.isChangedSince(entity, RigidBody, lastEntitySyncTick)) {
-                            const rb = world.get(entity, RigidBody) as RigidBodyData;
-                            const prev = cachedProps.get(entity);
-                            if (prev &&
-                                (prev.bodyType !== rb.bodyType ||
-                                 prev.gravityScale !== rb.gravityScale ||
-                                 prev.linearDamping !== rb.linearDamping ||
-                                 prev.angularDamping !== rb.angularDamping ||
-                                 prev.fixedRotation !== rb.fixedRotation ||
-                                 prev.bullet !== rb.bullet)) {
-                                module._physics_updateBodyProperties(
-                                    entity, rb.bodyType,
-                                    rb.gravityScale, rb.linearDamping, rb.angularDamping,
-                                    rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
-                                );
-                                prev.bodyType = rb.bodyType;
-                                prev.gravityScale = rb.gravityScale;
-                                prev.linearDamping = rb.linearDamping;
-                                prev.angularDamping = rb.angularDamping;
-                                prev.fixedRotation = rb.fixedRotation;
-                                prev.bullet = rb.bullet;
-                            }
-                        }
+                        continue;
+                    }
 
-                        const cached = cachedProps.get(entity);
-                        if (cached && cached.bodyType === BodyType.Kinematic) {
-                            const wt = world.get(entity, Transform) as TransformData;
-                            const angle = quatToAngleZ(wt.worldRotation);
-                            module._physics_setBodyTransform(
-                                entity,
-                                wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
-                                angle
-                            );
-                        }
+                    const cached = cachedProps.get(entity)!;
+
+                    // 1. enabled toggle — in place (keeps shapes/velocity/joints).
+                    if (rb.enabled !== cached.enabled) {
+                        module._physics_setBodyEnabled(entity, rb.enabled ? 1 : 0);
+                        cached.enabled = rb.enabled;
+                    }
+
+                    // 2. body properties.
+                    if (world.isChangedSince(entity, RigidBody, lastEntitySyncTick) &&
+                        (cached.bodyType !== rb.bodyType ||
+                         cached.gravityScale !== rb.gravityScale ||
+                         cached.linearDamping !== rb.linearDamping ||
+                         cached.angularDamping !== rb.angularDamping ||
+                         cached.fixedRotation !== rb.fixedRotation ||
+                         cached.bullet !== rb.bullet)) {
+                        module._physics_updateBodyProperties(
+                            entity, rb.bodyType,
+                            rb.gravityScale, rb.linearDamping, rb.angularDamping,
+                            rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0,
+                        );
+                        cached.bodyType = rb.bodyType;
+                        cached.gravityScale = rb.gravityScale;
+                        cached.linearDamping = rb.linearDamping;
+                        cached.angularDamping = rb.angularDamping;
+                        cached.fixedRotation = rb.fixedRotation;
+                        cached.bullet = rb.bullet;
+                    }
+
+                    // 3. colliders — rebuild shapes in place when the collider set
+                    //    or any collider's fields change (body + velocity preserved).
+                    const sig = colliderSignature(world, entity);
+                    if (sig !== cached.colliderSig ||
+                        collidersChangedSince(world, entity, lastEntitySyncTick)) {
+                        module._physics_clearShapes(entity);
+                        addShapeForEntity(app, module, entity, config.collisionLayerMasks);
+                        cached.colliderSig = sig;
+                    }
+
+                    // 4. kinematic bodies are driven directly from their Transform.
+                    if (cached.bodyType === BodyType.Kinematic) {
+                        const wt = world.get(entity, Transform) as TransformData;
+                        module._physics_setBodyTransform(
+                            entity,
+                            wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
+                            quatToAngleZ(wt.worldRotation),
+                        );
                     }
                 }
 
-                lastEntitySyncTick = world.getWorldTick();
-
+                // Bodies whose entity left the query without firing onDespawn.
                 for (const entity of trackedEntities) {
                     if (!currentEntities.has(entity)) {
                         module._physics_destroyBody(entity);
                         trackedEntities.delete(entity);
                         cachedProps.delete(entity);
+                        parentedBodies.delete(entity);
                     }
                 }
 
+                // ── Joint reconcile ─────────────────────────────────────────
+                // Destroy joints whose definition changed or whose component was
+                // removed; createPendingJoints re-adds present+enabled ones.
+                for (const entity of [...trackedJoints]) {
+                    if (jointChangedOrGone(world, entity, lastEntitySyncTick)) {
+                        module._physics_destroyJoint(entity);
+                        trackedJoints.delete(entity);
+                    }
+                }
                 createPendingJoints(world, module, trackedEntities, trackedJoints, invPpu);
+
+                lastEntitySyncTick = world.getWorldTick();
 
                 if (trackedEntities.size > 0) {
                     module._physics_step(fixedDt);

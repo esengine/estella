@@ -89,11 +89,12 @@ set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
     --closure=0
 )
 
-# Physics side module flags (SIDE_MODULE=2, pure .wasm, no JS glue)
+# Physics side module flags (SIDE_MODULE=2, pure .wasm, no JS glue).
+# SIDE_MODULE=2 already implies relocatable; the standalone -sRELOCATABLE=1 was
+# removed in newer emscripten ("No longer supported"), so it's not listed.
 set(ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS
     -sSIDE_MODULE=2
     -sWASM=1
-    -sRELOCATABLE=1
     -O3
     -flto
 )
@@ -184,7 +185,9 @@ endfunction()
 
 # Helper function to apply physics SIDE_MODULE settings
 function(es_apply_physics_side_module_settings TARGET_NAME)
-    target_compile_options(${TARGET_NAME} PRIVATE -fPIC -sRELOCATABLE=1 -flto)
+    # -fPIC is enough for side-module objects; -sRELOCATABLE was removed in newer
+    # emscripten and SIDE_MODULE=2 (link flags) already makes the module relocatable.
+    target_compile_options(${TARGET_NAME} PRIVATE -fPIC -flto)
 
     string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS}")
     set_target_properties(${TARGET_NAME} PROPERTIES

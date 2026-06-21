@@ -92,6 +92,20 @@ int physics_hasBody(uint32_t entityId) {
     return g_ctx.entityToBody.contains(entityId) ? 1 : 0;
 }
 
+// Enable / disable a body in place (RigidBody.enabled). Unlike destroy, this keeps
+// the body, its shapes, velocity, and joints — b2Body_Disable just removes it from
+// simulation/broadphase — so the reconciler can toggle without losing state.
+EMSCRIPTEN_KEEPALIVE
+void physics_setBodyEnabled(uint32_t entityId, int enabled) {
+    b2BodyId body = findValidBody(entityId);
+    if (!b2Body_IsValid(body)) return;
+    if (enabled) {
+        b2Body_Enable(body);
+    } else {
+        b2Body_Disable(body);
+    }
+}
+
 // Simulation
 
 EMSCRIPTEN_KEEPALIVE
