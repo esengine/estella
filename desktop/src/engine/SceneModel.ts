@@ -23,6 +23,21 @@ export type ModelEvent =
 type Listener = (ev: ModelEvent) => void;
 
 /**
+ * Marks a model entity as part of a prefab instance (REARCH_PREFABS.md). The
+ * editor expands a prefab instance into ordinary entities; these tags record
+ * each entity's prefab origin so save can collapse the subtree back to a delta.
+ * Editor-transient (never a World component); the Reconciler ignores them.
+ */
+export interface PrefabInstanceTag {
+  /** The instance root's source id — groups the subtree. */
+  instanceRoot: number;
+  /** This entity's stable id within the prefab asset. */
+  prefabId: string;
+  /** The `@uuid:` ref to the prefab asset — set only on the instance root. */
+  prefab?: string;
+}
+
+/**
  * The editor's single source of truth — the JSON-first scene document
  * (REARCH_EDITOR_MODEL.md). Holds the COMPLETE SceneData: components/fields the
  * live World drops on projection (unknown component types, schema-extra fields,
@@ -46,6 +61,8 @@ export class SceneModelImpl {
   private readonly sourceToRuntime = new Map<number, EntityId>();
   /** Allocator for source ids of entities created after load (add/duplicate). */
   private nextSourceId = 1;
+  /** source id → prefab-instance tag (editor-transient; see PrefabInstanceTag). */
+  private readonly prefabTags = new Map<number, PrefabInstanceTag>();
   private readonly listeners = new Set<Listener>();
 
   // ── Change bus ───────────────────────────────────────────────────────────
@@ -90,8 +107,15 @@ export class SceneModelImpl {
     this.data = null;
     this.runtimeToSource.clear();
     this.sourceToRuntime.clear();
+    this.prefabTags.clear();
     this.nextSourceId = 1;
     this.emit({ kind: 'reset' });
+  }
+
+  /** Reserve a fresh source id (for entities added outside addEntity — e.g. a
+   *  prefab instance's expanded subtree, which arrives pre-formed). */
+  allocateSourceId(): number {
+    return this.nextSourceId++;
   }
 
   // ── Mutations (the ONLY writers; each emits a change event) ───────────────
@@ -184,6 +208,7 @@ export class SceneModelImpl {
       const p = this.data.entities.find((e) => e.id === removed.parent);
       if (p) p.children = p.children.filter((c) => c !== sourceId);
     }
+    this.prefabTags.delete(sourceId);
     this.emit({ kind: 'entityRemoved', sourceId });
     return removed;
   }
@@ -272,6 +297,55 @@ export class SceneModelImpl {
     };
     visit(sourceId);
     return out;
+  }
+
+  // ── Prefab instances (REARCH_PREFABS.md) ──────────────────────────────────
+
+  /** Tag an entity as part of a prefab instance (or pass undefined to clear). */
+  setPrefabTag(sourceId: number, tag: PrefabInstanceTag | undefined): void {
+    if (tag) this.prefabTags.set(sourceId, tag);
+    else this.prefabTags.delete(sourceId);
+  }
+
+  /** The prefab-instance tag for an entity, if it belongs to one. */
+  prefabTag(sourceId: number): PrefabInstanceTag | undefined {
+    return this.prefabTags.get(sourceId);
+  }
+
+  /**
+   * Insert a pre-formed, self-consistent subtree of entities (e.g. an expanded
+   * prefab instance) whose ids are already allocated (via {@link allocateSourceId}).
+   * Links each batch root into its existing parent's `children`, advances the
+   * allocator past any incoming id, and emits `entityAdded` parent-before-child
+   * so the Reconciler spawns parents first.
+   */
+  insertSubtree(entities: SceneEntity[]): void {
+    if (!this.data || entities.length === 0) return;
+    const batch = new Set(entities.map((e) => e.id));
+    for (const e of entities) {
+      if (e.id >= this.nextSourceId) this.nextSourceId = e.id + 1;
+      this.data.entities.push(e);
+    }
+    // Attach batch roots (parent outside the batch) to their parent's children.
+    for (const e of entities) {
+      if (e.parent != null && !batch.has(e.parent)) {
+        const p = this.entityBySource(e.parent);
+        if (p && !p.children.includes(e.id)) p.children.push(e.id);
+      }
+    }
+    // Parent-before-child emit order (parents in the batch first).
+    const byId = new Map(entities.map((e) => [e.id, e]));
+    const done = new Set<number>();
+    const order: SceneEntity[] = [];
+    const visit = (e: SceneEntity): void => {
+      if (done.has(e.id)) return;
+      const p = e.parent != null ? byId.get(e.parent) : undefined;
+      if (p) visit(p);
+      done.add(e.id);
+      order.push(e);
+    };
+    for (const e of entities) visit(e);
+    for (const e of order) this.emit({ kind: 'entityAdded', sourceId: e.id });
   }
 
   /** The source entity record backing a runtime World entity, if tracked. */

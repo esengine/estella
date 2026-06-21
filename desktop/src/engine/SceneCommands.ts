@@ -1,7 +1,8 @@
-import type { SceneData } from 'esengine';
+import type { SceneData, PrefabData, ProcessedEntity } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
+import { expandInstance } from './PrefabInstance';
 import {
   componentByName,
   componentDefaults,
@@ -262,6 +263,53 @@ export class SceneCommandsImpl {
       },
     );
     return newSourceId;
+  }
+
+  /**
+   * Instantiate a prefab into the scene under `parent` (REARCH_PREFABS.md PF2):
+   * expand the asset into the model as ordinary entities (the Reconciler spawns
+   * them), tagged with their prefab origin so save can collapse the subtree back
+   * to a delta. The caller (ProjectStore / UI) loads the PrefabData asset; this
+   * stays synchronous + undoable. Returns the instance root's source id.
+   */
+  instantiatePrefab(prefab: PrefabData, ref: string, parent: EntityId | null): EntityId | null {
+    if (!this.model.current) return null;
+    const { entities, rootId } = expandInstance(
+      prefab,
+      { prefab: ref, overrides: [], added: [], removed: [] },
+      () => this.model.allocateSourceId(),
+    );
+    const root = entities.find((e) => e.id === rootId);
+    if (!root) return null;
+    root.parent = parent; // attach under the scene parent
+
+    // ProcessedEntity → SceneEntity (drop prefab fields); deep-clone components so
+    // later edits to the instance don't leak into the redo record.
+    const toScene = (e: ProcessedEntity): SceneEntity =>
+      ({
+        id: e.id,
+        name: e.name,
+        parent: e.parent,
+        children: e.children,
+        components: structuredClone(e.components),
+        visible: e.visible,
+      }) as unknown as SceneEntity;
+
+    const apply = (): void => {
+      this.model.insertSubtree(entities.map(toScene));
+      for (const e of entities) {
+        this.model.setPrefabTag(e.id, {
+          instanceRoot: rootId,
+          prefabId: e.prefabEntityId,
+          prefab: e.id === rootId ? ref : undefined,
+        });
+      }
+    };
+    apply();
+    this.history.record(`Instantiate ${prefab.name || 'Prefab'}`, apply, () => {
+      for (const id of this.model.collectSubtree(rootId)) this.model.removeEntityBySource(id);
+    });
+    return rootId;
   }
 
   /** Rename an entity (undoable). */
