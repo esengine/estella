@@ -29,6 +29,12 @@ export default defineConfig({
     electron({
       main: {
         entry: 'electron/main.ts',
+        // esbuild ships a native binary it locates via __dirname; bundling it into
+        // the ESM main breaks that (`filename is not defined` when buildScripts /
+        // exportGame run it). Keep it external → required from node_modules at
+        // runtime where its binary resolution works. (Vite 8 = Rolldown, so the
+        // option is `rolldownOptions`, not `rollupOptions`.)
+        vite: { build: { rolldownOptions: { external: ['esbuild'] } } },
       },
       preload: {
         input: 'electron/preload.ts',
