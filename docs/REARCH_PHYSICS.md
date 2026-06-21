@@ -1,10 +1,12 @@
 # Physics Architecture — Audit & Rearchitecture
 
-**Status (2026-06-21):** audit complete; **P1 DONE** (FixedUpdate determinism + render
-interpolation); **P2 DONE** (unified reconciler — runtime collider/joint/enabled
-mutability). Physics core = **Box2D 3.2.0** (the v3 rewrite) in a side wasm module
-(`third_party/box2d`, C++ bindings `src/esengine/bindings/Physics*.cpp`), wrapped by the
-TS SDK (`sdk/src/physics/*`).
+**Status (2026-06-21):** audit complete; **P1–P3 DONE**, **P4 partial** (the safe query
+`ppu` fix landed; the perf opts that need live profiling/render verification are deferred).
+P1 = FixedUpdate determinism + render interpolation; P2 = unified reconciler (runtime
+collider/joint/enabled mutability); P3 = contact hit events + world-toggle config surface.
+Physics core = **Box2D 3.2.0** (the v3 rewrite) in a side wasm module (`third_party/box2d`,
+C++ bindings `src/esengine/bindings/Physics*.cpp`), wrapped by the TS SDK
+(`sdk/src/physics/*`).
 
 ## Verdict
 
@@ -90,8 +92,17 @@ in the integration layer.
   gameplay. The **`b2World_GetBodyEvents` moved-only readback moved to P4** — it's a perf
   optimization that interacts with the P1 interpolation snapshots, so it's grouped with the
   other perf items rather than risked here.
-- **P4 — `b2World_GetBodyEvents` moved-only readback + batched writeback + identity-leak
-  fixes + query `ppu` from live Canvas.**
+- **P4 — partial.** **DONE: query `ppu` from the live Canvas** — `Physics` queries
+  (`raycast`/`overlap*`/`shapeCast*`) defaulted `ppu = 100` (a silent wrong-scale footgun);
+  they now default to a live `ppu_` that `PhysicsSystem` pushes from the Canvas each step
+  (SDK-only, no wasm rebuild). **DEFERRED (perf / completeness, need live profiling +
+  render verification this environment can't do):** `b2World_GetBodyEvents` moved-only
+  readback (interacts with the P1 interpolation snapshots — a body must snap on
+  `fellAsleep` to avoid a sub-step rest offset); batched writeback (mirror the batched
+  readback for kinematic/prop writes — marginal, few kinematic bodies); chain-collider
+  runtime rebuild (track `b2ChainId` so `clearShapes` covers chains — chains are static
+  level geometry, rarely rebuilt); the `entityToJoint`-keyed-by-`entityB` overwrite is a
+  non-issue under the one-joint-per-entity invariant.
 
 ## P1 — design (SDK-only)
 

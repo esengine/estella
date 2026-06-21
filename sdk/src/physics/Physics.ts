@@ -27,6 +27,14 @@ import {
 
 export class Physics {
     private module_: PhysicsWasmModule;
+    // Live pixels-per-unit, pushed each frame by PhysicsSystem from the Canvas, so
+    // a query that omits `ppu` is scaled correctly instead of silently assuming 100.
+    private ppu_ = 100;
+
+    /** @internal Update the pixels-per-unit used to scale queries by default. */
+    setPixelsPerUnit(ppu: number): void {
+        if (ppu > 0) this.ppu_ = ppu;
+    }
 
     constructor(app: App) {
         const module = app.hasResource(PhysicsRuntime)
@@ -142,7 +150,7 @@ export class Physics {
 
     raycast(
         origin: Vec2, direction: Vec2, maxDistance: number,
-        maskBits = 0xFFFF, ppu = 100,
+        maskBits = 0xFFFF, ppu = this.ppu_,
     ): RaycastHit[] {
         const invPpu = 1 / ppu;
         const count = this.module_._physics_raycast(
@@ -167,7 +175,7 @@ export class Physics {
         return results;
     }
 
-    overlapCircle(center: Vec2, radius: number, maskBits = 0xFFFF, ppu = 100): Entity[] {
+    overlapCircle(center: Vec2, radius: number, maskBits = 0xFFFF, ppu = this.ppu_): Entity[] {
         const invPpu = 1 / ppu;
         const count = this.module_._physics_overlapCircle(
             center.x * invPpu, center.y * invPpu,
@@ -186,7 +194,7 @@ export class Physics {
 
     shapeCastCircle(
         center: Vec2, radius: number, translation: Vec2,
-        maskBits = 0xFFFF, ppu = 100,
+        maskBits = 0xFFFF, ppu = this.ppu_,
     ): ShapeCastHit[] {
         const invPpu = 1 / ppu;
         const count = this.module_._physics_shapeCastCircle(
@@ -198,7 +206,7 @@ export class Physics {
 
     shapeCastBox(
         center: Vec2, halfExtents: Vec2, angle: number, translation: Vec2,
-        maskBits = 0xFFFF, ppu = 100,
+        maskBits = 0xFFFF, ppu = this.ppu_,
     ): ShapeCastHit[] {
         const invPpu = 1 / ppu;
         const count = this.module_._physics_shapeCastBox(
@@ -211,7 +219,7 @@ export class Physics {
 
     shapeCastCapsule(
         center1: Vec2, center2: Vec2, radius: number, translation: Vec2,
-        maskBits = 0xFFFF, ppu = 100,
+        maskBits = 0xFFFF, ppu = this.ppu_,
     ): ShapeCastHit[] {
         const invPpu = 1 / ppu;
         const count = this.module_._physics_shapeCastCapsule(
@@ -223,7 +231,7 @@ export class Physics {
         return this.readShapeCastBuffer_(count, ppu);
     }
 
-    overlapAABB(min: Vec2, max: Vec2, maskBits = 0xFFFF, ppu = 100): Entity[] {
+    overlapAABB(min: Vec2, max: Vec2, maskBits = 0xFFFF, ppu = this.ppu_): Entity[] {
         const invPpu = 1 / ppu;
         const count = this.module_._physics_overlapAABB(
             min.x * invPpu, min.y * invPpu,
@@ -240,7 +248,7 @@ export class Physics {
         return this.module_._physics_getBodyInertia(entity);
     }
 
-    getCenterOfMass(entity: Entity, ppu = 100): Vec2 {
+    getCenterOfMass(entity: Entity, ppu = this.ppu_): Vec2 {
         const ptr = this.module_._physics_getBodyCenterOfMass(entity);
         const base = ptr >> 2;
         return {
@@ -249,7 +257,7 @@ export class Physics {
         };
     }
 
-    getMassData(entity: Entity, ppu = 100): MassData {
+    getMassData(entity: Entity, ppu = this.ppu_): MassData {
         return {
             mass: this.getMass(entity),
             inertia: this.getInertia(entity),
@@ -257,15 +265,15 @@ export class Physics {
         };
     }
 
-    getDistanceJointLength(entity: Entity, ppu = 100): number {
+    getDistanceJointLength(entity: Entity, ppu = this.ppu_): number {
         return this.module_._physics_getDistanceJointLength(entity) * ppu;
     }
 
-    getDistanceJointCurrentLength(entity: Entity, ppu = 100): number {
+    getDistanceJointCurrentLength(entity: Entity, ppu = this.ppu_): number {
         return this.module_._physics_getDistanceJointCurrentLength(entity) * ppu;
     }
 
-    setDistanceJointLength(entity: Entity, length: number, ppu = 100): void {
+    setDistanceJointLength(entity: Entity, length: number, ppu = this.ppu_): void {
         this.module_._physics_setDistanceJointLength(entity, length / ppu);
     }
 
@@ -277,7 +285,7 @@ export class Physics {
         this.module_._physics_enableDistanceJointLimit(entity, enable ? 1 : 0);
     }
 
-    setDistanceJointLimits(entity: Entity, minLength: number, maxLength: number, ppu = 100): void {
+    setDistanceJointLimits(entity: Entity, minLength: number, maxLength: number, ppu = this.ppu_): void {
         this.module_._physics_setDistanceJointLimits(entity, minLength / ppu, maxLength / ppu);
     }
 
@@ -297,11 +305,11 @@ export class Physics {
         return this.module_._physics_getDistanceJointMotorForce(entity);
     }
 
-    getPrismaticJointTranslation(entity: Entity, ppu = 100): number {
+    getPrismaticJointTranslation(entity: Entity, ppu = this.ppu_): number {
         return this.module_._physics_getPrismaticJointTranslation(entity) * ppu;
     }
 
-    getPrismaticJointSpeed(entity: Entity, ppu = 100): number {
+    getPrismaticJointSpeed(entity: Entity, ppu = this.ppu_): number {
         return this.module_._physics_getPrismaticJointSpeed(entity) * ppu;
     }
 
@@ -313,7 +321,7 @@ export class Physics {
         this.module_._physics_enablePrismaticJointLimit(entity, enable ? 1 : 0);
     }
 
-    setPrismaticJointLimits(entity: Entity, lower: number, upper: number, ppu = 100): void {
+    setPrismaticJointLimits(entity: Entity, lower: number, upper: number, ppu = this.ppu_): void {
         this.module_._physics_setPrismaticJointLimits(entity, lower / ppu, upper / ppu);
     }
 
@@ -341,7 +349,7 @@ export class Physics {
         this.module_._physics_enableWheelJointLimit(entity, enable ? 1 : 0);
     }
 
-    setWheelJointLimits(entity: Entity, lower: number, upper: number, ppu = 100): void {
+    setWheelJointLimits(entity: Entity, lower: number, upper: number, ppu = this.ppu_): void {
         this.module_._physics_setWheelJointLimits(entity, lower / ppu, upper / ppu);
     }
 

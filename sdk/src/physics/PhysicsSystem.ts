@@ -16,6 +16,7 @@ import { Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
 import { playModeOnly } from '../env';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
+import { PhysicsAPI } from './Physics';
 import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
     SegmentCollider, PolygonCollider, ChainCollider,
@@ -650,6 +651,9 @@ export function registerPhysicsSystem(
                 // value captured when the wasm module first loaded.
                 const ppu = readPixelsPerUnit(app);
                 const invPpu = 1 / ppu;
+                // Keep the query API's default scale in sync with the live Canvas,
+                // so raycast/overlap that omit `ppu` aren't silently scaled to 100.
+                if (app.hasResource(PhysicsAPI)) app.getResource(PhysicsAPI).setPixelsPerUnit(ppu);
                 const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
                 const currentEntities = new Set<Entity>();
 
