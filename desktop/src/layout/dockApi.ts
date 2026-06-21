@@ -17,7 +17,19 @@ const sizes = new Map<string, number>();
 // HEIGHT — every collapsible panel sits in a vertically-split, horizontal-tab group.
 const COLLAPSED_H = 32; // collapsed group height ≈ the tab strip (--h-tab)
 const EXPAND_FALLBACK = 240; // restore height when the pre-collapse size is unknown
+const COLLAPSE_MS = 200; // collapse/expand tween duration (UE5 is snappy)
+const EXPANDED_MIN_H = 60; // sane floor once expanded
 const collapsedPrev = new Map<string, number>();
+// In-flight collapse animations, per group id — so a re-click cancels the tween.
+const collapseAnims = new Map<string, number>();
+
+// cubic-bezier(0.2, 0, 0, 1) ≈ easeOutCubic — the design's `--e-out` pane curve.
+const easeOut = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export const dockApi = {
   set(next: DockviewApi | null) {
@@ -65,19 +77,58 @@ export const dockApi = {
 
   /**
    * Collapse a dock group to its header bar (or expand it back), by height —
-   * the per-panel accordion the header chevron drives. Locks the group's height
-   * constraint while collapsed so the splitter can't drag it half-open; only the
-   * chevron expands it (restoring the remembered pre-collapse height).
+   * the per-panel accordion the header chevron drives, animated (UE5 ease-out;
+   * `setSize` per frame so dockview re-lays-out smoothly). Locks the group's
+   * height constraint once collapsed so the splitter can't drag it half-open;
+   * only the chevron expands it (restoring the remembered pre-collapse height).
    */
   setGroupCollapsed(groupApi: DockviewGroupPanelApi, groupId: string, collapsed: boolean) {
-    if (collapsed) {
-      if (groupApi.height > COLLAPSED_H + 8) collapsedPrev.set(groupId, groupApi.height);
-      groupApi.setConstraints({ minimumHeight: COLLAPSED_H, maximumHeight: COLLAPSED_H });
-      groupApi.setSize({ height: COLLAPSED_H });
-    } else {
-      groupApi.setConstraints({ minimumHeight: 60, maximumHeight: Number.MAX_SAFE_INTEGER });
-      groupApi.setSize({ height: collapsedPrev.get(groupId) ?? EXPAND_FALLBACK });
-      collapsedPrev.delete(groupId);
+    const running = collapseAnims.get(groupId);
+    if (running != null) {
+      cancelAnimationFrame(running);
+      collapseAnims.delete(groupId);
     }
+
+    const from = groupApi.height;
+    const to = collapsed ? COLLAPSED_H : collapsedPrev.get(groupId) ?? EXPAND_FALLBACK;
+    // Remember the expanded height only on the FIRST collapse (a mid-tween
+    // re-click must not overwrite it with an intermediate height).
+    if (collapsed && from > COLLAPSED_H + 8 && !collapsedPrev.has(groupId)) {
+      collapsedPrev.set(groupId, from);
+    }
+
+    // Settle constraints to the final state — lock when collapsed, floor when
+    // expanded. During the tween, constraints stay open (set below) so the
+    // intermediate setSize values aren't clamped.
+    const settle = () => {
+      if (collapsed) {
+        groupApi.setConstraints({ minimumHeight: COLLAPSED_H, maximumHeight: COLLAPSED_H });
+      } else {
+        groupApi.setConstraints({ minimumHeight: EXPANDED_MIN_H, maximumHeight: Number.MAX_SAFE_INTEGER });
+        collapsedPrev.delete(groupId);
+      }
+    };
+
+    // Open the constraint range so the tween can move freely either direction.
+    groupApi.setConstraints({ minimumHeight: COLLAPSED_H, maximumHeight: Number.MAX_SAFE_INTEGER });
+
+    if (prefersReducedMotion() || from === to) {
+      groupApi.setSize({ height: to });
+      settle();
+      return;
+    }
+
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / COLLAPSE_MS);
+      groupApi.setSize({ height: from + (to - from) * easeOut(t) });
+      if (t < 1) {
+        collapseAnims.set(groupId, requestAnimationFrame(tick));
+      } else {
+        collapseAnims.delete(groupId);
+        settle();
+      }
+    };
+    collapseAnims.set(groupId, requestAnimationFrame(tick));
   },
 };
