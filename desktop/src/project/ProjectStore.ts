@@ -1,10 +1,11 @@
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets } from 'esengine';
-import type { SceneData } from 'esengine';
+import { getComponent, Assets, migratePrefabData } from 'esengine';
+import type { SceneData, PrefabData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
 import { EditorHistory } from '@/engine/EditorHistory';
+import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { setUserSchemas, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
@@ -63,6 +64,8 @@ class ProjectStoreImpl {
   /** path → uuid (reverse), so a Content Browser drag (which carries a path) can
    *  be turned into a portable `@uuid:` ref for the model. */
   private readonly pathToUuid = new Map<string, string>();
+  /** ref → loaded `.esprefab` (PrefabData), for scene load-expand / save-collapse. */
+  private readonly prefabCache = new Map<string, PrefabData>();
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
@@ -166,16 +169,26 @@ class ProjectStoreImpl {
         `are preserved verbatim in the source-of-truth model and on save (JSON-first).`,
       );
     }
-    // Build the uuid→path registry + point the engine Assets loader at the
-    // estella:// transport, then preload EVERY referenced asset type (textures,
-    // materials, fonts, audio, spine, …) through the engine's own system, and
-    // resolve a COPY of the scene (refs → handles) for the World.
+    // Build the uuid→path registry first (prefab + texture refs resolve through it).
     await this.buildAssetRegistry();
+
+    // Expand prefab-instance entries into ordinary tagged entities (the model is
+    // always expanded; the file stores deltas) — REARCH_PREFABS.md. Internal
+    // entities get fresh ids above the file's max so they don't collide.
+    let nextId = raw.entities.reduce((m, e) => Math.max(m, (e as { id?: number }).id ?? 0), 0) + 1;
+    const { scene: expandedRaw, tags } = await expandScenePrefabs(
+      raw,
+      (ref) => this.loadPrefabAsset(ref),
+      () => nextId++,
+    );
+
+    // Preload EVERY referenced asset type through the engine's own system, and
+    // resolve a COPY of the (expanded) scene (refs → handles) for the World.
     const assets = EngineHost.getResource(Assets);
-    let resolved: SceneData = raw;
+    let resolved: SceneData = expandedRaw;
     if (assets) {
-      const result = await assets.preloadSceneAssets(raw);
-      resolved = JSON.parse(JSON.stringify(raw)) as SceneData; // resolveSceneAssetPaths mutates
+      const result = await assets.preloadSceneAssets(expandedRaw);
+      resolved = JSON.parse(JSON.stringify(expandedRaw)) as SceneData; // resolveSceneAssetPaths mutates
       assets.resolveSceneAssetPaths(resolved, result);
       this.lastAssetResult = result; // narrowed to the handle maps the resolver reads
     }
@@ -191,7 +204,9 @@ class ProjectStoreImpl {
     // Incremental recreate (duplicate / undo / play-stop) re-resolves @uuid:→handle
     // from the same preload result — for all types, not just textures.
     Reconciler.setAssetResolver((uuid) => this.handleForUuid(uuid));
-    Reconciler.adopt(raw, resolved);
+    Reconciler.adopt(expandedRaw, resolved);
+    // Re-apply prefab-instance tags (adopt cleared them) so save can collapse.
+    for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: rel } });
   }
@@ -206,6 +221,7 @@ class ProjectStoreImpl {
   private async buildAssetRegistry(): Promise<void> {
     this.uuidToPath.clear();
     this.pathToUuid.clear();
+    this.prefabCache.clear();
     if (!this.state) return;
     try {
       const { index } = await window.estella.project.scanAssets();
@@ -244,6 +260,24 @@ class ProjectStoreImpl {
     return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
   }
 
+  /** Load a `.esprefab` asset (PrefabData) by ref, cached. The scene load-expand
+   *  / save-collapse path resolves prefab instances through this. */
+  private async loadPrefabAsset(ref: string): Promise<PrefabData | null> {
+    if (!ref.startsWith(UUID_PREFIX)) return null;
+    const cached = this.prefabCache.get(ref);
+    if (cached) return cached;
+    const path = this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase());
+    if (!path) return null;
+    try {
+      const prefab = migratePrefabData(JSON.parse(await window.estella.fs.read(path))).data as PrefabData;
+      this.prefabCache.set(ref, prefab);
+      return prefab;
+    } catch (err) {
+      console.warn('[project] prefab load failed', path, err);
+      return null;
+    }
+  }
+
   /** Display info for an asset ref (`@uuid:`), or null (none / unresolved). For
    *  the inspector's asset control: the project-relative path + a leaf name. */
   assetInfo(ref: unknown): { path: string; name: string } | null {
@@ -277,15 +311,21 @@ class ProjectStoreImpl {
   }
 
   /**
-   * Serialize the editor's source-of-truth model — lossless (JSON-first L4).
-   * The model retains everything the World drops (unknown components/fields,
-   * invisible entities, `@uuid:` asset refs), so this no longer reads from the
-   * World and needs no handle→uuid restoration.
+   * Serialize the editor's source-of-truth model — lossless (JSON-first L4) +
+   * prefab-aware: collapse each expanded prefab-instance subtree back to a single
+   * `{prefab, overrides, added, removed}` delta entry (REARCH_PREFABS.md). The
+   * model retains everything the World drops (unknown components/fields, invisible
+   * entities, `@uuid:` asset refs), so this reads only the model.
    */
-  private serializeCurrent(): SceneData {
+  private async serializeCurrent(): Promise<SceneData> {
     const model = SceneModel.serialize();
     if (!model) throw new Error('no scene loaded');
-    return { ...model, name: this.state?.name ?? model.name };
+    const entities = await collapseScenePrefabs(
+      model.entities,
+      (id) => SceneModel.prefabTag(id),
+      (ref) => this.loadPrefabAsset(ref),
+    );
+    return { ...model, name: this.state?.name ?? model.name, entities };
   }
 
   private async writeScene(relPath: string, data: SceneData): Promise<void> {
@@ -308,7 +348,7 @@ class ProjectStoreImpl {
   async save(): Promise<void> {
     const st = this.state;
     if (!st || !st.currentScene) throw new Error('no scene to save');
-    await this.writeScene(st.currentScene, this.serializeCurrent());
+    await this.writeScene(st.currentScene, await this.serializeCurrent());
     await this.persistLastScene(st.currentScene);
     Toasts.push(`Saved ${st.currentScene.split('/').pop()}`, 'success');
   }
@@ -316,7 +356,7 @@ class ProjectStoreImpl {
   /** Write the current world to a project-relative path (explicit, no lossy guard). */
   async saveAs(relPath: string): Promise<void> {
     if (!this.state) throw new Error('no project open');
-    await this.writeScene(relPath, this.serializeCurrent());
+    await this.writeScene(relPath, await this.serializeCurrent());
     await this.persistLastScene(relPath);
     Toasts.push(`Saved ${relPath.split('/').pop()}`, 'success');
   }

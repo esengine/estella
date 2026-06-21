@@ -8,14 +8,17 @@
  */
 import { describe, it, expect } from 'vitest';
 import { migratePrefabData } from 'esengine';
-import type { PrefabData } from 'esengine';
+import type { PrefabData, SceneData } from 'esengine';
 import {
   expandInstance,
   collapseInstance,
   expandEntry,
   collapseEntry,
+  expandScenePrefabs,
+  collapseScenePrefabs,
   type PrefabInstanceDelta,
   type PrefabInstanceEntry,
+  type InstanceTag,
 } from '@/engine/PrefabInstance';
 
 function turretPrefab(): PrefabData {
@@ -169,5 +172,55 @@ describe('Prefab instance expand/collapse round-trip', () => {
       back.overrides.find((o) => o.type === 'property' && o.prefabEntityId === 'root')?.value,
     ).toEqual({ x: 9, y: 0, z: 0 });
     expect(back.overrides.find((o) => o.type === 'name' && o.prefabEntityId === 'barrel')?.value).toBe('BigBarrel');
+  });
+
+  // ── Whole-scene expand/collapse (the ProjectStore load/save core) ──
+  it('a whole scene round-trips: a prefab-instance entry ⇄ expanded+tagged ⇄ entry', async () => {
+    const prefab = turretPrefab();
+    const loadPrefab = async (ref: string) => (ref === REF ? prefab : null);
+    const scene = {
+      version: '1.0',
+      name: 's',
+      entities: [
+        { id: 1, name: 'Ground', parent: null, children: [], components: [], visible: true },
+        { id: 2, prefab: REF, parent: 1, overrides: [{ prefabEntityId: 'barrel', type: 'name', value: 'BigBarrel' }], added: [], removed: ['scope'] },
+      ],
+    } as unknown as SceneData;
+
+    let nid = 100;
+    const { scene: expanded, tags } = await expandScenePrefabs(scene, loadPrefab, () => nid++);
+    // Ground + (root + barrel) — scope removed.
+    expect(expanded.entities).toHaveLength(3);
+    expect(expanded.entities.find((e) => e.id === 2)?.name).toBe('Turret'); // root pinned to entry id
+    expect(expanded.entities.find((e) => e.name === 'BigBarrel')).toBeDefined(); // override applied
+
+    const tagMap = new Map(tags.map((t) => [t.id, t.tag]));
+    const collapsed = await collapseScenePrefabs(expanded.entities, (id) => tagMap.get(id), loadPrefab);
+
+    // Ground (untouched) + one instance entry.
+    expect(collapsed).toHaveLength(2);
+    expect(collapsed.find((e) => e.id === 1)?.name).toBe('Ground');
+    const entry = collapsed.find((e) => (e as { prefab?: string }).prefab === REF) as unknown as PrefabInstanceEntry;
+    expect(entry.id).toBe(2);
+    expect(entry.parent).toBe(1);
+    expect(entry.removed.sort()).toEqual(['scope']);
+    expect(entry.overrides.find((o) => o.type === 'name' && o.prefabEntityId === 'barrel')?.value).toBe('BigBarrel');
+  });
+
+  it('a scene with no prefab instances passes through unchanged', async () => {
+    const loadPrefab = async () => null;
+    const scene = {
+      version: '1.0',
+      name: 's',
+      entities: [{ id: 1, name: 'A', parent: null, children: [], components: [], visible: true }],
+    } as unknown as SceneData;
+    let nid = 100;
+    const { scene: expanded, tags } = await expandScenePrefabs(scene, loadPrefab, () => nid++);
+    expect(expanded.entities).toHaveLength(1);
+    expect(tags).toHaveLength(0);
+    const tagMap = new Map<number, InstanceTag>();
+    const collapsed = await collapseScenePrefabs(expanded.entities, (id) => tagMap.get(id), loadPrefab);
+    expect(collapsed).toHaveLength(1);
+    expect(collapsed[0].name).toBe('A');
   });
 });

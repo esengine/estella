@@ -1,5 +1,14 @@
 import { flattenPrefab, diffAgainstSource } from 'esengine';
-import type { PrefabData, PrefabOverride, ProcessedEntity, PrefabEntityId } from 'esengine';
+import type { PrefabData, PrefabOverride, ProcessedEntity, PrefabEntityId, SceneData } from 'esengine';
+
+type SceneEntity = SceneData['entities'][number];
+
+/** A prefab-instance tag carried by each expanded model entity (origin + grouping). */
+export interface InstanceTag {
+  instanceRoot: number;
+  prefabId: PrefabEntityId;
+  prefab?: string; // set only on the instance root
+}
 
 /**
  * Prefab instance expand/collapse (REARCH_PREFABS.md §3-4, PF2 core).
@@ -171,4 +180,97 @@ export function collapseEntry(
   sceneParent: number | null,
 ): PrefabInstanceEntry {
   return { id: rootId, parent: sceneParent, ...collapseInstance(prefab, prefabRef, expanded) };
+}
+
+// ── Scene file ⇄ model (whole-scene expand/collapse over a prefab loader) ────
+// Load EXPANDS each prefab-instance entry into ordinary tagged entities; save
+// COLLAPSES each tagged instance subtree back to one entry. The prefab loader is
+// injected (ProjectStore reads `.esprefab` via the AssetDatabase) so this stays
+// pure + unit-testable.
+
+type LoadPrefab = (ref: string) => Promise<PrefabData | null>;
+
+/** A prefab-instance entry as it appears in a scene file (carries a `prefab` ref). */
+function isPrefabEntry(e: unknown): e is PrefabInstanceEntry {
+  return !!e && typeof e === 'object' && typeof (e as { prefab?: unknown }).prefab === 'string';
+}
+
+const toSceneEntity = (e: ProcessedEntity): SceneEntity =>
+  ({ id: e.id, name: e.name, parent: e.parent, children: e.children, components: e.components, visible: e.visible }) as unknown as SceneEntity;
+
+const toProcessed = (e: SceneEntity, prefabId: PrefabEntityId): ProcessedEntity => ({
+  id: e.id,
+  prefabEntityId: prefabId,
+  name: e.name,
+  parent: e.parent,
+  children: e.children,
+  components: e.components as ProcessedEntity['components'],
+  visible: e.visible ?? true,
+});
+
+/**
+ * Expand a scene's prefab-instance entries into ordinary entities + their tags.
+ * Non-prefab entities pass through. An unresolvable prefab ref drops the entry
+ * (logged by the caller). Returns the fully-expanded scene + the tags to apply.
+ */
+export async function expandScenePrefabs(
+  scene: SceneData,
+  loadPrefab: LoadPrefab,
+  allocateId: () => number,
+): Promise<{ scene: SceneData; tags: Array<{ id: number; tag: InstanceTag }> }> {
+  const out: SceneEntity[] = [];
+  const tags: Array<{ id: number; tag: InstanceTag }> = [];
+  for (const raw of scene.entities as unknown[]) {
+    if (!isPrefabEntry(raw)) {
+      out.push(raw as SceneEntity);
+      continue;
+    }
+    const prefab = await loadPrefab(raw.prefab);
+    if (!prefab) continue; // unresolved prefab — skip (caller warns)
+    const { entities, rootId } = expandEntry(prefab, raw, allocateId);
+    for (const pe of entities) {
+      out.push(toSceneEntity(pe));
+      tags.push({
+        id: pe.id,
+        tag: { instanceRoot: rootId, prefabId: pe.prefabEntityId, prefab: pe.id === rootId ? raw.prefab : undefined },
+      });
+    }
+  }
+  return { scene: { ...scene, entities: out } as SceneData, tags };
+}
+
+/**
+ * Collapse a model's prefab-instance subtrees back to one entry each (the inverse
+ * of {@link expandScenePrefabs}). `tagOf` is the model's instance-tag lookup;
+ * non-instance entities pass through.
+ */
+export async function collapseScenePrefabs(
+  entities: readonly SceneEntity[],
+  tagOf: (id: number) => InstanceTag | undefined,
+  loadPrefab: LoadPrefab,
+): Promise<SceneEntity[]> {
+  const groups = new Map<number, SceneEntity[]>();
+  const out: SceneEntity[] = [];
+  for (const e of entities) {
+    const tag = tagOf(e.id);
+    if (!tag) {
+      out.push(e);
+      continue;
+    }
+    const g = groups.get(tag.instanceRoot);
+    if (g) g.push(e);
+    else groups.set(tag.instanceRoot, [e]);
+  }
+  for (const [rootId, group] of groups) {
+    const rootTag = tagOf(rootId);
+    const root = group.find((e) => e.id === rootId);
+    const prefab = rootTag?.prefab ? await loadPrefab(rootTag.prefab) : null;
+    if (!rootTag?.prefab || !prefab || !root) {
+      out.push(...group); // not a resolvable instance — keep raw (lossless)
+      continue;
+    }
+    const processed = group.map((e) => toProcessed(e, tagOf(e.id)!.prefabId));
+    out.push(collapseEntry(prefab, rootTag.prefab, processed, rootId, root.parent ?? null) as unknown as SceneEntity);
+  }
+  return out;
 }

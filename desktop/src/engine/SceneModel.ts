@@ -93,6 +93,7 @@ export class SceneModelImpl {
     this.data = loaded;
     this.runtimeToSource.clear();
     this.sourceToRuntime.clear();
+    this.prefabTags.clear();
     let maxId = 0;
     for (const e of loaded.entities) if (e.id > maxId) maxId = e.id;
     this.nextSourceId = maxId + 1;
