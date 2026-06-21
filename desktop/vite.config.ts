@@ -14,11 +14,13 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Two renderer entries: the editor shell (index) and the headless render
-      // host (headless) used for automation/verification — see headless.html.
+      // Renderer entries: the editor shell (index), the headless render host
+      // (headless, for automation/verification), and the isolated play realm
+      // host (play, REARCH_EDITOR_REALM Phase R).
       input: {
         index: fileURLToPath(new URL('./index.html', import.meta.url)),
         headless: fileURLToPath(new URL('./headless.html', import.meta.url)),
+        play: fileURLToPath(new URL('./play.html', import.meta.url)),
       },
     },
   },
