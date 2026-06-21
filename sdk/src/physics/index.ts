@@ -17,6 +17,7 @@ export {
     type PhysicsPluginConfig,
     type PhysicsEventsData,
     type CollisionEnterEvent,
+    type CollisionHitEvent,
     type SensorEvent,
     type RaycastHit,
     type ShapeCastHit,

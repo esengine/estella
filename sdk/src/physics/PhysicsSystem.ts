@@ -29,9 +29,11 @@ import {
 import {
     PhysicsEvents,
     COLLISION_EVENT_STRIDE,
+    HIT_EVENT_STRIDE,
     quatToAngleZ,
     type ResolvedPhysicsConfig,
     type CollisionEnterEvent,
+    type CollisionHitEvent,
     type SensorEvent,
 } from './PhysicsTypes';
 import { withMalloc } from '../wasmScratch';
@@ -454,6 +456,7 @@ export function applyPhysicsTransforms(
 interface EventAccum {
     collisionEnters: CollisionEnterEvent[];
     collisionExits: Array<{ entityA: Entity; entityB: Entity }>;
+    collisionHits: CollisionHitEvent[];
     sensorEnters: SensorEvent[];
     sensorExits: SensorEvent[];
 }
@@ -490,6 +493,23 @@ function collectEvents(module: PhysicsWasmModule, ppu: number, accum: EventAccum
             accum.collisionExits.push({
                 entityA: module.HEAPU32[base] as Entity,
                 entityB: module.HEAPU32[base + 1] as Entity,
+            });
+        }
+    }
+
+    const hitCount = module._physics_getHitEventCount();
+    if (hitCount > 0) {
+        const hitPtr = module._physics_getHitEventBuffer() >> 2;
+        for (let i = 0; i < hitCount; i++) {
+            const base = hitPtr + i * HIT_EVENT_STRIDE;
+            accum.collisionHits.push({
+                entityA: module.HEAPU32[base] as Entity,
+                entityB: module.HEAPU32[base + 1] as Entity,
+                pointX: module.HEAPF32[base + 2] * ppu,
+                pointY: module.HEAPF32[base + 3] * ppu,
+                normalX: module.HEAPF32[base + 4],
+                normalY: module.HEAPF32[base + 5],
+                approachSpeed: module.HEAPF32[base + 6] * ppu,
             });
         }
     }
@@ -594,7 +614,9 @@ export function registerPhysicsSystem(
     // PostUpdate system lerps prev→cur by Time.fixedAlpha).
     const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
     // Events accumulated across this frame's fixed steps; published once per frame.
-    const events: EventAccum = { collisionEnters: [], collisionExits: [], sensorEnters: [], sensorExits: [] };
+    const events: EventAccum = {
+        collisionEnters: [], collisionExits: [], collisionHits: [], sensorEnters: [], sensorExits: [],
+    };
     const fixedDt = config.fixedTimestep;
 
     const world = app.world;
@@ -766,12 +788,14 @@ export function registerPhysicsSystem(
                 app.insertResource(PhysicsEvents, {
                     collisionEnters: events.collisionEnters,
                     collisionExits: events.collisionExits,
+                    collisionHits: events.collisionHits,
                     sensorEnters: events.sensorEnters,
                     sensorExits: events.sensorExits,
                 });
                 // Fresh arrays for next frame; the published ones stay live on the resource.
                 events.collisionEnters = [];
                 events.collisionExits = [];
+                events.collisionHits = [];
                 events.sensorEnters = [];
                 events.sensorExits = [];
 

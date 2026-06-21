@@ -16,6 +16,7 @@ void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
     shapeDef.material.restitution = restitution;
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableHitEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
@@ -46,6 +47,7 @@ void physics_addCircleShape(uint32_t entityId, float radius,
     shapeDef.material.restitution = restitution;
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableHitEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
@@ -72,6 +74,7 @@ void physics_addCapsuleShape(uint32_t entityId, float radius, float halfHeight,
     shapeDef.material.restitution = restitution;
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableHitEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
@@ -98,6 +101,7 @@ void physics_addSegmentShape(uint32_t entityId, float x1, float y1, float x2, fl
     shapeDef.material.restitution = restitution;
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableHitEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
@@ -124,6 +128,7 @@ void physics_addPolygonShape(uint32_t entityId, uintptr_t verticesPtr, int verte
     shapeDef.material.restitution = restitution;
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
+    shapeDef.enableHitEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);

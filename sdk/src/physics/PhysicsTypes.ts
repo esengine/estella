@@ -21,6 +21,14 @@ export interface PhysicsPluginConfig {
     contactDampingRatio?: number;
     contactSpeed?: number;
     collisionLayerMasks?: number[];
+    /** Let bodies sleep when at rest (default true). */
+    enableSleep?: boolean;
+    /** Continuous collision (anti-tunneling) for fast bodies (default true). */
+    enableContinuous?: boolean;
+    /** Min impact speed (m/s) that produces a bounce; ≤0 keeps the Box2D default. */
+    restitutionThreshold?: number;
+    /** Clamp on body speed (world units/s); ≤0 keeps the Box2D default. */
+    maxLinearSpeed?: number;
 }
 
 /** Fully-populated plugin config after defaults are applied. */
@@ -46,9 +54,22 @@ export interface SensorEvent {
     visitorEntity: Entity;
 }
 
+/** A high-speed impact (approach speed past the world's hit threshold). */
+export interface CollisionHitEvent {
+    entityA: Entity;
+    entityB: Entity;
+    pointX: number;
+    pointY: number;
+    normalX: number;
+    normalY: number;
+    /** Approach speed (world units/s) — impact strength for gameplay reactions. */
+    approachSpeed: number;
+}
+
 export interface PhysicsEventsData {
     collisionEnters: CollisionEnterEvent[];
     collisionExits: Array<{ entityA: Entity; entityB: Entity }>;
+    collisionHits: CollisionHitEvent[];
     sensorEnters: SensorEvent[];
     sensorExits: SensorEvent[];
 }
@@ -56,6 +77,7 @@ export interface PhysicsEventsData {
 export const PhysicsEvents = defineResource<PhysicsEventsData>({
     collisionEnters: [],
     collisionExits: [],
+    collisionHits: [],
     sensorEnters: [],
     sensorExits: []
 }, 'PhysicsEvents');
@@ -84,6 +106,7 @@ export interface MassData {
 // =============================================================================
 
 export const COLLISION_EVENT_STRIDE = 6;
+export const HIT_EVENT_STRIDE = 7; // [entityA, entityB, px, py, nx, ny, approachSpeed]
 export const CAST_HIT_STRIDE = 6;
 
 // =============================================================================

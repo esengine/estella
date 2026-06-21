@@ -38,6 +38,7 @@ export type {
     PhysicsPluginConfig,
     PhysicsEventsData,
     CollisionEnterEvent,
+    CollisionHitEvent,
     SensorEvent,
     RaycastHit,
     ShapeCastHit,
@@ -57,6 +58,10 @@ function resolveConfig(config: PhysicsPluginConfig): ResolvedPhysicsConfig {
         contactDampingRatio: config.contactDampingRatio ?? 10,
         contactSpeed: config.contactSpeed ?? 3,
         collisionLayerMasks: config.collisionLayerMasks,
+        enableSleep: config.enableSleep ?? true,
+        enableContinuous: config.enableContinuous ?? true,
+        restitutionThreshold: config.restitutionThreshold ?? 0, // ≤0 → keep Box2D default
+        maxLinearSpeed: config.maxLinearSpeed ?? 0, // ≤0 → keep Box2D default
     };
 }
 
@@ -82,6 +87,7 @@ export class PhysicsPlugin implements Plugin {
         app.insertResource(PhysicsEvents, {
             collisionEnters: [],
             collisionExits: [],
+            collisionHits: [],
             sensorEnters: [],
             sensorExits: [],
         });
@@ -107,6 +113,12 @@ export class PhysicsPlugin implements Plugin {
                     this.config_.contactHertz,
                     this.config_.contactDampingRatio,
                     this.config_.contactSpeed,
+                );
+                module._physics_setWorldConfig(
+                    this.config_.enableSleep ? 1 : 0,
+                    this.config_.enableContinuous ? 1 : 0,
+                    this.config_.restitutionThreshold,
+                    this.config_.maxLinearSpeed,
                 );
 
                 registerPhysicsSystem(app, module, this.config_);

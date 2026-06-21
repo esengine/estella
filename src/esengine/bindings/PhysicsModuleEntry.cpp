@@ -23,6 +23,23 @@ void physics_init(float gx, float gy, float timestep, int substeps,
     g_ctx.accumulator = 0.0f;
 }
 
+// World-level tuning (surfaced to the SDK / project settings). Hardcoded
+// b2DefaultWorldDef values otherwise. A non-positive restitutionThreshold /
+// maxLinearSpeed leaves Box2D's default in place.
+EMSCRIPTEN_KEEPALIVE
+void physics_setWorldConfig(int enableSleep, int enableContinuous,
+                           float restitutionThreshold, float maxLinearSpeed) {
+    if (!b2World_IsValid(g_ctx.worldId)) return;
+    b2World_EnableSleeping(g_ctx.worldId, enableSleep != 0);
+    b2World_EnableContinuous(g_ctx.worldId, enableContinuous != 0);
+    if (restitutionThreshold > 0.0f) {
+        b2World_SetRestitutionThreshold(g_ctx.worldId, restitutionThreshold);
+    }
+    if (maxLinearSpeed > 0.0f) {
+        b2World_SetMaximumLinearSpeed(g_ctx.worldId, maxLinearSpeed);
+    }
+}
+
 EMSCRIPTEN_KEEPALIVE
 void physics_shutdown() {
     g_ctx.reset();
@@ -116,6 +133,7 @@ void physics_step(float dt) {
     g_ctx.collisionExitBuffer.clear();
     g_ctx.sensorEnterBuffer.clear();
     g_ctx.sensorExitBuffer.clear();
+    g_ctx.hitEventBuffer.clear();
 
     g_ctx.accumulator += dt;
 
@@ -212,6 +230,22 @@ void physics_collectEvents() {
         pushEntityBits(g_ctx.collisionExitBuffer, entityB);
     }
 
+    // High-speed impacts (approach speed past the world's hitEventThreshold) —
+    // per hit: [entityA, entityB, pointX, pointY, normalX, normalY, approachSpeed].
+    for (int i = 0; i < contactEvents.hitCount; ++i) {
+        auto& evt = contactEvents.hitEvents[i];
+        uint32_t entityA = entityFromShape(evt.shapeIdA);
+        uint32_t entityB = entityFromShape(evt.shapeIdB);
+        if (entityA == 0xFFFFFFFF || entityB == 0xFFFFFFFF) continue;
+        pushEntityBits(g_ctx.hitEventBuffer, entityA);
+        pushEntityBits(g_ctx.hitEventBuffer, entityB);
+        g_ctx.hitEventBuffer.push_back(evt.point.x);
+        g_ctx.hitEventBuffer.push_back(evt.point.y);
+        g_ctx.hitEventBuffer.push_back(evt.normal.x);
+        g_ctx.hitEventBuffer.push_back(evt.normal.y);
+        g_ctx.hitEventBuffer.push_back(evt.approachSpeed);
+    }
+
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(g_ctx.worldId);
 
     for (int i = 0; i < sensorEvents.beginCount; ++i) {
@@ -245,6 +279,16 @@ int physics_getCollisionEnterCount() {
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getCollisionEnterBuffer() {
     return reinterpret_cast<uintptr_t>(g_ctx.collisionEnterBuffer.data());
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_getHitEventCount() {
+    return static_cast<int>(g_ctx.hitEventBuffer.size() / 7);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics_getHitEventBuffer() {
+    return reinterpret_cast<uintptr_t>(g_ctx.hitEventBuffer.data());
 }
 
 EMSCRIPTEN_KEEPALIVE

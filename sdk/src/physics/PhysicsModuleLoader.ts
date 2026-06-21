@@ -6,6 +6,9 @@
 export interface PhysicsWasmModule {
     _physics_init(gx: number, gy: number, timestep: number, substeps: number,
                   contactHertz: number, contactDampingRatio: number, contactSpeed: number): void;
+    /** World-level tuning (sleeping/continuous/restitution threshold/max speed). */
+    _physics_setWorldConfig(enableSleep: number, enableContinuous: number,
+                            restitutionThreshold: number, maxLinearSpeed: number): void;
     _physics_shutdown(): void;
 
     _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number,
@@ -50,6 +53,9 @@ export interface PhysicsWasmModule {
     _physics_collectEvents(): void;
     _physics_getCollisionEnterCount(): number;
     _physics_getCollisionEnterBuffer(): number;
+    /** High-speed impact events: [entityA, entityB, px, py, nx, ny, approachSpeed]. */
+    _physics_getHitEventCount(): number;
+    _physics_getHitEventBuffer(): number;
     _physics_getCollisionExitCount(): number;
     _physics_getCollisionExitBuffer(): number;
     _physics_getSensorEnterCount(): number;
@@ -212,6 +218,7 @@ export async function loadPhysicsSideModule(
 
     return {
         _physics_init: cwrap('physics_init', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_init'],
+        _physics_setWorldConfig: cwrap('physics_setWorldConfig', null, ['number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_setWorldConfig'],
         _physics_shutdown: cwrap('physics_shutdown', null, []) as PhysicsWasmModule['_physics_shutdown'],
 
         _physics_createBody: cwrap('physics_createBody', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createBody'],
@@ -236,6 +243,8 @@ export async function loadPhysicsSideModule(
         _physics_collectEvents: cwrap('physics_collectEvents', null, []) as PhysicsWasmModule['_physics_collectEvents'],
         _physics_getCollisionEnterCount: cwrap('physics_getCollisionEnterCount', 'number', []) as PhysicsWasmModule['_physics_getCollisionEnterCount'],
         _physics_getCollisionEnterBuffer: cwrap('physics_getCollisionEnterBuffer', 'number', []) as PhysicsWasmModule['_physics_getCollisionEnterBuffer'],
+        _physics_getHitEventCount: cwrap('physics_getHitEventCount', 'number', []) as PhysicsWasmModule['_physics_getHitEventCount'],
+        _physics_getHitEventBuffer: cwrap('physics_getHitEventBuffer', 'number', []) as PhysicsWasmModule['_physics_getHitEventBuffer'],
         _physics_getCollisionExitCount: cwrap('physics_getCollisionExitCount', 'number', []) as PhysicsWasmModule['_physics_getCollisionExitCount'],
         _physics_getCollisionExitBuffer: cwrap('physics_getCollisionExitBuffer', 'number', []) as PhysicsWasmModule['_physics_getCollisionExitBuffer'],
         _physics_getSensorEnterCount: cwrap('physics_getSensorEnterCount', 'number', []) as PhysicsWasmModule['_physics_getSensorEnterCount'],

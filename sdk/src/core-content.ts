@@ -300,5 +300,6 @@ export type {
     PhysicsPluginConfig,
     PhysicsEventsData,
     CollisionEnterEvent,
+    CollisionHitEvent,
     SensorEvent,
 } from './physics';

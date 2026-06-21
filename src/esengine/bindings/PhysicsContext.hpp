@@ -32,6 +32,7 @@ struct PhysicsContext {
     std::vector<float> collisionExitBuffer;
     std::vector<float> sensorEnterBuffer;
     std::vector<float> sensorExitBuffer;
+    std::vector<float> hitEventBuffer;
 
     float velocityBuffer[2] = {};
     float gravityBuffer[2] = {};
@@ -46,6 +47,7 @@ struct PhysicsContext {
         collisionExitBuffer.clear();
         sensorEnterBuffer.clear();
         sensorExitBuffer.clear();
+        hitEventBuffer.clear();
         accumulator = 0.0f;
 
         if (b2World_IsValid(worldId)) {

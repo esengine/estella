@@ -79,9 +79,19 @@ in the integration layer.
   the physics wasm was rebuilt with emscripten 5.0.6 — required dropping the now-removed
   `-sRELOCATABLE=1` flag (`cmake/Emscripten.cmake`; `-sSIDE_MODULE=2` already implies it).
   Chain colliders aren't runtime-rebuilt (their `b2ChainId` isn't tracked — static geometry).
-- **P3 — `b2World_GetBodyEvents` + contact hit events + world-toggle config surface** (the
-  config surface feeds the project-settings flow). Touches C++.
-- **P4 — batched writeback + identity-leak fixes + query `ppu` from live Canvas.**
+- **P3 — contact hit events + world-toggle config surface (DONE).** New C++:
+  `physics_setWorldConfig(enableSleep, enableContinuous, restitutionThreshold,
+  maxLinearSpeed)` (`b2World_EnableSleeping/EnableContinuous/SetRestitutionThreshold/
+  SetMaximumLinearSpeed`) — surfaced through `PhysicsPluginConfig` (the knobs the deferred
+  physics project-settings needs). Contact **hit events**: `enableHitEvents` on every shape
+  + a `hitEventBuffer` drained from `b2ContactEvents.hitEvents` in `physics_collectEvents`
+  (`physics_getHitEventCount/Buffer`), surfaced as `PhysicsEvents.collisionHits`
+  (`CollisionHitEvent{entityA,entityB,point,normal,approachSpeed}`) for impact-strength
+  gameplay. The **`b2World_GetBodyEvents` moved-only readback moved to P4** — it's a perf
+  optimization that interacts with the P1 interpolation snapshots, so it's grouped with the
+  other perf items rather than risked here.
+- **P4 — `b2World_GetBodyEvents` moved-only readback + batched writeback + identity-leak
+  fixes + query `ppu` from live Canvas.**
 
 ## P1 — design (SDK-only)
 
