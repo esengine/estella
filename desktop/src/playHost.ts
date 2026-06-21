@@ -73,7 +73,7 @@ async function boot(msg: InitMessage): Promise<void> {
     app = createWebApp(module, {
       glContextHandle: glHandle,
       getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
-      wasmBaseUrl: wasmBase,
+      wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
     });
     setEditorMode(false);
     setPlayMode(true);

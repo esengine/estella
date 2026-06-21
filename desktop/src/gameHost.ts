@@ -29,19 +29,27 @@ async function boot(): Promise<void> {
   window.addEventListener('resize', resize);
   resize();
 
+  // Register the project's own components/systems first (side-effect import; its
+  // `import 'esengine'` resolves through the page import map to the shared SDK).
+  try {
+    await import(/* @vite-ignore */ new URL('./scripts.mjs', import.meta.url).href);
+  } catch {
+    /* no project bundle — builtin-only */
+  }
+
   const cfg = (await (await fetch('./game.config.json')).json()) as GameConfig;
   const manifest = (await (await fetch('./assets.manifest.json')).json()) as CookedManifest;
   const sceneData = (await (await fetch(`./${cfg.entryScene}`)).json()) as SceneData;
   const assetManifest: Record<string, string> = {};
   for (const e of manifest.entries) assetManifest[e.uuid.toLowerCase()] = `./${e.path}`;
 
-  const wasmBase = `${location.origin}/wasm`;
-  const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}/esengine.js`)) as {
+  const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
+  const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
     default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
   };
   const module = await createModule({
     canvas,
-    locateFile: (p: string) => `${wasmBase}/${p}`,
+    locateFile: (p: string) => `${wasmBase}${p}`,
     print: (t: string) => console.log(t),
     printErr: (t: string) => console.error(t),
   });
@@ -59,7 +67,7 @@ async function boot(): Promise<void> {
   const app = createWebApp(module, {
     glContextHandle: glHandle,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
-    wasmBaseUrl: wasmBase,
+    wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });
   setEditorMode(false);
   setPlayMode(true);

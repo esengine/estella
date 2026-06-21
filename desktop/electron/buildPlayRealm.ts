@@ -25,7 +25,10 @@ const PLAY_DIR = '.esengine/play';
 // Subpath exports can't be a single `esengine/` → `./sdk/` mapping (import maps
 // don't append /index.js for directories), so list the real files (mirrors
 // sdk/package.json `exports`).
-const IMPORT_MAP = {
+// The realm + the shipped game share this import map (esengine → ./sdk) and the
+// CSP hash for the inline <script type=importmap>. Subpath exports are listed
+// explicitly (import maps don't append /index.js for a directory).
+export const IMPORT_MAP = {
   imports: {
     esengine: './sdk/index.js',
     'esengine/spine': './sdk/spine/index.js',
@@ -34,20 +37,19 @@ const IMPORT_MAP = {
     'esengine/factory': './sdk/webAppFactory.js',
   },
 };
+export const IMPORT_MAP_JSON = JSON.stringify(IMPORT_MAP);
+export const IMPORT_MAP_CSP_HASH = `sha256-${createHash('sha256').update(IMPORT_MAP_JSON).digest('base64')}`;
 
 // The inline import map is an inline <script>, so CSP must allow it — by HASH
 // (not 'unsafe-inline', which would permit any inline script). 'unsafe-eval' is
 // for the emscripten glue; everything else is same-origin estella://.
-const IMPORT_MAP_JSON = JSON.stringify(IMPORT_MAP);
-const IMPORT_MAP_HASH = `sha256-${createHash('sha256').update(IMPORT_MAP_JSON).digest('base64')}`;
-
 const PLAY_HTML = `<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' estella:; script-src 'self' 'unsafe-eval' '${IMPORT_MAP_HASH}' estella:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: estella:; font-src 'self' data: estella:; connect-src 'self' data: blob: estella:; worker-src 'self' blob:;"
+      content="default-src 'self' estella:; script-src 'self' 'unsafe-eval' '${IMPORT_MAP_CSP_HASH}' estella:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: estella:; font-src 'self' data: estella:; connect-src 'self' data: blob: estella:; worker-src 'self' blob:;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Estella Play</title>
