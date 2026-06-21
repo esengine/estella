@@ -7,7 +7,7 @@ import { Reconciler } from '@/engine/Reconciler';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
-import { setUserSchemas, type UserComponentSchema } from '@/engine/schema';
+import { setUserSchemas, userSchema, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { resolveLayout, WORKSPACE_DIR, type OpenedProject, type ProjectLayout, type WorkspaceState } from './format';
@@ -46,12 +46,18 @@ interface ProjectState {
   currentScene: string | null;
 }
 
-/** Component types in `data` that the engine doesn't know — dropped on load. */
+/**
+ * Component types in `data` that are genuinely unrecognized — not an engine
+ * builtin AND not a known project component (no `schemas.json` entry). A project
+ * component like `SpawnMarker` IS known (via extracted schema): it's editable +
+ * lossless + runs in Play, so it's not flagged. Only a true typo / missing
+ * declaration is reported.
+ */
 function unknownComponentTypes(data: SceneData): string[] {
   const unknown = new Set<string>();
   for (const entity of data.entities ?? []) {
     for (const comp of entity.components ?? []) {
-      if (!getComponent(comp.type)) unknown.add(comp.type);
+      if (!getComponent(comp.type) && !userSchema(comp.type)) unknown.add(comp.type);
     }
   }
   return [...unknown];

@@ -1,4 +1,4 @@
-import { Name, Parent, resetWorldTo } from 'esengine';
+import { Name, Parent, getComponent, resetWorldTo } from 'esengine';
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -23,6 +23,25 @@ import { componentByName, componentDefaults, type AnyComp, type WorldT } from '.
 const UUID_PREFIX = '@uuid:';
 /** Structural/identity components projected explicitly (name, parent), not as data. */
 const STRUCTURAL = new Set(['Name', 'Parent', 'Children']);
+
+/**
+ * The World can only hold components the engine registry knows. Strip the rest
+ * (project/user components like `SpawnMarker`) BEFORE the bulk `resetWorldTo` —
+ * they live in the model (the raw scene) and the incremental path already skips
+ * them. Keeps the World a clean known-only projection AND stops the SDK scene
+ * loader from warning "Unknown component type" on every editor load. Entities are
+ * preserved (only their unknown components are dropped) so the source↔runtime map
+ * stays complete.
+ */
+function worldProjection(data: SceneData): SceneData {
+  return {
+    ...data,
+    entities: (data.entities ?? []).map((e) => ({
+      ...e,
+      components: (e.components ?? []).filter((c) => !!getComponent(c.type)),
+    })),
+  };
+}
 
 type AssetResolver = (uuid: string) => number;
 const UNRESOLVED: AssetResolver = () => 0;
@@ -63,7 +82,7 @@ export class ReconcilerImpl {
   adopt(rawData: SceneData, resolvedData: SceneData): void {
     const world = EngineHost.mutableWorld();
     if (!world) return;
-    const map = resetWorldTo(world, resolvedData as never) as Map<number, EntityId>;
+    const map = resetWorldTo(world, worldProjection(resolvedData) as never) as Map<number, EntityId>;
     this.model.adopt(rawData, map);
   }
 
@@ -78,7 +97,7 @@ export class ReconcilerImpl {
     const data = this.model.current;
     if (!world || !data) return;
     const resolved = this.resolveRefs(data) as SceneData;
-    const map = resetWorldTo(world, resolved as never) as Map<number, EntityId>;
+    const map = resetWorldTo(world, worldProjection(resolved) as never) as Map<number, EntityId>;
     this.model.adopt(data, map);
   }
 
