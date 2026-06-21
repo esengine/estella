@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Magnet, Frame,
   Camera, Loader2, TriangleAlert, type LucideIcon,
@@ -11,6 +11,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneQuery } from '@/engine/SceneQuery';
+import { ProjectStore } from '@/project/ProjectStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
@@ -300,6 +301,27 @@ export function Viewport() {
     if (drag.kind !== 'pan') SceneCommands.endGesture();
   };
 
+  // Drag a `.esprefab` from the Content Browser into the scene → instantiate it
+  // at the drop point (one undoable step; placement becomes a position override).
+  const isPrefabDrag = (e: ReactDragEvent) =>
+    e.dataTransfer.types.includes('application/x-estella-asset');
+
+  const onDragOver = (e: ReactDragEvent) => {
+    if (!isPrefabDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const onDrop = (e: ReactDragEvent) => {
+    const path = e.dataTransfer.getData('application/x-estella-asset');
+    if (!path || !path.toLowerCase().endsWith('.esprefab')) return;
+    e.preventDefault();
+    // Place at the drop point; if it can't be resolved, fall back to the
+    // prefab's authored origin (position omitted).
+    const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
+    void ProjectStore.instantiatePrefabFromPath(path, null, wp ?? undefined);
+  };
+
   return (
     <div className="viewport">
       <div className="viewport__toolbar">
@@ -325,6 +347,8 @@ export function Viewport() {
         onPointerCancel={endDrag}
         onPointerLeave={() => StatsStore.clearCursor()}
         onContextMenu={(e) => e.preventDefault()}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
       />
 
       {/* Scene-camera gizmos (icon + authored view rect); positioned by the rAF. */}

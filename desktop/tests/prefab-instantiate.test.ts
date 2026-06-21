@@ -95,4 +95,21 @@ describe.skipIf(!HAS_WASM)('SceneCommands.instantiatePrefab (headless World)', (
     // World: the instance root is parented under the scene parent.
     expect(host.world.getAllEntities().length).toBe(3); // parent + root + barrel
   });
+
+  it('places the instance at a drop position (overriding the authored origin)', () => {
+    // Prefab authored the root at {1,2}; the drop places it at {50,60}.
+    const rootId = S.commands.instantiatePrefab(turretPrefab(), REF, null, { x: 50, y: 60 })!;
+    expect(rootId).not.toBeNull();
+
+    // Model: the root's Transform carries the drop position.
+    const root = S.model.entityBySource(rootId)!;
+    const tf = root.components.find((c) => c.type === 'Transform')!;
+    const mp = tf.data.position as { x: number; y: number };
+    expect([mp.x, mp.y]).toEqual([50, 60]);
+
+    // World: the Reconciler projected the placed position onto the spawned entity.
+    const rt = S.model.runtimeFor(rootId)!;
+    const wp = (host.world.get(rt, Transform) as { position: { x: number; y: number } }).position;
+    expect([wp.x, wp.y]).toEqual([50, 60]);
+  });
 });

@@ -6,6 +6,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery } from '@/engine/SceneQuery';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { ProjectStore } from '@/project/ProjectStore';
 import { NodeIcon } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import type { SceneNode, EntityId } from '@/types';
@@ -222,16 +223,28 @@ export function Outliner() {
     return ids.has(id) ? [...ids] : [id];
   };
 
-  // — Drag-to-reparent —
+  // — Drag-to-reparent (entity rows) + drag-a-prefab-in (Content Browser) —
+  const ASSET_MIME = 'application/x-estella-asset';
+  const isAssetDrag = (e: React.DragEvent) => e.dataTransfer.types.includes(ASSET_MIME);
+  /** Instantiate a dropped `.esprefab` under `parent`. Returns true if handled. */
+  const dropPrefabAsset = (e: React.DragEvent, parent: EntityId | null): boolean => {
+    const path = e.dataTransfer.getData(ASSET_MIME);
+    if (!path || !path.toLowerCase().endsWith('.esprefab')) return false;
+    void ProjectStore.instantiatePrefabFromPath(path, parent);
+    return true;
+  };
   const onDragStartRow = (id: EntityId, e: React.DragEvent) => {
     dragIds.current = selectionOrTarget(id);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(id));
   };
   const onDragOverRow = (id: EntityId, e: React.DragEvent) => {
-    if (!dragIds.current) return;
+    // Either an in-progress entity reparent (move) or a Content-Browser asset
+    // (copy) — both highlight the hovered row as the drop target.
+    if (dragIds.current) e.dataTransfer.dropEffect = 'move';
+    else if (isAssetDrag(e)) e.dataTransfer.dropEffect = 'copy';
+    else return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
     if (dropId !== id) setDropId(id);
   };
   const reparent = (target: EntityId | null) => {
@@ -244,6 +257,8 @@ export function Outliner() {
   const onDropRow = (id: EntityId, e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setDropId(null);
+    if (dropPrefabAsset(e, id)) return; // drop a prefab onto an entity = under it
     reparent(id);
   };
 
@@ -258,6 +273,7 @@ export function Outliner() {
             if (d != null) select(d);
           },
         },
+        { label: 'Create Prefab', onClick: () => void ProjectStore.createPrefabFromEntity(ctx.id) },
         {
           label: 'Delete',
           shortcut: '⌫',
@@ -292,11 +308,12 @@ export function Outliner() {
       <div
         className="panel__body tree"
         onDragOver={(e) => {
-          if (dragIds.current) e.preventDefault();
+          if (dragIds.current || isAssetDrag(e)) e.preventDefault();
         }}
         onDrop={(e) => {
           e.preventDefault();
-          reparent(null); // drop into empty space = un-parent to the scene root
+          if (dropPrefabAsset(e, null)) return; // drop a prefab into empty space = scene root
+          reparent(null); // drop an entity into empty space = un-parent to the scene root
         }}
       >
         {tree.length === 0 ? (

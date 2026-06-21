@@ -1341,6 +1341,7 @@
   align-items: center;
   gap: 6px;
   height: 24px;
+  min-width: 0;
   padding-right: 8px;
   border-radius: var(--r-sm);
   font-size: var(--fs-sm);
@@ -1352,6 +1353,20 @@
 .content__folder.is-active {
   background: var(--star-dim);
   color: var(--text-hi);
+}
+/* The twist + folder glyph keep their size; only the name takes the slack
+   and truncates with an ellipsis (UE5 Sources tree — long names clip, full
+   name shows on hover via the row's title). */
+.content__folder-twist,
+.content__folder > svg {
+  flex-shrink: 0;
+}
+.content__folder-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .content__folder-twist {
   color: var(--text-faint);
@@ -1414,6 +1429,92 @@
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+/* Type color bar (UE5 tiles read by type at a glance). */
+.tile__bar {
+  width: 70%;
+  height: 3px;
+  border-radius: 2px;
+  margin-top: 1px;
+  opacity: 0.85;
+}
+.tile.is-selected {
+  background: var(--star-dim);
+  border-color: var(--star-line);
+}
+
+/* Navigation bar: back/forward/up + breadcrumb path. */
+.content__nav {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.content__navbtn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+}
+.content__navbtn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.content__navbtn:disabled {
+  opacity: 0.3;
+}
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-left: 4px;
+  overflow: hidden;
+}
+.breadcrumb__item {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.breadcrumb__sep {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  margin: 0 1px;
+}
+.breadcrumb__seg {
+  padding: 2px 5px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.breadcrumb__seg:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.breadcrumb__seg.is-current {
+  color: var(--text-hi);
+  font-weight: 500;
+}
+
+/* Thumbnail-size slider. */
+.content__size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--text-faint);
+}
+.content__size input[type='range'] {
+  width: 72px;
+  accent-color: var(--star);
+  cursor: ew-resize;
 }
 .content__path {
   flex-shrink: 0;

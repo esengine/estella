@@ -272,7 +272,12 @@ export class SceneCommandsImpl {
    * to a delta. The caller (ProjectStore / UI) loads the PrefabData asset; this
    * stays synchronous + undoable. Returns the instance root's source id.
    */
-  instantiatePrefab(prefab: PrefabData, ref: string, parent: EntityId | null): EntityId | null {
+  instantiatePrefab(
+    prefab: PrefabData,
+    ref: string,
+    parent: EntityId | null,
+    position?: { x: number; y: number },
+  ): EntityId | null {
     if (!this.model.current) return null;
     const { entities, rootId } = expandInstance(
       prefab,
@@ -282,6 +287,18 @@ export class SceneCommandsImpl {
     const root = entities.find((e) => e.id === rootId);
     if (!root) return null;
     root.parent = parent; // attach under the scene parent
+
+    // Place the instance at the drop point — a Transform.position edit that
+    // diffAgainstSource captures as a property override on save (so the prefab
+    // asset stays at its authored origin; the instance carries the placement).
+    if (position) {
+      const tf = root.components.find((c) => c.type === 'Transform');
+      if (tf) {
+        const p = ((tf.data as Record<string, unknown>).position ??= { x: 0, y: 0, z: 0 }) as { x: number; y: number; z: number };
+        p.x = position.x;
+        p.y = position.y;
+      }
+    }
 
     // ProcessedEntity → SceneEntity (drop prefab fields); deep-clone components so
     // later edits to the instance don't leak into the redo record.

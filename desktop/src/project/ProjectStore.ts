@@ -1,11 +1,12 @@
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets, migratePrefabData } from 'esengine';
-import type { SceneData, PrefabData } from 'esengine';
+import { getComponent, Assets, migratePrefabData, extractPrefab } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
+import { SceneCommands } from '@/engine/SceneCommands';
 import { setUserSchemas, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
@@ -276,6 +277,73 @@ class ProjectStoreImpl {
       console.warn('[project] prefab load failed', path, err);
       return null;
     }
+  }
+
+  /**
+   * Instantiate a `.esprefab` (by project-relative path) into the open scene
+   * under `parent`, optionally placed at `position` (world coords). Selects the
+   * new instance. This is the Content-Browser drag-into-scene entry point: it
+   * resolves the path → `@uuid:` ref, loads the PrefabData, and runs the
+   * undoable {@link SceneCommands.instantiatePrefab}. Returns the instance root
+   * source id, or null if the path isn't a tracked prefab asset.
+   */
+  async instantiatePrefabFromPath(
+    path: string,
+    parent: number | null = null,
+    position?: { x: number; y: number },
+  ): Promise<number | null> {
+    const uuid = this.pathToUuid.get(path);
+    if (!uuid) return null;
+    const ref = UUID_PREFIX + uuid;
+    const prefab = await this.loadPrefabAsset(ref);
+    if (!prefab) {
+      Toasts.push(`Could not load prefab: ${path.split('/').pop() ?? path}`, 'error');
+      return null;
+    }
+    const rootId = SceneCommands.instantiatePrefab(prefab, ref, parent, position);
+    if (rootId != null) useSelection.getState().select(rootId);
+    return rootId;
+  }
+
+  /**
+   * Create a `.esprefab` asset from a live entity subtree (the "Create Prefab"
+   * authoring path — the inverse of {@link instantiatePrefabFromPath}). Extracts
+   * the subtree rooted at `rootSourceId` into PrefabData, writes the asset +
+   * its `.meta` (a fresh uuid) under `assets/prefabs/`, and re-scans the asset
+   * DB so the prefab is immediately draggable. Non-destructive: the source
+   * entities are left as-is. Returns the new prefab's `@uuid:` ref, or null.
+   */
+  async createPrefabFromEntity(rootSourceId: number): Promise<string | null> {
+    const root = SceneModel.entityBySource(rootSourceId);
+    if (!root) return null;
+    const entities = SceneModel.collectSubtree(rootSourceId)
+      .map((id) => SceneModel.entityBySource(id))
+      .filter((e): e is NonNullable<typeof e> => !!e) as unknown as ExtractEntity[];
+
+    const name = root.name?.trim() || 'Prefab';
+    const prefab = extractPrefab(entities, rootSourceId, name);
+
+    // A filesystem-safe leaf, deduped against existing assets.
+    const base = name.replace(/[^A-Za-z0-9_-]+/g, '_') || 'Prefab';
+    let rel = `assets/prefabs/${base}.esprefab`;
+    for (let n = 1; this.pathToUuid.has(rel); n++) rel = `assets/prefabs/${base}-${n}.esprefab`;
+
+    const uuid = crypto.randomUUID();
+    try {
+      await window.estella.fs.write(rel, JSON.stringify(prefab, null, 2) + '\n');
+      await window.estella.fs.write(
+        rel + '.meta',
+        JSON.stringify({ uuid, version: '2.0', type: 'prefab', importer: { autoMigrate: true } }, null, 2) + '\n',
+      );
+    } catch (err) {
+      console.warn('[project] prefab write failed', rel, err);
+      Toasts.push(`Failed to create prefab: ${base}`, 'error');
+      return null;
+    }
+
+    await this.buildAssetRegistry(); // re-scan so the new prefab is tracked + draggable
+    Toasts.push(`Created prefab: ${rel.split('/').pop()}`, 'info');
+    return UUID_PREFIX + uuid;
   }
 
   /** Display info for an asset ref (`@uuid:`), or null (none / unresolved). For
