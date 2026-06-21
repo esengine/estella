@@ -33,9 +33,12 @@ export interface PlayRealmRuntimeConfig {
 
 /**
  * Fetches scene assets over the realm origin, resolving `@uuid:` refs through the
- * editor-supplied manifest. Image decode mirrors the playable runtime's proven
- * `<img>` → canvas → getImageData path (`img.src` accepts any URL, not just a
- * data-url), so straight (non-premultiplied) RGBA matches the texture upload.
+ * editor-supplied manifest. Images are decoded via fetch → blob →
+ * `createImageBitmap` → canvas → getImageData (NOT `<img crossorigin>`: Chromium
+ * refuses CORS-mode images for custom schemes like `estella://`, and a non-CORS
+ * `<img>` would taint the canvas so getImageData throws — fetch+blob sidesteps
+ * both). `estella://` is fetchable because it's a privileged supportFetchAPI
+ * scheme; the editor's handler returns `access-control-allow-origin: *`.
  */
 class FetchAssetProvider implements RuntimeAssetProvider {
     constructor(private readonly manifest: Record<string, string>) {}
@@ -47,24 +50,23 @@ class FetchAssetProvider implements RuntimeAssetProvider {
         return url;
     }
 
-    loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
+    async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
         const url = this.resolvePath(ref);
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-                const cv = document.createElement('canvas');
-                cv.width = img.width;
-                cv.height = img.height;
-                const ctx = cv.getContext('2d');
-                if (!ctx) return reject(new Error('2d context unavailable'));
-                ctx.drawImage(img, 0, 0);
-                const id = ctx.getImageData(0, 0, img.width, img.height);
-                resolve({ width: img.width, height: img.height, pixels: new Uint8Array(id.data.buffer) });
-            };
-            img.onerror = () => reject(new Error(`image load failed: ${url}`));
-            img.src = url;
-        });
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`image fetch failed (${res.status}): ${url}`);
+        const bitmap = await createImageBitmap(await res.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+        try {
+            const cv = document.createElement('canvas');
+            cv.width = bitmap.width;
+            cv.height = bitmap.height;
+            const ctx = cv.getContext('2d');
+            if (!ctx) throw new Error('2d context unavailable');
+            ctx.drawImage(bitmap, 0, 0);
+            const id = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+            return { width: bitmap.width, height: bitmap.height, pixels: new Uint8Array(id.data.buffer) };
+        } finally {
+            bitmap.close();
+        }
     }
 
     async readText(ref: string): Promise<string> {
