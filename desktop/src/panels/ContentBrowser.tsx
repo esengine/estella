@@ -376,6 +376,23 @@ export function ContentBrowser() {
     }
   };
 
+  const importAssets = async () => {
+    try {
+      const res = await window.estella.project.importAssets(cwd);
+      if (!res) return; // cancelled
+      refreshFs();
+      if (res.imported.length) {
+        selectAsset(res.imported[res.imported.length - 1]);
+        Toasts.push(`Imported ${res.imported.length} asset${res.imported.length > 1 ? 's' : ''}`, 'success');
+      }
+      if (res.skipped.length) {
+        Toasts.push(`Skipped ${res.skipped.length} unsupported file${res.skipped.length > 1 ? 's' : ''}`, 'warn');
+      }
+    } catch (e) {
+      Toasts.push(`Import failed: ${errMsg(e)}`, 'error');
+    }
+  };
+
   // Breadcrumb segments: Project › folder › subfolder, each a jump target.
   const crumbs = useMemo(() => {
     const out = [{ name: project?.name ?? 'Project', path: '' }];
@@ -420,6 +437,7 @@ export function ContentBrowser() {
     if (!ctx.target) {
       // Empty-space menu (acts on the current folder).
       return [
+        { label: 'Import…', icon: <Import size={14} />, onClick: () => void importAssets() },
         { label: 'New Folder', icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
         { sep: true },
         { label: 'Show in Explorer', onClick: () => void showInExplorer(cwd) },
@@ -515,7 +533,7 @@ export function ContentBrowser() {
             <button type="button" className="cb-ghost" title="New Folder" onClick={() => void newFolder()}>
               <FolderPlus size={13} strokeWidth={1.9} />
             </button>
-            <button type="button" className="cb-add" disabled title="Import (coming soon)">
+            <button type="button" className="cb-add" title="Import assets" onClick={() => void importAssets()}>
               <Import size={13} strokeWidth={1.9} /> Import
             </button>
           </div>

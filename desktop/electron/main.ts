@@ -23,6 +23,7 @@ import { extractProjectSchemas } from './extractSchemas';
 import { scanAssetDatabase } from './assetDb';
 import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
+import { importAssets, IMPORT_EXTENSIONS } from './importAssets';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -142,6 +143,21 @@ ipcMain.handle('project:open', async (_e, root: string) => {
   const opened = await openProject(root);
   adoptRoot(opened.root);
   return opened;
+});
+
+// Import: OS file picker → copy the chosen files into `destDir` + write `.meta`.
+ipcMain.handle('project:importAssets', async (_e, destDir: string) => {
+  if (!win) return null;
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Import Assets',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Assets', extensions: IMPORT_EXTENSIONS },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+  if (res.canceled || res.filePaths.length === 0) return null;
+  return importAssets(requireRoot(), destDir, res.filePaths);
 });
 
 ipcMain.handle('fs:read', (_e, relPath: string) => readInRoot(requireRoot(), relPath));

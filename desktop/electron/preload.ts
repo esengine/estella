@@ -36,6 +36,10 @@ const api = {
     scanAssets: (): Promise<ScanAssetsResult> => ipcRenderer.invoke('project:scanAssets'),
     /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
     cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
+    /** Show a file picker and import the chosen files into `destDir` (writes .meta);
+     *  null if cancelled. */
+    importAssets: (destDir: string): Promise<{ imported: string[]; skipped: string[] } | null> =>
+      ipcRenderer.invoke('project:importAssets', destDir),
   },
   // New-project templates (launcher New tab).
   templates: {

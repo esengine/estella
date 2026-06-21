@@ -16,6 +16,7 @@ import {
   statInRoot,
 } from '../electron/projectFs';
 import { isIgnoredPath } from '../electron/projectWatcher';
+import { importAssets } from '../electron/importAssets';
 
 let root: string;
 const read = (rel: string) => readFileSync(path.join(root, rel), 'utf8');
@@ -30,6 +31,37 @@ beforeEach(() => {
 });
 
 afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+describe('importAssets', () => {
+  let ext: string;
+  beforeEach(() => {
+    // An external source dir (outside the project root) to import from.
+    ext = mkdtempSync(path.join(tmpdir(), 'estella-ext-'));
+    writeFileSync(path.join(ext, 'logo.png'), 'PNGDATA');
+    writeFileSync(path.join(ext, 'notes.xyz'), 'unknown');
+  });
+  afterEach(() => rmSync(ext, { recursive: true, force: true }));
+
+  it('copies a file + writes a .meta with a uuid and extension-derived type', async () => {
+    const res = await importAssets(root, 'assets', [path.join(ext, 'logo.png')]);
+    expect(res.imported).toEqual(['assets/logo.png']);
+    expect(read('assets/logo.png')).toBe('PNGDATA');
+    const meta = JSON.parse(read('assets/logo.png.meta'));
+    expect(meta.type).toBe('texture');
+    expect(meta.uuid).toMatch(/^[0-9a-f-]{36}$/);
+    expect(meta.importer.maxSize).toBe(2048);
+  });
+
+  it('skips unknown extensions and dedupes existing names', async () => {
+    const res = await importAssets(root, 'assets', [
+      path.join(ext, 'notes.xyz'),
+      path.join(ext, 'logo.png'),
+      path.join(ext, 'logo.png'),
+    ]);
+    expect(res.skipped).toEqual(['notes.xyz']);
+    expect(res.imported).toEqual(['assets/logo.png', 'assets/logo 2.png']);
+  });
+});
 
 describe('isIgnoredPath (watcher noise filter)', () => {
   it('ignores the editor cache + heavy dirs (no refresh loop)', () => {
