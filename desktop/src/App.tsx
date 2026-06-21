@@ -5,11 +5,15 @@ import { StatusBar } from '@/layout/StatusBar';
 import { DockLayout } from '@/layout/DockLayout';
 import { ActivityBar } from '@/layout/ActivityBar';
 import { ContentDrawer } from '@/layout/ContentDrawer';
-import { defaultSession } from '@/engine/EditorSession';
+import '@/engine/EditorSession'; // side effect: constructs defaultSession → wires the editor engine
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
+import { PlayRealm } from '@/engine/PlayRealm';
+import { ProjectStore } from '@/project/ProjectStore';
+import { dockApi } from '@/layout/dockApi';
+import { Toasts } from '@/store/Toasts';
 
 // The editor shell: fixed menu + toolbar on top, dockable workspace in the
 // middle, status strip at the bottom.
@@ -39,15 +43,31 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Drive engine edit/play mode from the toolbar's play/pause state. Edit mode
-  // (the default) freezes gameplay systems so they don't fight scene edits; Stop
-  // rebuilds the World from the untouched edit model (model-authoritative). The
-  // selection holds stable source ids, so it survives the rebuild — no clear.
+  // Play runs in an ISOLATED realm (the Game panel's iframe = the shipping
+  // runtime), NOT by flipping the main edit World — so gameplay can never dirty
+  // the scene and the Viewport stays a live Scene view (REARCH_EDITOR_REALM R2).
+  // (The headless/automation path still drives the main World via
+  // EditorControlSurface.setRunMode + step for deterministic capture.)
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const isPaused = useEditorStore((s) => s.isPaused);
   useEffect(() => {
-    defaultSession.surface.setRunMode(isPlaying, isPaused);
-  }, [isPlaying, isPaused]);
+    if (isPlaying) {
+      const payload = ProjectStore.playPayload();
+      if (!payload) {
+        Toasts.push('Open a scene before playing', 'error');
+        useEditorStore.getState().stop();
+        return;
+      }
+      dockApi.openGame();
+      PlayRealm.start(payload);
+    } else {
+      PlayRealm.stop();
+      dockApi.closeGame();
+    }
+  }, [isPlaying]);
+  useEffect(() => {
+    if (isPlaying) PlayRealm.setPaused(isPaused);
+  }, [isPaused, isPlaying]);
 
   // The editor opens on the launcher (project browser); the shell + engine mount
   // only once a project is opened. (Logic wiring lands with the recents IPC.)

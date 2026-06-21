@@ -299,7 +299,13 @@ async function handleEstella(request: Request): Promise<Response> {
     const bytes = await readFile(abs);
     const ext = path.extname(abs).slice(1).toLowerCase();
     return new Response(new Uint8Array(bytes), {
-      headers: { 'content-type': ASSET_MIME[ext] ?? 'application/octet-stream' },
+      headers: {
+        'content-type': ASSET_MIME[ext] ?? 'application/octet-stream',
+        // The play realm (app:// origin) loads project assets cross-scheme via
+        // <img crossorigin> + fetch; allow it. estella:// is only reachable inside
+        // the Electron app, so there is no untrusted-web exposure.
+        'access-control-allow-origin': '*',
+      },
     });
   } catch (err) {
     return new Response(String(err), { status: 404 });
@@ -309,9 +315,24 @@ async function handleEstella(request: Request): Promise<Response> {
 // app://local/<path> → the built renderer (dist/). Serves index.html, the wasm
 // glue + binary, the play realm host page, and bundled assets over a stable
 // origin. Path-escape guarded to dist/.
+const PROJECT_PREFIX = '__project__/';
+
 async function handleApp(request: Request): Promise<Response> {
   try {
     const rel = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '') || 'index.html';
+    // app://local/__project__/<path> → project asset (so the play realm, which is
+    // SAME-ORIGIN with the editor under app://, can read project files — custom
+    // schemes can't cross-fetch each other, so estella:// is unreachable from the
+    // app:// realm). Sandboxed to the open project root.
+    if (rel.startsWith(PROJECT_PREFIX)) {
+      if (!projectRoot) return new Response('no project open', { status: 503 });
+      const abs = resolveInRoot(projectRoot, rel.slice(PROJECT_PREFIX.length));
+      const bytes = await readFile(abs);
+      const ext = path.extname(abs).slice(1).toLowerCase();
+      return new Response(new Uint8Array(bytes), {
+        headers: { 'content-type': ASSET_MIME[ext] ?? 'application/octet-stream', 'access-control-allow-origin': '*' },
+      });
+    }
     const abs = path.join(RENDERER_DIST, rel);
     if (abs !== RENDERER_DIST && !abs.startsWith(RENDERER_DIST + path.sep)) {
       return new Response('forbidden', { status: 403 });
@@ -319,7 +340,7 @@ async function handleApp(request: Request): Promise<Response> {
     const bytes = await readFile(abs);
     const ext = path.extname(abs).slice(1).toLowerCase();
     return new Response(new Uint8Array(bytes), {
-      headers: { 'content-type': APP_MIME[ext] ?? 'application/octet-stream' },
+      headers: { 'content-type': APP_MIME[ext] ?? 'application/octet-stream', 'access-control-allow-origin': '*' },
     });
   } catch (err) {
     return new Response(String(err), { status: 404 });

@@ -362,6 +362,28 @@ class ProjectStoreImpl {
     return uuid ? UUID_PREFIX + uuid : null;
   }
 
+  /**
+   * Assemble the isolated play-realm payload (REARCH_EDITOR_REALM Phase R): the
+   * current scene as RAW (`@uuid:`) SceneData straight from the expanded model —
+   * the runtime needs no prefab expansion and handles are realm-local, so we send
+   * the lossless refs, not resolved handles — plus a uuid→url manifest the realm
+   * fetches over `estella://`. Null if no scene is loaded.
+   */
+  playPayload(): { sceneData: SceneData; assetManifest: Record<string, string> } | null {
+    const sceneData = SceneModel.serialize();
+    if (!sceneData) return null;
+    // The realm is same-origin with the editor (relative iframe src). A custom
+    // scheme (app://) can't cross-fetch another (estella://), so under app://
+    // (packaged) serve assets through the app:// project route; in dev (http
+    // origin) estella:// is reachable (http may make CORS requests).
+    const base = location.origin.startsWith('app:')
+      ? `${location.origin}/__project__/`
+      : 'estella://project/';
+    const assetManifest: Record<string, string> = {};
+    for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = base + path;
+    return { sceneData, assetManifest };
+  }
+
   /** Display info for an asset ref (`@uuid:`), or null (none / unresolved). For
    *  the inspector's asset control: the project-relative path + a leaf name. */
   assetInfo(ref: unknown): { path: string; name: string } | null {

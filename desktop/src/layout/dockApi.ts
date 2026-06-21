@@ -18,6 +18,23 @@ export const dockApi = {
   reveal(id: string) {
     api?.getPanel(id)?.api.setActive();
   },
+  /** Open (or reveal) the Game view as a tab beside the Viewport — used on Play. */
+  openGame() {
+    if (!api) return;
+    if (!api.getPanel('game')) {
+      api.addPanel({
+        id: 'game',
+        component: 'game',
+        title: 'Game',
+        position: api.getPanel('viewport') ? { referencePanel: 'viewport', direction: 'within' } : undefined,
+      });
+    }
+    api.getPanel('game')?.api.setActive();
+  },
+  /** Close the Game view — used on Stop. */
+  closeGame() {
+    api?.getPanel('game')?.api.close();
+  },
   /** Collapse a panel's group to its header / expand it back (click-to-toggle). */
   toggleCollapse(id: string, axis: 'width' | 'height') {
     const panel = api?.getPanel(id);

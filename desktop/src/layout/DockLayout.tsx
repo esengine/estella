@@ -5,6 +5,7 @@ import { Viewport } from '@/panels/Viewport';
 import { Details } from '@/panels/Details';
 import { ContentBrowser } from '@/panels/ContentBrowser';
 import { OutputLog } from '@/panels/OutputLog';
+import { GamePanel } from '@/panels/GamePanel';
 import { dockApi } from '@/layout/dockApi';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
@@ -14,6 +15,8 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   details: () => <Details />,
   content: () => <ContentBrowser />,
   log: () => <OutputLog />,
+  // The "Game" view (isolated play realm) — added on Play, removed on Stop.
+  game: () => <GamePanel />,
 };
 
 // Bumped to v5 (tabbed docking): Viewport center, right column Outliner-over-
