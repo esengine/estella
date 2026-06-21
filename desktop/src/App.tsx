@@ -9,6 +9,7 @@ import '@/engine/EditorSession'; // side effect: constructs defaultSession → w
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { BuildDialog } from '@/components/BuildDialog';
+import { SettingsDialog } from '@/components/SettingsDialog';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
 import { PlayRealm } from '@/engine/PlayRealm';
@@ -80,6 +81,7 @@ export function App() {
   // only once a project is opened. (Logic wiring lands with the recents IPC.)
   const showLauncher = useEditorStore((s) => s.showLauncher);
   const buildOpen = useEditorStore((s) => s.buildOpen);
+  const settingsOpen = useEditorStore((s) => s.settingsOpen);
   if (showLauncher) return <Launcher />;
 
   return (
@@ -93,6 +95,7 @@ export function App() {
       <StatusBar />
       <ContentDrawer />
       {buildOpen && <BuildDialog />}
+      {settingsOpen && <SettingsDialog />}
       <Toaster />
     </div>
   );

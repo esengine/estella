@@ -18,7 +18,7 @@ export interface LogEntry {
   message: string;
 }
 
-const CAP = 2000; // ring-buffer cap — long sessions can't grow the log unbounded
+const DEFAULT_CAP = 2000; // ring-buffer cap — long sessions can't grow unbounded
 
 const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 function stamp(): string {
@@ -57,14 +57,29 @@ class LogStoreImpl {
   private seq = 0;
   private installed = false;
   private capturing = false;
+  private cap = DEFAULT_CAP;
 
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getSnapshot = (): LogEntry[] => this.store.getState().entries;
 
+  getCap(): number {
+    return this.cap;
+  }
+
+  /** Set the ring-buffer cap (the console "max lines" setting); trims overflow. */
+  setCap(cap: number): void {
+    this.cap = Math.max(100, Math.floor(cap));
+    const cur = this.store.getState().entries;
+    if (cur.length > this.cap) {
+      this.store.setState({ entries: cur.slice(cur.length - this.cap) });
+    }
+  }
+
   push(level: LogLevel, source: string, message: string): void {
     const entry: LogEntry = { id: ++this.seq, level, time: stamp(), source, message };
     const cur = this.store.getState().entries;
-    const next = cur.length >= CAP ? [...cur.slice(cur.length - CAP + 1), entry] : [...cur, entry];
+    const next =
+      cur.length >= this.cap ? [...cur.slice(cur.length - this.cap + 1), entry] : [...cur, entry];
     this.store.setState({ entries: next });
   }
 

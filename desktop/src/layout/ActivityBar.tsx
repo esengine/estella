@@ -3,7 +3,7 @@
 import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Settings } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { dockApi } from '@/layout/dockApi';
-import { Toasts } from '@/store/Toasts';
+import { commands } from '@/commands';
 
 export function ActivityBar() {
   const contentDrawer = useEditorStore((s) => s.contentDrawer);
@@ -39,8 +39,8 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Settings"
-        onClick={() => Toasts.push('Settings — coming soon', 'info', 1600)}
+        title="Settings  (Ctrl+,)"
+        onClick={() => commands.run('settings.open')}
       >
         <Settings size={19} strokeWidth={1.7} />
       </button>

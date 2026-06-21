@@ -56,6 +56,10 @@ interface EditorState {
   // Package/Build dialog (File → Build) — the UE5-style export modal.
   buildOpen: boolean;
   setBuildOpen: (open: boolean) => void;
+
+  // Settings window (the registry-driven preferences dialog).
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -108,4 +112,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   buildOpen: false,
   setBuildOpen: (buildOpen) => set({ buildOpen }),
+
+  settingsOpen: false,
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
 }));

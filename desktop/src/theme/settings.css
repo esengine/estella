@@ -1,0 +1,233 @@
+/* =============================================================================
+   @file settings.css
+   @brief Settings dialog — adopted from the design's authored stylesheet
+   (ue5/shell.css `.set-*`): a centered window with a left nav + scrollable
+   content of typed setting rows. `.slider`/`.fill`/`.thumb` reuse the inspector's.
+   ========================================================================== */
+
+.set-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 124;
+  background: var(--overlay);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t) var(--e-out);
+}
+.set-scrim.open { opacity: 1; pointer-events: auto; }
+.set-win {
+  width: 880px;
+  max-width: 94vw;
+  height: 600px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--srf-2);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  transform: scale(0.97);
+  opacity: 0.5;
+  transition: transform var(--t) var(--e-spring), opacity var(--t);
+}
+.set-scrim.open .set-win { transform: scale(1); opacity: 1; }
+
+.set-head {
+  height: 46px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--srf-3);
+}
+.set-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: var(--fs-lg); }
+.set-title .ic { color: var(--text-dim); display: inline-flex; }
+.set-head-sp { flex: 1; }
+.set-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 220px;
+  height: 28px;
+  padding: 0 9px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-mute);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.set-search:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
+.set-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: var(--fs-sm); color: var(--text); }
+.set-search input::placeholder { color: var(--text-mute); }
+.set-x { width: 28px; height: 28px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); }
+.set-x:hover { color: var(--text); background: var(--srf-4); }
+
+.set-body { flex: 1; min-height: 0; display: flex; }
+.set-nav {
+  width: 212px;
+  flex-shrink: 0;
+  background: var(--srf-1);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 8px 6px;
+}
+.set-nav-sec {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-mute);
+  font-weight: 700;
+  padding: 10px 10px 4px;
+}
+.set-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  text-align: left;
+  position: relative;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.set-nav-item:hover { color: var(--text); background: var(--srf-3); }
+.set-nav-item.active { color: var(--text); background: var(--acc-soft); }
+.set-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: var(--r-pill);
+  background: var(--acc);
+}
+
+.set-content { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 22px 28px; }
+.set-section { animation: setfade var(--t) var(--e-out); }
+@keyframes setfade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.set-group {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
+  padding-bottom: 7px;
+  margin: 6px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.set-group:not(:first-child) { margin-top: 26px; }
+.set-empty { color: var(--text-mute); font-size: var(--fs-sm); padding: 20px 2px; }
+
+.set-row {
+  display: grid;
+  grid-template-columns: 1fr 230px 18px;
+  gap: 16px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.set-row .sn { font-size: var(--fs-sm); color: var(--text); }
+.set-row .sd { font-size: var(--fs-xs); color: var(--text-mute); margin-top: 2px; line-height: 1.4; }
+.set-row.changed .sn::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  margin-left: 7px;
+  vertical-align: middle;
+}
+.set-ctrl { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.set-reset { width: 16px; height: 16px; display: grid; place-items: center; color: var(--warn); opacity: 0; }
+.set-row:hover .set-reset.show, .set-row.changed .set-reset.show { opacity: 0.85; }
+.set-reset.show { cursor: pointer; }
+
+.set-sel {
+  height: 27px;
+  min-width: 130px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  padding: 0 8px;
+  outline: none;
+  font-size: var(--fs-sm);
+}
+.set-num {
+  width: 92px;
+  height: 27px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  padding: 0 8px;
+  outline: none;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  text-align: right;
+}
+.set-sel:focus, .set-num:focus { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
+.set-slider { flex: 1; max-width: 130px; }
+
+.set-key {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+.set-swatches { display: flex; gap: 6px; }
+.set-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-line);
+  cursor: pointer;
+  transition: box-shadow var(--t-fast);
+}
+.set-swatch.on { box-shadow: 0 0 0 2px var(--srf-2), 0 0 0 4px var(--acc); }
+.set-seg { display: flex; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
+.set-seg button { padding: 4px 11px; font-size: var(--fs-xs); color: var(--text-dim); transition: color var(--t-fast), background var(--t-fast); }
+.set-seg button.on { background: var(--acc); color: #fff; }
+
+/* Pill toggle (the design's `.toggle`; not yet in the shared theme). */
+.toggle {
+  width: 30px;
+  height: 17px;
+  border-radius: var(--r-pill);
+  background: var(--srf-5);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--t-fast);
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: left var(--t-fast) var(--e-out), background var(--t-fast);
+}
+.toggle.on { background: var(--acc); }
+.toggle.on::after { left: 15px; background: #fff; }

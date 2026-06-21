@@ -157,6 +157,15 @@ commands.register({
   run: () => editor().toggleSnapping(),
 });
 
+// — Editor —
+commands.register({
+  id: 'settings.open',
+  label: 'Settings…',
+  category: 'Editor',
+  keybinding: 'mod+,',
+  run: () => editor().setSettingsOpen(true),
+});
+
 // — Play —
 commands.register({
   id: 'play.toggle',

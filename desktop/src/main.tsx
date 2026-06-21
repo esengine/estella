@@ -21,13 +21,19 @@ import './theme/viewport.css';
 import './theme/content.css';
 import './theme/chrome.css';
 import './theme/menus.css';
+import './theme/settings.css';
 import './theme/launcher.css';
 import { App } from './App';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
+// Register the built-in settings (side effect) and replay persisted ones.
+import './settings';
+import { applySettings } from './store/settingsStore';
 
 // Capture console (editor + SDK + wasm) into the Output Log panel from startup.
 LogStore.install();
+// Apply persisted editor settings (accent, UI scale, log cap) before first paint.
+applySettings();
 // Live-sync the asset registry + Content Browser with on-disk changes (incl.
 // edits made outside the editor) via the main-process project watcher.
 initFsWatch();
