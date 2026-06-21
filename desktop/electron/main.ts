@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, protocol } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
   openProject,
@@ -8,14 +9,20 @@ import {
   readInRoot,
   writeInRoot,
   readDirInRoot,
+  renameInRoot,
+  mkdirInRoot,
+  duplicateInRoot,
+  statInRoot,
   saveWorkspace,
   resolveInRoot,
+  META_EXT,
 } from './projectFs';
 import { listRecents, addRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
 import { scanAssetDatabase } from './assetDb';
 import { cookAssets } from './cookAssets';
+import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -112,6 +119,13 @@ const requireRoot = (): string => {
   return projectRoot;
 };
 
+// Adopt a freshly opened project as the active root + (re)start the fs watcher
+// so on-disk changes push to the renderer.
+function adoptRoot(root: string): void {
+  projectRoot = root;
+  if (win) startProjectWatch(root, win.webContents);
+}
+
 ipcMain.handle('project:openDialog', async () => {
   if (!win) return null;
   const res = await dialog.showOpenDialog(win, {
@@ -120,13 +134,13 @@ ipcMain.handle('project:openDialog', async () => {
   });
   if (res.canceled || res.filePaths.length === 0) return null;
   const opened = await openProject(res.filePaths[0]);
-  projectRoot = opened.root;
+  adoptRoot(opened.root);
   return opened;
 });
 
 ipcMain.handle('project:open', async (_e, root: string) => {
   const opened = await openProject(root);
-  projectRoot = opened.root;
+  adoptRoot(opened.root);
   return opened;
 });
 
@@ -135,6 +149,24 @@ ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
   writeInRoot(requireRoot(), relPath, contents),
 );
 ipcMain.handle('fs:readdir', (_e, relPath: string) => readDirInRoot(requireRoot(), relPath));
+ipcMain.handle('fs:rename', (_e, fromRel: string, toRel: string) =>
+  renameInRoot(requireRoot(), fromRel, toRel),
+);
+ipcMain.handle('fs:mkdir', (_e, relPath: string) => mkdirInRoot(requireRoot(), relPath));
+ipcMain.handle('fs:duplicate', (_e, relPath: string) => duplicateInRoot(requireRoot(), relPath));
+ipcMain.handle('fs:stat', (_e, relPath: string) => statInRoot(requireRoot(), relPath));
+// Delete to the OS trash (recoverable, not an unrecoverable rm) — the asset's
+// `.meta` sidecar goes with it so no orphan stays in the registry.
+ipcMain.handle('fs:trash', async (_e, relPath: string) => {
+  const abs = resolveInRoot(requireRoot(), relPath);
+  await shell.trashItem(abs);
+  const meta = abs + META_EXT;
+  if (existsSync(meta)) await shell.trashItem(meta);
+});
+// Reveal a file/folder in the OS file manager (Finder / Explorer).
+ipcMain.handle('shell:showItem', (_e, relPath: string) => {
+  shell.showItemInFolder(resolveInRoot(requireRoot(), relPath));
+});
 ipcMain.handle('workspace:save', (_e, ws: WorkspaceState) => saveWorkspace(requireRoot(), ws));
 
 // Bundle the open project's startup script (manifest scripts.main, default
@@ -236,5 +268,6 @@ app.on('activate', () => {
 
 app.on('window-all-closed', () => {
   win = null;
+  stopProjectWatch();
   if (process.platform !== 'darwin') app.quit();
 });

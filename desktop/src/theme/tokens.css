@@ -1,51 +1,98 @@
 /* =============================================================================
-   Estella Editor — design tokens
-   Identity: a precise, professional instrument. Near-neutral dark surfaces with
-   only a faint cool cast (not saturated navy), flat hairline structure (no
-   glows), one restrained blue accent, and a monospace face reserved for live
-   data so numbers read like an instrument. Tuned toward DCC-tool neutrality
-   (UE5 / Blender / VS Code) over decorative game-UI styling.
+   @file tokens.css
+   @brief Estella Editor design tokens — the "azure" line.
+
+   Identity: a precise, professional DCC-grade instrument — near-black neutral
+   slate surfaces, one restrained azure accent, the iconic orange viewport
+   selection, and a monospace face reserved for live data so numbers read like
+   an instrument.
+
+   The canonical palette is the `--srf-*` surface ramp + the semantic groups
+   below. Legacy names (`--void` / `--star` / `--line` …) are kept as aliases so
+   the existing shell + panels keep resolving — only their *values* moved onto
+   the new ramp. Prefer the canonical names in new work.
    ========================================================================== */
 
 :root {
-  /* — Surfaces: near-neutral dark ramp, a hair of cool cast, darkest at the
-       viewport void. Inputs sit DARKER than their panel (UE5-style wells). — */
-  --void: #0e0f12; /* viewport / deepest stage */
-  --base: #17181b; /* app background behind panels */
-  --panel: #1d1f23; /* panel body */
-  --elevated: #25272c; /* toolbars, tab strips, headers */
-  --raised: #2c2f35; /* popovers, dropdowns */
-  --input: #15161a; /* fields, wells (darker than panel) */
+  /* — Canonical surface ramp: near-black neutral slate. Chrome
+       recedes to the darkest groove; panels sit a step up; inputs sit BELOW
+       their panel as wells. — */
+  --srf-0: #0a0a0c; /* window chrome / deepest groove: menubar, statusbar, dock seams */
+  --srf-1: #121215; /* viewport / app canvas behind panels */
+  --srf-2: #19191d; /* panel body */
+  --srf-3: #212127; /* raised: toolbars, tab strips, headers */
+  --srf-4: #2a2a31; /* hover surface / popovers */
+  --srf-5: #34343d; /* pressed / selected surface */
+  --srf-6: #3f3f49; /* strongest */
+  --inset: #0e0e11; /* input wells (sit darker than their panel) */
+
+  /* — Legacy surface aliases (shell + panels consume these names) — */
+  --void: var(--srf-1); /* viewport canvas */
+  --base: var(--srf-0); /* app chrome: menubar / statusbar / shell bg / dock seams */
+  --panel: var(--srf-2);
+  --elevated: var(--srf-3);
+  --raised: var(--srf-4);
+  --input: var(--inset);
   --hover: rgba(255, 255, 255, 0.05);
   --pressed: rgba(255, 255, 255, 0.08);
-  --glass-rgb: 14, 15, 18; /* neutral base for floating overlays (was navy-tinted) */
+  --glass-rgb: 10, 10, 12; /* near-black neutral base for floating overlays */
 
-  /* — Structure: neutral hairlines do the visual work, not boxes — */
-  --line: #2b2e34;
-  --line-soft: #232529;
-  --line-strong: #3a3e46;
+  /* — Structure: a dark groove for panel edges, faint light hairlines for
+       internal dividers (structure reads from grooves, not boxes). — */
+  --groove: #060608; /* dark inset between docked panels */
+  --line: rgba(255, 255, 255, 0.085); /* internal hairline */
+  --line-soft: rgba(255, 255, 255, 0.045);
+  --line-strong: rgba(255, 255, 255, 0.14);
 
-  /* — Text: neutral contrast ramp (blue cast removed) — */
-  --text-hi: #ecedf0;
-  --text: #c3c6cc;
-  --text-dim: #888c94;
-  --text-faint: #5b5f68;
+  /* — Text: neutral contrast ramp — */
+  --text-hi: #e8e9eb; /* headers / live values */
+  --text: #cbccd0;
+  --text-dim: #9a9ba1;
+  --text-faint: #696a71;
 
-  /* — Accent: one restrained blue. Flat — the glow is a crisp 1px ring, no blur. — */
-  --star: #4c8fd6;
-  --star-hi: #6ba6e6;
-  --star-dim: rgba(76, 143, 214, 0.15);
-  --star-line: rgba(76, 143, 214, 0.5);
+  /* — Accent: one restrained azure. Big fills can drop to --star-deep so
+       primary buttons read pro, not web-bright. Glow is a crisp 1px ring. — */
+  --star: #2f88d6; /* primary: active controls, focus rings, selection tint */
+  --star-hi: #4aa6ec; /* hover / links / selected icon */
+  --star-deep: #20689f; /* pressed / deep fill */
+  --star-dim: rgba(47, 136, 214, 0.18); /* selected-row tint */
+  --star-soft: rgba(47, 136, 214, 0.3); /* stronger tint */
+  --star-line: rgba(47, 136, 214, 0.55); /* focus ring / active border */
   --star-glow: 0 0 0 1px var(--star-line);
-  --nebula: #8d72d8; /* secondary accent, used sparingly */
+  --on-accent: #f3f7fc; /* text / icon on a filled accent surface */
+  --nebula: #b272d6; /* secondary accent, used sparingly */
+
+  /* — Viewport selection: the iconic orange. Reserved for selected entities. — */
+  --sel: #f0871f;
+  --sel-hi: #ffa040;
+  --sel-soft: rgba(240, 135, 31, 0.16);
+
+  /* — Prefab / asset-ref identity: warm sand, sets instances apart from locals. — */
+  --info-warm: #d4b08e;
+  --info-warm-soft: rgba(212, 176, 142, 0.13);
+  --info-warm-line: rgba(212, 176, 142, 0.22);
+
+  /* — Axes (X red / Y green / Z blue), desaturated but distinguishable. — */
+  --ax-x: #cf5b53;
+  --ax-y: #80b94a;
+  --ax-z: #4a8fd6;
+
+  /* — Category identity: component header bars / icons read by domain. — */
+  --cat-transform: #4a8fd6;
+  --cat-render: #b272d6;
+  --cat-physics: #46b08c;
+  --cat-collision: #e08c43;
+  --cat-audio: #d672a6;
+  --cat-script: #69b86c;
 
   /* — Semantic (muted, flat) — */
-  --run: #4cae87; /* play / running */
-  --run-glow: 0 0 0 1px rgba(76, 174, 135, 0.45);
-  --create: #2c9a55; /* additive/create actions (UE5 "+Add" green), distinct from play */
+  --run: #46a04a; /* play / running (compile-green) */
+  --run-hi: #58bd5c;
+  --run-glow: 0 0 0 1px rgba(70, 160, 74, 0.45);
+  --create: #2c9a55; /* additive "+Add" actions, distinct from play */
   --create-hi: #34b163;
-  --warn: #e0a049; /* amber / warnings */
-  --error: #e06464;
+  --warn: #d3a23c; /* amber / warnings */
+  --error: #d65a5a;
 
   /* — Type — */
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -55,22 +102,63 @@
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
-  --fs-lg: 15px;
+  --fs-lg: 14px;
 
-  /* — Geometry: crisper, more square (tool-like, less soft) — */
-  --r-xs: 3px;
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 8px;
+  /* — Geometry: tight, crisp, more square. — */
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
 
   --u: 4px; /* spacing unit */
 
-  /* — Chrome heights (tightened a notch for density) — */
-  --h-titlebar: 28px;
-  --h-toolbar: 36px;
-  --h-statusbar: 22px;
+  /* — Chrome heights / dock widths — */
+  --h-titlebar: 30px;
+  --h-toolbar: 42px;
+  --h-statusbar: 24px;
+  --h-tab: 30px;
+  --h-prop: 24px; /* inspector property row */
+  --w-activity: 44px;
+
+  /* — Motion: snappy, restrained, a slight spring on summoned surfaces. — */
+  --e-out: cubic-bezier(0.2, 0, 0, 1);
+  --e-spring: cubic-bezier(0.22, 1.15, 0.36, 1);
+  --t-fast: 100ms;
+  --t: 160ms;
+  --t-slow: 240ms;
 
   /* — Elevation — */
-  --shadow-pop: 0 8px 28px -6px rgba(0, 0, 0, 0.55), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 14px 34px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.4);
+  --shadow-pop: var(--shadow-3);
   --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.02) inset;
+
+  /* ── Design-CSS compat aliases ────────────────────────────────────────────
+     The panel styles are adopted verbatim from the design's authored stylesheet,
+     which names tokens differently (--acc / --border / --text-mute / --mono …).
+     These aliases resolve that vocabulary onto the canonical set above, so the
+     design CSS drops in unchanged. ──────────────────────────────────────────*/
+  --acc: var(--star);
+  --acc-hi: var(--star-hi);
+  --acc-lo: var(--star-deep);
+  --acc-soft: var(--star-dim);
+  --acc-soft-2: var(--star-soft);
+  --border: var(--groove);
+  --border-soft: var(--line-soft);
+  --border-line: var(--line);
+  --text-mute: var(--text-faint);
+  --play: var(--run);
+  --play-hi: var(--run-hi);
+  --sans: var(--font-ui);
+  --mono: var(--font-mono);
+  --r-pill: 999px;
+  --e-io: cubic-bezier(0.45, 0, 0.15, 1);
+  --scroll: rgba(255, 255, 255, 0.08);
+  --scroll-hi: rgba(255, 255, 255, 0.18);
+  --overlay: rgba(5, 6, 9, 0.55);
+  --h-menubar: var(--h-titlebar);
+  --h-status: var(--h-statusbar);
+  --w-leftdock: 286px;
+  --w-rightdock: 366px;
 }

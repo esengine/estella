@@ -1,0 +1,108 @@
+/* =============================================================================
+   @file viewport.css
+   @brief Viewport floating overlays — adopted verbatim from the design's authored
+   stylesheet (ue5/shell.css): the frosted tool cluster, the perf HUD, and the
+   coord readout. The engine canvas mount + gizmo/selection live in app.css.
+   ========================================================================== */
+
+.ov { position: absolute; z-index: 4; }
+.ov-cluster {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  background: rgba(18, 18, 21, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+}
+.ov-tl { top: 10px; left: 10px; }
+.ov-tr { top: 10px; right: 10px; }
+.ovbtn {
+  height: 26px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  border-radius: var(--r-md);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ovbtn:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
+.ovbtn.open { color: var(--text); background: rgba(255, 255, 255, 0.1); }
+.ovbtn .ic { color: var(--text-mute); }
+.ovbtn.open .ic, .ovbtn:hover .ic { color: var(--text-dim); }
+.ovbtn .val { font-family: var(--mono); color: var(--text); }
+.ovbtn .cv { opacity: 0.5; transition: transform var(--t-fast); }
+.ovbtn.open .cv { transform: rotate(180deg); }
+.ov-tool { width: 30px; height: 30px; padding: 0; justify-content: center; position: relative; }
+.ov-tool.active { color: #fff; background: var(--acc); }
+.ov-tool kbd {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: 8px;
+  color: var(--text-mute);
+  background: var(--srf-3);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+.ov-tool:hover kbd { opacity: 1; }
+.ov-divider { width: 1px; height: 16px; background: var(--border-line); margin: 0 3px; }
+
+/* perf widget (bottom-right) */
+.vp-perf {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 4;
+  min-width: 128px;
+  padding: 7px 9px;
+  background: rgba(18, 18, 21, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  pointer-events: none;
+}
+.vp-perf .pr { display: flex; justify-content: space-between; line-height: 1.7; }
+.vp-perf .pr .k { color: var(--text-mute); }
+.vp-perf .pr .v { color: var(--text); }
+.vp-perf .pr.h .v { color: var(--text); font-size: var(--fs-md); }
+.vp-perf .ps { height: 1px; background: var(--border-line); margin: 5px -9px; }
+
+/* coord readout (bottom-left) */
+.vp-coord {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  pointer-events: none;
+}
+.vp-coord .ro {
+  background: rgba(18, 18, 21, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-sm);
+  padding: 3px 8px;
+  width: max-content;
+}
+.vp-coord .ro strong { color: var(--text); }
+.vp-coord .hint { color: var(--text-mute); font-family: var(--sans); padding-left: 2px; }

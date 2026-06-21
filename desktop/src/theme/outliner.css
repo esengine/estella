@@ -1,0 +1,93 @@
+/* =============================================================================
+   @file outliner.css
+   @brief Outliner (World Outliner) + shared panel scaffolding — adopted verbatim
+   from the design's authored stylesheet (ue5/shell.css). The panel header
+   (.phead / .pbtn / .pbody) is shared with other docked panels and defined here.
+   ========================================================================== */
+
+/* Panel header (search / actions row) — shared scaffolding */
+.phead {
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.pbtn {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.pbtn:hover { color: var(--text); background: var(--srf-4); }
+.pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* Column header strip */
+.outliner-cols {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px 0 10px;
+  font-size: var(--fs-2xs);
+  color: var(--text-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  background: var(--srf-2);
+  flex-shrink: 0;
+}
+.outliner-cols .c-name { flex: 1; }
+.outliner-cols .c-type { width: 78px; flex-shrink: 0; }
+.outliner-cols .c-vis { width: 24px; text-align: center; flex-shrink: 0; }
+
+/* Rows */
+.row {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding-right: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  cursor: default;
+  position: relative;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.row:hover { background: var(--srf-3); color: var(--text); }
+.row.sel { background: var(--acc); color: #fff; }
+.row.sel:hover { background: var(--acc); }
+.row.drop { background: var(--acc-soft); box-shadow: inset 0 0 0 1px var(--acc); }
+.row .twist { width: 16px; height: 100%; display: grid; place-items: center; color: var(--text-mute); flex-shrink: 0; }
+.row.sel .twist { color: rgba(255, 255, 255, 0.8); }
+.row .twist svg { transition: transform var(--t-fast) var(--e-out); }
+.row.open > .twist svg { transform: rotate(90deg); }
+.row .twist.leaf { visibility: hidden; }
+.row .ricon { width: 18px; display: grid; place-items: center; color: var(--text-mute); flex-shrink: 0; }
+.row.sel .ricon { color: rgba(255, 255, 255, 0.92); }
+.row.prefab .ricon { color: var(--info-warm); }
+.row.sel.prefab .ricon { color: #fff; }
+.row .rname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .rname-edit {
+  flex: 1;
+  min-width: 0;
+  background: var(--inset);
+  border: 1px solid var(--acc);
+  border-radius: var(--r-xs);
+  padding: 1px 5px;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  outline: none;
+}
+.row .rtype { width: 78px; font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); flex-shrink: 0; }
+.row.sel .rtype { color: rgba(255, 255, 255, 0.72); }
+.row .rvis { width: 24px; display: grid; place-items: center; color: var(--text-mute); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast); flex-shrink: 0; }
+.row:hover .rvis, .row.sel .rvis, .row.hidden .rvis { opacity: 1; }
+.row.sel .rvis { color: rgba(255, 255, 255, 0.8); }
+.row .rvis:hover { color: var(--text); }
+.row.sel .rvis:hover { color: #fff; }
+.row.hidden .rname { color: var(--text-mute); }

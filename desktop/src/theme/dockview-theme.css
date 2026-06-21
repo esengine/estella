@@ -14,26 +14,25 @@
 .dockview-theme-abyss.dockview-theme-estella {
   --dv-group-view-background-color: var(--panel);
 
-  /* Tab strip */
-  --dv-tabs-and-actions-container-background-color: var(--elevated);
-  --dv-tabs-and-actions-container-height: 28px;
+  /* Tab strip — darkest groove; the active tab fills with the panel color so it
+     merges into the body (the design's .ptabs / .ptab). */
+  --dv-tabs-and-actions-container-background-color: var(--srf-0);
+  --dv-tabs-and-actions-container-height: var(--h-tab);
   --dv-tabs-and-actions-container-font-size: var(--fs-sm);
   --dv-tab-divider-color: transparent;
 
-  /* Active group, focused tab */
-  --dv-activegroup-visiblepanel-tab-background-color: var(--panel);
-  --dv-activegroup-visiblepanel-tab-color: var(--text-hi);
-  /* Active group, background tabs */
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--elevated);
-  --dv-activegroup-hiddenpanel-tab-color: var(--text-dim);
-  /* Inactive group */
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel);
-  --dv-inactivegroup-visiblepanel-tab-color: var(--text);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--elevated);
-  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-faint);
+  /* Active visible tab = panel color; background tabs = transparent on the strip. */
+  --dv-activegroup-visiblepanel-tab-background-color: var(--srf-2);
+  --dv-activegroup-visiblepanel-tab-color: var(--text);
+  --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-mute);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--srf-2);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-dim);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-mute);
 
-  /* Structure */
-  --dv-separator-border: var(--line);
+  /* Structure — dark groove between docked panels, not a light hairline. */
+  --dv-separator-border: var(--groove);
   --dv-paneview-header-border-color: var(--line);
   --dv-active-sash-color: var(--star-line);
   --dv-paneview-active-outline-color: var(--star);
@@ -48,18 +47,54 @@
   --dv-tabs-container-scrollbar-color: var(--line-strong);
 }
 
-/* The focused group gets a subtle neutral top-edge; the active TAB carries the
-   one starlight accent (its underline), so blue stays reserved for selection. */
-.dockview-theme-estella .dv-groupview.dv-active-group > .dv-tabs-and-actions-container {
-  box-shadow: inset 0 1px 0 0 var(--line-strong);
+/* Tabs follow the design's .ptab: flat, segmented (a groove between tabs), the
+   active tab fills with the panel color and carries an accent line on TOP that
+   slides in on activation; a 1px bottom line in the panel color hides the strip
+   border so the active tab merges into the body. */
+.dockview-theme-estella .dv-tabs-and-actions-container {
+  background: var(--srf-0);
+  border-bottom: 1px solid var(--border);
 }
-
-/* Tabs: hairline-separated, instrument-like, with a starlight underline when active. */
+.dockview-theme-estella .dv-tabs-container,
+.dockview-theme-estella .dv-void-container,
+.dockview-theme-estella .dv-right-actions-container,
+.dockview-theme-estella .dv-left-actions-container {
+  background: var(--srf-0);
+}
 .dockview-theme-estella .dv-tab {
-  border-right: 1px solid var(--line-soft);
-  padding: 0 12px;
+  position: relative;
+  border-right: 1px solid var(--border);
+  padding: 0 15px;
   letter-spacing: 0.01em;
+  transition: color var(--t-fast), background var(--t-fast);
 }
-.dockview-theme-estella .dv-tab.dv-active-tab {
-  box-shadow: inset 0 -2px 0 0 var(--star);
+.dockview-theme-estella .dv-tab:not(.dv-active-tab):hover {
+  background: var(--srf-1);
+  color: var(--text-dim);
+}
+/* Top accent line — the tab-switch animation (scaleX in). */
+.dockview-theme-estella .dv-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--acc);
+  transform: scaleX(0);
+  transition: transform var(--t) var(--e-out);
+}
+.dockview-theme-estella .dv-tab.dv-active-tab::after {
+  transform: scaleX(1);
+}
+/* Bottom merge line — hides the strip border under the active tab. */
+.dockview-theme-estella .dv-tab.dv-active-tab::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--srf-2);
+  z-index: 1;
 }

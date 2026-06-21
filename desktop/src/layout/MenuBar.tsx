@@ -1,5 +1,5 @@
 // Top menu bar — functional dropdowns wired to the real editor commands
-// (project open/save, history, entity ops, view toggles), in the UE5 menu idiom.
+// (project open/save, history, entity ops, view toggles), in a classic menu idiom.
 // The window is frameless (titleBarStyle: hiddenInset) so this strip doubles as
 // the drag region; the menus + dropdowns opt out of dragging.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -131,7 +131,7 @@ export function MenuBar() {
         {
           label: 'About Estella',
           onClick: () => void window.estella?.getVersion?.()
-            .then((v) => window.alert(`Estella Editor${v ? ' · ' + v : ''}\nA UE5-style editor for the Estella 2D engine.`))
+            .then((v) => window.alert(`Estella Editor${v ? ' · ' + v : ''}\nA modern editor for the Estella 2D engine.`))
             .catch(() => window.alert('Estella Editor')),
         },
       ],
@@ -140,15 +140,17 @@ export function MenuBar() {
 
   return (
     <div className="menubar" ref={barRef}>
-      <div className="menubar__brand">
-        <Mark />
-        <span className="menubar__title">Estella</span>
+      <div className="brand">
+        <span className="brand-mark">
+          <Mark />
+        </span>
+        <span className="brand-name">Estella</span>
       </div>
-      <nav className="menubar__menus">
+      <nav className="menus">
         {menus.map((m) => (
-          <div key={m.title} className="menubar__menu">
+          <div key={m.title} className="menubar__menu" style={{ position: 'relative', display: 'flex' }}>
             <button
-              className={`menubar__item${open === m.title ? ' is-open' : ''}`}
+              className={`menu${open === m.title ? ' is-open' : ''}`}
               type="button"
               onClick={() => setOpen((o) => (o === m.title ? null : m.title))}
               onMouseEnter={() => setOpen((o) => (o ? m.title : o))}
@@ -163,13 +165,14 @@ export function MenuBar() {
           </div>
         ))}
       </nav>
+      <div className="menubar-spacer" />
       {project ? (
-        <div className="menubar__project">
-          <span className="menubar__project-name">{project.name}</span>
+        <div className="menubar-title">
+          <strong>{project.name}</strong>
           {project.currentScene ? (
             <>
-              <span className="menubar__sep">/</span>
-              <span className="menubar__scene mono">{project.currentScene.split('/').pop()}</span>
+              <span className="sep">/</span>
+              <span className="mono">{project.currentScene.split('/').pop()}</span>
             </>
           ) : null}
         </div>

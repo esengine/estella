@@ -346,6 +346,22 @@ class ProjectStoreImpl {
     return UUID_PREFIX + uuid;
   }
 
+  /**
+   * Re-scan the asset DB into the uuid↔path registry. Call after a Content
+   * Browser mutation (rename / delete / duplicate / import) so refs stay
+   * resolvable and the inspector reflects the new paths.
+   */
+  async refreshAssets(): Promise<void> {
+    await this.buildAssetRegistry();
+  }
+
+  /** A tracked asset's portable `@uuid:` ref for a project-relative path (Copy
+   *  Reference), or null if the path isn't an indexed asset. */
+  assetRef(path: string): string | null {
+    const uuid = this.pathToUuid.get(path);
+    return uuid ? UUID_PREFIX + uuid : null;
+  }
+
   /** Display info for an asset ref (`@uuid:`), or null (none / unresolved). For
    *  the inspector's asset control: the project-relative path + a leaf name. */
   assetInfo(ref: unknown): { path: string; name: string } | null {
@@ -398,6 +414,18 @@ class ProjectStoreImpl {
 
   private async writeScene(relPath: string, data: SceneData): Promise<void> {
     await window.estella.fs.write(relPath, JSON.stringify(data, null, 2) + '\n');
+  }
+
+  /**
+   * Open a different scene file as the editor document (Content Browser
+   * double-click). Persists it as the last-opened scene and reloads the world
+   * (which clears history + selection — the caller guards unsaved changes).
+   */
+  async openScene(relPath: string): Promise<void> {
+    if (!this.state) return;
+    await this.persistLastScene(relPath);
+    await this.loadCurrentScene();
+    Toasts.push(`Opened ${relPath.split('/').pop() ?? relPath}`, 'info', 1600);
   }
 
   private async persistLastScene(relPath: string): Promise<void> {

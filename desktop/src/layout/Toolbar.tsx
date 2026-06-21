@@ -13,7 +13,6 @@ import {
   Pause,
   Square as Stop,
   Eye,
-  Smartphone,
   Hammer,
   type LucideIcon,
 } from 'lucide-react';
@@ -41,19 +40,17 @@ function TBtn({
   active,
   disabled,
   onClick,
-  tone,
 }: {
   icon: LucideIcon;
   label: string;
   active?: boolean;
   disabled?: boolean;
   onClick?: () => void;
-  tone?: 'run';
 }) {
   return (
     <button
       type="button"
-      className={`tbtn${active ? ' is-active' : ''}${tone ? ` tbtn--${tone}` : ''}`}
+      className={`tbtn${active ? ' on' : ''}`}
       title={label}
       aria-label={label}
       aria-pressed={active}
@@ -78,7 +75,7 @@ export function Toolbar() {
 
   return (
     <div className="toolbar">
-      <div className="toolbar__group">
+      <div className="tgroup">
         <TBtn
           icon={Save}
           label={`Save Scene${hint('project.save')}`}
@@ -86,9 +83,9 @@ export function Toolbar() {
         />
       </div>
 
-      <span className="toolbar__div" />
+      <span className="tdiv" />
 
-      <div className="toolbar__group">
+      <div className="tgroup">
         <TBtn
           icon={Undo2}
           label={`${undoLabel ? `Undo ${undoLabel}` : 'Undo'}${hint('edit.undo')}`}
@@ -103,9 +100,9 @@ export function Toolbar() {
         />
       </div>
 
-      <span className="toolbar__div" />
+      <span className="tdiv" />
 
-      <div className="toolbar__group" role="radiogroup" aria-label="Transform tool">
+      <div className="tgroup" role="radiogroup" aria-label="Transform tool">
         {TOOLS.map((t) => (
           <TBtn
             key={t.mode}
@@ -117,42 +114,41 @@ export function Toolbar() {
         ))}
       </div>
 
-      <span className="toolbar__div" />
+      <span className="tdiv" />
 
-      <div className="toolbar__group">
+      <div className="tgroup">
         <TBtn icon={Magnet} label="Snapping" active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
         <TBtn icon={Grid3x3} label="Show Grid" active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
       </div>
 
-      {/* Play controls sit dead-center — the focal action, like UE5. */}
-      <div className="toolbar__center">
-        <div className="playbar">
-          <TBtn
-            icon={Play}
-            label={isPlaying ? 'Restart' : `Play${hint('play.toggle')}`}
-            tone="run"
-            active={isPlaying}
-            onClick={() => commands.run('play.toggle')}
-          />
-          <TBtn icon={Pause} label="Pause" active={isPaused} onClick={togglePause} />
-          <TBtn icon={Stop} label="Stop" onClick={stop} />
-        </div>
-      </div>
+      <span className="tspacer" />
 
-      <div className="toolbar__group toolbar__right">
-        <TBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
-        <button type="button" className="chip" title="Build target">
-          <Smartphone size={13} strokeWidth={1.85} />
-          <span>Web</span>
-        </button>
+      {/* Play controls sit dead-center — the focal action. */}
+      <div className={`play-wrap${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}`}>
         <button
           type="button"
-          className="chip chip--accent"
-          title="Build project scripts"
-          onClick={() => commands.run('build.scripts')}
+          className="play-main"
+          title={isPlaying ? 'Restart' : `Play${hint('play.toggle')}`}
+          onClick={() => commands.run('play.toggle')}
         >
-          <Hammer size={13} strokeWidth={1.85} />
-          <span>Build</span>
+          <Play size={15} strokeWidth={1.9} fill="currentColor" />
+          {isPlaying ? 'Restart' : 'Play'}
+        </button>
+        <button type="button" className="play-side" title="Pause" disabled={!isPlaying} onClick={togglePause}>
+          <Pause size={14} strokeWidth={1.9} fill="currentColor" />
+        </button>
+        <button type="button" className="play-side" title="Stop" disabled={!isPlaying} onClick={stop}>
+          <Stop size={12} strokeWidth={1.9} fill="currentColor" />
+        </button>
+      </div>
+
+      <span className="tspacer" />
+
+      <div className="tgroup">
+        <TBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
+        <button type="button" className="tbtn" title="Build project scripts" onClick={() => commands.run('build.scripts')}>
+          <Hammer size={15} strokeWidth={1.85} />
+          <span className="lbl">Build</span>
         </button>
       </div>
     </div>

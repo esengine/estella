@@ -13,8 +13,11 @@
   flex: 1;
   min-height: 0;
   position: relative;
+  display: flex; /* activity bar (left) + dockview (fill) */
 }
 .shell__workspace .dv-dockview {
+  flex: 1;
+  min-width: 0;
   height: 100%;
 }
 
@@ -237,13 +240,13 @@
   color: var(--text-hi);
 }
 .chip--accent {
-  color: var(--void);
+  color: var(--on-accent);
   background: var(--star);
   border-color: var(--star);
 }
 .chip--accent:hover {
   background: var(--star-hi);
-  color: var(--void);
+  color: var(--on-accent);
 }
 
 /* ------------------------------------------------------------- statusbar --- */
@@ -455,12 +458,47 @@
 .tree-row.is-selected .tree-row__icon {
   color: var(--star-hi);
 }
+/* Prefab-instance rows: warm icon tint, kept even when selected (the warm hue is
+   the prefab's identity, mirroring the inspector ribbon). */
+.tree-row.is-prefab .tree-row__icon,
+.tree-row.is-prefab.is-selected .tree-row__icon {
+  color: var(--info-warm);
+}
 .tree-row__name {
   flex: 1;
   font-size: var(--fs-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Right-hand type column (kind + child count), muted so the name leads. */
+.tree-row__type {
+  flex-shrink: 0;
+  padding-left: 8px;
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tree-row.is-selected .tree-row__type {
+  color: var(--text-dim);
+}
+
+/* Column header strip above the tree (Name | Type). */
+.tree-cols {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 30px 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+.tree-cols__name {
+  flex: 1;
 }
 .tree-row__rename {
   flex: 1;
@@ -530,6 +568,8 @@
 }
 
 /* Selection outline around the selected entity (rAF-driven, below the gizmo). */
+/* Selected-entity outline — the iconic orange, with a dark halo for contrast
+   over any scene color. The blue accent stays reserved for UI chrome. */
 .viewport__selection {
   position: absolute;
   top: 0;
@@ -537,8 +577,10 @@
   z-index: 1;
   opacity: 0;
   pointer-events: none;
-  border: 1px solid var(--star);
-  box-shadow: 0 0 0 1px rgba(14, 15, 18, 0.6);
+  border: 1px solid var(--sel);
+  box-shadow:
+    0 0 0 1px rgba(14, 15, 18, 0.7),
+    inset 0 0 0 1px rgba(14, 15, 18, 0.4);
   will-change: transform, width, height, opacity;
 }
 .viewport__stage.has-grid {
@@ -627,8 +669,39 @@
   border-radius: var(--r-sm);
   border: 1px solid var(--line);
 }
+.viewport__overlay--bl b {
+  color: var(--text-hi);
+  font-weight: 600;
+}
 
-/* Floating viewport toolbar (gizmo mode + view toggles + frame), UE5-style. */
+/* Top-right telemetry HUD. Shows only measured stats — FPS + live entity
+   count; no fabricated draw-call / triangle counters. */
+.viewport__hud {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  text-align: right;
+  pointer-events: none;
+}
+.viewport__hud span {
+  display: inline-flex;
+  gap: 6px;
+}
+.viewport__hud b {
+  color: var(--text-hi);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Floating viewport toolbar (gizmo mode + view toggles + frame). */
 .viewport__toolbar {
   position: absolute;
   top: 10px;
@@ -780,12 +853,53 @@
 .inspector-head__name:focus {
   border-color: var(--star-line);
 }
+/* Entity kind tag (Sprite / Physics / Camera / ...) — real data from readEntity. */
+.inspector-head__kind {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
 .inspector-head__id {
   font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 
-/* Top inspector toolbar: UE5-style compact "+ Add" button + inline search field. */
+/* Prefab-instance ribbon: warm-sand tint sets an instance apart from local
+   entities. Informational — surfaces the source prefab's name (real tag data). */
+.inspector-prefab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  background: var(--info-warm-soft);
+  border-bottom: 1px solid var(--info-warm-line);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.inspector-prefab__icon {
+  display: grid;
+  place-items: center;
+  color: var(--info-warm);
+  flex-shrink: 0;
+}
+.inspector-prefab__name {
+  min-width: 0;
+  color: var(--text-hi);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Top inspector toolbar: compact "+ Add" button + inline search field. */
 .inspector-bar {
   display: flex;
   align-items: center;
@@ -794,7 +908,7 @@
   border-bottom: 1px solid var(--line-soft);
   flex-shrink: 0;
 }
-/* Inspector field/component search (UE5 Details filter). */
+/* Inspector field/component search (the Details filter). */
 .inspector-search {
   display: flex;
   align-items: center;
@@ -873,11 +987,33 @@
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
+/* Domain icon, tinted by component category (transform/render/physics/...).
+   The hue is the component's identity — set inline from the derived category. */
+.cblock__icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  flex-shrink: 0;
+}
 .cblock__name {
   flex: 1;
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-hi);
+}
+/* OVERRIDE-style badge slot (prefab-instance component diverged from its asset).
+   Styled now; rendered only once per-component override data is exposed. */
+.cblock__badge {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--star-hi);
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
 }
 .cblock__more {
   color: var(--text-faint);
@@ -912,6 +1048,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Scalar rows scrub from the label: ew-resize hint + brighten on hover. */
+.field__label--scrub {
+  cursor: ew-resize;
+  user-select: none;
+}
+.field__label--scrub:hover {
+  color: var(--text);
+}
 .field__control {
   min-width: 0;
 }
@@ -922,32 +1066,51 @@
   grid-auto-columns: 1fr;
   gap: 5px;
 }
+/* Axis cell: a filled colored X/Y/Z tab butting a neutral numeric well. The tab
+   carries the axis hue so a row scans by axis; the field stays neutral so the
+   numbers themselves read clean. */
 .vec__axis {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  color: var(--text-faint);
+  align-items: stretch;
   background: var(--input);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  padding-left: 7px;
   overflow: hidden;
 }
 .vec__axis:focus-within {
   border-color: var(--star-line);
 }
-/* Axis color lives on the X/Y/Z letter, not a left inset bar — no rounded
-   box-with-bar motif (matches the nav / tree selected restyle). */
-.vec__axis--x {
-  color: #ff7a85;
+.vec__axis .num-wrap {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding-right: 6px;
 }
-.vec__axis--y {
-  color: #46d08a;
+.vec__tab {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: #fff;
+  background: var(--srf-5);
+  cursor: ew-resize; /* the tab IS the scrub handle (drag X/Y/Z to nudge) */
+  user-select: none;
 }
-.vec__axis--z {
-  color: var(--star-hi);
+.vec__axis--x .vec__tab {
+  background: var(--ax-x);
+}
+.vec__axis--y .vec__tab {
+  background: var(--ax-y);
+}
+.vec__axis--z .vec__tab {
+  background: var(--ax-z);
+}
+.vec .num {
+  padding-left: 7px;
 }
 .num {
   width: 100%;
@@ -975,13 +1138,6 @@
 .num--solo {
   background: none;
   border: none;
-}
-/* Drag-to-scrub affordance: ew-resize when idle, text caret when typing. */
-.num--scrub {
-  cursor: ew-resize;
-}
-.num--scrub:focus {
-  cursor: text;
 }
 .num__unit {
   font-size: var(--fs-2xs);
@@ -1231,7 +1387,7 @@
   opacity: 0.75;
 }
 
-/* UE5-style Add Component picker: search + category groups + icons, keyboard-nav. */
+/* Add Component picker: search + category groups + icons, keyboard-nav. */
 .addcomp {
   position: fixed;
   z-index: 200;
@@ -1355,7 +1511,7 @@
   color: var(--text-hi);
 }
 /* The twist + folder glyph keep their size; only the name takes the slack
-   and truncates with an ellipsis (UE5 Sources tree — long names clip, full
+   and truncates with an ellipsis (Sources tree — long names clip, full
    name shows on hover via the row's title). */
 .content__folder-twist,
 .content__folder > svg {
@@ -1424,20 +1580,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tile__type {
-  font-size: var(--fs-2xs);
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-/* Type color bar (UE5 tiles read by type at a glance). */
-.tile__bar {
-  width: 70%;
-  height: 3px;
-  border-radius: 2px;
-  margin-top: 1px;
-  opacity: 0.85;
-}
 .tile.is-selected {
   background: var(--star-dim);
   border-color: var(--star-line);
@@ -1471,6 +1613,7 @@
 .breadcrumb {
   display: flex;
   align-items: center;
+  flex: 1;
   min-width: 0;
   margin-left: 4px;
   overflow: hidden;
@@ -1516,12 +1659,230 @@
   accent-color: var(--star);
   cursor: ew-resize;
 }
+
+/* Always-visible type filter chip row (each chip toggles a type group). */
+.content__chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  overflow-x: auto;
+}
+.content__chips::-webkit-scrollbar {
+  height: 0;
+}
+.cchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+.cchip:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.cchip.is-active {
+  color: var(--text-hi);
+  background: var(--star-dim);
+  border-color: var(--star-line);
+}
+.cchip__dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
 .content__path {
   flex-shrink: 0;
   padding: 5px 12px;
   border-top: 1px solid var(--line-soft);
   font-size: var(--fs-xs);
   color: var(--text-faint);
+}
+
+/* Tile corner badge (type code) + a type-hued bottom edge on the thumbnail, so
+   a grid reads by type at a glance (Content Browser tiles). */
+.tile__thumb {
+  position: relative;
+}
+.tile__edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  opacity: 0.9;
+}
+.tile__badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  height: 13px;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  background: rgba(10, 10, 12, 0.82);
+  border-radius: var(--r-xs);
+}
+
+/* Grid ⇄ list view toggle (segmented). */
+.content__viewtoggle {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.content__viewtoggle button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 20px;
+  border-radius: var(--r-xs);
+  color: var(--text-dim);
+}
+.content__viewtoggle button:hover {
+  color: var(--text-hi);
+}
+.content__viewtoggle button.is-active {
+  background: var(--srf-4);
+  color: var(--text-hi);
+}
+
+/* List view: compact rows (icon + name + type) instead of thumbnails. */
+.content__list {
+  overflow: auto;
+  padding: 4px;
+}
+.content__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  color: var(--text);
+}
+.content__row:hover {
+  background: var(--hover);
+}
+.content__row.is-selected {
+  background: var(--star-dim);
+  color: var(--text-hi);
+}
+.content__row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+.content__row-type {
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+/* Selected-asset detail pane (right column of the browser). Shows only what we
+   actually know — name, project path, type, and an image preview; no fabricated
+   size/modified/reference stats (the fs layer doesn't expose them). */
+.content__detail {
+  border-left: 1px solid var(--groove);
+  background: var(--srf-2);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  overflow: auto;
+}
+.content__detail-preview {
+  width: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  background: var(--void);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  color: var(--text-dim);
+}
+.content__detail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.content__detail-name {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-hi);
+  word-break: break-word;
+}
+.content__detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.content__detail-row {
+  display: flex;
+  gap: 8px;
+  font-size: var(--fs-xs);
+}
+.content__detail-key {
+  flex-shrink: 0;
+  width: 46px;
+  color: var(--text-faint);
+}
+.content__detail-val {
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+.content__detail-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-family: inherit;
+  text-transform: capitalize;
+}
+.content__detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+.content__detail-actions .btn-soft {
+  width: 100%;
+  justify-content: center;
+}
+.btn-soft.is-primary {
+  color: var(--on-accent);
+  background: var(--star);
+  border-color: var(--star);
+}
+.btn-soft.is-primary:hover {
+  color: var(--on-accent);
+  background: var(--star-hi);
+  border-color: var(--star-hi);
 }
 
 /* ------------------------------------------------------------ output log --- */
@@ -1571,15 +1932,52 @@
   font-size: var(--fs-xs);
   line-height: 1.7;
 }
+/* Log row: icon · time · source · message, with a 2px left severity bar (the
+   Output Log convention) rather than a full-row tint — the bar scans without
+   washing the text. Message hue still carries the level. */
 .logline {
   display: grid;
-  grid-template-columns: 64px 78px 1fr;
+  grid-template-columns: 16px 64px 78px 1fr;
   gap: 10px;
-  padding: 1px 12px;
+  align-items: center;
+  padding: 1px 12px 1px 14px;
   color: var(--text);
+  position: relative;
+}
+.logline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+}
+.logline--warn::before {
+  background: var(--warn);
+}
+.logline--error::before {
+  background: var(--error);
 }
 .logline:hover {
   background: var(--hover);
+}
+.logline__icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+.logline--info .logline__icon {
+  color: var(--text-dim);
+}
+.logline--success .logline__icon {
+  color: var(--run);
+}
+.logline--warn .logline__icon {
+  color: var(--warn);
+}
+.logline--error .logline__icon {
+  color: var(--error);
 }
 .logline__time {
   color: var(--text-faint);
@@ -1589,9 +1987,6 @@
 }
 .logline--warn .logline__msg {
   color: var(--warn);
-}
-.logline--error {
-  background: rgba(255, 107, 107, 0.06);
 }
 .logline--error .logline__msg {
   color: var(--error);

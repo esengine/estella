@@ -91,10 +91,30 @@ function entityClientCenter(id: number): { cx: number; cy: number } | null {
   return { cx: rect.left + cv.x, cy: rect.top + cv.y };
 }
 
-function VBtn({ icon: Icon, label, active, onClick }: { icon: LucideIcon; label: string; active?: boolean; onClick: () => void }) {
+function OvTool({
+  icon: Icon,
+  label,
+  kbd,
+  active,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  kbd?: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button type="button" className={`vbtn${active ? ' is-active' : ''}`} title={label} aria-label={label} aria-pressed={active} onClick={onClick}>
+    <button
+      type="button"
+      className={`ovbtn ov-tool${active ? ' active' : ''}`}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+    >
       <Icon size={14} strokeWidth={1.9} />
+      {kbd && <kbd>{kbd}</kbd>}
     </button>
   );
 }
@@ -112,6 +132,8 @@ export function Viewport() {
   const dragRef = useRef<Drag | null>(null);
   const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
+  // Sampled a few times a second (not per frame) — drives the corner HUD.
+  const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
 
   // Scene cameras don't render in edit mode (the viewport is the editor camera),
   // so draw each as a gizmo (icon + authored view rect). The id set updates on
@@ -324,16 +346,25 @@ export function Viewport() {
 
   return (
     <div className="viewport">
-      <div className="viewport__toolbar">
-        {TOOLS.map((t) => (
-          <VBtn key={t.mode} icon={t.icon} label={`${t.label}  (${t.key})`} active={tool === t.mode} onClick={() => commands.run(`tool.${t.mode}`)} />
-        ))}
-        <span className="viewport__toolbar-div" />
-        <VBtn icon={Grid3x3} label="Show Grid" active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
-        <VBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
-        <VBtn icon={Magnet} label="Snapping" active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
-        <span className="viewport__toolbar-div" />
-        <VBtn icon={Frame} label="Frame Selected  (F)" onClick={() => commands.run('view.frameSelected')} />
+      <div className="ov ov-tl">
+        <div className="ov-cluster">
+          {TOOLS.map((t) => (
+            <OvTool
+              key={t.mode}
+              icon={t.icon}
+              label={`${t.label}  (${t.key})`}
+              kbd={t.key}
+              active={tool === t.mode}
+              onClick={() => commands.run(`tool.${t.mode}`)}
+            />
+          ))}
+          <span className="ov-divider" />
+          <OvTool icon={Grid3x3} label="Show Grid" active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
+          <OvTool icon={Eye} label="Show Gizmos" active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
+          <OvTool icon={Magnet} label="Snapping" active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
+          <span className="ov-divider" />
+          <OvTool icon={Frame} label="Frame Selected  (F)" kbd="F" onClick={() => commands.run('view.frameSelected')} />
+        </div>
       </div>
 
       {/* The engine canvas mounts here; pointer events drive pick + transform + pan. */}
@@ -392,7 +423,34 @@ export function Viewport() {
         </div>
       )}
 
-      <div className="viewport__overlay viewport__overlay--bl mono">{zoomPct}%</div>
+      {engine.status === 'ready' && (
+        <div className="vp-perf" aria-hidden="true">
+          <div className="pr h">
+            <span className="k">FPS</span>
+            <span className="v">{stats.fps}</span>
+          </div>
+          <div className="ps" />
+          <div className="pr">
+            <span className="k">Entities</span>
+            <span className="v">{stats.entities}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="vp-coord">
+        <div className="ro">
+          {stats.cursor ? (
+            <>
+              <strong>
+                {stats.cursor.x}, {stats.cursor.y}
+              </strong>{' '}
+              · {zoomPct}%
+            </>
+          ) : (
+            `${zoomPct}%`
+          )}
+        </div>
+      </div>
 
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>

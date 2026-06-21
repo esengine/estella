@@ -4,11 +4,11 @@ import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import type { RecentEntry, TemplateEntry } from '@/project/format';
 
-// Project browser shown before a project is open. Structure borrows Unity Hub
-// (persistent top actions, build-aware project list, grid/list views) and UE5's
-// Project Browser (template gallery + a create panel), worn in Estella's
-// "stellar instrument" identity. Recent / Open / New-from-template are wired to
-// ProjectStore + the recents / template IPC.
+// Project browser shown before a project is open. A hub layout — persistent top
+// actions, a build-aware project list with grid/list views, and a template
+// gallery + create panel — worn in Estella's "stellar instrument" identity.
+// Recent / Open / New-from-template are wired to ProjectStore + the recents /
+// template IPC.
 
 type View = 'recent' | 'new';
 type Layout = 'grid' | 'list';

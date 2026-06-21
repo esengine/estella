@@ -6,10 +6,24 @@ import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery } from '@/engine/SceneQuery';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { SceneModel } from '@/engine/SceneModel';
 import { ProjectStore } from '@/project/ProjectStore';
 import { NodeIcon } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
-import type { SceneNode, EntityId } from '@/types';
+import type { SceneNode, EntityId, NodeKind } from '@/types';
+
+// Entity kind → the label shown in the outliner's right-hand "Type" column.
+const KIND_TYPE: Record<NodeKind, string> = {
+  camera: 'Camera',
+  sprite: 'Sprite',
+  spine: 'Spine',
+  physics: 'Physics',
+  ui: 'UI',
+  audio: 'Audio',
+  group: 'Group',
+  light: 'Light',
+  empty: 'Entity',
+};
 
 interface RowProps {
   node: SceneNode;
@@ -29,7 +43,6 @@ interface RowProps {
 function Row(props: RowProps) {
   const { node, depth, forceExpand, renaming, dropId } = props;
   const selectedIds = useSelection((s) => s.selectedIds);
-  const selectedId = useSelection((s) => s.selectedId);
   const expanded = useEditorStore((s) => s.expanded);
   const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
 
@@ -37,17 +50,27 @@ function Row(props: RowProps) {
   const isOpen = forceExpand || expanded.has(node.id);
   const isSelected = selectedIds.has(node.id);
   const isRenaming = renaming === node.id;
+  // Prefab-instance members read with a warm icon tint (mirrors the inspector's
+  // prefab ribbon) so instances are distinguishable in the tree (real tag data).
+  const isPrefab = SceneModel.prefabTag(node.id) != null;
+
+  // Right-column type label: prefab instances read "Prefab", others by kind,
+  // each suffixed with the child count when it has any (real data).
+  const childCount = node.children?.length ?? 0;
+  const baseType = isPrefab ? 'Prefab' : (KIND_TYPE[node.kind] ?? 'Entity');
+  const typeLabel = childCount > 0 ? `${baseType} · ${childCount}` : baseType;
 
   return (
     <>
       <div
         className={
-          `tree-row${isSelected ? ' is-selected' : ''}` +
-          `${selectedId === node.id ? ' is-primary' : ''}` +
-          `${node.visible ? '' : ' is-hidden'}` +
-          `${dropId === node.id ? ' is-drop' : ''}`
+          `row${isSelected ? ' sel' : ''}` +
+          `${isOpen ? ' open' : ''}` +
+          `${node.visible ? '' : ' hidden'}` +
+          `${isPrefab ? ' prefab' : ''}` +
+          `${dropId === node.id ? ' drop' : ''}`
         }
-        style={{ paddingLeft: depth * 14 + 6 }}
+        style={{ paddingLeft: depth * 14 }}
         draggable={!isRenaming}
         onClick={(e) => props.onRowClick(node.id, e)}
         onContextMenu={(e) => props.onContextMenu(e, node.id)}
@@ -55,24 +78,23 @@ function Row(props: RowProps) {
         onDragOver={(e) => props.onDragOverRow(node.id, e)}
         onDrop={(e) => props.onDropRow(node.id, e)}
       >
-        <button
-          type="button"
-          className={`tree-row__twist${hasChildren ? '' : ' is-leaf'}${isOpen ? ' is-open' : ''}`}
+        <span
+          className={`twist${hasChildren ? '' : ' leaf'}`}
           onClick={(e) => {
             e.stopPropagation();
             if (hasChildren) toggleExpanded(node.id);
           }}
         >
-          {hasChildren && <ChevronRight size={12} strokeWidth={2} />}
-        </button>
+          <ChevronRight size={9} strokeWidth={3} />
+        </span>
 
-        <span className={`tree-row__icon tree-row__icon--${node.kind}`}>
+        <span className="ricon">
           <NodeIcon kind={node.kind} />
         </span>
 
         {isRenaming ? (
           <input
-            className="tree-row__rename"
+            className="rname-edit"
             defaultValue={node.name}
             autoFocus
             spellCheck={false}
@@ -88,24 +110,28 @@ function Row(props: RowProps) {
             onBlur={(e) => props.onCommitRename(node.id, e.target.value)}
           />
         ) : (
-          <span className="tree-row__name" onDoubleClick={() => props.onStartRename(node.id)}>
+          <span className="rname" onDoubleClick={() => props.onStartRename(node.id)}>
             {node.name}
           </span>
         )}
 
-        <span className="tree-row__actions">
-          {node.locked && <Lock size={12} strokeWidth={1.85} className="tree-row__lock" />}
-          <button
-            type="button"
-            className="tree-row__vis"
-            title="Toggle visibility"
-            onClick={(e) => {
-              e.stopPropagation();
-              SceneCommands.setEntityVisible(node.id, !node.visible);
-            }}
-          >
-            {node.visible ? <Eye size={13} strokeWidth={1.85} /> : <EyeOff size={13} strokeWidth={1.85} />}
-          </button>
+        <span className="rtype">{typeLabel}</span>
+
+        <span
+          className="rvis"
+          title="Toggle visibility"
+          onClick={(e) => {
+            e.stopPropagation();
+            SceneCommands.setEntityVisible(node.id, !node.visible);
+          }}
+        >
+          {node.locked ? (
+            <Lock size={12} strokeWidth={1.85} />
+          ) : node.visible ? (
+            <Eye size={13} strokeWidth={1.85} />
+          ) : (
+            <EyeOff size={13} strokeWidth={1.85} />
+          )}
         </span>
       </div>
 
@@ -205,7 +231,7 @@ export function Outliner() {
   const onContextMenu = (e: React.MouseEvent, id: EntityId) => {
     e.preventDefault();
     // Right-clicking outside the current selection selects just that entity;
-    // right-clicking within it keeps the multi-selection (UE5 behaviour).
+    // right-clicking within it keeps the multi-selection.
     if (!useSelection.getState().selectedIds.has(id)) select(id);
     setCtx({ x: e.clientX, y: e.clientY, id });
   };
@@ -290,23 +316,29 @@ export function Outliner() {
 
   return (
     <div className="panel">
-      <div className="panel__toolbar">
-        <div className="searchbox">
+      <div className="phead">
+        <div className="search">
           <Search size={13} strokeWidth={1.85} />
           <input
-            className="searchbox__input"
             placeholder="Search entities"
             spellCheck={false}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <button type="button" className="iconbtn" title="Add entity" onClick={addEntity}>
+        <button type="button" className="pbtn" title="Add entity" onClick={addEntity}>
           <Plus size={15} strokeWidth={2} />
         </button>
       </div>
+      {tree.length > 0 && (
+        <div className="outliner-cols">
+          <span className="c-name">Name</span>
+          <span className="c-type">Type</span>
+          <span className="c-vis" />
+        </div>
+      )}
       <div
-        className="panel__body tree"
+        className="pbody"
         onDragOver={(e) => {
           if (dragIds.current || isAssetDrag(e)) e.preventDefault();
         }}

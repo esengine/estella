@@ -3,6 +3,8 @@ import { MenuBar } from '@/layout/MenuBar';
 import { Toolbar } from '@/layout/Toolbar';
 import { StatusBar } from '@/layout/StatusBar';
 import { DockLayout } from '@/layout/DockLayout';
+import { ActivityBar } from '@/layout/ActivityBar';
+import { ContentDrawer } from '@/layout/ContentDrawer';
 import { defaultSession } from '@/engine/EditorSession';
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
@@ -17,6 +19,12 @@ export function App() {
   // backspace-to-delete-text aren't hijacked.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl+Space summons the Content Drawer — works even from a field.
+      if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
+        e.preventDefault();
+        useEditorStore.getState().toggleContentDrawer();
+        return;
+      }
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
         return;
@@ -51,9 +59,11 @@ export function App() {
       <MenuBar />
       <Toolbar />
       <main className="shell__workspace">
+        <ActivityBar />
         <DockLayout />
       </main>
       <StatusBar />
+      <ContentDrawer />
       <Toaster />
     </div>
   );

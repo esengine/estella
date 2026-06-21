@@ -33,6 +33,13 @@ interface EditorState {
   toggleGrid: () => void;
   toggleGizmos: () => void;
   toggleSnapping: () => void;
+
+  // Content Drawer — a quick-access overlay: the Content Browser slides up over
+  // the workspace (Ctrl+Space), dismissing on outside click / Esc. It sits ON
+  // TOP of the docked Content Browser tab, not a replacement.
+  contentDrawer: boolean;
+  toggleContentDrawer: () => void;
+  setContentDrawer: (open: boolean) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -65,4 +72,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleGizmos: () => set((s) => ({ showGizmos: !s.showGizmos })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
+
+  contentDrawer: false,
+  toggleContentDrawer: () => set((s) => ({ contentDrawer: !s.contentDrawer })),
+  setContentDrawer: (contentDrawer) => set({ contentDrawer }),
 }));

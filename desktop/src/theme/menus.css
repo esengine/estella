@@ -1,0 +1,86 @@
+/* =============================================================================
+   @file menus.css
+   @brief Context menu (.ctx) + Add-Component picker (.ac) — adopted verbatim from
+   the design's authored stylesheet (ue5/shell.css). Shared across every
+   right-click / kebab menu and the component picker so they read as the design.
+   ========================================================================== */
+
+/* ════════════════════════ Context menu ════════════════════════ */
+.ctx {
+  position: fixed;
+  z-index: 140;
+  min-width: 184px;
+  background: var(--srf-3);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+  padding: 4px;
+  transform-origin: top left;
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ctx-item:hover { color: var(--text); background: var(--acc-soft); }
+.ctx-item:disabled { color: var(--text-mute); cursor: default; background: none; }
+.ctx-item .ci { width: 14px; display: grid; place-items: center; color: var(--text-mute); flex-shrink: 0; }
+.ctx-item:hover .ci { color: var(--acc-hi); }
+.ctx-item .cl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-item .ck { margin-left: auto; font-size: var(--fs-2xs); color: var(--text-mute); }
+.ctx-item.danger:hover { background: rgba(214, 90, 90, 0.14); color: var(--error); }
+.ctx-item.danger:hover .ci { color: var(--error); }
+.ctx-sep { height: 1px; background: var(--border-line); margin: 4px 6px; }
+
+/* ════════════════════════ Add Component picker ════════════════════════ */
+.ac-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 122;
+  background: var(--overlay);
+  display: flex;
+  justify-content: center;
+  padding-top: 13vh;
+}
+.ac {
+  width: 450px;
+  max-width: 92vw;
+  max-height: 64vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--srf-3);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  align-self: flex-start;
+  animation: ac-in var(--t) var(--e-spring);
+}
+@keyframes ac-in {
+  from { transform: translateY(-10px) scale(0.98); }
+  to { transform: translateY(0) scale(1); }
+}
+.ac-search { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--text-mute); }
+.ac-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: var(--fs-md); color: var(--text); }
+.ac-search .esc { font-size: var(--fs-2xs); border: 1px solid var(--border-line); border-radius: 2px; padding: 1px 5px; }
+.ac-body { overflow-y: auto; padding: 6px; }
+.ac-sec { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-mute); font-weight: 700; padding: 8px 10px 4px; }
+.ac-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--r-md); color: var(--text-dim); text-align: left; transition: background var(--t-fast), color var(--t-fast); }
+.ac-item:hover, .ac-item.sel { background: var(--acc-soft); color: var(--text); }
+.ac-item .ai { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--srf-4); display: grid; place-items: center; color: var(--text-dim); flex-shrink: 0; }
+.ac-item:hover .ai, .ac-item.sel .ai { color: var(--acc-hi); }
+.ac-item .at { flex: 1; min-width: 0; }
+.ac-item .an { font-size: var(--fs-sm); font-weight: 500; color: var(--text); }
+.ac-item .ad { font-size: var(--fs-2xs); color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-item .ak { font-size: var(--fs-2xs); color: var(--text-mute); opacity: 0; }
+.ac-item.sel .ak { opacity: 1; }
+.ac-empty { padding: 26px; text-align: center; color: var(--text-mute); font-size: var(--fs-sm); }

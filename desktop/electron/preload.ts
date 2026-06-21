@@ -47,6 +47,33 @@ const api = {
     write: (relPath: string, contents: string): Promise<void> =>
       ipcRenderer.invoke('fs:write', relPath, contents),
     readDir: (relPath: string): Promise<DirEntry[]> => ipcRenderer.invoke('fs:readdir', relPath),
+    /** Rename / move; a file's `.meta` sidecar travels with it (identity stable). */
+    rename: (fromRel: string, toRel: string): Promise<void> =>
+      ipcRenderer.invoke('fs:rename', fromRel, toRel),
+    /** Create a folder (refuses if it already exists). */
+    mkdir: (relPath: string): Promise<void> => ipcRenderer.invoke('fs:mkdir', relPath),
+    /** Duplicate a file/folder next to itself (new uuid); returns the new path. */
+    duplicate: (relPath: string): Promise<string> => ipcRenderer.invoke('fs:duplicate', relPath),
+    /** Delete to the OS trash (recoverable), sidecar included. */
+    trash: (relPath: string): Promise<void> => ipcRenderer.invoke('fs:trash', relPath),
+    /** Size + modified time (for the asset tooltip / inspector metadata). */
+    stat: (relPath: string): Promise<{ size: number; mtimeMs: number; isDir: boolean }> =>
+      ipcRenderer.invoke('fs:stat', relPath),
+    /**
+     * Subscribe to project file changes (main pushes after on-disk edits, incl.
+     * edits made outside the editor). Returns an unsubscribe fn. This is the
+     * editor's reusable main→renderer push primitive.
+     */
+    onChange: (cb: (paths: string[]) => void): (() => void) => {
+      const listener = (_e: unknown, payload: { paths: string[] }) => cb(payload.paths);
+      ipcRenderer.on('project:fsChanged', listener);
+      return () => ipcRenderer.removeListener('project:fsChanged', listener);
+    },
+  },
+  // OS shell integration.
+  shell: {
+    /** Reveal a file/folder in Finder / Explorer. */
+    showItem: (relPath: string): Promise<void> => ipcRenderer.invoke('shell:showItem', relPath),
   },
   workspace: {
     save: (ws: WorkspaceState): Promise<void> => ipcRenderer.invoke('workspace:save', ws),

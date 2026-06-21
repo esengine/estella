@@ -14,12 +14,23 @@ import './theme/global.css';
 import 'dockview/dist/styles/dockview.css';
 import './theme/dockview-theme.css';
 import './theme/app.css';
+import './theme/inspector.css';
+import './theme/outliner.css';
+import './theme/log.css';
+import './theme/viewport.css';
+import './theme/content.css';
+import './theme/chrome.css';
+import './theme/menus.css';
 import './theme/launcher.css';
 import { App } from './App';
 import { LogStore } from './store/LogStore';
+import { initFsWatch } from './project/fsWatch';
 
 // Capture console (editor + SDK + wasm) into the Output Log panel from startup.
 LogStore.install();
+// Live-sync the asset registry + Content Browser with on-disk changes (incl.
+// edits made outside the editor) via the main-process project watcher.
+initFsWatch();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

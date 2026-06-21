@@ -14,16 +14,25 @@ import type { EntityId } from '@/types';
  *
  * `selectedId` is the primary/active entity (drives the Details panel + viewport
  * gizmo); `selectedIds` is the full multi-selection set.
+ *
+ * The inspector is UNIFIED: selection is either an entity OR an asset (a content
+ * path), never both — selecting one clears the other. The Details panel renders
+ * whichever is active (entity → components, asset → asset metadata), so there's a
+ * single inspector surface, no duplicate "details" column in the content browser.
  */
 interface SelectionState {
   selectedId: EntityId | null;
   selectedIds: Set<EntityId>;
+  /** The selected asset (project-relative path), mutually exclusive with entities. */
+  selectedAsset: string | null;
   /** Replace the selection with a single entity (or clear it with null). */
   select: (id: EntityId | null) => void;
   /** Ctrl/Cmd-click: add/remove one entity from the selection. */
   toggleSelect: (id: EntityId) => void;
   /** Shift-click / box: replace the selection with a set, with a primary. */
   selectMany: (ids: EntityId[], primary: EntityId) => void;
+  /** Select an asset (or clear with null); clears any entity selection. */
+  selectAsset: (path: string | null) => void;
   /** Remove one id from the selection (despawn self-healing). */
   dropId: (id: EntityId) => void;
 }
@@ -41,9 +50,15 @@ export function createSelectionStore(model: SceneModelImpl) {
   const useStore = create<SelectionState>((set) => ({
     selectedId: null,
     selectedIds: new Set<EntityId>(),
+    selectedAsset: null,
 
+    // Selecting an entity clears the asset selection (unified inspector).
     select: (selectedId) =>
-      set({ selectedId, selectedIds: selectedId != null ? new Set([selectedId]) : new Set() }),
+      set({
+        selectedId,
+        selectedIds: selectedId != null ? new Set([selectedId]) : new Set(),
+        selectedAsset: null,
+      }),
 
     toggleSelect: (id) =>
       set((s) => {
@@ -52,13 +67,18 @@ export function createSelectionStore(model: SceneModelImpl) {
           next.delete(id);
           const primary =
             s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
-          return { selectedIds: next, selectedId: primary };
+          return { selectedIds: next, selectedId: primary, selectedAsset: null };
         }
         next.add(id);
-        return { selectedIds: next, selectedId: id };
+        return { selectedIds: next, selectedId: id, selectedAsset: null };
       }),
 
-    selectMany: (ids, primary) => set({ selectedIds: new Set(ids), selectedId: primary }),
+    selectMany: (ids, primary) =>
+      set({ selectedIds: new Set(ids), selectedId: primary, selectedAsset: null }),
+
+    // Selecting an asset clears any entity selection (mutually exclusive).
+    selectAsset: (selectedAsset) =>
+      set({ selectedAsset, selectedId: null, selectedIds: new Set() }),
 
     dropId: (id) =>
       set((s) => {

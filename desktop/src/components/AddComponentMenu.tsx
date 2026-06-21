@@ -1,9 +1,9 @@
 /**
  * @file    AddComponentMenu.tsx
- * @brief   UE5-style "Add Component" picker — a portaled popover with a search
- *          box, category-grouped entries, per-component icons, and full keyboard
- *          navigation (type to filter, ↑/↓ to move, Enter to add, Esc to close).
- *          Replaces the flat ContextMenu list the inspector used before.
+ * @brief   "Add Component" picker — a centered command-palette modal with a
+ *          search box, category-grouped entries, per-component icons, and full
+ *          keyboard navigation (type to filter, ↑/↓ to move, Enter to add, Esc to
+ *          close). Markup + styling follow the design (.ac picker).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -16,9 +16,6 @@ export interface AddComponentEntry {
   label: string;
   category: string;
 }
-
-const WIDTH = 248;
-const MAX_H = 380;
 
 function groupByCategory(entries: AddComponentEntry[]) {
   const byCat = new Map<string, AddComponentEntry[]>();
@@ -42,14 +39,10 @@ function groupByCategory(entries: AddComponentEntry[]) {
 }
 
 export function AddComponentMenu({
-  x,
-  y,
   entries,
   onAdd,
   onClose,
 }: {
-  x: number;
-  y: number;
   entries: AddComponentEntry[];
   onAdd: (name: string) => void;
   onClose: () => void;
@@ -59,7 +52,7 @@ export function AddComponentMenu({
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
 
-  // Focus the search on open (type-to-filter immediately, like UE5).
+  // Focus the search on open (type-to-filter immediately).
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -67,7 +60,7 @@ export function AddComponentMenu({
   // Dismiss on an outside press (clicks inside stopPropagation below) or Esc.
   // Deliberately NOT on scroll: the picker owns a scrollable list (the wheel
   // scrolls it), and the popover is position:fixed so it stays put even if the
-  // inspector behind scrolls — UE5 keeps the dropdown open while you scroll it.
+  // inspector behind scrolls — keep the dropdown open while you scroll it.
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => {
@@ -122,62 +115,58 @@ export function AddComponentMenu({
     }
   };
 
-  // Keep the popover on-screen near the trigger.
-  const left = Math.max(8, Math.min(x, window.innerWidth - WIDTH - 8));
-  const top = Math.max(8, Math.min(y, window.innerHeight - MAX_H - 8));
-
   return createPortal(
-    <div
-      className="addcomp"
-      role="menu"
-      style={{ left, top, width: WIDTH, maxHeight: MAX_H }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <div className="addcomp__search">
-        <Search size={13} strokeWidth={1.9} />
-        <input
-          ref={inputRef}
-          className="addcomp__input"
-          placeholder="Search Components"
-          value={query}
-          spellCheck={false}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onKeyDown}
-        />
-      </div>
+    <div className="ac-scrim open" onMouseDown={onClose}>
+      <div className="ac" role="dialog" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="ac-search">
+          <Search size={15} strokeWidth={1.9} />
+          <input
+            ref={inputRef}
+            placeholder="Search components…"
+            value={query}
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <kbd className="esc">Esc</kbd>
+        </div>
 
-      <div className="addcomp__list">
-        {flat.length === 0 ? (
-          <p className="addcomp__empty">
-            {entries.length === 0 ? 'All components added' : 'No matching components'}
-          </p>
-        ) : (
-          groups.map((g) => (
-            <div key={g.category} className="addcomp__group">
-              <div className="addcomp__cat">{g.category}</div>
-              {g.items.map((it) => {
-                const idx = flat.indexOf(it);
-                const isActive = idx === active;
-                return (
-                  <button
-                    key={it.name}
-                    ref={isActive ? activeRef : undefined}
-                    type="button"
-                    role="menuitem"
-                    className={`addcomp__item${isActive ? ' is-active' : ''}`}
-                    onMouseEnter={() => setActive(idx)}
-                    onClick={() => commit(it.name)}
-                  >
-                    <span className="addcomp__icon">
-                      <ComponentIcon name={it.name} />
-                    </span>
-                    <span className="addcomp__label">{it.label}</span>
-                  </button>
-                );
-              })}
+        <div className="ac-body">
+          {flat.length === 0 ? (
+            <div className="ac-empty">
+              {entries.length === 0 ? 'All components added' : 'No matching components'}
             </div>
-          ))
-        )}
+          ) : (
+            groups.map((g) => (
+              <div key={g.category}>
+                <div className="ac-sec">{g.category}</div>
+                {g.items.map((it) => {
+                  const idx = flat.indexOf(it);
+                  const isActive = idx === active;
+                  return (
+                    <button
+                      key={it.name}
+                      ref={isActive ? activeRef : undefined}
+                      type="button"
+                      className={`ac-item${isActive ? ' sel' : ''}`}
+                      onMouseEnter={() => setActive(idx)}
+                      onClick={() => commit(it.name)}
+                    >
+                      <span className="ai">
+                        <ComponentIcon name={it.name} size={16} />
+                      </span>
+                      <span className="at">
+                        <div className="an">{it.label}</div>
+                        <div className="ad">{it.name}</div>
+                      </span>
+                      <span className="ak">↵</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>,
     document.body,

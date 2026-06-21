@@ -1,0 +1,246 @@
+/* =============================================================================
+   @file chrome.css
+   @brief Menubar + toolbar + status bar — adopted verbatim from the design's
+   authored stylesheet (ue5/shell.css), with two editor-only tweaks: the menubar
+   reserves space for the macOS traffic lights and acts as the window drag region.
+   ========================================================================== */
+
+/* ── Menubar ── */
+.menubar {
+  height: var(--h-menubar);
+  flex-shrink: 0;
+  background: var(--srf-0);
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-left: 72px; /* clear the macOS traffic lights */
+  -webkit-app-region: drag; /* the strip is the window drag region */
+}
+.brand { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 11px; }
+.brand-mark {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--acc);
+  border: 1px solid var(--acc-lo);
+  border-radius: var(--r-sm);
+  background: linear-gradient(160deg, var(--srf-3), var(--srf-2));
+}
+.brand-name { font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0.02em; color: var(--text); }
+.menus { display: flex; align-items: center; -webkit-app-region: no-drag; }
+.menu {
+  padding: 4px 9px;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.menu:hover, .menu.is-open { color: var(--text); background: var(--srf-3); }
+.menubar-spacer { flex: 1; height: 100%; }
+.menubar-title { font-size: var(--fs-xs); color: var(--text-mute); display: flex; align-items: center; gap: 6px; padding-right: 12px; }
+.menubar-title strong { color: var(--text-dim); font-weight: 600; }
+.menubar-title .sep { opacity: 0.5; }
+
+/* ── Toolbar (modes left · play center · actions right) ── */
+.toolbar {
+  height: var(--h-toolbar);
+  flex-shrink: 0;
+  background: var(--srf-3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  position: relative;
+  z-index: 40;
+}
+.tgroup { display: flex; align-items: center; gap: 2px; }
+.tdiv { width: 1px; height: 22px; background: var(--border-line); margin: 0 6px; }
+.tspacer { flex: 1; }
+.tbtn {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  color: var(--text-dim);
+  border-radius: var(--r-md);
+  font-size: var(--fs-xs);
+  transition: color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast);
+}
+.tbtn:hover { color: var(--text); background: var(--srf-4); }
+.tbtn:active { background: var(--srf-5); transform: translateY(0.5px); }
+.tbtn.on { color: #fff; background: var(--acc); }
+.tbtn:disabled { opacity: 0.4; pointer-events: none; }
+.tbtn .lbl { font-weight: 500; }
+
+/* Play cluster */
+.play-wrap { display: flex; align-items: stretch; border-radius: var(--r-md); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.play-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 14px 0 12px;
+  background: var(--acc);
+  color: #fff;
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  transition: background var(--t-fast);
+}
+.play-main:hover { background: var(--acc-hi); }
+.play-side { width: 28px; display: grid; place-items: center; background: var(--acc); color: rgba(255, 255, 255, 0.85); border-left: 1px solid rgba(0, 0, 0, 0.25); transition: background var(--t-fast); }
+.play-side:hover { background: var(--acc-hi); }
+.play-side:disabled { opacity: 0.45; pointer-events: none; }
+.play-wrap.playing .play-main, .play-wrap.playing .play-side { background: var(--error); }
+.play-wrap.playing .play-main:hover { background: #e36a6a; }
+.play-wrap.paused .play-main, .play-wrap.paused .play-side { background: var(--warn); }
+
+/* ── Status bar ── */
+.status {
+  height: var(--h-status);
+  flex-shrink: 0;
+  background: var(--srf-0);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.status .grp { display: flex; align-items: center; gap: 4px; }
+.status .sp { flex: 1; }
+.sitem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.sitem.click { cursor: pointer; }
+.sitem.click:hover { background: var(--srf-3); color: var(--text); }
+.sitem strong { color: var(--text); font-weight: 600; }
+.sitem.mono { font-family: var(--mono); }
+.sdot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+.sdot.live { background: var(--play); }
+.smute { color: var(--text-mute); }
+/* Keep the status strip (with the Content-Drawer toggle) above the drawer/scrim. */
+.status { position: relative; z-index: 103; }
+/* Persistent Content Browser toggle — the single anchor, bottom-left. */
+.cb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 19px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.cb-btn:hover { color: var(--text); background: var(--srf-3); }
+.cb-btn.active { color: #fff; background: var(--acc); }
+
+/* ── Activity bar (far-left icon rail) ── */
+.activity {
+  width: var(--w-activity);
+  flex-shrink: 0;
+  background: var(--srf-0);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  gap: 2px;
+}
+.act {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  border-radius: var(--r-md);
+  position: relative;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.act:hover { color: var(--text); background: var(--srf-3); }
+.act.active { color: var(--text); background: var(--srf-3); }
+.act.active::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 3px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  background: var(--acc);
+  transform: translateY(-50%);
+  animation: act-rail var(--t-slow) var(--e-spring);
+}
+@keyframes act-rail {
+  from { transform: translateY(-50%) scaleY(0.2); opacity: 0; }
+  to { transform: translateY(-50%) scaleY(1); opacity: 1; }
+}
+.act-spacer { flex: 1; }
+
+/* ── Content Drawer (slides up over the workspace) ── */
+.scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--h-status);
+  z-index: 100;
+  background: var(--overlay);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t) var(--e-out);
+}
+.scrim.open { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--h-status);
+  z-index: 101;
+  height: 46vh;
+  min-height: 320px;
+  background: var(--srf-2);
+  border-top: 2px solid var(--acc);
+  box-shadow: var(--shadow-3);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(100% + var(--h-status)));
+  transition: transform var(--t-slow) var(--e-spring);
+}
+.scrim.open .drawer { transform: translateY(0); }
+.drawer-head {
+  height: 42px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.drawer-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: var(--fs-md); color: var(--text); }
+.drawer-title .ic { color: var(--acc-hi); }
+.drawer-sp { flex: 1; }
+.drawer-x {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.drawer-x:hover { color: var(--text); background: var(--srf-4); }
+.drawer-body { flex: 1; min-height: 0; display: flex; }
+.drawer-body > .panel { flex: 1; min-width: 0; }
