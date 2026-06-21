@@ -3,9 +3,26 @@ import type { Entity } from '../src/types';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import type { TransformData, ParentData } from '../src/component';
 import { Transform, Parent } from '../src/component';
-import { syncDynamicTransforms } from '../src/physics/PhysicsSystem';
+import {
+    capturePhysicsPoses,
+    applyPhysicsTransforms,
+    type PoseSnapshots,
+} from '../src/physics/PhysicsSystem';
 import { createMockModule } from './mocks/wasm';
 import { World } from '../src/world';
+
+// Capture the physics buffer into snapshots, then apply with alpha = 1 — which
+// reproduces a direct post-step sync (the old `syncDynamicTransforms` behaviour).
+function sync(
+    app: any,
+    physMod: PhysicsWasmModule,
+    ppu: number,
+    parented: Set<Entity>,
+): void {
+    const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
+    capturePhysicsPoses(physMod, snaps);
+    applyPhysicsTransforms(app, ppu, parented, snaps, 1);
+}
 
 // =============================================================================
 // Helpers
@@ -89,7 +106,7 @@ describe('syncDynamicTransforms', () => {
         const physMod = createMockPhysicsModule(buf);
         const parentedBodies = new Set<Entity>();
 
-        syncDynamicTransforms(app, physMod, PPU, parentedBodies);
+        sync(app, physMod, PPU, parentedBodies);
 
         const t = app.world.get(e1, Transform) as TransformData;
         expect(t.position.x).toBeCloseTo(350);
@@ -107,7 +124,7 @@ describe('syncDynamicTransforms', () => {
         ]);
         const physMod = createMockPhysicsModule(buf);
 
-        syncDynamicTransforms(app, physMod, PPU, new Set());
+        sync(app, physMod, PPU, new Set());
 
         const t = app.world.get(e1, Transform) as TransformData;
         const half = angle * 0.5;
@@ -133,7 +150,7 @@ describe('syncDynamicTransforms', () => {
         ]);
         const physMod = createMockPhysicsModule(buf);
 
-        syncDynamicTransforms(app, physMod, PPU, new Set());
+        sync(app, physMod, PPU, new Set());
 
         expect((app.world.get(e1, Transform) as TransformData).position.x).toBeCloseTo(100);
         expect((app.world.get(e2, Transform) as TransformData).position.x).toBeCloseTo(300);
@@ -151,7 +168,7 @@ describe('syncDynamicTransforms', () => {
         ]);
         const physMod = createMockPhysicsModule(buf);
 
-        syncDynamicTransforms(app, physMod, PPU, new Set());
+        sync(app, physMod, PPU, new Set());
 
         const t = app.world.get(e1, Transform) as TransformData;
         expect(t.position.x).toBeCloseTo(500);
@@ -166,7 +183,7 @@ describe('syncDynamicTransforms', () => {
         const buf = buildPhysicsBuffer([]);
         const physMod = createMockPhysicsModule(buf);
 
-        syncDynamicTransforms(app, physMod, PPU, new Set());
+        sync(app, physMod, PPU, new Set());
 
         const t = app.world.get(e1, Transform) as TransformData;
         expect(t.position.x).toBeCloseTo(42);
@@ -193,7 +210,7 @@ describe('syncDynamicTransforms', () => {
         const buf = buildPhysicsBuffer(bodies);
         const physMod = createMockPhysicsModule(buf);
 
-        syncDynamicTransforms(app, physMod, PPU, new Set());
+        sync(app, physMod, PPU, new Set());
 
         const t0 = app.world.get(entities[0], Transform) as TransformData;
         expect(t0.position.x).toBeCloseTo(0);
@@ -225,7 +242,7 @@ describe('syncDynamicTransforms — fast path', () => {
         }
 
         const buf = buildPhysicsBuffer(bodies.map((b, i) => ({ entity: entities[i] as number, ...b })));
-        syncDynamicTransforms(app, createMockPhysicsModule(buf), PPU, new Set());
+        sync(app, createMockPhysicsModule(buf), PPU, new Set());
 
         for (let i = 0; i < bodies.length; i++) {
             const t = app.world.get(entities[i], Transform) as TransformData;
@@ -249,10 +266,75 @@ describe('syncDynamicTransforms — fast path', () => {
         const physMod = createMockPhysicsModule(buf);
         const parentedBodies = new Set<Entity>([e1]);
 
-        syncDynamicTransforms(app, physMod, PPU, parentedBodies);
+        sync(app, physMod, PPU, parentedBodies);
 
         const t = app.world.get(e1, Transform) as TransformData;
         expect(t.position.x).toBeCloseTo(200);
         expect(t.position.y).toBeCloseTo(300);
+    });
+});
+
+describe('render interpolation', () => {
+    const PPU = 100;
+
+    it('lerps prev→cur by alpha (midpoint at 0.5)', () => {
+        const app = createTestApp();
+        const e1 = app.world.spawn();
+        app.world.insert(e1, Transform, defaultTransform());
+
+        const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
+        // Step 1: pose A (new body → prev = cur = A).
+        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
+            { entity: e1 as number, x: 0, y: 0, angle: 0 },
+        ])), snaps);
+        // Step 2: pose B (prev = A, cur = B).
+        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
+            { entity: e1 as number, x: 4, y: 8, angle: 0 },
+        ])), snaps);
+
+        applyPhysicsTransforms(app, PPU, new Set(), snaps, 0.5);
+
+        const t = app.world.get(e1, Transform) as TransformData;
+        expect(t.position.x).toBeCloseTo(2 * PPU); // halfway 0→4
+        expect(t.position.y).toBeCloseTo(4 * PPU); // halfway 0→8
+    });
+
+    it('does not smear a body on its first frame (prev seeded to cur)', () => {
+        const app = createTestApp();
+        const e1 = app.world.spawn();
+        app.world.insert(e1, Transform, defaultTransform());
+
+        const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
+        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
+            { entity: e1 as number, x: 5, y: 6, angle: 0 },
+        ])), snaps);
+
+        // Even mid-step (alpha 0.5), a brand-new body sits exactly at its pose.
+        applyPhysicsTransforms(app, PPU, new Set(), snaps, 0.5);
+
+        const t = app.world.get(e1, Transform) as TransformData;
+        expect(t.position.x).toBeCloseTo(5 * PPU);
+        expect(t.position.y).toBeCloseTo(6 * PPU);
+    });
+
+    it('interpolates angle the short way across the ±π wrap', () => {
+        const app = createTestApp();
+        const e1 = app.world.spawn();
+        app.world.insert(e1, Transform, defaultTransform());
+
+        const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
+        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
+            { entity: e1 as number, x: 0, y: 0, angle: Math.PI - 0.1 },
+        ])), snaps);
+        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
+            { entity: e1 as number, x: 0, y: 0, angle: -Math.PI + 0.1 },
+        ])), snaps);
+
+        applyPhysicsTransforms(app, PPU, new Set(), snaps, 0.5);
+
+        // Short arc from (π-0.1) to (-π+0.1) crosses π → midpoint ≈ ±π, not 0.
+        const t = app.world.get(e1, Transform) as TransformData;
+        const angle = 2 * Math.atan2(t.rotation.z, t.rotation.w);
+        expect(Math.abs(angle)).toBeCloseTo(Math.PI, 2);
     });
 });

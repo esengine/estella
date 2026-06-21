@@ -337,6 +337,11 @@ export class App {
         return this;
     }
 
+    /** The fixed-update timestep (seconds) — the FixedUpdate / physics cadence. */
+    getFixedTimestep(): number {
+        return this.fixedTimestep_;
+    }
+
     setMaxDeltaTime(v: number): this {
         this.maxDeltaTime_ = v;
         return this;
@@ -469,7 +474,7 @@ export class App {
                 this.runner_.setTimingEnabled(true);
             }
             if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0 });
             }
             this.finishPlugins_();
         }
@@ -490,7 +495,7 @@ export class App {
                 this.runner_.setTimingEnabled(true);
             }
             if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0 });
             }
             this.finishPlugins_();
         }
@@ -590,6 +595,10 @@ export class App {
             if (fixedSteps >= this.maxFixedSteps_) {
                 this.fixedAccumulator_ = this.fixedTimestep_;
             }
+            // Remainder fraction into the current fixed step — render-time systems
+            // (physics interpolation) lerp prev→current by this for smooth motion.
+            this.resources_.get(Time).fixedAlpha =
+                this.fixedTimestep_ > 0 ? this.fixedAccumulator_ / this.fixedTimestep_ : 0;
 
             await this.runSchedule(Schedule.PreUpdate);
             await this.runSchedule(Schedule.Update);
@@ -841,6 +850,7 @@ export class App {
         time.delta = delta;
         time.elapsed += delta;
         time.frameCount++;
+        time.fixedDelta = this.fixedTimestep_;
     }
 }
 

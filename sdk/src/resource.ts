@@ -156,11 +156,22 @@ export interface TimeData {
     delta: number;
     elapsed: number;
     frameCount: number;
+    /** Fixed-update timestep in seconds — the FixedUpdate / physics cadence. */
+    fixedDelta: number;
+    /**
+     * Interpolation factor in [0, 1) into the current fixed step
+     * (fixedAccumulator / fixedDelta), set after the fixed-update loop each
+     * frame. Render-time systems lerp prev→current state by this to smooth
+     * fixed-step simulation (e.g. physics) onto the variable render rate.
+     */
+    fixedAlpha: number;
 }
 
 export const Time = defineResource<TimeData>({
     delta: 0,
     elapsed: 0,
-    frameCount: 0
+    frameCount: 0,
+    fixedDelta: 1 / 60,
+    fixedAlpha: 0,
 }, 'Time');
 

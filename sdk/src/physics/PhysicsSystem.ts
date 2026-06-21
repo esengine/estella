@@ -285,34 +285,84 @@ const syncTransformBuf_ = {
 const PHYSICS_BODY_STRIDE = 4; // u32 entity + 3x f32 (x, y, angle)
 const PHYSICS_BODY_BYTES = PHYSICS_BODY_STRIDE * 4;
 
-/** @internal exported for testing */
-export function syncDynamicTransforms(
-    app: App,
-    module: PhysicsWasmModule,
-    ppu: number,
-    parentedBodies: Set<Entity>,
-): void {
+/** Raw physics-space pose (meters + radians) of one body, for interpolation. */
+interface Pose { x: number; y: number; angle: number; }
+/** The two most recent fixed-step poses, keyed by entity, for render interp. */
+export interface PoseSnapshots { prev: Map<Entity, Pose>; cur: Map<Entity, Pose>; }
+
+// Shortest-arc angle interpolation (radians).
+function lerpAngle(a: number, b: number, t: number): number {
+    let d = (b - a) % (2 * Math.PI);
+    if (d > Math.PI) d -= 2 * Math.PI;
+    else if (d < -Math.PI) d += 2 * Math.PI;
+    return a + d * t;
+}
+
+/**
+ * Capture post-step body poses for render interpolation: the previous `cur`
+ * becomes `prev`, then `cur` is refilled from the batched read-back. A body seen
+ * for the first time seeds `prev = cur`, so it doesn't smear on its first frame.
+ * @internal exported for testing
+ */
+export function capturePhysicsPoses(module: PhysicsWasmModule, snaps: PoseSnapshots): void {
+    const tmp = snaps.prev;
+    snaps.prev = snaps.cur;
+    snaps.cur = tmp;
+    snaps.cur.clear();
+
     const count = module._physics_getDynamicBodyCount();
     if (count === 0) return;
+    const baseU32 = module._physics_getDynamicBodyTransforms() >> 2;
+    const u32 = module.HEAPU32;
+    const f32 = module.HEAPF32;
+    for (let i = 0; i < count; i++) {
+        const o = baseU32 + i * PHYSICS_BODY_STRIDE;
+        const e = u32[o] as Entity;
+        const x = f32[o + 1], y = f32[o + 2], angle = f32[o + 3];
+        snaps.cur.set(e, { x, y, angle });
+        if (!snaps.prev.has(e)) snaps.prev.set(e, { x, y, angle });
+    }
+}
 
-    const ptr = module._physics_getDynamicBodyTransforms();
-    const baseU32 = ptr >> 2;
-    const physU32 = module.HEAPU32;
-    const physF32 = module.HEAPF32;
+/**
+ * Write interpolated body poses into ECS Transforms: each `cur` body is lerped
+ * from `prev` by `alpha` (linear position, shortest-arc angle) and applied via
+ * the engine's batched sync (or a per-entity path for parented bodies). With
+ * `alpha = 1` this reproduces a direct post-step sync.
+ * @internal exported for testing
+ */
+export function applyPhysicsTransforms(
+    app: App,
+    ppu: number,
+    parentedBodies: Set<Entity>,
+    snaps: PoseSnapshots,
+    alpha: number,
+): void {
+    const cur = snaps.cur;
+    const count = cur.size;
+    if (count === 0) return;
 
     const registry = app.world.getCppRegistry();
     if (!registry) return;
-
     const engineMod = app.world.getWasmModule();
     const hasParented = parentedBodies.size > 0;
 
+    // Batched fast path: build [u32 entity, f32 x, y, angle] (meters) interpolated.
     if (!hasParented && engineMod?.registry_batchSyncPhysicsTransforms) {
-        const byteLen = count * PHYSICS_BODY_BYTES;
-        withMalloc(engineMod, byteLen, engineBuf => {
-            engineMod.HEAPU8.set(
-                new Uint8Array(module.HEAPU8.buffer, ptr, byteLen),
-                engineBuf,
-            );
+        withMalloc(engineMod, count * PHYSICS_BODY_BYTES, engineBuf => {
+            const u32 = engineMod.HEAPU32;
+            const f32 = engineMod.HEAPF32;
+            const base = engineBuf >> 2;
+            let i = 0;
+            for (const [e, c] of cur) {
+                const p = snaps.prev.get(e) ?? c;
+                const o = base + i * PHYSICS_BODY_STRIDE;
+                u32[o] = e as number;
+                f32[o + 1] = p.x + (c.x - p.x) * alpha;
+                f32[o + 2] = p.y + (c.y - p.y) * alpha;
+                f32[o + 3] = lerpAngle(p.angle, c.angle, alpha);
+                i++;
+            }
             engineMod.registry_batchSyncPhysicsTransforms(registry, engineBuf, count, ppu);
         });
         return;
@@ -322,28 +372,22 @@ export function syncDynamicTransforms(
         ? (e: Entity) => engineMod!.getTransformPtr(registry!, e as number)
         : null;
     const engF32 = engineMod?.HEAPF32;
-    const addFn = (!getTransformPtr || !engF32)
-        ? registry.addTransform.bind(registry)
-        : null;
-
+    const addFn = (!getTransformPtr || !engF32) ? registry.addTransform.bind(registry) : null;
     const t = syncTransformBuf_;
 
-    for (let i = 0; i < count; i++) {
-        const offset = baseU32 + i * PHYSICS_BODY_STRIDE;
-        const entityId = physU32[offset] as Entity;
-        let localX = physF32[offset + 1] * ppu;
-        let localY = physF32[offset + 2] * ppu;
-        let localAngle = physF32[offset + 3];
+    for (const [entityId, c] of cur) {
+        const p = snaps.prev.get(entityId) ?? c;
+        let localX = (p.x + (c.x - p.x) * alpha) * ppu;
+        let localY = (p.y + (c.y - p.y) * alpha) * ppu;
+        let localAngle = lerpAngle(p.angle, c.angle, alpha);
 
         if (hasParented && parentedBodies.has(entityId)) {
             const parentData = app.world.get(entityId, Parent) as ParentData;
             if (parentData && app.world.valid(parentData.entity) && app.world.has(parentData.entity, Transform)) {
                 const pwt = app.world.get(parentData.entity, Transform) as TransformData;
                 const parentAngleZ = quatToAngleZ(pwt.worldRotation);
-                const worldX = localX;
-                const worldY = localY;
-                const dx = worldX - pwt.worldPosition.x;
-                const dy = worldY - pwt.worldPosition.y;
+                const dx = localX - pwt.worldPosition.x;
+                const dy = localY - pwt.worldPosition.y;
                 const cos = Math.cos(-parentAngleZ);
                 const sin = Math.sin(-parentAngleZ);
                 const sx = pwt.worldScale.x !== 0 ? pwt.worldScale.x : 1;
@@ -407,16 +451,27 @@ export function syncDynamicTransforms(
 // Collision event drain
 // =============================================================================
 
-function collectEvents(app: App, module: PhysicsWasmModule, ppu: number): void {
+interface EventAccum {
+    collisionEnters: CollisionEnterEvent[];
+    collisionExits: Array<{ entityA: Entity; entityB: Entity }>;
+    sensorEnters: SensorEvent[];
+    sensorExits: SensorEvent[];
+}
+
+/**
+ * Drain this fixed step's events into the per-frame accumulator. Physics may step
+ * several times per rendered frame; accumulating (rather than overwriting) keeps
+ * every collision — the interpolation system publishes + clears once per frame.
+ */
+function collectEvents(module: PhysicsWasmModule, ppu: number, accum: EventAccum): void {
     module._physics_collectEvents();
 
-    const collisionEnters: CollisionEnterEvent[] = [];
     const enterCount = module._physics_getCollisionEnterCount();
     if (enterCount > 0) {
         const enterPtr = module._physics_getCollisionEnterBuffer() >> 2;
         for (let i = 0; i < enterCount; i++) {
             const base = enterPtr + i * COLLISION_EVENT_STRIDE;
-            collisionEnters.push({
+            accum.collisionEnters.push({
                 entityA: module.HEAPU32[base] as Entity,
                 entityB: module.HEAPU32[base + 1] as Entity,
                 normalX: module.HEAPF32[base + 2],
@@ -427,51 +482,41 @@ function collectEvents(app: App, module: PhysicsWasmModule, ppu: number): void {
         }
     }
 
-    const collisionExits: Array<{ entityA: Entity; entityB: Entity }> = [];
     const exitCount = module._physics_getCollisionExitCount();
     if (exitCount > 0) {
         const exitPtr = module._physics_getCollisionExitBuffer() >> 2;
         for (let i = 0; i < exitCount; i++) {
             const base = exitPtr + i * 2;
-            collisionExits.push({
+            accum.collisionExits.push({
                 entityA: module.HEAPU32[base] as Entity,
                 entityB: module.HEAPU32[base + 1] as Entity,
             });
         }
     }
 
-    const sensorEnters: SensorEvent[] = [];
     const sensorEnterCount = module._physics_getSensorEnterCount();
     if (sensorEnterCount > 0) {
         const sensorEnterPtr = module._physics_getSensorEnterBuffer() >> 2;
         for (let i = 0; i < sensorEnterCount; i++) {
             const base = sensorEnterPtr + i * 2;
-            sensorEnters.push({
+            accum.sensorEnters.push({
                 sensorEntity: module.HEAPU32[base] as Entity,
                 visitorEntity: module.HEAPU32[base + 1] as Entity,
             });
         }
     }
 
-    const sensorExits: SensorEvent[] = [];
     const sensorExitCount = module._physics_getSensorExitCount();
     if (sensorExitCount > 0) {
         const sensorExitPtr = module._physics_getSensorExitBuffer() >> 2;
         for (let i = 0; i < sensorExitCount; i++) {
             const base = sensorExitPtr + i * 2;
-            sensorExits.push({
+            accum.sensorExits.push({
                 sensorEntity: module.HEAPU32[base] as Entity,
                 visitorEntity: module.HEAPU32[base + 1] as Entity,
             });
         }
     }
-
-    app.insertResource(PhysicsEvents, {
-        collisionEnters,
-        collisionExits,
-        sensorEnters,
-        sensorExits
-    });
 }
 
 // =============================================================================
@@ -502,6 +547,12 @@ export function registerPhysicsSystem(
     const parentedBodies = new Set<Entity>();
     const cachedProps = new Map<Entity, CachedBodyProps>();
     let lastEntitySyncTick = -1;
+    // The two most recent fixed-step poses, for render interpolation (the
+    // PostUpdate system lerps prev→cur by Time.fixedAlpha).
+    const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
+    // Events accumulated across this frame's fixed steps; published once per frame.
+    const events: EventAccum = { collisionEnters: [], collisionExits: [], sensorEnters: [], sensorExits: [] };
+    const fixedDt = config.fixedTimestep;
 
     const world = app.world;
 
@@ -515,14 +566,19 @@ export function registerPhysicsSystem(
             trackedEntities.delete(entity);
             cachedProps.delete(entity);
             parentedBodies.delete(entity);
+            snaps.prev.delete(entity);
+            snaps.cur.delete(entity);
         }
     });
 
+    // ── Step + capture (fixed cadence) ──────────────────────────────────────
+    // Runs in FixedUpdate (fixed dt, framerate-independent → deterministic step
+    // count). Reconciles bodies, steps Box2D once, drains events, snapshots poses.
     app.addSystemToSchedule(
-        Schedule.PostUpdate,
+        Schedule.FixedUpdate,
         defineSystem(
-            [Res(Time)],
-            (time: TimeData) => {
+            [],
+            () => {
                 // Read pixelsPerUnit live each tick so a Canvas property
                 // change at runtime (editor: user edits Canvas.pixelsPerUnit)
                 // propagates to physics transforms instead of staying at the
@@ -615,14 +671,42 @@ export function registerPhysicsSystem(
 
                 createPendingJoints(world, module, trackedEntities, trackedJoints, invPpu);
 
-                if (trackedEntities.size > 0 && time.delta > 0) {
-                    module._physics_step(time.delta);
+                if (trackedEntities.size > 0) {
+                    module._physics_step(fixedDt);
                 }
 
-                syncDynamicTransforms(app, module, ppu, parentedBodies);
-                collectEvents(app, module, ppu);
+                collectEvents(module, ppu, events);
+                capturePhysicsPoses(module, snaps);
             },
-            { name: 'PhysicsSystem' }
+            { name: 'PhysicsStepSystem' }
+        ),
+        { runIf: playModeOnly }
+    );
+
+    // ── Interpolate + publish (render cadence) ──────────────────────────────
+    // Runs once per rendered frame in PostUpdate: publishes the frame's events,
+    // then writes interpolated (prev→cur by Time.fixedAlpha) poses to Transforms.
+    app.addSystemToSchedule(
+        Schedule.PostUpdate,
+        defineSystem(
+            [Res(Time)],
+            (time: TimeData) => {
+                app.insertResource(PhysicsEvents, {
+                    collisionEnters: events.collisionEnters,
+                    collisionExits: events.collisionExits,
+                    sensorEnters: events.sensorEnters,
+                    sensorExits: events.sensorExits,
+                });
+                // Fresh arrays for next frame; the published ones stay live on the resource.
+                events.collisionEnters = [];
+                events.collisionExits = [];
+                events.sensorEnters = [];
+                events.sensorExits = [];
+
+                const ppu = readPixelsPerUnit(app);
+                applyPhysicsTransforms(app, ppu, parentedBodies, snaps, time.fixedAlpha);
+            },
+            { name: 'PhysicsInterpolateSystem' }
         ),
         { runIf: playModeOnly }
     );
