@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import {
   Save,
   Undo2,
@@ -16,9 +16,11 @@ import {
   Hammer,
   Monitor,
   AppWindow,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { ContextMenu } from '@/components/Menu';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { commands, formatKeybinding } from '@/commands';
 import type { ToolMode } from '@/types';
@@ -69,6 +71,7 @@ export function Toolbar() {
   // command registry so menu, toolbar, and keyboard share one implementation.
   const playTarget = useEditorStore((s) => s.playTarget);
   const setPlayTarget = useEditorStore((s) => s.setPlayTarget);
+  const [modeMenu, setModeMenu] = useState<{ x: number; y: number } | null>(null);
   const { tool, snapping, showGrid, showGizmos, isPlaying, isPaused, togglePause, stop } =
     useEditorStore();
 
@@ -147,13 +150,28 @@ export function Toolbar() {
         <button
           type="button"
           className="play-side play-mode"
-          title={`Play in ${playTarget === 'viewport' ? 'Viewport' : 'New Window'} — click to switch`}
+          title={`Play in ${playTarget === 'viewport' ? 'Viewport' : 'New Window'}`}
           disabled={isPlaying}
-          onClick={() => setPlayTarget(playTarget === 'viewport' ? 'window' : 'viewport')}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setModeMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 }));
+          }}
         >
           {playTarget === 'viewport' ? <Monitor size={13} strokeWidth={1.9} /> : <AppWindow size={13} strokeWidth={1.9} />}
+          <ChevronDown size={11} strokeWidth={2} className="play-mode-cv" />
         </button>
       </div>
+      {modeMenu && (
+        <ContextMenu
+          x={modeMenu.x}
+          y={modeMenu.y}
+          onClose={() => setModeMenu(null)}
+          items={[
+            { label: 'Play In Viewport', checked: playTarget === 'viewport', onClick: () => setPlayTarget('viewport') },
+            { label: 'Play In New Window', checked: playTarget === 'window', onClick: () => setPlayTarget('window') },
+          ]}
+        />
+      )}
 
       <span className="tspacer" />
 

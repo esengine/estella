@@ -95,6 +95,8 @@
 .play-side { width: 28px; display: grid; place-items: center; background: var(--acc); color: rgba(255, 255, 255, 0.85); border-left: 1px solid rgba(0, 0, 0, 0.25); transition: background var(--t-fast); }
 .play-side:hover { background: var(--acc-hi); }
 .play-side:disabled { opacity: 0.45; pointer-events: none; }
+.play-mode { width: auto; padding: 0 6px; display: inline-flex; align-items: center; gap: 2px; }
+.play-mode .play-mode-cv { opacity: 0.6; }
 .play-wrap.playing .play-main, .play-wrap.playing .play-side { background: var(--error); }
 .play-wrap.playing .play-main:hover { background: #e36a6a; }
 .play-wrap.paused .play-main, .play-wrap.paused .play-side { background: var(--warn); }

@@ -135,6 +135,7 @@ export function Viewport() {
   const dragRef = useRef<Drag | null>(null);
   const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
+  const realm = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
   // Sampled a few times a second (not per frame) — drives the corner HUD.
   const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
 
@@ -415,6 +416,11 @@ export function Viewport() {
       {playInViewport && (
         <div className="viewport__play">
           <div className="viewport__play-host" ref={playHostRef} />
+          {(!realm.ready || realm.error) && (
+            <div className={`viewport__play-status${realm.error ? ' error' : ''}`}>
+              {realm.error ? `Play failed: ${realm.error}` : 'Starting game…'}
+            </div>
+          )}
           <button
             type="button"
             className="viewport__play-stop"
