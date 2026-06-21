@@ -40,6 +40,9 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 export { CameraView, CameraViewApi } from './camera/Camera';
 export { EditorView, DEFAULT_EDITOR_VIEW } from './camera/EditorView';
 export type { EditorViewData } from './camera/EditorView';
+export { EditorGrid, DEFAULT_EDITOR_GRID } from './camera/EditorGrid';
+export type { EditorGridData, GridColor } from './camera/EditorGrid';
+export { installEditorGrid } from './camera/editorGridRenderer';
 export { CameraDirector, setViewTarget, shakeCamera, BlendCurve } from './camera/CameraDirector';
 export { FollowTarget } from './camera/FollowTarget';
 export type { FollowTargetData } from './camera/FollowTarget';
@@ -159,4 +162,8 @@ export {
     unregisterDrawCallback,
     clearDrawCallbacks,
     type DrawCallback,
+    registerPreSceneDrawCallback,
+    unregisterPreSceneDrawCallback,
+    type PreSceneDrawCallback,
+    type PreSceneDrawInfo,
 } from './customDraw';

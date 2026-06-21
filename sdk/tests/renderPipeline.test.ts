@@ -51,9 +51,12 @@ vi.mock('../src/draw', () => ({
 }));
 
 const mockCallbacks = new Map<string, { fn: (elapsed: number) => void; scene: string }>();
+const mockPreSceneCallbacks = new Map<string, (info: unknown) => void>();
 vi.mock('../src/customDraw', () => ({
     getDrawCallbacks: vi.fn(() => mockCallbacks),
     unregisterDrawCallback: vi.fn(),
+    getPreSceneDrawCallbacks: vi.fn(() => mockPreSceneCallbacks),
+    unregisterPreSceneDrawCallback: vi.fn(),
 }));
 
 import { RenderPipeline } from '../src/renderPipeline';

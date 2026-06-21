@@ -8,7 +8,12 @@ import type { Entity } from './types';
 import { Renderer } from './renderer';
 import type { PostProcessApi } from './postprocess';
 import { Draw } from './draw';
-import { getDrawCallbacks, unregisterDrawCallback } from './customDraw';
+import {
+    getDrawCallbacks,
+    unregisterDrawCallback,
+    getPreSceneDrawCallbacks,
+    unregisterPreSceneDrawCallback,
+} from './customDraw';
 import { log } from './logger';
 
 export interface Viewport {
@@ -88,6 +93,10 @@ export class RenderPipeline {
         viewport: Viewport,
         _elapsed: number,
     ): void {
+        // Underlays (editor grid / world-space guides) draw first so the scene's
+        // sprites, flushed below, occlude them.
+        this.executePreSceneDrawCallbacks(viewProjection, viewport, _elapsed);
+
         Renderer.updateTransforms(registry);
         Renderer.submitAll(registry, 0, viewport.x, viewport.y, viewport.w, viewport.h);
         for (const cb of this.preFlushCallbacks_) cb(registry);
@@ -138,6 +147,29 @@ export class RenderPipeline {
         if (hasPostProcess) {
             pp!.end();
             pp!._resetAfterCamera();
+        }
+    }
+
+    private executePreSceneDrawCallbacks(
+        viewProjection: Float32Array,
+        viewport: Viewport,
+        elapsed: number,
+    ): void {
+        const cbs = getPreSceneDrawCallbacks();
+        if (cbs.size === 0) return;
+        Draw.begin(viewProjection);
+        const failed: string[] = [];
+        for (const [id, fn] of cbs.entries()) {
+            try {
+                fn({ width: viewport.w, height: viewport.h, elapsed });
+            } catch (e) {
+                log.error('render', `pre-scene callback '${id}' error`, e);
+                failed.push(id);
+            }
+        }
+        Draw.end();
+        for (const id of failed) {
+            unregisterPreSceneDrawCallback(id);
         }
     }
 
