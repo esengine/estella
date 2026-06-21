@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
-  MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Magnet, Frame,
-  Camera, Loader2, TriangleAlert, type LucideIcon,
+  MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
+  Camera, Check, ChevronDown, Loader2, TriangleAlert, type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
@@ -74,12 +74,21 @@ const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] 
   { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' },
 ];
 
-// Grid/angle/scale increments applied while the Snapping toggle is on. Fixed for
-// now — a future Preferences panel will make these user-configurable.
-const SNAP_MOVE = 10; // world units per grid step
+// Angle/scale snap increments applied while Snapping is on. Fixed for now — a
+// future Preferences panel will make these user-configurable. The Move step is
+// the user-chosen `snapStep` (viewport Snap dropdown), not a constant here.
 const SNAP_ROTATE = 15; // degrees
 const SNAP_SCALE = 0.1; // uniform scale step
+const SNAP_STEPS = [16, 32, 64]; // world units offered by the Snap dropdown
 const snap = (v: number, step: number) => Math.round(v / step) * step;
+
+// One-line hint shown under the coord readout, reflecting the active tool.
+const TOOL_HINT: Record<ToolMode, string> = {
+  select: 'Click to select · drag empty to box-select',
+  move: 'Drag the entity to move · Shift to multi-select',
+  rotate: 'Drag around the entity to rotate',
+  scale: 'Drag out from the entity to scale',
+};
 
 // Entity's screen-center in viewport (client) coordinates.
 function entityClientCenter(id: number): { cx: number; cy: number } | null {
@@ -120,6 +129,74 @@ function OvTool({
   );
 }
 
+// A viewport overlay dropdown (UE5 "show flags" / "snap" menus): an .ovbtn
+// trigger with an icon, a label, and a chevron, plus a floating .dd-menu.
+// Closes on outside-click or after an item is chosen (the menu's onClick).
+function OvDropdown({
+  icon: Icon,
+  label,
+  align,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  label: ReactNode;
+  align?: 'r';
+  title?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [open]);
+  return (
+    <div className={`dd${open ? ' open' : ''}`} ref={ref}>
+      <button
+        type="button"
+        className={`ovbtn${open ? ' open' : ''}`}
+        title={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Icon className="ic" size={13} strokeWidth={1.9} />
+        {label}
+        <ChevronDown className="cv" size={9} strokeWidth={2.5} />
+      </button>
+      {/* Item clicks bubble here to dismiss; each item runs its own handler. */}
+      <div className={`dd-menu${align === 'r' ? ' r' : ''}`} role="menu" onClick={() => setOpen(false)}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Multi-toggle menu row (checkbox box) — for the Show Flags menu.
+function DdCheck({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+  return (
+    <div className={`dd-item${on ? ' on' : ''}`} role="menuitemcheckbox" aria-checked={on} onClick={onClick}>
+      <span className="chk">{on && <Check size={8} strokeWidth={3.5} />}</span>
+      <span className="l">{label}</span>
+    </div>
+  );
+}
+
+// Single-select menu row (tick mark, shown when active) — for the Snap menu.
+function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+  return (
+    <div className={`dd-item${on ? ' on' : ''}`} role="menuitemradio" aria-checked={on} onClick={onClick}>
+      <span className="tk"><Check size={11} strokeWidth={3} /></span>
+      <span className="l">{label}</span>
+    </div>
+  );
+}
+
 export function Viewport() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const playTarget = useEditorStore((s) => s.playTarget);
@@ -127,6 +204,8 @@ export function Viewport() {
   const showGrid = useEditorStore((s) => s.showGrid);
   const showGizmos = useEditorStore((s) => s.showGizmos);
   const snapping = useEditorStore((s) => s.snapping);
+  const snapStep = useEditorStore((s) => s.snapStep);
+  const selCount = useSelection((s) => s.selectedIds.size);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const playHostRef = useRef<HTMLDivElement>(null);
@@ -157,6 +236,14 @@ export function Viewport() {
     StatsStore.start();
     return () => EngineHost.detach();
   }, []);
+
+  // Drive the engine's world-space editor grid from Show-Flags (Grid) + Snap
+  // step. Re-applied when the engine becomes ready, since the grid resource
+  // exists only after boot. Play/edit gating lives in the renderer (EditorView).
+  useEffect(() => {
+    if (engine.status !== 'ready') return;
+    EngineHost.setGrid(showGrid, snapStep);
+  }, [showGrid, snapStep, engine.status]);
 
   // Play In Viewport (UE5 PIE): host the realm iframe over the stage while playing
   // here; App.start() already booted the realm — we just re-parent its iframe.
@@ -308,7 +395,11 @@ export function Viewport() {
       if (wp) {
         let x = wp.x + drag.dx;
         let y = wp.y + drag.dy;
-        if (snapOn) { x = snap(x, SNAP_MOVE); y = snap(y, SNAP_MOVE); }
+        if (snapOn) {
+          const step = useEditorStore.getState().snapStep;
+          x = snap(x, step);
+          y = snap(y, step);
+        }
         SceneCommands.setEntityXY(drag.id, x, y);
       }
     } else if (drag.kind === 'rotate') {
@@ -360,7 +451,21 @@ export function Viewport() {
 
   return (
     <div className="viewport">
+      {/* Top-left: view menus (UE5 layout) — Show Flags dropdown + Frame. */}
       <div className="ov ov-tl">
+        <div className="ov-cluster">
+          <OvDropdown icon={Eye} label="Show" title="Show Flags">
+            <div className="dd-lbl">Show Flags</div>
+            <DdCheck on={showGrid} label="Grid" onClick={() => commands.run('view.toggleGrid')} />
+            <DdCheck on={showGizmos} label="Gizmos" onClick={() => commands.run('view.toggleGizmos')} />
+          </OvDropdown>
+          <span className="ov-divider" />
+          <OvTool icon={Frame} label="Frame Selected  (F)" kbd="F" onClick={() => commands.run('view.frameSelected')} />
+        </div>
+      </div>
+
+      {/* Top-right: transform tools (UE5 moved gizmo tools here) + Snap. */}
+      <div className="ov ov-tr">
         <div className="ov-cluster">
           {TOOLS.map((t) => (
             <OvTool
@@ -373,11 +478,23 @@ export function Viewport() {
             />
           ))}
           <span className="ov-divider" />
-          <OvTool icon={Grid3x3} label="Show Grid" active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
-          <OvTool icon={Eye} label="Show Gizmos" active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
-          <OvTool icon={Magnet} label="Snapping" active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
-          <span className="ov-divider" />
-          <OvTool icon={Frame} label="Frame Selected  (F)" kbd="F" onClick={() => commands.run('view.frameSelected')} />
+          <OvDropdown
+            icon={Grid3x3}
+            label={<span className="val">{snapping ? snapStep : 'Off'}</span>}
+            align="r"
+            title="Grid Snap"
+          >
+            <div className="dd-lbl">Snap (units)</div>
+            <DdRadio on={!snapping} label="Off" onClick={() => useEditorStore.setState({ snapping: false })} />
+            {SNAP_STEPS.map((s) => (
+              <DdRadio
+                key={s}
+                on={snapping && snapStep === s}
+                label={String(s)}
+                onClick={() => useEditorStore.getState().setSnapStep(s)}
+              />
+            ))}
+          </OvDropdown>
         </div>
       </div>
 
@@ -465,6 +582,10 @@ export function Viewport() {
           </div>
           <div className="ps" />
           <div className="pr">
+            <span className="k">Frame</span>
+            <span className="v">{stats.fps > 0 ? (1000 / stats.fps).toFixed(1) : '—'} ms</span>
+          </div>
+          <div className="pr">
             <span className="k">Entities</span>
             <span className="v">{stats.entities}</span>
           </div>
@@ -473,17 +594,17 @@ export function Viewport() {
 
       <div className="vp-coord">
         <div className="ro">
-          {stats.cursor ? (
+          {stats.cursor && (
             <>
               <strong>
                 {stats.cursor.x}, {stats.cursor.y}
               </strong>{' '}
-              · {zoomPct}%
+              ·{' '}
             </>
-          ) : (
-            `${zoomPct}%`
           )}
+          Sel <strong>{selCount}</strong> · {zoomPct}%
         </div>
+        <div className="hint">{TOOL_HINT[tool]}</div>
       </div>
 
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}

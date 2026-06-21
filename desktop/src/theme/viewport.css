@@ -57,6 +57,73 @@
 .ov-tool:hover kbd { opacity: 1; }
 .ov-divider { width: 1px; height: 16px; background: var(--border-line); margin: 0 3px; }
 
+/* overlay dropdown (view-menu / snap) — adopted from ue5/shell.css (.dd block) */
+.dd { position: relative; }
+.dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  min-width: 188px;
+  background: rgba(24, 24, 28, 0.96);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  padding: 4px;
+  z-index: 8;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transform-origin: top;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--e-out), transform var(--t-fast) var(--e-out);
+}
+.dd.open .dd-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.dd-menu.r { right: 0; }
+.dd-lbl {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-mute);
+  font-weight: 700;
+  padding: 6px 8px 4px;
+}
+.dd-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.dd-item:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.dd-item .tk { width: 14px; display: inline-flex; color: var(--acc); opacity: 0; }
+.dd-item.on { color: var(--text); }
+.dd-item.on .tk { opacity: 1; }
+.dd-item .chk {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  color: transparent;
+}
+.dd-item.on .chk { background: var(--acc); border-color: var(--acc); color: #fff; }
+.dd-item .l { flex: 1; }
+.dd-item .k {
+  margin-left: auto;
+  font-size: var(--fs-2xs);
+  color: var(--text-mute);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  padding: 1px 4px;
+}
+.dd-sep { height: 1px; background: var(--border-line); margin: 4px 6px; }
+
 /* perf widget (bottom-right) */
 .vp-perf {
   position: absolute;

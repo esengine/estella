@@ -8,6 +8,8 @@ import {
   Sprite,
   Camera,
   EditorView,
+  EditorGrid,
+  installEditorGrid,
   setEditorMode,
   setPlayMode,
 } from 'esengine';
@@ -173,6 +175,19 @@ class EngineHostImpl {
     view.active = !this.playing_;
   }
 
+  /**
+   * Drive the editor reference grid from the editor's Show-Flags + Snap state.
+   * The renderer only paints when the EditorView is active (edit mode), so this
+   * just mirrors the user's intent; play/edit gating is handled there. No-op
+   * before the grid resource is installed (pre-boot).
+   */
+  setGrid(enabled: boolean, spacing?: number): void {
+    const grid = this.getResource(EditorGrid);
+    if (!grid) return;
+    grid.enabled = enabled;
+    if (spacing != null && spacing > 0) grid.spacing = spacing;
+  }
+
   /** The active (or first) scene camera's center + ortho half-height, for seeding. */
   private readSceneCamera(): { x: number; y: number; orthoSize: number } | null {
     const world = this.world;
@@ -329,6 +344,12 @@ class EngineHostImpl {
     // keep ticking. Play mode is toggled later via setRunMode.
     setEditorMode(true);
     setPlayMode(false);
+
+    // Editor-only world-space reference grid (drawn through the editor camera,
+    // occluded by scene entities). Inserts the EditorGrid resource + registers
+    // the pre-scene draw pass; the UI flips enabled/spacing via setGrid(). The
+    // renderer self-gates on EditorView.active, so it never draws in play mode.
+    installEditorGrid(app);
 
     // Model-authoritative wiring (Reconciler model→World projection + SceneStore
     // reactivity) is owned by the EditorSession (constructed at app/headless

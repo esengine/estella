@@ -37,9 +37,14 @@ interface EditorState {
   showGrid: boolean;
   showGizmos: boolean;
   snapping: boolean;
+  // Grid-snap increment (world units) applied to Move while `snapping` is on. The
+  // viewport snap dropdown picks from a fixed set (16 / 32 / 64); "off" flips
+  // `snapping` rather than changing the step, so the last step survives a re-enable.
+  snapStep: number;
   toggleGrid: () => void;
   toggleGizmos: () => void;
   toggleSnapping: () => void;
+  setSnapStep: (step: number) => void;
 
   // Content Drawer — a quick-access overlay: the Content Browser slides up over
   // the workspace (Ctrl+Space), dismissing on outside click / Esc. It sits ON
@@ -91,9 +96,11 @@ export const useEditorStore = create<EditorState>((set) => ({
   showGrid: true,
   showGizmos: true,
   snapping: false,
+  snapStep: 32,
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleGizmos: () => set((s) => ({ showGizmos: !s.showGizmos })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
+  setSnapStep: (snapStep) => set({ snapStep, snapping: true }),
 
   contentDrawer: false,
   toggleContentDrawer: () => set((s) => ({ contentDrawer: !s.contentDrawer })),
