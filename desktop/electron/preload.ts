@@ -38,7 +38,8 @@ const api = {
     /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
     cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
-    exportGame: (outDir?: string): Promise<ExportGameResult> => ipcRenderer.invoke('project:exportGame', outDir),
+    exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean }): Promise<ExportGameResult> =>
+      ipcRenderer.invoke('project:exportGame', opts),
     /** Show a file picker and import the chosen files into `destDir` (writes .meta);
      *  null if cancelled. */
     importAssets: (destDir: string): Promise<{ imported: string[]; skipped: string[] } | null> =>
@@ -79,8 +80,10 @@ const api = {
   },
   // OS shell integration.
   shell: {
-    /** Reveal a file/folder in Finder / Explorer. */
+    /** Reveal a project-relative file/folder in Finder / Explorer. */
     showItem: (relPath: string): Promise<void> => ipcRenderer.invoke('shell:showItem', relPath),
+    /** Open an absolute path in the OS (e.g. the build output dir). */
+    openPath: (absPath: string): Promise<string> => ipcRenderer.invoke('shell:openPath', absPath),
   },
   workspace: {
     save: (ws: WorkspaceState): Promise<void> => ipcRenderer.invoke('workspace:save', ws),

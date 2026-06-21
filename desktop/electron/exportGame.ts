@@ -62,6 +62,9 @@ export async function exportGame(opts: {
   wasmDir: string;
   outDir: string;
   title?: string;
+  /** Shipping config: minify the host bundle, no sourcemap. Default off (dev). */
+  minify?: boolean;
+  sourcemap?: boolean;
 }): Promise<ExportGameResult> {
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(opts.root, opts.outDir);
   const warnings: string[] = [];
@@ -81,7 +84,8 @@ export async function exportGame(opts: {
       platform: 'browser',
       target: 'es2020',
       outfile: path.join(absOut, 'game.js'),
-      sourcemap: false,
+      minify: opts.minify ?? false,
+      sourcemap: opts.sourcemap ?? false,
       write: true,
       logLevel: 'silent',
     });

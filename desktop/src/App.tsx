@@ -8,6 +8,7 @@ import { ContentDrawer } from '@/layout/ContentDrawer';
 import '@/engine/EditorSession'; // side effect: constructs defaultSession → wires the editor engine
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
+import { BuildDialog } from '@/components/BuildDialog';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
 import { PlayRealm } from '@/engine/PlayRealm';
@@ -72,6 +73,7 @@ export function App() {
   // The editor opens on the launcher (project browser); the shell + engine mount
   // only once a project is opened. (Logic wiring lands with the recents IPC.)
   const showLauncher = useEditorStore((s) => s.showLauncher);
+  const buildOpen = useEditorStore((s) => s.buildOpen);
   if (showLauncher) return <Launcher />;
 
   return (
@@ -84,6 +86,7 @@ export function App() {
       </main>
       <StatusBar />
       <ContentDrawer />
+      {buildOpen && <BuildDialog />}
       <Toaster />
     </div>
   );

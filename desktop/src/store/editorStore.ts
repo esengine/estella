@@ -40,6 +40,10 @@ interface EditorState {
   contentDrawer: boolean;
   toggleContentDrawer: () => void;
   setContentDrawer: (open: boolean) => void;
+
+  // Package/Build dialog (File → Build) — the UE5-style export modal.
+  buildOpen: boolean;
+  setBuildOpen: (open: boolean) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -76,4 +80,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   contentDrawer: false,
   toggleContentDrawer: () => set((s) => ({ contentDrawer: !s.contentDrawer })),
   setContentDrawer: (contentDrawer) => set({ contentDrawer }),
+
+  buildOpen: false,
+  setBuildOpen: (buildOpen) => set({ buildOpen }),
 }));

@@ -46,10 +46,10 @@ commands.register({
 });
 commands.register({
   id: 'project.export',
-  label: 'Export Game…',
+  label: 'Build…',
   category: 'File',
   isEnabled: () => !!ProjectStore.getSnapshot(),
-  run: () => void ProjectStore.exportGame(),
+  run: () => editor().setBuildOpen(true),
 });
 commands.register({
   id: 'project.close',

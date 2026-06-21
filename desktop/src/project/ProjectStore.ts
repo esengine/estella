@@ -482,21 +482,12 @@ class ProjectStoreImpl {
   /**
    * Export a runnable web build of the project (play == ship): cook reachable
    * assets + bundle the game host + copy the runtime → a self-contained dir
-   * (default `dist-game/`). Toasts the outcome.
+   * (default `dist-game/`). Returns the bridge result so the Build dialog can
+   * render status/log; null if no project is open.
    */
-  async exportGame(): Promise<void> {
-    if (!this.state) return;
-    Toasts.push('Exporting game…', 'info', 2000);
-    try {
-      const res = await window.estella.project.exportGame();
-      if (res.ok) {
-        Toasts.push(`Exported ${res.included} assets → ${res.outDir.split('/').pop()}/`, 'success');
-      } else {
-        Toasts.push(`Export failed: ${res.errors[0] ?? 'unknown error'}`, 'error');
-      }
-    } catch (err) {
-      Toasts.push(`Export failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
-    }
+  async exportGame(opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean }) {
+    if (!this.state) return null;
+    return window.estella.project.exportGame(opts);
   }
 
   /** Prompt for a destination (Save-As) and write there. Returns the path or null. */

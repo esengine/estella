@@ -217,6 +217,8 @@ ipcMain.handle('fs:trash', async (_e, relPath: string) => {
 ipcMain.handle('shell:showItem', (_e, relPath: string) => {
   shell.showItemInFolder(resolveInRoot(requireRoot(), relPath));
 });
+// Open an absolute path in the OS (e.g. a build output dir the user just chose).
+ipcMain.handle('shell:openPath', (_e, absPath: string) => shell.openPath(absPath));
 ipcMain.handle('workspace:save', (_e, ws: WorkspaceState) => saveWorkspace(requireRoot(), ws));
 
 // Bundle the open project's startup script (manifest scripts.main, default
@@ -257,22 +259,27 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 });
 
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
-ipcMain.handle('project:exportGame', async (_e, outDir?: string) => {
-  const root = requireRoot();
-  const manifest = await readManifest(root);
-  const entryScene = manifest.defaultScene;
-  if (!entryScene) throw new Error('project has no defaultScene to export');
-  const publicWasm = path.join(VITE_PUBLIC, 'wasm');
-  const wasmDir = existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm');
-  return exportGame({
-    root,
-    entryScene,
-    gameHostEntry: path.join(process.env.APP_ROOT!, 'src', 'gameHost.ts'),
-    wasmDir,
-    outDir: outDir ?? 'dist-game',
-    title: manifest.name,
-  });
-});
+ipcMain.handle(
+  'project:exportGame',
+  async (_e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean }) => {
+    const root = requireRoot();
+    const manifest = await readManifest(root);
+    const entryScene = manifest.defaultScene;
+    if (!entryScene) throw new Error('project has no defaultScene to export');
+    const publicWasm = path.join(VITE_PUBLIC, 'wasm');
+    const wasmDir = existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm');
+    return exportGame({
+      root,
+      entryScene,
+      gameHostEntry: path.join(process.env.APP_ROOT!, 'src', 'gameHost.ts'),
+      wasmDir,
+      outDir: opts?.outDir || 'dist-game',
+      title: manifest.name,
+      minify: opts?.minify,
+      sourcemap: opts?.sourcemap,
+    });
+  },
+);
 
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));
