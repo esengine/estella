@@ -25,6 +25,7 @@ import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
+import { buildPlayRealm } from './buildPlayRealm';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -58,6 +59,13 @@ const ASSET_MIME: Record<string, string> = {
   json: 'application/json',
   esscene: 'application/json',
   fnt: 'text/plain',
+  // The play realm is served from estella:// too (host page + SDK + bundle + wasm),
+  // so estella must hand back script/document/wasm types, not just asset types.
+  html: 'text/html',
+  js: 'text/javascript',
+  mjs: 'text/javascript',
+  wasm: 'application/wasm',
+  css: 'text/css',
 };
 
 // MIME for serving the built renderer over app:// (wasm MUST be application/wasm
@@ -280,6 +288,28 @@ ipcMain.handle(
     });
   },
 );
+
+// Stage the isolated play realm under the project's .esengine/play/ (host + SDK +
+// wasm + import map) and build the project's script bundle, so the editor can run
+// it from estella://project/.esengine/play/play.html with custom components/systems.
+ipcMain.handle('project:preparePlayRealm', async () => {
+  const root = requireRoot();
+  const manifest = await readManifest(root);
+  const { main } = resolveScripts(manifest);
+  // Best-effort: a project with no scripts entry just runs builtin-only.
+  try {
+    await buildProjectScripts(root, { entry: main });
+  } catch {
+    /* no bundle — builtin components/systems only */
+  }
+  const publicWasm = path.join(VITE_PUBLIC, 'wasm');
+  return buildPlayRealm({
+    root,
+    playHostEntry: path.join(process.env.APP_ROOT!, 'src', 'playHost.ts'),
+    sdkDistDir: path.join(process.env.APP_ROOT!, 'node_modules', 'esengine', 'dist'),
+    wasmDir: existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm'),
+  });
+});
 
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));

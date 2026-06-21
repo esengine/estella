@@ -54,11 +54,27 @@ class PlayRealmImpl {
     this.iframe?.parentElement?.removeChild(this.iframe);
   }
 
-  /** Boot a fresh realm and play `payload` (init is posted on the realm's hello). */
-  start(payload: PlayPayload): void {
+  /**
+   * Boot a fresh realm and play `payload`. Stages the realm under the project's
+   * `.esengine/play/` (host + SDK + wasm + project bundle) and loads it from the
+   * project's `estella://` origin, so the host + the project bundle share one
+   * esengine instance (custom components/systems run) and all assets are
+   * same-origin. Init is posted on the realm's `hello`.
+   */
+  async start(payload: PlayPayload): Promise<void> {
     this.payload = payload;
     this.set({ playing: true, ready: false, error: null });
-    this.ensureIframe().src = `/play.html?n=${++this.epoch}`;
+    const frame = this.ensureIframe();
+    try {
+      const realm = await window.estella.project.preparePlayRealm();
+      if (!realm.ok) {
+        this.set({ error: realm.errors[0] ?? 'failed to prepare play realm' });
+        return;
+      }
+      frame.src = `estella://project/${realm.hostPath}?n=${++this.epoch}`;
+    } catch (err) {
+      this.set({ error: err instanceof Error ? err.message : String(err) });
+    }
   }
 
   /** Tear the realm down (releases its wasm + GL by navigating to a blank page). */

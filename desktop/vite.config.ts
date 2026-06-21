@@ -14,13 +14,13 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Renderer entries: the editor shell (index), the headless render host
-      // (headless, for automation/verification), and the isolated play realm
-      // host (play, REARCH_EDITOR_REALM Phase R).
+      // Renderer entries: the editor shell (index) + the headless render host
+      // (headless, for automation/verification). The play realm is NOT a Vite
+      // entry — it's esbuilt (esengine external) into the project's .esengine/play/
+      // and served from estella:// (see electron/buildPlayRealm.ts).
       input: {
         index: fileURLToPath(new URL('./index.html', import.meta.url)),
         headless: fileURLToPath(new URL('./headless.html', import.meta.url)),
-        play: fileURLToPath(new URL('./play.html', import.meta.url)),
       },
     },
   },

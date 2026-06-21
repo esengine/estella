@@ -394,15 +394,10 @@ class ProjectStoreImpl {
   playPayload(): { sceneData: SceneData; assetManifest: Record<string, string> } | null {
     const sceneData = SceneModel.serialize();
     if (!sceneData) return null;
-    // The realm is same-origin with the editor (relative iframe src). A custom
-    // scheme (app://) can't cross-fetch another (estella://), so under app://
-    // (packaged) serve assets through the app:// project route; in dev (http
-    // origin) estella:// is reachable (http may make CORS requests).
-    const base = location.origin.startsWith('app:')
-      ? `${location.origin}/__project__/`
-      : 'estella://project/';
+    // The realm runs from the project's estella:// origin, so assets are
+    // same-origin estella:// — no cross-scheme dance needed.
     const assetManifest: Record<string, string> = {};
-    for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = base + path;
+    for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = `estella://project/${path}`;
     return { sceneData, assetManifest };
   }
 

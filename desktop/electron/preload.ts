@@ -5,6 +5,7 @@ import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScanAssetsResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
+import type { PlayRealmResult } from './buildPlayRealm';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -40,6 +41,9 @@ const api = {
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
     exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean }): Promise<ExportGameResult> =>
       ipcRenderer.invoke('project:exportGame', opts),
+    /** Stage the isolated play realm (host + SDK + wasm + project bundle) under
+     *  `.esengine/play/`; returns the project-relative host page path. */
+    preparePlayRealm: (): Promise<PlayRealmResult> => ipcRenderer.invoke('project:preparePlayRealm'),
     /** Show a file picker and import the chosen files into `destDir` (writes .meta);
      *  null if cancelled. */
     importAssets: (destDir: string): Promise<{ imported: string[]; skipped: string[] } | null> =>

@@ -1,13 +1,16 @@
 /**
- * @file  play.ts — the isolated play-realm host page (REARCH_EDITOR_REALM Phase R).
+ * @file  playHost.ts — the isolated play realm's host module (REARCH_EDITOR_REALM
+ *        import-map phase). Unlike the R1 Vite `play.ts` (which bundles its own
+ *        esengine), this is esbuilt with **esengine EXTERNAL** and runs from the
+ *        project's `estella://` origin under `.esengine/play/host.js`. A
+ *        `<script type=importmap>` in play.html maps `esengine` → `./sdk/index.js`,
+ *        so THIS host AND the project bundle (`../cache/scripts.mjs`, also external
+ *        esengine) resolve to the SAME esengine instance — the bundle's
+ *        defineComponent/defineSystem register into the registry createWebApp uses,
+ *        so custom components + systems actually run (play == ship).
  *
- * Runs inside the editor's "Game" iframe as a SEPARATE realm (its own wasm + GL +
- * World). It boots the SHIPPING runtime (createWebApp → initPlayRealmRuntime) and
- * runs the scene SNAPSHOT the editor posts in — so what you play is what you ship.
- * Control + handshake go over postMessage; the realm never touches `window.estella`.
- *
- * Builtin components/systems run as-is. Project-defined components/systems (a
- * bundle with esengine external + an import map) are a layered follow-up.
+ *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
+ *        sidestepping the custom-scheme cross-fetch ban.
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
@@ -19,6 +22,8 @@ interface InitMessage {
 }
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const wasmBase = new URL('./wasm/', import.meta.url).href; // sibling of host.js
+const bundleUrl = new URL('../cache/scripts.mjs', import.meta.url).href; // project bundle
 
 function resize(): void {
   const dpr = window.devicePixelRatio || 1;
@@ -30,23 +35,27 @@ resize();
 
 let app: App | null = null;
 let booted = false;
-
-function post(message: Record<string, unknown>): void {
-  parent.postMessage(message, '*');
-}
+const post = (m: Record<string, unknown>) => parent.postMessage(m, '*');
 
 async function boot(msg: InitMessage): Promise<void> {
   if (booted) return;
   booted = true;
   try {
-    // Glue + binary load from this realm's origin (dev http / packaged app://).
-    const glueUrl = `${location.origin}/wasm/esengine.js`;
-    const { default: createModule } = (await import(/* @vite-ignore */ glueUrl)) as {
+    // Register the project's own components/systems FIRST (side-effect import; its
+    // `import 'esengine'` resolves through the import map to the shared instance).
+    // Absent (a project with no scripts) → builtin-only, which is fine.
+    try {
+      await import(/* @vite-ignore */ bundleUrl);
+    } catch {
+      /* no project bundle — builtin components/systems only */
+    }
+
+    const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
       default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
     };
     const module = await createModule({
       canvas,
-      locateFile: (p: string) => `/wasm/${p}`,
+      locateFile: (p: string) => `${wasmBase}${p}`,
       print: (t: string) => console.log('[wasm]', t),
       printErr: (t: string) => console.warn('[wasm]', t),
     });
@@ -59,19 +68,13 @@ async function boot(msg: InitMessage): Promise<void> {
       premultipliedAlpha: false,
     }) as WebGL2RenderingContext | null;
     if (!gl) throw new Error('WebGL2 is not available in this realm.');
-    const glHandle = module.GL.registerContext(gl, {
-      majorVersion: 2,
-      minorVersion: 0,
-      enableExtensionsByDefault: true,
-    });
+    const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
 
     app = createWebApp(module, {
       glContextHandle: glHandle,
       getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
-      wasmBaseUrl: '/wasm',
+      wasmBaseUrl: wasmBase,
     });
-
-    // Real shipping mode — NOT editor mode. Gameplay systems run.
     setEditorMode(false);
     setPlayMode(true);
 
@@ -84,7 +87,6 @@ async function boot(msg: InitMessage): Promise<void> {
     });
     post({ type: 'estella:play:ready' });
   } catch (err) {
-    // Emscripten throws 'unwind' when its main loop takes over — that's success.
     const message = err instanceof Error ? err.message : String(err);
     if (err === 'unwind' || message.includes('unwind')) {
       post({ type: 'estella:play:ready' });
@@ -98,16 +100,8 @@ async function boot(msg: InitMessage): Promise<void> {
 window.addEventListener('message', (e: MessageEvent) => {
   const data = e.data as { type?: string; paused?: boolean } | null;
   if (!data || typeof data !== 'object') return;
-  switch (data.type) {
-    case 'estella:play:init':
-      void boot(e.data as InitMessage);
-      break;
-    case 'estella:play:setPaused':
-      app?.setPaused(!!data.paused);
-      break;
-    // 'dispose' = the editor removes the iframe; the whole realm is torn down.
-  }
+  if (data.type === 'estella:play:init') void boot(e.data as InitMessage);
+  else if (data.type === 'estella:play:setPaused') app?.setPaused(!!data.paused);
 });
 
-// Tell the editor the realm is mounted and ready to receive the scene snapshot.
 post({ type: 'estella:play:hello' });

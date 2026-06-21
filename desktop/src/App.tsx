@@ -60,7 +60,7 @@ export function App() {
         return;
       }
       dockApi.openGame();
-      PlayRealm.start(payload);
+      void PlayRealm.start(payload);
     } else {
       PlayRealm.stop();
       dockApi.closeGame();
