@@ -75,6 +75,25 @@ export const dockApi = {
     return groupApi.height <= COLLAPSED_H + 8;
   },
 
+  /** Toggle a panel's whole group collapsed/expanded (the activity-bar toggles). */
+  togglePanelCollapse(panelId: string) {
+    const panel = api?.getPanel(panelId);
+    const groupApi = panel?.group?.api;
+    if (!panel || !groupApi) return;
+    this.setGroupCollapsed(groupApi, panel.group.id, !this.groupCollapsed(groupApi));
+  },
+
+  /** Bring a panel's tab to front and expand its group if it was collapsed. */
+  revealAndExpand(panelId: string) {
+    const panel = api?.getPanel(panelId);
+    if (!panel) return;
+    panel.api.setActive();
+    const groupApi = panel.group?.api;
+    if (groupApi && this.groupCollapsed(groupApi)) {
+      this.setGroupCollapsed(groupApi, panel.group.id, false);
+    }
+  },
+
   /**
    * Collapse a dock group to its header bar (or expand it back), by height —
    * the per-panel accordion the header chevron drives, animated (UE5 ease-out;

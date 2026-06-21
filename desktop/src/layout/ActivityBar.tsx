@@ -14,12 +14,17 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Toggle right dock"
-        onClick={() => dockApi.toggleCollapse('outliner', 'width')}
+        title="Toggle Outliner"
+        onClick={() => dockApi.togglePanelCollapse('outliner')}
       >
         <ListTree size={19} strokeWidth={1.7} />
       </button>
-      <button type="button" className="act" title="Details" onClick={() => dockApi.reveal('details')}>
+      <button
+        type="button"
+        className="act"
+        title="Toggle Details"
+        onClick={() => dockApi.togglePanelCollapse('details')}
+      >
         <SlidersHorizontal size={19} strokeWidth={1.7} />
       </button>
       <button
@@ -30,7 +35,12 @@ export function ActivityBar() {
       >
         <FolderOpen size={19} strokeWidth={1.7} />
       </button>
-      <button type="button" className="act" title="Output Log" onClick={() => dockApi.reveal('log')}>
+      <button
+        type="button"
+        className="act"
+        title="Output Log"
+        onClick={() => dockApi.revealAndExpand('log')}
+      >
         <Terminal size={19} strokeWidth={1.7} />
       </button>
 
