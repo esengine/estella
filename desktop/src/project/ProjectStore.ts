@@ -116,17 +116,33 @@ class ProjectStoreImpl {
   private async adopted(opened: OpenedProject): Promise<void> {
     this.adopt(opened);
     await window.estella.recents.add(opened.root, opened.manifest.name);
-    await this.loadUserSchemas();
+    await this.refreshUserSchemas();
     EngineHost.setSceneBootstrap(() => this.loadCurrentScene());
     if (EngineHost.world) await this.loadCurrentScene();
   }
 
   /**
-   * Load the project's component field schemas (`.esengine/cache/schemas.json`,
-   * built by extractSchemas) so the inspector can list + edit user/script
-   * components — which never run in the editor realm, so the engine registry
-   * doesn't know them. Missing/invalid cache → builtins only (run "Extract
-   * Schemas"); the components still round-trip losslessly through the model.
+   * Make the editor aware of the project's own components: (re-)extract their
+   * field schemas (pure-node, runs `defineComponent` in an isolated context — no
+   * project systems execute), then load the result. So a project component like
+   * `SpawnMarker` is first-class in the editor (inspector edits it, the model
+   * round-trips it losslessly) WITHOUT the editor realm ever running project code.
+   * Call on open + whenever the declaration entry changes. Best-effort — a failure
+   * leaves the previous schemas (or builtins-only) and never blocks opening.
+   */
+  async refreshUserSchemas(): Promise<void> {
+    try {
+      await window.estella.project.extractSchemas();
+    } catch (err) {
+      console.warn('[project] schema extract failed (custom components fall back to lossless-only)', err);
+    }
+    await this.loadUserSchemas();
+  }
+
+  /**
+   * Load the project's component field schemas from `.esengine/cache/schemas.json`
+   * (built by {@link refreshUserSchemas}). Missing/invalid → builtins only; the
+   * components still round-trip losslessly through the model.
    */
   private async loadUserSchemas(): Promise<void> {
     try {
