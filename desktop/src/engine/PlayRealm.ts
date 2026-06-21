@@ -88,13 +88,36 @@ class PlayRealmImpl {
     this.post({ type: 'estella:play:setPaused', paused });
   }
 
+  // — Live introspection bridge (UE5-PIE Details): query/mutate the running World —
+  private reqSeq = 0;
+  private readonly pending = new Map<number, (data: unknown) => void>();
+
+  /** A live SceneData snapshot of the running game's World (null if not ready). */
+  snapshot(): Promise<SceneData | null> {
+    if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
+    const reqId = ++this.reqSeq;
+    return new Promise((resolve) => {
+      const done = (data: unknown) => resolve((data as SceneData) ?? null);
+      this.pending.set(reqId, done);
+      this.post({ type: 'estella:play:query', kind: 'snapshot', reqId });
+      setTimeout(() => {
+        if (this.pending.delete(reqId)) resolve(null);
+      }, 2000);
+    });
+  }
+
+  /** Live-edit a field of a running entity (debug; reverts on Stop). */
+  setField(entityId: number, comp: string, key: string, value: unknown): void {
+    this.post({ type: 'estella:play:setField', entityId, comp, key, value });
+  }
+
   private post(message: Record<string, unknown>): void {
     this.iframe?.contentWindow?.postMessage(message, '*');
   }
 
   private onMessage = (e: MessageEvent): void => {
     if (!this.iframe || e.source !== this.iframe.contentWindow) return;
-    const data = e.data as { type?: string; message?: string } | null;
+    const data = e.data as { type?: string; message?: string; reqId?: number; data?: unknown } | null;
     if (!data?.type) return;
     switch (data.type) {
       case 'estella:play:hello':
@@ -107,6 +130,14 @@ class PlayRealmImpl {
       case 'estella:play:error':
         this.set({ error: data.message ?? 'play realm error' });
         break;
+      case 'estella:play:reply': {
+        const resolve = data.reqId != null ? this.pending.get(data.reqId) : undefined;
+        if (resolve && data.reqId != null) {
+          this.pending.delete(data.reqId);
+          resolve(data.data);
+        }
+        break;
+      }
     }
   };
 }

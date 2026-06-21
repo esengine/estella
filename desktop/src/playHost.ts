@@ -12,7 +12,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, serializeScene, getComponent } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 
 interface InitMessage {
@@ -97,11 +97,50 @@ async function boot(msg: InitMessage): Promise<void> {
   }
 }
 
+/** Apply a (possibly dotted, e.g. "position.x") key to a cloned component data. */
+function applyKey(target: Record<string, unknown>, key: string, value: unknown): void {
+  const parts = key.split('.');
+  let obj = target;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const k = parts[i];
+    obj[k] = { ...(obj[k] as Record<string, unknown>) };
+    obj = obj[k] as Record<string, unknown>;
+  }
+  obj[parts[parts.length - 1]] = value;
+}
+
+/** Live-edit one field of one entity's component in the running World (debug). */
+function setField(entityId: number, comp: string, key: string, value: unknown): void {
+  const world = app?.world;
+  if (!world) return;
+  const def = getComponent(comp);
+  if (!def || !world.has(entityId, def)) return;
+  const data = { ...(world.get(entityId, def) as Record<string, unknown>) };
+  applyKey(data, key, value);
+  world.set(entityId, def, data as never);
+}
+
 window.addEventListener('message', (e: MessageEvent) => {
-  const data = e.data as { type?: string; paused?: boolean } | null;
+  const data = e.data as { type?: string; paused?: boolean; reqId?: number; kind?: string; entityId?: number; comp?: string; key?: string; value?: unknown } | null;
   if (!data || typeof data !== 'object') return;
-  if (data.type === 'estella:play:init') void boot(e.data as InitMessage);
-  else if (data.type === 'estella:play:setPaused') app?.setPaused(!!data.paused);
+  switch (data.type) {
+    case 'estella:play:init':
+      void boot(e.data as InitMessage);
+      break;
+    case 'estella:play:setPaused':
+      app?.setPaused(!!data.paused);
+      break;
+    case 'estella:play:query':
+      // Live introspection for the editor's "Game" inspect mode (UE5 PIE Details).
+      if (data.kind === 'snapshot') {
+        const snapshot = app ? serializeScene(app.world) : null;
+        post({ type: 'estella:play:reply', reqId: data.reqId, data: snapshot });
+      }
+      break;
+    case 'estella:play:setField':
+      if (data.entityId != null && data.comp && data.key) setField(data.entityId, data.comp, data.key, data.value);
+      break;
+  }
 });
 
 post({ type: 'estella:play:hello' });
