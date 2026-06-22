@@ -32,6 +32,7 @@ import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { PlayInspect } from '@/engine/PlayInspect';
+import type { SceneData } from 'esengine';
 import { modelAddableComponentEntries } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
@@ -472,7 +473,7 @@ function ComponentSection({
 // routes edits to the realm (live, reverts on Stop). Structure is read-only here
 // (no add/remove/rename of the running game) — just live value debugging.
 function GameDetails() {
-  const { snapshot, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
+  const { selectedEntity, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggle = (name: string) =>
     setCollapsed((s) => {
@@ -482,10 +483,14 @@ function GameDetails() {
       return n;
     });
 
-  const info = selection != null ? buildEntityInfo(snapshot, selection) : null;
-  const inspector = selection != null ? buildInspector(snapshot, selection) : [];
+  // The shallow tree snapshot strips component data; Details reads the selected
+  // entity's FULL data, fetched alongside the tree. Wrap it as a one-entity
+  // SceneData so the shared view-model builders apply unchanged.
+  const selData = selectedEntity ? ({ entities: [selectedEntity] } as SceneData) : null;
+  const info = selection != null ? buildEntityInfo(selData, selection) : null;
+  const inspector = selection != null ? buildInspector(selData, selection) : [];
   const compData = (name: string): Record<string, unknown> =>
-    (snapshot?.entities.find((e) => e.id === selection)?.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
+    (selectedEntity?.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
 
   return (
     <div className="insp">

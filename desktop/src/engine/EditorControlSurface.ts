@@ -22,7 +22,7 @@ import type {
   NodeKind,
   SceneNode,
 } from '@/types';
-import type { SceneData } from 'esengine';
+import type { SceneData, SubsystemStatus } from 'esengine';
 import { EngineHost } from './EngineHost';
 import type { SceneCommandsImpl } from './SceneCommands';
 import type { SceneQueryImpl } from './SceneQuery';
@@ -189,6 +189,22 @@ export class EditorControlSurfaceImpl {
   /** Live counts for quick assertions (entity count is headless-friendly). */
   getStats(): { entities: number } {
     return { entities: EngineHost.world?.getAllEntities().length ?? 0 };
+  }
+
+  /**
+   * The lifecycle + liveness of every engine subsystem (physics, audio, …) in
+   * this realm's engine — the "what's loaded and actually running" surface.
+   * Each entry carries phase (registered/initializing/ready/error) and derived
+   * activity (stepping/idle/inactive). The MCP server later marshals this same
+   * read over IPC; the editor UI reads it directly.
+   */
+  getSubsystems(): SubsystemStatus[] {
+    return EngineHost.getSubsystemsSnapshot();
+  }
+
+  /** Subscribe to subsystem status changes (phase transitions + sampled liveness). */
+  subscribeSubsystems(fn: () => void): () => void {
+    return EngineHost.subscribeSubsystems(fn);
   }
 }
 

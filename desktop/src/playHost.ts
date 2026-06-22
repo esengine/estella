@@ -19,6 +19,8 @@ interface InitMessage {
   type: 'estella:play:init';
   sceneData: SceneData;
   assetManifest: Record<string, string>;
+  physicsEnabled?: boolean;
+  physicsGravity?: { x: number; y: number };
 }
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -84,6 +86,11 @@ async function boot(msg: InitMessage): Promise<void> {
       canvas,
       sceneData: msg.sceneData,
       assetManifest: msg.assetManifest,
+      // physics.wasm is served next to esengine.wasm; load it on demand.
+      wasmBaseUrl: wasmBase.replace(/\/$/, ''),
+      physicsEnabled: msg.physicsEnabled,
+      physicsGravity: msg.physicsGravity,
+      enableStats: true, // editor profiler: per-phase / per-system frame timing
     });
     post({ type: 'estella:play:ready' });
   } catch (err) {
@@ -121,7 +128,7 @@ function setField(entityId: number, comp: string, key: string, value: unknown): 
 }
 
 window.addEventListener('message', (e: MessageEvent) => {
-  const data = e.data as { type?: string; paused?: boolean; reqId?: number; kind?: string; entityId?: number; comp?: string; key?: string; value?: unknown } | null;
+  const data = e.data as { type?: string; paused?: boolean; reqId?: number; kind?: string; entityId?: number; comp?: string; key?: string; value?: unknown; selectedId?: number } | null;
   if (!data || typeof data !== 'object') return;
   switch (data.type) {
     case 'estella:play:init':
@@ -133,8 +140,33 @@ window.addEventListener('message', (e: MessageEvent) => {
     case 'estella:play:query':
       // Live introspection for the editor's "Game" inspect mode (UE5 PIE Details).
       if (data.kind === 'snapshot') {
-        const snapshot = app ? serializeScene(app.world) : null;
-        post({ type: 'estella:play:reply', reqId: data.reqId, data: snapshot });
+        // Live inspect: send a SHALLOW tree (the Outliner only needs component
+        // TYPES + name + each component's `enabled` flag — see modelKindOf/NameOf/
+        // IsVisible), not every component's data for thousands of entities. The
+        // selected entity's FULL data is sent alongside for the Details panel.
+        const full = app ? serializeScene(app.world) : null;
+        let reply: unknown = null;
+        if (full) {
+          const selId = data.selectedId;
+          const selected = selId != null ? (full.entities.find((en) => en.id === selId) ?? null) : null;
+          const tree = {
+            ...full,
+            entities: full.entities.map((en) => ({
+              ...en,
+              components: en.components.map((c) => {
+                const d = c.data as Record<string, unknown> | undefined;
+                return { type: c.type, data: d && 'enabled' in d ? { enabled: d.enabled } : {} };
+              }),
+            })),
+          };
+          reply = { tree, selected };
+        }
+        post({ type: 'estella:play:reply', reqId: data.reqId, data: reply });
+      } else if (data.kind === 'stats') {
+        // Per-phase + per-system frame timing for the editor profiler panel.
+        const phases = app ? Object.fromEntries(app.getPhaseTimings() ?? []) : {};
+        const systems = app ? Object.fromEntries(app.getSystemTimings() ?? []) : {};
+        post({ type: 'estella:play:reply', reqId: data.reqId, data: { phases, systems } });
       }
       break;
     case 'estella:play:setField':

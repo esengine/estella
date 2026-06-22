@@ -3,6 +3,7 @@ import { Gauge, MousePointer2, Boxes, FolderOpen } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { StatsStore } from '@/engine/StatsStore';
+import { SubsystemIndicator } from './SubsystemIndicator';
 
 // Bottom status strip — live engine telemetry (real FPS / entity count / cursor
 // world position) reads in the mono face. Anchors the Content Drawer.
@@ -29,6 +30,7 @@ export function StatusBar() {
           <span className={`sdot${isPlaying ? ' live' : ''}`} />
           {isPlaying ? 'Running' : 'Edit Mode'}
         </span>
+        <SubsystemIndicator />
         <span className="sitem">
           {selectedIds.size ? `${selectedIds.size} selected` : 'No selection'}
         </span>

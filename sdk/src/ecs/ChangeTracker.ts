@@ -12,6 +12,9 @@ export class ChangeTracker {
     private componentChangedTicks_ = new Map<symbol, Map<Entity, number>>();
     private componentRemovedBuffer_ = new Map<symbol, Array<{ entity: Entity; tick: number }>>();
     private trackedComponents_ = new Set<symbol>();
+    // The most recent worldTick at which ANY entity changed each component — an
+    // O(1) "did anything change since tick T" gate (vs scanning the per-entity map).
+    private componentLastChangedTick_ = new Map<symbol, number>();
 
     advanceTick(): void {
         this.worldTick_++;
@@ -37,6 +40,12 @@ export class ChangeTracker {
         if (!map) return false;
         const tick = map.get(entity);
         return tick !== undefined && tick > sinceTick;
+    }
+
+    /** True if ANY entity changed `component` after `sinceTick`. O(1) — reads the
+     *  per-component last-changed tick, not the per-entity map. */
+    anyChangedSince(component: AnyComponentDef, sinceTick: number): boolean {
+        return (this.componentLastChangedTick_.get(component._id) ?? -1) > sinceTick;
     }
 
     getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
@@ -84,6 +93,7 @@ export class ChangeTracker {
             this.componentChangedTicks_.set(component._id, map);
         }
         map.set(entity, this.worldTick_);
+        this.componentLastChangedTick_.set(component._id, this.worldTick_);
     }
 
     recordRemoved(component: AnyComponentDef, entity: Entity): void {

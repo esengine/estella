@@ -17,6 +17,8 @@ import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetProvider } from './runtimeLoader';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
+import { fetchPhysicsModule } from './physics';
+import type { Vec2 } from './types';
 
 const UUID_PREFIX = '@uuid:';
 
@@ -29,6 +31,16 @@ export interface PlayRealmRuntimeConfig {
     /** Lowercased uuid → fetchable URL (e.g. `estella://project/<path>`). */
     assetManifest: Record<string, string>;
     manifest?: AddressableManifest | null;
+    /** Base URL the engine side-modules (physics.wasm, …) are served from — same
+     *  dir as esengine.wasm. When set, the realm can load physics on demand. */
+    wasmBaseUrl?: string;
+    /** Project-declared physics enable (`.uproject` features analog) — installs
+     *  physics even for runtime-spawned bodies the static scene doesn't show. */
+    physicsEnabled?: boolean;
+    /** Optional physics world overrides (e.g. project-declared gravity). */
+    physicsGravity?: Vec2;
+    /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
+    enableStats?: boolean;
 }
 
 /**
@@ -84,7 +96,7 @@ class FetchAssetProvider implements RuntimeAssetProvider {
  * register the snapshot as the sole scene, wire a fetch-backed provider, and run.
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
-    const { app, module, canvas, sceneData, assetManifest, manifest } = config;
+    const { app, module, canvas, sceneData, assetManifest, manifest, wasmBaseUrl } = config;
     const provider = new FetchAssetProvider(assetManifest);
     await initRuntime({
         app,
@@ -94,6 +106,13 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         firstScene: '__play',
         manifest: manifest ?? null,
         aspectRatio: canvas.width / canvas.height,
+        physicsEnabled: config.physicsEnabled,
+        physicsConfig: config.physicsGravity ? { gravity: config.physicsGravity } : undefined,
+        // Load the standalone physics module (physics.js+wasm) on demand when gated in.
+        acquirePhysics: wasmBaseUrl ? () => fetchPhysicsModule(wasmBaseUrl) : undefined,
     });
+    // Per-phase / per-system frame timing for the editor profiler (enabled before
+    // the loop starts so the runner instruments from frame zero).
+    if (config.enableStats) app.enableStats();
     app.run();
 }

@@ -15,12 +15,22 @@ import type { SceneData } from 'esengine';
 export interface PlayPayload {
   sceneData: SceneData;
   assetManifest: Record<string, string>;
+  /** Project-declared physics enable (features.physics) — forwarded to the realm. */
+  physicsEnabled?: boolean;
+  physicsGravity?: { x: number; y: number };
 }
 
 export interface PlayRealmSnapshot {
   playing: boolean;
   ready: boolean;
   error: string | null;
+}
+
+/** A live inspect snapshot: a shallow entity tree (Outliner) + the selected
+ *  entity's full data (Details). See PlayRealm.snapshot. */
+export interface PlaySnapshot {
+  tree: SceneData;
+  selected: SceneData['entities'][number] | null;
 }
 
 class PlayRealmImpl {
@@ -92,14 +102,16 @@ class PlayRealmImpl {
   private reqSeq = 0;
   private readonly pending = new Map<number, (data: unknown) => void>();
 
-  /** A live SceneData snapshot of the running game's World (null if not ready). */
-  snapshot(): Promise<SceneData | null> {
+  /** A live inspect snapshot: a SHALLOW tree of the running World (cheap to ship
+   *  even for thousands of entities) plus the FULL data of `selectedId` for the
+   *  Details panel. Null if not ready. */
+  snapshot(selectedId: number | null): Promise<PlaySnapshot | null> {
     if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
     const reqId = ++this.reqSeq;
     return new Promise((resolve) => {
-      const done = (data: unknown) => resolve((data as SceneData) ?? null);
+      const done = (data: unknown) => resolve((data as PlaySnapshot) ?? null);
       this.pending.set(reqId, done);
-      this.post({ type: 'estella:play:query', kind: 'snapshot', reqId });
+      this.post({ type: 'estella:play:query', kind: 'snapshot', reqId, selectedId });
       setTimeout(() => {
         if (this.pending.delete(reqId)) resolve(null);
       }, 2000);

@@ -318,12 +318,35 @@ export interface LoadRuntimeSceneOptions {
     spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
+    /** Project-declared physics enable (`.uproject` features analog) — installs
+     *  physics even for runtime-spawned bodies the static scene doesn't show.
+     *  OR-combined with a content scan. */
+    physicsEnabled?: boolean;
+    /** Lazy, realm-specific side-module acquirer (play realm fetches physics.wasm);
+     *  called only when gated in and no `physicsModule` was pre-supplied. */
+    acquirePhysics?: () => Promise<PhysicsWasmModule | null>;
     manifest?: AddressableManifest | null;
     sceneName?: string;
 }
 
+/** Component types whose presence means a scene needs the physics subsystem. */
+const PHYSICS_COMPONENT_TYPES = new Set([
+    'RigidBody', 'BoxCollider', 'CircleCollider', 'CapsuleCollider',
+    'SegmentCollider', 'PolygonCollider', 'ChainCollider',
+]);
+
+/** True if any entity in the scene carries a physics component (content gate). */
+function sceneUsesPhysics(sceneData: SceneData): boolean {
+    for (const entity of sceneData.entities ?? []) {
+        for (const comp of entity.components ?? []) {
+            if (PHYSICS_COMPONENT_TYPES.has(comp.type)) return true;
+        }
+    }
+    return false;
+}
+
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, provider, spineManager, physicsModule, physicsConfig, manifest, sceneName } = options;
+    const { app, module, sceneData, provider, spineManager, physicsConfig, physicsEnabled, acquirePhysics, manifest, sceneName } = options;
 
     const discovered = discoverSceneAssets(sceneData);
 
@@ -332,17 +355,32 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
     const spineAssetInfo = await loadSpineAssets(module, provider, spineManager, discovered.spines);
 
-    if (physicsModule) {
-        const config: PhysicsPluginConfig = {
-            gravity: physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY },
-            fixedTimestep: physicsConfig?.fixedTimestep ?? DEFAULT_FIXED_TIMESTEP,
-            subStepCount: physicsConfig?.subStepCount ?? 4,
-            contactHertz: physicsConfig?.contactHertz ?? 120,
-            contactDampingRatio: physicsConfig?.contactDampingRatio ?? 10,
-            contactSpeed: physicsConfig?.contactSpeed ?? 10,
-        };
-        const physicsPlugin = new PhysicsPlugin('', config, () => Promise.resolve(physicsModule));
-        physicsPlugin.build(app);
+    // Self-gating: install physics when the project declares it OR the scene uses
+    // it, so no runtime entry can forget to wire it. Module is pre-supplied
+    // (playable/wechat embed) or lazily acquired (play realm fetches side-module).
+    // Install once via addPlugin (also registers it in the observability surface).
+    let physicsModule = options.physicsModule ?? null;
+    const wantsPhysics = !!physicsEnabled || sceneUsesPhysics(sceneData);
+    if (!wantsPhysics) {
+        log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
+    } else {
+        if (!physicsModule && acquirePhysics) physicsModule = await acquirePhysics();
+        if (!physicsModule) {
+            log.warn('physics', `wanted (declared=${!!physicsEnabled}) but no module loaded — side-module fetch/link failed or no provider for this realm`);
+        } else if (!app.getPlugin(PhysicsPlugin)) {
+            const gravity = physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY };
+            const config: PhysicsPluginConfig = {
+                gravity,
+                fixedTimestep: physicsConfig?.fixedTimestep ?? DEFAULT_FIXED_TIMESTEP,
+                subStepCount: physicsConfig?.subStepCount ?? 4,
+                contactHertz: physicsConfig?.contactHertz ?? 120,
+                contactDampingRatio: physicsConfig?.contactDampingRatio ?? 10,
+                contactSpeed: physicsConfig?.contactSpeed ?? 10,
+            };
+            const mod = physicsModule;
+            app.addPlugin(new PhysicsPlugin('', config, () => Promise.resolve(mod)));
+            log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
+        }
     }
 
     const fontCache = await loadBitmapFonts(module, provider, getAssetPathsByType(discovered, 'font'));
@@ -398,6 +436,10 @@ export interface RuntimeInitConfig {
     spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
+    /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
+    physicsEnabled?: boolean;
+    /** Lazy physics module acquirer; see {@link LoadRuntimeSceneOptions.acquirePhysics}. */
+    acquirePhysics?: () => Promise<PhysicsWasmModule | null>;
     manifest?: AddressableManifest | null;
     aspectRatio?: number;
 }
@@ -415,6 +457,8 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         spineManager: config.spineManager,
         physicsModule: config.physicsModule,
         physicsConfig: config.physicsConfig,
+        physicsEnabled: config.physicsEnabled,
+        acquirePhysics: config.acquirePhysics,
         manifest: config.manifest,
     };
 

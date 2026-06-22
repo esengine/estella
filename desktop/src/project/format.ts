@@ -54,6 +54,20 @@ export interface ProjectScripts {
   main?: string;
 }
 
+/**
+ * Engine features (subsystems) the project enables — the UE5 `.uproject`
+ * "Plugins" analog. Declaring physics here installs it in the play realm /
+ * exported game even when the static scene carries no bodies (e.g. a project
+ * that spawns RigidBodies from a script at runtime). Absence ⇒ off; physics also
+ * auto-installs when a scene actually uses physics components.
+ */
+export interface ProjectFeatures {
+  physics?: {
+    enabled?: boolean;
+    gravity?: { x: number; y: number };
+  };
+}
+
 /** Committed project identity + config (`project.esproject`). */
 export interface ProjectManifest {
   /** Manifest schema version (migration-aware; rejects newer than supported). */
@@ -77,6 +91,8 @@ export interface ProjectManifest {
   description?: string;
   /** Short category label for the template gallery (e.g. "2D", "Physics"). */
   tag?: string;
+  /** Engine features (subsystems) the project enables; see {@link ProjectFeatures}. */
+  features?: ProjectFeatures;
 }
 
 /** A New-project template (a project directory used as a starting point). */
@@ -159,6 +175,21 @@ export function parseManifest(raw: unknown): ProjectManifest {
   }
   if (typeof o.description === 'string') manifest.description = o.description;
   if (typeof o.tag === 'string') manifest.tag = o.tag;
+  if (o.features && typeof o.features === 'object') {
+    const f = o.features as Record<string, unknown>;
+    const features: ProjectFeatures = {};
+    if (f.physics && typeof f.physics === 'object') {
+      const p = f.physics as Record<string, unknown>;
+      const physics: NonNullable<ProjectFeatures['physics']> = {};
+      if (typeof p.enabled === 'boolean') physics.enabled = p.enabled;
+      const g = p.gravity as { x?: unknown; y?: unknown } | undefined;
+      if (g && typeof g.x === 'number' && typeof g.y === 'number') {
+        physics.gravity = { x: g.x, y: g.y };
+      }
+      features.physics = physics;
+    }
+    if (Object.keys(features).length > 0) manifest.features = features;
+  }
   return manifest;
 }
 

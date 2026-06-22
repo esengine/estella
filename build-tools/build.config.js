@@ -48,7 +48,8 @@ export default {
         physics: {
             buildDir: 'build-physics',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
-            targets: ['physics_module'],
+            // ESM variant (EXPORT_ES6=1) for the web editor — imported like esengine.js.
+            targets: ['physics_module_esm'],
             outputs: {
                 'sdk/physics.js': 'wasm/web/physics.js',
                 'sdk/physics.wasm': 'wasm/web/physics.wasm',

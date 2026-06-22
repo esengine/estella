@@ -164,48 +164,87 @@ function flatVisible(nodes: SceneNode[], expanded: Set<EntityId>, forceExpand: b
   }
 }
 
-// The live "Game" tree (UE5 PIE world): a read-only view of the running realm's
-// entities (from PlayInspect's snapshot); click selects into PlayInspect, which
-// the Details panel inspects/edits live. Always-expanded (transient debug view).
-function GameRow({ node, depth, selection }: { node: SceneNode; depth: number; selection: EntityId | null }) {
+// One row of the live "Game" tree (UE5 PIE world): a read-only view of a running
+// realm entity; click selects into PlayInspect, which Details inspects/edits live.
+const GAME_ROW_H = 24; // must match .row height in outliner.css
+
+function GameRowFlat({ node, depth, selection }: { node: SceneNode; depth: number; selection: EntityId | null }) {
   return (
-    <>
-      <div
-        className={`row${selection === node.id ? ' sel' : ''}`}
-        style={{ paddingLeft: depth * 14 }}
-        onClick={() => PlayInspect.select(node.id)}
-      >
-        <span className="twist leaf">
-          <ChevronRight size={9} strokeWidth={3} />
-        </span>
-        <span className="ricon">
-          <NodeIcon kind={node.kind} />
-        </span>
-        <span className="rname">{node.name}</span>
-        <span className="rtype">{KIND_TYPE[node.kind] ?? 'Entity'}</span>
-      </div>
-      {node.children?.map((c) => <GameRow key={c.id} node={c} depth={depth + 1} selection={selection} />)}
-    </>
+    <div
+      className={`row${selection === node.id ? ' sel' : ''}`}
+      style={{ paddingLeft: depth * 14, height: GAME_ROW_H }}
+      onClick={() => PlayInspect.select(node.id)}
+    >
+      <span className="twist leaf">
+        <ChevronRight size={9} strokeWidth={3} />
+      </span>
+      <span className="ricon">
+        <NodeIcon kind={node.kind} />
+      </span>
+      <span className="rname">{node.name}</span>
+      <span className="rtype">{KIND_TYPE[node.kind] ?? 'Entity'}</span>
+    </div>
   );
 }
 
+// Virtualized: a stress scene can hold thousands of live entities, and the
+// snapshot refreshes a few times a second — rendering every row as a DOM node
+// would peg the editor's main thread. Flatten to render order (the game view is
+// always-expanded) and render only the rows in the scroll window.
 function GameTree() {
   const { snapshot, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
   const tree = useMemo(() => buildSceneTree(snapshot), [snapshot]);
-  if (tree.length === 0) {
+  const flat = useMemo(() => {
+    const out: { node: SceneNode; depth: number }[] = [];
+    const walk = (nodes: SceneNode[], depth: number): void => {
+      for (const n of nodes) {
+        out.push({ node: n, depth });
+        if (n.children?.length) walk(n.children, depth + 1);
+      }
+    };
+    walk(tree, 0);
+    return out;
+  }, [tree]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewH, setViewH] = useState(600);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setViewH(el.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  if (flat.length === 0) {
     return (
-      <div className="empty">
-        <Search size={22} strokeWidth={1.4} />
-        <p>Waiting for the running game…</p>
+      <div className="pbody">
+        <div className="empty">
+          <Search size={22} strokeWidth={1.4} />
+          <p>Waiting for the running game…</p>
+        </div>
       </div>
     );
   }
+
+  const OVERSCAN = 8;
+  const total = flat.length;
+  const start = Math.max(0, Math.floor(scrollTop / GAME_ROW_H) - OVERSCAN);
+  const end = Math.min(total, Math.ceil((scrollTop + viewH) / GAME_ROW_H) + OVERSCAN);
+
   return (
-    <>
-      {tree.map((n) => (
-        <GameRow key={n.id} node={n} depth={0} selection={selection} />
-      ))}
-    </>
+    <div ref={scrollRef} className="pbody" onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
+      <div style={{ height: total * GAME_ROW_H, position: 'relative' }}>
+        {flat.slice(start, end).map(({ node, depth }, i) => (
+          <div key={node.id} style={{ position: 'absolute', top: (start + i) * GAME_ROW_H, left: 0, right: 0 }}>
+            <GameRowFlat node={node} depth={depth} selection={selection} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -380,9 +419,7 @@ export function Outliner() {
         </div>
       )}
       {gameMode ? (
-        <div className="pbody">
-          <GameTree />
-        </div>
+        <GameTree />
       ) : (
         <>
       <div className="phead">

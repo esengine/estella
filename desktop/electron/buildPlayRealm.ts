@@ -15,7 +15,7 @@
  *        Pure Node (esbuild + fs); IPC wiring in main.ts.
  */
 import { build } from 'esbuild';
-import { cp, mkdir, rm, writeFile, readFile, stat } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile, readFile, stat, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
@@ -74,10 +74,24 @@ export interface PlayRealmResult {
   errors: string[];
 }
 
-/** Copy `src`→`dst` only when `marker`'s mtime changed since the last copy. */
-async function syncDir(src: string, dst: string, marker: string, stampFile: string): Promise<void> {
+/** Signature over a dir's top-level entries (name+size+mtime) — catches an
+ *  ADDED/removed file (e.g. physics.wasm), not just a changed marker file. */
+async function dirSignature(dir: string): Promise<string> {
+  const names = (await readdir(dir)).sort();
+  const parts: string[] = [];
+  for (const n of names) {
+    const s = await stat(path.join(dir, n));
+    parts.push(`${n}:${s.size}:${Math.round(s.mtimeMs)}`);
+  }
+  return parts.join('|');
+}
+
+/** Copy `src`→`dst` only when its dir signature changed since the last copy.
+ *  Gating on a single marker missed files added later (physics.wasm) when the
+ *  marker's mtime hadn't moved; a full signature re-copies on any add/remove. */
+async function syncDir(src: string, dst: string, stampFile: string): Promise<void> {
   if (!existsSync(src)) return;
-  const sig = String((await stat(marker)).mtimeMs);
+  const sig = await dirSignature(src);
   if (existsSync(dst) && existsSync(stampFile) && (await readFile(stampFile, 'utf8')) === sig) return;
   await rm(dst, { recursive: true, force: true });
   await cp(src, dst, { recursive: true });
@@ -115,9 +129,9 @@ export async function buildPlayRealm(opts: {
     return { ok: false, hostPath: '', errors };
   }
 
-  // 2. SDK + wasm copies (hash-gated on a marker file's mtime).
-  await syncDir(opts.sdkDistDir, path.join(out, 'sdk'), path.join(opts.sdkDistDir, 'index.js'), path.join(out, '.sdk-stamp'));
-  await syncDir(opts.wasmDir, path.join(out, 'wasm'), path.join(opts.wasmDir, 'esengine.js'), path.join(out, '.wasm-stamp'));
+  // 2. SDK + wasm copies (gated on a full dir signature, so an added file re-syncs).
+  await syncDir(opts.sdkDistDir, path.join(out, 'sdk'), path.join(out, '.sdk-stamp'));
+  await syncDir(opts.wasmDir, path.join(out, 'wasm'), path.join(out, '.wasm-stamp'));
 
   // 3. Host page.
   await writeFile(path.join(out, 'play.html'), PLAY_HTML);

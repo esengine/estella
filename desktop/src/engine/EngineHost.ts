@@ -13,7 +13,7 @@ import {
   setEditorMode,
   setPlayMode,
 } from 'esengine';
-import type { App, ESEngineModule, ResourceDef } from 'esengine';
+import type { App, ESEngineModule, ResourceDef, SubsystemStatus } from 'esengine';
 import { SceneLoader } from './SceneLoader';
 import { checkEngineBuild } from './EngineGuard';
 import type { ReadonlyWorldT, WorldT } from './schema';
@@ -47,6 +47,15 @@ class EngineHostImpl {
   private resizeObserver: ResizeObserver | null = null;
 
   private readonly statusStore = createStore<EngineSnapshot>(() => ({ status: 'idle', error: null }));
+
+  // Subsystem (module) observability for the status bar: which engine modules
+  // are loaded, ready, stepping, or errored. Phase changes push immediately; a
+  // low-frequency sampler refreshes derived liveness (stepping↔idle) without
+  // per-frame churn. The signature gate keeps the snapshot reference stable
+  // (so useSyncExternalStore doesn't loop) while nothing actually changed.
+  private readonly subsystemStore = createStore<SubsystemStatus[]>(() => []);
+  private subsystemTimer: ReturnType<typeof setInterval> | null = null;
+  private subsystemSig = '';
 
   // Play-state isolation: Stop rebuilds the World from the untouched edit model
   // (model-authoritative), so no snapshot is needed — the model IS the truth.
@@ -91,9 +100,29 @@ class EngineHostImpl {
   subscribe = (fn: () => void): (() => void) => this.statusStore.subscribe(fn);
   getSnapshot = (): EngineSnapshot => this.statusStore.getState();
 
+  // — Subsystem (module) status as an external store —
+  subscribeSubsystems = (fn: () => void): (() => void) => this.subsystemStore.subscribe(fn);
+  getSubsystemsSnapshot = (): SubsystemStatus[] => this.subsystemStore.getState();
+
   private setStatus(status: EngineStatus, error: string | null = null) {
     this.statusStore.setState({ status, error });
     window.estella?.reportEngineStatus?.(error ? `${status}: ${error}` : status);
+  }
+
+  /**
+   * Pull the current subsystem statuses into the editor-facing store. Gated by a
+   * cheap signature so an unchanged sample neither swaps the snapshot reference
+   * nor re-renders subscribers. Wired to both the registry's transition events
+   * (immediate) and a low-frequency timer (derived liveness) in bootCore.
+   */
+  private syncSubsystems(app: App) {
+    const statuses = app.subsystems.getStatuses();
+    const sig = statuses
+      .map((s) => `${s.id}:${s.phase}:${s.activity}:${s.lastError ?? ''}`)
+      .join('|');
+    if (sig === this.subsystemSig) return;
+    this.subsystemSig = sig;
+    this.subsystemStore.setState(statuses, true);
   }
 
   private ensureCanvas(): HTMLCanvasElement {
@@ -337,6 +366,16 @@ class EngineHostImpl {
       wasmBaseUrl: '/wasm',
     });
     this.app_ = app;
+
+    // Subsystem observability: phase changes push immediately; the sampler
+    // refreshes derived liveness (stepping↔idle) a couple of times a second.
+    this.syncSubsystems(app);
+    app.subsystems.subscribe(() => this.syncSubsystems(app));
+    if (this.subsystemTimer == null) {
+      this.subsystemTimer = setInterval(() => {
+        if (this.app_) this.syncSubsystems(this.app_);
+      }, 500);
+    }
 
     // Mark this an editor host and open in edit mode: gameplay systems
     // (particle/animation/physics/timeline/…, gated on env.playModeOnly) are

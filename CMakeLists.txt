@@ -543,6 +543,25 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
             OUTPUT_NAME "physics"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
         )
+
+        # ESM variant (EXPORT_ES6=1) for the web editor's estella:// ESM host —
+        # imported like esengine.js. Same sources/wasm, no dynamic linking.
+        add_executable(physics_module_esm
+            src/esengine/bindings/PhysicsModuleEntry.cpp
+            src/esengine/bindings/PhysicsContext.cpp
+            src/esengine/bindings/PhysicsShapes.cpp
+            src/esengine/bindings/PhysicsJoints.cpp
+            src/esengine/bindings/PhysicsQueries.cpp
+        )
+        target_link_libraries(physics_module_esm PRIVATE box2d)
+        target_include_directories(physics_module_esm PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
+        )
+        es_apply_physics_esm_module_settings(physics_module_esm)
+        set_target_properties(physics_module_esm PROPERTIES
+            OUTPUT_NAME "physics"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
     endif()
 
     # Main module SDK (MAIN_MODULE=2, supports loading side modules)

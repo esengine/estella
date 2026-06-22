@@ -272,6 +272,18 @@ export {
 } from './app';
 
 // =============================================================================
+// Subsystem observability
+// =============================================================================
+
+export { SubsystemRegistry } from './subsystems';
+export type {
+    SubsystemStatus,
+    SubsystemPhase,
+    SubsystemActivity,
+    SubsystemEvent,
+} from './subsystems';
+
+// =============================================================================
 // WASM Types
 // =============================================================================
 

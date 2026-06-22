@@ -755,6 +755,11 @@ export class World {
         return this.changes_.isChangedSince(entity, component, sinceTick);
     }
 
+    /** True if ANY entity changed `component` after `sinceTick` (O(1) gate). */
+    anyChangedSince(component: AnyComponentDef, sinceTick: number): boolean {
+        return this.changes_.anyChangedSince(component, sinceTick);
+    }
+
     getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
         return this.changes_.getRemovedEntitiesSince(component, sinceTick);
     }

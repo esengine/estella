@@ -23,6 +23,7 @@ import { sceneManagerPlugin } from './scenePlugin';
 import { getDefaultContext } from './context';
 import { cameraPlugin } from './camera/CameraPlugin';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
+import { SubsystemRegistry } from './subsystems';
 import { log } from './logger';
 
 // =============================================================================
@@ -74,6 +75,11 @@ export class App {
     private fixedAccumulator_ = 0;
     private maxDeltaTime_ = 0.25;
     private maxFixedSteps_ = 8;
+    // Spiral-of-death guard: cap wall time spent on fixed-step catch-up per frame.
+    // A sim too heavy to run real-time (e.g. thousands of bodies) then degrades to
+    // slow motion instead of freezing — the frame stays responsive. The first step
+    // always runs (the check is after a step), so the sim always advances.
+    private fixedStepBudgetMs_ = 8;
     private targetFrameInterval_ = 0;
 
     private module_: ESEngineModule | null = null;
@@ -82,6 +88,8 @@ export class App {
     private readonly installed_plugins_: Plugin[] = [];
     private readonly installedPluginSet_ = new Set<Plugin>();
     private readonly installedPluginNames_ = new Set<string>();
+    // Per-App (per-realm) so isolated realms never alias; not a shared resource default.
+    private readonly subsystems_ = new SubsystemRegistry();
     private pluginsFinished_ = false;
     private readonly eventRegistry_ = new EventRegistry();
     private readonly sortedSystemsCache_ = new Map<Schedule, SystemEntry[]>();
@@ -117,6 +125,13 @@ export class App {
         return this.installed_plugins_.find((p): p is T => p instanceof ctor);
     }
 
+    /** Subsystem lifecycle registry ("which modules loaded/ready/stepping/errored").
+     *  Named plugins auto-register in {@link addPlugin}; async plugins (physics)
+     *  drive their own initializing→ready/error transitions. */
+    get subsystems(): SubsystemRegistry {
+        return this.subsystems_;
+    }
+
     addPlugins(plugins: Plugin[]): this {
         const sorted = this.sortPlugins(plugins);
         for (const plugin of sorted) {
@@ -148,14 +163,27 @@ export class App {
         this.installed_plugins_.push(plugin);
         if (plugin.name) {
             this.installedPluginNames_.add(plugin.name);
+            // Observable from frame zero; string deps give the status UI cascade context.
+            this.subsystems_.register(plugin.name, {
+                dependsOn: plugin.dependencies?.filter(
+                    (d): d is string => typeof d === 'string',
+                ),
+            });
         }
         try {
             plugin.build(this);
+            // Sync plugin: live once build() returns → promote. An async plugin
+            // (physics) already moved itself off `registered`, so this skips it.
+            if (plugin.name && this.subsystems_.phaseOf(plugin.name) === 'registered') {
+                this.subsystems_.transition(plugin.name, 'ready');
+            }
         } catch (e) {
             this.installedPluginSet_.delete(plugin);
             this.installed_plugins_.pop();
             if (plugin.name) {
                 this.installedPluginNames_.delete(plugin.name);
+                // Keep the errored (now-uninstalled) entry so the failure stays visible.
+                this.subsystems_.markError(plugin.name, e instanceof Error ? e.message : String(e));
             }
             throw e;
         }
@@ -585,15 +613,26 @@ export class App {
 
             this.fixedAccumulator_ += delta;
             let fixedSteps = 0;
+            // Direct performance.now() (not platformNow) so the budget guard needs
+            // no platform init (unit tests call tick() without it) and degrades to a
+            // no-op where performance is absent — the maxFixedSteps cap still applies.
+            const perf = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance : null;
+            const fixedStart = perf ? perf.now() : 0;
             while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
                 this.fixedAccumulator_ -= this.fixedTimestep_;
                 await this.runSchedule(Schedule.FixedPreUpdate);
                 await this.runSchedule(Schedule.FixedUpdate);
                 await this.runSchedule(Schedule.FixedPostUpdate);
                 fixedSteps++;
+                // Stop catching up once this frame's fixed steps blow the time
+                // budget — drop the backlog below so we don't spiral.
+                if (perf && perf.now() - fixedStart >= this.fixedStepBudgetMs_) break;
             }
-            if (fixedSteps >= this.maxFixedSteps_) {
-                this.fixedAccumulator_ = this.fixedTimestep_;
+            // Hit the step cap or the time budget with a step still pending → the
+            // sim can't keep real-time; drop the backlog so the accumulator can't
+            // grow unbounded (graceful slow motion instead of a death spiral).
+            if (this.fixedAccumulator_ >= this.fixedTimestep_) {
+                this.fixedAccumulator_ = 0;
             }
             // Remainder fraction into the current fixed step — render-time systems
             // (physics interpolation) lerp prev→current by this for smooth motion.

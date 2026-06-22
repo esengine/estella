@@ -196,7 +196,13 @@ export async function loadPhysicsModule(
 }
 
 export interface ESEngineMainModule {
-    loadDynamicLibrary(binary: Uint8Array, opts: { loadAsync: boolean; allowUndefined: boolean }): Promise<void>;
+    // emscripten loads a side module BY NAME from the virtual FS — the first arg
+    // is a path string (it does isAbs(path).charAt(...)), never raw bytes.
+    loadDynamicLibrary(
+        libName: string,
+        flags?: { loadAsync?: boolean; allowUndefined?: boolean; global?: boolean; nodelete?: boolean },
+    ): Promise<void>;
+    FS: { writeFile(path: string, data: Uint8Array | string): void };
     cwrap(name: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
@@ -209,10 +215,13 @@ export async function loadPhysicsSideModule(
     wasmBinary: ArrayBuffer,
     mainModule: ESEngineMainModule
 ): Promise<PhysicsWasmModule> {
-    await mainModule.loadDynamicLibrary(
-        new Uint8Array(wasmBinary),
-        { loadAsync: true, allowUndefined: true }
-    );
+    // Stage the fetched wasm into the virtual FS, then load it by path —
+    // loadDynamicLibrary can't take bytes directly. `global: true` merges the
+    // side module's exports into the main module's symbol table so cwrap can
+    // resolve `physics_*`.
+    const libPath = '/physics.wasm';
+    mainModule.FS.writeFile(libPath, new Uint8Array(wasmBinary));
+    await mainModule.loadDynamicLibrary(libPath, { loadAsync: true, allowUndefined: true, global: true });
 
     const cwrap = mainModule.cwrap.bind(mainModule);
 
@@ -337,4 +346,58 @@ export async function loadPhysicsSideModule(
         _malloc: mainModule._malloc.bind(mainModule),
         _free: mainModule._free.bind(mainModule),
     } as PhysicsWasmModule;
+}
+
+/**
+ * Fetch `physics.wasm` from `baseUrl` and load it into the running esengine
+ * module via its dynamic linker — the web/electron realm's loader (the wasm is
+ * an emscripten side module, no standalone glue). Null on fetch failure so
+ * callers degrade gracefully.
+ */
+/**
+ * Load the STANDALONE physics module (physics.js ESM factory + physics.wasm) from
+ * `baseUrl` and instantiate it — the web/editor realm's loader, mirroring how
+ * esengine.js is loaded. A self-contained emscripten module (no dynamic linking),
+ * so no ABI coupling to the engine; `_physics_*` are EMSCRIPTEN_KEEPALIVE-exported
+ * so they're directly callable on the returned module. Null on failure.
+ */
+export async function fetchPhysicsModule(baseUrl: string): Promise<PhysicsWasmModule | null> {
+    const base = baseUrl.replace(/\/$/, '');
+    try {
+        const glue = await import(/* @vite-ignore */ `${base}/physics.js`);
+        const factory = (glue.default ?? glue) as (
+            opts?: Record<string, unknown>,
+        ) => Promise<PhysicsWasmModule>;
+        return await factory({ locateFile: (p: string) => `${base}/${p}` });
+    } catch (e) {
+        console.error(`[physics] standalone module load failed (${base}/physics.js):`, e);
+        return null;
+    }
+}
+
+export async function fetchPhysicsSideModule(
+    baseUrl: string,
+    mainModule: ESEngineMainModule,
+): Promise<PhysicsWasmModule | null> {
+    const url = `${baseUrl.replace(/\/$/, '')}/physics.wasm`;
+    let res: Response;
+    try {
+        res = await fetch(url);
+    } catch (e) {
+        console.error(`[physics] side-module FETCH threw (${url}):`, e);
+        return null;
+    }
+    if (!res.ok) {
+        console.error(`[physics] side-module fetch HTTP ${res.status} (${url})`);
+        return null;
+    }
+    try {
+        const binary = await res.arrayBuffer();
+        const hasLoad = typeof (mainModule as { loadDynamicLibrary?: unknown }).loadDynamicLibrary === 'function';
+        console.info(`[physics] linking side-module: ${binary.byteLength}B, loadDynamicLibrary=${hasLoad}`);
+        return await loadPhysicsSideModule(binary, mainModule);
+    } catch (e) {
+        console.error(`[physics] side-module LINK failed (${url}):`, e);
+        return null;
+    }
 }

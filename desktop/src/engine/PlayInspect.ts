@@ -15,14 +15,17 @@ import type { EntityId } from '@/types';
 import { PlayRealm } from './PlayRealm';
 
 interface PlayInspectState {
+  /** Shallow entity tree of the running World (Outliner). */
   snapshot: SceneData | null;
+  /** Full data of the selected entity (Details), fetched alongside the tree. */
+  selectedEntity: SceneData['entities'][number] | null;
   selection: EntityId | null;
 }
 
 const POLL_MS = 300;
 
 class PlayInspectImpl {
-  private readonly store = createStore<PlayInspectState>(() => ({ snapshot: null, selection: null }));
+  private readonly store = createStore<PlayInspectState>(() => ({ snapshot: null, selectedEntity: null, selection: null }));
   private timer: ReturnType<typeof setInterval> | null = null;
 
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
@@ -30,6 +33,7 @@ class PlayInspectImpl {
 
   select(selection: EntityId | null): void {
     this.store.setState({ ...this.store.getState(), selection });
+    void this.poll(); // fetch the newly-selected entity's full data immediately
   }
 
   /** Begin polling the running realm (call on Play). */
@@ -45,7 +49,7 @@ class PlayInspectImpl {
       clearInterval(this.timer);
       this.timer = null;
     }
-    this.store.setState({ snapshot: null, selection: null });
+    this.store.setState({ snapshot: null, selectedEntity: null, selection: null });
   }
 
   /** Live-edit a field of the running game; refresh immediately for snappy feedback. */
@@ -55,8 +59,8 @@ class PlayInspectImpl {
   }
 
   private async poll(): Promise<void> {
-    const snapshot = await PlayRealm.snapshot();
-    if (snapshot) this.store.setState({ ...this.store.getState(), snapshot });
+    const res = await PlayRealm.snapshot(this.store.getState().selection);
+    if (res) this.store.setState({ ...this.store.getState(), snapshot: res.tree, selectedEntity: res.selected });
   }
 }
 

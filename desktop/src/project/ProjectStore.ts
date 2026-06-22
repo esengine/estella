@@ -10,7 +10,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { setUserSchemas, userSchema, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
-import { resolveLayout, WORKSPACE_DIR, type OpenedProject, type ProjectLayout, type WorkspaceState } from './format';
+import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type WorkspaceState } from './format';
 
 /**
  * Editor-side project/workspace model (RC12 §E7-3 / §E6-1).
@@ -42,6 +42,8 @@ interface ProjectState {
   workspace: WorkspaceState;
   /** Entry scene from the manifest (project-relative); the editor opens it. */
   defaultScene?: string;
+  /** Engine features (subsystems) the project enables; drives the play realm. */
+  features?: ProjectFeatures;
   /** The scene currently loaded into the world (project-relative path). */
   currentScene: string | null;
 }
@@ -167,6 +169,7 @@ class ProjectStoreImpl {
         layout: resolveLayout(opened.manifest),
         workspace: opened.workspace,
         defaultScene: opened.manifest.defaultScene,
+        features: opened.manifest.features,
         currentScene: null,
       },
     });
@@ -391,14 +394,51 @@ class ProjectStoreImpl {
    * the lossless refs, not resolved handles — plus a uuid→url manifest the realm
    * fetches over `estella://`. Null if no scene is loaded.
    */
-  playPayload(): { sceneData: SceneData; assetManifest: Record<string, string> } | null {
+  playPayload(): {
+    sceneData: SceneData;
+    assetManifest: Record<string, string>;
+    physicsEnabled?: boolean;
+    physicsGravity?: { x: number; y: number };
+  } | null {
     const sceneData = SceneModel.serialize();
     if (!sceneData) return null;
     // The realm runs from the project's estella:// origin, so assets are
     // same-origin estella:// — no cross-scheme dance needed.
     const assetManifest: Record<string, string> = {};
     for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = `estella://project/${path}`;
-    return { sceneData, assetManifest };
+    // Carry the project's declared physics enable so the realm installs physics
+    // even for runtime-spawned bodies the static scene doesn't show.
+    const physics = this.state?.features?.physics;
+    return { sceneData, assetManifest, physicsEnabled: physics?.enabled, physicsGravity: physics?.gravity };
+  }
+
+  /** The project's declared physics feature, with defaults (for Project Settings). */
+  physicsFeature(): { enabled: boolean; gravity: { x: number; y: number } } {
+    const p = this.state?.features?.physics;
+    return { enabled: p?.enabled ?? false, gravity: p?.gravity ?? { x: 0, y: -9.81 } };
+  }
+
+  /**
+   * Enable/configure the project's physics feature and persist to
+   * `project.esproject` (so the play realm installs physics even for
+   * runtime-spawned bodies). Rewrites the RAW manifest JSON so fields the editor
+   * parser doesn't model survive; in-memory state updates first so the toggle
+   * reflects immediately.
+   */
+  async setPhysics(patch: { enabled?: boolean; gravity?: { x: number; y: number } }): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const physics: NonNullable<ProjectFeatures['physics']> = { ...st.features?.physics, ...patch };
+    const features: ProjectFeatures = { ...st.features, physics };
+    this.store.setState({ project: { ...st, features } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      raw.features = { ...(raw.features as Record<string, unknown> ?? {}), physics };
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push('Failed to save physics setting', 'error');
+      console.error('[project] setPhysics write failed', e);
+    }
   }
 
   /** Display info for an asset ref (`@uuid:`), or null (none / unresolved). For

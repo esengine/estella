@@ -92,9 +92,17 @@ export class PhysicsPlugin implements Plugin {
             sensorExits: [],
         });
         app.insertResource(PhysicsRuntime, { module: null, initPromise: null });
+        // wasm loading → show "initializing", not a stuck "registered".
+        app.subsystems.transition('physics', 'initializing');
 
         const initPromise = loadPhysicsModule(this.wasmUrl_, this.factory_).then(
             (loaded: PhysicsWasmModule) => {
+                // Push a terminal Box2D abort to the registry too (not just the
+                // bridge's call-time guard). Set before connect() so the bridge's
+                // abort guard preserves and chains this handler.
+                (loaded as { onAbort?: (what: unknown) => void }).onAbort = () =>
+                    app.subsystems.markError('physics', 'Box2D wasm module aborted');
+
                 // Route the module through the single WASM bridge: this installs
                 // the terminal-abort guard and yields a guarded view in which
                 // every `_physics_*` call short-circuits after an abort. The
@@ -127,10 +135,13 @@ export class PhysicsPlugin implements Plugin {
                 app.insertResource(PhysicsAPI, Physics._fromModule(module));
                 setupPhysicsDebugDraw(app, PhysicsAPI, PhysicsEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
+                // Module loaded, world initialized, systems registered.
+                app.subsystems.transition('physics', 'ready');
             },
         );
 
         initPromise.catch((e) => {
+            app.subsystems.markError('physics', e instanceof Error ? e.message : String(e));
             handleWasmError(e, 'PhysicsPlugin.init');
         });
         app.getResource(PhysicsRuntime).initPromise = initPromise;

@@ -27,6 +27,8 @@ export {
 export {
     loadPhysicsModule,
     loadPhysicsSideModule,
+    fetchPhysicsSideModule,
+    fetchPhysicsModule,
     type PhysicsWasmModule,
     type PhysicsModuleFactory,
     type ESEngineMainModule,

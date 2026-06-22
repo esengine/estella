@@ -149,6 +149,49 @@
 .cb-btn:hover { color: var(--text); background: var(--srf-3); }
 .cb-btn.active { color: #fff; background: var(--acc); }
 
+/* ── Engine modules indicator + popover ── */
+.mdot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-mute); flex-shrink: 0; }
+.mdot.ok { background: var(--run-hi); }
+.mdot.idle { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-mute); }
+.mdot.busy { background: var(--warn); }
+.mdot.err { background: var(--error); }
+.mods-wrap { position: relative; display: inline-flex; }
+.mods-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 248px;
+  background: var(--srf-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-1);
+  padding: 6px;
+  z-index: 200;
+}
+.mods-pop h4 {
+  margin: 2px 6px 6px;
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-mute);
+  font-weight: 600;
+}
+.mods-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+}
+.mods-row:hover { background: var(--srf-3); }
+.mods-row .mn { flex: 1; color: var(--text); font-size: var(--fs-sm); }
+.mods-row .ms { color: var(--text-mute); font-size: var(--fs-xs); font-family: var(--mono); }
+.mods-row .ms.run { color: var(--run-hi); }
+.mods-row .ms.err { color: var(--error); }
+.mods-err { padding: 0 6px 4px 22px; color: var(--error); font-size: var(--fs-2xs); font-family: var(--mono); word-break: break-word; }
+.mods-empty { padding: 12px 8px; color: var(--text-mute); font-size: var(--fs-xs); text-align: center; }
+
 /* ── Activity bar (far-left icon rail) ── */
 .activity {
   width: var(--w-activity);

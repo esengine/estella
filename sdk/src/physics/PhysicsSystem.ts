@@ -620,6 +620,16 @@ export function registerPhysicsSystem(
     };
     const fixedDt = config.fixedTimestep;
 
+    // Change-driven reconcile: track physics components so a value edit is an O(1)
+    // signal, letting the per-step reconcile skip the full entity scan in steady
+    // state (no structural change + no physics-component edit). Kinematic bodies
+    // are driven by their Transform, so they're tracked separately and pushed every
+    // step regardless of whether the reconcile ran.
+    const physicsComponents = [RigidBody, ...COLLIDER_TYPES, ...JOINT_TYPES];
+    for (const c of physicsComponents) app.world.enableChangeTracking(c);
+    const kinematicEntities = new Set<Entity>();
+    let lastStructuralVersion = -1;
+
     const world = app.world;
 
     world.onDespawn((entity: Entity) => {
@@ -632,6 +642,7 @@ export function registerPhysicsSystem(
             trackedEntities.delete(entity);
             cachedProps.delete(entity);
             parentedBodies.delete(entity);
+            kinematicEntities.delete(entity);
             snaps.prev.delete(entity);
             snaps.cur.delete(entity);
         }
@@ -645,6 +656,9 @@ export function registerPhysicsSystem(
         defineSystem(
             [],
             () => {
+                // Watchdog beat: gated by playModeOnly, so a fresh beat means
+                // "physics is actually stepping" (vs loaded-but-frozen in edit mode).
+                app.subsystems.markStepped('physics');
                 // Read pixelsPerUnit live each tick so a Canvas property
                 // change at runtime (editor: user edits Canvas.pixelsPerUnit)
                 // propagates to physics transforms instead of staying at the
@@ -654,6 +668,21 @@ export function registerPhysicsSystem(
                 // Keep the query API's default scale in sync with the live Canvas,
                 // so raycast/overlap that omit `ppu` aren't silently scaled to 100.
                 if (app.hasResource(PhysicsAPI)) app.getResource(PhysicsAPI).setPixelsPerUnit(ppu);
+                // Steady-state fast path: skip the full entity reconcile unless
+                // something structural changed (spawn/despawn/add-remove component →
+                // structuralVersion) OR a physics component was edited (O(1) gate).
+                // Otherwise the bodies are simulated by Box2D + read back in bulk.
+                const structuralVersion = world.getWorldVersion();
+                let needReconcile = structuralVersion !== lastStructuralVersion;
+                if (!needReconcile) {
+                    for (let i = 0; i < physicsComponents.length; i++) {
+                        if (world.anyChangedSince(physicsComponents[i], lastEntitySyncTick)) {
+                            needReconcile = true;
+                            break;
+                        }
+                    }
+                }
+                if (needReconcile) {
                 const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
                 const currentEntities = new Set<Entity>();
 
@@ -693,6 +722,7 @@ export function registerPhysicsSystem(
                             enabled: true,
                             colliderSig: colliderSignature(world, entity),
                         });
+                        if (rb.bodyType === BodyType.Kinematic) kinematicEntities.add(entity);
                         continue;
                     }
 
@@ -735,15 +765,11 @@ export function registerPhysicsSystem(
                         cached.colliderSig = sig;
                     }
 
-                    // 4. kinematic bodies are driven directly from their Transform.
-                    if (cached.bodyType === BodyType.Kinematic) {
-                        const wt = world.get(entity, Transform) as TransformData;
-                        module._physics_setBodyTransform(
-                            entity,
-                            wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
-                            quatToAngleZ(wt.worldRotation),
-                        );
-                    }
+                    // 4. kinematic bodies: maintain the set; the Transform→body push
+                    //    runs every step outside the (gated) reconcile so it survives
+                    //    skipped frames.
+                    if (cached.bodyType === BodyType.Kinematic) kinematicEntities.add(entity);
+                    else kinematicEntities.delete(entity);
                 }
 
                 // Bodies whose entity left the query without firing onDespawn.
@@ -753,6 +779,7 @@ export function registerPhysicsSystem(
                         trackedEntities.delete(entity);
                         cachedProps.delete(entity);
                         parentedBodies.delete(entity);
+                        kinematicEntities.delete(entity);
                     }
                 }
 
@@ -768,6 +795,20 @@ export function registerPhysicsSystem(
                 createPendingJoints(world, module, trackedEntities, trackedJoints, invPpu);
 
                 lastEntitySyncTick = world.getWorldTick();
+                lastStructuralVersion = structuralVersion;
+                } // end if (needReconcile)
+
+                // Kinematic bodies are driven by their Transform (changed via gameplay,
+                // not tracked as a physics edit) — push every step, even when the
+                // reconcile above was skipped.
+                for (const entity of kinematicEntities) {
+                    const wt = world.get(entity, Transform) as TransformData;
+                    module._physics_setBodyTransform(
+                        entity,
+                        wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
+                        quatToAngleZ(wt.worldRotation),
+                    );
+                }
 
                 if (trackedEntities.size > 0) {
                     module._physics_step(fixedDt);

@@ -3,6 +3,7 @@
  *        settings (./editorSettings side effect) and exposes the registry + types.
  */
 import './editorSettings';
+import './projectSettings';
 
 export { settingsRegistry } from './registry';
 export type {

@@ -71,7 +71,17 @@ async function boot(): Promise<void> {
   });
   setEditorMode(false);
   setPlayMode(true);
-  await initPlayRealmRuntime({ app, module, canvas, sceneData, assetManifest });
+  // physics.wasm sits next to esengine.wasm; the runtime loads it when the scene
+  // uses physics. (Runtime-spawned bodies still need a build-time enable flag —
+  // a follow-up that cooks features.physics into game.config.json.)
+  await initPlayRealmRuntime({
+    app,
+    module,
+    canvas,
+    sceneData,
+    assetManifest,
+    wasmBaseUrl: wasmBase.replace(/\/$/, ''),
+  });
 }
 
 boot().catch((err) => {

@@ -58,7 +58,9 @@ set(ES_EMSCRIPTEN_MAIN_MODULE_FLAGS
     -sFORCE_FILESYSTEM=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS','addFunction','loadDynamicLibrary']"
+    # 'GL' is required for the WebGL2 context binding (module.GL.registerContext);
+    # the monolithic web build exports it too — the main-module list had dropped it.
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction','loadDynamicLibrary']"
     -O3
     -flto
     -Wl,--gc-sections
@@ -368,8 +370,16 @@ set(ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS
     -fno-exceptions
 )
 
+# ESM variant of the standalone physics module — EXPORT_ES6=1 so the web editor
+# (estella:// ESM host) can `import()` it like esengine.js. Playable/wechat keep
+# the UMD variant (global ESPhysicsModule). Same standalone wasm, no dynamic link.
+set(ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS ${ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS})
+list(REMOVE_ITEM ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS -sEXPORT_ES6=0)
+list(APPEND ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS -sEXPORT_ES6=1 -sENVIRONMENT=web)
+
 if(NOT BOX2D_DISABLE_SIMD)
     list(APPEND ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS -msimd128)
+    list(APPEND ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS -msimd128)
     list(APPEND ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS -msimd128)
 endif()
 
@@ -382,6 +392,23 @@ function(es_apply_physics_module_settings TARGET_NAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${_PHYSICS_COMPILE_FLAGS})
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+    endif()
+endfunction()
+
+# ESM variant settings (EXPORT_ES6=1) — see ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS.
+function(es_apply_physics_esm_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        set(_PHYSICS_COMPILE_FLAGS ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)
+        if(NOT BOX2D_DISABLE_SIMD)
+            list(APPEND _PHYSICS_COMPILE_FLAGS -msimd128)
+        endif()
+        target_compile_options(${TARGET_NAME} PRIVATE ${_PHYSICS_COMPILE_FLAGS})
+
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
             SUFFIX ".js"
             LINK_FLAGS "${LINK_FLAGS_STR}"
