@@ -81,24 +81,25 @@ export interface GlyphVertexData {
 }
 
 /**
- * Build interleaved vertices (x,y,u,v,r,g,b,a) + indices for laid-out glyphs.
+ * Build interleaved vertices (x,y,u,v,r,g,b,a) + indices for a set of laid-out
+ * glyphs (typically the subset that shares one atlas page — see TextRenderer).
  * Atlas v0 (top) maps to the screen-top corner, v1 (bottom) to screen-bottom,
  * so the quad samples the glyph upright. `originX/Y` offsets all glyphs (e.g. to
  * place the text by its UIRect-resolved anchor).
  */
 export function buildGlyphVertices(
-    layout: TextLayout,
+    glyphs: readonly LaidGlyph[],
     color: RGBA,
     originX = 0,
     originY = 0,
 ): GlyphVertexData {
-    const n = layout.glyphs.length;
+    const n = glyphs.length;
     const vertices = new Float32Array(n * 4 * TEXT_VERTEX_FLOATS);
     const indices = new Uint16Array(n * 6);
     const [r, g, b, a] = color;
 
     for (let i = 0; i < n; i++) {
-        const gl = layout.glyphs[i];
+        const gl = glyphs[i];
         const x0 = gl.x0 + originX, x1 = gl.x1 + originX;
         const y0 = gl.y0 + originY, y1 = gl.y1 + originY;
         const vo = i * 4 * TEXT_VERTEX_FLOATS;

@@ -68,7 +68,7 @@ describe('REARCH_GUI P1.3b: text layout', () => {
     it('builds 4 verts + 6 indices per glyph with correct stride and color', () => {
         const atlas = makeAtlas();
         const layout = layoutLine('AB', atlas, 'Arial', { fontSizePx: 24 });
-        const { vertices, indices } = buildGlyphVertices(layout, [1, 0, 0, 1], 100, 200);
+        const { vertices, indices } = buildGlyphVertices(layout.glyphs, [1, 0, 0, 1], 100, 200);
         expect(vertices.length).toBe(2 * 4 * 8);
         expect(indices.length).toBe(2 * 6);
         // first vertex = bottom-left of glyph 0, with origin applied
