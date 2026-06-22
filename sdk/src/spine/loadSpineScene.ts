@@ -8,12 +8,11 @@
  *          so spine loads identically on every target instead of being
  *          re-implemented per host.
  *
- * Two phases are exposed separately because the runtime must preserve ordering:
- * the native (4.2) path writes the skeleton/atlas to the virtual FS during
- * {@link loadSpineAssets} BEFORE the scene spawns, while {@link applySpineEntities}
- * runs after, once entity ids exist. {@link loadSpineSceneEntities} is the
- * combined convenience for hosts (the editor) that only drive the 3.8/4.1 JS
- * runtimes, where that ordering doesn't matter.
+ * Two phases are exposed separately so entity ids exist before binding: phase 1
+ * ({@link loadSpineAssets}) fetches + decodes assets and detects each version;
+ * phase 2 ({@link applySpineEntities}) loads them into the SpineManager after the
+ * scene spawns. Every version routes to its side-module backend — there is no
+ * native runtime. {@link loadSpineSceneEntities} is the combined convenience.
  */
 import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
@@ -46,36 +45,9 @@ function parseAtlasTextures(content: string): string[] {
     return textures;
 }
 
-function ensureVirtualDir(module: ESEngineModule, virtualPath: string): void {
-    const fs = module.FS;
-    if (!fs) return;
-    const dir = virtualPath.substring(0, virtualPath.lastIndexOf('/'));
-    if (!dir) return;
-    const parts = dir.split('/').filter(p => p);
-    let currentPath = '';
-    for (const part of parts) {
-        currentPath += '/' + part;
-        try { fs.mkdir(currentPath); } catch { /* already exists */ }
-    }
-}
-
-function writeToVirtualFS(module: ESEngineModule, virtualPath: string, data: string | Uint8Array): boolean {
-    const fs = module.FS;
-    if (!fs) return false;
-    try {
-        ensureVirtualDir(module, virtualPath);
-        fs.writeFile(virtualPath, data);
-        return true;
-    } catch (e) {
-        log.warn('runtime', `Failed to write virtual FS: ${virtualPath}`, e);
-        return false;
-    }
-}
-
 /**
  * Phase 1 — fetch + decode each spine pair's skeleton/atlas/textures and detect
- * its runtime version. Native (4.2) pairs are also written to the virtual FS for
- * the C++ runtime. Keyed by `skeletonRef:atlasRef` for {@link applySpineEntities}.
+ * its runtime version. Keyed by `skeletonRef:atlasRef` for {@link applySpineEntities}.
  */
 export async function loadSpineAssets(
     module: ESEngineModule,
@@ -130,12 +102,6 @@ export async function loadSpineAssets(
                 }
             }
 
-            const isNative = !version || version === '4.2';
-            if (isNative) {
-                writeToVirtualFS(module, atlasPath, atlasContent);
-                writeToVirtualFS(module, skelPath, skelData);
-            }
-
             assetInfoMap.set(cacheKey, { version, skelData, atlasText: atlasContent, textures });
         } catch (err) {
             log.warn('runtime', `Failed to load spine asset: skel=${skelRef} atlas=${atlasRef}`, err);
@@ -146,7 +112,7 @@ export async function loadSpineAssets(
 
 /**
  * Phase 2 — for each SpineAnimation entity, route its loaded asset to the
- * SpineManager (3.8/4.1 JS runtimes; 4.2 stays under C++ control) and apply the
+ * SpineManager (every version loads its side-module backend) and apply the
  * component's props, skin, and animation.
  */
 export async function applySpineEntities(opts: {
@@ -168,7 +134,7 @@ export async function applySpineEntities(opts: {
             if (!skelRef || !atlasRef) continue;
 
             const info = assetInfo.get(`${skelRef}:${atlasRef}`);
-            if (!info || !info.version || info.version === '4.2') continue;
+            if (!info || !info.version) continue;
 
             const entity = entityMap.get(sceneEntity.id);
             if (entity === undefined) continue;
