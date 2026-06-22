@@ -101,6 +101,7 @@ struct ParsedShader {
     std::string sharedCode;                                   ///< Code shared by all stages
     std::unordered_map<ShaderStage, std::string> stages;      ///< Stage source code
     std::unordered_map<std::string, std::string> variants;    ///< Platform variants
+    std::vector<std::string> features;                        ///< Declared #pragma feature keywords (compile-time variants)
     std::vector<ShaderProperty> properties;                   ///< Exposed properties
     std::string errorMessage;                                 ///< Parse error if any
     bool valid = false;                                       ///< True if parsing succeeded
@@ -176,11 +177,20 @@ public:
      * @param parsed The parsed shader data
      * @param stage The shader stage to assemble
      * @param platform Platform variant name (empty for default)
+     * @param features Feature keywords to enable; each is injected as `#define <name> 1`
+     *                 right after `#version`, so shaders can `#ifdef` compile-time variants.
      * @return Complete GLSL source ready for compilation
      */
     static std::string assembleStage(const ParsedShader& parsed,
                                      ShaderStage stage,
-                                     const std::string& platform = "");
+                                     const std::string& platform = "",
+                                     const std::vector<std::string>& features = {});
+
+    /**
+     * @brief Stable cache key for a feature set (order-independent), e.g. "GRAYSCALE|TINT".
+     *        Consumers key their compiled-variant cache on (shader, variantKey(features)).
+     */
+    static std::string variantKey(const std::vector<std::string>& features);
 
     /**
      * @brief Like assembleStage, but also reports the line count of the
@@ -197,7 +207,8 @@ public:
 
     static AssembledStage assembleStageEx(const ParsedShader& parsed,
                                           ShaderStage stage,
-                                          const std::string& platform = "");
+                                          const std::string& platform = "",
+                                          const std::vector<std::string>& features = {});
 
     /**
      * @brief Rewrites GL compile-log line references back to original files

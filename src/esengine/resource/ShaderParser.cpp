@@ -158,6 +158,13 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             continue;
         }
 
+        if (directive == "feature") {
+            // Declares a compile-time variant keyword. Self-documenting; the consumer
+            // chooses which features to enable and assembleStage injects their #defines.
+            if (!argument.empty()) result.features.push_back(argument);
+            continue;
+        }
+
         if (directive == "properties") {
             if (state != ParseState::Global) {
                 result.errorMessage = "Unexpected #pragma properties at line " + std::to_string(lineNumber);
@@ -282,8 +289,20 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
 
 std::string ShaderParser::assembleStage(const ParsedShader& parsed,
                                         ShaderStage stage,
-                                        const std::string& platform) {
-    return assembleStageEx(parsed, stage, platform).source;
+                                        const std::string& platform,
+                                        const std::vector<std::string>& features) {
+    return assembleStageEx(parsed, stage, platform, features).source;
+}
+
+std::string ShaderParser::variantKey(const std::vector<std::string>& features) {
+    std::vector<std::string> sorted(features);
+    std::sort(sorted.begin(), sorted.end());
+    std::string key;
+    for (const auto& f : sorted) {
+        if (!key.empty()) key += '|';
+        key += f;
+    }
+    return key;
 }
 
 namespace {
@@ -300,7 +319,8 @@ u32 countNewlines(const std::string& s) {
 
 ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& parsed,
                                                            ShaderStage stage,
-                                                           const std::string& platform) {
+                                                           const std::string& platform,
+                                                           const std::vector<std::string>& features) {
     AssembledStage result;
 
     if (!parsed.valid) return result;
@@ -313,6 +333,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
 
     if (!parsed.version.empty()) {
         assembled << "#version " << parsed.version << "\n";
+        ++headerLines;
+    }
+
+    // Feature #defines go right after #version (GLSL requires #version first), so the
+    // shader body can #ifdef compile-time variants. Counted into headerLines so the
+    // compile-log line remap stays accurate.
+    for (const auto& f : features) {
+        assembled << "#define " << f << " 1\n";
         ++headerLines;
     }
 

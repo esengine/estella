@@ -59,6 +59,16 @@ target_include_directories(test_shader_device PRIVATE
 )
 add_test(NAME test_shader_device COMMAND test_shader_device)
 
+# Shader variant (feature-permutation) system (RC7-6). Compiles ShaderParser.cpp
+# directly — no GL/engine link — and checks #pragma feature parsing + #define injection.
+add_executable(test_shader_variant
+    renderer/test_shader_variant.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/resource/ShaderParser.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_shader_variant PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_shader_variant COMMAND test_shader_variant)
+
 # Texture + Framebuffer decoupling: compiles the converted classes against a
 # MockGfxDevice. The harness stubs the (uncalled) stb file loader.
 add_executable(test_texture_fb
