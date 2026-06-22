@@ -141,6 +141,16 @@ export interface ESEngineModule {
         entity: number, skelScale: number, flipX: boolean, flipY: boolean,
         layer: number, depth: number
     ): void;
+    /**
+     * Submit pre-laid-out glyph quads against the dynamic SDF atlas (REARCH_GUI
+     * P1.3). Vertex format x,y,u,v,r,g,b,a; routed through the SDF batch variant.
+     */
+    renderer_submitTextBatch?(
+        verticesPtr: number, vertexCount: number,
+        indicesPtr: number, indexCount: number,
+        textureId: number, transformPtr: number,
+        entity: number, layer: number, depth: number
+    ): void;
 
     // Material cache
     invalidateMaterialCache(materialId: number): void;

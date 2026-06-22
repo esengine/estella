@@ -37,6 +37,43 @@ void RenderFrame::submitTileQuad(
     });
 }
 
+void RenderFrame::submitTextBatch(
+    const f32* vertices, i32 vertexCount,
+    const u16* indices, i32 indexCount,
+    u32 textureId, const f32* transform16,
+    Entity entity, i32 layer, f32 depth
+) {
+    if (vertexCount <= 0 || indexCount <= 0) return;
+
+    constexpr i32 FLOATS_PER_VERTEX = 8;  // x, y, u, v, r, g, b, a
+    glm::mat4 model = glm::make_mat4(transform16);
+
+    u32 vBytes = static_cast<u32>(vertexCount) * sizeof(BatchVertex);
+    u32 vOff = pool_.allocVertices(LayoutId::Batch, vBytes);
+    auto* dst = reinterpret_cast<BatchVertex*>(pool_.vertexData(LayoutId::Batch) + vOff);
+
+    for (i32 i = 0; i < vertexCount; ++i) {
+        const f32* v = vertices + i * FLOATS_PER_VERTEX;
+        glm::vec4 worldPos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
+        u32 pc = packColor(glm::vec4(v[4], v[5], v[6], v[7]));
+        dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]} };
+    }
+
+    // Glyph atlas is SDF — route through the SDF batch variant. Text uses normal
+    // alpha blending; coverage comes from the shader, not the source alpha curve.
+    pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
+                     static_cast<u32>(indexCount), BatchDrawKey{
+        .stage = current_stage_,
+        .layer = layer,
+        .shaderId = batchProgram({"SDF"}),
+        .blend = BlendMode::Normal,
+        .textureId = textureId,
+        .depth = depth,
+        .entity = entity,
+        .type = RenderType::Text,
+    });
+}
+
 #ifdef ES_ENABLE_SPINE
 void RenderFrame::submitSpineBatch(
     const f32* vertices, i32 vertexCount,

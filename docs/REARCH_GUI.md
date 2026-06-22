@@ -159,9 +159,10 @@ PostUpdate:  ScrollView → RenderOrder → Render(DrawList)
 3. **TS `GlyphAtlas` 管理器**:shelf/skyline 装箱 + 字形缓存(键=font/size-bucket/codepoint/style);miss→Canvas2D 栅格→C++ SDF→装箱→子上传→把字形 metrics 注册进 C++ DynamicFont。
 4. **C++ `DynamicFont`**:把 `BitmapFont` 泛化为运行时可加字形(id,x,y,w,h,offsets,advance)+ isSDF + pxRange。
 
-### 7.3 管线接入
-- TS **glyph-prepare 系统**(PreUpdate,布局前):扫可见 `UIText`,确保所需字形已在图集(栅格 miss),每帧限量栅格防卡顿(聊天爆发场景)。
-- C++ `TextPlugin` 读 `UIText` + DynamicFont → 用 SDF 变体发字形 quad。
+### 7.3 管线接入（决策:TS 中心,方案 B —— 实现期定）
+两种接法:**A C++ 中心**(C++ TextPlugin 读组件 + DynamicFont,需逐字形 binding + 在 C++/TS 两处重复 metrics);**B TS 中心**(TS 已有 GlyphAtlas 持全 metrics → TS 布局 + 生成字形 quad → 经一个通用 `submitTextBatch` 提交,C++ 只批渲染)。**选 B**:复用已验证的 spine TS-提交模式、单一 metrics 事实源(DRY)、无 DynamicFont/无逐字形 binding、富文本天然在 TS。
+- C++ `RenderFrame::submitTextBatch`(仿 `submitSpineBatch`,但走 `batchProgram({"SDF"})` + RenderType::Text;非门控)+ `renderer_submitTextBatch` binding + TS `ui/text/submit.ts`(HEAPU8 字节拷贝,因该 wasm 仅导出 HEAPU8)。
+- TS **文本系统**(pre-flush 回调):扫可见文本实体 → glyph-prepare(GlyphAtlas 备字形,限量/帧)→ 布局 → 生成 quad → `submitTextBatch`。
 
 ### 7.4 组件统一
 - **`UIText`**(并 BitmapText + `core/text.ts` Text):text/font/fontSize/color/align/wrap + outlineColor/Width + shadowColor/Offset/Blur + richText(flag)。替换两者。
@@ -170,7 +171,7 @@ PostUpdate:  ScrollView → RenderOrder → Render(DrawList)
 - **P1.0** 图集子区域基元(`Texture::updateSubRegion` + binding + TS 封装)。
 - **P1.1** GlyphAtlas 管理器 + SDF 生成(C++ 8SSEDT binding + TS 栅格/装箱/缓存)。
 - **P1.2** SDF shader 变体(median/smoothstep + pxRange + outline/shadow uniforms)。
-- **P1.3** DynamicFont + `UIText` 简单路径 + glyph-prepare → 端到端清晰批量 CJK 简单文本;headless 验 draw call↓ + 清晰度。
+- **P1.3** TS 中心(方案 B):①`submitTextBatch` 提交基元(C+++binding+TS,DONE)→ ②真 `CanvasGlyphRasterizer`+`EngineAtlasPageStore` 接 GlyphAtlas → ③ TS 文本系统(pre-flush:glyph-prepare+布局+生成 quad+提交)→ 端到端清晰批量 CJK 文本;headless 渲染验 draw call↓ + 清晰度。
 - **P1.4** 富文本(TS 布局 runs)+ SDF 描边/阴影;`core/text.ts` Text→`UIText`;退役 Canvas2D-每实体路径。
 - **P1.5** TextInput 接新路径(光标/选区/IME overlay)。
 - **P1.6** 退役 BitmapText(debug overlay 迁移或保留);shim 统一 P4 删。

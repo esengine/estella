@@ -374,6 +374,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitSpineBatch", &esengine::renderer_submitSpineBatch);
     emscripten::function("renderer_submitSpineBatchByEntity", &esengine::renderer_submitSpineBatchByEntity);
 #endif
+    emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
 
     emscripten::function("invalidateMaterialCache", &esengine::invalidateMaterialCache);
     emscripten::function("clearMaterialCache", &esengine::clearMaterialCache);

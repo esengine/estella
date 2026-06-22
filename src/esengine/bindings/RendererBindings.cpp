@@ -105,6 +105,23 @@ void renderer_submitSpineBatchByEntity(
 
 #endif
 
+// REARCH_GUI P1.3: TS lays out glyph quads against the dynamic SDF atlas and
+// submits them here (ungated — text is core, unlike spine).
+void renderer_submitTextBatch(
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, uintptr_t transformPtr,
+    u32 entity, i32 layer, f32 depth
+) {
+    if (!g_initialized || !g_renderFrame) return;
+    auto* vertices = reinterpret_cast<const f32*>(verticesPtr);
+    auto* indices = reinterpret_cast<const u16*>(indicesPtr);
+    auto* transform = reinterpret_cast<const f32*>(transformPtr);
+    g_renderFrame->submitTextBatch(
+        vertices, vertexCount, indices, indexCount,
+        textureId, transform, Entity::fromRaw(entity), layer, depth);
+}
+
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {
     if (!g_initialized || !g_renderFrame) return;
 

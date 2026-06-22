@@ -85,6 +85,19 @@ public:
         Entity entity, i32 layer, f32 depth
     );
 
+    /**
+     * Submit a batch of pre-laid-out glyph quads from TS (REARCH_GUI P1.3, the
+     * dynamic SDF glyph atlas). Same vertex format as submitSpineBatch
+     * (x,y,u,v,r,g,b,a per vertex) but routed through the SDF batch variant
+     * (batchProgram({"SDF"})) with RenderType::Text. The atlas page is `textureId`.
+     */
+    void submitTextBatch(
+        const f32* vertices, i32 vertexCount,
+        const u16* indices, i32 indexCount,
+        u32 textureId, const f32* transform16,
+        Entity entity, i32 layer, f32 depth
+    );
+
 #ifdef ES_ENABLE_SPINE
     void submitSpineBatch(
         const f32* vertices, i32 vertexCount,

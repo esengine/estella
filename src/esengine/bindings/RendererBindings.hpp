@@ -70,6 +70,12 @@ void renderer_submitSpineBatchByEntity(
     i32 layer, f32 depth
 );
 #endif
+void renderer_submitTextBatch(
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, uintptr_t transformPtr,
+    u32 entity, i32 layer, f32 depth
+);
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);
 #endif
