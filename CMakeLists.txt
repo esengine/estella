@@ -90,6 +90,7 @@ endif()
 
     list(APPEND ESENGINE_SOURCES
         src/esengine/text/BitmapFont.cpp
+        src/esengine/text/SdfGenerator.cpp
     )
 
 
@@ -181,6 +182,7 @@ endif()
 
     list(APPEND ESENGINE_HEADERS
         src/esengine/text/BitmapFont.hpp
+        src/esengine/text/SdfGenerator.hpp
     )
 
 

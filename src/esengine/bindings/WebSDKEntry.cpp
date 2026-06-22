@@ -36,6 +36,7 @@
 #include "../renderer/ImmediateDraw.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../text/SdfGenerator.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../core/World.hpp"
 #include "../ecs/components/Velocity.hpp"
@@ -233,6 +234,15 @@ resource::ResourceManager* getResourceManager() {
     return g_resourceManager;
 }
 
+// Runtime glyph atlas (REARCH_GUI P1): convert a Canvas2D-rasterized alpha
+// bitmap to a signed distance field. Both buffers are caller-allocated in WASM
+// linear memory (TS passes HEAPU8 pointers); `alpha` and `out` are width*height.
+void web_sdfFromAlpha(uintptr_t alphaPtr, uintptr_t outPtr, u32 width, u32 height, f32 spread) {
+    const u8* alpha = reinterpret_cast<const u8*>(alphaPtr);
+    u8* out = reinterpret_cast<u8*>(outPtr);
+    text::sdfFromAlpha(alpha, out, width, height, spread);
+}
+
 // =============================================================================
 // Pointer-based Component Access
 // =============================================================================
@@ -333,6 +343,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderFrame", &esengine::renderFrame);
     emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
+    emscripten::function("sdfFromAlpha", &esengine::web_sdfFromAlpha);
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)
@@ -346,6 +357,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("getTextureGLId", &esengine::rm_getTextureGLId)
         .function("getTextureDimensions", &esengine::rm_getTextureDimensions)
         .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
+        .function("updateTextureSubregion", &esengine::rm_updateTextureSubregion)
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
 #ifdef ES_ENABLE_BITMAP_TEXT
         .function("loadBitmapFont", &esengine::rm_loadBitmapFont)

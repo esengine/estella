@@ -150,6 +150,17 @@ emscripten::val rm_measureBitmapText(resource::ResourceManager& rm, u32 fontHand
 }
 #endif
 
+void rm_updateTextureSubregion(resource::ResourceManager& rm, u32 handleId,
+                                u32 x, u32 y, u32 width, u32 height,
+                                uintptr_t pixelsPtr, u32 pixelsLen) {
+    auto* tex = rm.getTexture(resource::TextureHandle(handleId));
+    if (!tex) return;
+    // Sub-region pixels must already match the texture's format (RGBA8 atlas);
+    // updateSubRegion bounds-checks the rect + buffer size internally.
+    const u8* pixels = reinterpret_cast<const u8*>(pixelsPtr);
+    tex->updateSubRegion(x, y, width, height, pixels, pixelsLen, /*flipY=*/false);
+}
+
 void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
                             f32 left, f32 right, f32 top, f32 bottom) {
     resource::TextureMetadata metadata;

@@ -47,6 +47,7 @@ export interface CppResourceManager {
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
+    updateTextureSubregion(handle: number, x: number, y: number, width: number, height: number, pixels: number, pixelsLen: number): void;
     registerTextureWithPath(handle: number, path: string): void;
     loadBitmapFont(fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
     createLabelAtlasFont(textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;
@@ -117,6 +118,12 @@ export interface ESEngineModule {
     renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
+    /**
+     * Convert a Canvas2D-rasterized alpha bitmap to a signed distance field for
+     * the runtime glyph atlas (REARCH_GUI P1). `alphaPtr`/`outPtr` are HEAPU8
+     * pointers to width*height byte buffers; the SDF is written into `outPtr`.
+     */
+    sdfFromAlpha?(alphaPtr: number, outPtr: number, width: number, height: number, spread: number): void;
     getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
 
     renderer_submitSpineBatch?(

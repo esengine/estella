@@ -46,3 +46,27 @@ export function createTextureFromPixels(
         return rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
     });
 }
+
+/**
+ * Upload pixels into a sub-rectangle of an existing texture. Lets the dynamic
+ * glyph atlas (REARCH_GUI P1) pack glyphs individually instead of re-uploading
+ * the whole atlas. `pixels` must match the texture's format (RGBA8) and the
+ * rect must lie inside the texture (the engine bounds-checks and no-ops if not).
+ */
+export function updateTextureSubregion(
+    module: ESEngineModule,
+    handle: number,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    pixels: Uint8Array,
+): void {
+    if (width <= 0 || height <= 0 || pixels.length === 0) return;
+    const rm = requireResourceManager();
+    if (!rm.updateTextureSubregion) return;
+    withMalloc(module, pixels.length, ptr => {
+        module.HEAPU8.set(pixels, ptr);
+        rm.updateTextureSubregion(handle, x, y, width, height, ptr, pixels.length);
+    });
+}

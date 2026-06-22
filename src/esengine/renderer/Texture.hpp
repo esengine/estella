@@ -196,6 +196,20 @@ public:
      */
     void setData(const std::vector<u8>& pixels);
 
+    /**
+     * @brief Uploads pixel data to a sub-rectangle of the texture.
+     *
+     * Lets the dynamic glyph atlas (REARCH_GUI P1) pack glyphs one-by-one
+     * without re-uploading the whole atlas. The sub-rect must lie fully inside
+     * the texture and `data` must be tightly packed in this texture's format.
+     *
+     * @param xoffset,yoffset top-left of the sub-rect, in texels
+     * @param width,height    sub-rect size, in texels
+     * @param data,sizeBytes  pixel buffer matching the texture's format
+     */
+    void updateSubRegion(u32 xoffset, u32 yoffset, u32 width, u32 height,
+                         const void* data, u32 sizeBytes, bool flipY = false);
+
     // =========================================================================
     // Properties
     // =========================================================================

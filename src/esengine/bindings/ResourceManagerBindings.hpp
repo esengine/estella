@@ -38,6 +38,10 @@ u32 rm_getBitmapFontRefCount(resource::ResourceManager& rm, u32 handleId);
 emscripten::val rm_measureBitmapText(resource::ResourceManager& rm, u32 fontHandle,
                                       const std::string& text, f32 fontSize, f32 spacing);
 #endif
+void rm_updateTextureSubregion(resource::ResourceManager& rm, u32 handleId,
+                                u32 x, u32 y, u32 width, u32 height,
+                                uintptr_t pixelsPtr, u32 pixelsLen);
+
 void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
                             f32 left, f32 right, f32 top, f32 bottom);
 

@@ -188,4 +188,28 @@ void Texture::setDataRaw(const void* data, u32 sizeBytes, bool flipY) {
     if (flipY) device_->setUnpackFlipY(false);
 }
 
+void Texture::updateSubRegion(u32 xoffset, u32 yoffset, u32 width, u32 height,
+                              const void* data, u32 sizeBytes, bool flipY) {
+    // The sub-rect must lie fully inside the texture; otherwise texSubImage2D
+    // writes outside the allocated GL texture (GL error / undefined).
+    if (xoffset + width > width_ || yoffset + height > height_) {
+        ES_LOG_ERROR("Texture::updateSubRegion: rect {}x{} at ({},{}) exceeds texture {}x{}; skipping",
+                     width, height, xoffset, yoffset, width_, height_);
+        return;
+    }
+    // Always-on size guard (ES_ASSERT is stripped in release): texSubImage2D
+    // reads width*height*bpp bytes from `data`; a smaller buffer would OOB-read
+    // WASM linear memory.
+    u32 expectedSize = width * height * bytesPerPixel(format_);
+    if (sizeBytes < expectedSize) {
+        ES_LOG_ERROR("Texture::updateSubRegion: data size {} < required {} for {}x{}; skipping to avoid OOB read",
+                     sizeBytes, expectedSize, width, height);
+        return;
+    }
+
+    if (flipY) device_->setUnpackFlipY(true);
+    device_->texSubImage2D(textureId_, xoffset, yoffset, width, height, toGfxPixelFormat(format_), data);
+    if (flipY) device_->setUnpackFlipY(false);
+}
+
 }  // namespace esengine
