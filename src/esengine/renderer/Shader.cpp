@@ -114,9 +114,8 @@ Unique<Shader> Shader::createFromFile(GfxDevice& device,
 }
 
 void Shader::bind() const {
-    // NOTE: routes through the device, not the StateTracker cache yet. Once the
-    // legacy Renderer/BatchRenderer2D are retired, the remaining bind sites flip
-    // to StateTracker::useProgram and this method is removed (RC5).
+    // Direct program bind for setup-time use (e.g. seeding a sampler uniform). Per-frame
+    // rendering binds programs through GfxDevice::setPipeline, not here.
     if (device_) device_->useProgram(programId_);
 }
 

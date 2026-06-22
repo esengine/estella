@@ -119,6 +119,7 @@ struct MockGfxDevice final : GfxDevice {
     PipelineHandle createPipeline(const PipelineDesc&) override { return static_cast<PipelineHandle>(++nextPipelineId); }
     void setPipeline(PipelineHandle) override { ++setPipelineCalls; }
     void setStencilReference(i32) override {}
+    void invalidatePipelineCache() override {}
 
     u32 createVertexArray() override { ++createVertexArrayCalls; return nextVaoId++; }
     void deleteVertexArray(u32) override { ++deleteVertexArrayCalls; }

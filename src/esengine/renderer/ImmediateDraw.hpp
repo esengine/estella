@@ -5,8 +5,8 @@
  *          circles, polygons) with automatic batching for efficient rendering.
  *          All draw commands are cleared each frame.
  *
- *          Backed by the same TransientBufferPool + StateTracker + GfxDevice
- *          machinery as RenderFrame — there is no separate batch renderer.
+ *          Backed by the same TransientBufferPool + GfxDevice pipeline machinery
+ *          as RenderFrame — there is no separate batch renderer.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -27,7 +27,6 @@
 namespace esengine {
 
 class GfxDevice;
-class StateTracker;
 class RenderContext;
 
 namespace resource {
@@ -57,11 +56,10 @@ public:
     /**
      * @brief Constructs an immediate draw instance
      * @param device  Graphics device (GPU command sink)
-     * @param state   Shared per-App GPU state cache
      * @param context Render context for shared resources (white texture)
      * @param resource_manager Resource manager for shader access
      */
-    ImmediateDraw(GfxDevice& device, StateTracker& state, RenderContext& context,
+    ImmediateDraw(GfxDevice& device, RenderContext& context,
                   resource::ResourceManager& resource_manager);
     ~ImmediateDraw();
 
@@ -168,12 +166,12 @@ private:
     void useTexture(u32 textureId);
 
     GfxDevice& device_;
-    StateTracker& state_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
 
     TransientBufferPool pool_;
     u32 batch_shader_id_ = 0;
+    PipelineHandle pipeline_ = PipelineHandle::Invalid;
     u32 white_texture_id_ = 0;
     u32 currentTexture_ = 0;
     bool pendingGeometry_ = false;

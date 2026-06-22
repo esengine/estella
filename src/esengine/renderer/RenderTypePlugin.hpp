@@ -7,7 +7,6 @@
 #include "DrawList.hpp"
 #include "ClipState.hpp"
 #include "TransientBufferPool.hpp"
-#include "StateTracker.hpp"
 #include "../ecs/Registry.hpp"
 #include "../resource/ResourceManager.hpp"
 
@@ -46,15 +45,6 @@ public:
     virtual u32 skipFlag() const { return 0; }
 
     virtual void collect(RenderCollectContext& ctx) = 0;
-
-    virtual bool needsCustomDraw() const { return false; }
-    virtual bool handlesType(RenderType type) const { (void)type; return false; }
-    virtual void customDraw(const DrawCommand& cmd,
-                            StateTracker& state,
-                            TransientBufferPool& buffers,
-                            RenderFrameContext& ctx) {
-        (void)cmd; (void)state; (void)buffers; (void)ctx;
-    }
 };
 
 }  // namespace esengine

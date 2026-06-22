@@ -10,7 +10,6 @@
 #endif
 #include "FrameCapture.hpp"
 #include "GfxDevice.hpp"
-#include "StateTracker.hpp"
 #include "TransientBufferPool.hpp"
 #include "DrawList.hpp"
 #include "ClipState.hpp"
@@ -52,7 +51,7 @@ public:
         u32 culled = 0;
     };
 
-    RenderFrame(GfxDevice& device, StateTracker& state_tracker, RenderContext& context,
+    RenderFrame(GfxDevice& device, RenderContext& context,
                 resource::ResourceManager& resource_manager);
     ~RenderFrame();
 
@@ -77,10 +76,6 @@ public:
     void setEntityStencilTest(u32 entity, i32 refValue);
     void clearEntityStencilMask(u32 entity);
     void clearAllStencilMasks();
-    void beginStencilWrite(i32 refValue);
-    void endStencilWrite();
-    void beginStencilTest(i32 refValue);
-    void endStencilTest();
 
     void submitTileQuad(
         const glm::vec2& position, const glm::vec2& size,
@@ -125,7 +120,6 @@ private:
     GfxDevice& device_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
-    StateTracker& state_tracker_;  // owned by EstellaContext (per-App service)
 
 #ifdef ES_ENABLE_POSTPROCESS
     Unique<PostProcessPipeline> post_process_;

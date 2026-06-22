@@ -111,35 +111,11 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
         cmd.entity = entity;
         cmd.type = RenderType::Shape;
         cmd.layer = shape.layer;
-        cmd.state_flags |= CMD_STATE_CUSTOM_DRAW;
 
         clips.applyTo(entity, cmd);
 
         draw_list.push(cmd);
     }
-}
-
-void ShapePlugin::customDraw(
-    const DrawCommand& cmd,
-    StateTracker& state,
-    TransientBufferPool& buffers,
-    RenderFrameContext& ctx
-) {
-    Shader* shader = ctx.resources.getShader(shape_shader_handle_);
-    if (!shader || !shader->isValid()) return;
-
-    shader->bind();
-    // u_projection comes from the shared FrameConstants UBO (linked at compile time).
-
-    state.setBlendEnabled(true);
-    state.setBlendMode(BlendMode::Normal);
-
-    buffers.bindLayout(LayoutId::Shape);
-
-    state.device().drawElements(
-        cmd.index_count,
-        GfxDataType::UnsignedInt,
-        static_cast<u32>(cmd.index_offset * sizeof(u32)));
 }
 
 }  // namespace esengine

@@ -10,7 +10,6 @@
 #include "Log.hpp"
 
 #include "../renderer/GLDevice.hpp"
-#include "../renderer/StateTracker.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
@@ -105,14 +104,8 @@ void EstellaContext::initSubsystems() {
     renderContext->init();
     services_.registerOwned<RenderContext>(std::move(renderContext));
 
-    // Single per-App GPU state cache. RenderContext::init() above already ran
-    // device_.init() (enabling the GL context), so the tracker's initial state
-    // sync is valid here. Every renderer subsystem borrows this one instance so
-    // the cache stays authoritative across the whole frame.
-    auto stateTracker = makeUnique<StateTracker>(*gfxDevicePtr);
-    stateTracker->init();
-    auto* statePtr = stateTracker.get();
-    services_.registerOwned<StateTracker>(std::move(stateTracker));
+    // GPU state is owned by the device: pipelines (setPipeline) carry program/blend/depth/
+    // stencil/cull, so there is no separate per-App state tracker to wire up here.
 
     // GPU-independent logic systems (Transform/UI/Tween) are registered here too
     // for the shutdown()+init() re-init path; the constructor already registered
@@ -126,7 +119,7 @@ void EstellaContext::initSubsystems() {
 
     auto* rm = services_.getService<resource::ResourceManager>();
     auto* rc = services_.getService<RenderContext>();
-    auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *statePtr, *rc, *rm);
+    auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *rc, *rm);
     immediateDraw->init();
     services_.registerOwned<ImmediateDraw>(std::move(immediateDraw));
 
@@ -137,7 +130,7 @@ void EstellaContext::initSubsystems() {
     services_.registerOwned<tilemap::TiledMapLoader>(makeUnique<tilemap::TiledMapLoader>());
 #endif
 
-    auto renderFrame = makeUnique<RenderFrame>(*gfxDevicePtr, *statePtr, *rc, *rm);
+    auto renderFrame = makeUnique<RenderFrame>(*gfxDevicePtr, *rc, *rm);
     renderFrame->addPlugin(std::make_unique<SpritePlugin>());
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
     renderFrame->addPlugin(std::make_unique<TextPlugin>());

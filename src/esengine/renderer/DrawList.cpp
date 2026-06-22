@@ -58,50 +58,56 @@ void DrawList::finalize() {
     merged_draw_calls_ = writeIdx;
 }
 
-void DrawList::execute(GfxDevice& device, StateTracker& state, TransientBufferPool& buffers,
-                       FrameCapture* capture,
-                       const CustomDrawFn& customDraw) {
-    u32 lastShader = 0;
+void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
+                       FrameCapture* capture) {
+    PipelineDesc lastDesc{};
+    PipelineHandle lastHandle = PipelineHandle::Invalid;
+
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
 
-        if (cmd.shader_id != lastShader) {
-            state.useProgram(cmd.shader_id);
-            lastShader = cmd.shader_id;
-        }
-        state.setBlendMode(cmd.blend_mode);
+        GfxStencilMode stencil = GfxStencilMode::Off;
+        if (cmd.state_flags & CMD_STATE_STENCIL_WRITE) stencil = GfxStencilMode::Write;
+        else if (cmd.state_flags & CMD_STATE_STENCIL_TEST) stencil = GfxStencilMode::Test;
 
+        // Resolve the immutable pipeline. depthWrite stays on with the test off, matching
+        // the engine's 2D state. createPipeline caches; a one-entry memo skips the lookup
+        // for the common run of identical consecutive (sorted) commands.
+        PipelineDesc desc{};
+        desc.program = cmd.shader_id;
+        desc.vertexLayout = cmd.layout_id;
+        desc.blend = cmd.blend_mode;
+        desc.blendEnabled = true;
+        desc.depthTest = false;
+        desc.depthWrite = true;
+        desc.stencil = stencil;
+        desc.cullEnabled = false;
+
+        if (lastHandle == PipelineHandle::Invalid || !(desc == lastDesc)) {
+            lastHandle = device.createPipeline(desc);
+            lastDesc = desc;
+        }
+        device.setPipeline(lastHandle);
+
+        // Dynamic per-draw state (sorted+merged draws already group these coarsely).
         if (cmd.state_flags & CMD_STATE_SCISSOR) {
-            state.setScissorEnabled(true);
-            state.setScissor(cmd.scissor.x, cmd.scissor.y, cmd.scissor.w, cmd.scissor.h);
+            device.setScissorTest(true);
+            device.setScissor(cmd.scissor.x, cmd.scissor.y, cmd.scissor.w, cmd.scissor.h);
         } else {
-            state.setScissorEnabled(false);
+            device.setScissorTest(false);
         }
-
-        if (cmd.state_flags & CMD_STATE_STENCIL_WRITE) {
-            state.beginStencilWrite(cmd.stencil_ref);
-        } else if (cmd.state_flags & CMD_STATE_STENCIL_TEST) {
-            state.beginStencilTest(cmd.stencil_ref);
-        } else {
-            state.endStencilTest();
+        if (stencil != GfxStencilMode::Off) {
+            device.setStencilReference(cmd.stencil_ref);
         }
-
         for (u8 slot = 0; slot < cmd.texture_count; ++slot) {
-            state.bindTexture(slot, cmd.texture_ids[slot]);
+            device.bindTexture(slot, cmd.texture_ids[slot]);
         }
 
-        bool isCustom = (cmd.state_flags & CMD_STATE_CUSTOM_DRAW) != 0;
-
-        if (isCustom && customDraw) {
-            customDraw(cmd, state, buffers);
-        } else {
-            buffers.bindLayout(cmd.layout_id);
-
-            device.drawElements(
-                cmd.index_count,
-                GfxDataType::UnsignedInt,
-                static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)));
-        }
+        buffers.bindLayout(cmd.layout_id);
+        device.drawElements(
+            cmd.index_count,
+            GfxDataType::UnsignedInt,
+            static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)));
 
         if (capture && capture->isCapturing()) {
             capture->recordDrawCall(

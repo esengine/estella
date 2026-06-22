@@ -45,16 +45,6 @@ add_executable(test_resource_pool
 target_link_libraries(test_resource_pool PRIVATE esengine)
 add_test(NAME test_resource_pool COMMAND test_resource_pool)
 
-# Renderer GPU state-cache tests.
-# Compiles StateTracker.cpp directly against a MockGfxDevice — no GL/engine link,
-# so it runs on any C++20 toolchain (CI doesn't need emsdk for this).
-add_executable(test_state_tracker
-    renderer/test_state_tracker.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/StateTracker.cpp
-)
-target_include_directories(test_state_tracker PRIVATE ${CMAKE_SOURCE_DIR}/src)
-add_test(NAME test_state_tracker COMMAND test_state_tracker)
-
 # Shader-vs-device decoupling: compiles the converted Shader.cpp against a
 # MockGfxDevice. Linking proves Shader contains no GL; asserts confirm it routes
 # create/uniform/reflect/delete through GfxDevice.

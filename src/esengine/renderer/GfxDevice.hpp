@@ -35,8 +35,10 @@ namespace esengine {
 /**
  * @brief Abstract graphics device interface
  *
- * @details Stateless command interface — each method maps 1:1 to a GPU API call.
- *          StateTracker wraps this with caching to eliminate redundant state changes.
+ * @details The device owns its state: setPipeline binds an immutable pipeline and skips
+ *          re-applying it when unchanged, so the renderer no longer micro-manages GL state
+ *          through an external tracker. Per-draw dynamic state (scissor, stencil ref,
+ *          textures) is applied directly; sorted+merged draws already group it coarsely.
  */
 /** @brief Sentinel returned by getUniformBlockIndex when a program has no such block (GL_INVALID_INDEX). */
 static constexpr u32 GFX_INVALID_UNIFORM_BLOCK = 0xFFFFFFFFu;
@@ -244,6 +246,14 @@ public:
 
     /** @brief Sets the dynamic stencil reference for the bound pipeline's stencil mode (no-op if Off). */
     virtual void setStencilReference(i32 ref) = 0;
+
+    /**
+     * @brief Forces the next setPipeline to re-apply, dropping the cached current pipeline.
+     * @details Call at the start of a render phase (frame flush, immediate-draw begin) so a
+     *          pipeline left bound by a prior phase — or by a direct-state path like custom
+     *          geometry — is not mistaken for the current one.
+     */
+    virtual void invalidatePipelineCache() = 0;
 
     // =========================================================================
     // VAO Operations

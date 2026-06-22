@@ -129,12 +129,13 @@ TS/WASM 边界对 uniform 布局**不透明**：`renderer_begin(viewProjPtr, tar
 - **价值（修正）**：纯 WebGL2 的 per-frame uniform 节省 **可忽略**（实测路径每帧仅 1–3 次 `setUniformMat4`，按 shader 切换 gate，非 per-draw——原"显著下降"的说法不成立）。P1 的真实价值是 **(a) 最低风险地落地 UBO/bind 机制**（std140 + host 侧 block-binding + ES 版本升级，孤立可逐像素验证，避免与 P2 的 execute 重写纠缠）、**(b) 前向兼容 P2**（UBO 即 BindGroup 的首个非纹理资源，P1 写的 UBO API 被 P2 复用、非废弃）、**(c) WebGPU 前置形态**（WebGPU 无散装 uniform，全是 UBO/bind group）。
 - **验证**：headless `verify:render` 四场景逐像素不变（同 P0）；FrameCapture 对比 draw call 数不变。
 
-### P2 — PipelineState + BindGroup + 类型化句柄（keystone 主体）
-- 引入 `PipelineState`/`BindGroup`/`TypedHandle`；`GfxDevice` 增 `createPipeline`/`createBindGroup`/`setPipeline`/`setBindGroup`/`draw`。
-- **重写 `DrawList::execute`（`DrawList.cpp:60-131`）** 为命令编码三步；collect 阶段不动。
-- ImmediateDraw / PostProcessPipeline 迁到同模型。
-- 删散装 `setUniform*`/`bindTexture`/VAO 漏出接口（迁移完成后）；删 material cache 死路径（病灶 E）。
-- **价值**：单一后端无关命令编码层，WebGPU 可插入；UBO/批合并/材质有真正落点。
+### P2 — PipelineState keystone 主体（DONE，实况记录）
+分两 checkpoint 落地：
+- **P2a（纯加法）**：`PipelineState.hpp`（`PipelineDesc` = program+vertexLayout+blend+depth+`GfxStencilMode`+cull → 缓存为不可变 `PipelineHandle`）；`GfxDevice` 增 `createPipeline`/`setPipeline`/`setStencilReference`/`invalidatePipelineCache`；GLDevice 用 desc 表 + **句柄比较去冗余**（同 pipeline 跳过整组状态应用）实现，stencil 序列镜像旧 StateTracker。`LayoutId` 移到 `GfxEnums.hpp`（叶子头）破除 include 环。
+- **P2b（状态归属收敛）**：**重写 `DrawList::execute`** — 每个合并命令解析出 PipelineDesc → `setPipeline` + 动态 scissor/stencilRef/纹理 + draw（一条路径，**删掉 `customDraw` 特例**，shape 变普通 pipeline：program=shape、layout=Shape）。**退役 `StateTracker`**（删 `.hpp/.cpp` + 单测）：GPU 状态归属收归 GLDevice，`pipeline-skip` 替代了它对昂贵 program/blend/stencil 的去冗余，per-draw 动态状态直接应用（sort+merge 已粗粒度分组，几无冗余）。`ImmediateDraw` 迁到单一 pipeline + `setPipeline`；`RenderFrame`/`EstellaContext` 去掉 StateTracker 注入；`invalidatePipelineCache` 在 flush/replay/imm-begin 阶段首调用（防外部直接改 program 后 stale）。删了 RenderFrame 无调用者的 stencil 透传 API。
+- **决策**：不采用"双缓存 + 每阶段 resync"的折中（那是补丁）——单一状态归属是最佳架构。`DrawCommand`/`buildSortKey`/`canMergeWith` **保持不变**（现有 key 已按 shader+blend+state+texture 分组 = pipeline 一致的批；execute 在 draw 时解析 handle，用 1-entry memo 跳过排序后连续相同 desc 的查找）。`depthWrite` 保持 on（test off），匹配旧 2D 状态以保像素一致。
+- **价值**：单一后端无关命令编码层，`WebGPUDevice` 可作为 `GfxDevice` 子类插入；状态归属单一、无双缓存。
+- **验证**：emscripten web 构建链接通过；headless `verify:render` 四场景（含 ui-layout 的 stencil 遮罩）像素与 P0/P1 基线**逐项完全一致**；渲染器单测编译通过。
 
 ### P3 — 加法层（独立排期，依赖 P2）
 - `WebGPUDevice` 后端 + GLSL→WGSL；微信保 WebGL2 双后端（RC7-4）。
@@ -185,8 +186,8 @@ TS/WASM 边界对 uniform 布局**不透明**：`renderer_begin(viewProjPtr, tar
 | 阶段 | 状态 |
 |---|---|
 | 方案文档 | ✅ 本文 |
-| P0 提交路径统一 | ⬜ OPEN（建议先行） |
-| P1 UBO + FrameUBO | ⬜ OPEN |
-| P2 PipelineState/BindGroup keystone | ⬜ OPEN |
-| P3 WebGPU / render graph / shader 变体 | ⬜ OPEN（加法层） |
-| 正交快赢 RC7-1/7-2 | ⬜ OPEN（可并行） |
+| P0 提交路径统一 | ✅ DONE（commit e23b1ff5 / 675777a3） |
+| P1 FrameConstants UBO + batch ES3.00 | ✅ DONE（commit d80619e7） |
+| P2 PipelineState keystone（P2a 抽象 + P2b 状态收敛） | ✅ DONE（P2a commit 1b1bc9c3；P2b 待提交） |
+| P3 WebGPU / render graph / shader 变体 | ⬜ OPEN（加法层，依赖 P2） |
+| 正交快赢 RC7-1/7-2 | ⬜ OPEN（可并行，不依赖 keystone） |

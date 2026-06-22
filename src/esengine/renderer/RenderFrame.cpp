@@ -57,12 +57,11 @@ bool Frustum::intersectsAABB(const glm::vec3& center, const glm::vec3& halfExten
     return true;
 }
 
-RenderFrame::RenderFrame(GfxDevice& device, StateTracker& state_tracker, RenderContext& context,
+RenderFrame::RenderFrame(GfxDevice& device, RenderContext& context,
                          resource::ResourceManager& resource_manager)
     : device_(device)
     , context_(context)
     , resource_manager_(resource_manager)
-    , state_tracker_(state_tracker)
     , pool_(device) {
     target_manager_.setDevice(device);
 }
@@ -171,28 +170,14 @@ void RenderFrame::flush() {
 
     flushed_ = true;
 
-    state_tracker_.reset();
-    state_tracker_.setBlendEnabled(true);
-    state_tracker_.setBlendMode(BlendMode::Normal);
-    state_tracker_.setDepthTest(false);
+    // Drop any pipeline a prior phase left bound, so the first draw re-applies its state.
+    device_.invalidatePipelineCache();
 
     pool_.upload();
     draw_list_.finalize();
 
-    auto ctx = makeContext();
-
-    auto customDrawFn = [this, &ctx](const DrawCommand& cmd, StateTracker& state,
-                                     TransientBufferPool& buffers) {
-        for (auto& plugin : plugins_) {
-            if (plugin->needsCustomDraw() && plugin->handlesType(cmd.type)) {
-                plugin->customDraw(cmd, state, buffers, ctx);
-                return;
-            }
-        }
-    };
-
     context_.updateFrameConstants(view_projection_);
-    draw_list_.execute(device_, state_tracker_, pool_, &frame_capture_, customDrawFn);
+    draw_list_.execute(device_, pool_, &frame_capture_);
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
@@ -264,22 +249,23 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     if (!rt) return;
 
     rt->bind();
-    state_tracker_.setViewport(0, 0, width_, height_);
+    device_.setViewport(0, 0, width_, height_);
     device_.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     device_.clear(true, false, false);
 
-    state_tracker_.reset();
-    state_tracker_.setBlendEnabled(true);
-    state_tracker_.setBlendMode(BlendMode::Normal);
-    state_tracker_.setDepthTest(false);
+    device_.invalidatePipelineCache();
 
     frame_capture_.setReplayMode(stopAtDrawCall + 1);
 
     context_.updateFrameConstants(view_projection_);
-    draw_list_.execute(device_, state_tracker_, pool_, &frame_capture_);
+    draw_list_.execute(device_, pool_, &frame_capture_);
 
-    state_tracker_.setScissorEnabled(false);
-    state_tracker_.endStencilTest();
+    // Leave scissor/stencil disabled for whatever renders next; invalidate so the next
+    // setPipeline re-applies (we changed stencil/scissor outside the pipeline here).
+    device_.setScissorTest(false);
+    device_.setStencilTest(false);
+    device_.setStencilMask(0xFF);
+    device_.invalidatePipelineCache();
 
     frame_capture_.clearReplayMode();
 
@@ -316,30 +302,6 @@ void RenderFrame::clearEntityStencilMask(u32 entity) {
 
 void RenderFrame::clearAllStencilMasks() {
     stencil_masks_.clear();
-}
-
-void RenderFrame::beginStencilWrite([[maybe_unused]] i32 refValue) {
-#ifdef ES_PLATFORM_WEB
-    state_tracker_.beginStencilWrite(refValue);
-#endif
-}
-
-void RenderFrame::endStencilWrite() {
-#ifdef ES_PLATFORM_WEB
-    state_tracker_.endStencilWrite();
-#endif
-}
-
-void RenderFrame::beginStencilTest([[maybe_unused]] i32 refValue) {
-#ifdef ES_PLATFORM_WEB
-    state_tracker_.beginStencilTest(refValue);
-#endif
-}
-
-void RenderFrame::endStencilTest() {
-#ifdef ES_PLATFORM_WEB
-    state_tracker_.endStencilTest();
-#endif
 }
 
 // ─── Mask Processing ── see RenderFrameMask.cpp ─────────────────────────────

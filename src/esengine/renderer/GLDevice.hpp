@@ -93,6 +93,7 @@ public:
     PipelineHandle createPipeline(const PipelineDesc& desc) override;
     void setPipeline(PipelineHandle handle) override;
     void setStencilReference(i32 ref) override;
+    void invalidatePipelineCache() override;
 
     u32 createVertexArray() override;
     void deleteVertexArray(u32 vaoId) override;

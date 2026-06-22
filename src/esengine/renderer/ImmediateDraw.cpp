@@ -1,9 +1,9 @@
 /**
  * @file    ImmediateDraw.cpp
  * @brief   Immediate mode 2D drawing implementation
- * @details Generates BatchVertex geometry into a TransientBufferPool and draws
- *          it through StateTracker + GfxDevice — the same path RenderFrame uses.
- *          Primitives are batched per texture and flushed in submission order.
+ * @details Generates BatchVertex geometry into a TransientBufferPool and draws it
+ *          through a GfxDevice pipeline — the same path RenderFrame uses. Primitives
+ *          are batched per texture and flushed in submission order.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -14,7 +14,6 @@
 
 #include "ImmediateDraw.hpp"
 #include "GfxDevice.hpp"
-#include "StateTracker.hpp"
 #include "RenderContext.hpp"
 #include "Shader.hpp"
 #include "BatchVertex.hpp"
@@ -39,10 +38,9 @@ constexpr glm::vec2 QUAD_UV[4] = {
 
 }  // namespace
 
-ImmediateDraw::ImmediateDraw(GfxDevice& device, StateTracker& state, RenderContext& context,
+ImmediateDraw::ImmediateDraw(GfxDevice& device, RenderContext& context,
                              resource::ResourceManager& resource_manager)
     : device_(device)
-    , state_(state)
     , context_(context)
     , resource_manager_(resource_manager)
     , pool_(device) {
@@ -68,10 +66,23 @@ void ImmediateDraw::init() {
     Shader* shader = resource_manager_.getShader(handle);
     if (shader && shader->isValid()) {
         batch_shader_id_ = shader->getProgramId();
-        state_.useProgram(batch_shader_id_);
+        device_.useProgram(batch_shader_id_);
         i32 texLoc = device_.getUniformLocation(batch_shader_id_, "u_texture");
         if (texLoc >= 0) device_.setUniform1i(texLoc, 0);
-        state_.useProgram(0);
+        device_.useProgram(0);
+
+        // One immutable pipeline: the batch shader, Batch layout, normal blend, depth
+        // test off (write on, matching the world batch path), no stencil, no culling.
+        PipelineDesc desc{};
+        desc.program = batch_shader_id_;
+        desc.vertexLayout = LayoutId::Batch;
+        desc.blend = BlendMode::Normal;
+        desc.blendEnabled = true;
+        desc.depthTest = false;
+        desc.depthWrite = true;
+        desc.stencil = GfxStencilMode::Off;
+        desc.cullEnabled = false;
+        pipeline_ = device_.createPipeline(desc);
     } else {
         ES_LOG_ERROR("ImmediateDraw: failed to create batch shader");
     }
@@ -92,9 +103,8 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     // The batch shader reads u_projection from the shared FrameConstants UBO; update it
     // for this pass rather than uploading a loose uniform per flush.
     context_.updateFrameConstants(viewProjection);
-    state_.setBlendEnabled(true);
-    state_.setBlendMode(BlendMode::Normal);
-    state_.setDepthTest(false);
+    // A prior phase may have left another pipeline bound; force our pipeline to re-apply.
+    device_.invalidatePipelineCache();
 
     pool_.beginFrame();
     currentTexture_ = white_texture_id_;
@@ -109,8 +119,8 @@ void ImmediateDraw::flush() {
 
     pool_.upload();
 
-    state_.useProgram(batch_shader_id_);
-    state_.bindTexture(0, currentTexture_);
+    device_.setPipeline(pipeline_);
+    device_.bindTexture(0, currentTexture_);
 
     pool_.bindLayout(LayoutId::Batch);
     device_.drawElements(pool_.indicesUsed(LayoutId::Batch), GfxDataType::UnsignedInt, 0);
@@ -124,8 +134,8 @@ void ImmediateDraw::end() {
     if (!inFrame_) return;
 
     flush();
-    state_.setDepthTest(true);
-    state_.setBlendMode(BlendMode::Normal);
+    // No state restore needed: the next render phase invalidates the pipeline cache and
+    // binds its own pipeline, which sets blend/depth/stencil afresh.
     inFrame_ = false;
 }
 

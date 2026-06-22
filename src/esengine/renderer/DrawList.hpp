@@ -3,20 +3,12 @@
 #include "../core/Types.hpp"
 #include "DrawCommand.hpp"
 #include "GfxDevice.hpp"
-#include "StateTracker.hpp"
 #include "TransientBufferPool.hpp"
 #include "FrameCapture.hpp"
 
-#include <glm/glm.hpp>
 #include <vector>
-#include <functional>
 
 namespace esengine {
-
-struct RenderFrameContext;
-
-using CustomDrawFn = std::function<void(const DrawCommand& cmd, StateTracker& state,
-                                        TransientBufferPool& buffers)>;
 
 class DrawList {
 public:
@@ -25,11 +17,12 @@ public:
 
     void finalize();
 
-    // Per-frame constants (view-projection) come from the FrameConstants UBO bound by
-    // RenderContext, not a uniform argument — every batched shader reads it from there.
-    void execute(GfxDevice& device, StateTracker& state, TransientBufferPool& buffers,
-                 FrameCapture* capture = nullptr,
-                 const CustomDrawFn& customDraw = nullptr);
+    // Each merged command resolves to an immutable pipeline (program + layout + blend +
+    // depth + stencil + cull) bound via GfxDevice::setPipeline; per-draw dynamic state
+    // (scissor, stencil ref, textures) is applied directly. Per-frame constants come from
+    // the FrameConstants UBO bound by RenderContext.
+    void execute(GfxDevice& device, TransientBufferPool& buffers,
+                 FrameCapture* capture = nullptr);
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }

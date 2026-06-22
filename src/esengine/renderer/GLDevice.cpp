@@ -657,6 +657,11 @@ void GLDevice::setStencilReference(i32 ref) {
     }
 }
 
+void GLDevice::invalidatePipelineCache() {
+    current_pipeline_ = PipelineHandle::Invalid;
+    current_stencil_mode_ = GfxStencilMode::Off;
+}
+
 // =============================================================================
 // VAO Operations
 // =============================================================================
