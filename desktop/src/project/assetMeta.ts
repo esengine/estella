@@ -18,6 +18,8 @@ export function assetTypeOf(name: string): AssetType {
   if (ext === 'atlas' || ext === 'skel') return 'spine';
   if (ext === 'esprefab') return 'prefab';
   if (ext === 'esmat') return 'material';
+  // Unified animation clip (.esanim) + legacy multi-track timeline (.estimeline).
+  if (ext === 'esanim' || ext === 'estimeline') return 'animation';
   return 'file';
 }
 
@@ -33,6 +35,7 @@ export const TYPE_CODE: Record<AssetType, string> = {
   spine: 'SPN',
   audio: 'AUD',
   script: 'TS',
+  animation: 'ANM',
 };
 
 export const baseName = (p: string) => (p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p);

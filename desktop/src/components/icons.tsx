@@ -10,6 +10,7 @@ import {
   CircleDot,
   Folder,
   Film,
+  Clapperboard,
   FileImage,
   Music,
   Component,
@@ -56,6 +57,7 @@ const ASSET_ICON: Record<AssetType, { icon: LucideIcon; tint: string }> = {
   prefab: { icon: Component, tint: '#c2a274' },
   material: { icon: Blend, tint: '#c0917a' },
   script: { icon: FileCode2, tint: '#93a3bf' },
+  animation: { icon: Clapperboard, tint: '#9bb39a' },
   file: { icon: File, tint: 'var(--text-dim)' },
 };
 

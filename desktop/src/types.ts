@@ -69,6 +69,7 @@ export type AssetType =
   | 'prefab'
   | 'material'
   | 'script'
+  | 'animation'
   | 'file';
 
 export interface AssetItem {

@@ -1,6 +1,6 @@
 // Far-left icon rail (activity bar). Reveals docked panels and toggles the
 // Content Drawer — the summoned quick-access surface.
-import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Settings } from 'lucide-react';
+import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Clapperboard, Settings } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { dockApi } from '@/layout/dockApi';
 import { commands } from '@/commands';
@@ -42,6 +42,14 @@ export function ActivityBar() {
         onClick={() => dockApi.revealAndExpand('log')}
       >
         <Terminal size={19} strokeWidth={1.7} />
+      </button>
+      <button
+        type="button"
+        className="act"
+        title="Sequencer"
+        onClick={() => dockApi.revealAndExpand('sequencer')}
+      >
+        <Clapperboard size={19} strokeWidth={1.7} />
       </button>
 
       <span className="act-spacer" />

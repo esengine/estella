@@ -12,6 +12,7 @@ import { Details } from '@/panels/Details';
 import { ContentBrowser } from '@/panels/ContentBrowser';
 import { OutputLog } from '@/panels/OutputLog';
 import { GamePanel } from '@/panels/GamePanel';
+import { Sequencer } from '@/panels/Sequencer';
 import { dockApi } from '@/layout/dockApi';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
@@ -21,6 +22,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   details: () => <Details />,
   content: () => <ContentBrowser />,
   log: () => <OutputLog />,
+  sequencer: () => <Sequencer />,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => <GamePanel />,
 };
@@ -67,6 +69,20 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   });
 }
 
+// Add the Sequencer as a bottom-dock tab if it isn't present yet. Run on both the
+// fresh-build and the restored-layout paths so existing saved layouts (pre-v5
+// Sequencer) gain the tab without resetting the user's whole arrangement.
+function ensureSequencer(api: DockviewReadyEvent['api']) {
+  if (api.getPanel('sequencer')) return;
+  const ref = api.getPanel('content') ? 'content' : api.getPanel('log') ? 'log' : undefined;
+  api.addPanel({
+    id: 'sequencer',
+    component: 'sequencer',
+    title: 'Sequencer',
+    position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
+  });
+}
+
 // A collapse/expand chevron in every dock group's header (the design's `.pcol`).
 // Collapses the group to its tab bar by height; hidden on the Viewport/Game group
 // (the center stage isn't an accordion). State follows the live group height, so
@@ -109,6 +125,11 @@ export function DockLayout() {
     } else {
       buildDefaultLayout(api);
     }
+
+    // Ensure the Sequencer tab exists, then keep the Content Browser fronted so
+    // adding it doesn't steal the bottom dock's active tab on load.
+    ensureSequencer(api);
+    api.getPanel('content')?.api.setActive();
 
     // Persist the dock arrangement so it survives reloads — a real editor habit.
     api.onDidLayoutChange(() => {

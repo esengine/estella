@@ -14,6 +14,8 @@ import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
+import { TimelinePreview } from '@/engine/TimelinePreview';
+import { TimelineRecorder } from '@/timeline/TimelineRecorder';
 import { ProjectStore } from '@/project/ProjectStore';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
@@ -44,6 +46,13 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Wire the Sequencer's edit-mode live preview (timeline document → World) and
+  // record-mode auto-key once.
+  useEffect(() => {
+    TimelinePreview.attach();
+    TimelineRecorder.attach();
   }, []);
 
   // Play runs in an ISOLATED realm (the Game panel's iframe = the shipping

@@ -52,6 +52,25 @@ export {
 } from './TimelineRuntime';
 
 export {
+    sampleTimeline,
+    sampleTimelineInWorld,
+    evaluateChannel,
+    applyWrapMode,
+    type SampleWorld,
+    type SampleDeps,
+    type SampleOptions,
+} from './TimelineEvaluator';
+
+export {
+    serializeTimelineAsset,
+    serializeTimelineToJson,
+} from './TimelineSerializer';
+
+export {
+    parseAnimationClip,
+} from './AnimationClip';
+
+export {
     TimelinePlugin,
     timelinePlugin,
     TimelinePlayer,

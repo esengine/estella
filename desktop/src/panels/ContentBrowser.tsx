@@ -8,6 +8,7 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMeta';
+import { openAnimationClip } from '@/timeline/openClip';
 import { fsRefresh } from '@/project/fsWatch';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';
@@ -186,6 +187,7 @@ const CHIP_GROUPS: { label: string; types: AssetType[]; color: string }[] = [
   { label: 'Image', types: ['texture', 'sprite'], color: assetTint('texture') },
   { label: 'Prefab', types: ['prefab'], color: assetTint('prefab') },
   { label: 'Scene', types: ['scene'], color: assetTint('scene') },
+  { label: 'Animation', types: ['animation'], color: assetTint('animation') },
   { label: 'Script', types: ['script'], color: assetTint('script') },
   { label: 'Audio', types: ['audio'], color: assetTint('audio') },
   { label: 'Material', types: ['material'], color: assetTint('material') },
@@ -298,6 +300,8 @@ export function ContentBrowser() {
     if (assetType(name) === 'scene') {
       if (EditorHistory.canUndo() && !window.confirm(`Open ${name}? Unsaved changes will be lost.`)) return;
       void ProjectStore.openScene(path);
+    } else if (assetType(name) === 'animation') {
+      void openAnimationClip(path);
     }
   };
 

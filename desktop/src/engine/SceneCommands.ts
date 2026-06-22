@@ -85,6 +85,15 @@ interface FieldEdit {
   before: unknown; // model (SceneData-format) value before the gesture
 }
 
+/** A hook on the field-edit door; returns true to suppress the scene write. */
+export type EditHook = (
+  sourceId: EntityId,
+  compName: string,
+  key: string,
+  type: InspectorFieldType,
+  value: InspectorFieldValue,
+) => boolean;
+
 export class SceneCommandsImpl {
   // — Field-edit gesture: coalesce a focus→blur / drag into a single undo step. —
   // Undo recording is INTERNAL: the only public write door is `setField` (and
@@ -94,10 +103,22 @@ export class SceneCommandsImpl {
   // value read at `endGesture`, and the pair recorded as one model-op step.
   private gesture: { label: string; touched: Map<string, FieldEdit> } | null = null;
 
+  // Optional observer/interceptor on the field-edit door — the Sequencer's record
+  // mode registers it to auto-key edits (REARCH_ANIMATION). Returning true
+  // SUPPRESSES the scene write (reserved for future non-destructive record);
+  // the recorder returns false (observe-only) so the edit still lands normally.
+  // Kept generic: SceneCommands knows nothing about timelines.
+  private editHook: EditHook | null = null;
+
   constructor(
     private readonly model: SceneModelImpl,
     private readonly history: EditorHistoryImpl,
   ) {}
+
+  /** Register (or clear) the field-edit hook. One slot; last writer wins. */
+  setEditHook(fn: EditHook | null): void {
+    this.editHook = fn;
+  }
 
   /** The current model value of one field, or undefined. */
   private modelFieldValue(sourceId: number, comp: string, key: string): unknown {
@@ -156,6 +177,8 @@ export class SceneCommandsImpl {
     type: InspectorFieldType,
     value: InspectorFieldValue,
   ): void {
+    // The edit hook (Sequencer record) may observe — or, returning true, suppress.
+    if (this.editHook && this.editHook(sourceId, compName, key, type, value)) return;
     const e = this.model.entityBySource(sourceId);
     if (!e) return;
     const cur = (e.components.find((c) => c.type === compName)?.data as Record<string, unknown>) ?? {};

@@ -33,6 +33,15 @@ export { AudioPlugin, audioPlugin } from './audio';
 export { ParticlePlugin, particlePlugin } from './particle';
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';
 export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, Timeline, TimelineApi, TimelinePlayer, type TimelinePlayerData } from './timeline';
+// Authoring + pure-TS evaluation surface for the editor Sequencer (REARCH_ANIMATION).
+export {
+    sampleTimeline, sampleTimelineInWorld, evaluateChannel, applyWrapMode,
+    serializeTimelineAsset, serializeTimelineToJson, resolveChildEntity, parseAnimationClip,
+    TrackType, InterpType, WrapMode,
+    type SampleWorld, type SampleDeps, type SampleOptions,
+    type TimelineAsset, type Track, type PropertyTrack, type PropertyChannel, type Keyframe,
+    type SpriteAnimTrack, type AudioTrack, type ActivationTrack, type SpineTrack, type AnimFramesTrack,
+} from './timeline';
 
 export interface CreateWebAppOptions extends WebAppOptions {
     spineProvider?: SpineWasmProvider;
