@@ -1,4 +1,5 @@
 #include "ParticlePlugin.hpp"
+#include "../BatchBuilder.hpp"
 #include "../RenderContext.hpp"
 #include "../Texture.hpp"
 #include "../BatchVertex.hpp"
@@ -10,8 +11,6 @@
 #include <cmath>
 
 namespace esengine {
-
-static constexpr u32 QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };
 
 void ParticlePlugin::init(RenderFrameContext& ctx) {
     batch_shader_id_ = ctx.batch_shader_id;
@@ -141,31 +140,23 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             // Patch base vertex into indices
             u32 patched[6];
             for (u32 q = 0; q < 6; ++q) {
-                patched[q] = bv + QUAD_INDICES[q];
+                patched[q] = bv + BATCH_QUAD_INDICES[q];
             }
             buffers.writeIndices(LayoutId::Batch, idxOffset + ii, patched, 6);
 
             ++pi;
         });
 
-        DrawCommand cmd{};
-        cmd.sort_key = DrawCommand::buildSortKey(ctx.current_stage, emitter.layer, batch_shader_id_, blendMode, 0, textureId, emitterWorldPos.z);
-        cmd.index_offset = idxOffset;
-        cmd.index_count = idxCount;
-        cmd.vertex_byte_offset = vertByteOffset;
-        cmd.shader_id = batch_shader_id_;
-        cmd.blend_mode = blendMode;
-        cmd.layout_id = LayoutId::Batch;
-        cmd.texture_count = 1;
-        cmd.texture_ids[0] = textureId;
-        cmd.entity = entity;
-        cmd.entity_count = 1;
-        cmd.type = RenderType::Particle;
-        cmd.layer = emitter.layer;
-
-        clips.applyTo(entity, cmd);
-
-        draw_list.push(cmd);
+        pushBatchDraw(draw_list, clips, vertByteOffset, idxOffset, idxCount, BatchDrawKey{
+            .stage = ctx.current_stage,
+            .layer = emitter.layer,
+            .shaderId = batch_shader_id_,
+            .blend = blendMode,
+            .textureId = textureId,
+            .depth = emitterWorldPos.z,
+            .entity = entity,
+            .type = RenderType::Particle,
+        });
     }
 }
 

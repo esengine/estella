@@ -10,10 +10,6 @@
 
 namespace esengine {
 
-void TextPlugin::init(RenderFrameContext& ctx) {
-    batch_shader_id_ = ctx.batch_shader_id;
-}
-
 u32 TextPlugin::decodeUtf8(const char* data, u16 length, u16& pos) {
     u8 b0 = static_cast<u8>(data[pos]);
     if (b0 < 0x80) {
@@ -118,6 +114,19 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
         u16 textLen = static_cast<u16>(bt.text.size());
         u32 prevChar = 0;
 
+        // Constant across every glyph of this text entity — build the draw key once.
+        BatchDrawKey key{
+            .stage = ctx.current_stage,
+            .layer = bt.layer,
+            .shaderId = batch_shader_id_,
+            .blend = BlendMode::Normal,
+            .textureId = textureId,
+            .depth = position.z,
+            .entity = entity,
+            .type = RenderType::Text,
+        };
+        constexpr glm::vec2 CENTERED_PIVOT{0.5f, 0.5f};
+
         for (u16 j = 0; j < textLen; ++j) {
             u32 charCode = decodeUtf8(textData, textLen, j);
             auto* glyph = font->getGlyph(charCode);
@@ -139,76 +148,17 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
                 glm::vec2 uvOffset(glyph->x / texW, uvY + uvH);
                 glm::vec2 uvScale(glyph->width / texW, -uvH);
 
-                emitGlyphQuad(buffers, draw_list,
-                    glm::vec2(posX, posY), glm::vec2(glyphW, glyphH),
-                    position.z, textureId, bt.color, uvOffset, uvScale,
-                    entity, ctx.current_stage, bt.layer,
-                    batch_shader_id_, clips);
+                // A glyph is an unrotated centered quad; the base emitter packs the
+                // BATCH_QUAD_TEX_COORDS (0,0)->(1,1) exactly as the glyph UVs expect.
+                emitQuad(buffers, draw_list, clips,
+                    glm::vec2(posX, posY), glm::vec2(glyphW, glyphH), CENTERED_PIVOT,
+                    0.0f, uvOffset, uvScale, bt.color, key);
             }
 
             cursorX += (glyph->xAdvance + spacing) * fontScale;
             prevChar = charCode;
         }
     }
-}
-
-void TextPlugin::emitGlyphQuad(
-    TransientBufferPool& buffers, DrawList& draw_list,
-    const glm::vec2& position, const glm::vec2& size,
-    f32 depth, u32 textureId,
-    const glm::vec4& color,
-    const glm::vec2& uvOffset, const glm::vec2& uvScale,
-    Entity entity, RenderStage stage, i32 layer,
-    u32 shaderId, const ClipState& clips
-) {
-    BatchVertex verts[4];
-    f32 hw = size.x * 0.5f;
-    f32 hh = size.y * 0.5f;
-
-    u32 pc = packColor(color);
-
-    verts[0].position = glm::vec2(position.x - hw, position.y - hh);
-    verts[0].color = pc;
-    verts[0].texCoord = glm::vec2(0.0f, 0.0f) * uvScale + uvOffset;
-
-    verts[1].position = glm::vec2(position.x + hw, position.y - hh);
-    verts[1].color = pc;
-    verts[1].texCoord = glm::vec2(1.0f, 0.0f) * uvScale + uvOffset;
-
-    verts[2].position = glm::vec2(position.x + hw, position.y + hh);
-    verts[2].color = pc;
-    verts[2].texCoord = glm::vec2(1.0f, 1.0f) * uvScale + uvOffset;
-
-    verts[3].position = glm::vec2(position.x - hw, position.y + hh);
-    verts[3].color = pc;
-    verts[3].texCoord = glm::vec2(0.0f, 1.0f) * uvScale + uvOffset;
-
-    u32 vOff = buffers.appendVertices(LayoutId::Batch, verts, sizeof(verts));
-    u32 baseVertex = vOff / sizeof(BatchVertex);
-
-    u32 indices[6];
-    for (u32 i = 0; i < 6; ++i) {
-        indices[i] = static_cast<u32>(baseVertex + QUAD_INDICES[i]);
-    }
-    u32 iOff = buffers.appendIndices(LayoutId::Batch, indices, 6);
-
-    DrawCommand cmd{};
-    cmd.sort_key = DrawCommand::buildSortKey(stage, layer, shaderId, BlendMode::Normal, 0, textureId, depth);
-    cmd.index_offset = iOff;
-    cmd.index_count = 6;
-    cmd.vertex_byte_offset = vOff;
-    cmd.shader_id = shaderId;
-    cmd.blend_mode = BlendMode::Normal;
-    cmd.layout_id = LayoutId::Batch;
-    cmd.texture_count = 1;
-    cmd.texture_ids[0] = textureId;
-    cmd.entity = entity;
-    cmd.type = RenderType::Text;
-    cmd.layer = layer;
-
-    clips.applyTo(entity, cmd);
-
-    draw_list.push(cmd);
 }
 
 }  // namespace esengine

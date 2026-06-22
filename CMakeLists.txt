@@ -54,6 +54,8 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/StateTracker.cpp
     src/esengine/renderer/TransientBufferPool.cpp
     src/esengine/renderer/DrawList.cpp
+    src/esengine/renderer/BatchBuilder.cpp
+    src/esengine/renderer/plugins/BatchPlugin.cpp
     src/esengine/renderer/plugins/SpritePlugin.cpp
     src/esengine/renderer/plugins/UIElementPlugin.cpp
     src/esengine/renderer/plugins/TextPlugin.cpp
@@ -138,7 +140,9 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/DrawCommand.hpp
     src/esengine/renderer/DrawList.hpp
     src/esengine/renderer/ClipState.hpp
+    src/esengine/renderer/BatchBuilder.hpp
     src/esengine/renderer/RenderTypePlugin.hpp
+    src/esengine/renderer/plugins/BatchPlugin.hpp
     src/esengine/renderer/plugins/SpritePlugin.hpp
     src/esengine/renderer/plugins/UIElementPlugin.hpp
     src/esengine/renderer/plugins/TextPlugin.hpp

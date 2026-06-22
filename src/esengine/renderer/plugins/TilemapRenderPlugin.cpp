@@ -1,4 +1,5 @@
 #include "TilemapRenderPlugin.hpp"
+#include "../BatchBuilder.hpp"
 
 #include "../../tilemap/TilemapSystem.hpp"
 #include "../../ecs/components/Transform.hpp"
@@ -7,8 +8,6 @@
 #include <cmath>
 
 namespace esengine {
-
-static constexpr u32 QUAD_IDX[6] = { 0, 1, 2, 2, 3, 0 };
 
 void TilemapRenderPlugin::init(RenderFrameContext& ctx) {
     batch_shader_id_ = ctx.batch_shader_id;
@@ -84,7 +83,7 @@ void TilemapRenderPlugin::rebuildChunk(
             cache.vertices.push_back({ {worldX - hw, worldY + hh}, packedColor, {u0, v0 + sv} });
 
             for (u32 i = 0; i < 6; ++i) {
-                cache.indices.push_back(baseVertex + QUAD_IDX[i]);
+                cache.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
             }
         }
     }
@@ -189,34 +188,21 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
         if (indices_.empty()) continue;
 
-        u32 vBytes = static_cast<u32>(vertices_.size()) * sizeof(BatchVertex);
-        u32 vOff = buffers.appendVertices(LayoutId::Batch, vertices_.data(), vBytes);
-        u32 baseVertex = vOff / sizeof(BatchVertex);
-
-        for (auto& idx : indices_) {
-            idx = static_cast<u32>(idx + baseVertex);
-        }
-        u32 iOff = buffers.appendIndices(LayoutId::Batch, indices_.data(), static_cast<u32>(indices_.size()));
-
-        DrawCommand cmd{};
-        cmd.sort_key = DrawCommand::buildSortKey(
-            ctx.current_stage, layer.sort_layer, batch_shader_id_,
-            BlendMode::Normal, 0, glTextureId, layer.depth);
-        cmd.index_offset = iOff;
-        cmd.index_count = static_cast<u32>(indices_.size());
-        cmd.vertex_byte_offset = vOff;
-        cmd.shader_id = batch_shader_id_;
-        cmd.blend_mode = BlendMode::Normal;
-        cmd.layout_id = LayoutId::Batch;
-        cmd.texture_count = 1;
-        cmd.texture_ids[0] = glTextureId;
-        cmd.entity = entity;
-        cmd.type = RenderType::Sprite;
-        cmd.layer = layer.sort_layer;
-
-        clips.applyTo(entity, cmd);
-
-        draw_list.push(cmd);
+        // indices_ are 0-based within the merged vertices_; appendIndexedBatch rebases them
+        // onto the pool's baseVertex and assembles the command.
+        appendIndexedBatch(buffers, draw_list, clips,
+            vertices_.data(), static_cast<u32>(vertices_.size()),
+            indices_.data(), static_cast<u32>(indices_.size()),
+            BatchDrawKey{
+                .stage = ctx.current_stage,
+                .layer = layer.sort_layer,
+                .shaderId = batch_shader_id_,
+                .blend = BlendMode::Normal,
+                .textureId = glTextureId,
+                .depth = layer.depth,
+                .entity = entity,
+                .type = RenderType::Sprite,
+            });
     }
 
     for (auto it = layer_caches_.begin(); it != layer_caches_.end(); ) {
