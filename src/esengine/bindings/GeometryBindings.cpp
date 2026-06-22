@@ -10,10 +10,6 @@
 #include "../renderer/ImmediateDraw.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
-#ifdef ES_ENABLE_SPINE
-#include "../spine/SpineResourceManager.hpp"
-#include "../spine/SpineSystem.hpp"
-#endif
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>

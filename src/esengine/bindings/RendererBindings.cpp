@@ -16,10 +16,6 @@
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../core/Log.hpp"
-#ifdef ES_ENABLE_SPINE
-#include "../spine/SpineResourceManager.hpp"
-#include "../spine/SpineSystem.hpp"
-#endif
 #ifdef ES_ENABLE_PARTICLES
 #include "../particle/ParticleSystem.hpp"
 #endif
@@ -40,9 +36,6 @@ static EstellaContext& ctx() { return activeCtx(); }
 #define g_glErrorCheckEnabled (ctx().state().gl_error_check_enabled)
 #define g_viewportWidth (ctx().state().viewport_width)
 #define g_viewportHeight (ctx().state().viewport_height)
-#ifdef ES_ENABLE_SPINE
-#define g_spineSystem (ctx().tryGet<spine::SpineSystem>())
-#endif
 #ifdef ES_ENABLE_PARTICLES
 #define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
 #endif
@@ -58,80 +51,10 @@ static u32 checkGLErrors(const char* context) {
     return errorCount;
 }
 
+// Spine renders fully through the side modules now: the SDK SpineManager
+// computes meshes in spine{NN}.wasm and submits each batch here. The old native
+// spine_* accessors (driven by a core spine-cpp runtime) are gone.
 #ifdef ES_ENABLE_SPINE
-SpineBounds getSpineBounds(ecs::Registry& registry, Entity entity) {
-    SpineBounds bounds;
-    if (!g_spineSystem) return bounds;
-
-    if (g_spineSystem->getSkeletonBounds(entity, bounds.x, bounds.y,
-                                          bounds.width, bounds.height)) {
-        bounds.valid = true;
-    }
-    return bounds;
-}
-
-void spine_update(ecs::Registry& registry, f32 dt) {
-    if (!g_spineSystem) return;
-    g_spineSystem->update(registry, dt);
-}
-
-bool spine_play(Entity entity, const std::string& animation, bool loop, i32 track) {
-    if (!g_spineSystem) return false;
-    return g_spineSystem->playAnimation(entity, animation, loop, track);
-}
-
-bool spine_addAnimation(Entity entity, const std::string& animation, bool loop, f32 delay, i32 track) {
-    if (!g_spineSystem) return false;
-    return g_spineSystem->addAnimation(entity, animation, loop, delay, track);
-}
-
-bool spine_setSkin(Entity entity, const std::string& skinName) {
-    if (!g_spineSystem) return false;
-    return g_spineSystem->setSkin(entity, skinName);
-}
-
-emscripten::val spine_getBonePosition(Entity entity, const std::string& boneName) {
-    if (!g_spineSystem) return emscripten::val::null();
-    f32 x = 0, y = 0;
-    if (!g_spineSystem->getBonePosition(entity, boneName, x, y)) {
-        return emscripten::val::null();
-    }
-    auto result = emscripten::val::object();
-    result.set("x", x);
-    result.set("y", y);
-    return result;
-}
-
-bool spine_hasInstance(Entity entity) {
-    if (!g_spineSystem) return false;
-    return g_spineSystem->getInstance(entity) != nullptr;
-}
-
-void spine_reloadAssets(ecs::Registry& registry) {
-    if (!g_spineSystem) return;
-    g_spineSystem->reloadAssets(registry);
-}
-
-emscripten::val spine_getAnimations(Entity entity) {
-    auto result = emscripten::val::array();
-    if (!g_spineSystem) return result;
-    auto names = g_spineSystem->getAnimationNames(entity);
-    for (size_t i = 0; i < names.size(); ++i) {
-        result.call<void>("push", names[i]);
-    }
-    return result;
-}
-
-emscripten::val spine_getSkins(Entity entity) {
-    auto result = emscripten::val::array();
-    if (!g_spineSystem) return result;
-    auto names = g_spineSystem->getSkinNames(entity);
-    for (size_t i = 0; i < names.size(); ++i) {
-        result.call<void>("push", names[i]);
-    }
-    return result;
-}
-
 void renderer_submitSpineBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
@@ -179,101 +102,6 @@ void renderer_submitSpineBatchByEntity(
         textureId, blendMode, &model[0][0], entity, layer, depth);
 }
 
-void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value) {
-    if (!registry.has<ecs::SpineAnimation>(entity)) return;
-    auto& comp = registry.get<ecs::SpineAnimation>(entity);
-    comp.needsReload = value;
-}
-
-i32 spine_native_getEventCount() {
-    if (!g_spineSystem) return 0;
-    return g_spineSystem->getEventCount();
-}
-
-uintptr_t spine_native_getEventBuffer() {
-    if (!g_spineSystem) return 0;
-    return reinterpret_cast<uintptr_t>(g_spineSystem->getEventBuffer());
-}
-
-emscripten::val spine_native_getEventRecord(i32 index) {
-    if (!g_spineSystem || index < 0 || index >= g_spineSystem->getEventCount()) {
-        return emscripten::val::null();
-    }
-    auto& record = g_spineSystem->getEventRecord(index);
-    auto result = emscripten::val::object();
-    result.set("entity", static_cast<i32>(record.entity.id()));
-    result.set("animationName", record.animationName);
-    result.set("eventName", record.eventName);
-    result.set("stringValue", record.stringValue);
-    return result;
-}
-
-void spine_native_clearEvents() {
-    if (!g_spineSystem) return;
-    g_spineSystem->clearEvents();
-}
-
-emscripten::val spine_native_listConstraints(Entity entity) {
-    auto result = emscripten::val::object();
-    if (!g_spineSystem) return result;
-
-    auto names = g_spineSystem->listConstraints(entity);
-
-    auto ikArr = emscripten::val::array();
-    for (size_t i = 0; i < names.ik.size(); ++i) ikArr.call<void>("push", names.ik[i]);
-    auto tfArr = emscripten::val::array();
-    for (size_t i = 0; i < names.transform.size(); ++i) tfArr.call<void>("push", names.transform[i]);
-    auto pathArr = emscripten::val::array();
-    for (size_t i = 0; i < names.path.size(); ++i) pathArr.call<void>("push", names.path[i]);
-
-    result.set("ik", ikArr);
-    result.set("transform", tfArr);
-    result.set("path", pathArr);
-    return result;
-}
-
-emscripten::val spine_native_getTransformConstraintMix(Entity entity, const std::string& name) {
-    if (!g_spineSystem) return emscripten::val::null();
-    f32 rotate = 0, x = 0, y = 0, scaleX = 0, scaleY = 0, shearY = 0;
-    if (!g_spineSystem->getTransformConstraintMix(entity, name, rotate, x, y, scaleX, scaleY, shearY)) {
-        return emscripten::val::null();
-    }
-    auto result = emscripten::val::object();
-    result.set("mixRotate", rotate);
-    result.set("mixX", x);
-    result.set("mixY", y);
-    result.set("mixScaleX", scaleX);
-    result.set("mixScaleY", scaleY);
-    result.set("mixShearY", shearY);
-    return result;
-}
-
-bool spine_native_setTransformConstraintMix(Entity entity, const std::string& name,
-    f32 rotate, f32 x, f32 y, f32 scaleX, f32 scaleY, f32 shearY) {
-    if (!g_spineSystem) return false;
-    return g_spineSystem->setTransformConstraintMix(entity, name, rotate, x, y, scaleX, scaleY, shearY);
-}
-
-emscripten::val spine_native_getPathConstraintMix(Entity entity, const std::string& name) {
-    if (!g_spineSystem) return emscripten::val::null();
-    f32 position = 0, spacing = 0, rotate = 0, x = 0, y = 0;
-    if (!g_spineSystem->getPathConstraintMix(entity, name, position, spacing, rotate, x, y)) {
-        return emscripten::val::null();
-    }
-    auto result = emscripten::val::object();
-    result.set("position", position);
-    result.set("spacing", spacing);
-    result.set("mixRotate", rotate);
-    result.set("mixX", x);
-    result.set("mixY", y);
-    return result;
-}
-
-bool spine_native_setPathConstraintMix(Entity entity, const std::string& name,
-    f32 position, f32 spacing, f32 rotate, f32 x, f32 y) {
-    if (!g_spineSystem) return false;
-    return g_spineSystem->setPathConstraintMix(entity, name, position, spacing, rotate, x, y);
-}
 #endif
 
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {
@@ -287,12 +115,6 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
         esengine::World w{registry, ctx().services(), 0.0f};
         g_transformSystem->update(w);
     }
-
-#ifdef ES_ENABLE_SPINE
-    if (g_spineSystem) {
-        g_spineSystem->update(registry, ctx().state().delta_time);
-    }
-#endif
 
     ctx().state().viewport_width = static_cast<u32>(viewportWidth);
     ctx().state().viewport_height = static_cast<u32>(viewportHeight);
@@ -352,12 +174,6 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
         esengine::World w{registry, ctx().services(), 0.0f};
         g_transformSystem->update(w);
     }
-
-#ifdef ES_ENABLE_SPINE
-    if (g_spineSystem) {
-        g_spineSystem->update(registry, ctx().state().delta_time);
-    }
-#endif
 
     ctx().state().viewport_width = static_cast<u32>(viewportWidth);
     ctx().state().viewport_height = static_cast<u32>(viewportHeight);

@@ -84,8 +84,10 @@
 - **验证改为更优:确定性 node clip 不变量**(`spine-clip.integration.test.ts`)替代"对原生像素对拍"——既然原生已非生产路径且自身漏 PMA / 漏 region 裁剪,对齐它不是正确目标;移植的是 spine 官方 `spSkeletonClipping`(三版 API 一致),用几何不变量(裁剪改变网格 + clipped ⊆ unclipped + 严格缩小)验证接线正确。RED→GREEN 走通,spine 套件 28 绿 / 全量 2245 绿。Electron 像素视觉 smoke 留作后续 live-check。
 - 副产:spine41 出货(S1 残留补齐),3.8/4.1/4.2 三版齐全。
 
-### S3 —— 4.2 切到 side-module + **删原生**
-`spine42` 成 canonical 运行时;`SpineManager` 所有版本走同一 backend 接口;**删** `SpineSystem.cpp`/原生 `SpinePlugin.cpp`/`SpineResourceManager.cpp`/`SpineCpp` embind/`needsReload`,**spine-cpp 移出核心链接**。**验证:全量 `node build-tools/cli.js build -t web` + 微信 + playable 三平台跑通;核心 wasm 体积下降 ~278KB;不用 spine 的 example 不再含 spine 代码。**
+### S3 —— 4.2 切到 side-module + **删原生** ✅ DONE
+所有版本走同一 side-module backend；删 `SpineSystem`/原生 `SpinePlugin`/`SpineResourceManager`/`SpineExtension`/`SpineCpp` embind+TS/`needsReload` 握手/原生 tick；spine-cpp 移出核心链接。`SpineManager` 删原生回退(无 factory 即加载失败 = pay-for-use）。**保留**：`SpineAnimation` 组件（ABI 不变，骨架句柄字段变 vestigial）、渲染器 spine pass、`renderer_submitSpineBatch/ByEntity`（side-module 提交网格路径）。
+- **结果（已验证）**：核心 `esengine.wasm` **1,460,160 → 957,156 字节（-503KB）**；embind 确认 `renderer_submitSpineBatch` 在、`spine_native_*` 没了；`verify:render` 引擎 boot+渲染 PASS；side-module clipping 仍绿（spine-clip gate）；2240 SDK 测试 + sdk/desktop tsc 绿。
+- **未 headless 验证**：编辑器里 spine 实时渲染（SceneLoader 仍未接 spine = S1 编辑器残留；但 side-module 网格路径 node 已证 + 提交 binding 在 + 引擎渲染正常 → 路径完整）。微信/playable 运行时（需各自配 spine module；3.8/4.1 本就如此）。
 
 ### S4 —— 资源所有权 RAII 根治
 `g_ctx` move-only RAII + 骨架数据 dedup/refcount(命中 addRef)+ 纹理按 page key。**验证:ASAN 下多实体共享同一骨架 reload/despawn 无 UAF;多页图集 load/unload refcount 对称。**

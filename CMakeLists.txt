@@ -97,14 +97,6 @@ endif()
         src/esengine/text/BitmapFont.cpp
     )
 
-if(ES_ENABLE_SPINE)
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/spine/SpineExtension.cpp
-        src/esengine/spine/SpineResourceManager.cpp
-        src/esengine/spine/SpineSystem.cpp
-        src/esengine/renderer/plugins/SpinePlugin.cpp
-    )
-endif()
 
 set(ESENGINE_HEADERS
     src/esengine/ESEngine.hpp
@@ -157,7 +149,6 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/plugins/UIElementPlugin.hpp
     src/esengine/renderer/plugins/TextPlugin.hpp
     src/esengine/renderer/plugins/ShapePlugin.hpp
-    src/esengine/renderer/plugins/SpinePlugin.hpp
     src/esengine/platform/FileSystem.hpp
     src/esengine/events/Events.hpp
     src/esengine/events/Connection.hpp
@@ -201,13 +192,6 @@ endif()
         src/esengine/text/BitmapFont.hpp
     )
 
-if(ES_ENABLE_SPINE)
-    list(APPEND ESENGINE_HEADERS
-        src/esengine/spine/SpineExtension.hpp
-        src/esengine/spine/SpineResourceManager.hpp
-        src/esengine/spine/SpineSystem.hpp
-    )
-endif()
 
 list(APPEND ESENGINE_HEADERS
     src/esengine/ecs/components/RigidBody.hpp
@@ -292,7 +276,9 @@ if(ES_ENABLE_BITMAP_TEXT)
 endif()
 
 if(ES_ENABLE_SPINE)
-    target_link_libraries(esengine PUBLIC spine-cpp)
+    # Core links no spine runtime — spine is fully side-module (spine{NN}.wasm).
+    # ES_ENABLE_SPINE still gates the renderer's spine RenderItem plumbing and the
+    # side-module mesh-submit binding (renderer_submitSpineBatch).
     target_compile_definitions(esengine PUBLIC ES_ENABLE_SPINE)
 endif()
 

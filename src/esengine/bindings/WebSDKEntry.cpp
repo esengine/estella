@@ -52,10 +52,6 @@
 #include "../particle/ParticleSystem.hpp"
 #endif
 #include "../core/Log.hpp"
-#ifdef ES_ENABLE_SPINE
-#include "../spine/SpineResourceManager.hpp"
-#include "../spine/SpineSystem.hpp"
-#endif
 
 #include <glm/glm.hpp>
 #include <cstring>
@@ -73,9 +69,6 @@ static EstellaContext& ctx() { return activeCtx(); }
 
 #define g_initialized (ctx().state().initialized)
 #define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
-#ifdef ES_ENABLE_SPINE
-#define g_spineResourceManager (ctx().tryGet<spine::SpineResourceManager>())
-#endif
 #define g_renderContext (ctx().tryGet<RenderContext>())
 #ifdef ES_ENABLE_PARTICLES
 #define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
@@ -367,36 +360,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         ;
 
 #ifdef ES_ENABLE_SPINE
-    emscripten::value_object<esengine::SpineBounds>("SpineBounds")
-        .field("x", &esengine::SpineBounds::x)
-        .field("y", &esengine::SpineBounds::y)
-        .field("width", &esengine::SpineBounds::width)
-        .field("height", &esengine::SpineBounds::height)
-        .field("valid", &esengine::SpineBounds::valid);
-
-    emscripten::function("getSpineBounds", &esengine::getSpineBounds);
-
-    emscripten::function("spine_update", &esengine::spine_update);
-    emscripten::function("spine_play", &esengine::spine_play);
-    emscripten::function("spine_addAnimation", &esengine::spine_addAnimation);
-    emscripten::function("spine_setSkin", &esengine::spine_setSkin);
-    emscripten::function("spine_getBonePosition", &esengine::spine_getBonePosition);
-    emscripten::function("spine_hasInstance", &esengine::spine_hasInstance);
-    emscripten::function("spine_reloadAssets", &esengine::spine_reloadAssets);
-    emscripten::function("spine_getAnimations", &esengine::spine_getAnimations);
-    emscripten::function("spine_getSkins", &esengine::spine_getSkins);
+    // Spine renders via the side modules — only the mesh-submit bindings the
+    // SDK SpineManager calls remain. Native spine_* / spine_native_* are gone.
     emscripten::function("renderer_submitSpineBatch", &esengine::renderer_submitSpineBatch);
     emscripten::function("renderer_submitSpineBatchByEntity", &esengine::renderer_submitSpineBatchByEntity);
-    emscripten::function("spine_setNeedsReload", &esengine::spine_setNeedsReload);
-    emscripten::function("spine_native_getEventCount", &esengine::spine_native_getEventCount);
-    emscripten::function("spine_native_getEventBuffer", &esengine::spine_native_getEventBuffer);
-    emscripten::function("spine_native_getEventRecord", &esengine::spine_native_getEventRecord);
-    emscripten::function("spine_native_clearEvents", &esengine::spine_native_clearEvents);
-    emscripten::function("spine_native_listConstraints", &esengine::spine_native_listConstraints);
-    emscripten::function("spine_native_getTransformConstraintMix", &esengine::spine_native_getTransformConstraintMix);
-    emscripten::function("spine_native_setTransformConstraintMix", &esengine::spine_native_setTransformConstraintMix);
-    emscripten::function("spine_native_getPathConstraintMix", &esengine::spine_native_getPathConstraintMix);
-    emscripten::function("spine_native_setPathConstraintMix", &esengine::spine_native_setPathConstraintMix);
 #endif
 
     emscripten::function("invalidateMaterialCache", &esengine::invalidateMaterialCache);

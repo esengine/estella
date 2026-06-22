@@ -5,7 +5,6 @@ import type { SpineModuleFactory } from './SpineModuleLoader';
 import { wrapSpineModule } from './SpineModuleLoader';
 import { SpineModuleController } from './SpineController';
 import { ModuleBackend } from './ModuleBackend';
-import { SpineCpp } from './SpineCppAPI';
 import { log } from '../logger';
 
 export type SpineVersion = '3.8' | '4.1' | '4.2';
@@ -45,7 +44,7 @@ export class SpineManager {
         skelData: Uint8Array | string,
         atlasText: string,
         textures: Map<string, { glId: number; w: number; h: number }>,
-        registry: CppRegistry,
+        _registry: CppRegistry,
     ): Promise<SpineVersion | null> {
         const version = typeof skelData === 'string'
             ? SpineManager.detectVersionJson(skelData)
@@ -53,22 +52,9 @@ export class SpineManager {
 
         if (!version) return null;
 
-        // Version routing, see SpinePlugin spineUpdateSystem for the
-        // full story. When a 4.2 entity shows up and no 4.2 JS factory
-        // is registered, we leave it for the native C++ runtime
-        // (`spine_setNeedsReload` stays at its default of true, so
-        // SpineCpp.update ticks it each frame). For older versions
-        // (3.8 / 4.1) we hand the entity off to the JS runtime by
-        // disabling needsReload on the C++ side and loading into
-        // ModuleBackend. The two runtimes therefore tick disjoint
-        // entity sets — there is NO double update per entity.
-        if (version === '4.2' && !this.factories_.has('4.2')) {
-            this.entityVersions_.set(entity, '4.2');
-            return '4.2';
-        }
-
-        this.coreModule_.spine_setNeedsReload?.(registry, entity as number, false);
-
+        // Every version loads into its per-version side-module backend; there is
+        // no native runtime fallback. A missing factory for `version` fails the
+        // load (logged below) — spine is strictly pay-for-use.
         const backend = await this.ensureBackend(version);
         if (!backend) {
             log.error('spine', `Failed to create backend for version ${version}`);
@@ -220,33 +206,31 @@ export class SpineManager {
     listConstraints(entity: Entity): ConstraintList | null {
         const backend = this.getEntityBackend_(entity);
         if (backend) return backend.listConstraints(entity);
-        return SpineCpp.listConstraints(entity);
+        return null;
     }
 
     getTransformConstraintMix(entity: Entity, name: string): TransformMixData | null {
         const backend = this.getEntityBackend_(entity);
         if (backend) return backend.getTransformConstraintMix(entity, name);
-        return SpineCpp.getTransformConstraintMix(entity, name);
+        return null;
     }
 
     setTransformConstraintMix(entity: Entity, name: string, mix: TransformMixData): boolean {
         const backend = this.getEntityBackend_(entity);
         if (backend) return backend.setTransformConstraintMix(entity, name, mix);
-        return SpineCpp.setTransformConstraintMix(entity, name,
-            mix.mixRotate, mix.mixX, mix.mixY, mix.mixScaleX, mix.mixScaleY, mix.mixShearY);
+        return false;
     }
 
     getPathConstraintMix(entity: Entity, name: string): PathMixData | null {
         const backend = this.getEntityBackend_(entity);
         if (backend) return backend.getPathConstraintMix(entity, name);
-        return SpineCpp.getPathConstraintMix(entity, name);
+        return null;
     }
 
     setPathConstraintMix(entity: Entity, name: string, mix: PathMixData): boolean {
         const backend = this.getEntityBackend_(entity);
         if (backend) return backend.setPathConstraintMix(entity, name, mix);
-        return SpineCpp.setPathConstraintMix(entity, name,
-            mix.position, mix.spacing, mix.mixRotate, mix.mixX, mix.mixY);
+        return false;
     }
 
     setEnabled(entity: Entity, enabled: boolean): void {

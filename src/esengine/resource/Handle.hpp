@@ -187,6 +187,10 @@ namespace esengine {
     class IndexBuffer;
 }
 
+// Forward-declared only — the native spine runtime was removed (spine is fully
+// side-module now), but SpineAnimation keeps its (vestigial) skeleton-data handle
+// field so the component layout/hash is unchanged. Handle<T> stores just an id,
+// so T never needs a definition here.
 namespace esengine::spine {
     struct SpineSkeletonData;
 }
@@ -213,7 +217,7 @@ using VertexBufferHandle = Handle<esengine::VertexBuffer>;
 /** @brief Handle to an index buffer resource */
 using IndexBufferHandle = Handle<esengine::IndexBuffer>;
 
-/** @brief Handle to a Spine skeleton data resource */
+/** @brief Handle to a Spine skeleton data resource (vestigial — see fwd decl) */
 using SpineDataHandle = Handle<esengine::spine::SpineSkeletonData>;
 
 /** @brief Handle to a bitmap font resource */

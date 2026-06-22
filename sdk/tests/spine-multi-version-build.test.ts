@@ -17,22 +17,16 @@ describe('Spine multi-version build pipeline', () => {
         }
     });
 
-    test('only non-4.2 versions produce standalone modules', () => {
+    test('every spine version ships as a standalone side module (no native 4.2)', () => {
+        // S3 removed the native runtime: 4.2 is a side module like 3.8/4.1.
         const spineVersions = new Set(['3.8', '4.1', '4.2']);
-        const nonNative = [...spineVersions].filter(v => v !== '4.2');
-        expect(nonNative).toEqual(['3.8', '4.1']);
+        const modules = [...spineVersions].map(v => `spine${v.replace('.', '')}`);
+        expect(modules.sort()).toEqual(['spine38', 'spine41', 'spine42']);
     });
 
-    test('4.2-only project produces zero standalone modules', () => {
-        const spineVersions = new Set(['4.2']);
-        const nonNative = [...spineVersions].filter(v => v !== '4.2');
-        expect(nonNative).toHaveLength(0);
-    });
-
-    test('empty spine project produces zero standalone modules', () => {
+    test('empty spine project ships zero modules', () => {
         const spineVersions = new Set<string>();
-        const nonNative = [...spineVersions].filter(v => v !== '4.2');
-        expect(nonNative).toHaveLength(0);
+        expect([...spineVersions]).toHaveLength(0);
     });
 
     test('SpineManager constructor accepts version factory map', () => {
@@ -45,42 +39,39 @@ describe('Spine multi-version build pipeline', () => {
         manager.shutdown();
     });
 
-    test('SpineManager routes 4.2 to native without backend', async () => {
-        const factories = new Map<'3.8' | '4.1' | '4.2', () => Promise<any>>();
-        const mockModule = { spine_setNeedsReload: () => {} } as any;
-        const manager = new SpineManager(mockModule, factories);
+    test('SpineManager fails the load (no native fallback) when a version has no factory', async () => {
+        // S3: 4.2 no longer routes to a native runtime — without a factory the
+        // load fails, exactly like 3.8/4.1. Spine is strictly pay-for-use.
+        const manager = new SpineManager({} as any, new Map());
 
-        const json42 = '{"spine":"4.2.10","skeleton":{}}';
-        const version = await manager.loadEntity(
-            1 as any, json42, '', new Map(), {} as any,
+        const v42 = await manager.loadEntity(
+            1 as any, '{"spine":"4.2.10","skeleton":{}}', '', new Map(), {} as any,
+        );
+        const v41 = await manager.loadEntity(
+            2 as any, '{"spine":"4.1.20","skeleton":{}}', '', new Map(), {} as any,
         );
 
-        expect(version).toBe('4.2');
-        expect(manager.getEntityVersion(1 as any)).toBe('4.2');
-        expect(manager.hasModuleBackend('4.2' as any)).toBe(false);
-
+        expect(v42).toBeNull();
+        expect(v41).toBeNull();
+        expect(manager.getEntityVersion(1 as any)).toBeUndefined();
         manager.shutdown();
     });
 
-    test('SpineManager calls spine_setNeedsReload for non-4.2 entities', async () => {
-        let calledWith: { entity: number; value: boolean } | null = null;
-        const mockModule = {
-            spine_setNeedsReload: (_reg: any, entity: number, value: boolean) => {
-                calledWith = { entity, value };
+    test('SpineManager never touches a native spine_* binding', async () => {
+        // The old path called coreModule.spine_setNeedsReload; that handshake is
+        // gone. Proxy-trap any spine_* access to prove none happens.
+        let touched: string | null = null;
+        const mockModule = new Proxy({} as any, {
+            get(_t, prop) {
+                if (typeof prop === 'string' && prop.startsWith('spine_')) touched = prop;
+                return undefined;
             },
-        } as any;
-
-        const factories = new Map<'3.8' | '4.1' | '4.2', () => Promise<any>>();
-        const manager = new SpineManager(mockModule, factories);
-
-        const json41 = '{"spine":"4.1.20","skeleton":{}}';
-        const version = await manager.loadEntity(
-            42 as any, json41, '', new Map(), {} as any,
+        });
+        const manager = new SpineManager(mockModule, new Map());
+        await manager.loadEntity(
+            1 as any, '{"spine":"4.2.10","skeleton":{}}', '', new Map(), {} as any,
         );
-
-        expect(version).toBeNull();
-        expect(calledWith).toEqual({ entity: 42, value: false });
-
+        expect(touched).toBeNull();
         manager.shutdown();
     });
 

@@ -28,11 +28,6 @@
 #include "../tilemap/TilemapSystem.hpp"
 #include "../tilemap/TiledMapLoader.hpp"
 #endif
-#ifdef ES_ENABLE_SPINE
-#include "../renderer/plugins/SpinePlugin.hpp"
-#include "../spine/SpineResourceManager.hpp"
-#include "../spine/SpineSystem.hpp"
-#endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/UISystem.hpp"
@@ -135,17 +130,6 @@ void EstellaContext::initSubsystems() {
     services_.registerOwned<particle::ParticleSystem>(makeUnique<particle::ParticleSystem>());
 #endif
 
-#ifdef ES_ENABLE_SPINE
-    {
-        auto* rm = services_.getService<resource::ResourceManager>();
-        auto spineRM = makeUnique<spine::SpineResourceManager>(*rm);
-        spineRM->init();
-        auto* spineRMPtr = spineRM.get();
-        services_.registerOwned<spine::SpineResourceManager>(std::move(spineRM));
-        services_.registerOwned<spine::SpineSystem>(makeUnique<spine::SpineSystem>(*spineRMPtr));
-    }
-#endif
-
     auto* rm = services_.getService<resource::ResourceManager>();
     auto* rc = services_.getService<RenderContext>();
     auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *statePtr, *rc, *rm);
@@ -170,13 +154,6 @@ void EstellaContext::initSubsystems() {
         auto tilemapPlugin = std::make_unique<TilemapRenderPlugin>();
         tilemapPlugin->setTilemapSystem(services_.getService<tilemap::TilemapSystem>());
         renderFrame->addPlugin(std::move(tilemapPlugin));
-    }
-#endif
-#ifdef ES_ENABLE_SPINE
-    {
-        auto spinePlugin = std::make_unique<SpinePlugin>();
-        spinePlugin->setSpineSystem(services_.getService<spine::SpineSystem>());
-        renderFrame->addPlugin(std::move(spinePlugin));
     }
 #endif
 #ifdef ES_ENABLE_PARTICLES
@@ -205,9 +182,6 @@ void EstellaContext::shutdown() {
 
     if (auto* rf = tryGet<RenderFrame>()) rf->shutdown();
     if (auto* id = tryGet<ImmediateDraw>()) id->shutdown();
-#ifdef ES_ENABLE_SPINE
-    if (auto* srm = tryGet<spine::SpineResourceManager>()) srm->shutdown();
-#endif
     if (auto* rc = tryGet<RenderContext>()) rc->shutdown();
     if (auto* rm = tryGet<resource::ResourceManager>()) rm->shutdown();
 

@@ -1,6 +1,5 @@
 export { SpinePlugin, SpineEvents } from './SpinePlugin';
 export type { SpineEvent, SpineEventType, SpineEventsData } from './SpinePlugin';
-export { SpineCpp, initSpineCppAPI, shutdownSpineCppAPI } from './SpineCppAPI';
 export { SpineManager } from './SpineManager';
 export type { SpineVersion } from './SpineManager';
 export { ModuleBackend } from './ModuleBackend';
