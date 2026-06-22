@@ -139,7 +139,9 @@ export async function applySpineEntities(opts: {
             const entity = entityMap.get(sceneEntity.id);
             if (entity === undefined) continue;
 
-            await spineManager.loadEntity(entity, info.skelData, info.atlasText, info.textures, registry);
+            await spineManager.loadEntity(
+                entity, info.skelData, info.atlasText, info.textures, registry,
+                `${skelRef}:${atlasRef}`);
 
             spineManager.setEntityProps(entity, {
                 skeletonScale: (comp.data.skeletonScale as number) ?? 1,

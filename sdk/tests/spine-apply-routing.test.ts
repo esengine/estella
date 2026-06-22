@@ -54,7 +54,7 @@ describe('applySpineEntities routes every version to the SpineManager (S3)', () 
         });
         expect(manager.loadEntity).toHaveBeenCalledTimes(1);
         expect(manager.loadEntity).toHaveBeenCalledWith(
-            entity, expect.anything(), '', expect.anything(), expect.anything());
+            entity, expect.anything(), '', expect.anything(), expect.anything(), 'hero.skel:hero.atlas');
         expect(manager.setAnimation).toHaveBeenCalledWith(entity, 'walk', true);
     });
 

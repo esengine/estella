@@ -12,12 +12,19 @@ interface EntityInfo {
     flipX: boolean;
     flipY: boolean;
     layer: number;
+    /** Dedup key (asset ref). Entities sharing a key share one loaded skeleton. */
+    assetKey?: string;
 }
 
 export class ModuleBackend {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
     private disabledEntities_: Set<Entity> = new Set();
+    // assetKey -> the one loaded skeleton (skeletonData + atlas + page textures)
+    // shared by every entity of that asset; refcounted so it unloads when the
+    // last instance is removed. Without a key, an entity falls back to its own
+    // per-entity skeleton (the pre-dedup behaviour).
+    private skeletons_: Map<string, { skelHandle: number; refcount: number }> = new Map();
 
     constructor(controller: SpineModuleController) {
         this.controller_ = controller;
@@ -37,25 +44,34 @@ export class ModuleBackend {
         atlasText: string,
         textures: Map<string, { glId: number; w: number; h: number }>,
         isBinary: boolean,
+        assetKey?: string,
     ): boolean {
-        const skelHandle = this.controller_.loadSkeleton(skelData, atlasText, isBinary);
-        if (skelHandle < 0) {
-            log.error('spine', `Failed to load skeleton: ${this.controller_.getLastError()}`);
-            return false;
-        }
-
-        const pageCount = this.controller_.getAtlasPageCount(skelHandle);
-        for (let i = 0; i < pageCount; i++) {
-            const pageName = this.controller_.getAtlasPageTextureName(skelHandle, i);
-            const tex = textures.get(pageName);
-            if (tex) {
-                this.controller_.setAtlasPageTexture(skelHandle, i, tex.glId, tex.w, tex.h);
+        let skelHandle: number;
+        const shared = assetKey !== undefined ? this.skeletons_.get(assetKey) : undefined;
+        if (shared) {
+            // Reuse the already-loaded skeleton — just spin up a fresh instance.
+            skelHandle = shared.skelHandle;
+            shared.refcount++;
+        } else {
+            skelHandle = this.controller_.loadSkeleton(skelData, atlasText, isBinary);
+            if (skelHandle < 0) {
+                log.error('spine', `Failed to load skeleton: ${this.controller_.getLastError()}`);
+                return false;
             }
+            const pageCount = this.controller_.getAtlasPageCount(skelHandle);
+            for (let i = 0; i < pageCount; i++) {
+                const pageName = this.controller_.getAtlasPageTextureName(skelHandle, i);
+                const tex = textures.get(pageName);
+                if (tex) {
+                    this.controller_.setAtlasPageTexture(skelHandle, i, tex.glId, tex.w, tex.h);
+                }
+            }
+            if (assetKey !== undefined) this.skeletons_.set(assetKey, { skelHandle, refcount: 1 });
         }
 
         const instanceId = this.controller_.createInstance(skelHandle);
         this.entities_.set(entity, {
-            skelHandle, instanceId,
+            skelHandle, instanceId, assetKey,
             skeletonScale: 1, flipX: false, flipY: false, layer: 0,
         });
         return true;
@@ -222,17 +238,41 @@ export class ModuleBackend {
         const info = this.entities_.get(entity);
         if (!info) return;
         this.controller_.destroyInstance(info.instanceId);
-        this.controller_.unloadSkeleton(info.skelHandle);
+        this.releaseSkeleton_(info);
         this.entities_.delete(entity);
         this.disabledEntities_.delete(entity);
+    }
+
+    /** Drop one reference to an entity's skeleton; unload it only when shared
+     *  refcount hits zero (or immediately for an un-keyed per-entity skeleton). */
+    private releaseSkeleton_(info: EntityInfo): void {
+        if (info.assetKey !== undefined) {
+            const shared = this.skeletons_.get(info.assetKey);
+            if (shared) {
+                if (--shared.refcount <= 0) {
+                    this.controller_.unloadSkeleton(shared.skelHandle);
+                    this.skeletons_.delete(info.assetKey);
+                }
+                return;
+            }
+        }
+        this.controller_.unloadSkeleton(info.skelHandle);
     }
 
     shutdown(): void {
         for (const info of this.entities_.values()) {
             this.controller_.destroyInstance(info.instanceId);
-            this.controller_.unloadSkeleton(info.skelHandle);
         }
+        // Unload each unique skeleton once: shared ones via skeletons_, plus any
+        // un-keyed per-entity skeletons.
+        const handles = new Set<number>();
+        for (const entry of this.skeletons_.values()) handles.add(entry.skelHandle);
+        for (const info of this.entities_.values()) {
+            if (info.assetKey === undefined) handles.add(info.skelHandle);
+        }
+        for (const h of handles) this.controller_.unloadSkeleton(h);
         this.entities_.clear();
         this.disabledEntities_.clear();
+        this.skeletons_.clear();
     }
 }
