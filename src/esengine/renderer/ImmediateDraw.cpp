@@ -89,7 +89,9 @@ void ImmediateDraw::shutdown() {
 void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     if (!initialized_) return;
 
-    viewProjection_ = viewProjection;
+    // The batch shader reads u_projection from the shared FrameConstants UBO; update it
+    // for this pass rather than uploading a loose uniform per flush.
+    context_.updateFrameConstants(viewProjection);
     state_.setBlendEnabled(true);
     state_.setBlendMode(BlendMode::Normal);
     state_.setDepthTest(false);
@@ -108,8 +110,6 @@ void ImmediateDraw::flush() {
     pool_.upload();
 
     state_.useProgram(batch_shader_id_);
-    i32 loc = device_.getUniformLocation(batch_shader_id_, "u_projection");
-    if (loc >= 0) device_.setUniformMat4(loc, glm::value_ptr(viewProjection_));
     state_.bindTexture(0, currentTexture_);
 
     pool_.bindLayout(LayoutId::Batch);

@@ -25,6 +25,7 @@ namespace esengine {
 enum class GfxBufferTarget : u8 {
     Vertex,
     Index,
+    Uniform,
 };
 
 // =============================================================================

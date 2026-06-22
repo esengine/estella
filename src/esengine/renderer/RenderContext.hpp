@@ -138,13 +138,22 @@ public:
      */
     u32 getWhiteTextureId() const { return whiteTextureId_; }
 
+    /**
+     * @brief Uploads the per-frame view-projection into the shared FrameConstants UBO.
+     * @details Called once per render pass before its draws; every engine shader reads
+     *          u_projection from this single UBO (bound at FRAME_CONSTANTS_BINDING).
+     */
+    void updateFrameConstants(const glm::mat4& viewProjection);
+
 private:
     void initWhiteTexture();
+    void initFrameUbo();
 
     glm::mat4 viewProjection_{1.0f};
     RenderContextStats stats_;
 
     u32 whiteTextureId_ = 0;
+    u32 frameUbo_ = 0;
 
     GfxDevice& device_;
     bool initialized_ = false;

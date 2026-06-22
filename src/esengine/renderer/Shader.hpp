@@ -276,7 +276,9 @@ inline const char* BATCH_VERTEX = R"(#version 300 es
     layout(location = 1) in vec4 a_color;
     layout(location = 2) in vec2 a_texCoord;
 
-    uniform mat4 u_projection;
+    layout(std140) uniform FrameConstants {
+        mat4 u_projection;
+    };
 
     out vec4 v_color;
     out vec2 v_texCoord;

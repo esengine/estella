@@ -25,8 +25,9 @@ public:
 
     void finalize();
 
+    // Per-frame constants (view-projection) come from the FrameConstants UBO bound by
+    // RenderContext, not a uniform argument — every batched shader reads it from there.
     void execute(GfxDevice& device, StateTracker& state, TransientBufferPool& buffers,
-                 const glm::mat4& viewProjection,
                  FrameCapture* capture = nullptr,
                  const CustomDrawFn& customDraw = nullptr);
 

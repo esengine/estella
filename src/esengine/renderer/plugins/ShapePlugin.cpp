@@ -129,7 +129,7 @@ void ShapePlugin::customDraw(
     if (!shader || !shader->isValid()) return;
 
     shader->bind();
-    shader->setUniform("u_projection", ctx.view_projection);
+    // u_projection comes from the shared FrameConstants UBO (linked at compile time).
 
     state.setBlendEnabled(true);
     state.setBlendMode(BlendMode::Normal);

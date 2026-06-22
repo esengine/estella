@@ -175,7 +175,6 @@ private:
     TransientBufferPool pool_;
     u32 batch_shader_id_ = 0;
     u32 white_texture_id_ = 0;
-    glm::mat4 viewProjection_{1.0f};
     u32 currentTexture_ = 0;
     bool pendingGeometry_ = false;
 

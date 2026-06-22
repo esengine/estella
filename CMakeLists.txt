@@ -140,6 +140,7 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/DrawCommand.hpp
     src/esengine/renderer/DrawList.hpp
     src/esengine/renderer/ClipState.hpp
+    src/esengine/renderer/FrameConstants.hpp
     src/esengine/renderer/BatchBuilder.hpp
     src/esengine/renderer/RenderTypePlugin.hpp
     src/esengine/renderer/plugins/BatchPlugin.hpp

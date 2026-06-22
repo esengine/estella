@@ -121,12 +121,13 @@ TS/WASM 边界对 uniform 布局**不透明**：`renderer_begin(viewProjPtr, tar
 - **价值**：keystone 重写 `execute` 时需适配的提交面从 6 条降到 1 条。
 - **验证**：`tests/renderer/*` + 像素快照不变；draw call 数不变。
 
-### P1 — GfxDevice 加 UBO 能力 + FrameUBO（纯加法）
-- `GfxBufferTarget` 加 `Uniform`；GfxDevice 加 `bindUniformBuffer(slot, handle)` + `getUniformBlockIndex` + `setUniformBlockBinding`（GLDevice 实现 `glBindBufferBase`/`glUniformBlockBinding`）。
-- 引入 `FrameUBO{ mat4 u_projection }`；batch/shape shader 改 uniform block；`RenderFrame::begin` 每帧填一次。
-- 旧散装 `u_projection` 路径暂保留作回退。
-- **价值**：WebGL2 下即测得 per-frame uniform 调用数显著下降（病灶 B/C）。
-- **验证**：FrameCapture 对比 uniform/draw 调用数；像素快照不变。
+### P1 — GfxDevice 加 UBO 能力 + FrameUBO（纯加法，已据证据修正）
+- `GfxBufferTarget` 加 `Uniform`；GfxDevice 加 `createBuffer(Uniform)` + `bindUniformBufferBase(point, buffer)` + `getUniformBlockIndex(program, name)` + `uniformBlockBinding(program, idx, point)`（GLDevice 实现 `glBindBufferBase`/`glGetUniformBlockIndex`/`glUniformBlockBinding`）。WebGL2/GLSL ES 3.00 **无 in-shader `binding=` 限定符**，绑定点必须 host 侧 `glUniformBlockBinding` 设。
+- `FrameConstants`（std140）首发只 `mat4 u_projection`（64B，单 mat4 无对齐坑）；**一个持久 UBO**，init 创建、`RenderFrame::begin` 每帧 `bufferSubData` 更新一次、绑定点 0 全帧 bind 一次（不走 TransientBufferPool——那是 per-draw 几何流）。
+- 活的 shader 只有 **batch + shape** 两个（其余 6 个 .esshader + 内联 EXT_MESH/PARTICLE_INSTANCE 全死，证据见审计/探查）→ 迁移面极小。**注意：batch.esshader 是 GLSL ES 1.00**（`attribute`/`varying`/`texture2D`/`gl_FragColor`），UBO 需 ES 3.00 → batch 必须先升 `#version 300 es`（已有 ES3.00 参照：`Shader.hpp` 的 `BATCH_VERTEX/FRAGMENT` 内联）；shape 已是 ES 3.00。这步并入 RC7-6 的 shader 版本统一。
+- **旧散装 `u_projection` 路径保留**给 custom-geometry/material（`GeometryBindings::draw_mesh` 用散装 `u_projection`+`u_model` 在用户 shader 上）——P1 纯加法、不破这些路径。
+- **价值（修正）**：纯 WebGL2 的 per-frame uniform 节省 **可忽略**（实测路径每帧仅 1–3 次 `setUniformMat4`，按 shader 切换 gate，非 per-draw——原"显著下降"的说法不成立）。P1 的真实价值是 **(a) 最低风险地落地 UBO/bind 机制**（std140 + host 侧 block-binding + ES 版本升级，孤立可逐像素验证，避免与 P2 的 execute 重写纠缠）、**(b) 前向兼容 P2**（UBO 即 BindGroup 的首个非纹理资源，P1 写的 UBO API 被 P2 复用、非废弃）、**(c) WebGPU 前置形态**（WebGPU 无散装 uniform，全是 UBO/bind group）。
+- **验证**：headless `verify:render` 四场景逐像素不变（同 P0）；FrameCapture 对比 draw call 数不变。
 
 ### P2 — PipelineState + BindGroup + 类型化句柄（keystone 主体）
 - 引入 `PipelineState`/`BindGroup`/`TypedHandle`；`GfxDevice` 增 `createPipeline`/`createBindGroup`/`setPipeline`/`setBindGroup`/`draw`。

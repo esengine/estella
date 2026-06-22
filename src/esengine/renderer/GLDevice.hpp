@@ -83,6 +83,11 @@ public:
     void bufferData(GfxBufferTarget target, const void* data, u32 sizeBytes, bool dynamic) override;
     void bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) override;
 
+    void bindUniformBuffer(u32 bufferId) override;
+    void bindBufferBase(u32 bindingPoint, u32 bufferId) override;
+    u32 getUniformBlockIndex(u32 programId, const char* name) override;
+    void uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) override;
+
     u32 createVertexArray() override;
     void deleteVertexArray(u32 vaoId) override;
     void bindVertexArray(u32 vaoId) override;

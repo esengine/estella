@@ -109,6 +109,11 @@ struct MockGfxDevice final : GfxDevice {
     void bufferData(GfxBufferTarget, const void*, u32, bool) override { ++bufferDataCalls; }
     void bufferSubData(GfxBufferTarget, u32, const void*, u32) override { ++bufferSubDataCalls; }
 
+    void bindUniformBuffer(u32) override {}
+    void bindBufferBase(u32, u32) override {}
+    u32 getUniformBlockIndex(u32, const char*) override { return GFX_INVALID_UNIFORM_BLOCK; }
+    void uniformBlockBinding(u32, u32, u32) override {}
+
     u32 createVertexArray() override { ++createVertexArrayCalls; return nextVaoId++; }
     void deleteVertexArray(u32) override { ++deleteVertexArrayCalls; }
     void bindVertexArray(u32 vaoId) override { ++bindVertexArrayCalls; lastVao = vaoId; }

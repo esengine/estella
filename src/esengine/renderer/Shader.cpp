@@ -14,6 +14,7 @@
 
 #include "Shader.hpp"
 #include "GfxDevice.hpp"
+#include "FrameConstants.hpp"
 #include "../core/Log.hpp"
 
 #include <fstream>
@@ -152,6 +153,14 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     }
 
     reflectActiveUniforms();
+
+    // Link the per-frame constants block to its shared binding point, so the program
+    // reads u_projection from the FrameConstants UBO with no loose uniform upload.
+    // Programs without the block (custom/user shaders) simply skip this.
+    u32 frameBlock = device_->getUniformBlockIndex(programId_, FRAME_CONSTANTS_BLOCK);
+    if (frameBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(programId_, frameBlock, FRAME_CONSTANTS_BINDING);
+    }
 
     ES_LOG_DEBUG("Shader compiled successfully (program ID: {}, active uniforms: {})",
                  programId_, activeUniforms_.size());

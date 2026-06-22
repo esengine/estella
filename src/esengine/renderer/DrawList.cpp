@@ -59,7 +59,6 @@ void DrawList::finalize() {
 }
 
 void DrawList::execute(GfxDevice& device, StateTracker& state, TransientBufferPool& buffers,
-                       const glm::mat4& viewProjection,
                        FrameCapture* capture,
                        const CustomDrawFn& customDraw) {
     u32 lastShader = 0;
@@ -68,10 +67,6 @@ void DrawList::execute(GfxDevice& device, StateTracker& state, TransientBufferPo
 
         if (cmd.shader_id != lastShader) {
             state.useProgram(cmd.shader_id);
-            i32 loc = device.getUniformLocation(cmd.shader_id, "u_projection");
-            if (loc >= 0) {
-                device.setUniformMat4(loc, &viewProjection[0][0]);
-            }
             lastShader = cmd.shader_id;
         }
         state.setBlendMode(cmd.blend_mode);

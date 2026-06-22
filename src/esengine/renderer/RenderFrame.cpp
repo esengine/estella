@@ -1,7 +1,5 @@
 #include "RenderFrame.hpp"
 #include "Shader.hpp"
-#include "ShaderEmbeds.generated.hpp"
-#include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
@@ -193,7 +191,8 @@ void RenderFrame::flush() {
         }
     };
 
-    draw_list_.execute(device_, state_tracker_, pool_, view_projection_, &frame_capture_, customDrawFn);
+    context_.updateFrameConstants(view_projection_);
+    draw_list_.execute(device_, state_tracker_, pool_, &frame_capture_, customDrawFn);
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
@@ -276,7 +275,8 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     frame_capture_.setReplayMode(stopAtDrawCall + 1);
 
-    draw_list_.execute(device_, state_tracker_, pool_, view_projection_, &frame_capture_);
+    context_.updateFrameConstants(view_projection_);
+    draw_list_.execute(device_, state_tracker_, pool_, &frame_capture_);
 
     state_tracker_.setScissorEnabled(false);
     state_tracker_.endStencilTest();
@@ -395,28 +395,15 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
 
 u32 RenderFrame::initBatchShader() {
     // The batch shader ships embedded as source (ShaderSources::BATCH_*); there is
-    // no file-load path on web.
-    resource::ShaderHandle handle;
-    if (!handle.isValid()) {
-        handle = resource_manager_.createShaderWithBindings(
-            ShaderSources::BATCH_VERTEX,
-            ShaderSources::BATCH_FRAGMENT,
-            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
-        );
-    }
+    // no file-load path on web. WebGL2 guarantees GLSL ES 3.00, so there is no ES 1.0
+    // fallback — the batch shader is unconditionally the ES 3.00 source.
+    resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
+        ShaderSources::BATCH_VERTEX,
+        ShaderSources::BATCH_FRAGMENT,
+        {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
+    );
 
     Shader* shader = resource_manager_.getShader(handle);
-    if (!shader || !shader->isValid()) {
-        ES_LOG_WARN("GLSL ES 3.0 batch shader failed, trying GLSL ES 1.0 fallback");
-        auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
-        handle = resource_manager_.createShaderWithBindings(
-            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
-            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
-            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
-        );
-        shader = resource_manager_.getShader(handle);
-    }
-
     if (shader && shader->isValid()) {
         shader->bind();
         i32 texLoc = device_.getUniformLocation(shader->getProgramId(), "u_texture");

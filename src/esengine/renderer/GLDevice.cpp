@@ -87,8 +87,9 @@ void setCapability(GLenum cap, bool enabled) {
 
 GLenum toGLBufferTarget(GfxBufferTarget target) {
     switch (target) {
-    case GfxBufferTarget::Vertex: return GL_ARRAY_BUFFER;
-    case GfxBufferTarget::Index:  return GL_ELEMENT_ARRAY_BUFFER;
+    case GfxBufferTarget::Vertex:  return GL_ARRAY_BUFFER;
+    case GfxBufferTarget::Index:   return GL_ELEMENT_ARRAY_BUFFER;
+    case GfxBufferTarget::Uniform: return GL_UNIFORM_BUFFER;
     default: return GL_ARRAY_BUFFER;
     }
 }
@@ -567,6 +568,22 @@ void GLDevice::bufferData(GfxBufferTarget target, const void* data, u32 sizeByte
 
 void GLDevice::bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) {
     glBufferSubData(toGLBufferTarget(target), offset, sizeBytes, data);
+}
+
+void GLDevice::bindUniformBuffer(u32 bufferId) {
+    glBindBuffer(GL_UNIFORM_BUFFER, bufferId);
+}
+
+void GLDevice::bindBufferBase(u32 bindingPoint, u32 bufferId) {
+    glBindBufferBase(GL_UNIFORM_BUFFER, bindingPoint, bufferId);
+}
+
+u32 GLDevice::getUniformBlockIndex(u32 programId, const char* name) {
+    return static_cast<u32>(glGetUniformBlockIndex(programId, name));
+}
+
+void GLDevice::uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) {
+    glUniformBlockBinding(programId, blockIndex, bindingPoint);
 }
 
 // =============================================================================

@@ -147,7 +147,9 @@ layout(location = 1) in vec2 a_texCoord;
 layout(location = 2) in vec4 a_color;
 layout(location = 3) in vec4 a_shapeInfo;
 
-uniform mat4 u_projection;
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
 
 out vec2 v_uv;
 out vec4 v_color;

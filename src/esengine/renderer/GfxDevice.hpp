@@ -37,6 +37,9 @@ namespace esengine {
  * @details Stateless command interface — each method maps 1:1 to a GPU API call.
  *          StateTracker wraps this with caching to eliminate redundant state changes.
  */
+/** @brief Sentinel returned by getUniformBlockIndex when a program has no such block (GL_INVALID_INDEX). */
+static constexpr u32 GFX_INVALID_UNIFORM_BLOCK = 0xFFFFFFFFu;
+
 class GfxDevice {
 public:
     virtual ~GfxDevice() = default;
@@ -211,6 +214,22 @@ public:
 
     /** @brief Updates a sub-region of a buffer target */
     virtual void bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) = 0;
+
+    // =========================================================================
+    // Uniform Buffer Objects (per-frame / shared constants)
+    // =========================================================================
+
+    /** @brief Binds a buffer to the uniform target (for data upload via bufferData/bufferSubData). */
+    virtual void bindUniformBuffer(u32 bufferId) = 0;
+
+    /** @brief Binds a buffer to an indexed uniform binding point (the slot shaders read from). */
+    virtual void bindBufferBase(u32 bindingPoint, u32 bufferId) = 0;
+
+    /** @brief Returns a program's uniform-block index by name, or GFX_INVALID_UNIFORM_BLOCK if absent. */
+    virtual u32 getUniformBlockIndex(u32 programId, const char* name) = 0;
+
+    /** @brief Links a program's uniform block to an indexed binding point. */
+    virtual void uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) = 0;
 
     // =========================================================================
     // VAO Operations
