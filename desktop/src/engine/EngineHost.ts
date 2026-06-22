@@ -13,8 +13,9 @@ import {
   setEditorMode,
   setPlayMode,
 } from 'esengine';
-import type { App, ESEngineModule, ResourceDef, SubsystemStatus } from 'esengine';
+import type { App, ESEngineModule, ResourceDef, SubsystemStatus, SceneData } from 'esengine';
 import { SceneLoader } from './SceneLoader';
+import { loadEditorSpine } from './spineLoad';
 import { checkEngineBuild } from './EngineGuard';
 import type { ReadonlyWorldT, WorldT } from './schema';
 
@@ -257,6 +258,21 @@ class EngineHostImpl {
    */
   async loadScene(sceneUrl: string, manifestUrl?: string): Promise<number> {
     return this.app_ ? SceneLoader.loadInto(this.app_, sceneUrl, manifestUrl) : 0;
+  }
+
+  /**
+   * Bind a scene's spine entities into the SpineManager so spine renders in the
+   * viewport (the World already holds the SpineAnimation components). entityMap =
+   * scene id → runtime entity; `toUrl` maps an asset ref to a fetchable URL. The
+   * project transport (ProjectStore) drives this after Reconciler.adopt; the
+   * dev/automation transport (SceneLoader.loadInto) calls loadEditorSpine itself.
+   */
+  async loadSpine(
+    sceneData: SceneData,
+    entityMap: Map<number, number>,
+    toUrl: (ref: string) => string,
+  ): Promise<void> {
+    if (this.app_) await loadEditorSpine(this.app_, sceneData, entityMap, toUrl);
   }
 
   private resize() {

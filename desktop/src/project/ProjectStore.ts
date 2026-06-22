@@ -233,6 +233,25 @@ class ProjectStoreImpl {
     Reconciler.adopt(expandedRaw, resolved);
     // Re-apply prefab-instance tags (adopt cleared them) so save can collapse.
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
+
+    // Bind spine entities' skeletons/atlas/textures into the SpineManager so spine
+    // renders in the viewport (the World holds the SpineAnimation components, but
+    // spine assets load separately from Assets — REARCH_SPINE side modules). The
+    // entityMap is the Reconciler's source→runtime binding; refs resolve through
+    // the project's estella:// transport.
+    const spineMap = new Map<number, number>();
+    for (const e of expandedRaw.entities) {
+      const id = (e as { id?: number }).id;
+      if (id === undefined) continue;
+      const rt = SceneModel.runtimeFor(id);
+      if (rt !== undefined) spineMap.set(id, rt as number);
+    }
+    await EngineHost.loadSpine(expandedRaw, spineMap, (ref) =>
+      ref.startsWith('@uuid:')
+        ? `estella://project/${this.resolveRef(ref) ?? ''}`
+        : `estella://project/${ref.replace(/^\//, '')}`,
+    );
+
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: rel } });
   }
