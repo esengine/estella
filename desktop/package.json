@@ -16,6 +16,7 @@
     "verify:render:spine": "vite build && ESTELLA_VERIFY_SCENE=/scenes/spine-test.esscene ESTELLA_VERIFY_MANIFEST=/scenes/spine-test.textures.json electron scripts/headless-verify.mjs",
     "verify:render:particles": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/particle-demo.esscene ESTELLA_VERIFY_MANIFEST=/scenes/particle-demo.textures.json ESTELLA_VERIFY_STEPS=90 electron scripts/headless-verify.mjs",
     "verify:render:postprocess": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/postprocess-effects.esscene ESTELLA_VERIFY_MANIFEST=/scenes/postprocess-effects.textures.json ESTELLA_VERIFY_STEPS=30 electron scripts/headless-verify.mjs",
+    "verify:render:text": "vite build && ESTELLA_VERIFY_SCENE=/scenes/ui-text-sdf.esscene ESTELLA_VERIFY_MANIFEST=/scenes/ui-text-sdf.textures.json electron scripts/headless-verify.mjs",
     "verify:smoke": "vite build && electron scripts/headless-smoke.mjs",
     "mcp": "electron electron/mcp/server.mjs",
     "mcp:smoke": "vite build && node electron/mcp/smoke.mjs"

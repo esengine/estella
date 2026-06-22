@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "name": "SDF Text Verify",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 200, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "SdfLabel",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -220, "y": 0, "z": 0 } } },
+        {
+          "type": "UIText",
+          "data": {
+            "content": "Ag Hi 文字",
+            "fontFamily": "sans-serif",
+            "fontSizePx": 72,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "style": 0,
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}
