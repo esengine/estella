@@ -1,82 +1,78 @@
 import type { Entity } from '../types';
-import type { ESEngineModule } from '../wasm';
 import { defineResource } from '../resource';
+import { createTimelineState, type TimelineState } from './TimelineDrive';
+import { WrapMode } from './TimelineTypes';
 
 /**
- * Per-App timeline playback control. Holds this App's entity->handle map and the
- * (guarded) wasm module; published as the {@link Timeline} resource. Replaces
- * the former process-global `TimelineControl` object + module/handle globals so
- * two Apps' timelines never collide on entity id.
- *
- * `TimelinePlugin` keeps the module current via {@link setModule} each frame and
- * records handles via {@link setHandle}; game code drives playback through
+ * Per-App timeline playback control. Holds this App's per-entity playback state
+ * and is published as the {@link Timeline} resource; game code drives playback via
  * `app.getResource(Timeline)`.
+ *
+ * The timeline runtime is pure TS now (docs/REARCH_ANIMATION.md P4c) — there is no
+ * C++ handle or wasm module here. `TimelinePlugin` advances each entity's
+ * {@link TimelineState} every frame; these methods just flip/seek that state.
  */
 export class TimelineApi {
-    private readonly handles_ = new Map<Entity, number>();
-    private module_: ESEngineModule | null = null;
+    private readonly states_ = new Map<Entity, TimelineState>();
 
-    /** @internal Plugin keeps the guarded module current each frame. */
-    setModule(mod: ESEngineModule | null): void {
-        this.module_ = mod;
+    /** @internal Plugin ensures (creating if needed) the per-entity playback state. */
+    ensureState(entity: Entity, wrapMode: WrapMode, speed: number): TimelineState {
+        let s = this.states_.get(entity);
+        if (!s) {
+            s = createTimelineState(wrapMode, speed);
+            this.states_.set(entity, s);
+        }
+        return s;
+    }
+
+    getState(entity: Entity): TimelineState | undefined {
+        return this.states_.get(entity);
+    }
+
+    /** @internal Forget an entity's state (on despawn). */
+    removeState(entity: Entity): void {
+        this.states_.delete(entity);
     }
 
     /** @internal */
-    setHandle(entity: Entity, handle: number): void {
-        this.handles_.set(entity, handle);
-    }
-
-    getHandle(entity: Entity): number | undefined {
-        return this.handles_.get(entity);
-    }
-
-    /** @internal Destroys the C++ timeline (if loaded) and forgets the handle. */
-    removeHandle(entity: Entity): void {
-        const handle = this.handles_.get(entity);
-        if (handle && this.module_) {
-            this.module_._tl_destroy(handle);
-        }
-        this.handles_.delete(entity);
-    }
-
-    /** @internal */
-    clearHandles(): void {
-        if (this.module_) {
-            for (const handle of this.handles_.values()) {
-                this.module_._tl_destroy(handle);
-            }
-        }
-        this.handles_.clear();
+    clearStates(): void {
+        this.states_.clear();
     }
 
     play(entity: Entity): void {
-        const handle = this.handles_.get(entity);
-        if (handle && this.module_) this.module_._tl_play(handle);
+        const s = this.states_.get(entity);
+        if (s) s.playing = true;
     }
 
     pause(entity: Entity): void {
-        const handle = this.handles_.get(entity);
-        if (handle && this.module_) this.module_._tl_pause(handle);
+        const s = this.states_.get(entity);
+        if (s) s.playing = false;
     }
 
     stop(entity: Entity): void {
-        const handle = this.handles_.get(entity);
-        if (handle && this.module_) this.module_._tl_stop(handle);
+        const s = this.states_.get(entity);
+        if (s) {
+            s.playing = false;
+            s.time = 0;
+            s.prevTime = 0;
+            s.spineClipIndices = {};
+        }
     }
 
     setTime(entity: Entity, time: number): void {
-        const handle = this.handles_.get(entity);
-        if (handle && this.module_) this.module_._tl_setTime(handle, time);
+        const s = this.states_.get(entity);
+        if (s) {
+            s.prevTime = s.time;
+            s.time = time;
+        }
     }
 
     isPlaying(entity: Entity): boolean {
-        const handle = this.handles_.get(entity);
-        return handle && this.module_ ? this.module_._tl_isPlaying(handle) !== 0 : false;
+        return this.states_.get(entity)?.playing ?? false;
     }
 
     getCurrentTime(entity: Entity): number {
-        const handle = this.handles_.get(entity);
-        return handle && this.module_ ? this.module_._tl_getTime(handle) : 0;
+        return this.states_.get(entity)?.time ?? 0;
     }
 }
 

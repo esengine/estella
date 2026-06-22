@@ -92,29 +92,6 @@ describe('uiHelpers bridge', () => {
 // timeline — the plugin feeds TimelineControl a guarded module; verify the
 // control path honours it (the plugin wiring that produces the guarded module
 // is covered by typecheck).
-// ---------------------------------------------------------------------------
-describe('timeline bridge (control path)', () => {
-    function makeModule(): ESEngineModule {
-        return {
-            _tl_play: vi.fn(),
-            _tl_isPlaying: () => 1,
-            onAbort: undefined,
-        } as unknown as ESEngineModule;
-    }
-
-    it('honours the guarded module: short-circuits _tl_* after an abort', () => {
-        const raw = makeModule();
-        const bridge = new CoreApiBridge('timeline');
-        bridge.connect(raw);
-        const tl = new TimelineApi();
-        tl.setModule(bridge.module);          // exactly what TimelinePlugin does
-        tl.setHandle(7 as unknown as Entity, 100);
-
-        tl.play(7 as unknown as Entity);
-        expect((raw as unknown as { _tl_play: ReturnType<typeof vi.fn> })._tl_play)
-            .toHaveBeenCalledWith(100);
-
-        abort(raw);
-        expect(() => tl.play(7 as unknown as Entity)).toThrow(WasmModuleAborted);
-    });
-});
+// The timeline control path no longer routes through the wasm module — the
+// runtime is pure TS now (REARCH_ANIMATION P4c), so there's no `_tl_*` bridge to
+// guard. (tilemap + ui bridges above still cover the CoreApiBridge guard.)

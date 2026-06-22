@@ -29,26 +29,15 @@ export {
 } from './TimelineLoader';
 
 export {
-    uploadTimelineToWasm,
-    AnimTargetField,
-    type UploadResult,
-    type UploadedTrackInfo,
-} from './TimelineUploader';
-
-export {
     Timeline,
     TimelineApi,
 } from './TimelineControl';
 
 export {
     resolveChildEntity,
-    resolveTrackTargets,
-    createTimelineHandle,
-    destroyTimelineHandle,
-    processTimelineEvents,
-    processCustomProperties,
-    advanceAndProcess,
     setNestedProperty,
+    applyTimelineEvent,
+    TimelineEventType,
 } from './TimelineRuntime';
 
 export {

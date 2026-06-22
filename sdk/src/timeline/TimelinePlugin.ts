@@ -6,15 +6,10 @@ import { defineComponent, getComponent } from '../component';
 import { playModeOnly } from '../env';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { WrapMode, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
-import { parseTimelineAsset } from './TimelineLoader';
-import { uploadTimelineToWasm, type UploadResult } from './TimelineUploader';
 import { Timeline, TimelineApi } from './TimelineControl';
-import {
-    resolveTrackTargets,
-    advanceAndProcess,
-} from './TimelineRuntime';
-import type { ESEngineModule } from '../wasm';
-import { CoreApiBridge } from '../CoreApiBridge';
+import { resolveChildEntity } from './TimelineRuntime';
+import { advanceTimelineTS } from './TimelineDrive';
+import type { SampleDeps } from './TimelineEvaluator';
 import type { Entity } from '../types';
 
 export { setNestedProperty } from './TimelineRuntime';
@@ -53,7 +48,7 @@ export function getTimelineTextureHandle(timelinePath: string, textureUuid: stri
     return activeTimelinePlugin?.getTextureHandle(timelinePath, textureUuid) ?? 0;
 }
 
-const WRAP_MODE_MAP: Record<string, number> = {
+const WRAP_MODE_MAP: Record<string, WrapMode> = {
     once: WrapMode.Once,
     loop: WrapMode.Loop,
     pingPong: WrapMode.PingPong,
@@ -69,9 +64,7 @@ export class TimelinePlugin implements Plugin {
 
     private loadedAssets_ = new Map<string, TimelineAsset>();
     private textureHandles_ = new Map<string, Map<string, number>>();
-    private handles_ = new Map<number, UploadResult>();
     private animFramesStates_ = new Map<number, AnimFramesState>();
-    private bridge_ = new CoreApiBridge('timeline');
 
     registerAsset(path: string, asset: TimelineAsset): void {
         this.loadedAssets_.set(path, asset);
@@ -95,78 +88,46 @@ export class TimelinePlugin implements Plugin {
         app.insertResource(Timeline, new TimelineApi());
 
         world.onDespawn((entity: Entity) => {
-            app.getResource(Timeline).removeHandle(entity);
-            this.handles_.delete(entity);
+            app.getResource(Timeline).removeState(entity);
             this.animFramesStates_.delete(entity);
         });
 
+        // The timeline runs entirely in TS (REARCH_ANIMATION P4c): a per-entity
+        // clock + the shared evaluator (property tracks) + edge-detected event
+        // dispatch — no wasm timeline, no upload, no per-frame poll. Property writes
+        // land via world.set (the same path the editor preview uses).
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
-                const rawModule = world.getWasmModule() as ESEngineModule;
-                if (!rawModule) return;
-                // Route the main module through the bridge once (re-connect only
-                // if the underlying module changes). Every `_tl_*` call below —
-                // and everything handed `module` (the Timeline resource via
-                // setModule, the uploader, the runtime) — then inherits the
-                // terminal-abort guard.
-                if (this.bridge_.raw !== rawModule) this.bridge_.connect(rawModule);
-                const module = this.bridge_.module;
-
                 const tl = app.getResource(Timeline);
-                tl.setModule(module);
-                const registry = world.getCppRegistry() as any;
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
+                const deps: SampleDeps = {
+                    world,
+                    getComponent,
+                    resolveChild: (root, childPath) => resolveChildEntity(world, root, childPath),
+                };
 
-                const entities = world.getEntitiesWithComponents([TimelinePlayer]);
-                for (const entity of entities) {
-                    const playerData = world.get(entity, TimelinePlayer) as TimelinePlayerData;
-                    if (!playerData.timeline) continue;
+                for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
+                    const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
+                    if (!player.timeline) continue;
+                    const asset = this.loadedAssets_.get(player.timeline);
+                    if (!asset) continue;
 
-                    let uploadResult = this.handles_.get(entity);
-                    if (!uploadResult) {
-                        const asset = this.loadedAssets_.get(playerData.timeline);
-                        if (!asset) continue;
-                        uploadResult = uploadTimelineToWasm(module, asset);
-                        if (!uploadResult.handle) continue;
-                        resolveTrackTargets(world, module, uploadResult, entity);
-                        this.handles_.set(entity, uploadResult);
-                        tl.setHandle(entity, uploadResult.handle);
+                    const wrapMode = WRAP_MODE_MAP[player.wrapMode] ?? WrapMode.Once;
+                    const state = tl.ensureState(entity, wrapMode, player.speed);
+                    state.speed = player.speed;
+                    state.wrapMode = wrapMode;
+                    state.playing = player.playing;
 
-                        const afTracks = asset.tracks.filter(
-                            (t): t is AnimFramesTrack => t.type === TrackType.AnimFrames,
-                        );
-                        if (afTracks.length > 0) {
-                            this.animFramesStates_.set(entity, {
-                                tracks: afTracks,
-                                lastFrameIndices: afTracks.map(() => -1),
-                            });
-                        }
-                    }
+                    this.ensureAnimFrames(entity, asset);
 
-                    const handle = uploadResult.handle;
+                    advanceTimelineTS(asset, entity, state, time.delta, { deps, audio });
+                    this.processAnimFrames(world, entity, state.time, player.timeline);
 
-                    if (playerData.playing && !module._tl_isPlaying(handle)) {
-                        const currentTime = module._tl_getTime(handle);
-                        if (currentTime === 0) {
-                            module._tl_play(handle);
-                        } else {
-                            module._tl_play(handle);
-                            module._tl_setTime(handle, currentTime);
-                        }
-                    } else if (!playerData.playing && module._tl_isPlaying(handle)) {
-                        module._tl_pause(handle);
-                    }
-
-                    const wrapModeNum = WRAP_MODE_MAP[playerData.wrapMode] ?? WrapMode.Once;
-                    module._tl_setWrapMode(handle, wrapModeNum);
-
-                    advanceAndProcess(world, module, handle, entity, time.delta, playerData.speed, uploadResult, audio);
-                    this.processAnimFrames(world, module, entity, handle, playerData.timeline);
-
-                    if (!module._tl_isPlaying(handle) && playerData.playing) {
-                        playerData.playing = false;
-                        world.insert(entity, TimelinePlayer, playerData);
+                    // A clip that hit its end (Once) clears the component's play flag.
+                    if (!state.playing && player.playing) {
+                        player.playing = false;
+                        world.insert(entity, TimelinePlayer, player);
                     }
                 }
             },
@@ -175,34 +136,42 @@ export class TimelinePlugin implements Plugin {
     }
 
     clearHandles(): void {
-        this.handles_.clear();
         this.animFramesStates_.clear();
     }
 
     cleanup(): void {
-        this.handles_.clear();
         this.animFramesStates_.clear();
         this.loadedAssets_.clear();
         this.textureHandles_.clear();
         activeTimelinePlugin = null;
     }
 
+    private ensureAnimFrames(entity: Entity, asset: TimelineAsset): void {
+        if (this.animFramesStates_.has(entity)) return;
+        const afTracks = asset.tracks.filter(
+            (t): t is AnimFramesTrack => t.type === TrackType.AnimFrames,
+        );
+        if (afTracks.length > 0) {
+            this.animFramesStates_.set(entity, {
+                tracks: afTracks,
+                lastFrameIndices: afTracks.map(() => -1),
+            });
+        }
+    }
+
     private processAnimFrames(
-        world: any, module: ESEngineModule, entity: Entity, handle: number,
-        timelinePath: string,
+        world: any, entity: Entity, currentTime: number, timelinePath: string,
     ): void {
         const state = this.animFramesStates_.get(entity);
         if (!state) return;
 
-        const currentTime = module._tl_getTime(handle);
         const Sprite = getComponent('Sprite');
         if (!Sprite || !world.has(entity, Sprite)) return;
 
         const DEFAULT_DURATION = 1.0 / 12;
 
         for (let t = 0; t < state.tracks.length; t++) {
-            const track = state.tracks[t];
-            const frames = track.frames;
+            const frames = state.tracks[t].frames;
             if (frames.length === 0) continue;
 
             let elapsed = 0;
@@ -221,8 +190,7 @@ export class TimelinePlugin implements Plugin {
 
             if (frameIndex !== state.lastFrameIndices[t]) {
                 state.lastFrameIndices[t] = frameIndex;
-                const textureUuid = frames[frameIndex].texture;
-                const textureHandle = getTimelineTextureHandle(timelinePath, textureUuid);
+                const textureHandle = getTimelineTextureHandle(timelinePath, frames[frameIndex].texture);
                 if (textureHandle) {
                     const sprite = world.get(entity, Sprite);
                     sprite.texture = textureHandle;
