@@ -106,72 +106,81 @@ function decodeEventString(module: ESEngineModule, index: number): string {
     return sharedTextDecoder.decode(bytes);
 }
 
+/**
+ * Apply ONE decoded timeline event to the world (component mutations / audio).
+ * Shared by the legacy C++-poll path ({@link processTimelineEvents}) and the
+ * pure-TS runtime (TimelineDrive) so the dispatch lives in one place
+ * (docs/REARCH_ANIMATION.md P4c).
+ */
+export function applyTimelineEvent(
+    world: any, audio: AudioAPI | null,
+    type: number, entity: Entity,
+    intParam: number, floatParam: number, str: string,
+): void {
+    switch (type) {
+        case TimelineEventType.SpinePlay: {
+            if (world.has(entity, SpineAnimation)) {
+                const current = world.get(entity, SpineAnimation);
+                current.animation = str;
+                current.playing = true;
+                current.loop = intParam !== 0;
+                world.set(entity, SpineAnimation, current);
+            }
+            break;
+        }
+        case TimelineEventType.SpineStop: {
+            if (world.has(entity, SpineAnimation)) {
+                const current = world.get(entity, SpineAnimation);
+                current.playing = false;
+                world.set(entity, SpineAnimation, current);
+            }
+            break;
+        }
+        case TimelineEventType.SpriteAnimPlay: {
+            if (world.has(entity, SpriteAnimator)) {
+                const current = world.get(entity, SpriteAnimator);
+                world.insert(entity, SpriteAnimator, { ...current, clip: str, playing: true });
+            }
+            break;
+        }
+        case TimelineEventType.AudioPlay: {
+            if (str && audio) audio.playSFX(str, { volume: floatParam });
+            break;
+        }
+        case TimelineEventType.ActivationSet: {
+            const active = intParam !== 0;
+            if (world.has(entity, SpineAnimation)) {
+                const current = world.get(entity, SpineAnimation);
+                current.enabled = active;
+                world.set(entity, SpineAnimation, current);
+            }
+            if (world.has(entity, SpriteAnimator)) {
+                const current = world.get(entity, SpriteAnimator);
+                world.insert(entity, SpriteAnimator, { ...current, enabled: active });
+            }
+            const Sprite = getComponent('Sprite');
+            if (Sprite && world.has(entity, Sprite)) {
+                const current = world.get(entity, Sprite);
+                world.set(entity, Sprite, { ...current, enabled: active });
+            }
+            break;
+        }
+    }
+}
+
+export { TimelineEventType };
+
 export function processTimelineEvents(world: any, module: ESEngineModule, audio: AudioAPI | null = null): void {
     const count = module._tl_getEventCount();
     for (let i = 0; i < count; i++) {
-        const type = module._tl_getEventType(i);
-        const entity = module._tl_getEventEntity(i);
-
-        switch (type) {
-            case TimelineEventType.SpinePlay: {
-                const animName = decodeEventString(module, i);
-                const loop = module._tl_getEventIntParam(i) !== 0;
-                if (world.has(entity, SpineAnimation)) {
-                    const current = world.get(entity, SpineAnimation);
-                    current.animation = animName;
-                    current.playing = true;
-                    current.loop = loop;
-                    world.set(entity, SpineAnimation, current);
-                }
-                break;
-            }
-            case TimelineEventType.SpineStop: {
-                if (world.has(entity, SpineAnimation)) {
-                    const current = world.get(entity, SpineAnimation);
-                    current.playing = false;
-                    world.set(entity, SpineAnimation, current);
-                }
-                break;
-            }
-            case TimelineEventType.SpriteAnimPlay: {
-                const clipName = decodeEventString(module, i);
-                if (world.has(entity, SpriteAnimator)) {
-                    const current = world.get(entity, SpriteAnimator);
-                    world.insert(entity, SpriteAnimator, {
-                        ...current,
-                        clip: clipName,
-                        playing: true,
-                    });
-                }
-                break;
-            }
-            case TimelineEventType.AudioPlay: {
-                const clipPath = decodeEventString(module, i);
-                const volume = module._tl_getEventFloatParam(i);
-                if (clipPath && audio) {
-                    audio.playSFX(clipPath, { volume });
-                }
-                break;
-            }
-            case TimelineEventType.ActivationSet: {
-                const active = module._tl_getEventIntParam(i) !== 0;
-                if (world.has(entity, SpineAnimation)) {
-                    const current = world.get(entity, SpineAnimation);
-                    current.enabled = active;
-                    world.set(entity, SpineAnimation, current);
-                }
-                if (world.has(entity, SpriteAnimator)) {
-                    const current = world.get(entity, SpriteAnimator);
-                    world.insert(entity, SpriteAnimator, { ...current, enabled: active });
-                }
-                const Sprite = getComponent('Sprite');
-                if (Sprite && world.has(entity, Sprite)) {
-                    const current = world.get(entity, Sprite);
-                    world.set(entity, Sprite, { ...current, enabled: active });
-                }
-                break;
-            }
-        }
+        applyTimelineEvent(
+            world, audio,
+            module._tl_getEventType(i),
+            module._tl_getEventEntity(i) as Entity,
+            module._tl_getEventIntParam(i),
+            module._tl_getEventFloatParam(i),
+            decodeEventString(module, i),
+        );
     }
 }
 

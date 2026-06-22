@@ -71,6 +71,15 @@ export {
 } from './AnimationClip';
 
 export {
+    advanceTimelineTS,
+    detectTimelineEvents,
+    createTimelineState,
+    type TimelineState,
+    type FiredEvent,
+    type AdvanceContext,
+} from './TimelineDrive';
+
+export {
     TimelinePlugin,
     timelinePlugin,
     TimelinePlayer,
