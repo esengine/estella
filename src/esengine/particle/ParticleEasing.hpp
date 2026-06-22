@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "../animation/EasingFunctions.hpp"
 
 namespace esengine::particle {
 
@@ -11,21 +12,17 @@ enum class EasingType : i32 {
     EaseInOut = 3,
 };
 
+// Delegates to the shared easing library so the math lives in ONE place
+// (docs/REARCH_ANIMATION.md easing consolidation). Particle keeps its own 4-value
+// enum (its serialized data format); the formulas are byte-identical to the quad
+// easings, so this is behavior-preserving.
 inline f32 applyEasing(EasingType type, f32 t) {
     switch (type) {
-        case EasingType::EaseIn:
-            return t * t;
-        case EasingType::EaseOut:
-            return t * (2.0f - t);
-        case EasingType::EaseInOut: {
-            if (t < 0.5f) {
-                return 2.0f * t * t;
-            }
-            return -1.0f + (4.0f - 2.0f * t) * t;
-        }
+        case EasingType::EaseIn:    return animation::easeInQuad(t);
+        case EasingType::EaseOut:   return animation::easeOutQuad(t);
+        case EasingType::EaseInOut: return animation::easeInOutQuad(t);
         case EasingType::Linear:
-        default:
-            return t;
+        default:                    return animation::easeLinear(t);
     }
 }
 

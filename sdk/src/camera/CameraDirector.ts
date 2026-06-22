@@ -10,6 +10,7 @@
  */
 import type { App } from '../app';
 import { defineResource } from '../resource';
+import { applyEasing, EasingType } from '../animation/Easing';
 import type { CameraPOV } from './CameraPlugin';
 
 /** Easing for a view-target transition. */
@@ -23,16 +24,10 @@ export type BlendCurve = (typeof BlendCurve)[keyof typeof BlendCurve];
 
 export function applyCurve(curve: number, t: number): number {
   const x = t < 0 ? 0 : t > 1 ? 1 : t;
-  switch (curve) {
-    case BlendCurve.EaseIn:
-      return x * x;
-    case BlendCurve.EaseOut:
-      return 1 - (1 - x) * (1 - x);
-    case BlendCurve.EaseInOut:
-      return x < 0.5 ? 2 * x * x : 1 - ((-2 * x + 2) * (-2 * x + 2)) / 2;
-    default:
-      return x; // Linear
-  }
+  // BlendCurve 0..3 aligns with Easing's Linear/EaseInQuad/EaseOutQuad/EaseInOutQuad
+  // (identical formulas) — delegate so the easing math lives in one place
+  // (docs/REARCH_ANIMATION.md easing consolidation).
+  return applyEasing(curve as EasingType, x);
 }
 
 /** Signed shortest angular delta a→b (radians), so a blend never spins the long way. */
