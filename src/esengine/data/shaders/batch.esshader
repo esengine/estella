@@ -1,6 +1,11 @@
 #pragma shader "Batch"
 #pragma version 300 es
 
+// Compile-time variant: when enabled the fragment stage treats the sampled
+// alpha as a signed distance field (runtime glyph atlas, REARCH_GUI P1) and
+// derives crisp, resolution-independent coverage instead of sampling RGBA.
+#pragma feature SDF
+
 #pragma vertex
 layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec4 a_color;
@@ -47,6 +52,16 @@ void main() {
     else if (v_texIndex == 5) texColor = texture(u_textures[5], v_texCoord);
     else if (v_texIndex == 6) texColor = texture(u_textures[6], v_texCoord);
     else texColor = texture(u_textures[7], v_texCoord);
+#ifdef SDF
+    // The glyph atlas stores a signed distance in the alpha channel (RGB = 1).
+    // Recover ~1px screen-space coverage with a smoothstep around the 0.5 edge;
+    // fwidth tracks the on-screen scale so glyphs stay crisp at any size.
+    float dist = texColor.a;
+    float aa = fwidth(dist);
+    float coverage = smoothstep(0.5 - aa, 0.5 + aa, dist);
+    fragColor = vec4(v_color.rgb, v_color.a * coverage);
+#else
     fragColor = texColor * v_color;
+#endif
 }
 #pragma end

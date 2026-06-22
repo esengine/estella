@@ -360,12 +360,27 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
 }
 
 u32 RenderFrame::initBatchShader() {
+    // The default (featureless) batch program; seeds the variant cache.
+    return batchProgram({});
+}
+
+u32 RenderFrame::batchProgram(const std::vector<std::string>& features) {
+    const std::string key = resource::ShaderParser::variantKey(features);
+    auto it = batch_variants_.find(key);
+    if (it != batch_variants_.end()) return it->second;
+    const u32 prog = compileBatchVariant(features);
+    batch_variants_.emplace(key, prog);
+    return prog;
+}
+
+u32 RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
     // The batch shader is authored as a single .esshader, embedded for the web build.
-    // Parse it and assemble the two GLSL ES 3.00 stages (single source of truth).
+    // Parse it and assemble the two GLSL ES 3.00 stages (single source of truth),
+    // injecting the requested feature #defines (e.g. SDF).
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
     resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features),
         {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
     );
 
@@ -382,7 +397,8 @@ u32 RenderFrame::initBatchShader() {
         return prog;
     }
 
-    ES_LOG_ERROR("Failed to create batch shader");
+    const std::string vk = resource::ShaderParser::variantKey(features);
+    ES_LOG_ERROR("Failed to create batch shader variant '{}'", vk.empty() ? "default" : vk.c_str());
     return 0;
 }
 

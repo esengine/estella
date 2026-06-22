@@ -18,6 +18,7 @@
 
 #include <glm/glm.hpp>
 #include <vector>
+#include <string>
 #include <memory>
 #include <unordered_map>
 
@@ -114,6 +115,14 @@ public:
     void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
     void collectAll(ecs::Registry& registry, u32 skipFlags = 0);
 
+    /**
+     * Compiled program id for a batch-shader feature variant, compiled+cached on
+     * first use (REARCH_GUI P1.2). `{}` is the default batch program; `{"SDF"}`
+     * is the glyph-atlas SDF text variant. Same vertex layout + sampler/UBO setup
+     * as the default, so quads of any variant share the batch vertex format.
+     */
+    u32 batchProgram(const std::vector<std::string>& features);
+
     static constexpr u32 STAGE_COUNT = 4;
 
 private:
@@ -149,6 +158,9 @@ private:
     std::unordered_map<u32, EntityStencilInfo> stencil_masks_;
 
     u32 batch_shader_id_ = 0;
+    // Compiled batch-shader variants keyed by ShaderParser::variantKey(features)
+    // (REARCH_GUI P1.2). {} → default, {"SDF"} → glyph-atlas text.
+    std::unordered_map<std::string, u32> batch_variants_;
     TransientBufferPool pool_;
     DrawList draw_list_;
     ClipState clip_state_;
@@ -157,6 +169,7 @@ private:
     RenderFrameContext makeContext();
     void buildClipState();
     u32 initBatchShader();
+    u32 compileBatchVariant(const std::vector<std::string>& features);
 };
 
 }  // namespace esengine
