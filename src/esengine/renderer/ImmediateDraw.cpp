@@ -26,6 +26,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <array>
 #include <cmath>
+#include <string>
 
 namespace esengine {
 
@@ -70,8 +71,12 @@ void ImmediateDraw::init() {
     if (shader && shader->isValid()) {
         batch_shader_id_ = shader->getProgramId();
         device_.useProgram(batch_shader_id_);
-        i32 texLoc = device_.getUniformLocation(batch_shader_id_, "u_texture");
-        if (texLoc >= 0) device_.setUniform1i(texLoc, 0);
+        // Immediate draw is single-texture (slot 0), but bind all 8 samplers for parity
+        // with the world batch shader.
+        for (i32 i = 0; i < 8; ++i) {
+            i32 loc = device_.getUniformLocation(batch_shader_id_, ("u_textures[" + std::to_string(i) + "]").c_str());
+            if (loc >= 0) device_.setUniform1i(loc, i);
+        }
         device_.useProgram(0);
 
         // One immutable pipeline: the batch shader, Batch layout, normal blend, depth

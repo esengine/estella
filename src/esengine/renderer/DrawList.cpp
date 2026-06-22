@@ -1,9 +1,21 @@
 #include "DrawList.hpp"
+#include "BatchVertex.hpp"
 
 #include <glm/glm.hpp>
 #include <algorithm>
 
 namespace esengine {
+
+namespace {
+// Stamp a merged sampler slot onto every vertex of a Batch-layout command. The vertices
+// are still in CPU staging at finalize time (finalize runs before upload), so the shader
+// later samples u_textures[texIndex]. Only the Batch layout carries a texIndex attribute.
+void rewriteTexIndex(TransientBufferPool& pool, const DrawCommand& cmd, i32 slot) {
+    auto* verts = reinterpret_cast<BatchVertex*>(pool.vertexData(LayoutId::Batch) + cmd.vertex_byte_offset);
+    f32 fslot = static_cast<f32>(slot);
+    for (u32 k = 0; k < cmd.vertex_count; ++k) verts[k].texIndex = fslot;
+}
+}  // namespace
 
 void DrawList::clear() {
     commands_.clear();
@@ -15,7 +27,7 @@ void DrawList::push(const DrawCommand& cmd) {
     commands_.push_back(cmd);
 }
 
-void DrawList::finalize() {
+void DrawList::finalize(TransientBufferPool& pool) {
     u32 count = static_cast<u32>(commands_.size());
     if (count == 0) {
         merged_draw_calls_ = 0;
@@ -27,9 +39,12 @@ void DrawList::finalize() {
         sort_entries_[i] = { commands_[i].sort_key, i };
     }
 
+    // Tie-break on emit index so same-key commands keep submission order: that keeps an
+    // emit-contiguous run contiguous after sorting, which is what lets the merge coalesce it
+    // (including across different textures, now that texture is out of the key).
     std::sort(sort_entries_.begin(), sort_entries_.end(),
               [](const SortEntry& a, const SortEntry& b) {
-                  return a.key < b.key;
+                  return a.key < b.key || (a.key == b.key && a.index < b.index);
               });
 
     // Gather into a reused scratch buffer (not a fresh per-frame vector) and swap
@@ -44,12 +59,34 @@ void DrawList::finalize() {
     u32 writeIdx = 0;
 
     for (u32 i = 0; i < count; ++i) {
-        if (writeIdx > 0 && commands_[writeIdx - 1].canMergeWith(commands_[i])) {
-            commands_[writeIdx - 1].index_count += commands_[i].index_count;
-            commands_[writeIdx - 1].entity_count += commands_[i].entity_count;
-        } else {
+        bool didMerge = false;
+        if (writeIdx > 0) {
+            DrawCommand& head = commands_[writeIdx - 1];
+            if (head.canMergeWith(commands_[i])) {
+                if (head.layout_id == LayoutId::Batch && commands_[i].texture_count >= 1) {
+                    // Multi-texture: give this command's texture a slot in the head's set
+                    // (or bail to a new draw if all 8 slots are taken), then stamp its verts.
+                    i32 slot = head.addTextureSlot(commands_[i].texture_ids[0]);
+                    if (slot >= 0) {
+                        rewriteTexIndex(pool, commands_[i], slot);
+                        head.index_count += commands_[i].index_count;
+                        head.entity_count += commands_[i].entity_count;
+                        didMerge = true;
+                    }
+                } else {
+                    head.index_count += commands_[i].index_count;
+                    head.entity_count += commands_[i].entity_count;
+                    didMerge = true;
+                }
+            }
+        }
+        if (!didMerge) {
             if (writeIdx != i) {
                 commands_[writeIdx] = commands_[i];
+            }
+            // First command of a run owns slot 0 of its (so far single-texture) set.
+            if (commands_[writeIdx].layout_id == LayoutId::Batch) {
+                rewriteTexIndex(pool, commands_[writeIdx], 0);
             }
             ++writeIdx;
         }

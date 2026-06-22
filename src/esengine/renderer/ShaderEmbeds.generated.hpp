@@ -9,6 +9,7 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
+layout(location = 3) in float a_texIndex;
 
 layout(std140) uniform FrameConstants {
     mat4 u_projection;
@@ -16,11 +17,13 @@ layout(std140) uniform FrameConstants {
 
 out vec4 v_color;
 out vec2 v_texCoord;
+flat out int v_texIndex;
 
 void main() {
     gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
     v_color = a_color;
     v_texCoord = a_texCoord;
+    v_texIndex = int(a_texIndex);
 }
 #pragma end
 
@@ -29,13 +32,25 @@ precision mediump float;
 
 in vec4 v_color;
 in vec2 v_texCoord;
+flat in int v_texIndex;
 
-uniform sampler2D u_texture;
+// Up to 8 textures bound per multi-texture batch. GLSL ES 3.00 forbids indexing a
+// sampler array with a non-uniform expression, so the slot is selected by a constant
+// branch chain (the standard WebGL2 multi-texture batching technique).
+uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
 void main() {
-    vec4 texColor = texture(u_texture, v_texCoord);
+    vec4 texColor;
+    if (v_texIndex == 0) texColor = texture(u_textures[0], v_texCoord);
+    else if (v_texIndex == 1) texColor = texture(u_textures[1], v_texCoord);
+    else if (v_texIndex == 2) texColor = texture(u_textures[2], v_texCoord);
+    else if (v_texIndex == 3) texColor = texture(u_textures[3], v_texCoord);
+    else if (v_texIndex == 4) texColor = texture(u_textures[4], v_texCoord);
+    else if (v_texIndex == 5) texColor = texture(u_textures[5], v_texCoord);
+    else if (v_texIndex == 6) texColor = texture(u_textures[6], v_texCoord);
+    else texColor = texture(u_textures[7], v_texCoord);
     fragColor = texColor * v_color;
 }
 #pragma end

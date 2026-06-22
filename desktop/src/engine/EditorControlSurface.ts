@@ -186,9 +186,12 @@ export class EditorControlSurfaceImpl {
     return { rgba, width, height };
   }
 
-  /** Live counts for quick assertions (entity count is headless-friendly). */
-  getStats(): { entities: number } {
-    return { entities: EngineHost.world?.getAllEntities().length ?? 0 };
+  /** Live counts for quick assertions (entity count + last frame's merged draw calls). */
+  getStats(): { entities: number; drawCalls: number } {
+    return {
+      entities: EngineHost.world?.getAllEntities().length ?? 0,
+      drawCalls: EngineHost.module?.renderer_getDrawCalls?.() ?? 0,
+    };
   }
 
   /**

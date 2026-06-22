@@ -89,7 +89,7 @@ struct BatchDrawKey {
  *          index range via writeIndices() before pushing one command).
  */
 void pushBatchDraw(DrawList& drawList, const ClipState& clips,
-                   u32 vertexByteOffset, u32 indexOffset, u32 indexCount,
+                   u32 vertexByteOffset, u32 vertexCount, u32 indexOffset, u32 indexCount,
                    const BatchDrawKey& key);
 
 /**
@@ -100,10 +100,10 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
  *          cover both index source widths.
  */
 void pushBatchCommand(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
-                      u32 vertexByteOffset, const u32* localIndices, u32 indexCount,
+                      u32 vertexByteOffset, u32 vertexCount, const u32* localIndices, u32 indexCount,
                       const BatchDrawKey& key);
 void pushBatchCommand(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
-                      u32 vertexByteOffset, const u16* localIndices, u32 indexCount,
+                      u32 vertexByteOffset, u32 vertexCount, const u16* localIndices, u32 indexCount,
                       const BatchDrawKey& key);
 
 /**

@@ -100,7 +100,7 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
         u32 iOff = buffers.appendIndices(LayoutId::Shape, indices, 6);
 
         DrawCommand cmd{};
-        cmd.sort_key = DrawCommand::buildSortKey(ctx.current_stage, shape.layer, shape_shader_id_, BlendMode::Normal, 0, 0, position.z);
+        cmd.sort_key = DrawCommand::buildSortKey(ctx.current_stage, shape.layer, shape_shader_id_, BlendMode::Normal, 0, position.z);
         cmd.index_offset = iOff;
         cmd.index_count = 6;
         cmd.vertex_byte_offset = vOff;

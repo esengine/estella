@@ -107,7 +107,8 @@ app.whenReady().then(async () => {
       const spread = (max[0] - min[0]) + (max[1] - min[1]) + (max[2] - min[2]);
       return { w: c.width, h: c.height, totalPixels: px.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
     })()`);
-    finish({ ok: true, entityCount, capture }, server);
+    const drawCalls = await exec('window.__estellaHeadless.api.getStats().drawCalls');
+    finish({ ok: true, entityCount, drawCalls, capture }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

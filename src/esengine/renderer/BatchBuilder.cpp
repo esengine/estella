@@ -24,7 +24,8 @@ std::vector<u32> g_indexScratch;
 
 template <typename IndexT>
 void pushBatchCommandImpl(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
-                          u32 vertexByteOffset, const IndexT* localIndices, u32 indexCount,
+                          u32 vertexByteOffset, u32 vertexCount,
+                          const IndexT* localIndices, u32 indexCount,
                           const BatchDrawKey& key) {
     if (indexCount == 0) return;
 
@@ -35,22 +36,23 @@ void pushBatchCommandImpl(TransientBufferPool& pool, DrawList& drawList, const C
     }
     u32 indexOffset = pool.appendIndices(LayoutId::Batch, g_indexScratch.data(), indexCount);
 
-    pushBatchDraw(drawList, clips, vertexByteOffset, indexOffset, indexCount, key);
+    pushBatchDraw(drawList, clips, vertexByteOffset, vertexCount, indexOffset, indexCount, key);
 }
 
 }  // namespace
 
 void pushBatchDraw(DrawList& drawList, const ClipState& clips,
-                   u32 vertexByteOffset, u32 indexOffset, u32 indexCount,
+                   u32 vertexByteOffset, u32 vertexCount, u32 indexOffset, u32 indexCount,
                    const BatchDrawKey& key) {
     if (indexCount == 0) return;
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(key.stage, key.layer, key.shaderId,
-                                             key.blend, 0, key.textureId, key.depth);
+                                             key.blend, 0, key.depth);
     cmd.index_offset = indexOffset;
     cmd.index_count = indexCount;
     cmd.vertex_byte_offset = vertexByteOffset;
+    cmd.vertex_count = vertexCount;
     cmd.shader_id = key.shaderId;
     cmd.blend_mode = key.blend;
     cmd.layout_id = LayoutId::Batch;
@@ -65,15 +67,17 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
 }
 
 void pushBatchCommand(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
-                      u32 vertexByteOffset, const u32* localIndices, u32 indexCount,
+                      u32 vertexByteOffset, u32 vertexCount,
+                      const u32* localIndices, u32 indexCount,
                       const BatchDrawKey& key) {
-    pushBatchCommandImpl(pool, drawList, clips, vertexByteOffset, localIndices, indexCount, key);
+    pushBatchCommandImpl(pool, drawList, clips, vertexByteOffset, vertexCount, localIndices, indexCount, key);
 }
 
 void pushBatchCommand(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
-                      u32 vertexByteOffset, const u16* localIndices, u32 indexCount,
+                      u32 vertexByteOffset, u32 vertexCount,
+                      const u16* localIndices, u32 indexCount,
                       const BatchDrawKey& key) {
-    pushBatchCommandImpl(pool, drawList, clips, vertexByteOffset, localIndices, indexCount, key);
+    pushBatchCommandImpl(pool, drawList, clips, vertexByteOffset, vertexCount, localIndices, indexCount, key);
 }
 
 void appendIndexedBatch(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
@@ -83,7 +87,7 @@ void appendIndexedBatch(TransientBufferPool& pool, DrawList& drawList, const Cli
     if (vertexCount == 0 || indexCount == 0) return;
     u32 vertexByteOffset = pool.appendVertices(
         LayoutId::Batch, verts, vertexCount * static_cast<u32>(sizeof(BatchVertex)));
-    pushBatchCommandImpl(pool, drawList, clips, vertexByteOffset, localIndices, indexCount, key);
+    pushBatchCommandImpl(pool, drawList, clips, vertexByteOffset, vertexCount, localIndices, indexCount, key);
 }
 
 }  // namespace esengine

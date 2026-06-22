@@ -175,8 +175,10 @@ void RenderFrame::flush() {
     // Drop any pipeline a prior phase left bound, so the first draw re-applies its state.
     device_.invalidatePipelineCache();
 
+    // finalize() sorts + coalesces and rewrites per-vertex texIndex into the staging, so it
+    // must run before upload() ships that staging to the GPU.
+    draw_list_.finalize(pool_);
     pool_.upload();
-    draw_list_.finalize();
 
     context_.updateFrameConstants(view_projection_);
     draw_list_.execute(device_, pool_, &frame_capture_);
@@ -369,13 +371,15 @@ u32 RenderFrame::initBatchShader() {
 
     Shader* shader = resource_manager_.getShader(handle);
     if (shader && shader->isValid()) {
+        u32 prog = shader->getProgramId();
         shader->bind();
-        i32 texLoc = device_.getUniformLocation(shader->getProgramId(), "u_texture");
-        if (texLoc >= 0) {
-            device_.setUniform1i(texLoc, 0);
+        // Bind the 8 multi-texture samplers to units 0..7 (per-program, set once).
+        for (i32 i = 0; i < 8; ++i) {
+            i32 loc = device_.getUniformLocation(prog, ("u_textures[" + std::to_string(i) + "]").c_str());
+            if (loc >= 0) device_.setUniform1i(loc, i);
         }
         shader->unbind();
-        return shader->getProgramId();
+        return prog;
     }
 
     ES_LOG_ERROR("Failed to create batch shader");

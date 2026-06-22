@@ -241,13 +241,15 @@ void TransientBufferPool::setupStream(LayoutId layout) {
 
     switch (layout) {
         case LayoutId::Batch: {
-            constexpr u32 STRIDE = 20;
+            constexpr u32 STRIDE = 24;  // BatchVertex: pos(8) + color(4) + uv(8) + texIndex(4)
             device_.enableVertexAttrib(0);
             device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
             device_.enableVertexAttrib(1);
             device_.vertexAttribPointer(1, 4, GfxDataType::UnsignedByte, true, STRIDE, 8);
             device_.enableVertexAttrib(2);
             device_.vertexAttribPointer(2, 2, GfxDataType::Float, false, STRIDE, 12);
+            device_.enableVertexAttrib(3);
+            device_.vertexAttribPointer(3, 1, GfxDataType::Float, false, STRIDE, 20);
             break;
         }
         case LayoutId::Shape: {

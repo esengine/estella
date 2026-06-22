@@ -46,9 +46,15 @@ struct DrawCommand {
     // with per-instance attributes based at vertex_byte_offset (see LayoutId::ParticleInstance).
     u32 instance_count = 0;
 
+    // Vertices owned by this command (from vertex_byte_offset). Needed so the merge pass
+    // can rewrite their texIndex when coalescing into a multi-texture batch.
+    u32 vertex_count = 0;
+
+    // Texture is no longer part of the sort key: dropping it lets draws that differ only
+    // by texture sort adjacent and coalesce into one multi-texture batch (up to 8 textures,
+    // selected per-vertex in the shader). Order within a layer is otherwise unchanged.
     static u64 buildSortKey(RenderStage stage, i32 layer, u32 shaderId,
-                            BlendMode blend, u16 stateFlags,
-                            u32 textureId, f32 depth) {
+                            BlendMode blend, u16 stateFlags, f32 depth) {
         u64 stageKey = static_cast<u64>(stage) << 60;
 
         i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
@@ -57,7 +63,6 @@ struct DrawCommand {
         u64 shaderKey = static_cast<u64>(shaderId & 0xFF) << 36;
         u64 blendKey = static_cast<u64>(blend) << 33;
         u64 flagsKey = static_cast<u64>(stateFlags & 0x03) << 31;
-        u64 texKey = static_cast<u64>(textureId & 0x1FFFF) << 14;
 
         u32 depthBits;
         if (stage == RenderStage::Transparent || stage == RenderStage::Overlay) {
@@ -69,7 +74,18 @@ struct DrawCommand {
         }
         u64 depthKey = static_cast<u64>(depthBits & 0x3FFF);
 
-        return stageKey | layerKey | shaderKey | blendKey | flagsKey | texKey | depthKey;
+        return stageKey | layerKey | shaderKey | blendKey | flagsKey | depthKey;
+    }
+
+    /** @brief Finds @p texId in this command's texture set, adds it (returns its slot), or
+     *         -1 if the set is full. Used by the merge to assign per-vertex sampler slots. */
+    i32 addTextureSlot(u32 texId) {
+        for (u8 i = 0; i < texture_count; ++i) {
+            if (texture_ids[i] == texId) return static_cast<i32>(i);
+        }
+        if (texture_count >= MAX_CMD_TEXTURE_SLOTS) return -1;
+        texture_ids[texture_count] = texId;
+        return static_cast<i32>(texture_count++);
     }
 
     bool canMergeWith(const DrawCommand& next) const {
@@ -85,12 +101,8 @@ struct DrawCommand {
         if (state_flags & (CMD_STATE_STENCIL_WRITE | CMD_STATE_STENCIL_TEST)) {
             if (stencil_ref != next.stencil_ref) return false;
         }
-        if (texture_count != next.texture_count) return false;
-        if (texture_count > 0 &&
-            std::memcmp(texture_ids, next.texture_ids,
-                        texture_count * sizeof(u32)) != 0) {
-            return false;
-        }
+        // Texture compatibility is decided by the merge (the combined set must fit in 8
+        // slots), not here, so different-texture draws can coalesce.
         if (index_offset + index_count != next.index_offset) return false;
         return true;
     }

@@ -9,6 +9,7 @@ struct BatchVertex {
     glm::vec2 position;
     u32 color;
     glm::vec2 texCoord;
+    f32 texIndex = 0.0f;  // sampler slot within the draw's texture set; assigned at merge time
 };
 
 inline u32 packColor(f32 r, f32 g, f32 b, f32 a) {

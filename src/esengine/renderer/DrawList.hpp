@@ -15,7 +15,10 @@ public:
     void clear();
     void push(const DrawCommand& cmd);
 
-    void finalize();
+    // Sorts, then coalesces contiguous compatible commands — combining up to 8 textures
+    // into one multi-texture batch and stamping each command's per-vertex sampler slot
+    // (hence the pool, whose staging it rewrites; call before upload()).
+    void finalize(TransientBufferPool& pool);
 
     // Each merged command resolves to an immutable pipeline (program + layout + blend +
     // depth + stencil + cull) bound via GfxDevice::setPipeline; per-draw dynamic state

@@ -140,7 +140,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 
         DrawCommand cmd{};
         cmd.sort_key = DrawCommand::buildSortKey(
-            ctx.current_stage, emitter.layer, particle_shader_id_, blendMode, 0, textureId,
+            ctx.current_stage, emitter.layer, particle_shader_id_, blendMode, 0,
             emitterWorldPos.z);
         cmd.index_offset = 0;            // static unit-quad indices
         cmd.index_count = 6;

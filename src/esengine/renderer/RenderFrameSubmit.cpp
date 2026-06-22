@@ -64,7 +64,7 @@ void RenderFrame::submitSpineBatch(
         dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]} };
     }
 
-    pushBatchCommand(pool_, draw_list_, clip_state_, vOff, indices,
+    pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
                      static_cast<u32>(indexCount), BatchDrawKey{
         .stage = current_stage_,
         .layer = layer,
