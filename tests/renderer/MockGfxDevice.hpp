@@ -114,6 +114,12 @@ struct MockGfxDevice final : GfxDevice {
     u32 getUniformBlockIndex(u32, const char*) override { return GFX_INVALID_UNIFORM_BLOCK; }
     void uniformBlockBinding(u32, u32, u32) override {}
 
+    u32 nextPipelineId = 0;
+    int setPipelineCalls = 0;
+    PipelineHandle createPipeline(const PipelineDesc&) override { return static_cast<PipelineHandle>(++nextPipelineId); }
+    void setPipeline(PipelineHandle) override { ++setPipelineCalls; }
+    void setStencilReference(i32) override {}
+
     u32 createVertexArray() override { ++createVertexArrayCalls; return nextVaoId++; }
     void deleteVertexArray(u32) override { ++deleteVertexArrayCalls; }
     void bindVertexArray(u32 vaoId) override { ++bindVertexArrayCalls; lastVao = vaoId; }

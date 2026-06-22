@@ -20,6 +20,7 @@
 #include "../core/Types.hpp"
 #include "BlendMode.hpp"
 #include "GfxEnums.hpp"
+#include "PipelineState.hpp"
 #include "Texture.hpp"
 
 #include <string>
@@ -230,6 +231,19 @@ public:
 
     /** @brief Links a program's uniform block to an indexed binding point. */
     virtual void uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) = 0;
+
+    // =========================================================================
+    // Pipeline State (immutable "how to draw"; see PipelineState.hpp)
+    // =========================================================================
+
+    /** @brief Resolves a pipeline description to a cached handle (creating it on first use). */
+    virtual PipelineHandle createPipeline(const PipelineDesc& desc) = 0;
+
+    /** @brief Binds a pipeline: applies its program, blend, depth, stencil compare/op and culling. */
+    virtual void setPipeline(PipelineHandle handle) = 0;
+
+    /** @brief Sets the dynamic stencil reference for the bound pipeline's stencil mode (no-op if Off). */
+    virtual void setStencilReference(i32 ref) = 0;
 
     // =========================================================================
     // VAO Operations

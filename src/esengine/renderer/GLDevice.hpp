@@ -17,6 +17,8 @@
 
 #include "GfxDevice.hpp"
 
+#include <vector>
+
 namespace esengine {
 
 // =============================================================================
@@ -88,6 +90,10 @@ public:
     u32 getUniformBlockIndex(u32 programId, const char* name) override;
     void uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) override;
 
+    PipelineHandle createPipeline(const PipelineDesc& desc) override;
+    void setPipeline(PipelineHandle handle) override;
+    void setStencilReference(i32 ref) override;
+
     u32 createVertexArray() override;
     void deleteVertexArray(u32 vaoId) override;
     void bindVertexArray(u32 vaoId) override;
@@ -129,6 +135,16 @@ public:
     std::string getString(GfxStringName name) override;
     i32 getInt(GfxIntParam name) override;
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
+
+private:
+    // Pipeline cache: a handle is (index + 1) into pipelines_; PipelineHandle::Invalid is 0.
+    // WebGL2 has no native pipeline object, so a pipeline is applied as a bundle of GL
+    // state, deduped by comparing handles (same pipeline -> skip the whole state apply).
+    void applyStencilMode(GfxStencilMode mode);
+
+    std::vector<PipelineDesc> pipelines_;
+    PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
+    GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;
 };
 
 }  // namespace esengine

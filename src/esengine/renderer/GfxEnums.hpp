@@ -29,6 +29,22 @@ enum class GfxBufferTarget : u8 {
 };
 
 // =============================================================================
+// Vertex Layout Id
+// =============================================================================
+
+/**
+ * @brief Identifies a transient vertex stream / vertex format. Each layout has its own
+ *        VBO+EBO+VAO in TransientBufferPool and is part of a pipeline's identity.
+ */
+enum class LayoutId : u8 {
+    Batch     = 0,
+    Shape     = 2,
+    MatSprite = 3,
+};
+
+static constexpr u32 LAYOUT_COUNT = 4;
+
+// =============================================================================
 // Data Type (vertex attributes, index type, pixel data type)
 // =============================================================================
 

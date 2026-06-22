@@ -8,13 +8,8 @@
 
 namespace esengine {
 
-enum class LayoutId : u8 {
-    Batch    = 0,
-    Shape    = 2,
-    MatSprite = 3,
-};
-
-static constexpr u32 LAYOUT_COUNT = 4;
+// LayoutId / LAYOUT_COUNT now live in GfxEnums.hpp (a leaf header) so PipelineState can
+// reference LayoutId without pulling in the GfxDevice include cycle.
 
 /**
  * Per-frame vertex/index staging with one independent VBO+EBO+VAO per layout.

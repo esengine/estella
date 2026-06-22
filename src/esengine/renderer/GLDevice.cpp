@@ -587,6 +587,77 @@ void GLDevice::uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoi
 }
 
 // =============================================================================
+// Pipeline State
+// =============================================================================
+
+PipelineHandle GLDevice::createPipeline(const PipelineDesc& desc) {
+    for (u32 i = 0; i < pipelines_.size(); ++i) {
+        if (pipelines_[i] == desc) {
+            return static_cast<PipelineHandle>(i + 1);
+        }
+    }
+    pipelines_.push_back(desc);
+    return static_cast<PipelineHandle>(pipelines_.size());  // 1-based; 0 == Invalid
+}
+
+void GLDevice::applyStencilMode(GfxStencilMode mode) {
+    // Mirrors the former StateTracker stencil sequences. The reference value is applied
+    // separately by setStencilReference (it is dynamic, not pipeline state).
+    switch (mode) {
+    case GfxStencilMode::Off:
+        setStencilTest(false);
+        setStencilMask(0xFF);
+        setColorMask(true, true, true, true);
+        break;
+    case GfxStencilMode::Write:
+        setStencilTest(true);
+        setStencilOp(GfxStencilOp::Keep, GfxStencilOp::Keep, GfxStencilOp::Replace);
+        setColorMask(false, false, false, false);
+        setStencilMask(0xFF);
+        break;
+    case GfxStencilMode::Test:
+        setStencilTest(true);
+        setStencilOp(GfxStencilOp::Keep, GfxStencilOp::Keep, GfxStencilOp::Keep);
+        setColorMask(true, true, true, true);
+        setStencilMask(0x00);
+        break;
+    }
+}
+
+void GLDevice::setPipeline(PipelineHandle handle) {
+    if (handle == current_pipeline_ || handle == PipelineHandle::Invalid) return;
+
+    u32 index = static_cast<u32>(handle) - 1;
+    if (index >= pipelines_.size()) return;
+    const PipelineDesc& desc = pipelines_[index];
+
+    useProgram(desc.program);
+    setBlendEnabled(desc.blendEnabled);
+    setBlendMode(desc.blend);
+    setDepthTest(desc.depthTest);
+    setDepthWrite(desc.depthWrite);
+    setCulling(desc.cullEnabled);
+    if (desc.cullEnabled) setCullFace(desc.cullFront);
+    applyStencilMode(desc.stencil);
+
+    current_pipeline_ = handle;
+    current_stencil_mode_ = desc.stencil;
+}
+
+void GLDevice::setStencilReference(i32 ref) {
+    switch (current_stencil_mode_) {
+    case GfxStencilMode::Write:
+        setStencilFunc(GfxStencilFunc::Always, ref, 0xFF);
+        break;
+    case GfxStencilMode::Test:
+        setStencilFunc(GfxStencilFunc::Equal, ref, 0xFF);
+        break;
+    case GfxStencilMode::Off:
+        break;
+    }
+}
+
+// =============================================================================
 // VAO Operations
 // =============================================================================
 
