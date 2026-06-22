@@ -1,15 +1,7 @@
-import { defineComponent } from '../component';
-
-export interface SafeAreaData {
-    applyTop: boolean;
-    applyBottom: boolean;
-    applyLeft: boolean;
-    applyRight: boolean;
-}
-
-export const SafeArea = defineComponent<SafeAreaData>('SafeArea', {
-    applyTop: true,
-    applyBottom: true,
-    applyLeft: true,
-    applyRight: true,
-});
+/**
+ * @file    ui/SafeArea.ts
+ * @brief   Back-compat shim — the SafeArea component moved into the layout
+ *          concept module (REARCH_GUI P0). Re-exported here to keep the
+ *          public symbol + existing imports stable until REARCH_GUI P4.
+ */
+export { SafeArea, type SafeAreaData } from './layout/safe-area';

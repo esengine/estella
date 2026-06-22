@@ -13,7 +13,7 @@ import {
 } from './behavior/systems';
 import { ListView, ListViewRegistry } from './collection/list-view';
 import { ScrollContainer, ScrollContainerRegistry } from './collection/scroll-container';
-import { UIInteraction, type UIInteractionData } from './behavior/interactable';
+import { UIInteraction, type UIInteractionData } from './input/interactable';
 
 /**
  * Wires the Layer 2 behavior systems — interactable-driven state machine

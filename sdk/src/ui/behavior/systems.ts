@@ -4,7 +4,7 @@ import { Res, Time, type TimeData } from '../../resource';
 import type { Entity, Color } from '../../types';
 import type { World } from '../../world';
 
-import { Interactable, UIInteraction, type InteractableData, type UIInteractionData } from './interactable';
+import { Interactable, UIInteraction, type InteractableData, type UIInteractionData } from '../input/interactable';
 import { StateMachine, type StateMachineData } from './state-machine';
 import {
     StateVisuals,

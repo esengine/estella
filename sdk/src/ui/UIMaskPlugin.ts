@@ -1,14 +1,7 @@
-import type { App, Plugin } from '../app';
-import { registerComponent } from '../component';
-import { UIMask } from './core/ui-mask';
-import { PluginName } from '../systemLabels';
-
-export class UIMaskPlugin implements Plugin {
-    name = PluginName.UIMask;
-
-    build(app: App): void {
-        registerComponent('UIMask', UIMask);
-    }
-}
-
-export const uiMaskPlugin = new UIMaskPlugin();
+/**
+ * @file    ui/UIMaskPlugin.ts
+ * @brief   Back-compat shim — the UIMask registration plugin moved to the render
+ *          concept module (REARCH_GUI P0). Re-exported here to keep the public
+ *          symbol + existing imports stable until REARCH_GUI P4.
+ */
+export { UIMaskPlugin, uiMaskPlugin } from './render/mask';
