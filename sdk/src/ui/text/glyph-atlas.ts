@@ -92,6 +92,9 @@ export class GlyphAtlas {
     /** Number of atlas pages currently allocated. */
     get pageCount(): number { return this.pages.length; }
 
+    /** The px size glyphs are rasterized at; layout scales by displaySize/renderSize. */
+    get renderSize(): number { return this.rasterizer.renderSize; }
+
     private key(codepoint: number, fontFamily: string, style: number): string {
         return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}`;
     }
