@@ -47,6 +47,9 @@ void ResourceManager::shutdown() {
     vertexBuffers_.clear();
     indexBuffers_.clear();
 
+    // Drop the device ref so a stray create after shutdown returns an empty
+    // handle instead of dereferencing a freed GfxDevice (A10).
+    device_ = nullptr;
     initialized_ = false;
     ES_LOG_INFO("ResourceManager shutdown complete");
 }
@@ -60,6 +63,7 @@ void ResourceManager::update() {
 // =============================================================================
 
 ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std::string& fragSrc) {
+    if (!device_) return {};
     auto shader = Shader::create(*device_, vertSrc, fragSrc);
     if (!shader) {
         ES_LOG_ERROR("Failed to create shader from source");
@@ -70,6 +74,7 @@ ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std
 
 ShaderHandle ResourceManager::createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,
                                                         std::initializer_list<AttribBinding> bindings) {
+    if (!device_) return {};
     auto shader = Shader::createWithBindings(*device_, vertSrc, fragSrc, bindings);
     if (!shader) {
         ES_LOG_ERROR("Failed to create shader with bindings from source");
@@ -91,6 +96,7 @@ ShaderHandle ResourceManager::loadShader(const std::string& vertPath, const std:
     }
 
     // Load from files
+    if (!device_) return {};
     auto shader = Shader::createFromFile(*device_, vertPath, fragPath);
     if (!shader) {
         stats_.cacheMisses++;
@@ -124,6 +130,7 @@ u32 ResourceManager::getShaderRefCount(ShaderHandle handle) const {
 // =============================================================================
 
 TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
+    if (!device_) return {};
     auto texture = Texture::create(*device_, spec);
     if (!texture) {
         ES_LOG_ERROR("Failed to create texture from spec");
@@ -134,6 +141,7 @@ TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
 
 TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8> pixels,
                                               TextureFormat format, bool flipY) {
+    if (!device_) return {};
     std::vector<u8> pixelVec(pixels.begin(), pixels.end());
     auto texture = Texture::create(*device_, width, height, pixelVec, format, flipY);
     if (!texture) {
@@ -187,6 +195,7 @@ u32 ResourceManager::getTextureRefCount(TextureHandle handle) const {
 }
 
 TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 width, u32 height) {
+    if (!device_) return {};
     auto texture = Texture::createFromExternalId(*device_, glTextureId, width, height, TextureFormat::RGBA8);
     if (!texture) {
         ES_LOG_ERROR("Failed to register external texture (GL ID: {})", glTextureId);
@@ -271,6 +280,7 @@ void ResourceManager::removeTextureMetadata(TextureHandle handle) {
 // =============================================================================
 
 VertexBufferHandle ResourceManager::createVertexBuffer(u32 sizeBytes) {
+    if (!device_) return {};
     auto buffer = VertexBuffer::create(*device_, sizeBytes);
     if (!buffer) {
         ES_LOG_ERROR("Failed to create dynamic vertex buffer");
@@ -298,6 +308,7 @@ void ResourceManager::releaseVertexBuffer(VertexBufferHandle handle) {
 // =============================================================================
 
 IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u32> indices) {
+    if (!device_) return {};
     auto buffer = IndexBuffer::create(*device_, indices.data(), static_cast<u32>(indices.size()));
     if (!buffer) {
         ES_LOG_ERROR("Failed to create index buffer (u32)");
@@ -307,6 +318,7 @@ IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u32> indices) {
 }
 
 IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u16> indices) {
+    if (!device_) return {};
     auto buffer = IndexBuffer::create(*device_, indices.data(), static_cast<u32>(indices.size()));
     if (!buffer) {
         ES_LOG_ERROR("Failed to create index buffer (u16)");
