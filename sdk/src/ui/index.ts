@@ -405,9 +405,11 @@ export { EngineAtlasPageStore } from './text/atlas-page-store';
 
 export {
     layoutLine,
+    layoutRichLine,
     buildGlyphVertices,
     type TextLayout,
     type TextLayoutOptions,
+    type RichTextLayoutOptions,
     type LaidGlyph,
     type RGBA,
     type GlyphVertexData,

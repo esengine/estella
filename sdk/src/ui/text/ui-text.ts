@@ -22,6 +22,8 @@ export interface UITextData {
     /** Bit flags: UI_TEXT_BOLD | UI_TEXT_ITALIC. */
     style: number;
     layer: number;
+    /** Parse `<b>/<i>/<color>/<font size>` markup in `content`. */
+    richText: boolean;
 }
 
 export const UIText = defineComponent<UITextData>('UIText', {
@@ -31,6 +33,7 @@ export const UIText = defineComponent<UITextData>('UIText', {
     color: { r: 1, g: 1, b: 1, a: 1 },
     style: 0,
     layer: 0,
+    richText: false,
 });
 
 /**

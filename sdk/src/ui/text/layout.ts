@@ -13,6 +13,8 @@
  */
 import type { GlyphAtlas } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
+import { parseRichText } from '../RichTextParser';
+import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './ui-text';
 
 export interface TextLayoutOptions {
     /** Display font size in px. */
@@ -21,12 +23,17 @@ export interface TextLayoutOptions {
     letterSpacing?: number;
 }
 
-/** One positioned glyph quad: atlas UVs + local-space corners (y-up). */
+/** RGBA color, channels in [0,1]. */
+export type RGBA = readonly [number, number, number, number];
+
+/** One positioned glyph quad: atlas UVs + local-space corners (y-up). `color` is
+ *  set only by rich text (per-run); single-style layout leaves it for the caller. */
 export interface LaidGlyph {
     u0: number; v0: number; u1: number; v1: number;
     x0: number; y0: number; // bottom-left
     x1: number; y1: number; // top-right
     pageId: number;
+    color?: RGBA;
 }
 
 export interface TextLayout {
@@ -72,9 +79,6 @@ export function layoutLine(
     return { glyphs, width: penX, lineHeight: opts.fontSizePx };
 }
 
-/** RGBA color, channels in [0,1]. */
-export type RGBA = readonly [number, number, number, number];
-
 export interface GlyphVertexData {
     vertices: Float32Array; // TEXT_VERTEX_FLOATS per vertex, 4 verts/glyph
     indices: Uint16Array;   // 6 per glyph
@@ -96,10 +100,10 @@ export function buildGlyphVertices(
     const n = glyphs.length;
     const vertices = new Float32Array(n * 4 * TEXT_VERTEX_FLOATS);
     const indices = new Uint16Array(n * 6);
-    const [r, g, b, a] = color;
 
     for (let i = 0; i < n; i++) {
         const gl = glyphs[i];
+        const [r, g, b, a] = gl.color ?? color; // per-glyph color (rich text) falls back to the batch color
         const x0 = gl.x0 + originX, x1 = gl.x1 + originX;
         const y0 = gl.y0 + originY, y1 = gl.y1 + originY;
         const vo = i * 4 * TEXT_VERTEX_FLOATS;
@@ -124,4 +128,59 @@ function writeVertex(
 ): void {
     out[o] = x; out[o + 1] = y; out[o + 2] = u; out[o + 3] = v;
     out[o + 4] = r; out[o + 5] = g; out[o + 6] = b; out[o + 7] = a;
+}
+
+export interface RichTextLayoutOptions extends TextLayoutOptions {
+    /** Base color for runs that don't set their own <color=...>. */
+    color: RGBA;
+}
+
+/**
+ * Lay out a single line of rich text (REARCH_GUI P1.4): `<b>`, `<i>`,
+ * `<color=#rrggbb[aa]>`, `<font size=N>` runs (parsed by parseRichText) become
+ * glyphs carrying per-run color + size + bold/italic style. Image runs (`<img>`)
+ * are skipped for now. Each run scales by its own fontSize / atlas.renderSize;
+ * all runs share the baseline (y = 0). Pure → unit-testable.
+ */
+export function layoutRichLine(
+    content: string,
+    atlas: GlyphAtlas,
+    fontFamily: string,
+    opts: RichTextLayoutOptions,
+    baseStyle = 0,
+): TextLayout {
+    const spacing = opts.letterSpacing ?? 0;
+    const glyphs: LaidGlyph[] = [];
+    let penX = 0;
+    let lineHeight = opts.fontSizePx;
+
+    for (const run of parseRichText(content)) {
+        if (run.type !== 'text') continue; // embedded images: deferred
+        const runSize = run.fontSize ?? opts.fontSizePx;
+        const scale = runSize / atlas.renderSize;
+        const style = baseStyle | (run.bold ? UI_TEXT_BOLD : 0) | (run.italic ? UI_TEXT_ITALIC : 0);
+        const color: RGBA = run.color
+            ? [run.color.r, run.color.g, run.color.b, run.color.a]
+            : opts.color;
+        if (runSize > lineHeight) lineHeight = runSize;
+
+        for (const ch of run.text) {
+            const cp = ch.codePointAt(0);
+            if (cp === undefined) continue;
+            const gph = atlas.getGlyph(cp, fontFamily, style);
+            if (!gph) continue;
+            if (gph.width > 0 && gph.height > 0) {
+                const x0 = penX + gph.bearingX * scale;
+                const y1 = gph.bearingY * scale;
+                glyphs.push({
+                    u0: gph.u0, v0: gph.v0, u1: gph.u1, v1: gph.v1,
+                    x0, y0: y1 - gph.height * scale, x1: x0 + gph.width * scale, y1,
+                    pageId: gph.pageId, color,
+                });
+            }
+            penX += gph.advance * scale + spacing;
+        }
+    }
+
+    return { glyphs, width: penX, lineHeight };
 }

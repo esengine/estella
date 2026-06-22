@@ -46,6 +46,7 @@ export class UITextPlugin implements Plugin {
                         fontSizePx: t.fontSizePx,
                         color: [t.color.r, t.color.g, t.color.b, t.color.a],
                         style: t.style,
+                        richText: t.richText,
                     },
                     this.matrix_,
                     entity as number,
