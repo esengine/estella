@@ -8,7 +8,7 @@ from .parser import CppParser
 from .abi import compute_abi_hash
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
-    AnimTargetGenerator, PtrLayoutGenerator, EditorAPIGenerator,
+    PtrLayoutGenerator, EditorAPIGenerator,
 )
 
 
@@ -98,15 +98,6 @@ def main() -> int:
     # ── Component Metadata ──
     meta_gen = MetadataGenerator(cpp_parser.components, cpp_parser.enums, abi_hash=abi_hash)
     write_ts('component.generated.ts', meta_gen.generate())
-
-    # ── Animation Targets ──
-    anim_gen = AnimTargetGenerator(cpp_parser.components, cpp_parser.enums)
-
-    anim_hpp_path = Path('src/esengine/animation') / 'animTargets.generated.hpp'
-    print(f"Generating: {anim_hpp_path}")
-    anim_hpp_path.write_text(anim_gen.generate_hpp(), encoding='utf-8')
-
-    write_ts('timeline/animTargets.generated.ts', anim_gen.generate_ts())
 
     # ── Pointer Layouts & Accessors ──
     write_ts('ptrLayouts.generated.ts', ptr_gen.generate())

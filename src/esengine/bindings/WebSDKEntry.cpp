@@ -45,9 +45,6 @@
 #include "../ecs/components/Collider.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../animation/TweenSystem.hpp"
-#ifdef ES_ENABLE_TIMELINE
-#include "../animation/TimelineSystem.hpp"
-#endif
 #ifdef ES_ENABLE_PARTICLES
 #include "../particle/ParticleSystem.hpp"
 #endif

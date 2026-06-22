@@ -13,7 +13,6 @@ option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
 option(ES_ENABLE_BOX2D "Enable Box2D physics support" OFF)
 option(ES_ENABLE_TILEMAP "Enable Tilemap support" ON)
 option(ES_ENABLE_PARTICLES "Enable Particle system" ON)
-option(ES_ENABLE_TIMELINE "Enable Timeline animation" ON)
 option(ES_ENABLE_POSTPROCESS "Enable Post-processing pipeline" ON)
 option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
 option(ES_ENABLE_BASIS "Build the Basis Universal KTX2 transcoder module" OFF)
@@ -87,11 +86,6 @@ if(ES_ENABLE_PARTICLES)
     )
 endif()
 
-if(ES_ENABLE_TIMELINE)
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/animation/TimelineSystem.cpp
-    )
-endif()
 
     list(APPEND ESENGINE_SOURCES
         src/esengine/text/BitmapFont.cpp
@@ -181,13 +175,6 @@ if(ES_ENABLE_PARTICLES)
     )
 endif()
 
-if(ES_ENABLE_TIMELINE)
-    list(APPEND ESENGINE_HEADERS
-        src/esengine/animation/TimelineData.hpp
-        src/esengine/animation/TimelineSystem.hpp
-    )
-endif()
-
     list(APPEND ESENGINE_HEADERS
         src/esengine/text/BitmapFont.hpp
     )
@@ -263,9 +250,6 @@ if(ES_ENABLE_PARTICLES)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_PARTICLES)
 endif()
 
-if(ES_ENABLE_TIMELINE)
-    target_compile_definitions(esengine PUBLIC ES_ENABLE_TIMELINE)
-endif()
 
 if(ES_ENABLE_POSTPROCESS)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_POSTPROCESS)
@@ -314,9 +298,6 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     endif()
     if(ES_ENABLE_TILEMAP)
         list(APPEND SDK_BINDING_SOURCES src/esengine/bindings/TilemapBindings.cpp)
-    endif()
-    if(ES_ENABLE_TIMELINE)
-        list(APPEND SDK_BINDING_SOURCES src/esengine/bindings/TimelineBindings.cpp)
     endif()
 
     add_executable(esengine_sdk ${SDK_BINDING_SOURCES})

@@ -32,9 +32,6 @@
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/UISystem.hpp"
 #include "../animation/TweenSystem.hpp"
-#ifdef ES_ENABLE_TIMELINE
-#include "../animation/TimelineSystem.hpp"
-#endif
 
 #ifdef ES_PLATFORM_WEB
 #include <emscripten/html5.h>
@@ -123,9 +120,6 @@ void EstellaContext::initSubsystems() {
     // they are already present.
     registerLogicSystems();
 
-#ifdef ES_ENABLE_TIMELINE
-    services_.registerOwned<animation::TimelineSystem>(makeUnique<animation::TimelineSystem>());
-#endif
 #ifdef ES_ENABLE_PARTICLES
     services_.registerOwned<particle::ParticleSystem>(makeUnique<particle::ParticleSystem>());
 #endif
