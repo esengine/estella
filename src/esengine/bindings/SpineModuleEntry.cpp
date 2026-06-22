@@ -19,6 +19,7 @@
 #include <string>
 #include <cstring>
 #include <cstdint>
+#include <utility>
 
 // =============================================================================
 // Spine-C Required Callbacks
@@ -75,16 +76,55 @@ static uint32_t getMeshTextureId(spMeshAttachment* attachment) {
 // Data Structures
 // =============================================================================
 
+// Move-only RAII over spine-c's C objects: the destructor disposes, so the
+// owning maps clean up on erase()/clear() and every error path that bails after
+// a partial construct frees automatically — no manual dispose, no leak path.
 struct SkeletonHandle {
     spAtlas* atlas = nullptr;
     spSkeletonData* skeletonData = nullptr;
     spAnimationStateData* stateData = nullptr;
+
+    SkeletonHandle() = default;
+    SkeletonHandle(const SkeletonHandle&) = delete;
+    SkeletonHandle& operator=(const SkeletonHandle&) = delete;
+    SkeletonHandle(SkeletonHandle&& o) noexcept { swap(o); }
+    SkeletonHandle& operator=(SkeletonHandle&& o) noexcept { dispose(); swap(o); return *this; }
+    ~SkeletonHandle() { dispose(); }
+
+    void swap(SkeletonHandle& o) noexcept {
+        std::swap(atlas, o.atlas);
+        std::swap(skeletonData, o.skeletonData);
+        std::swap(stateData, o.stateData);
+    }
+    void dispose() {
+        // Reverse of construction order: stateData/skeletonData reference the atlas.
+        if (stateData) { spAnimationStateData_dispose(stateData); stateData = nullptr; }
+        if (skeletonData) { spSkeletonData_dispose(skeletonData); skeletonData = nullptr; }
+        if (atlas) { spAtlas_dispose(atlas); atlas = nullptr; }
+    }
 };
 
 struct SpineInstance {
     spSkeleton* skeleton = nullptr;
     spAnimationState* state = nullptr;
     int skeletonHandle = -1;
+
+    SpineInstance() = default;
+    SpineInstance(const SpineInstance&) = delete;
+    SpineInstance& operator=(const SpineInstance&) = delete;
+    SpineInstance(SpineInstance&& o) noexcept { swap(o); }
+    SpineInstance& operator=(SpineInstance&& o) noexcept { dispose(); swap(o); return *this; }
+    ~SpineInstance() { dispose(); }
+
+    void swap(SpineInstance& o) noexcept {
+        std::swap(skeleton, o.skeleton);
+        std::swap(state, o.state);
+        std::swap(skeletonHandle, o.skeletonHandle);
+    }
+    void dispose() {
+        if (state) { spAnimationState_dispose(state); state = nullptr; }
+        if (skeleton) { spSkeleton_dispose(skeleton); skeleton = nullptr; }
+    }
 };
 
 struct MeshBatch {
@@ -127,17 +167,7 @@ struct SpineContext {
     int eventCount = 0;
 
     void reset() {
-        for (auto& [id, inst] : instances) {
-            if (inst.state) spAnimationState_dispose(inst.state);
-            if (inst.skeleton) spSkeleton_dispose(inst.skeleton);
-        }
-        instances.clear();
-
-        for (auto& [id, h] : skeletons) {
-            if (h.stateData) spAnimationStateData_dispose(h.stateData);
-            if (h.skeletonData) spSkeletonData_dispose(h.skeletonData);
-            if (h.atlas) spAtlas_dispose(h.atlas);
-        }
+        instances.clear();   // RAII dtors dispose — instances before skeletons
         skeletons.clear();
 
         nextSkeletonId = 1;
@@ -154,17 +184,6 @@ struct SpineContext {
 };
 
 static SpineContext g_ctx;
-
-static void destroyInstance(SpineInstance& inst) {
-    if (inst.state) spAnimationState_dispose(inst.state);
-    if (inst.skeleton) spSkeleton_dispose(inst.skeleton);
-}
-
-static void destroySkeleton(SkeletonHandle& h) {
-    if (h.stateData) spAnimationStateData_dispose(h.stateData);
-    if (h.skeletonData) spSkeletonData_dispose(h.skeletonData);
-    if (h.atlas) spAtlas_dispose(h.atlas);
-}
 
 // =============================================================================
 // Resource Management
@@ -191,7 +210,6 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
         spSkeletonBinary* binary = spSkeletonBinary_create(handle.atlas);
         if (!binary) {
             g_ctx.lastError = "Failed to create skeleton binary reader";
-            destroySkeleton(handle);
             g_ctx.skeletons.erase(id);
             return -1;
         }
@@ -206,7 +224,6 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
         spSkeletonJson* json = spSkeletonJson_create(handle.atlas);
         if (!json) {
             g_ctx.lastError = "Failed to create skeleton json reader";
-            destroySkeleton(handle);
             g_ctx.skeletons.erase(id);
             return -1;
         }
@@ -220,7 +237,6 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
     }
 
     if (!handle.skeletonData) {
-        destroySkeleton(handle);
         g_ctx.skeletons.erase(id);
         return -1;
     }
@@ -249,11 +265,9 @@ void spine_unloadSkeleton(int handle) {
         }
     }
     for (int id : toRemove) {
-        destroyInstance(g_ctx.instances[id]);
         g_ctx.instances.erase(id);
     }
 
-    destroySkeleton(it->second);
     g_ctx.skeletons.erase(it);
 }
 
@@ -324,6 +338,10 @@ int spine_createInstance(int skeletonHandle) {
     inst.skeletonHandle = skeletonHandle;
     inst.skeleton = spSkeleton_create(it->second.skeletonData);
     inst.state = spAnimationState_create(it->second.stateData);
+    if (!inst.skeleton || !inst.state) {
+        g_ctx.instances.erase(id);  // RAII frees whichever was created
+        return -1;
+    }
     spSkeleton_setToSetupPose(inst.skeleton);
 #if defined(ES_SPINE_38) || defined(ES_SPINE_41)
     spSkeleton_updateWorldTransform(inst.skeleton);
@@ -339,7 +357,6 @@ EMSCRIPTEN_KEEPALIVE
 void spine_destroyInstance(int instanceId) {
     auto it = g_ctx.instances.find(instanceId);
     if (it == g_ctx.instances.end()) return;
-    destroyInstance(it->second);
     g_ctx.instances.erase(it);
 }
 
