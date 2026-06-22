@@ -7,7 +7,7 @@
          origins) — a render that fails here for a CSP reason would fail there too. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: estella:; font-src 'self' data:; connect-src 'self' ws: estella:; worker-src 'self' blob:;"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: estella:; font-src 'self' data:; connect-src 'self' ws: estella:; worker-src 'self' blob:;"
     />
     <title>Estella Headless</title>
   </head>

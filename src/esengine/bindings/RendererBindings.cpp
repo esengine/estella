@@ -60,7 +60,7 @@ void renderer_submitSpineBatch(
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
     uintptr_t transformPtr,
-    Entity entity, i32 layer, f32 depth
+    u32 entity, i32 layer, f32 depth
 ) {
     if (!g_initialized || !g_renderFrame) return;
     auto* vertices = reinterpret_cast<const f32*>(verticesPtr);
@@ -68,7 +68,7 @@ void renderer_submitSpineBatch(
     auto* transform = reinterpret_cast<const f32*>(transformPtr);
     g_renderFrame->submitSpineBatch(
         vertices, vertexCount, indices, indexCount,
-        textureId, blendMode, transform, entity, layer, depth);
+        textureId, blendMode, transform, Entity::fromRaw(entity), layer, depth);
 }
 
 void renderer_submitSpineBatchByEntity(
@@ -76,13 +76,14 @@ void renderer_submitSpineBatchByEntity(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
-    Entity entity, f32 skelScale, bool flipX, bool flipY,
+    u32 entity, f32 skelScale, bool flipX, bool flipY,
     i32 layer, f32 depth
 ) {
     if (!g_initialized || !g_renderFrame) return;
-    if (!registry.has<ecs::Transform>(entity)) return;
+    const Entity ent = Entity::fromRaw(entity);
+    if (!registry.has<ecs::Transform>(ent)) return;
 
-    auto& t = registry.get<ecs::Transform>(entity);
+    auto& t = registry.get<ecs::Transform>(ent);
     t.ensureDecomposed();
 
     glm::vec3 s = t.worldScale;
@@ -99,7 +100,7 @@ void renderer_submitSpineBatchByEntity(
     auto* indices = reinterpret_cast<const u16*>(indicesPtr);
     g_renderFrame->submitSpineBatch(
         vertices, vertexCount, indices, indexCount,
-        textureId, blendMode, &model[0][0], entity, layer, depth);
+        textureId, blendMode, &model[0][0], ent, layer, depth);
 }
 
 #endif

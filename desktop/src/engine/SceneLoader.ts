@@ -3,6 +3,7 @@ import type { App, SceneData } from 'esengine';
 import { SceneModel } from './SceneModel';
 import { Reconciler } from './Reconciler';
 import { EditorHistory } from './EditorHistory';
+import { loadEditorSpine } from './spineLoad';
 
 type SceneDataArg = Parameters<typeof loadSceneData>[1];
 
@@ -47,6 +48,12 @@ export const SceneLoader = {
     }
 
     const map = loadSceneData(app.world, resolved as SceneDataArg);
+    // Spine renders through its side modules, loaded separately from Assets (skel
+    // /atlas/textures + per-entity instances). Refs are the scene's own paths or
+    // @uuid: (resolved via the manifest).
+    await loadEditorSpine(app, raw, map as Map<number, number>, (ref) =>
+      ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? ref) : ref,
+    );
     EditorHistory.clear();
     SceneModel.adopt(raw, map as Map<number, number>);
     return map.size;
