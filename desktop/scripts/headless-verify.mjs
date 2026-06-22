@@ -91,6 +91,11 @@ app.whenReady().then(async () => {
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
     );
+    // Opt-in play mode (ESTELLA_VERIFY_PLAY=1): runs the SDK plugin updates — particle
+    // emission/simulation, animation — so time-driven content actually renders.
+    if (process.env.ESTELLA_VERIFY_PLAY === '1') {
+      await exec('window.__estellaHeadless.api.setRunMode(true)');
+    }
     await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
     const capture = await exec(`(() => {
       const c = window.__estellaHeadless.api.captureViewport();

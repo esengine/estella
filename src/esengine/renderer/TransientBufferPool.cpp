@@ -15,7 +15,7 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     initial_vertex_bytes_ = initialVertexBytes;
     initial_index_count_ = initialIndexCount;
 
-    for (auto layout : {LayoutId::Batch, LayoutId::Shape, LayoutId::MatSprite}) {
+    for (auto layout : {LayoutId::Batch, LayoutId::ParticleInstance, LayoutId::Shape, LayoutId::MatSprite}) {
         setupStream(layout);
     }
 
@@ -29,6 +29,7 @@ void TransientBufferPool::shutdown() {
         if (s.vao) { device_.deleteVertexArray(s.vao); s.vao = 0; }
         if (s.vbo) { device_.deleteBuffer(s.vbo); s.vbo = 0; }
         if (s.ebo) { device_.deleteBuffer(s.ebo); s.ebo = 0; }
+        if (s.quad_vbo) { device_.deleteBuffer(s.quad_vbo); s.quad_vbo = 0; }
         s.vertex_staging.clear();
         s.index_staging.clear();
         s.vertex_write_pos = 0;
@@ -127,6 +128,20 @@ void TransientBufferPool::bindLayout(LayoutId layout) {
     if (s.vao) device_.bindVertexArray(s.vao);
 }
 
+void TransientBufferPool::bindInstanceLayout(LayoutId layout, u32 instanceByteOffset) {
+    Stream& s = stream(layout);
+    device_.bindVertexArray(s.vao);
+    // Rebase the per-instance attributes to this emitter's slice (no baseInstance in GLES3).
+    device_.bindVertexBuffer(s.vbo);
+    constexpr u32 IS = 40;
+    device_.vertexAttribPointer(2, 2, GfxDataType::Float, false, IS, instanceByteOffset + 0);
+    device_.vertexAttribPointer(3, 2, GfxDataType::Float, false, IS, instanceByteOffset + 8);
+    device_.vertexAttribPointer(4, 1, GfxDataType::Float, false, IS, instanceByteOffset + 16);
+    device_.vertexAttribPointer(5, 4, GfxDataType::UnsignedByte, true, IS, instanceByteOffset + 20);
+    device_.vertexAttribPointer(6, 2, GfxDataType::Float, false, IS, instanceByteOffset + 24);
+    device_.vertexAttribPointer(7, 2, GfxDataType::Float, false, IS, instanceByteOffset + 32);
+}
+
 u8* TransientBufferPool::vertexData(LayoutId layout) {
     return stream(layout).vertex_staging.data();
 }
@@ -149,6 +164,59 @@ u32 TransientBufferPool::eboId(LayoutId layout) const {
 
 void TransientBufferPool::setupStream(LayoutId layout) {
     Stream& s = stream(layout);
+
+    if (layout == LayoutId::ParticleInstance) {
+        // Per-instance (per-particle) stream: dynamic, streamed each frame.
+        s.vertex_staging.resize(initial_vertex_bytes_);
+        s.vbo_capacity = initial_vertex_bytes_;
+        s.vbo = device_.createBuffer();
+        device_.bindVertexBuffer(s.vbo);
+        device_.bufferData(GfxBufferTarget::Vertex, nullptr, s.vbo_capacity, true);
+
+        // Static unit quad (pos + uv) and its 6 indices, uploaded once. UVs are laid out
+        // so the instance shader's a_texCoord*uvScale+uvOffset reproduces the prior
+        // per-corner particle UVs.
+        struct QuadV { f32 px, py, u, v; };
+        const QuadV quad[4] = {
+            { -0.5f, -0.5f, 0.0f, 1.0f },
+            {  0.5f, -0.5f, 1.0f, 1.0f },
+            {  0.5f,  0.5f, 1.0f, 0.0f },
+            { -0.5f,  0.5f, 0.0f, 0.0f },
+        };
+        const u32 quadIdx[6] = { 0, 1, 2, 2, 3, 0 };
+        s.quad_vbo = device_.createBuffer();
+        device_.bindVertexBuffer(s.quad_vbo);
+        device_.bufferData(GfxBufferTarget::Vertex, quad, sizeof(quad), false);
+        s.ebo = device_.createBuffer();
+        device_.bindIndexBuffer(s.ebo);
+        device_.bufferData(GfxBufferTarget::Index, quadIdx, sizeof(quadIdx), false);
+
+        s.vao = device_.createVertexArray();
+        device_.bindVertexArray(s.vao);
+        device_.bindIndexBuffer(s.ebo);
+
+        // Static quad attributes (divisor 0).
+        device_.bindVertexBuffer(s.quad_vbo);
+        device_.enableVertexAttrib(0);
+        device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, 16, 0);
+        device_.enableVertexAttrib(1);
+        device_.vertexAttribPointer(1, 2, GfxDataType::Float, false, 16, 8);
+
+        // Per-instance attributes (divisor 1); offsets rebased per draw in bindInstanceLayout.
+        constexpr u32 IS = 40;
+        device_.bindVertexBuffer(s.vbo);
+        device_.enableVertexAttrib(2); device_.vertexAttribPointer(2, 2, GfxDataType::Float, false, IS, 0);  device_.vertexAttribDivisor(2, 1);
+        device_.enableVertexAttrib(3); device_.vertexAttribPointer(3, 2, GfxDataType::Float, false, IS, 8);  device_.vertexAttribDivisor(3, 1);
+        device_.enableVertexAttrib(4); device_.vertexAttribPointer(4, 1, GfxDataType::Float, false, IS, 16); device_.vertexAttribDivisor(4, 1);
+        device_.enableVertexAttrib(5); device_.vertexAttribPointer(5, 4, GfxDataType::UnsignedByte, true, IS, 20); device_.vertexAttribDivisor(5, 1);
+        device_.enableVertexAttrib(6); device_.vertexAttribPointer(6, 2, GfxDataType::Float, false, IS, 24); device_.vertexAttribDivisor(6, 1);
+        device_.enableVertexAttrib(7); device_.vertexAttribPointer(7, 2, GfxDataType::Float, false, IS, 32); device_.vertexAttribDivisor(7, 1);
+
+        device_.bindVertexArray(0);
+        device_.bindVertexBuffer(0);
+        device_.bindIndexBuffer(0);
+        return;
+    }
 
     s.vertex_staging.resize(initial_vertex_bytes_);
     s.index_staging.resize(initial_index_count_);

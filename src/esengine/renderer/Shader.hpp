@@ -320,7 +320,9 @@ inline const char* PARTICLE_INSTANCE_VERTEX = R"(#version 300 es
     layout(location = 6) in vec2 a_inst_uv_offset;
     layout(location = 7) in vec2 a_inst_uv_scale;
 
-    uniform mat4 u_projection;
+    layout(std140) uniform FrameConstants {
+        mat4 u_projection;
+    };
 
     out vec2 v_texCoord;
     out vec4 v_color;

@@ -19,7 +19,7 @@ public:
 
 private:
     particle::ParticleSystem* particle_system_ = nullptr;
-    u32 batch_shader_id_ = 0;
+    u32 particle_shader_id_ = 0;  // PARTICLE_INSTANCE program (GPU instancing)
 };
 
 }  // namespace esengine

@@ -42,6 +42,10 @@ struct DrawCommand {
     u32 entity_count = 1;
     bool merged = false;
 
+    // > 0 selects an instanced draw: index_count indices drawn instance_count times,
+    // with per-instance attributes based at vertex_byte_offset (see LayoutId::ParticleInstance).
+    u32 instance_count = 0;
+
     static u64 buildSortKey(RenderStage stage, i32 layer, u32 shaderId,
                             BlendMode blend, u16 stateFlags,
                             u32 textureId, f32 depth) {
@@ -69,6 +73,8 @@ struct DrawCommand {
     }
 
     bool canMergeWith(const DrawCommand& next) const {
+        // Instanced draws are one command per emitter — never coalesce them.
+        if (instance_count != 0 || next.instance_count != 0) return false;
         if (shader_id != next.shader_id) return false;
         if (blend_mode != next.blend_mode) return false;
         if (layout_id != next.layout_id) return false;

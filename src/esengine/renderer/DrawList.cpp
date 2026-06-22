@@ -103,11 +103,18 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             device.bindTexture(slot, cmd.texture_ids[slot]);
         }
 
-        buffers.bindLayout(cmd.layout_id);
-        device.drawElements(
-            cmd.index_count,
-            GfxDataType::UnsignedInt,
-            static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)));
+        if (cmd.instance_count > 0) {
+            // Instanced: static geometry (index_count indices from offset 0) drawn
+            // instance_count times, instance attributes rebased at vertex_byte_offset.
+            buffers.bindInstanceLayout(cmd.layout_id, cmd.vertex_byte_offset);
+            device.drawElementsInstanced(cmd.index_count, GfxDataType::UnsignedInt, 0, cmd.instance_count);
+        } else {
+            buffers.bindLayout(cmd.layout_id);
+            device.drawElements(
+                cmd.index_count,
+                GfxDataType::UnsignedInt,
+                static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)));
+        }
 
         if (capture && capture->isCapturing()) {
             capture->recordDrawCall(

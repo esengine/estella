@@ -37,9 +37,10 @@ enum class GfxBufferTarget : u8 {
  *        VBO+EBO+VAO in TransientBufferPool and is part of a pipeline's identity.
  */
 enum class LayoutId : u8 {
-    Batch     = 0,
-    Shape     = 2,
-    MatSprite = 3,
+    Batch           = 0,
+    ParticleInstance = 1,  ///< Instanced: a static unit quad + a per-particle instance stream.
+    Shape           = 2,
+    MatSprite       = 3,
 };
 
 static constexpr u32 LAYOUT_COUNT = 4;

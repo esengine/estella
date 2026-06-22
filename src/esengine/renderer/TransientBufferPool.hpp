@@ -47,6 +47,13 @@ public:
     /** Bind the VAO for this layout (which also binds its EBO — VAO state). */
     void bindLayout(LayoutId layout);
 
+    /**
+     * Bind an instanced layout and re-point its per-instance attributes to @p instanceByteOffset.
+     * GLES3 has no baseInstance, so each emitter's instanced draw rebases the instance
+     * attributes here before drawElementsInstanced. The static quad attributes are untouched.
+     */
+    void bindInstanceLayout(LayoutId layout, u32 instanceByteOffset);
+
     /** Direct write-through pointer into a layout's staging, for hot paths
      *  that want to format vertices in place after `allocVertices`. */
     u8* vertexData(LayoutId layout);
@@ -57,9 +64,10 @@ public:
 
 private:
     struct Stream {
-        u32 vbo = 0;
+        u32 vbo = 0;       // for ParticleInstance this is the per-instance (streamed) buffer
         u32 ebo = 0;
         u32 vao = 0;
+        u32 quad_vbo = 0;  // ParticleInstance only: static unit-quad geometry (divisor 0)
         std::vector<u8> vertex_staging;
         std::vector<u32> index_staging;  // 32-bit indices: a single Batch stream can exceed 65535 vertices
         u32 vertex_write_pos = 0;
