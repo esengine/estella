@@ -56,7 +56,7 @@ export interface TextRendererOptions extends CanvasGlyphRasterizerOptions {
     pageSize?: number;
 }
 
-export class TextRenderer {
+export class SdfTextRenderer {
     readonly atlas: GlyphAtlas;
 
     constructor(private readonly module: ESEngineModule, opts: TextRendererOptions = {}) {

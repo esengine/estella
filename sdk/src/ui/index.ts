@@ -365,6 +365,58 @@ export {
     type ResolvedImage,
 } from './ImageResolver';
 
+// ─── SDF glyph-atlas text (REARCH_GUI P1) ───────────────────────────────────
+
+export {
+    UIText,
+    UI_TEXT_BOLD,
+    UI_TEXT_ITALIC,
+    composeTRS,
+    type UITextData,
+} from './text/ui-text';
+
+export { UITextPlugin, uiTextPlugin } from './text/plugin';
+
+export {
+    SdfTextRenderer,
+    drawTextWith,
+    type DrawTextParams,
+    type GlyphBatchSink,
+    type TextRendererOptions,
+} from './text/text-renderer';
+
+export {
+    GlyphAtlas,
+    type GlyphRasterizer,
+    type AtlasPageStore,
+    type RasterGlyph,
+    type GlyphEntry,
+    type GlyphAtlasOptions,
+} from './text/glyph-atlas';
+
+export {
+    CanvasGlyphRasterizer,
+    extractAlpha,
+    sdfToAtlasRgba,
+    type CanvasGlyphRasterizerOptions,
+} from './text/glyph-rasterizer';
+
+export { EngineAtlasPageStore } from './text/atlas-page-store';
+
+export {
+    layoutLine,
+    buildGlyphVertices,
+    type TextLayout,
+    type TextLayoutOptions,
+    type LaidGlyph,
+    type RGBA,
+    type GlyphVertexData,
+} from './text/layout';
+
+export { ShelfPacker, type Packer, type PackPos } from './text/atlas-packer';
+export { sdfFromAlpha } from './text/sdf';
+export { submitTextBatch, TEXT_VERTEX_FLOATS } from './text/submit';
+
 export const AnimOverride = {
     POS_X: 1,
     POS_Y: 2,
