@@ -2,8 +2,10 @@
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
+#include "../ShaderEmbeds.generated.hpp"
 #include "../Texture.hpp"
 #include "../BatchVertex.hpp"   // packColor
+#include "../../resource/ShaderParser.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/ParticleEmitter.hpp"
 #include "../../particle/ParticleSystem.hpp"
@@ -29,11 +31,12 @@ static_assert(sizeof(ParticleInstanceData) == 40, "instance stride must match th
 }  // namespace
 
 void ParticlePlugin::init(RenderFrameContext& ctx) {
-    // Activate the (previously dead) instancing shader. Attribute locations are explicit
-    // in the GLSL, so no name bindings are needed.
+    // Particle instancing shader, authored as particle.esshader (single source) and
+    // embedded for the web build. Attribute locations are explicit, so no name bindings.
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
     auto handle = ctx.resources.createShaderWithBindings(
-        ShaderSources::PARTICLE_INSTANCE_VERTEX,
-        ShaderSources::PARTICLE_INSTANCE_FRAGMENT,
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
         {});
     Shader* shader = ctx.resources.getShader(handle);
     if (shader && shader->isValid()) {

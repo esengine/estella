@@ -1,5 +1,7 @@
 #include "RenderFrame.hpp"
 #include "Shader.hpp"
+#include "ShaderEmbeds.generated.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
@@ -356,12 +358,12 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
 }
 
 u32 RenderFrame::initBatchShader() {
-    // The batch shader ships embedded as source (ShaderSources::BATCH_*); there is
-    // no file-load path on web. WebGL2 guarantees GLSL ES 3.00, so there is no ES 1.0
-    // fallback — the batch shader is unconditionally the ES 3.00 source.
+    // The batch shader is authored as a single .esshader, embedded for the web build.
+    // Parse it and assemble the two GLSL ES 3.00 stages (single source of truth).
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
     resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
-        ShaderSources::BATCH_VERTEX,
-        ShaderSources::BATCH_FRAGMENT,
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
         {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
     );
 

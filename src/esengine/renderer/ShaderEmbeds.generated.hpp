@@ -2,44 +2,20 @@
 
 namespace esengine::ShaderEmbeds {
 
-inline constexpr const char* AXIS = R"esshader(#pragma shader "Axis"
-
-#pragma vertex
-attribute vec3 a_position;
-attribute vec4 a_color;
-
-uniform mat4 u_viewProj;
-
-varying vec4 v_color;
-
-void main() {
-    gl_Position = u_viewProj * vec4(a_position, 1.0);
-    v_color = a_color;
-}
-#pragma end
-
-#pragma fragment
-precision mediump float;
-
-varying vec4 v_color;
-
-void main() {
-    gl_FragColor = v_color;
-}
-#pragma end
-)esshader";
-
 inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
+#pragma version 300 es
 
 #pragma vertex
-attribute vec2 a_position;
-attribute vec4 a_color;
-attribute vec2 a_texCoord;
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_texCoord;
 
-uniform mat4 u_projection;
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
 
-varying vec4 v_color;
-varying vec2 v_texCoord;
+out vec4 v_color;
+out vec2 v_texCoord;
 
 void main() {
     gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
@@ -51,89 +27,72 @@ void main() {
 #pragma fragment
 precision mediump float;
 
-varying vec4 v_color;
-varying vec2 v_texCoord;
+in vec4 v_color;
+in vec2 v_texCoord;
 
 uniform sampler2D u_texture;
 
+out vec4 fragColor;
+
 void main() {
-    vec4 texColor = texture2D(u_texture, v_texCoord);
-    gl_FragColor = texColor * v_color;
+    vec4 texColor = texture(u_texture, v_texCoord);
+    fragColor = texColor * v_color;
 }
 #pragma end
 )esshader";
 
-inline constexpr const char* COLOR = R"esshader(#pragma shader "Color"
+inline constexpr const char* PARTICLE = R"esshader(#pragma shader "ParticleInstance"
+#pragma version 300 es
 
 #pragma vertex
-attribute vec2 a_position;
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in vec2 a_texCoord;
 
-uniform mat4 u_projection;
-uniform mat4 u_model;
+layout(location = 2) in vec2 a_inst_position;
+layout(location = 3) in vec2 a_inst_size;
+layout(location = 4) in float a_inst_rotation;
+layout(location = 5) in vec4 a_inst_color;
+layout(location = 6) in vec2 a_inst_uv_offset;
+layout(location = 7) in vec2 a_inst_uv_scale;
+
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
+
+out vec2 v_texCoord;
+out vec4 v_color;
 
 void main() {
-    gl_Position = u_projection * u_model * vec4(a_position, 0.0, 1.0);
+    vec2 scaled = a_position * a_inst_size;
+
+    float cosR = cos(a_inst_rotation);
+    float sinR = sin(a_inst_rotation);
+    vec2 rotated = vec2(
+        scaled.x * cosR - scaled.y * sinR,
+        scaled.x * sinR + scaled.y * cosR
+    );
+
+    vec2 worldPos = rotated + a_inst_position;
+    gl_Position = u_projection * vec4(worldPos, 0.0, 1.0);
+
+    v_texCoord = a_texCoord * a_inst_uv_scale + a_inst_uv_offset;
+    v_color = a_inst_color;
 }
 #pragma end
 
 #pragma fragment
 precision mediump float;
 
-uniform vec4 u_color;
+in vec2 v_texCoord;
+in vec4 v_color;
+
+uniform sampler2D u_texture;
+
+out vec4 fragColor;
 
 void main() {
-    gl_FragColor = u_color;
-}
-#pragma end
-)esshader";
-
-inline constexpr const char* GIZMO = R"esshader(#pragma shader "Gizmo"
-
-#pragma vertex
-attribute vec3 a_position;
-attribute vec4 a_color;
-
-uniform mat4 u_viewProj;
-uniform mat4 u_model;
-
-varying vec4 v_color;
-
-void main() {
-    gl_Position = u_viewProj * u_model * vec4(a_position, 1.0);
-    v_color = a_color;
-}
-#pragma end
-
-#pragma fragment
-precision mediump float;
-
-varying vec4 v_color;
-
-void main() {
-    gl_FragColor = v_color;
-}
-#pragma end
-)esshader";
-
-inline constexpr const char* GRID = R"esshader(#pragma shader "Grid"
-
-#pragma vertex
-attribute vec3 a_position;
-
-uniform mat4 u_viewProj;
-
-void main() {
-    gl_Position = u_viewProj * vec4(a_position, 1.0);
-}
-#pragma end
-
-#pragma fragment
-precision mediump float;
-
-uniform vec4 u_color;
-
-void main() {
-    gl_FragColor = u_color;
+    vec4 texColor = texture(u_texture, v_texCoord);
+    fragColor = texColor * v_color;
 }
 #pragma end
 )esshader";
@@ -198,84 +157,6 @@ void main() {
     float alpha = 1.0 - smoothstep(-fw, fw, dist);
     if (alpha < 0.001) discard;
     fragColor = vec4(v_color.rgb, v_color.a * alpha);
-}
-#pragma end
-)esshader";
-
-inline constexpr const char* SPRITE = R"esshader(#pragma shader "Sprite"
-
-#pragma vertex
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
-
-uniform mat4 u_projection;
-uniform mat4 u_model;
-
-varying vec2 v_texCoord;
-
-void main() {
-    gl_Position = u_projection * u_model * vec4(a_position, 0.0, 1.0);
-    v_texCoord = a_texCoord;
-}
-#pragma end
-
-#pragma fragment
-precision mediump float;
-
-uniform sampler2D u_texture;
-uniform vec4 u_color;
-
-varying vec2 v_texCoord;
-
-void main() {
-    vec4 texColor = texture2D(u_texture, v_texCoord);
-    gl_FragColor = texColor * u_color;
-}
-#pragma end
-)esshader";
-
-inline constexpr const char* UI = R"esshader(#pragma shader "UI"
-
-#pragma vertex
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
-attribute vec4 a_color;
-
-uniform mat4 u_projection;
-
-varying vec2 v_texCoord;
-varying vec4 v_color;
-
-void main() {
-    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
-    v_texCoord = a_texCoord;
-    v_color = a_color;
-}
-#pragma end
-
-#pragma fragment
-precision mediump float;
-
-uniform sampler2D u_texture;
-uniform int u_useTexture;
-uniform int u_useSDF;
-uniform float u_sdfSmoothing;
-
-varying vec2 v_texCoord;
-varying vec4 v_color;
-
-void main() {
-    if (u_useTexture == 1) {
-        if (u_useSDF == 1) {
-            float dist = texture2D(u_texture, v_texCoord).a;
-            float alpha = smoothstep(0.5 - u_sdfSmoothing, 0.5 + u_sdfSmoothing, dist);
-            gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
-        } else {
-            gl_FragColor = texture2D(u_texture, v_texCoord) * v_color;
-        }
-    } else {
-        gl_FragColor = v_color;
-    }
 }
 #pragma end
 )esshader";
