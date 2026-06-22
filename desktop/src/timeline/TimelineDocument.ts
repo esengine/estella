@@ -1,19 +1,16 @@
 /**
  * @file    TimelineDocument.ts
- * @brief   The open .estimeline as a reactive editor document — the first asset
- *          document session (docs/REARCH_ANIMATION.md L4).
+ * @brief   The open .estimeline as a reactive editor document — the first
+ *          {@link AssetDocument} (docs/REARCH_ANIMATION.md L4 / P5).
  *
- * Mirrors the scene's model-authoritative reactivity (SceneStore): the in-memory
- * TimelineAsset is the source of truth, panels subscribe via useSyncExternalStore
- * and re-read on each revision bump. Editing commands (P2) mutate the asset and
- * bump; for P1 the document just holds an opened clip + its preview binding.
- *
- * `fps` is editor display metadata (the asset stores time in seconds); the design
- * shows a frame ruler, so the panel converts seconds ↔ frames via this fps.
+ * The generic reactive + snapshot-undo core lives in AssetDocument; this adds the
+ * timeline-specific state: `fps` (editor display metadata — the asset stores time
+ * in seconds, the panel renders a frame ruler) and `rootEntity` (which scene
+ * entity the timeline previews against).
  */
 
-import { createStore } from 'zustand/vanilla';
 import { parseTimelineAsset, type TimelineAsset } from 'esengine';
+import { AssetDocument } from '@/document/AssetDocument';
 import type { EntityId } from '@/types';
 
 export interface TimelineDocMeta {
@@ -26,10 +23,6 @@ export interface TimelineDocMeta {
 // in the asset, which is frame-rate-independent (keyframe times are seconds).
 const DEFAULT_FPS = 12;
 
-function emptyMeta(): TimelineDocMeta {
-  return { filePath: null, fps: DEFAULT_FPS, dirty: false };
-}
-
 export interface OpenParams {
   asset: TimelineAsset;
   filePath?: string | null;
@@ -37,41 +30,22 @@ export interface OpenParams {
   rootEntity?: EntityId | null;
 }
 
-export class TimelineDocumentImpl {
-  private _asset: TimelineAsset | null = null;
-  private _meta: TimelineDocMeta = emptyMeta();
+export class TimelineDocumentImpl extends AssetDocument<TimelineAsset> {
+  private _fps = DEFAULT_FPS;
   private _root: EntityId | null = null;
-  private readonly store = createStore<{ revision: number }>(() => ({ revision: 0 }));
 
-  subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
-  getRevision = (): number => this.store.getState().revision;
-  private bump() {
-    this.store.setState((s) => ({ revision: s.revision + 1 }));
-  }
-
-  get asset(): TimelineAsset | null {
-    return this._asset;
-  }
   get meta(): TimelineDocMeta {
-    return this._meta;
+    return { filePath: this.filePath, fps: this._fps, dirty: this.dirty };
   }
   get rootEntity(): EntityId | null {
     return this._root;
   }
-  get isOpen(): boolean {
-    return this._asset !== null;
-  }
 
   /** Open an already-parsed timeline asset, optionally bound to a preview entity. */
   open(params: OpenParams): void {
-    this._asset = params.asset;
-    this._meta = {
-      filePath: params.filePath ?? null,
-      fps: params.fps ?? DEFAULT_FPS,
-      dirty: false,
-    };
+    this._fps = params.fps ?? DEFAULT_FPS;
     this._root = params.rootEntity ?? null;
-    this.bump();
+    this.openAsset(params.asset, params.filePath ?? null);
   }
 
   /** Open from raw .estimeline JSON (parsed + migrated by the SDK loader). */
@@ -88,33 +62,15 @@ export class TimelineDocumentImpl {
   /** Set the editor display frame rate (view metadata; not persisted in the asset). */
   setFps(fps: number): void {
     const next = Math.max(1, Math.round(fps));
-    if (next === this._meta.fps) return;
-    this._meta = { ...this._meta, fps: next };
-    this.bump();
-  }
-
-  /** Clear the dirty flag after a successful save. */
-  markSaved(): void {
-    if (!this._meta.dirty) return;
-    this._meta = { ...this._meta, dirty: false };
-    this.bump();
-  }
-
-  /**
-   * Replace the asset after a command mutation (P2). Kept distinct from open() so
-   * the file binding / fps survive an edit; marks the document dirty by default.
-   */
-  replaceAsset(next: TimelineAsset, opts: { dirty?: boolean } = {}): void {
-    this._asset = next;
-    this._meta = { ...this._meta, dirty: opts.dirty ?? true };
+    if (next === this._fps) return;
+    this._fps = next;
     this.bump();
   }
 
   close(): void {
-    this._asset = null;
-    this._meta = emptyMeta();
+    this._fps = DEFAULT_FPS;
     this._root = null;
-    this.bump();
+    this.closeAsset();
   }
 }
 

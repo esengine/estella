@@ -12,8 +12,8 @@
  */
 
 import {
-  serializeTimelineToJson,
   TrackType,
+  serializeTimelineToJson,
   type TimelineAsset,
   type InterpType,
   type WrapMode,
@@ -22,13 +22,9 @@ import {
 } from 'esengine';
 import { TimelineDocument } from './TimelineDocument';
 import { findChannel, upsertKeyframe, type ChannelRef } from './timelineView';
-import { EditorHistory } from '@/engine/EditorHistory';
 import { Toasts } from '@/store/Toasts';
 
 export type { ChannelRef };
-
-const clone = <T>(v: T): T =>
-  typeof structuredClone === 'function' ? structuredClone(v) : (JSON.parse(JSON.stringify(v)) as T);
 
 // Keyframes equal within this many seconds are treated as the same key.
 const EPS = 1e-4;
@@ -37,23 +33,11 @@ function sortKeys(ch: PropertyChannel): void {
   ch.keyframes.sort((a, b) => a.time - b.time);
 }
 
+// Commands mutate the open document via `TimelineDocument.edit` — the shared
+// AssetDocument snapshot-undo helper (one EditorHistory step per command).
 class TimelineCommandsImpl {
-  /** Apply an already-decided mutation as one undo step (whole-asset snapshot). */
-  private apply(label: string, mutate: (draft: TimelineAsset) => void): void {
-    const before = TimelineDocument.asset;
-    if (!before) return;
-    const after = clone(before);
-    mutate(after);
-    TimelineDocument.replaceAsset(after);
-    EditorHistory.record(
-      label,
-      () => TimelineDocument.replaceAsset(after),
-      () => TimelineDocument.replaceAsset(before),
-    );
-  }
-
   addKey(ref: ChannelRef, time: number, value: number, interp?: InterpType): void {
-    this.apply('Add Keyframe', (a) => {
+    TimelineDocument.edit('Add Keyframe', (a) => {
       const ch = findChannel(a, ref);
       if (ch) upsertKeyframe(ch, time, value, interp);
     });
@@ -66,7 +50,7 @@ class TimelineCommandsImpl {
    */
   addTrack(ref: ChannelRef, valueAtTime: number, time: number): void {
     if (findChannel(TimelineDocument.asset ?? ({} as TimelineAsset), ref)) return;
-    this.apply('Add Track', (a) => {
+    TimelineDocument.edit('Add Track', (a) => {
       let track = a.tracks.find(
         (t): t is PropertyTrack =>
           t.type === TrackType.Property && t.childPath === ref.childPath && t.component === ref.component,
@@ -86,7 +70,7 @@ class TimelineCommandsImpl {
 
   /** Remove an animatable channel; drop its property track when it goes empty. */
   removeChannel(ref: ChannelRef): void {
-    this.apply('Remove Track', (a) => {
+    TimelineDocument.edit('Remove Track', (a) => {
       for (let ti = a.tracks.length - 1; ti >= 0; ti--) {
         const t = a.tracks[ti];
         if (t.type !== TrackType.Property || t.childPath !== ref.childPath || t.component !== ref.component) continue;
@@ -97,7 +81,7 @@ class TimelineCommandsImpl {
   }
 
   deleteKey(ref: ChannelRef, time: number): void {
-    this.apply('Delete Keyframe', (a) => {
+    TimelineDocument.edit('Delete Keyframe', (a) => {
       const ch = findChannel(a, ref);
       if (!ch) return;
       const i = ch.keyframes.findIndex((k) => Math.abs(k.time - time) < EPS);
@@ -106,14 +90,14 @@ class TimelineCommandsImpl {
   }
 
   setKeyValue(ref: ChannelRef, time: number, value: number): void {
-    this.apply('Edit Keyframe', (a) => {
+    TimelineDocument.edit('Edit Keyframe', (a) => {
       const k = findChannel(a, ref)?.keyframes.find((x) => Math.abs(x.time - time) < EPS);
       if (k) k.value = value;
     });
   }
 
   setKeyInterp(ref: ChannelRef, time: number, interp: InterpType): void {
-    this.apply('Set Interpolation', (a) => {
+    TimelineDocument.edit('Set Interpolation', (a) => {
       const k = findChannel(a, ref)?.keyframes.find((x) => Math.abs(x.time - time) < EPS);
       if (k) k.interpolation = interp;
     });
@@ -121,7 +105,7 @@ class TimelineCommandsImpl {
 
   /** Move a key in time AND set its value in one step (curve-view 2D drag). */
   editKey(ref: ChannelRef, fromTime: number, toTime: number, value: number): void {
-    this.apply('Edit Keyframe', (a) => {
+    TimelineDocument.edit('Edit Keyframe', (a) => {
       const ch = findChannel(a, ref);
       const k = ch?.keyframes.find((x) => Math.abs(x.time - fromTime) < EPS);
       if (!ch || !k) return;
@@ -137,7 +121,7 @@ class TimelineCommandsImpl {
 
   /** Set a key's in/out tangents (and switch it to Hermite) — curve handle drag. */
   setKeyTangents(ref: ChannelRef, time: number, inTangent: number, outTangent: number): void {
-    this.apply('Edit Tangents', (a) => {
+    TimelineDocument.edit('Edit Tangents', (a) => {
       const k = findChannel(a, ref)?.keyframes.find((x) => Math.abs(x.time - time) < EPS);
       if (!k) return;
       k.inTangent = inTangent;
@@ -149,7 +133,7 @@ class TimelineCommandsImpl {
   /** Move a keyframe in time (drag). A key already at `toTime` is overwritten. */
   moveKey(ref: ChannelRef, fromTime: number, toTime: number): void {
     if (Math.abs(fromTime - toTime) < EPS) return;
-    this.apply('Move Keyframe', (a) => {
+    TimelineDocument.edit('Move Keyframe', (a) => {
       const ch = findChannel(a, ref);
       if (!ch) return;
       const k = ch.keyframes.find((x) => Math.abs(x.time - fromTime) < EPS);
@@ -162,13 +146,13 @@ class TimelineCommandsImpl {
   }
 
   setDuration(seconds: number): void {
-    this.apply('Set Duration', (a) => {
+    TimelineDocument.edit('Set Duration', (a) => {
       a.duration = Math.max(0, seconds);
     });
   }
 
   setWrapMode(mode: WrapMode): void {
-    this.apply('Set Wrap Mode', (a) => {
+    TimelineDocument.edit('Set Wrap Mode', (a) => {
       a.wrapMode = mode;
     });
   }
