@@ -107,6 +107,12 @@ struct SpineContext {
     std::vector<MeshBatch> meshBatches;
     std::vector<float> worldVertices;
 
+    // Spine's own clip region machinery (spSkeletonClipping), shared across
+    // frames and lazily created. clippingEnabled is a global toggle (debug /
+    // perf knob, default on) so a clip-on vs clip-off mesh can be compared.
+    spSkeletonClipping* clipper = nullptr;
+    bool clippingEnabled = true;
+
     std::string stringBuffer;
     std::string lastError;
 
@@ -138,6 +144,7 @@ struct SpineContext {
         nextInstanceId = 1;
         meshBatches.clear();
         worldVertices.clear();
+        if (clipper) { spSkeletonClipping_dispose(clipper); clipper = nullptr; }
         stringBuffer.clear();
         lastError.clear();
         eventBuffer.clear();
@@ -530,11 +537,73 @@ void spine_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr,
 // Mesh Extraction
 // =============================================================================
 
+// Emit one attachment's triangles into the current batch, applying the active
+// clip region when clipping is on. Uses spine's own spSkeletonClipping — the
+// same algorithm the native path used — so 4.2 (which routes here once a
+// provider is configured) finally clips instead of dropping the clip silently.
+// `verts`/`uvs` are x,y / u,v interleaved; `tris` index into `verts`. Clipping
+// replaces the triangle set with the polygon intersection, never expanding it.
+static void emitClippedTriangles(
+    MeshBatch*& currentBatch, uint32_t& currentTexture, int& currentBlend,
+    float* verts, int vertCount, float* uvs,
+    unsigned short* tris, int triCount,
+    uint32_t texId, int effectiveBlend,
+    float r, float g, float b, float a
+) {
+    float* outVerts = verts;
+    float* outUVs = uvs;
+    unsigned short* outTris = tris;
+    int outVertCount = vertCount;
+    int outTriCount = triCount;
+
+    if (g_ctx.clippingEnabled && spSkeletonClipping_isClipping(g_ctx.clipper)) {
+        spSkeletonClipping_clipTriangles(
+            g_ctx.clipper, verts, vertCount * 2, tris, triCount, uvs, 2);
+        outVerts = g_ctx.clipper->clippedVertices->items;
+        outVertCount = g_ctx.clipper->clippedVertices->size / 2;
+        outUVs = g_ctx.clipper->clippedUVs->items;
+        outTris = g_ctx.clipper->clippedTriangles->items;
+        outTriCount = g_ctx.clipper->clippedTriangles->size;
+    }
+
+    if (outVertCount == 0 || outTriCount == 0) return;
+
+    bool needNewBatch = !currentBatch || texId != currentTexture || effectiveBlend != currentBlend;
+    if (!needNewBatch && currentBatch->vertices.size() / 8 + outVertCount > 65535) {
+        needNewBatch = true;
+    }
+    if (needNewBatch) {
+        g_ctx.meshBatches.emplace_back();
+        currentBatch = &g_ctx.meshBatches.back();
+        currentBatch->textureId = texId;
+        currentBatch->blendMode = effectiveBlend;
+        currentTexture = texId;
+        currentBlend = effectiveBlend;
+    }
+
+    auto baseIndex = static_cast<uint16_t>(currentBatch->vertices.size() / 8);
+    for (int j = 0; j < outVertCount; ++j) {
+        currentBatch->vertices.push_back(outVerts[j * 2]);
+        currentBatch->vertices.push_back(outVerts[j * 2 + 1]);
+        currentBatch->vertices.push_back(outUVs[j * 2]);
+        currentBatch->vertices.push_back(outUVs[j * 2 + 1]);
+        currentBatch->vertices.push_back(r);
+        currentBatch->vertices.push_back(g);
+        currentBatch->vertices.push_back(b);
+        currentBatch->vertices.push_back(a);
+    }
+    for (int j = 0; j < outTriCount; ++j) {
+        currentBatch->indices.push_back(static_cast<uint16_t>(baseIndex + outTris[j]));
+    }
+}
+
 static void extractMeshBatches(int instanceId) {
     g_ctx.meshBatches.clear();
 
     auto it = g_ctx.instances.find(instanceId);
     if (it == g_ctx.instances.end()) return;
+
+    if (!g_ctx.clipper) g_ctx.clipper = spSkeletonClipping_create();
 
     spSkeleton* skeleton = it->second.skeleton;
     spColor& skelColor = skeleton->color;
@@ -548,169 +617,109 @@ static void extractMeshBatches(int instanceId) {
         if (!slot) continue;
 
         spAttachment* attachment = slot->attachment;
-        if (!attachment) continue;
-#if !defined(ES_SPINE_38) && !defined(ES_SPINE_41)
-        if (!slot->data->visible) continue;
-#endif
 
-        if (attachment->type == SP_ATTACHMENT_CLIPPING) {
+        // A clipping attachment opens a clip region (until its endSlot); it emits
+        // no geometry itself.
+        if (attachment && attachment->type == SP_ATTACHMENT_CLIPPING) {
+            if (g_ctx.clippingEnabled) {
+                spSkeletonClipping_clipStart(g_ctx.clipper, slot,
+                    reinterpret_cast<spClippingAttachment*>(attachment));
+            }
             continue;
         }
 
-        spColor& slotColor = slot->color;
+        bool visible = attachment != nullptr;
+#if !defined(ES_SPINE_38) && !defined(ES_SPINE_41)
+        if (visible && !slot->data->visible) visible = false;
+#endif
 
-        int blendMode = 0;
-        switch (slot->data->blendMode) {
-            case SP_BLEND_MODE_NORMAL: blendMode = 0; break;
-            case SP_BLEND_MODE_ADDITIVE: blendMode = 1; break;
-            case SP_BLEND_MODE_MULTIPLY: blendMode = 2; break;
-            case SP_BLEND_MODE_SCREEN: blendMode = 3; break;
-        }
+        if (visible) {
+            spColor& slotColor = slot->color;
 
-        if (attachment->type == SP_ATTACHMENT_REGION) {
-            auto* region = reinterpret_cast<spRegionAttachment*>(attachment);
+            int blendMode = 0;
+            switch (slot->data->blendMode) {
+                case SP_BLEND_MODE_NORMAL: blendMode = 0; break;
+                case SP_BLEND_MODE_ADDITIVE: blendMode = 1; break;
+                case SP_BLEND_MODE_MULTIPLY: blendMode = 2; break;
+                case SP_BLEND_MODE_SCREEN: blendMode = 3; break;
+            }
 
-            g_ctx.worldVertices.resize(8);
+            if (attachment->type == SP_ATTACHMENT_REGION) {
+                auto* region = reinterpret_cast<spRegionAttachment*>(attachment);
+                uint32_t texId = getRegionTextureId(region);
+                if (texId) {
+                    g_ctx.worldVertices.resize(8);
 #ifdef ES_SPINE_38
-            spRegionAttachment_computeWorldVertices(region, slot->bone, g_ctx.worldVertices.data(), 0, 2);
+                    spRegionAttachment_computeWorldVertices(region, slot->bone, g_ctx.worldVertices.data(), 0, 2);
 #else
-            spRegionAttachment_computeWorldVertices(region, slot, g_ctx.worldVertices.data(), 0, 2);
+                    spRegionAttachment_computeWorldVertices(region, slot, g_ctx.worldVertices.data(), 0, 2);
 #endif
-
-            uint32_t texId = getRegionTextureId(region);
-            if (!texId) continue;
-
-            int effectiveBlend = blendMode;
+                    int effectiveBlend = blendMode;
 #ifndef ES_SPINE_38
-            if (region->region) {
-                auto* atlasReg = reinterpret_cast<spAtlasRegion*>(region->region);
-                if (atlasReg->page && atlasReg->page->pma) {
-                    if (effectiveBlend == 0) effectiveBlend = 4;
-                    else if (effectiveBlend == 1) effectiveBlend = 5;
-                }
-            }
+                    if (region->region) {
+                        auto* atlasReg = reinterpret_cast<spAtlasRegion*>(region->region);
+                        if (atlasReg->page && atlasReg->page->pma) {
+                            if (effectiveBlend == 0) effectiveBlend = 4;
+                            else if (effectiveBlend == 1) effectiveBlend = 5;
+                        }
+                    }
 #endif
+                    spColor& attachColor = region->color;
+                    float a = skelColor.a * slotColor.a * attachColor.a;
+                    float r = skelColor.r * slotColor.r * attachColor.r;
+                    float g = skelColor.g * slotColor.g * attachColor.g;
+                    float b = skelColor.b * slotColor.b * attachColor.b;
+                    if (effectiveBlend >= 4) { r *= a; g *= a; b *= a; }
 
-            bool needNewBatch = !currentBatch || texId != currentTexture || effectiveBlend != currentBlend;
-            if (!needNewBatch && currentBatch->vertices.size() / 8 + 4 > 65535) {
-                needNewBatch = true;
-            }
+                    static unsigned short QUAD_TRIS[6] = {0, 1, 2, 2, 3, 0};
+                    emitClippedTriangles(currentBatch, currentTexture, currentBlend,
+                        g_ctx.worldVertices.data(), 4, region->uvs, QUAD_TRIS, 6,
+                        texId, effectiveBlend, r, g, b, a);
+                }
+            } else if (attachment->type == SP_ATTACHMENT_MESH) {
+                auto* mesh = reinterpret_cast<spMeshAttachment*>(attachment);
+                uint32_t texId = getMeshTextureId(mesh);
+                if (texId) {
+                    int worldVerticesLength = SUPER(mesh)->worldVerticesLength;
+                    int vertexCount = worldVerticesLength / 2;
+                    g_ctx.worldVertices.resize(worldVerticesLength);
+                    spVertexAttachment_computeWorldVertices(SUPER(mesh), slot, 0,
+                        worldVerticesLength, g_ctx.worldVertices.data(), 0, 2);
 
-            if (needNewBatch) {
-                g_ctx.meshBatches.emplace_back();
-                currentBatch = &g_ctx.meshBatches.back();
-                currentBatch->textureId = texId;
-                currentBatch->blendMode = effectiveBlend;
-                currentTexture = texId;
-                currentBlend = effectiveBlend;
-            }
-
-            float* uvs = region->uvs;
-            spColor& attachColor = region->color;
-
-            float a = skelColor.a * slotColor.a * attachColor.a;
-            float r = skelColor.r * slotColor.r * attachColor.r;
-            float g = skelColor.g * slotColor.g * attachColor.g;
-            float b = skelColor.b * slotColor.b * attachColor.b;
-
-            if (effectiveBlend >= 4) {
-                r *= a;
-                g *= a;
-                b *= a;
-            }
-
-            auto baseIndex = static_cast<uint16_t>(
-                currentBatch->vertices.size() / 8);
-
-            for (int j = 0; j < 4; ++j) {
-                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2]);
-                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2 + 1]);
-                currentBatch->vertices.push_back(uvs[j * 2]);
-                currentBatch->vertices.push_back(uvs[j * 2 + 1]);
-                currentBatch->vertices.push_back(r);
-                currentBatch->vertices.push_back(g);
-                currentBatch->vertices.push_back(b);
-                currentBatch->vertices.push_back(a);
-            }
-
-            currentBatch->indices.push_back(baseIndex);
-            currentBatch->indices.push_back(baseIndex + 1);
-            currentBatch->indices.push_back(baseIndex + 2);
-            currentBatch->indices.push_back(baseIndex + 2);
-            currentBatch->indices.push_back(baseIndex + 3);
-            currentBatch->indices.push_back(baseIndex);
-
-        } else if (attachment->type == SP_ATTACHMENT_MESH) {
-            auto* mesh = reinterpret_cast<spMeshAttachment*>(attachment);
-
-            int worldVerticesLength = SUPER(mesh)->worldVerticesLength;
-            int vertexCount = worldVerticesLength / 2;
-
-            g_ctx.worldVertices.resize(worldVerticesLength);
-            spVertexAttachment_computeWorldVertices(SUPER(mesh), slot, 0,
-                worldVerticesLength, g_ctx.worldVertices.data(), 0, 2);
-
-            uint32_t texId = getMeshTextureId(mesh);
-            if (!texId) continue;
-
-            int effectiveBlend = blendMode;
+                    int effectiveBlend = blendMode;
 #ifndef ES_SPINE_38
-            if (mesh->region) {
-                auto* atlasReg = reinterpret_cast<spAtlasRegion*>(mesh->region);
-                if (atlasReg->page && atlasReg->page->pma) {
-                    if (effectiveBlend == 0) effectiveBlend = 4;
-                    else if (effectiveBlend == 1) effectiveBlend = 5;
-                }
-            }
+                    if (mesh->region) {
+                        auto* atlasReg = reinterpret_cast<spAtlasRegion*>(mesh->region);
+                        if (atlasReg->page && atlasReg->page->pma) {
+                            if (effectiveBlend == 0) effectiveBlend = 4;
+                            else if (effectiveBlend == 1) effectiveBlend = 5;
+                        }
+                    }
 #endif
+                    spColor& attachColor = mesh->color;
+                    float a = skelColor.a * slotColor.a * attachColor.a;
+                    float r = skelColor.r * slotColor.r * attachColor.r;
+                    float g = skelColor.g * slotColor.g * attachColor.g;
+                    float b = skelColor.b * slotColor.b * attachColor.b;
+                    if (effectiveBlend >= 4) { r *= a; g *= a; b *= a; }
 
-            bool needNewBatch = !currentBatch || texId != currentTexture || effectiveBlend != currentBlend;
-            if (!needNewBatch && currentBatch->vertices.size() / 8 + vertexCount > 65535) {
-                needNewBatch = true;
-            }
-
-            if (needNewBatch) {
-                g_ctx.meshBatches.emplace_back();
-                currentBatch = &g_ctx.meshBatches.back();
-                currentBatch->textureId = texId;
-                currentBatch->blendMode = effectiveBlend;
-                currentTexture = texId;
-                currentBlend = effectiveBlend;
-            }
-
-            float* uvs = mesh->uvs;
-            spColor& attachColor = mesh->color;
-
-            float a = skelColor.a * slotColor.a * attachColor.a;
-            float r = skelColor.r * slotColor.r * attachColor.r;
-            float g = skelColor.g * slotColor.g * attachColor.g;
-            float b = skelColor.b * slotColor.b * attachColor.b;
-
-            if (effectiveBlend >= 4) {
-                r *= a;
-                g *= a;
-                b *= a;
-            }
-
-            auto baseIndex = static_cast<uint16_t>(
-                currentBatch->vertices.size() / 8);
-
-            for (int j = 0; j < vertexCount; ++j) {
-                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2]);
-                currentBatch->vertices.push_back(g_ctx.worldVertices[j * 2 + 1]);
-                currentBatch->vertices.push_back(uvs[j * 2]);
-                currentBatch->vertices.push_back(uvs[j * 2 + 1]);
-                currentBatch->vertices.push_back(r);
-                currentBatch->vertices.push_back(g);
-                currentBatch->vertices.push_back(b);
-                currentBatch->vertices.push_back(a);
-            }
-
-            for (int j = 0; j < mesh->trianglesCount; ++j) {
-                currentBatch->indices.push_back(
-                    static_cast<uint16_t>(baseIndex + mesh->triangles[j]));
+                    emitClippedTriangles(currentBatch, currentTexture, currentBlend,
+                        g_ctx.worldVertices.data(), vertexCount, mesh->uvs,
+                        mesh->triangles, mesh->trianglesCount,
+                        texId, effectiveBlend, r, g, b, a);
+                }
             }
         }
+
+        // clipEnd closes the region when this slot is the clip's endSlot
+        // (cheap no-op otherwise). Called for every non-clip slot, per spine.
+        if (g_ctx.clippingEnabled) {
+            spSkeletonClipping_clipEnd(g_ctx.clipper, slot);
+        }
+    }
+
+    if (g_ctx.clippingEnabled) {
+        spSkeletonClipping_clipEnd2(g_ctx.clipper);
     }
 }
 
@@ -754,6 +763,13 @@ void spine_getMeshBatchData(int instanceId, int batchIndex,
                 batch.indices.size() * sizeof(uint16_t));
     *outTextureId = batch.textureId;
     *outBlendMode = batch.blendMode;
+}
+
+// Toggle clip-region processing (default on). Lets a caller compare clip-on vs
+// clip-off output; also a perf escape hatch for scenes with no clip regions.
+EMSCRIPTEN_KEEPALIVE
+void spine_setClippingEnabled(int enabled) {
+    g_ctx.clippingEnabled = enabled != 0;
 }
 
 // =============================================================================

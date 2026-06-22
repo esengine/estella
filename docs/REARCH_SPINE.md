@@ -78,8 +78,11 @@
 ### S1 —— 先接通多版本(解用户痛点,低风险,不碰 4.2 原生)
 实现 web `SpineWasmProvider`(对照 `wechatRuntime` 的微信版)+ 实际构建/出货 `spine38`/`spine41` side-module + `webAppFactory` 默认注入 provider + `SpineManager` 真正加载。**验证:一个真实 3.8 资产能加载 + 动画 + 事件**(web 与微信各一)。此阶段 4.2 暂留原生——仅过渡。
 
-### S2 —— `SpineModuleEntry` 提质到原生水平
-把 `SpinePlugin.cpp` 的 `SkeletonClipping` 移植进 `SpineModuleEntry.cpp`;统一网格/事件提取。**验证:side-module 4.2 与原生 4.2 关键帧逐像素一致**(parity 对拍);clipping 资产两条路渲染相同。
+### S2 —— `SpineModuleEntry` 提质到原生水平 ✅ DONE(见 `REARCH_SPINE_S2.md`)
+把 `SpinePlugin.cpp` 的 `SkeletonClipping` 移植进 `SpineModuleEntry.cpp`;统一网格提取。
+- **路由现实修正(查证):4.2 在配置了 provider 的 web/编辑器里早已走 side-module**(`webAppFactory.ts` 注入 `WebSpineWasmProvider` + `createSpineFactories` 无条件含 4.2 → `SpineManager.loadEntity` 不回退原生)。原生 4.2 仅无-provider 配置才触发。这是 S1 副作用,并暴露 G3 为 **live bug**(side-module 跳过 clipping → 带 clipping 的 4.2 资产在编辑器一直错误地不裁剪)。S2 修复之。
+- **验证改为更优:确定性 node clip 不变量**(`spine-clip.integration.test.ts`)替代"对原生像素对拍"——既然原生已非生产路径且自身漏 PMA / 漏 region 裁剪,对齐它不是正确目标;移植的是 spine 官方 `spSkeletonClipping`(三版 API 一致),用几何不变量(裁剪改变网格 + clipped ⊆ unclipped + 严格缩小)验证接线正确。RED→GREEN 走通,spine 套件 28 绿 / 全量 2245 绿。Electron 像素视觉 smoke 留作后续 live-check。
+- 副产:spine41 出货(S1 残留补齐),3.8/4.1/4.2 三版齐全。
 
 ### S3 —— 4.2 切到 side-module + **删原生**
 `spine42` 成 canonical 运行时;`SpineManager` 所有版本走同一 backend 接口;**删** `SpineSystem.cpp`/原生 `SpinePlugin.cpp`/`SpineResourceManager.cpp`/`SpineCpp` embind/`needsReload`,**spine-cpp 移出核心链接**。**验证:全量 `node build-tools/cli.js build -t web` + 微信 + playable 三平台跑通;核心 wasm 体积下降 ~278KB;不用 spine 的 example 不再含 spine 代码。**
