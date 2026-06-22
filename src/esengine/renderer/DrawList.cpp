@@ -136,8 +136,19 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         if (stencil != GfxStencilMode::Off) {
             device.setStencilReference(cmd.stencil_ref);
         }
-        for (u8 slot = 0; slot < cmd.texture_count; ++slot) {
-            device.bindTexture(slot, cmd.texture_ids[slot]);
+        // The batch shader declares 8 samplers, and WebGL2 invalidates a draw if any
+        // referenced sampler unit lacks a complete texture — even units the per-vertex
+        // branch never samples. For the Batch layout, fill the unused slots with slot 0's
+        // (always-valid) texture; other layouts bind only the samplers they declare.
+        if (cmd.layout_id == LayoutId::Batch) {
+            for (u8 slot = 0; slot < MAX_CMD_TEXTURE_SLOTS; ++slot) {
+                u32 tex = (slot < cmd.texture_count) ? cmd.texture_ids[slot] : cmd.texture_ids[0];
+                device.bindTexture(slot, tex);
+            }
+        } else {
+            for (u8 slot = 0; slot < cmd.texture_count; ++slot) {
+                device.bindTexture(slot, cmd.texture_ids[slot]);
+            }
         }
 
         if (cmd.instance_count > 0) {
