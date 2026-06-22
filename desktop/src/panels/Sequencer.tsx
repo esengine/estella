@@ -23,7 +23,6 @@ import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { SequencerCurve } from '@/panels/SequencerCurve';
-import { sampleTimelineAsset } from '@/timeline/sampleTimeline';
 import {
   buildTimelineRows, visibleRows, frameCount, timeToPct, pctToTime, findChannel, muteKey,
   type SeqRow, type ChannelRef,
@@ -83,19 +82,7 @@ function EmptyState() {
     <div className="seq-empty">
       <Film size={30} strokeWidth={1.3} />
       <div className="seq-empty__title">没有打开的动画</div>
-      <div className="seq-empty__hint">在内容浏览器双击 .estimeline，或下方加载示例</div>
-      <button
-        type="button"
-        className="seq-empty__btn"
-        onClick={() => {
-          // Bind the preview to the current selection so scrubbing animates it.
-          const rootEntity = useSelection.getState().selectedId;
-          TimelineDocument.open({ asset: sampleTimelineAsset(), filePath: null, fps: 12, rootEntity });
-          useSequencerStore.getState().resetForClip();
-        }}
-      >
-        加载示例（开发）
-      </button>
+      <div className="seq-empty__hint">在内容浏览器双击 .esanim / .estimeline 打开动画片段</div>
     </div>
   );
 }

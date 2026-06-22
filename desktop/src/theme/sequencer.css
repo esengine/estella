@@ -230,9 +230,3 @@
 }
 .seq-empty__title { color: var(--text-dim); font-size: 13px; }
 .seq-empty__hint { font-size: var(--fs-xs); }
-.seq-empty__btn {
-  margin-top: 6px; border: 1px solid var(--border); background: var(--raised);
-  color: var(--text-dim); border-radius: var(--r-md); padding: 5px 12px;
-  font-size: var(--fs-xs); cursor: pointer;
-}
-.seq-empty__btn:hover { color: var(--text); border-color: var(--acc); }
