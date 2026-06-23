@@ -307,13 +307,6 @@ export { ImagePlugin, imagePlugin } from './ImagePlugin';
 
 export { DragPlugin, dragPlugin } from './DragPlugin';
 
-export {
-    ScrollView,
-    type ScrollViewData,
-} from './ScrollView';
-
-export { ScrollViewPlugin, scrollViewPlugin } from './ScrollViewPlugin';
-
 export { FocusPlugin, focusPlugin } from './FocusPlugin';
 
 export {

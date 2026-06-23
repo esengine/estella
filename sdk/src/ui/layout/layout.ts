@@ -88,7 +88,7 @@ export class UILayoutPlugin implements Plugin {
             [],
             () => { module.transform_update(registry); },
             { name: 'UITransformFinalSystem' }
-        ), { runAfter: [SystemLabel.ScrollView, SystemLabel.ListView], runBefore: [SystemLabel.UIRenderOrder] });
+        ), { runAfter: [SystemLabel.ListView], runBefore: [SystemLabel.UIRenderOrder] });
     }
 }
 

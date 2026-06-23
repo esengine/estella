@@ -176,7 +176,7 @@ describe('System Dependency Ordering', () => {
                 runBefore: ['UITransformFinalSystem'],
             });
             app.addSystemToSchedule(Schedule.PostUpdate, transformFinal, {
-                runAfter: ['ScrollViewSystem', 'ListViewSystem'],
+                runAfter: ['ListViewSystem'],
                 runBefore: ['UIRenderOrderSystem'],
             });
 
