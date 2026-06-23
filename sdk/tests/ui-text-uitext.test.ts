@@ -1,10 +1,10 @@
 /**
- * @file  REARCH_GUI P1.3c — composeTRS, the world-transform matrix the UIText
- *        pre-flush system feeds to submitTextBatch. Pure → unit-tested here; the
- *        full on-screen path (UITextPlugin → render) is render-host-verified.
+ * @file  REARCH_GUI P1.4 — composeTRS (entity world matrix) + rectTextBox
+ *        (UIRect text placement) for the SDF text plugin. Pure → unit-tested
+ *        here; the full on-screen path (TextPlugin → render) is render-verified.
  */
 import { describe, it, expect } from 'vitest';
-import { composeTRS, rectTextBox } from '../src/ui/text/ui-text';
+import { composeTRS, rectTextBox } from '../src/ui/text/text-transform';
 
 const IDQ = { x: 0, y: 0, z: 0, w: 1 };
 

@@ -1,4 +1,4 @@
-import { textPlugin } from './ui/TextPlugin';
+import { textPlugin } from './ui/text/plugin';
 import { uiMaskPlugin } from './ui/UIMaskPlugin';
 import { uiInteractionPlugin } from './ui/UIInteractionPlugin';
 import { uiBehaviorPlugin } from './ui/plugin';
@@ -10,9 +10,10 @@ import { scrollViewPlugin } from './ui/ScrollViewPlugin';
 import { focusPlugin } from './ui/FocusPlugin';
 import { safeAreaPlugin } from './ui/SafeAreaPlugin';
 import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
-import { uiTextPlugin } from './ui/text/plugin';
 import type { Plugin } from './app';
 
+// `textPlugin` now renders the Text component via the dynamic SDF glyph atlas
+// (REARCH_GUI P1.4d); the legacy Canvas2D-per-entity path is retired.
 export const uiPlugins: Plugin[] = [
     textPlugin, uiMaskPlugin, uiLayoutPlugin,
     imagePlugin,
@@ -20,7 +21,4 @@ export const uiPlugins: Plugin[] = [
     textInputPlugin,
     focusPlugin, safeAreaPlugin,
     uiRenderOrderPlugin,
-    // REARCH_GUI P1.3c: SDF glyph-atlas text path. Opt-in via the UIText
-    // component; renders nothing unless an entity carries one.
-    uiTextPlugin,
 ];

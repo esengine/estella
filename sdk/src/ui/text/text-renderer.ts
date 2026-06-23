@@ -36,6 +36,10 @@ export interface DrawTextParams {
     letterSpacing?: number;
     /** Word-wrap width in px (plain text); 0/undefined = no wrap. */
     maxWidth?: number;
+    /** Vertical alignment within boxHeight: 0 top | 1 middle | 2 bottom. */
+    verticalAlign?: number;
+    /** Box height (px) for vertical alignment; omit for top-anchored. */
+    boxHeight?: number;
 }
 
 /**
@@ -55,6 +59,14 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     }, p.style ?? 0);
     if (layout.glyphs.length === 0) return;
 
+    // Vertical alignment within the box: shift the whole block down (y-up) by the
+    // slack between the box and the content. layout.lineHeight is total block height.
+    let originY = p.originY ?? 0;
+    if (p.boxHeight && p.boxHeight > 0 && p.verticalAlign) {
+        const slack = p.boxHeight - layout.lineHeight;
+        originY -= p.verticalAlign === 1 ? slack / 2 : slack; // 1 middle, 2 bottom
+    }
+
     // A string can reference glyphs across several atlas pages; each page is a
     // distinct texture, so group by page and emit one batch per page.
     const byPage = new Map<number, LaidGlyph[]>();
@@ -64,7 +76,7 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         arr.push(g);
     }
     for (const [pageId, glyphs] of byPage) {
-        const { vertices, indices } = buildGlyphVertices(glyphs, p.color, p.originX ?? 0, p.originY ?? 0);
+        const { vertices, indices } = buildGlyphVertices(glyphs, p.color, p.originX ?? 0, originY);
         sink(vertices, indices, pageId);
     }
 }

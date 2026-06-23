@@ -8,7 +8,7 @@ import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
 import { layoutRichLine, buildGlyphVertices } from '../src/ui/text/layout';
-import { UI_TEXT_BOLD } from '../src/ui/text/ui-text';
+import { UI_TEXT_BOLD } from '../src/ui/text/text-transform';
 
 function makeAtlas(calls: Array<{ cp: number; style: number }>): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {

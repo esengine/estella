@@ -14,7 +14,7 @@
 import type { GlyphAtlas } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
 import { parseRichText } from '../RichTextParser';
-import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './ui-text';
+import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 
 export interface TextLayoutOptions {
     /** Display font size in px. */

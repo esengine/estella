@@ -34,18 +34,15 @@
         { "type": "Transform", "data": {} },
         { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "size": { "x": 440, "y": 200 }, "pivot": { "x": 0.5, "y": 0.5 } } },
         {
-          "type": "UIText",
+          "type": "Text",
           "data": {
-            "content": "Centered in its UIRect 矩形内居中并自动换行",
+            "content": "Centered in its UIRect 矩形内居中并自动换行测试",
             "fontFamily": "sans-serif",
-            "fontSizePx": 40,
+            "fontSize": 40,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "style": 0,
-            "layer": 0,
-            "richText": false,
             "align": 1,
-            "lineHeight": 0,
-            "maxWidth": 0
+            "verticalAlign": 1,
+            "wordWrap": true
           }
         }
       ],

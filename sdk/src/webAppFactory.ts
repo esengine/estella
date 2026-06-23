@@ -14,7 +14,7 @@ import { SpinePlugin, WebSpineWasmProvider } from './spine';
 import type { SpineWasmProvider } from './spine';
 
 export { uiPlugins };
-export { textPlugin, TextPlugin } from './ui/TextPlugin';
+export { textPlugin, TextPlugin } from './ui/text/plugin';
 export { uiMaskPlugin, UIMaskPlugin } from './ui/UIMaskPlugin';
 export { uiInteractionPlugin, UIInteractionPlugin } from './ui/UIInteractionPlugin';
 export { uiLayoutPlugin, UILayoutPlugin } from './ui/UILayoutPlugin';

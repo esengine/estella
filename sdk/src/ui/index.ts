@@ -246,12 +246,14 @@ export {
 
 // ─── Rendering / text helpers ───────────────────────────────────────────────
 
+// TextRenderer (Canvas2D) is retained only for TextInput until P1.5 migrates it.
 export {
     TextRenderer,
     type TextRenderResult,
 } from './TextRenderer';
 
-export { TextPlugin, textPlugin } from './TextPlugin';
+// The canonical Text component is now rendered via the SDF glyph atlas (P1.4d).
+export { TextPlugin, textPlugin } from './text/plugin';
 
 // UI Math Utilities
 export {
@@ -368,15 +370,11 @@ export {
 // ─── SDF glyph-atlas text (REARCH_GUI P1) ───────────────────────────────────
 
 export {
-    UIText,
     UI_TEXT_BOLD,
     UI_TEXT_ITALIC,
     composeTRS,
     rectTextBox,
-    type UITextData,
-} from './text/ui-text';
-
-export { UITextPlugin, uiTextPlugin } from './text/plugin';
+} from './text/text-transform';
 
 export {
     SdfTextRenderer,
