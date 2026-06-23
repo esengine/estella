@@ -11,7 +11,7 @@
  * fresh one is created).
  *
  * Visibility is toggled through an injected `setVisible` hook; this keeps
- * ViewPool decoupled from the UIRenderer component shape.
+ * ViewPool decoupled from the UIVisual component shape.
  */
 
 import type { Entity } from '../../types';
@@ -41,7 +41,7 @@ export interface ViewPoolOptions {
      * Hook called on acquire/release to toggle item visibility. Default:
      * noop (ViewPool tracks free/used state without touching the entity).
      *
-     * Typical implementation toggles `UIRenderer.enabled` on the entity
+     * Typical implementation toggles `UIVisual.enabled` on the entity
      * and its UI-visible descendants. Passed as a hook so ViewPool does
      * not depend on the UI primitives.
      */

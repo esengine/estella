@@ -87,7 +87,7 @@
           }
         },
         {
-          "type": "UIRenderer",
+          "type": "UIVisual",
           "data": {
             "visualType": 1,
             "color": {
@@ -135,7 +135,7 @@
           }
         },
         {
-          "type": "UIRenderer",
+          "type": "UIVisual",
           "data": {
             "visualType": 1,
             "color": {
@@ -183,7 +183,7 @@
           }
         },
         {
-          "type": "UIRenderer",
+          "type": "UIVisual",
           "data": {
             "visualType": 1,
             "color": {
@@ -231,7 +231,7 @@
           }
         },
         {
-          "type": "UIRenderer",
+          "type": "UIVisual",
           "data": {
             "visualType": 1,
             "color": {

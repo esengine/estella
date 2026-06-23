@@ -6,7 +6,7 @@ import type { World } from '../../world';
 import { UIEventType, type UIEventQueue } from '../core/events';
 
 import { createButton, type ButtonStateVisual } from './button';
-import { spawnUIEntity, setUIVisible, type UINodeInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
 
 export interface ToggleOptions {
     world: World;
@@ -15,7 +15,7 @@ export interface ToggleOptions {
     node?: UINodeInit;
 
     /** Background renderer for the frame. */
-    background?: UIRendererInit;
+    background?: UIVisualInit;
 
     /** Interaction states (normal / hover / pressed / disabled) for the frame. */
     interactionStates: Record<string, ButtonStateVisual>;
@@ -69,7 +69,7 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
         world,
         parent: button,
         node: opts.check?.node ?? { fill: true },
-        renderer: opts.check
+        visual: opts.check
             ? {
                   color: opts.check.color,
                   texture: opts.check.sprite,

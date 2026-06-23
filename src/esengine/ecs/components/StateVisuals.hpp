@@ -20,8 +20,8 @@ namespace esengine::ecs {
  */
 namespace StateVisualsTransition {
     constexpr u32 None       = 0;
-    constexpr u32 ColorTint  = 1u << 0;   // write color to targetGraphic UIRenderer
-    constexpr u32 SpriteSwap = 1u << 1;   // write texture to targetGraphic UIRenderer
+    constexpr u32 ColorTint  = 1u << 0;   // write color to targetGraphic UIVisual
+    constexpr u32 SpriteSwap = 1u << 1;   // write texture to targetGraphic UIVisual
     constexpr u32 Scale      = 1u << 2;   // multiply targetGraphic Transform scale
 }
 

@@ -1173,20 +1173,24 @@ export function createUINodeData(): UINodePtrData {
     };
 }
 
-export interface UIRendererPtrData {
+export interface UIVisualPtrData {
     visualType: number;
     texture: number;
     color: Color;
     uvOffset: Vec2;
     uvScale: Vec2;
     sliceBorder: Vec4;
+    tileSize: Vec2;
+    fillMethod: number;
+    fillOrigin: number;
+    fillAmount: number;
     material: number;
     enabled: boolean;
 }
 
-export function fillUIRenderer(
+export function fillUIVisual(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: UIRendererPtrData,
+    ptr: number, out: UIVisualPtrData,
 ): void {
     out.visualType = u8[ptr];
     out.texture = u32[(ptr + 4) >> 2];
@@ -1194,13 +1198,17 @@ export function fillUIRenderer(
     const uvOffset_ = out.uvOffset; uvOffset_.x = f32[(ptr + 24) >> 2]; uvOffset_.y = f32[((ptr + 24) >> 2) + 1];
     const uvScale_ = out.uvScale; uvScale_.x = f32[(ptr + 32) >> 2]; uvScale_.y = f32[((ptr + 32) >> 2) + 1];
     const sliceBorder_ = out.sliceBorder; sliceBorder_.x = f32[(ptr + 40) >> 2]; sliceBorder_.y = f32[((ptr + 40) >> 2) + 1]; sliceBorder_.z = f32[((ptr + 40) >> 2) + 2]; sliceBorder_.w = f32[((ptr + 40) >> 2) + 3];
-    out.material = u32[(ptr + 56) >> 2];
-    out.enabled = u8[ptr + 60] !== 0;
+    const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 56) >> 2]; tileSize_.y = f32[((ptr + 56) >> 2) + 1];
+    out.fillMethod = u8[ptr + 64];
+    out.fillOrigin = u8[ptr + 65];
+    out.fillAmount = f32[(ptr + 68) >> 2];
+    out.material = u32[(ptr + 72) >> 2];
+    out.enabled = u8[ptr + 76] !== 0;
 }
 
-export function writeUIRenderer(
+export function writeUIVisual(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: UIRendererPtrData,
+    ptr: number, data: UIVisualPtrData,
 ): void {
     u8[ptr] = data.visualType;
     u32[(ptr + 4) >> 2] = data.texture;
@@ -1208,11 +1216,15 @@ export function writeUIRenderer(
     f32[(ptr + 24) >> 2] = data.uvOffset.x; f32[((ptr + 24) >> 2) + 1] = data.uvOffset.y;
     f32[(ptr + 32) >> 2] = data.uvScale.x; f32[((ptr + 32) >> 2) + 1] = data.uvScale.y;
     f32[(ptr + 40) >> 2] = data.sliceBorder.x; f32[((ptr + 40) >> 2) + 1] = data.sliceBorder.y; f32[((ptr + 40) >> 2) + 2] = data.sliceBorder.z; f32[((ptr + 40) >> 2) + 3] = data.sliceBorder.w;
-    u32[(ptr + 56) >> 2] = data.material;
-    u8[ptr + 60] = data.enabled ? 1 : 0;
+    f32[(ptr + 56) >> 2] = data.tileSize.x; f32[((ptr + 56) >> 2) + 1] = data.tileSize.y;
+    u8[ptr + 64] = data.fillMethod;
+    u8[ptr + 65] = data.fillOrigin;
+    f32[(ptr + 68) >> 2] = data.fillAmount;
+    u32[(ptr + 72) >> 2] = data.material;
+    u8[ptr + 76] = data.enabled ? 1 : 0;
 }
 
-export function createUIRendererData(): UIRendererPtrData {
+export function createUIVisualData(): UIVisualPtrData {
     return {
         visualType: 0,
         texture: 0,
@@ -1220,6 +1232,10 @@ export function createUIRendererData(): UIRendererPtrData {
         uvOffset: { x: 0, y: 0 },
         uvScale: { x: 0, y: 0 },
         sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+        tileSize: { x: 0, y: 0 },
+        fillMethod: 0,
+        fillOrigin: 0,
+        fillAmount: 0,
         material: 0,
         enabled: false,
     };
@@ -1281,6 +1297,6 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },
-    UIRenderer: { fill: fillUIRenderer, write: writeUIRenderer, create: createUIRendererData },
+    UIVisual: { fill: fillUIVisual, write: writeUIVisual, create: createUIVisualData },
     Velocity: { fill: fillVelocity, write: writeVelocity, create: createVelocityData },
 };

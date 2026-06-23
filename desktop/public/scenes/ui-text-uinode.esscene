@@ -92,7 +92,7 @@
           }
         },
         {
-          "type": "UIRenderer",
+          "type": "UIVisual",
           "data": {
             "visualType": 1,
             "color": {

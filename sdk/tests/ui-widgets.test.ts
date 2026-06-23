@@ -10,10 +10,9 @@ import {
     Interactable,
     StateMachine,
     StateVisuals,
-    UIRect,
     UINode,
     DimensionUnit,
-    UIRenderer,
+    UIVisual,
     UIEventQueue,
     UIEventType,
     TransitionFlag,
@@ -110,7 +109,7 @@ describe('createButton', () => {
         });
 
         expect(world.has(btn, UINode)).toBe(true);
-        expect(world.has(btn, UIRenderer)).toBe(true);
+        expect(world.has(btn, UIVisual)).toBe(true);
         expect(world.has(btn, Interactable)).toBe(true);
         expect(world.has(btn, StateMachine)).toBe(true);
         expect(world.has(btn, StateVisuals)).toBe(true);
@@ -332,7 +331,7 @@ describe('createDialog', () => {
     it('starts hidden by default', () => {
         const dialog = createDialog({ world: world as unknown as World });
         expect(dialog.isOpen()).toBe(false);
-        const bg = world.get(dialog.backdropEntity, UIRenderer) as { enabled: boolean };
+        const bg = world.get(dialog.backdropEntity, UIVisual) as { enabled: boolean };
         expect(bg.enabled).toBe(false);
     });
 
@@ -341,8 +340,8 @@ describe('createDialog', () => {
         dialog.open();
         expect(dialog.isOpen()).toBe(true);
 
-        const bg = world.get(dialog.backdropEntity, UIRenderer) as { enabled: boolean };
-        const panel = world.get(dialog.panelEntity, UIRenderer) as { enabled: boolean };
+        const bg = world.get(dialog.backdropEntity, UIVisual) as { enabled: boolean };
+        const panel = world.get(dialog.panelEntity, UIVisual) as { enabled: boolean };
         const inter = world.get(dialog.backdropEntity, Interactable) as { enabled: boolean };
         expect(bg.enabled).toBe(true);
         expect(panel.enabled).toBe(true);

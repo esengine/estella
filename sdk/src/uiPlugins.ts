@@ -6,7 +6,6 @@ import { uiInteractionPlugin } from './ui/UIInteractionPlugin';
 import { uiBehaviorPlugin } from './ui/plugin';
 import { uiLayoutPlugin } from './ui/UILayoutPlugin';
 import { textInputPlugin } from './ui/TextInputPlugin';
-import { imagePlugin } from './ui/ImagePlugin';
 import { dragPlugin } from './ui/DragPlugin';
 import { focusPlugin } from './ui/FocusPlugin';
 import { safeAreaPlugin } from './ui/SafeAreaPlugin';
@@ -14,10 +13,10 @@ import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 import type { Plugin } from './app';
 
 // `textPlugin` now renders the Text component via the dynamic SDF glyph atlas
-// (REARCH_GUI P1.4d); the legacy Canvas2D-per-entity path is retired.
+// (REARCH_GUI P1.4d); the legacy Canvas2D-per-entity path is retired. The
+// Image→UIRenderer copy plugin is gone too — UIVisual is drawn directly (F4).
 export const uiPlugins: Plugin[] = [
     textPlugin, uiMaskPlugin, uiLayoutPlugin,
-    imagePlugin,
     uiInteractionPlugin, uiBehaviorPlugin, dragPlugin,
     textInputPlugin,
     focusPlugin, safeAreaPlugin,

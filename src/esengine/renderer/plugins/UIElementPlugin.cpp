@@ -5,9 +5,10 @@
 #include "../RenderFrame.hpp"
 #include "../Texture.hpp"
 #include "../../ecs/components/Transform.hpp"
-#include "../../ecs/components/UIRenderer.hpp"
+#include "../../ecs/components/UIVisual.hpp"
 #include "../../ecs/components/UINode.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace esengine {
@@ -19,10 +20,10 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
-    auto uiView = registry.view<ecs::Transform, ecs::UIRenderer>();
+    auto uiView = registry.view<ecs::Transform, ecs::UIVisual>();
 
     for (auto entity : uiView) {
-        const auto& renderer = uiView.get<ecs::UIRenderer>(entity);
+        const auto& renderer = uiView.get<ecs::UIVisual>(entity);
         if (!renderer.enabled || renderer.visualType == ecs::UIVisualType::None) continue;
 
         // Geometry from the UINode (CSS box) — always pivot-centered.
@@ -94,6 +95,31 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             }
         }
 
+        // Derive the sampled UV from the base sub-region + the fill mode. This
+        // replaces the old per-frame Image->UIRenderer copy: Tiled repeats by
+        // box/tileSize, Filled crops to fillAmount. (REARCH_GUI F4.)
+        glm::vec2 uvOffset = renderer.uvOffset;
+        glm::vec2 uvScale = renderer.uvScale;
+        if (renderer.visualType == ecs::UIVisualType::Tiled) {
+            if (renderer.tileSize.x > 0.0f && renderer.tileSize.y > 0.0f) {
+                uvScale.x = renderer.uvScale.x * (w / renderer.tileSize.x);
+                uvScale.y = renderer.uvScale.y * (h / renderer.tileSize.y);
+            }
+        } else if (renderer.visualType == ecs::UIVisualType::Filled) {
+            f32 amount = std::clamp(renderer.fillAmount, 0.0f, 1.0f);
+            if (renderer.fillMethod == ecs::UIFillMethod::Horizontal) {
+                uvScale.x = renderer.uvScale.x * amount;
+                if (renderer.fillOrigin == ecs::UIFillOrigin::Right) {
+                    uvOffset.x = renderer.uvOffset.x + renderer.uvScale.x * (1.0f - amount);
+                }
+            } else {
+                uvScale.y = renderer.uvScale.y * amount;
+                if (renderer.fillOrigin == ecs::UIFillOrigin::Top) {
+                    uvOffset.y = renderer.uvOffset.y + renderer.uvScale.y * (1.0f - amount);
+                }
+            }
+        }
+
         glm::vec2 finalSize = glm::vec2(w, h) * glm::vec2(scale);
 
         BatchDrawKey key{
@@ -113,11 +139,11 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             emitNineSlice(buffers, draw_list, clips,
                 glm::vec2(position), finalSize, CENTERED_PIVOT,
                 angle, texSize, sliceBorder,
-                renderer.uvOffset, renderer.uvScale, renderer.color, key);
+                uvOffset, uvScale, renderer.color, key);
         } else {
             emitQuad(buffers, draw_list, clips,
                 glm::vec2(position), finalSize, CENTERED_PIVOT,
-                angle, renderer.uvOffset, renderer.uvScale, renderer.color, key);
+                angle, uvOffset, uvScale, renderer.color, key);
         }
     }
 }

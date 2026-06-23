@@ -18,7 +18,7 @@ import { SdfTextRenderer } from './text-renderer';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, type TextData } from '../core/text';
 import { UINode } from '../core/ui-node';
-import { getUINodeWidth, getUINodeHeight, ensureUIRenderer } from '../uiHelpers';
+import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../uiHelpers';
 
 // Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
 const UI_BASE_LAYER = 1000;
@@ -35,12 +35,12 @@ export class TextPlugin implements Plugin {
         const world = app.world;
 
         // A Text node inside a UINode is a UI render node: ensure it carries a
-        // UIRenderer (visualType None — not drawn as a quad) so the UI
+        // UIVisual (visualType None — not drawn as a quad) so the UI
         // render-order pass assigns it a uiOrder and the SDF glyphs sort with
         // sibling UI elements. Idempotent; runs before the PostUpdate order pass.
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
             for (const e of world.getEntitiesWithComponents([Text, UINode])) {
-                ensureUIRenderer(world, e as Entity);
+                ensureUIVisual(world, e as Entity);
             }
         }, { name: 'TextRenderNodeSystem' }));
 

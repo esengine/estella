@@ -13,7 +13,7 @@ import {
     TransitionFlag,
     type StateVisualsData,
 } from '../src/ui/behavior/state-visuals';
-import { UIRenderer, type UIRendererData } from '../src/ui/core/ui-renderer';
+import { UIVisual, type UIVisualData } from '../src/ui/core/ui-visual';
 import { createStateVisualsApplySystem } from '../src/ui/behavior/systems';
 import type { Entity } from '../src/types';
 import type { SystemDef } from '../src/system';
@@ -21,7 +21,7 @@ import type { AnyComponentDef } from '../src/component';
 
 /**
  * Minimal World surface the apply system uses. Backed by per-component
- * Maps so builtin components (Transform, UIRenderer, StateVisuals) don't
+ * Maps so builtin components (Transform, UIVisual, StateVisuals) don't
  * need a real C++ registry. Enough for behavior-level testing of the
  * fade logic.
  */
@@ -87,11 +87,11 @@ function makeTransform(scale = 1): TransformData {
     };
 }
 
-function makeRenderer(color = { r: 1, g: 1, b: 1, a: 1 }, texture = 0): UIRendererData {
+function makeRenderer(color = { r: 1, g: 1, b: 1, a: 1 }, texture = 0): UIVisualData {
     return {
         texture, color, size: { x: 10, y: 10 },
         pivot: { x: 0.5, y: 0.5 }, layer: 0, enabled: true,
-    } as UIRendererData;
+    } as UIVisualData;
 }
 
 describe('StateVisualsApplySystem — color fade', () => {
@@ -102,7 +102,7 @@ describe('StateVisualsApplySystem — color fade', () => {
         world = makeMockWorld();
         entity = world.spawn();
         world.insert(entity, Transform, makeTransform());
-        world.insert(entity, UIRenderer, makeRenderer());
+        world.insert(entity, UIVisual, makeRenderer());
     });
 
     it('snaps immediately when fadeDuration is 0', () => {
@@ -117,7 +117,7 @@ describe('StateVisualsApplySystem — color fade', () => {
         const sys = createStateVisualsApplySystem(world as never);
         runSystem(sys, 1 / 60);
 
-        const r = world.get(entity, UIRenderer) as UIRendererData;
+        const r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.color).toEqual({ r: 0, g: 0, b: 1, a: 1 });
     });
 
@@ -132,11 +132,11 @@ describe('StateVisualsApplySystem — color fade', () => {
 
         const sys = createStateVisualsApplySystem(world as never);
         runSystem(sys, 0);          // seed transition, t=0
-        let r = world.get(entity, UIRenderer) as UIRendererData;
+        let r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.color.r).toBeCloseTo(1);
 
         runSystem(sys, 0.5);         // advance to t=0.5
-        r = world.get(entity, UIRenderer) as UIRendererData;
+        r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.color.r).toBeCloseTo(0.5, 2);
         expect(r.color.g).toBeCloseTo(0.5, 2);
         expect(r.color.b).toBeCloseTo(0.5, 2);
@@ -155,7 +155,7 @@ describe('StateVisualsApplySystem — color fade', () => {
         runSystem(sys, 0);
         runSystem(sys, 1.0);
 
-        const r = world.get(entity, UIRenderer) as UIRendererData;
+        const r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.color).toEqual({ r: 0, g: 0, b: 0, a: 1 });
     });
 
@@ -171,7 +171,7 @@ describe('StateVisualsApplySystem — color fade', () => {
         const sys = createStateVisualsApplySystem(world as never);
         runSystem(sys, 0);
         runSystem(sys, 0.5);
-        let r = world.get(entity, UIRenderer) as UIRendererData;
+        let r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.color.r).toBeCloseTo(0.5, 1);
 
         const sm = world.get(entity, StateMachine) as StateMachineData;
@@ -179,11 +179,11 @@ describe('StateVisualsApplySystem — color fade', () => {
         world.insert(entity, StateMachine, sm);
 
         runSystem(sys, 0);
-        r = world.get(entity, UIRenderer) as UIRendererData;
+        r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.color.r).toBeCloseTo(0.5, 1);
 
         runSystem(sys, 1.0);
-        r = world.get(entity, UIRenderer) as UIRendererData;
+        r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.color).toEqual({ r: 1, g: 0, b: 0, a: 1 });
     });
 });
@@ -193,7 +193,7 @@ describe('StateVisualsApplySystem — scale fade', () => {
         const world = makeMockWorld();
         const entity = world.spawn();
         world.insert(entity, Transform, makeTransform(1));
-        world.insert(entity, UIRenderer, makeRenderer());
+        world.insert(entity, UIVisual, makeRenderer());
         world.insert(entity, StateMachine, { current: 'pressed', previous: '' } as StateMachineData);
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.Scale,
@@ -216,7 +216,7 @@ describe('StateVisualsApplySystem — sprite swap', () => {
     it('always snaps (never lerps) because textures are discrete', () => {
         const world = makeMockWorld();
         const entity = world.spawn();
-        world.insert(entity, UIRenderer, makeRenderer({ r: 1, g: 1, b: 1, a: 1 }, 7));
+        world.insert(entity, UIVisual, makeRenderer({ r: 1, g: 1, b: 1, a: 1 }, 7));
         world.insert(entity, StateMachine, { current: 'pressed', previous: '' } as StateMachineData);
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.SpriteSwap,
@@ -228,7 +228,7 @@ describe('StateVisualsApplySystem — sprite swap', () => {
         const sys = createStateVisualsApplySystem(world as never);
         runSystem(sys, 0);
 
-        const r = world.get(entity, UIRenderer) as UIRendererData;
+        const r = world.get(entity, UIVisual) as UIVisualData;
         expect(r.texture).toBe(42);
     });
 });

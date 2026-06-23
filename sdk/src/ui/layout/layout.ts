@@ -19,7 +19,7 @@ import { defineSystem, Schedule } from '../../system';
 import { SystemLabel } from '../../systemLabels';
 import { Res } from '../../resource';
 import { UINode } from '../core/ui-node';
-import { UIRenderer } from '../core/ui-renderer';
+import { UIVisual } from '../core/ui-visual';
 import { FlexContainer, FlexItem } from './flex';
 import { GridLayout } from './grid';
 import { UICameraInfo } from '../UICameraInfo';
@@ -35,7 +35,7 @@ export class UILayoutPlugin implements Plugin {
 
     build(app: App): void {
         registerComponent('UINode', UINode);
-        registerComponent('UIRenderer', UIRenderer);
+        registerComponent('UIVisual', UIVisual);
         registerComponent('FlexContainer', FlexContainer);
         registerComponent('FlexItem', FlexItem);
         registerComponent('GridLayout', GridLayout);

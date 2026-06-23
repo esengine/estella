@@ -5,7 +5,7 @@ import type { World } from '../../world';
 
 import { Interactable, UIInteraction } from '../behavior/interactable';
 
-import { spawnUIEntity, setUIVisible, type UINodeInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
 import { px, percent } from '../core/dimension';
 
 export interface DialogOptions {
@@ -14,10 +14,10 @@ export interface DialogOptions {
     /** Full-viewport backdrop. Default: fill the parent. */
     backdropNode?: UINodeInit;
     /** Backdrop visuals. Default: 50% black overlay. */
-    backdropRenderer?: UIRendererInit;
+    backdropRenderer?: UIVisualInit;
     /** Panel box (the modal). Default: 400x300 centered. */
     panelNode?: UINodeInit;
-    panelRenderer?: UIRendererInit;
+    panelRenderer?: UIVisualInit;
     /** Start hidden. Default true. */
     startHidden?: boolean;
 }
@@ -48,7 +48,7 @@ export function createDialog(opts: DialogOptions): DialogHandle {
         world,
         parent: opts.parent,
         node: opts.backdropNode ?? { fill: true },
-        renderer: opts.backdropRenderer ?? { color: DEFAULT_BACKDROP_COLOR },
+        visual: opts.backdropRenderer ?? { color: DEFAULT_BACKDROP_COLOR },
     });
 
     // Blocks hit-test on the scene behind the dialog.
@@ -74,7 +74,7 @@ export function createDialog(opts: DialogOptions): DialogHandle {
             marginLeft: px(-200),
             marginTop: px(-150),
         },
-        renderer: opts.panelRenderer ?? { color: DEFAULT_PANEL_COLOR },
+        visual: opts.panelRenderer ?? { color: DEFAULT_PANEL_COLOR },
     });
 
     let open = !(opts.startHidden ?? true);

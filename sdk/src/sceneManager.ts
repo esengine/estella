@@ -23,13 +23,13 @@ import {
     ShapeRenderer, ParticleEmitter,
     type AnyComponentDef,
 } from './component';
-import { UIRenderer } from './ui/core/ui-renderer';
+import { UIVisual } from './ui/core/ui-visual';
 import { Assets } from './asset/AssetPlugin';
 import { RuntimeConfig } from './defaults';
 import { log } from './logger';
 
 const RENDERABLE_COMPONENTS: AnyComponentDef[] = [
-    Sprite, SpineAnimation, BitmapText, ShapeRenderer, ParticleEmitter, UIRenderer,
+    Sprite, SpineAnimation, BitmapText, ShapeRenderer, ParticleEmitter, UIVisual,
 ];
 
 // =============================================================================

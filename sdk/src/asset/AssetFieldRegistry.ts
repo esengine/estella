@@ -72,12 +72,7 @@ export function initBuiltinAssetFields(): void {
         { field: 'font', type: 'font' },
     ]);
 
-    registerAssetFields('Image', [
-        { field: 'texture', type: 'texture' },
-        { field: 'material', type: 'material' },
-    ]);
-
-    registerAssetFields('UIRenderer', [
+    registerAssetFields('UIVisual', [
         { field: 'texture', type: 'texture' },
         { field: 'material', type: 'material' },
     ]);

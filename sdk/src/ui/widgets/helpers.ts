@@ -9,7 +9,7 @@ import type { World } from '../../world';
 
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { px, percent, auto, type Dimension } from '../core/dimension';
-import { UIRenderer, UIVisualType, type UIRendererData } from '../core/ui-renderer';
+import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from '../core/ui-visual';
 import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
 
 /** Identity Transform. Fresh object per call — safe to insert into ECS. */
@@ -73,18 +73,22 @@ export function buildUINode(init: UINodeInit = {}): UINodeData {
     };
 }
 
-export interface UIRendererInit {
+export interface UIVisualInit {
     visualType?: UIVisualType;
     texture?: number;
     color?: { r: number; g: number; b: number; a: number };
     uvOffset?: Vec2;
     uvScale?: Vec2;
     sliceBorder?: { x: number; y: number; z: number; w: number };
+    tileSize?: Vec2;
+    fillMethod?: FillMethod;
+    fillOrigin?: FillOrigin;
+    fillAmount?: number;
     material?: number;
     enabled?: boolean;
 }
 
-export function buildUIRenderer(init: UIRendererInit = {}): UIRendererData {
+export function buildUIVisual(init: UIVisualInit = {}): UIVisualData {
     return {
         visualType: init.visualType ?? UIVisualType.SolidColor,
         texture: init.texture ?? 0,
@@ -92,6 +96,10 @@ export function buildUIRenderer(init: UIRendererInit = {}): UIRendererData {
         uvOffset: init.uvOffset ?? { x: 0, y: 0 },
         uvScale: init.uvScale ?? { x: 1, y: 1 },
         sliceBorder: init.sliceBorder ?? { x: 0, y: 0, z: 0, w: 0 },
+        tileSize: init.tileSize ?? { x: 32, y: 32 },
+        fillMethod: init.fillMethod ?? FillMethod.Horizontal,
+        fillOrigin: init.fillOrigin ?? FillOrigin.Left,
+        fillAmount: init.fillAmount ?? 1,
         material: init.material ?? 0,
         enabled: init.enabled ?? true,
     };
@@ -127,12 +135,12 @@ export interface UIEntityInit {
     parent?: Entity;
     /** CSS-box layout (defaults to fill the parent). */
     node?: UINodeInit;
-    renderer?: UIRendererInit;
+    visual?: UIVisualInit;
     text?: TextInit;
 }
 
 /**
- * Spawn a UI entity with Transform + UINode, optionally UIRenderer and
+ * Spawn a UI entity with Transform + UINode, optionally UIVisual and
  * Text, optionally parented. Returns the entity.
  *
  * Widgets compose with this to avoid repeating the same insert dance.
@@ -144,8 +152,8 @@ export function spawnUIEntity(init: UIEntityInit): Entity {
     world.insert(entity, Transform, identityTransform());
     world.insert(entity, UINode, buildUINode(init.node));
 
-    if (init.renderer) {
-        world.insert(entity, UIRenderer, buildUIRenderer(init.renderer));
+    if (init.visual) {
+        world.insert(entity, UIVisual, buildUIVisual(init.visual));
     }
     if (init.text) {
         world.insert(entity, Text, buildText(init.text));
@@ -158,14 +166,14 @@ export function spawnUIEntity(init: UIEntityInit): Entity {
 }
 
 /**
- * Toggle visibility of a UI entity via UIRenderer.enabled. Safe if the
- * entity has no UIRenderer — no-op in that case.
+ * Toggle visibility of a UI entity via UIVisual.enabled. Safe if the
+ * entity has no UIVisual — no-op in that case.
  */
 export function setUIVisible(world: World, entity: Entity, visible: boolean): void {
-    if (!world.valid(entity) || !world.has(entity, UIRenderer)) return;
-    const r = world.get(entity, UIRenderer) as UIRendererData;
+    if (!world.valid(entity) || !world.has(entity, UIVisual)) return;
+    const r = world.get(entity, UIVisual) as UIVisualData;
     if (r.enabled !== visible) {
         r.enabled = visible;
-        world.insert(entity, UIRenderer, r);
+        world.insert(entity, UIVisual, r);
     }
 }

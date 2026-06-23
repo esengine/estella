@@ -44,7 +44,7 @@
 #include "../ecs/components/Velocity.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/UINode.hpp"
-#include "../ecs/components/UIRenderer.hpp"
+#include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/Collider.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
@@ -547,10 +547,10 @@ void uiRenderOrder_update(ecs::Registry& registry) {
 
 // REARCH_GUI P1.4d (#1 z-order): the SDF text path (TS) reads an entity's UI
 // draw order so glyph quads interleave with UI quads. uiRenderOrderUpdate
-// assigns uiOrder to every UIRenderer in the UI tree (text nodes carry a
-// visualType=None UIRenderer purely to be ordered). -1 = not a UI node.
+// assigns uiOrder to every UIVisual in the UI tree (text nodes carry a
+// visualType=None UIVisual purely to be ordered). -1 = not a UI node.
 i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity) {
-    auto* ui = registry.tryGet<ecs::UIRenderer>(Entity::fromRaw(entity));
+    auto* ui = registry.tryGet<ecs::UIVisual>(Entity::fromRaw(entity));
     return ui ? ui->uiOrder : -1;
 }
 

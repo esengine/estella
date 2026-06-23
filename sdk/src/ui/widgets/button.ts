@@ -15,7 +15,7 @@ import { UIEventType, type UIEventQueue } from '../core/events';
 import {
     spawnUIEntity,
     type UINodeInit,
-    type UIRendererInit,
+    type UIVisualInit,
     type TextInit,
 } from './helpers';
 
@@ -36,7 +36,7 @@ export interface ButtonOptions {
     /** CSS-box layout. Default: fill the parent. */
     node?: UINodeInit;
     /** Background renderer config. Default: solid white quad. */
-    background?: UIRendererInit;
+    background?: UIVisualInit;
     /** Label text. Omit to skip spawning a child label entity. */
     text?: string | TextInit;
     /**
@@ -92,7 +92,7 @@ export function createButton(opts: ButtonOptions): Entity {
         world,
         parent: opts.parent,
         node: opts.node ?? { fill: true },
-        renderer: opts.background ?? {},
+        visual: opts.background ?? {},
     });
 
     world.insert(entity, Interactable, {

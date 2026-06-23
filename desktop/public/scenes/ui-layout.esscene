@@ -180,8 +180,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.4,
@@ -292,8 +293,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.7,
               "g": 0.2,
@@ -404,8 +406,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.6,
@@ -516,8 +519,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.6,
               "g": 0.4,
@@ -624,8 +628,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.5,
               "g": 0.2,
@@ -732,8 +737,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.85,
               "g": 0.15,
@@ -786,8 +792,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.85,
               "g": 0.5,
@@ -840,8 +847,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.85,
               "g": 0.85,
@@ -894,8 +902,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.5,
               "g": 0.85,
@@ -948,8 +957,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.15,
               "g": 0.85,
@@ -1002,8 +1012,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.15,
               "g": 0.85,
@@ -1056,8 +1067,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.15,
               "g": 0.85,
@@ -1110,8 +1122,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.15,
               "g": 0.5,
@@ -1164,8 +1177,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.15,
               "g": 0.15,
@@ -1218,8 +1232,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.5,
               "g": 0.15,
@@ -1272,8 +1287,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.85,
               "g": 0.15,
@@ -1326,8 +1342,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.85,
               "g": 0.15,

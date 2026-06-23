@@ -7,8 +7,8 @@ import { defineSystem, Schedule } from '../system';
 import { registerComponent } from '../component';
 import { TextInput, type TextInputData } from './TextInput';
 import { UINode } from './core/ui-node';
-import { UIRenderer, UIVisualType } from './core/ui-renderer';
-import type { UIRendererData } from './core/ui-renderer';
+import { UIVisual, UIVisualType } from './core/ui-visual';
+import type { UIVisualData } from './core/ui-visual';
 import { Interactable } from './behavior/interactable';
 import { Focusable } from './behavior/focusable';
 import { FocusManager, FocusManagerState } from './behavior/focusable';
@@ -289,14 +289,18 @@ export class TextInputPlugin implements Plugin {
                     const h = Math.ceil(getUINodeHeight(entity));
                     if (w <= 0 || h <= 0) continue;
 
-                    if (!world.has(entity, UIRenderer)) {
-                        world.insert(entity, UIRenderer, {
+                    if (!world.has(entity, UIVisual)) {
+                        world.insert(entity, UIVisual, {
                             visualType: UIVisualType.None,
                             texture: 0,
                             color: { r: 1, g: 1, b: 1, a: 1 },
                             uvOffset: { x: 0, y: 0 },
                             uvScale: { x: 1, y: 1 },
                             sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+                            tileSize: { x: 32, y: 32 },
+                            fillMethod: 0,
+                            fillOrigin: 0,
+                            fillAmount: 1,
                             material: 0,
                             enabled: true,
                         });
@@ -418,14 +422,14 @@ export class TextInputPlugin implements Plugin {
             const textureHandle = rm.createTexture(w, h, wasmPixelPtr, pixels.length, 1, true);
             textureCache.set(entity, textureHandle);
 
-            const renderer = world.get(entity, UIRenderer) as UIRendererData;
+            const renderer = world.get(entity, UIVisual) as UIVisualData;
             renderer.texture = textureHandle;
             renderer.visualType = UIVisualType.Image;
             renderer.uvOffset = { x: 0, y: 0 };
             renderer.uvScale = { x: 1, y: 1 };
             renderer.color = { r: 1, g: 1, b: 1, a: 1 };
             renderer.enabled = true;
-            world.insert(entity, UIRenderer, renderer);
+            world.insert(entity, UIVisual, renderer);
         }
     }
 }

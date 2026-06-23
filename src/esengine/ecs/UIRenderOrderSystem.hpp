@@ -6,16 +6,16 @@
 #include "components/Hierarchy.hpp"
 #include "components/UINode.hpp"
 #include "components/Sprite.hpp"
-#include "components/UIRenderer.hpp"
+#include "components/UIVisual.hpp"
 #include "components/Canvas.hpp"
 
 namespace esengine::ecs {
 
 inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
     if (registry.has<UINode>(entity)) {
-        auto* uiRenderer = registry.tryGet<UIRenderer>(entity);
-        if (uiRenderer) {
-            uiRenderer->uiOrder = counter;
+        auto* uiVisual = registry.tryGet<UIVisual>(entity);
+        if (uiVisual) {
+            uiVisual->uiOrder = counter;
             counter++;
         } else if (registry.has<Sprite>(entity)) {
             auto& sprite = registry.get<Sprite>(entity);

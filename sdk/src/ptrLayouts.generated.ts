@@ -309,8 +309,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'alignSelf', type: 'u8', offset: 68 },
         ],
     },
-    UIRenderer: {
-        ptrFn: 'getUIRendererPtr',
+    UIVisual: {
+        ptrFn: 'getUIVisualPtr',
         fields: [
             { name: 'visualType', type: 'u8', offset: 0 },
             { name: 'texture', type: 'u32', offset: 4 },
@@ -318,8 +318,12 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'uvOffset', type: 'vec2', offset: 24 },
             { name: 'uvScale', type: 'vec2', offset: 32 },
             { name: 'sliceBorder', type: 'vec4', offset: 40 },
-            { name: 'material', type: 'u32', offset: 56 },
-            { name: 'enabled', type: 'bool', offset: 60 },
+            { name: 'tileSize', type: 'vec2', offset: 56 },
+            { name: 'fillMethod', type: 'u8', offset: 64 },
+            { name: 'fillOrigin', type: 'u8', offset: 65 },
+            { name: 'fillAmount', type: 'f32', offset: 68 },
+            { name: 'material', type: 'u32', offset: 72 },
+            { name: 'enabled', type: 'bool', offset: 76 },
         ],
     },
     Velocity: {

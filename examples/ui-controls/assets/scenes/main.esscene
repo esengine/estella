@@ -173,8 +173,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.6,
@@ -315,8 +316,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.8,
@@ -457,8 +459,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.9,
               "g": 0.3,
@@ -597,8 +600,10 @@
           }
         },
         {
-          "type": "Image",
-          "data": {}
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1
+          }
         },
         {
           "type": "Toggle",
@@ -712,8 +717,10 @@
           }
         },
         {
-          "type": "Image",
-          "data": {}
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1
+          }
         },
         {
           "type": "Toggle",
@@ -827,8 +834,10 @@
           }
         },
         {
-          "type": "Image",
-          "data": {}
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1
+          }
         },
         {
           "type": "Toggle",
@@ -945,8 +954,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.3,
               "g": 0.3,
@@ -1010,8 +1020,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.6,
@@ -1064,8 +1075,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 1,
               "g": 1,
@@ -1120,8 +1132,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.2,
@@ -1185,8 +1198,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.8,
@@ -1241,8 +1255,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.2,
@@ -1306,8 +1321,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 1,
               "g": 0.7,
@@ -1362,8 +1378,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.2,
               "g": 0.2,
@@ -1427,8 +1444,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 1,
             "color": {
               "r": 0.9,
               "g": 0.3,

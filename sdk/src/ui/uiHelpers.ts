@@ -3,12 +3,10 @@
 import { CoreApiBridge } from '../CoreApiBridge';
 import { Sprite, Parent, Transform } from '../component';
 import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../component';
-import { Image } from './core/image';
-import type { ImageData } from './core/image';
 import type { Entity, Color } from '../types';
 import type { World } from '../world';
-import { UIRenderer, UIVisualType } from './core/ui-renderer';
-import type { UIRendererData } from './core/ui-renderer';
+import { UIVisual, UIVisualType } from './core/ui-visual';
+import type { UIVisualData } from './core/ui-visual';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
 import type { ESEngineModule, CppRegistry } from '../wasm';
@@ -216,15 +214,19 @@ export function ensureComponent(
     }
 }
 
-export function ensureUIRenderer(world: World, entity: Entity): void {
-    if (!world.has(entity, UIRenderer)) {
-        world.insert(entity, UIRenderer, {
+export function ensureUIVisual(world: World, entity: Entity): void {
+    if (!world.has(entity, UIVisual)) {
+        world.insert(entity, UIVisual, {
             visualType: UIVisualType.None,
             texture: 0,
             color: { r: 1, g: 1, b: 1, a: 1 },
             uvOffset: { x: 0, y: 0 },
             uvScale: { x: 1, y: 1 },
             sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+            tileSize: { x: 32, y: 32 },
+            fillMethod: 0,
+            fillOrigin: 0,
+            fillAmount: 1,
             material: 0,
             enabled: true,
         });
@@ -254,45 +256,33 @@ function colorEquals(a: Color, b: Color): boolean {
 }
 
 export function setEntityColor(world: World, entity: Entity, color: Color): void {
-    if (world.has(entity, Image)) {
-        const img = world.get(entity, Image) as ImageData;
-        if (!colorEquals(img.color, color)) {
-            img.color = color;
-            world.insert(entity, Image, img);
-        }
-    } else if (world.has(entity, Sprite)) {
+    if (world.has(entity, Sprite)) {
         const s = world.get(entity, Sprite) as SpriteData;
         if (!colorEquals(s.color, color)) {
             s.color = color;
             world.insert(entity, Sprite, s);
         }
-    } else if (world.has(entity, UIRenderer)) {
-        const r = world.get(entity, UIRenderer) as UIRendererData;
+    } else if (world.has(entity, UIVisual)) {
+        const r = world.get(entity, UIVisual) as UIVisualData;
         if (!colorEquals(r.color, color)) {
             r.color = color;
-            world.insert(entity, UIRenderer, r);
+            world.insert(entity, UIVisual, r);
         }
     }
 }
 
 export function setEntityEnabled(world: World, entity: Entity, enabled: boolean): void {
-    if (world.has(entity, Image)) {
-        const img = world.get(entity, Image) as ImageData;
-        if (img.enabled !== enabled) {
-            img.enabled = enabled;
-            world.insert(entity, Image, img);
-        }
-    } else if (world.has(entity, Sprite)) {
+    if (world.has(entity, Sprite)) {
         const s = world.get(entity, Sprite) as SpriteData;
         if (s.enabled !== enabled) {
             s.enabled = enabled;
             world.insert(entity, Sprite, s);
         }
-    } else if (world.has(entity, UIRenderer)) {
-        const r = world.get(entity, UIRenderer) as UIRendererData;
+    } else if (world.has(entity, UIVisual)) {
+        const r = world.get(entity, UIVisual) as UIVisualData;
         if (r.enabled !== enabled) {
             r.enabled = enabled;
-            world.insert(entity, UIRenderer, r);
+            world.insert(entity, UIVisual, r);
         }
     }
 }

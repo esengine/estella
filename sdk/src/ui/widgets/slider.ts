@@ -6,7 +6,7 @@ import type { World } from '../../world';
 import { UINode, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
 
-import { spawnUIEntity, type UINodeInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
 
 export interface SliderOptions {
     world: World;
@@ -22,9 +22,9 @@ export interface SliderOptions {
     /** Handle width in pixels. Default 12. */
     handleWidth?: number;
 
-    trackRenderer?: UIRendererInit;
-    fillRenderer?: UIRendererInit;
-    handleRenderer?: UIRendererInit;
+    trackRenderer?: UIVisualInit;
+    fillRenderer?: UIVisualInit;
+    handleRenderer?: UIVisualInit;
 
     onChange?: (value: number, entity: Entity) => void;
 }
@@ -45,9 +45,9 @@ export interface SliderHandle {
     dispose(): void;
 }
 
-const DEFAULT_TRACK: UIRendererInit = { color: { r: 0.15, g: 0.15, b: 0.15, a: 1 } };
-const DEFAULT_FILL:  UIRendererInit = { color: { r: 0.25, g: 0.56, b: 0.96, a: 1 } };
-const DEFAULT_HANDLE: UIRendererInit = { color: { r: 1,    g: 1,    b: 1,    a: 1 } };
+const DEFAULT_TRACK: UIVisualInit = { color: { r: 0.15, g: 0.15, b: 0.15, a: 1 } };
+const DEFAULT_FILL:  UIVisualInit = { color: { r: 0.25, g: 0.56, b: 0.96, a: 1 } };
+const DEFAULT_HANDLE: UIVisualInit = { color: { r: 1,    g: 1,    b: 1,    a: 1 } };
 
 /**
  * Horizontal slider composed of a track, a fill bar, and a handle thumb.
@@ -66,21 +66,21 @@ export function createSlider(opts: SliderOptions): SliderHandle {
         world: opts.world,
         parent: opts.parent,
         node: opts.node ?? { fill: true },
-        renderer: opts.trackRenderer ?? DEFAULT_TRACK,
+        visual: opts.trackRenderer ?? DEFAULT_TRACK,
     });
 
     const fill = spawnUIEntity({
         world: opts.world,
         parent: track,
         node: fillNodeAt(fraction(value, min, max)),
-        renderer: opts.fillRenderer ?? DEFAULT_FILL,
+        visual: opts.fillRenderer ?? DEFAULT_FILL,
     });
 
     const handle = spawnUIEntity({
         world: opts.world,
         parent: track,
         node: handleNodeAt(fraction(value, min, max), handleWidth),
-        renderer: opts.handleRenderer ?? DEFAULT_HANDLE,
+        visual: opts.handleRenderer ?? DEFAULT_HANDLE,
     });
 
     // Value -> geometry: the fill's width is the value fraction; the handle's

@@ -14,7 +14,7 @@ import {
     STATE_VISUALS_SLOT_COUNT,
     type StateVisualsData,
 } from './state-visuals';
-import { UIRenderer, type UIRendererData } from '../core/ui-renderer';
+import { UIVisual, type UIVisualData } from '../core/ui-visual';
 import { UIEventType, type UIEventQueue } from '../core/events';
 
 /**
@@ -173,8 +173,8 @@ export function createStateVisualsApplySystem(world: World): SystemDef {
             // blends from whatever the user/driver left there.
             let tx = transitions.get(e);
             if (!tx || tx.toSlot !== slot) {
-                const startColor = (flags & TransitionFlag.ColorTint) && world.has(target, UIRenderer)
-                    ? { ...(world.get(target, UIRenderer) as UIRendererData).color }
+                const startColor = (flags & TransitionFlag.ColorTint) && world.has(target, UIVisual)
+                    ? { ...(world.get(target, UIVisual) as UIVisualData).color }
                     : { ...targetColor };
                 const startScale = (flags & TransitionFlag.Scale) && world.has(target, Transform)
                     ? (world.get(target, Transform) as TransformData).scale.x
@@ -187,17 +187,17 @@ export function createStateVisualsApplySystem(world: World): SystemDef {
 
             const t = fade > 0 ? Math.min(tx.elapsed / fade, 1) : 1;
 
-            if ((flags & TransitionFlag.ColorTint) && world.has(target, UIRenderer)) {
-                const r = world.get(target, UIRenderer) as UIRendererData;
+            if ((flags & TransitionFlag.ColorTint) && world.has(target, UIVisual)) {
+                const r = world.get(target, UIVisual) as UIVisualData;
                 r.color = t >= 1 ? targetColor : lerpColor(tx.startColor, targetColor, t);
-                world.insert(target, UIRenderer, r);
+                world.insert(target, UIVisual, r);
             }
 
-            if ((flags & TransitionFlag.SpriteSwap) && world.has(target, UIRenderer)) {
+            if ((flags & TransitionFlag.SpriteSwap) && world.has(target, UIVisual)) {
                 // Sprite swap is discrete: apply immediately at the slot change.
-                const r = world.get(target, UIRenderer) as UIRendererData;
+                const r = world.get(target, UIVisual) as UIVisualData;
                 r.texture = record[`slot${slot}Sprite`] as number;
-                world.insert(target, UIRenderer, r);
+                world.insert(target, UIVisual, r);
             }
 
             if ((flags & TransitionFlag.Scale) && world.has(target, Transform)) {

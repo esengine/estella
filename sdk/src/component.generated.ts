@@ -12,7 +12,7 @@ import type { AssetFieldType } from './scene';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'b20732a9b17a5058';
+export const ABI_LAYOUT_HASH = '7540dc008d0e3d93';
 
 export interface AssetFieldMeta {
     field: string;
@@ -482,7 +482,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
-    UIRenderer: {
+    UIVisual: {
         defaults: {
             visualType: 0,
             texture: 0,
@@ -490,13 +490,17 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             uvOffset: { x: 0, y: 0 },
             uvScale: { x: 1, y: 1 },
             sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+            tileSize: { x: 32, y: 32 },
+            fillMethod: 0,
+            fillOrigin: 0,
+            fillAmount: 1,
             material: 0,
             enabled: true,
         },
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
-        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'fillAmount'],
     },
     Velocity: {
         defaults: {

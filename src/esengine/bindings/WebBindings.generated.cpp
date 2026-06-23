@@ -32,7 +32,7 @@
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
 #include "../ecs/components/UINode.hpp"
-#include "../ecs/components/UIRenderer.hpp"
+#include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Velocity.hpp"
 
 using namespace emscripten;
@@ -169,6 +169,16 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Center", esengine::ecs::TextAlign::Center)
         .value("Right", esengine::ecs::TextAlign::Right);
 
+    enum_<esengine::ecs::UIFillMethod>("UIFillMethod")
+        .value("Horizontal", esengine::ecs::UIFillMethod::Horizontal)
+        .value("Vertical", esengine::ecs::UIFillMethod::Vertical);
+
+    enum_<esengine::ecs::UIFillOrigin>("UIFillOrigin")
+        .value("Left", esengine::ecs::UIFillOrigin::Left)
+        .value("Right", esengine::ecs::UIFillOrigin::Right)
+        .value("Bottom", esengine::ecs::UIFillOrigin::Bottom)
+        .value("Top", esengine::ecs::UIFillOrigin::Top);
+
     enum_<esengine::ecs::UIPositionType>("UIPositionType")
         .value("Relative", esengine::ecs::UIPositionType::Relative)
         .value("Absolute", esengine::ecs::UIPositionType::Absolute);
@@ -177,7 +187,9 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("None", esengine::ecs::UIVisualType::None)
         .value("SolidColor", esengine::ecs::UIVisualType::SolidColor)
         .value("Image", esengine::ecs::UIVisualType::Image)
-        .value("NineSlice", esengine::ecs::UIVisualType::NineSlice);
+        .value("NineSlice", esengine::ecs::UIVisualType::NineSlice)
+        .value("Tiled", esengine::ecs::UIVisualType::Tiled)
+        .value("Filled", esengine::ecs::UIVisualType::Filled);
 
 }
 
@@ -907,38 +919,50 @@ UINodeJS uinodeToJS(const esengine::ecs::UINode& c) {
     return js;
 }
 
-struct UIRendererJS {
+struct UIVisualJS {
     i32 visualType;
     u32 texture;
     glm::vec4 color;
     glm::vec2 uvOffset;
     glm::vec2 uvScale;
     glm::vec4 sliceBorder;
+    glm::vec2 tileSize;
+    i32 fillMethod;
+    i32 fillOrigin;
+    f32 fillAmount;
     u32 material;
     bool enabled;
 };
 
-esengine::ecs::UIRenderer uirendererFromJS(const UIRendererJS& js) {
-    esengine::ecs::UIRenderer c;
+esengine::ecs::UIVisual uivisualFromJS(const UIVisualJS& js) {
+    esengine::ecs::UIVisual c;
     c.visualType = static_cast<UIVisualType>(js.visualType);
     c.texture = resource::TextureHandle(js.texture);
     c.color = js.color;
     c.uvOffset = js.uvOffset;
     c.uvScale = js.uvScale;
     c.sliceBorder = js.sliceBorder;
+    c.tileSize = js.tileSize;
+    c.fillMethod = static_cast<UIFillMethod>(js.fillMethod);
+    c.fillOrigin = static_cast<UIFillOrigin>(js.fillOrigin);
+    c.fillAmount = js.fillAmount;
     c.material = js.material;
     c.enabled = js.enabled;
     return c;
 }
 
-UIRendererJS uirendererToJS(const esengine::ecs::UIRenderer& c) {
-    UIRendererJS js;
+UIVisualJS uivisualToJS(const esengine::ecs::UIVisual& c) {
+    UIVisualJS js;
     js.visualType = static_cast<i32>(c.visualType);
     js.texture = c.texture.id();
     js.color = c.color;
     js.uvOffset = c.uvOffset;
     js.uvScale = c.uvScale;
     js.sliceBorder = c.sliceBorder;
+    js.tileSize = c.tileSize;
+    js.fillMethod = static_cast<i32>(c.fillMethod);
+    js.fillOrigin = static_cast<i32>(c.fillOrigin);
+    js.fillAmount = c.fillAmount;
     js.material = c.material;
     js.enabled = c.enabled;
     return js;
@@ -1244,15 +1268,19 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("insetRight", &UINodeJS::insetRight)
         .field("insetBottom", &UINodeJS::insetBottom);
 
-    value_object<UIRendererJS>("UIRenderer")
-        .field("visualType", &UIRendererJS::visualType)
-        .field("texture", &UIRendererJS::texture)
-        .field("color", &UIRendererJS::color)
-        .field("uvOffset", &UIRendererJS::uvOffset)
-        .field("uvScale", &UIRendererJS::uvScale)
-        .field("sliceBorder", &UIRendererJS::sliceBorder)
-        .field("material", &UIRendererJS::material)
-        .field("enabled", &UIRendererJS::enabled);
+    value_object<UIVisualJS>("UIVisual")
+        .field("visualType", &UIVisualJS::visualType)
+        .field("texture", &UIVisualJS::texture)
+        .field("color", &UIVisualJS::color)
+        .field("uvOffset", &UIVisualJS::uvOffset)
+        .field("uvScale", &UIVisualJS::uvScale)
+        .field("sliceBorder", &UIVisualJS::sliceBorder)
+        .field("tileSize", &UIVisualJS::tileSize)
+        .field("fillMethod", &UIVisualJS::fillMethod)
+        .field("fillOrigin", &UIVisualJS::fillOrigin)
+        .field("fillAmount", &UIVisualJS::fillAmount)
+        .field("material", &UIVisualJS::material)
+        .field("enabled", &UIVisualJS::enabled);
 
     value_object<esengine::ecs::Velocity>("Velocity")
         .field("linear", &esengine::ecs::Velocity::linear)
@@ -1790,24 +1818,24 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::UINode>(entity);
         }))
 
-        // UIRenderer
-        .function("hasUIRenderer", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
+        // UIVisual
+        .function("hasUIVisual", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIVisual>(static_cast<Entity>(e));
         }))
-        .function("getUIRenderer", optional_override([](Registry& r, u32 e) {
+        .function("getUIVisual", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return UIRendererJS{};
-            return uirendererToJS(r.get<esengine::ecs::UIRenderer>(entity));
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIVisual>(entity)) return UIVisualJS{};
+            return uivisualToJS(r.get<esengine::ecs::UIVisual>(entity));
         }))
-        .function("addUIRenderer", optional_override([](Registry& r, u32 e, const UIRendererJS& js) {
+        .function("addUIVisual", optional_override([](Registry& r, u32 e, const UIVisualJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::UIRenderer>(entity, uirendererFromJS(js));
+            r.emplaceOrReplace<esengine::ecs::UIVisual>(entity, uivisualFromJS(js));
         }))
-        .function("removeUIRenderer", optional_override([](Registry& r, u32 e) {
+        .function("removeUIVisual", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRenderer>(entity)) return;
-            r.remove<esengine::ecs::UIRenderer>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIVisual>(entity)) return;
+            r.remove<esengine::ecs::UIVisual>(entity);
         }))
 
         // Velocity
@@ -1872,7 +1900,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("UIInteraction")));
     arr.set(i++, val(std::string("UIMask")));
     arr.set(i++, val(std::string("UINode")));
-    arr.set(i++, val(std::string("UIRenderer")));
+    arr.set(i++, val(std::string("UIVisual")));
     arr.set(i++, val(std::string("Velocity")));
     return arr;
 }
@@ -2074,14 +2102,18 @@ static_assert(offsetof(esengine::ecs::UINode, position) == 0, "ABI offset drift:
 static_assert(offsetof(esengine::ecs::UINode, flexGrow) == 52, "ABI offset drift: esengine::ecs::UINode.flexGrow (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::UINode, flexShrink) == 56, "ABI offset drift: esengine::ecs::UINode.flexShrink (EHT expected 56)");
 static_assert(offsetof(esengine::ecs::UINode, alignSelf) == 68, "ABI offset drift: esengine::ecs::UINode.alignSelf (EHT expected 68)");
-static_assert(offsetof(esengine::ecs::UIRenderer, visualType) == 0, "ABI offset drift: esengine::ecs::UIRenderer.visualType (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::UIRenderer, texture) == 4, "ABI offset drift: esengine::ecs::UIRenderer.texture (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::UIRenderer, color) == 8, "ABI offset drift: esengine::ecs::UIRenderer.color (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::UIRenderer, uvOffset) == 24, "ABI offset drift: esengine::ecs::UIRenderer.uvOffset (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::UIRenderer, uvScale) == 32, "ABI offset drift: esengine::ecs::UIRenderer.uvScale (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::UIRenderer, sliceBorder) == 40, "ABI offset drift: esengine::ecs::UIRenderer.sliceBorder (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::UIRenderer, material) == 56, "ABI offset drift: esengine::ecs::UIRenderer.material (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::UIRenderer, enabled) == 60, "ABI offset drift: esengine::ecs::UIRenderer.enabled (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::UIVisual, visualType) == 0, "ABI offset drift: esengine::ecs::UIVisual.visualType (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::UIVisual, texture) == 4, "ABI offset drift: esengine::ecs::UIVisual.texture (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::UIVisual, color) == 8, "ABI offset drift: esengine::ecs::UIVisual.color (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::UIVisual, uvOffset) == 24, "ABI offset drift: esengine::ecs::UIVisual.uvOffset (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::UIVisual, uvScale) == 32, "ABI offset drift: esengine::ecs::UIVisual.uvScale (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::UIVisual, sliceBorder) == 40, "ABI offset drift: esengine::ecs::UIVisual.sliceBorder (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::UIVisual, tileSize) == 56, "ABI offset drift: esengine::ecs::UIVisual.tileSize (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::UIVisual, fillMethod) == 64, "ABI offset drift: esengine::ecs::UIVisual.fillMethod (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::UIVisual, fillOrigin) == 65, "ABI offset drift: esengine::ecs::UIVisual.fillOrigin (EHT expected 65)");
+static_assert(offsetof(esengine::ecs::UIVisual, fillAmount) == 68, "ABI offset drift: esengine::ecs::UIVisual.fillAmount (EHT expected 68)");
+static_assert(offsetof(esengine::ecs::UIVisual, material) == 72, "ABI offset drift: esengine::ecs::UIVisual.material (EHT expected 72)");
+static_assert(offsetof(esengine::ecs::UIVisual, enabled) == 76, "ABI offset drift: esengine::ecs::UIVisual.enabled (EHT expected 76)");
 static_assert(offsetof(esengine::ecs::Velocity, linear) == 0, "ABI offset drift: esengine::ecs::Velocity.linear (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drift: esengine::ecs::Velocity.angular (EHT expected 12)");
 
@@ -2090,7 +2122,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "b20732a9b17a5058";
+static const char* kEsAbiLayoutHash = "7540dc008d0e3d93";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

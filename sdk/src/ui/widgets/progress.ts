@@ -6,14 +6,14 @@ import type { World } from '../../world';
 import { UINode, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
 
-import { spawnUIEntity, type UINodeInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
 
 export interface ProgressOptions {
     world: World;
     parent?: Entity;
     node?: UINodeInit;
     /** Background (track) renderer. */
-    background?: UIRendererInit;
+    background?: UIVisualInit;
     /** Fill renderer config (the filled bar). */
     fill?: { color?: Color; sprite?: number };
     /** Direction the fill grows. Default: 'right'. */
@@ -44,14 +44,14 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
         world,
         parent: opts.parent,
         node: opts.node ?? { fill: true },
-        renderer: opts.background ?? { color: { r: 0.15, g: 0.15, b: 0.15, a: 1 } },
+        visual: opts.background ?? { color: { r: 0.15, g: 0.15, b: 0.15, a: 1 } },
     });
 
     const fill = spawnUIEntity({
         world,
         parent: track,
         node: nodeForProgress(direction, value),
-        renderer: {
+        visual: {
             color: opts.fill?.color ?? { r: 0.25, g: 0.56, b: 0.96, a: 1 },
             texture: opts.fill?.sprite ?? 0,
             visualType: opts.fill?.sprite ? 2 /* Image */ : 1 /* SolidColor */,

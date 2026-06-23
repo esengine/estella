@@ -9,7 +9,7 @@ export class UIRenderOrderPlugin implements Plugin {
     name = PluginName.UIRenderOrder;
     dependencies = [PluginName.UILayout];
     after = [
-        PluginName.Text, PluginName.Image, PluginName.UIMask,
+        PluginName.Text, PluginName.UIMask,
         PluginName.UIInteraction,
     ];
 

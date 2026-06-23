@@ -9,7 +9,7 @@ import { StateVisuals, TransitionFlag, type StateVisualsData } from '../behavior
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Text, type TextData } from '../core/text';
 
-import { spawnUIEntity, type UINodeInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
 import { px, percent } from '../core/dimension';
 
 export interface DropdownOptions<T> {
@@ -35,7 +35,7 @@ export interface DropdownOptions<T> {
         pressed?: Color;
     };
     /** Popup panel background. */
-    popupRenderer?: UIRendererInit;
+    popupRenderer?: UIVisualInit;
     /** Height of each option row in pixels. Default 32. */
     optionHeight?: number;
 
@@ -114,7 +114,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         world,
         parent: opts.parent,
         node: opts.node ?? { fill: true },
-        renderer: { color: btnColors.normal },
+        visual: { color: btnColors.normal },
     });
     world.insert(button, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
     world.insert(button, UIInteraction, INTERACTION_DEFAULT);
@@ -150,7 +150,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
                 insetTop: percent(100),
                 height: px(totalHeight),
             },
-            renderer: opts.popupRenderer ?? { color: DEFAULT_POPUP_BG },
+            visual: opts.popupRenderer ?? { color: DEFAULT_POPUP_BG },
         });
 
         for (let i = 0; i < opts.options.length; i++) {
@@ -178,7 +178,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
                 insetTop: px(index * optionHeight),
                 height: px(optionHeight),
             },
-            renderer: { color: optColors.normal },
+            visual: { color: optColors.normal },
         });
         world.insert(row, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(row, UIInteraction, INTERACTION_DEFAULT);

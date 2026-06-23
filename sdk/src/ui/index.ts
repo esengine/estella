@@ -66,10 +66,12 @@ export { DimensionUnit, type Dimension, px, percent, auto, isAuto } from './core
 export { UINode, UIPositionType, type UINodeData } from './core/ui-node';
 
 export {
-    UIRenderer,
+    UIVisual,
     UIVisualType,
-    type UIRendererData,
-} from './core/ui-renderer';
+    FillMethod,
+    FillOrigin,
+    type UIVisualData,
+} from './core/ui-visual';
 
 export { UIMask, MaskMode, type UIMaskData } from './core/ui-mask';
 
@@ -80,14 +82,6 @@ export {
     TextOverflow,
     type TextData,
 } from './core/text';
-
-export {
-    Image,
-    ImageType,
-    FillMethod,
-    FillOrigin,
-    type ImageData,
-} from './core/image';
 
 export {
     FlexContainer,
@@ -196,12 +190,12 @@ export {
 export {
     identityTransform,
     buildUINode,
-    buildUIRenderer,
+    buildUIVisual,
     buildText,
     spawnUIEntity,
     setUIVisible,
     type UINodeInit,
-    type UIRendererInit,
+    type UIVisualInit,
     type TextInit,
     type UIEntityInit,
 } from './widgets/helpers';
@@ -291,8 +285,6 @@ export {
 } from './TextInput';
 
 export { TextInputPlugin, textInputPlugin } from './TextInputPlugin';
-
-export { ImagePlugin, imagePlugin } from './ImagePlugin';
 
 export { DragPlugin, dragPlugin } from './DragPlugin';
 

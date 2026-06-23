@@ -244,8 +244,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 2,
             "texture": "@uuid:5b21b6a6-dffa-4256-872a-36f4e4549408",
             "color": {
               "r": 1,
@@ -309,8 +310,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 2,
             "texture": "@uuid:5b21b6a6-dffa-4256-872a-36f4e4549408",
             "color": {
               "r": 1,
@@ -374,8 +376,9 @@
           }
         },
         {
-          "type": "Image",
+          "type": "UIVisual",
           "data": {
+            "visualType": 2,
             "texture": "@uuid:5b21b6a6-dffa-4256-872a-36f4e4549408",
             "color": {
               "r": 1,

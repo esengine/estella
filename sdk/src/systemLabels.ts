@@ -11,7 +11,6 @@ export const PluginName = {
     UIRenderOrder: 'uiRenderOrder',
     UIMask: 'uiMask',
     Text: 'text',
-    Image: 'image',
     Focus: 'focus',
     Drag: 'drag',
     SafeArea: 'safeArea',
@@ -25,7 +24,6 @@ export const SystemLabel = {
     UIInteraction: 'UIInteractionSystem',
     ListView: 'ListViewSystem',
     Text: 'TextSystem',
-    Image: 'ImageSystem',
     Focus: 'FocusSystem',
     Tween: 'TweenSystem',
 } as const;

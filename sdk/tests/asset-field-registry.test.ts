@@ -61,8 +61,7 @@ describe('AssetFieldRegistry', () => {
         expect(components).toContain('Sprite');
         expect(components).toContain('SpineAnimation');
         expect(components).toContain('BitmapText');
-        expect(components).toContain('Image');
-        expect(components).toContain('UIRenderer');
+        expect(components).toContain('UIVisual');
         expect(components).toContain('SpriteAnimator');
         expect(components).toContain('AudioSource');
         expect(components).toContain('ParticleEmitter');

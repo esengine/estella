@@ -122,6 +122,18 @@ export enum TextAlign {
     Right = 2,
 }
 
+export enum UIFillMethod {
+    Horizontal = 0,
+    Vertical = 1,
+}
+
+export enum UIFillOrigin {
+    Left = 0,
+    Right = 1,
+    Bottom = 2,
+    Top = 3,
+}
+
 export enum UIPositionType {
     Relative = 0,
     Absolute = 1,
@@ -132,6 +144,8 @@ export enum UIVisualType {
     SolidColor = 1,
     Image = 2,
     NineSlice = 3,
+    Tiled = 4,
+    Filled = 5,
 }
 
 // Components
@@ -458,13 +472,17 @@ export interface UINode {
     insetBottom: Dimension;
 }
 
-export interface UIRenderer {
+export interface UIVisual {
     visualType: number;
     texture: number;
     color: Vec4;
     uvOffset: Vec2;
     uvScale: Vec2;
     sliceBorder: Vec4;
+    tileSize: Vec2;
+    fillMethod: number;
+    fillOrigin: number;
+    fillAmount: number;
     material: number;
     enabled: boolean;
 }
@@ -581,10 +599,10 @@ export interface Registry {
     getUINode(entity: Entity): UINode;
     addUINode(entity: Entity, component: UINode): void;
     removeUINode(entity: Entity): void;
-    hasUIRenderer(entity: Entity): boolean;
-    getUIRenderer(entity: Entity): UIRenderer;
-    addUIRenderer(entity: Entity, component: UIRenderer): void;
-    removeUIRenderer(entity: Entity): void;
+    hasUIVisual(entity: Entity): boolean;
+    getUIVisual(entity: Entity): UIVisual;
+    addUIVisual(entity: Entity, component: UIVisual): void;
+    removeUIVisual(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -628,6 +646,6 @@ export interface ESEngineModule {
     UIInteraction: new () => UIInteraction;
     UIMask: new () => UIMask;
     UINode: new () => UINode;
-    UIRenderer: new () => UIRenderer;
+    UIVisual: new () => UIVisual;
     Velocity: new () => Velocity;
 }

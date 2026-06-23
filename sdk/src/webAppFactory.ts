@@ -23,7 +23,6 @@ export { uiLayoutPlugin, UILayoutPlugin } from './ui/UILayoutPlugin';
 export { uiRenderOrderPlugin, UIRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 export { textInputPlugin, TextInputPlugin } from './ui/TextInputPlugin';
 
-export { imagePlugin, ImagePlugin } from './ui/ImagePlugin';
 export { dragPlugin, DragPlugin } from './ui/DragPlugin';
 export { focusPlugin, FocusPlugin } from './ui/FocusPlugin';
 export { safeAreaPlugin, SafeAreaPlugin } from './ui/SafeAreaPlugin';
