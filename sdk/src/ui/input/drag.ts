@@ -5,6 +5,9 @@ import { registerComponent, Transform, Parent, Sprite } from '../../component';
 import type { TransformData, ParentData, SpriteData } from '../../component';
 import { UIRect } from '../core/ui-rect';
 import type { UIRectData } from '../core/ui-rect';
+import { UINode } from '../core/ui-node';
+import type { UINodeData } from '../core/ui-node';
+import { px } from '../core/dimension';
 import { defineSystem, Schedule } from '../../system';
 import { Res } from '../../resource';
 import { Input } from '../../input';
@@ -193,7 +196,20 @@ export class DragPlugin implements Plugin {
                         y: newWorldY - dragState.startWorldPos.y,
                     };
 
-                    if (world.has(activeEntity, UIRect)) {
+                    if (world.has(activeEntity, UINode)) {
+                        // Nudge the CSS-box absolute insets (the layout input), so
+                        // the dragged position survives the next layout pass.
+                        const node = world.get(activeEntity, UINode) as UINodeData;
+                        const localDelta = worldToLocalDelta(
+                            world, activeEntity,
+                            dragState.deltaWorld.x, dragState.deltaWorld.y
+                        );
+                        const baseL = node.insetLeft.unit === 0 ? node.insetLeft.value : 0;
+                        const baseT = node.insetTop.unit === 0 ? node.insetTop.value : 0;
+                        node.insetLeft = px(baseL + localDelta.x);
+                        node.insetTop = px(baseT - localDelta.y); // inset top is y-down
+                        world.insert(activeEntity, UINode, node);
+                    } else if (world.has(activeEntity, UIRect)) {
                         const rect = world.get(activeEntity, UIRect) as UIRectData;
                         const localDelta = worldToLocalDelta(
                             world, activeEntity,
