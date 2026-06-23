@@ -5,6 +5,7 @@
 #include "Registry.hpp"
 #include "components/Hierarchy.hpp"
 #include "components/UIRect.hpp"
+#include "components/UINode.hpp"
 #include "components/Canvas.hpp"
 #include "components/Transform.hpp"
 
@@ -79,10 +80,12 @@ struct UITree {
 
 private:
     void buildDFS(Registry& reg, Entity entity, Entity layoutParent, u16 depth) {
-        bool hasUIRect = reg.has<UIRect>(entity);
+        // A layout node is anything the layout pass positions: the legacy UIRect
+        // (anchor model) or the modern UINode (CSS box, REARCH_GUI F3).
+        bool isLayoutNode = reg.has<UIRect>(entity) || reg.has<UINode>(entity);
         i32 nodeIndex = -1;
 
-        if (hasUIRect) {
+        if (isLayoutNode) {
             nodeIndex = static_cast<i32>(nodes_.size());
             nodes_.push_back({entity, layoutParent, depth, 1, LAYOUT_DIRTY});
             layoutParent = entity;
@@ -98,7 +101,7 @@ private:
             }
         }
 
-        if (hasUIRect && nodeIndex >= 0) {
+        if (isLayoutNode && nodeIndex >= 0) {
             nodes_[nodeIndex].subtree_size = static_cast<u16>(nodes_.size() - nodeIndex);
         }
     }

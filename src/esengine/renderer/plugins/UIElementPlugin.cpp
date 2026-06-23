@@ -7,6 +7,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/UIRenderer.hpp"
 #include "../../ecs/components/UIRect.hpp"
+#include "../../ecs/components/UINode.hpp"
 
 #include <cmath>
 
@@ -19,27 +20,36 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
-    auto uiView = registry.view<ecs::Transform, ecs::UIRenderer, ecs::UIRect>();
+    auto uiView = registry.view<ecs::Transform, ecs::UIRenderer>();
 
     for (auto entity : uiView) {
         const auto& renderer = uiView.get<ecs::UIRenderer>(entity);
         if (!renderer.enabled || renderer.visualType == ecs::UIVisualType::None) continue;
 
+        // Geometry source: the legacy UIRect (anchor, explicit pivot) or the
+        // modern UINode (CSS box, REARCH_GUI F3 — always pivot-centered).
+        f32 w, h, pivotX, pivotY;
+        if (const auto* rect = registry.tryGet<ecs::UIRect>(entity)) {
+            w = rect->computed_size_.x; h = rect->computed_size_.y;
+            pivotX = rect->pivot.x; pivotY = rect->pivot.y;
+        } else if (const auto* node = registry.tryGet<ecs::UINode>(entity)) {
+            w = node->computed_size_.x; h = node->computed_size_.y;
+            pivotX = 0.5f; pivotY = 0.5f;
+        } else {
+            continue;
+        }
+        if (w <= 0.0f && h <= 0.0f) continue;
+
         auto& transform = uiView.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
-        const auto& rect = uiView.get<ecs::UIRect>(entity);
 
         glm::vec3 position = transform.worldPosition;
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 
-        f32 w = rect.computed_size_.x;
-        f32 h = rect.computed_size_.y;
-        if (w <= 0.0f && h <= 0.0f) continue;
-
         // UI bakes the pivot into the world position here, so the quad is emitted centered.
-        f32 dx = (0.5f - rect.pivot.x) * w * scale.x;
-        f32 dy = (0.5f - rect.pivot.y) * h * scale.y;
+        f32 dx = (0.5f - pivotX) * w * scale.x;
+        f32 dy = (0.5f - pivotY) * h * scale.y;
         f32 sinHalf = rotation.z;
         if (sinHalf * sinHalf > 1e-6f) {
             f32 cosHalf = rotation.w;
@@ -92,7 +102,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             }
         }
 
-        glm::vec2 finalSize = rect.computed_size_ * glm::vec2(scale);
+        glm::vec2 finalSize = glm::vec2(w, h) * glm::vec2(scale);
 
         BatchDrawKey key{
             .stage = ctx.current_stage,
