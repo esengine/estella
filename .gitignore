@@ -86,3 +86,6 @@ design/
 desktop/src-tauri/toolchain/
 !desktop/src-tauri/toolchain/.gitkeep
 __pycache__/
+
+# Architecture rearch design docs — local only, not tracked
+docs/REARCH_*.md
