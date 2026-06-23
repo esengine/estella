@@ -8,6 +8,8 @@ import type { Entity, Vec2 } from '../../types';
 import type { World } from '../../world';
 
 import { UIRect, type UIRectData } from '../core/ui-rect';
+import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
+import { px, percent, auto, type Dimension } from '../core/dimension';
 import { UIRenderer, UIVisualType, type UIRendererData } from '../core/ui-renderer';
 import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
 
@@ -44,6 +46,55 @@ export function buildUIRect(init: UIRectInit = {}): UIRectData {
         offsetMax: init.offsetMax ?? { x: 0, y: 0 },
         size: init.size ?? { x: 0, y: 0 },
         pivot: init.pivot ?? { x: 0.5, y: 0.5 },
+    };
+}
+
+export interface UINodeInit {
+    /** Stretch to fill the parent (absolute + inset 0 on all edges). */
+    fill?: boolean;
+    /** UIPositionType: Relative (flex flow) or Absolute (placed by inset). */
+    position?: number;
+    width?: Dimension;
+    height?: Dimension;
+    insetLeft?: Dimension;
+    insetTop?: Dimension;
+    insetRight?: Dimension;
+    insetBottom?: Dimension;
+    flexGrow?: number;
+    flexShrink?: number;
+    marginLeft?: Dimension;
+    marginTop?: Dimension;
+    marginRight?: Dimension;
+    marginBottom?: Dimension;
+}
+
+/**
+ * Build a UINode (CSS box, REARCH_GUI). `fill: true` is the common widget case
+ * (stretch to the parent); otherwise set width/height and/or inset. Anchoring
+ * (e.g. top-right) = position Absolute + the relevant insets.
+ */
+export function buildUINode(init: UINodeInit = {}): UINodeData {
+    const fill = init.fill ?? false;
+    return {
+        position: init.position ?? (fill ? UIPositionType.Absolute : UIPositionType.Relative),
+        width: init.width ?? auto(),
+        height: init.height ?? auto(),
+        minWidth: auto(),
+        minHeight: auto(),
+        maxWidth: auto(),
+        maxHeight: auto(),
+        flexGrow: init.flexGrow ?? 0,
+        flexShrink: init.flexShrink ?? 1,
+        flexBasis: auto(),
+        alignSelf: 0,
+        marginLeft: init.marginLeft ?? px(0),
+        marginTop: init.marginTop ?? px(0),
+        marginRight: init.marginRight ?? px(0),
+        marginBottom: init.marginBottom ?? px(0),
+        insetLeft: init.insetLeft ?? (fill ? px(0) : auto()),
+        insetTop: init.insetTop ?? (fill ? px(0) : auto()),
+        insetRight: init.insetRight ?? (fill ? px(0) : auto()),
+        insetBottom: init.insetBottom ?? (fill ? px(0) : auto()),
     };
 }
 
@@ -99,6 +150,9 @@ export function buildText(init: TextInit = {}): TextData {
 export interface UIEntityInit {
     world: World;
     parent?: Entity;
+    /** Modern CSS-box layout (preferred). */
+    node?: UINodeInit;
+    /** Legacy RectTransform layout (used until a widget is migrated to `node`). */
     rect?: UIRectInit;
     renderer?: UIRendererInit;
     text?: TextInit;
@@ -115,7 +169,12 @@ export function spawnUIEntity(init: UIEntityInit): Entity {
     const entity = world.spawn();
 
     world.insert(entity, Transform, identityTransform());
-    world.insert(entity, UIRect, buildUIRect(init.rect));
+    // Prefer the modern UINode box; legacy UIRect only until the caller migrates.
+    if (init.node) {
+        world.insert(entity, UINode, buildUINode(init.node));
+    } else {
+        world.insert(entity, UIRect, buildUIRect(init.rect));
+    }
 
     if (init.renderer) {
         world.insert(entity, UIRenderer, buildUIRenderer(init.renderer));
