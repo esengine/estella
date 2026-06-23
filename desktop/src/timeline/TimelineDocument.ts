@@ -3,7 +3,7 @@
 /**
  * @file    TimelineDocument.ts
  * @brief   The open .estimeline as a reactive editor document — the first
- *          {@link AssetDocument} (docs/REARCH_ANIMATION.md L4 / P5).
+ *          {@link AssetDocument}.
  *
  * The generic reactive + snapshot-undo core lives in AssetDocument; this adds the
  * timeline-specific state: `fps` (editor display metadata — the asset stores time

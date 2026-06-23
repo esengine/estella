@@ -3,7 +3,7 @@
 /**
  * @file    AssetDocument.ts
  * @brief   Reactive, undoable in-memory asset document — the shared base for
- *          single-file asset editors (docs/REARCH_ANIMATION.md L4 / P5).
+ *          single-file asset editors.
  *
  * Mirrors the scene's model-authoritative reactivity for ONE asset file: the
  * typed in-memory asset is the source of truth, panels subscribe via

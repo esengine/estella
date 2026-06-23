@@ -128,8 +128,8 @@ void TweenSystem::resumeTween(ecs::Registry& registry, Entity tweenEntity) {
 }
 
 // Tween owns the writes for its fixed 13 targets (was routed through the generic
-// animTargets `applyAnimatedValue`; REARCH_ANIMATION P4b decouples it so the
-// generic enum+switch can be deleted with the C++ timeline in P4c). Mirrors the
+// animTargets `applyAnimatedValue`; decoupled so the generic enum+switch could be
+// deleted with the C++ timeline). Mirrors the
 // per-field semantics exactly: rotation.z → half-angle quaternion, and the UINode
 // `anim_override_` flags so UI layout doesn't clobber animated Transform fields.
 // Flag the entity's UINode so the layout pass leaves the tween-driven Transform

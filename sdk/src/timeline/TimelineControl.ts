@@ -10,7 +10,7 @@ import { WrapMode } from './TimelineTypes';
  * and is published as the {@link Timeline} resource; game code drives playback via
  * `app.getResource(Timeline)`.
  *
- * The timeline runtime is pure TS now (docs/REARCH_ANIMATION.md P4c) — there is no
+ * The timeline runtime is pure TS now — there is no
  * C++ handle or wasm module here. `TimelinePlugin` advances each entity's
  * {@link TimelineState} every frame; these methods just flip/seek that state.
  */

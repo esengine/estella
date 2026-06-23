@@ -88,8 +88,8 @@ public:
     );
 
     /**
-     * Submit a batch of pre-laid-out glyph quads from TS (REARCH_GUI P1.3, the
-     * dynamic SDF glyph atlas). Same vertex format as submitSpineBatch
+     * Submit a batch of pre-laid-out glyph quads from TS (the dynamic SDF glyph
+     * atlas). Same vertex format as submitSpineBatch
      * (x,y,u,v,r,g,b,a per vertex) but routed through the SDF batch variant
      * (batchProgram({"SDF"})) with RenderType::Text. The atlas page is `textureId`.
      */
@@ -132,7 +132,7 @@ public:
 
     /**
      * Compiled program id for a batch-shader feature variant, compiled+cached on
-     * first use (REARCH_GUI P1.2). `{}` is the default batch program; `{"SDF"}`
+     * first use. `{}` is the default batch program; `{"SDF"}`
      * is the glyph-atlas SDF text variant. Same vertex layout + sampler/UBO setup
      * as the default, so quads of any variant share the batch vertex format.
      */
@@ -173,8 +173,8 @@ private:
     std::unordered_map<u32, EntityStencilInfo> stencil_masks_;
 
     u32 batch_shader_id_ = 0;
-    // Compiled batch-shader variants keyed by ShaderParser::variantKey(features)
-    // (REARCH_GUI P1.2). {} → default, {"SDF"} → glyph-atlas text.
+    // Compiled batch-shader variants keyed by ShaderParser::variantKey(features).
+    // {} → default, {"SDF"} → glyph-atlas text.
     std::unordered_map<std::string, u32> batch_variants_;
     TransientBufferPool pool_;
     DrawList draw_list_;

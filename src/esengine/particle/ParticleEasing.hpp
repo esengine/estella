@@ -15,7 +15,7 @@ enum class EasingType : i32 {
 };
 
 // Delegates to the shared easing library so the math lives in ONE place
-// (docs/REARCH_ANIMATION.md easing consolidation). Particle keeps its own 4-value
+// (easing consolidation). Particle keeps its own 4-value
 // enum (its serialized data format); the formulas are byte-identical to the quad
 // easings, so this is behavior-preserving.
 inline f32 applyEasing(EasingType type, f32 t) {

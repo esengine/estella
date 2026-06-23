@@ -54,7 +54,7 @@ export class TextInputPlugin implements Plugin {
 
         const world = app.world;
 
-        // REARCH_GUI F8: the editable text renders through the shared SDF glyph
+        // The editable text renders through the shared SDF glyph
         // atlas — a child Text entity (drawn by textPlugin) + a child UIVisual
         // caret quad, composited over the entity's background UIVisual. No more
         // per-entity Canvas2D rasterization / texture upload. `measureRenderer`
@@ -256,7 +256,7 @@ export class TextInputPlugin implements Plugin {
         // Render system — composite the input from SDF child entities (a child
         // Text drawn by textPlugin + a child caret quad) over the entity's
         // background UIVisual. Tree-DFS render order layers bg < text < caret. No
-        // Canvas2D, no per-entity texture (REARCH_GUI F8).
+        // Canvas2D, no per-entity texture.
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {

@@ -283,8 +283,8 @@ export class TilemapPlugin implements Plugin {
                         const oy = tf?.position.y ?? 0;
                         const spawned: Entity[] = [];
                         for (const layer of cached.layers) {
-                            // T1 covers finite layers (flat tile arrays); infinite/chunk
-                            // collision is deferred (see docs/REARCH_TILEMAP.md).
+                            // Collision covers finite layers (flat tile arrays);
+                            // infinite/chunk collision is deferred.
                             if (layer.infinite || layer.tiles.length === 0) continue;
                             spawned.push(...generateLayerCollision(
                                 world, layer.tiles, layer.width, layer.height,

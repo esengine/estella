@@ -232,7 +232,7 @@ export {
 // ─── Rendering / text helpers ───────────────────────────────────────────────
 
 // All text — display (Text) and editable (TextInput) — now renders through the
-// SDF glyph atlas; the Canvas2D TextRenderer was retired in REARCH_GUI F8.
+// SDF glyph atlas; the Canvas2D TextRenderer was retired.
 export { TextPlugin, textPlugin } from './text/plugin';
 
 // UI Math Utilities
@@ -250,7 +250,7 @@ export {
 
 // ─── Plugins (composed UI pipeline + the concept plugins it builds) ─────────
 
-// REARCH_GUI F6: `uiPlugin` is the single declarative UI pipeline. The concept
+// `uiPlugin` is the single declarative UI pipeline. The concept
 // plugins below remain exported for granular/advanced wiring.
 export { UIPlugin, uiPlugin } from './ui-plugin';
 
@@ -340,7 +340,7 @@ export {
     type ResolvedImage,
 } from './ImageResolver';
 
-// ─── SDF glyph-atlas text (REARCH_GUI P1) ───────────────────────────────────
+// ─── SDF glyph-atlas text ───────────────────────────────────────────────────
 
 export {
     UI_TEXT_BOLD,

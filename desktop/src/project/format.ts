@@ -43,7 +43,7 @@ export interface DesignResolution {
 }
 
 /**
- * Script entry points (REARCH_EDITOR_REALM §E8 / P3). Splitting declaration from
+ * Script entry points. Splitting declaration from
  * startup is what lets the editor extract a component schema WITHOUT executing
  * project startup: schema extraction imports ONLY `register`, the play-realm
  * bundle is built from `main`. Both default (see {@link DEFAULT_SCRIPTS}) so most

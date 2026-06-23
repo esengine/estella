@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    TimelineRecorder.ts
- * @brief   Record mode — auto-key inspector/gizmo edits into the open clip
- *          (docs/REARCH_ANIMATION.md P2).
+ * @brief   Record mode — auto-key inspector/gizmo edits into the open clip.
  *
  * Registers a generic edit hook on SceneCommands (the single field-edit door): when
  * recording is on and the edited entity is the clip's bound preview root, it drops

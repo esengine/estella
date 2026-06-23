@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  BuildDialog.tsx — the UE5-style "Package Project" modal (REARCH_EDITOR_REALM
- *        Phase S). Pick a platform + configuration + output, hit Build, watch the
+ * @file  BuildDialog.tsx — the UE5-style "Package Project" modal.
+ *        Pick a platform + configuration + output, hit Build, watch the
  *        cook → bundle → copy run, then reveal the output. Web is the live target;
  *        WeChat/Playable/Native are shown disabled (the engine has those wasm
  *        targets, but the project export only wires Web today).

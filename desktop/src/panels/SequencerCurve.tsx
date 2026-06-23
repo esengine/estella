@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    SequencerCurve.tsx
- * @brief   Curve editor view for the Sequencer (docs/REARCH_ANIMATION.md P3).
+ * @brief   Curve editor view for the Sequencer.
  *
  * Best-architecture point: the curves are drawn by sampling the SAME runtime
  * evaluator (`evaluateChannel`) the playback/preview uses — so the displayed curve

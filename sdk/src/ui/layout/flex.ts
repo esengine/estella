@@ -42,5 +42,5 @@ export const FlexContainer = defineBuiltin<FlexContainerData>('FlexContainer', {
 });
 
 // Per-item flex properties (grow/shrink/basis/alignSelf/margin/min-max) live on
-// UINode now; the standalone FlexItem component was removed in REARCH_GUI F4.
+// UINode now; the standalone FlexItem component was removed.
 // `AlignSelf` moved to ui/core/ui-node.ts alongside the other item properties.

@@ -21,7 +21,7 @@ import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject
  * directory, loads its scene into the live engine World via `resetWorldTo`, and
  * saves back. The bridge sandboxes every fs path to the open project root.
  *
- * Assets resolve through the engine's own asset system (REARCH_ASSETS.md A1):
+ * Assets resolve through the engine's own asset system:
  * the editor builds a uuid→path registry from `.meta` sidecars, points the
  * engine `Assets` loader at the `estella://` transport (electron/main serves
  * project files), and preloads EVERY referenced asset type — not just textures.
@@ -201,7 +201,7 @@ class ProjectStoreImpl {
     await this.buildAssetRegistry();
 
     // Expand prefab-instance entries into ordinary tagged entities (the model is
-    // always expanded; the file stores deltas) — REARCH_PREFABS.md. Internal
+    // always expanded; the file stores deltas). Internal
     // entities get fresh ids above the file's max so they don't collide.
     let nextId = raw.entities.reduce((m, e) => Math.max(m, (e as { id?: number }).id ?? 0), 0) + 1;
     const { scene: expandedRaw, tags } = await expandScenePrefabs(
@@ -223,7 +223,7 @@ class ProjectStoreImpl {
 
     // A scene is a session document: replacing it clears the editor history +
     // selection so undo closures can't reference the previous scene's entities
-    // (REARCH_EDITOR_MODEL.md §6). The Reconciler bulk path then builds the World
+    // selection. The Reconciler bulk path then builds the World
     // from the resolved scene and adopts the raw scene (with @uuid: refs + any
     // components/fields/invisible entities the World drops) as the source of
     // truth. The World is a lossy projection; the model is what save() serializes.
@@ -238,7 +238,7 @@ class ProjectStoreImpl {
 
     // Bind spine entities' skeletons/atlas/textures into the SpineManager so spine
     // renders in the viewport (the World holds the SpineAnimation components, but
-    // spine assets load separately from Assets — REARCH_SPINE side modules). The
+    // spine assets load separately from Assets via side modules). The
     // entityMap is the Reconciler's source→runtime binding; refs resolve through
     // the project's estella:// transport.
     const spineMap = new Map<number, number>();
@@ -299,8 +299,8 @@ class ProjectStoreImpl {
   }
 
   /**
-   * Load the project's asset index (the main-process AssetDatabase scan,
-   * REARCH_ASSETS.md A2) into a uuid→path registry, then point the engine
+   * Load the project's asset index (the main-process AssetDatabase scan)
+   * into a uuid→path registry, then point the engine
    * `Assets` loader at it + the `estella://` transport. This is the ONE
    * asset-resolution path: `Assets.resolveRef` turns `@uuid:` → path, the backend
    * fetches `estella://project/<path>`.
@@ -449,7 +449,7 @@ class ProjectStoreImpl {
   }
 
   /**
-   * Assemble the isolated play-realm payload (REARCH_EDITOR_REALM Phase R): the
+   * Assemble the isolated play-realm payload: the
    * current scene as RAW (`@uuid:`) SceneData straight from the expanded model —
    * the runtime needs no prefab expansion and handles are realm-local, so we send
    * the lossless refs, not resolved handles — plus a uuid→url manifest the realm
@@ -535,9 +535,9 @@ class ProjectStoreImpl {
   }
 
   /**
-   * Serialize the editor's source-of-truth model — lossless (JSON-first L4) +
+   * Serialize the editor's source-of-truth model — lossless (JSON-first) +
    * prefab-aware: collapse each expanded prefab-instance subtree back to a single
-   * `{prefab, overrides, added, removed}` delta entry (REARCH_PREFABS.md). The
+   * `{prefab, overrides, added, removed}` delta entry. The
    * model retains everything the World drops (unknown components/fields, invisible
    * entities, `@uuid:` asset refs), so this reads only the model.
    */

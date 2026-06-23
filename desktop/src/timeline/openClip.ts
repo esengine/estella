@@ -3,7 +3,7 @@
 /**
  * @file    openClip.ts
  * @brief   Open an animation clip (.esanim / legacy .estimeline) from disk into
- *          the Sequencer (docs/REARCH_ANIMATION.md P2).
+ *          the Sequencer.
  *
  * Reads the project file, parses it through the unified clip loader (rich
  * multi-track or legacy flipbook), opens it as the editor TimelineDocument bound

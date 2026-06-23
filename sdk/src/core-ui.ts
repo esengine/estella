@@ -87,7 +87,7 @@ export {
     colorWithAlpha,
     /** @internal per-entity state map used by interaction behaviour */
     EntityStateMap,
-    // Theme design tokens (REARCH_GUI F7)
+    // Theme design tokens
     DARK_TOKENS,
     getTheme,
     setTheme,

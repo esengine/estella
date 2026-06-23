@@ -6,7 +6,7 @@ import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
 /**
  * Reactive mirror of the editor scene — the model-change bus.
  *
- * Model-authoritative data flow (REARCH_EDITOR_MODEL.md): the editor reacts to
+ * Model-authoritative data flow: the editor reacts to
  * **model** events, not engine-pushed World mutations. This subscribes to the
  * SceneModel and turns each change into a revision bump; panels subscribe via
  * `useSyncExternalStore` and re-read through SceneQuery (which reads the model).

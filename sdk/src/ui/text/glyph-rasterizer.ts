@@ -3,7 +3,7 @@
 /**
  * @file    ui/text/glyph-rasterizer.ts
  * @brief   Canvas2D glyph rasterizer → SDF, the real GlyphRasterizer for the
- *          dynamic atlas (REARCH_GUI P1.3). Works on web AND WeChat (both expose
+ *          dynamic atlas. Works on web AND WeChat (both expose
  *          a 2D canvas + getImageData; the legacy text path already relied on
  *          this). Any font / CJK / emoji, since glyphs are drawn on demand.
  *

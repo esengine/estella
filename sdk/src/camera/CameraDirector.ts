@@ -27,8 +27,7 @@ export type BlendCurve = (typeof BlendCurve)[keyof typeof BlendCurve];
 export function applyCurve(curve: number, t: number): number {
   const x = t < 0 ? 0 : t > 1 ? 1 : t;
   // BlendCurve 0..3 aligns with Easing's Linear/EaseInQuad/EaseOutQuad/EaseInOutQuad
-  // (identical formulas) — delegate so the easing math lives in one place
-  // (docs/REARCH_ANIMATION.md easing consolidation).
+  // (identical formulas) — delegate so the easing math lives in one place.
   return applyEasing(curve as EasingType, x);
 }
 

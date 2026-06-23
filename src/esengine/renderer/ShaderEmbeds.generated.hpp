@@ -6,7 +6,7 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 #pragma version 300 es
 
 // Compile-time variant: when enabled the fragment stage treats the sampled
-// alpha as a signed distance field (runtime glyph atlas, REARCH_GUI P1) and
+// alpha as a signed distance field (runtime glyph atlas) and
 // derives crisp, resolution-independent coverage instead of sampling RGBA.
 #pragma feature SDF
 

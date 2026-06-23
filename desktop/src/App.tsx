@@ -59,7 +59,7 @@ export function App() {
 
   // Play runs in an ISOLATED realm (the Game panel's iframe = the shipping
   // runtime), NOT by flipping the main edit World — so gameplay can never dirty
-  // the scene and the Viewport stays a live Scene view (REARCH_EDITOR_REALM R2).
+  // the scene and the Viewport stays a live Scene view.
   // (The headless/automation path still drives the main World via
   // EditorControlSurface.setRunMode + step for deterministic capture.)
   const isPlaying = useEditorStore((s) => s.isPlaying);

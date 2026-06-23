@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    openTileset.ts
- * @brief   Open / create a .estileset from the Content Browser (docs/REARCH_TILEMAP.md T2).
+ * @brief   Open / create a .estileset from the Content Browser.
  *          Mirrors openClip.ts (open) and ProjectStore.createPrefabFromEntity (create + .meta
  *          + registry re-scan).
  */

@@ -8,8 +8,7 @@
  *          headless verification host, and (later) the editor MCP server, which
  *          is a transport adapter over this object rather than a parallel API.
  *
- * Design and phasing: docs/REARCH_EDITOR_AUTOMATION.md + REARCH_EDITOR_MODEL.md
- * (P2: the session boundary). This adds no new truth — commands route through
+ * This adds no new truth — commands route through
  * the session's SceneCommands (the model write boundary), reads through its
  * SceneQuery / SceneModel (the model is the source of truth; the World is a
  * derived projection), and observation reads the live canvas/World (process-

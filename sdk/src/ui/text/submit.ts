@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/submit.ts
- * @brief   TS → engine submission for pre-laid-out SDF glyph quads (REARCH_GUI
- *          P1.3). The text system lays glyphs out against the dynamic atlas in
+ * @brief   TS → engine submission for pre-laid-out SDF glyph quads.
+ *          The text system lays glyphs out against the dynamic atlas in
  *          TS, then hands the batch here; the engine routes it through the SDF
  *          batch-shader variant. Mirrors the proven spine mesh-submit path.
  */

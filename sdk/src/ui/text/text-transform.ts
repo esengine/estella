@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/text-transform.ts
- * @brief   Pure placement helpers for SDF text (REARCH_GUI P1.4d): the entity
+ * @brief   Pure placement helpers for SDF text: the entity
  *          world matrix and the rect→text-box mapping. No component here — the
  *          canonical text component is core/text.ts `Text`, rendered by the SDF
  *          text plugin.

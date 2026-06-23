@@ -5,11 +5,11 @@
  * @brief   Safe-area concept — component + the PreUpdate system that pushes
  *          platform safe-area insets into UINode insets, co-located.
  *
- * Part of REARCH_GUI P0: the layout concept (Yoga driver + safe-area) is the
- * first concept relocated out of the flat legacy plugins into a cohesive
- * module. Behaviour is byte-identical to the former `SafeArea.ts` +
- * `SafeAreaPlugin.ts`; those files now re-export from here (strangler-fig —
- * legacy public symbols are kept as shims until REARCH_GUI P4).
+ * The layout concept (Yoga driver + safe-area) is the first concept relocated
+ * out of the flat legacy plugins into a cohesive module. Behaviour is
+ * byte-identical to the former `SafeArea.ts` + `SafeAreaPlugin.ts`; those files
+ * now re-export from here (strangler-fig — legacy public symbols are kept as
+ * shims).
  */
 import type { App, Plugin } from '../../app';
 import { isWeChat, platformDevicePixelRatio } from '../../platform';

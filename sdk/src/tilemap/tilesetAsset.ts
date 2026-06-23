@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    tilesetAsset.ts
- * @brief   The `.estileset` tileset-palette asset — atlas slicing + per-tile behaviour
- *          (docs/REARCH_TILEMAP.md). The reusable asset the Tileset editor authors and the
+ * @brief   The `.estileset` tileset-palette asset — atlas slicing + per-tile behaviour.
+ *          The reusable asset the Tileset editor authors and the
  *          single source of truth for how a tile looks (atlas grid) AND behaves (collision
  *          shape / animation / properties). Tilemaps reference it; collision is derived from
  *          it at runtime, so editing the tileset updates every map.

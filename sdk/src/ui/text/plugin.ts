@@ -3,7 +3,7 @@
 /**
  * @file    ui/text/plugin.ts
  * @brief   TextPlugin — renders the `Text` component via the dynamic SDF glyph
- *          atlas (REARCH_GUI P1.4d), replacing the legacy Canvas2D-per-entity
+ *          atlas, replacing the legacy Canvas2D-per-entity
  *          path. A pre-flush callback scans Text entities, composes the world
  *          transform, places the text inside its UINode box (no auto-size — the
  *          UINode is the box; rendering never mutates layout) and draws batched

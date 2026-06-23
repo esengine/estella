@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/behavior/state-visuals.ts
- * @brief   StateVisuals — named state → visual overrides (REARCH_GUI F5).
+ * @brief   StateVisuals — named state → visual overrides.
  *
  * A variable-length `states` list replaced the old 8 hardcoded `slotN*` field
  * quartets + stringly-keyed reflection. The apply system reads the entity's

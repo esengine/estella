@@ -30,7 +30,7 @@ export interface ComponentMetadata {
     /**
      * Runtime-only state that must never persist: a transient component is
      * skipped by {@link serializeScene} (e.g. per-frame pointer/drag/hover state
-     * that its driving system rebuilds each frame, REARCH_GUI F2). Systems still
+     * that its driving system rebuilds each frame). Systems still
      * read/write it normally; only scene save omits it.
      */
     transient?: boolean;
@@ -295,7 +295,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         discoverAssets: metadata?.discoverAssets,
         // Builtins declare transience via the defineBuiltin metadata arg for now;
         // a C++-side ES_COMPONENT(transient) annotation can flow through
-        // COMPONENT_META later (REARCH_GUI F6) without touching call sites.
+        // COMPONENT_META later without touching call sites.
         transient: metadata?.transient ?? false,
     };
     builtinRegistry.set(name, def);

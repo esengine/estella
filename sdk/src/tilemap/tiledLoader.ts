@@ -608,7 +608,7 @@ export function generateTileCollision(
 
 /**
  * @brief Build static box colliders for an INFINITE (chunked) tilemap layer from its
- *        collidable tiles — the native scene-`TilemapLayer` path (REARCH_TILEMAP T4).
+ *        collidable tiles — the native scene-`TilemapLayer` path.
  *
  * Each chunk's collidable tiles are greedy-merged independently (no cross-chunk merge); a
  * merged rect (x0,y0)-(x1,y1) maps to a world AABB by the SAME orthogonal convention

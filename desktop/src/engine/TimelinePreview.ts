@@ -4,7 +4,7 @@
  * @file    TimelinePreview.ts
  * @brief   Edit-mode live preview of the open timeline document — the document→
  *          World projection that mirrors the scene's Reconciler (model→World),
- *          for animation (docs/REARCH_ANIMATION.md L4, the P1 payoff).
+ *          for animation.
  *
  * Subscribes to {@link TimelineDocument} (asset + preview-root binding) and the
  * sequencer playhead, and on every change samples the timeline at the playhead and

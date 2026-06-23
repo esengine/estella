@@ -3,7 +3,7 @@
 /**
  * @file    ui/text/layout.ts
  * @brief   Pure text layout + glyph-quad vertex building for the SDF text path
- *          (REARCH_GUI P1.3, TS-centric). Given the glyph atlas (which supplies
+ *          (TS-centric). Given the glyph atlas (which supplies
  *          per-glyph atlas UVs + metrics), turn a string into positioned quads
  *          and then into the interleaved vertex/index buffers `submitTextBatch`
  *          expects. No Canvas/GL here, so it is fully unit-testable.
@@ -209,7 +209,7 @@ export function wrapLine(
 }
 
 /**
- * Lay out multi-line text (REARCH_GUI P1.4): splits on `\n`, lays each line out
+ * Lay out multi-line text: splits on `\n`, lays each line out
  * (rich or plain), stacks lines downward (y-up: line 0 on top) by `lineHeight`,
  * and horizontally aligns each line within the widest line's block. Pure →
  * unit-testable. (Word-wrap to a max width is a later addition.)
@@ -254,7 +254,7 @@ export function layoutText(
 }
 
 /**
- * Lay out a single line of rich text (REARCH_GUI P1.4): `<b>`, `<i>`,
+ * Lay out a single line of rich text: `<b>`, `<i>`,
  * `<color=#rrggbb[aa]>`, `<font size=N>` runs (parsed by parseRichText) become
  * glyphs carrying per-run color + size + bold/italic style. Image runs (`<img>`)
  * are skipped for now. Each run scales by its own fontSize / atlas.renderSize;

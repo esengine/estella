@@ -18,7 +18,7 @@ struct Padding {
 /**
  * @brief A CSS-style length: `value` interpreted per `unit`.
  *
- * The runtime UI box model (REARCH_GUI F2/F3, see docs/REARCH_GUI.md) uses
+ * The runtime UI box model uses
  * Dimension for width/height/min/max/inset so one field can be pixels, a
  * percentage of the parent, or content-driven — retiring the old
  * size/offset/`-1`-sentinel scheme. Kept a flat POD (f32 + u8) so it serializes
@@ -31,7 +31,7 @@ struct Dimension {
 };
 
 /**
- * @brief One named visual state for StateVisuals (REARCH_GUI F5).
+ * @brief One named visual state for StateVisuals.
  *
  * The element type of `StateVisuals.states` — a variable-length list that
  * replaced the old 8 hardcoded `slotN*` field quartets + stringly-keyed

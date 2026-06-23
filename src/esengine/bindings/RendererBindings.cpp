@@ -107,7 +107,7 @@ void renderer_submitSpineBatchByEntity(
 
 #endif
 
-// REARCH_GUI P1.3: TS lays out glyph quads against the dynamic SDF atlas and
+// TS lays out glyph quads against the dynamic SDF atlas and
 // submits them here (ungated — text is core, unlike spine).
 void renderer_submitTextBatch(
     uintptr_t verticesPtr, i32 vertexCount,

@@ -4,7 +4,7 @@
  * @file    timelineView.ts
  * @brief   Read projection for the Sequencer panel — derive a renderable
  *          entity→component→channel row tree (and keyframe times) from the flat
- *          TimelineAsset. The seed of TimelineQuery (docs/REARCH_ANIMATION.md L4).
+ *          TimelineAsset. The seed of TimelineQuery.
  *
  * The asset stores tracks flat (each carries childPath + component + channels);
  * the UI shows them as the design's nested tree (Player → Transform → 位置/…),

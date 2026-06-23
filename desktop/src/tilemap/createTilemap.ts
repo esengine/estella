@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    createTilemap.ts
- * @brief   Spawn a scene-embedded TilemapLayer entity from an .estileset
- *          (REARCH_TILEMAP T3b) — the Unity/Godot model: the tilemap is a real,
+ * @brief   Spawn a scene-embedded TilemapLayer entity from an .estileset —
+ *          the Unity/Godot model: the tilemap is a real,
  *          paintable entity, the tileset is the reusable asset it references.
  */
 

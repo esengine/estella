@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/theme/tokens.ts
- * @brief   ThemeTokens — semantic design tokens for the widget layer (REARCH_GUI
- *          F7), replacing the deleted per-widget UITheme god-object.
+ * @brief   ThemeTokens — semantic design tokens for the widget layer,
+ *          replacing the deleted per-widget UITheme god-object.
  *
  * Widgets read their default colors from the active theme via {@link getTheme}
  * instead of hard-coding RGBA ("去裸色"): one place defines the palette, and an

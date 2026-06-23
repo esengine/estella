@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    chunkCodec.ts
- * @brief   Decode the `tilemap_exportChunks` blob (REARCH_TILEMAP T4) so the SDK can
+ * @brief   Decode the `tilemap_exportChunks` blob so the SDK can
  *          read painted tiles back — used to derive runtime collision from a tilemap's
  *          collidable tiles. Format (little-endian, base64url):
  *            u32 magic 'ESTM' · u32 chunkCount · per chunk: i32 x, i32 y, u16 tiles[256]

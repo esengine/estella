@@ -44,7 +44,7 @@ export interface UINodeInit {
 }
 
 /**
- * Build a UINode (CSS box, REARCH_GUI). `fill: true` is the common widget case
+ * Build a UINode (CSS box). `fill: true` is the common widget case
  * (stretch to the parent); otherwise set width/height and/or inset. Anchoring
  * (e.g. top-right) = position Absolute + the relevant insets.
  */

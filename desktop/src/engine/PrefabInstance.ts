@@ -16,7 +16,7 @@ import type {
  * `expandEntry` / `collapseEntry` and the `PrefabInstanceDelta` /
  * `PrefabInstanceEntry` / `AddedEntity` types — now lives in the ENGINE
  * (`esengine`, sdk/src/prefab/sceneInstance.ts) so the editor and the runtime
- * scene loader (`loadSceneWithAssets`, REARCH_PREFABS PF1 — play == ship) share
+ * scene loader (`loadSceneWithAssets` — play == ship) share
  * ONE implementation and can never diverge. This module re-exports that core
  * and adds the editor-only layer on top: the SceneModel's per-entity instance
  * TAGS and the tag-producing whole-scene expand/collapse the ProjectStore runs

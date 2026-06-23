@@ -5,8 +5,8 @@
  * @brief   Pure-TS timeline sampler — evaluate a TimelineAsset at an absolute
  *          time and apply its property tracks to the world.
  *
- * The engine's C++ TimelineSystem is a temporary implementation (see
- * docs/REARCH_ANIMATION.md). This is the modern replacement's kernel: ONE
+ * The engine's C++ TimelineSystem is a temporary implementation. This is the
+ * modern replacement's kernel: ONE
  * sample(time) call drives both forward playback (advance the clock, then sample)
  * and editor scrubbing (sample at any T) — so the editor gets "scrub ==
  * evaluate-at-T" for free, with no separate evaluate/apply paths.
@@ -110,7 +110,7 @@ export function applyWrapMode(
 }
 
 // ---------------------------------------------------------------------------
-// Field application — seed of the REARCH_ANIMATION L1 reflection writer table
+// Field application — the reflection writer table
 // ---------------------------------------------------------------------------
 
 type FieldWriter = (data: any, value: number) => void;

@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/atlas-page-store.ts
- * @brief   Engine-backed AtlasPageStore for the dynamic glyph atlas (REARCH_GUI
- *          P1.3): a page is an RGBA8 GPU texture, glyphs land via the P1.0
- *          sub-region upload. The page id IS the texture handle, so the text
+ * @brief   Engine-backed AtlasPageStore for the dynamic glyph atlas: a page is
+ *          an RGBA8 GPU texture, glyphs land via the sub-region upload. The
+ *          page id IS the texture handle, so the text
  *          renderer can pass it straight to submitTextBatch as the atlas texture.
  */
 import type { ESEngineModule } from '../../wasm';

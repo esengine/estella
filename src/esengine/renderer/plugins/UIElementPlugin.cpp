@@ -97,7 +97,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
 
         // Derive the sampled UV from the base sub-region + the fill mode. This
         // replaces the old per-frame Image->UIRenderer copy: Tiled repeats by
-        // box/tileSize, Filled crops to fillAmount. (REARCH_GUI F4.)
+        // box/tileSize, Filled crops to fillAmount.
         glm::vec2 uvOffset = renderer.uvOffset;
         glm::vec2 uvScale = renderer.uvScale;
         if (renderer.visualType == ecs::UIVisualType::Tiled) {

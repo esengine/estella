@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { create } from 'zustand';
 
-// Sequencer UI + playback state (docs/REARCH_ANIMATION.md L4). Kept separate from
+// Sequencer UI + playback state. Kept separate from
 // editorStore (scene-level UI) and the TimelineDocument (the asset data) — this is
 // the transient view state: playhead, transport flags, track-tree collapse,
 // keyframe selection. The playhead `time` is in SECONDS (the asset's unit); the

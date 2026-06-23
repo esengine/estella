@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    headless.ts
- * @brief   Headless boot entry for the editor's render host
- *          (docs/REARCH_EDITOR_AUTOMATION.md P1). Loaded by a show:false
+ * @brief   Headless boot entry for the editor's render host.
+ *          Loaded by a show:false
  *          Electron window; boots the engine with no React UI and publishes
  *          EditorControlSurface on `window` so a driver — the main process via
  *          executeJavaScript today, the editor MCP server later — can open a

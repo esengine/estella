@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/ui-plugin.ts
- * @brief   UIPlugin — the single declarative UI pipeline (REARCH_GUI F6).
+ * @brief   UIPlugin — the single declarative UI pipeline.
  *
  * Composes the formerly separate concept plugins (layout, mask, safe-area,
  * text, interaction, behavior, drag, focus, text-input, render-order) into one

@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/core/ui-node.ts
- * @brief   UINode — the CSS box-model layout primitive (REARCH_GUI F3).
+ * @brief   UINode — the CSS box-model layout primitive.
  *
  * The primary way to author UI geometry: every size is a {@link Dimension}
  * (px / percent / auto) fed straight into the single-pass Yoga solver, replacing
  * the RectTransform anchor/offset/pivot model. The per-item flex properties
  * (grow/shrink/basis/alignSelf/margin/min-max) live here — the standalone
- * FlexItem component was subsumed by UINode and removed (REARCH_GUI F4).
+ * FlexItem component was subsumed by UINode and removed.
  * Container properties stay on {@link FlexContainer}. Mirrors the C++ `UINode`
  * builtin; `computed_size_` is C++-internal (not serialized). Construct lengths
  * with `px()/percent()/auto()`.

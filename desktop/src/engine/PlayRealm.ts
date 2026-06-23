@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  PlayRealm.ts — controller for the isolated play realm (REARCH_EDITOR_REALM
- *        Phase R2). Owns a detached <iframe> (play.html) re-parented into the Game
+ * @file  PlayRealm.ts — controller for the isolated play realm.
+ *        Owns a detached <iframe> (play.html) re-parented into the Game
  *        panel (mirrors EngineHost's detached-canvas pattern), and the typed
  *        postMessage protocol with it:
  *          out → init {sceneData, assetManifest} · setPaused {paused}

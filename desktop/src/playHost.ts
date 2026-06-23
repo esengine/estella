@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  playHost.ts — the isolated play realm's host module (REARCH_EDITOR_REALM
- *        import-map phase). Unlike the R1 Vite `play.ts` (which bundles its own
+ * @file  playHost.ts — the isolated play realm's host module.
+ *        Unlike the Vite `play.ts` (which bundles its own
  *        esengine), this is esbuilt with **esengine EXTERNAL** and runs from the
  *        project's `estella://` origin under `.esengine/play/host.js`. A
  *        `<script type=importmap>` in play.html maps `esengine` → `./sdk/index.js`,

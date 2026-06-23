@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Live filesystem ↔ editor-asset sync (REARCH_ASSETS A2, renderer side).
+ * @file  Live filesystem ↔ editor-asset sync (renderer side).
  *
  * `fsRefresh` is a bump signal every `useDir` subscribes to (re-read directories).
  * `initFsWatch` subscribes ONCE to the main-process watcher so changes on disk —

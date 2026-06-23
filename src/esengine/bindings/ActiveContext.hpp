@@ -10,7 +10,7 @@ namespace esengine {
 
 /**
  * @brief The explicitly-installed active engine context (or null if none).
- * @details Set by setActiveContext (REARCH_ENGINE_INSTANCING) or, until N3, by
+ * @details Set by setActiveContext or, until N3, by
  *          the legacy initRenderer path. Read through {@link activeCtx}.
  */
 inline EstellaContext* g_activeContext = nullptr;

@@ -3,7 +3,7 @@
 /**
  * @file    ui/text/sdf.ts
  * @brief   TS wrapper over the engine's C++ 8SSEDT signed-distance-field
- *          generator (REARCH_GUI P1). The dynamic glyph atlas rasterizes a
+ *          generator. The dynamic glyph atlas rasterizes a
  *          glyph to alpha via Canvas2D, then calls this to get an SDF that
  *          stays crisp at any scale and supports cheap outline/shadow.
  */
@@ -15,7 +15,7 @@ import { withScratch } from '../../wasmScratch';
  * 128 encodes the edge; >128 inside, <128 outside, with `spread` pixels mapped
  * to half the byte range. Returns a fresh `width*height` Uint8Array, or `null`
  * when the engine build lacks the binding (caller falls back to a plain-alpha
- * atlas — see REARCH_GUI §7.6).
+ * atlas).
  */
 export function sdfFromAlpha(
     module: ESEngineModule,

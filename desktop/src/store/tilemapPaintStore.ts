@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  tilemapPaintStore.ts
- * @brief Transient tilemap-painting state (REARCH_TILEMAP T3b): the active tileset
+ * @brief Transient tilemap-painting state: the active tileset
  *        palette, the selected brush tile, and the active paint tool. When a tool is
  *        set AND a TilemapLayer entity is selected, the Viewport paints instead of
  *        selecting. Editor-session state — never serialized.

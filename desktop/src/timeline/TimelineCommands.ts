@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    TimelineCommands.ts
- * @brief   Undoable edits to the open timeline document (docs/REARCH_ANIMATION.md P2).
+ * @brief   Undoable edits to the open timeline document.
  *
  * Mirrors the scene's SceneCommands: a command mutates the document's asset and
  * registers one undo step on the shared {@link EditorHistory} (so timeline edits

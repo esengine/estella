@@ -10,7 +10,7 @@ import { useSelection, createSelectionStore, type SelectionStore } from '@/store
 import { EditorControlSurfaceImpl } from './EditorControlSurface';
 
 /**
- * The single editor boundary (REARCH_EDITOR_MODEL.md §3.5, P2). One instance owns
+ * The single editor boundary. One instance owns
  * the whole editor-state graph — {model, history, store (reactivity), reconciler
  * (model→World), selection, commands, query} — and exposes one façade
  * ({@link EditorControlSurface}) for the UI, the headless host, and the MCP server.
@@ -94,6 +94,6 @@ export class EditorSession {
 export const defaultSession = EditorSession.default;
 
 /** The app's default-session control surface — the ONE programmatic boundary for
- *  the UI, the headless host, and the MCP server (REARCH_EDITOR_MODEL.md P2). */
+ *  the UI, the headless host, and the MCP server. */
 export const EditorControlSurface = defaultSession.surface;
 export type { EditorControlSurfaceT } from './EditorControlSurface';

@@ -144,7 +144,7 @@ export function getEntityDepth(world: World, entity: Entity): number {
     return depth;
 }
 
-/** Resolved px width of a UINode (its Yoga-computed size; REARCH_GUI F3). 0 if unresolved. */
+/** Resolved px width of a UINode (its Yoga-computed size). 0 if unresolved. */
 export function getUINodeWidth(entity: Entity): number {
     if (module_ && nativeRegistry_ && module_.getUINodeComputedWidth) {
         return module_.getUINodeComputedWidth(nativeRegistry_, entity);

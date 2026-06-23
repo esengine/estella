@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    Sequencer.tsx
- * @brief   The UE-Sequencer-style animation editor panel (docs/REARCH_ANIMATION.md
- *          L4) — bottom-dock tab. P1 skeleton: open a clip, render the
+ * @brief   The UE-Sequencer-style animation editor panel — bottom-dock tab.
+ *          Open a clip, render the
  *          entity→component→channel track tree + a scrubbable frame timeline.
  *
  * Data flow mirrors the scene panels: subscribe to the TimelineDocument revision

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  gameHost.ts — the exported game's runtime host (REARCH_EDITOR_REALM
- *        Phase S). Bundled by exportGame (esbuild, esengine inlined) into a
+ * @file  gameHost.ts — the exported game's runtime host.
+ *        Bundled by exportGame (esbuild, esengine inlined) into a
  *        self-contained game.js. Boots the SAME shipping runtime the editor's
  *        play realm uses (createWebApp → initPlayRealmRuntime), but loads the
  *        scene + asset manifest from the COOKED files next to index.html — so the

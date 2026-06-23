@@ -65,8 +65,8 @@ export function buildInspector(data: SceneData | null, id: EntityId): InspectorC
 }
 
 /**
- * Read-only projection of the editor's source-of-truth model into view-models
- * (REARCH_EDITOR_MODEL.md §3.4). The outliner tree, inspector, and field reads
+ * Read-only projection of the editor's source-of-truth model into view-models.
+ * The outliner tree, inspector, and field reads
  * all come from the MODEL — the single truth — never the World. The Viewport
  * still reads the World for camera-derived screen geometry (pick / gizmo /
  * selection outline) via ViewportController; that is rendering, the engine's

@@ -84,7 +84,7 @@ YGAlign toYGAlignSelf(AlignSelf as) {
 }
 
 // =============================================================================
-// UINode (CSS box) → single-pass Yoga (REARCH_GUI: the single layout model)
+// UINode (CSS box) → single-pass Yoga (the single layout model)
 // =============================================================================
 //
 // A UINode subtree is laid out by ONE Yoga solve: each entity becomes a YGNode,

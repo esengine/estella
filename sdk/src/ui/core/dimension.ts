@@ -3,7 +3,7 @@
 /**
  * @file    ui/core/dimension.ts
  * @brief   Dimension — a CSS-style length (value + unit) for the runtime UI box
- *          model (REARCH_GUI F2, see docs/REARCH_GUI.md).
+ *          model.
  *
  * One field can be pixels, a percentage of the parent, or content-driven (auto),
  * replacing the old size/offset/`-1`-sentinel scheme. The on-wire shape matches

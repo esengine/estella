@@ -11,7 +11,7 @@ namespace esengine::ecs {
 
 /**
  * @brief How a UIVisual fills its UINode box. Replaces the old UIRenderer
- *        visualType + Image imageType pair (REARCH_GUI F4): a single draw mode,
+ *        visualType + Image imageType pair: a single draw mode,
  *        so the renderer derives the sampled UV at draw time and no frame-late
  *        Image->UIRenderer copy system is needed.
  *
@@ -45,7 +45,7 @@ enum class UIFillOrigin : u8 {
 };
 
 /**
- * @brief UIVisual — the single UI visual component (REARCH_GUI F4), merging the
+ * @brief UIVisual — the single UI visual component, merging the
  *        former low-level UIRenderer (what the renderer drew) and high-level
  *        Image (Simple/Sliced/Tiled/Filled intent that used to be copied into a
  *        UIRenderer each frame). One component authored directly; UIElementPlugin

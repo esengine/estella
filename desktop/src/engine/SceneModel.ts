@@ -25,7 +25,7 @@ export type ModelEvent =
 type Listener = (ev: ModelEvent) => void;
 
 /**
- * Marks a model entity as part of a prefab instance (REARCH_PREFABS.md). The
+ * Marks a model entity as part of a prefab instance. The
  * editor expands a prefab instance into ordinary entities; these tags record
  * each entity's prefab origin so save can collapse the subtree back to a delta.
  * Editor-transient (never a World component); the Reconciler ignores them.
@@ -40,8 +40,8 @@ export interface PrefabInstanceTag {
 }
 
 /**
- * The editor's single source of truth — the JSON-first scene document
- * (REARCH_EDITOR_MODEL.md). Holds the COMPLETE SceneData: components/fields the
+ * The editor's single source of truth — the JSON-first scene document.
+ * Holds the COMPLETE SceneData: components/fields the
  * live World drops on projection (unknown component types, schema-extra fields,
  * `visible:false` entities) and portable `@uuid:` asset refs, all verbatim.
  *
@@ -302,7 +302,7 @@ export class SceneModelImpl {
     return out;
   }
 
-  // ── Prefab instances (REARCH_PREFABS.md) ──────────────────────────────────
+  // ── Prefab instances ──────────────────────────────────────────────────────
 
   /** Tag an entity as part of a prefab instance (or pass undefined to clear). */
   setPrefabTag(sourceId: number, tag: PrefabInstanceTag | undefined): void {

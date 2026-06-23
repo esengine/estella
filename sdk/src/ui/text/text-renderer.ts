@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/text-renderer.ts
- * @brief   High-level SDF text drawing (REARCH_GUI P1.3): owns the dynamic glyph
+ * @brief   High-level SDF text drawing: owns the dynamic glyph
  *          atlas and turns a string into batched glyph quads via the engine.
  *
  * `drawTextWith` is the pure orchestration (inject atlas + a submit sink → unit-
@@ -28,7 +28,7 @@ export interface DrawTextParams {
     originX?: number;
     originY?: number;
     style?: number;
-    /** Parse `<b>/<i>/<color>/<font size>` markup (REARCH_GUI P1.4). */
+    /** Parse `<b>/<i>/<color>/<font size>` markup. */
     richText?: boolean;
     /** Horizontal alignment: 0 left | 1 center | 2 right. */
     align?: number;

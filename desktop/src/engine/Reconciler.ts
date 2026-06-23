@@ -8,9 +8,9 @@ import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
 import { componentByName, componentDefaults, type AnyComp, type WorldT } from './schema';
 
 /**
- * Projects the model into the World (REARCH_EDITOR_MODEL.md §3.3).
+ * Projects the model into the World.
  *
- * The invariant the whole rearchitecture rests on: **the World is a pure
+ * The invariant the whole model rests on: **the World is a pure
  * function of the Model.** Commands mutate the model only; the model emits a
  * change event; this reconciler is the SINGLE place that writes the World in
  * response. There is no other path from a command to the World, so the two

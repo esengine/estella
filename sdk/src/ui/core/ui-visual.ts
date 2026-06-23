@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/core/ui-visual.ts
- * @brief   UIVisual — the single UI visual component (REARCH_GUI F4).
+ * @brief   UIVisual — the single UI visual component.
  *
  * Merges the former low-level `UIRenderer` (what the renderer drew) and the
  * high-level `Image` (Simple/Sliced/Tiled/Filled intent that used to be copied

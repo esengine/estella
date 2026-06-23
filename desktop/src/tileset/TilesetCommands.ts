@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    TilesetCommands.ts
- * @brief   Undoable mutations on the open .estileset (docs/REARCH_TILEMAP.md T2).
+ * @brief   Undoable mutations on the open .estileset.
  *          Each routes through TilesetDocument.edit → one EditorHistory snapshot step;
  *          the panel never mutates the asset directly.
  */

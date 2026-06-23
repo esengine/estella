@@ -16,7 +16,7 @@ import { SpinePlugin, WebSpineWasmProvider } from './spine';
 import type { SpineWasmProvider } from './spine';
 
 export { uiPlugins };
-// REARCH_GUI F6: the single composed UI pipeline; the concept plugins below are
+// The single composed UI pipeline; the concept plugins below are
 // re-exported for granular/advanced wiring.
 export { uiPlugin, UIPlugin } from './ui/ui-plugin';
 export { textPlugin, TextPlugin } from './ui/text/plugin';
@@ -36,7 +36,7 @@ export { AudioPlugin, audioPlugin } from './audio';
 export { ParticlePlugin, particlePlugin } from './particle';
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';
 export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, Timeline, TimelineApi, TimelinePlayer, type TimelinePlayerData } from './timeline';
-// Authoring + pure-TS evaluation surface for the editor Sequencer (REARCH_ANIMATION).
+// Authoring + pure-TS evaluation surface for the editor Sequencer.
 export {
     sampleTimeline, sampleTimelineInWorld, evaluateChannel, applyWrapMode,
     serializeTimelineAsset, serializeTimelineToJson, resolveChildEntity, parseAnimationClip,

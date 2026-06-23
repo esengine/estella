@@ -192,7 +192,7 @@ export function registerSceneComponentCodec(type: string, codec: SceneComponentC
 }
 
 // =============================================================================
-// Prefab instance entries (REARCH_PREFABS PF1 — runtime play == ship)
+// Prefab instance entries (runtime play == ship)
 // =============================================================================
 
 // A scene-file entity is either an ordinary entity record or a prefab-instance

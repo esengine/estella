@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    TilesetEditor.tsx
- * @brief   The .estileset editor panel (docs/REARCH_TILEMAP.md T2) — the tileset's
+ * @brief   The .estileset editor panel — the tileset's
  *          atlas with a grid overlay; click/drag tiles to toggle box collision (the
  *          collision authority every tilemap derives from). Subscribes to the reactive
  *          TilesetDocument; mutations go through TilesetCommands (one undo step each).

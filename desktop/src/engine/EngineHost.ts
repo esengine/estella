@@ -239,7 +239,7 @@ class EngineHostImpl {
     return { x: t.position.x, y: t.position.y, orthoSize: c.orthoSize ?? 360 };
   }
 
-  // — Headless / automation drive (see docs/REARCH_EDITOR_AUTOMATION.md) —
+  // — Headless / automation drive —
   // The live editor lets the engine drive its own rAF loop (app.run()); a
   // headless render host or a verification/automation driver instead advances
   // frames itself, so it can capture a deterministic, reproducible frame. These
@@ -302,7 +302,7 @@ class EngineHostImpl {
 
   /**
    * Boot the engine without a DOM viewport or a self-driving loop, for the
-   * headless render host (see docs/REARCH_EDITOR_AUTOMATION.md): a fixed-size
+   * headless render host: a fixed-size
    * offscreen canvas, no initial scene (the driver loads one), and frames
    * advanced manually via tick() so captures are deterministic. Resolves once
    * the engine is ready; the driver then does loadScene → step → captureViewport.
@@ -410,8 +410,8 @@ class EngineHostImpl {
 
     // Model-authoritative wiring (Reconciler model→World projection + SceneStore
     // reactivity) is owned by the EditorSession (constructed at app/headless
-    // entry), not here — EngineHost is a pure engine host (REARCH_EDITOR_MODEL.md
-    // P2). The session's wiring only subscribes the model, so it is in place
+    // entry), not here — EngineHost is a pure engine host.
+    // The session's wiring only subscribes the model, so it is in place
     // before this boot loads the initial scene.
 
     if (opts.loadInitialScene) {

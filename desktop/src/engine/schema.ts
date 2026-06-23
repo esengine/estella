@@ -150,7 +150,7 @@ export function inferField(key: string, v: unknown, isColor: boolean): Inspector
   return null; // unknown shape — not editable here
 }
 
-// — User-component schemas (the `schemas.json` consumer; REARCH_EDITOR_MODEL.md) —
+// — User-component schemas (the `schemas.json` consumer) —
 //
 // Project/script components never run in the editor realm, so they're absent
 // from the engine registry. Their field shapes come from `.esengine/cache/

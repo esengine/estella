@@ -3,7 +3,7 @@
 /**
  * @file    TimelineDrive.ts
  * @brief   Pure-TS per-frame timeline runtime — the replacement for the C++
- *          TimelineSystem::advance (docs/REARCH_ANIMATION.md P4c).
+ *          TimelineSystem::advance.
  *
  * Holds a per-entity playback clock and, each frame: advances time (speed + wrap),
  * samples property tracks (via the shared evaluator), and edge-detects event-track

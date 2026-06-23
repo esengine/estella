@@ -3,7 +3,7 @@
 import { uiPlugin } from './ui/ui-plugin';
 import type { Plugin } from './app';
 
-// REARCH_GUI F6: the ten hand-ordered UI concept plugins are now composed into
+// The ten hand-ordered UI concept plugins are now composed into
 // one declarative `uiPlugin`. The concept plugins remain individually exported
 // (from their modules) for granular wiring.
 export const uiPlugins: Plugin[] = [uiPlugin];

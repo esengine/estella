@@ -94,7 +94,7 @@ export class TimelinePlugin implements Plugin {
             this.animFramesStates_.delete(entity);
         });
 
-        // The timeline runs entirely in TS (REARCH_ANIMATION P4c): a per-entity
+        // The timeline runs entirely in TS: a per-entity
         // clock + the shared evaluator (property tracks) + edge-detected event
         // dispatch — no wasm timeline, no upload, no per-frame poll. Property writes
         // land via world.set (the same path the editor preview uses).

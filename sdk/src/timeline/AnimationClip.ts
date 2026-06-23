@@ -3,7 +3,7 @@
 /**
  * @file    AnimationClip.ts
  * @brief   The unified animation-clip loader — one .esanim document the Sequencer
- *          authors and the Animator state-machine references (docs/REARCH_ANIMATION.md).
+ *          authors and the Animator state-machine references.
  *
  * The editor unified two formats into `.esanim`: the rich multi-track model
  * (property curves + sprite frames + events + …) and the legacy sprite-flipbook

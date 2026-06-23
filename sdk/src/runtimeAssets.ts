@@ -51,7 +51,7 @@ export function createTextureFromPixels(
 
 /**
  * Upload pixels into a sub-rectangle of an existing texture. Lets the dynamic
- * glyph atlas (REARCH_GUI P1) pack glyphs individually instead of re-uploading
+ * glyph atlas pack glyphs individually instead of re-uploading
  * the whole atlas. `pixels` must match the texture's format (RGBA8) and the
  * rect must lie inside the texture (the engine bounds-checks and no-ops if not).
  */

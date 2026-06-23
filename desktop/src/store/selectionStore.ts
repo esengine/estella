@@ -5,7 +5,7 @@ import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
 import type { EntityId } from '@/types';
 
 /**
- * Entity selection — model-anchored (REARCH_EDITOR_MODEL.md).
+ * Entity selection — model-anchored.
  *
  * Selection holds stable **source ids** (they survive undo/redo recreates, where
  * the runtime World id changes). A selected entity can still be removed out from

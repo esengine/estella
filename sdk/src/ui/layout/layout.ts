@@ -7,11 +7,11 @@
  * Owns the PreUpdate `UILayoutSystem` (drives the C++ Yoga pass via
  * `uiLayout_update` + `transform_update`) plus the PostUpdate late/final
  * passes that re-solve after scroll/list mutations. Co-located with the
- * `flex`/`grid`/`safe-area` schemas in this module (REARCH_GUI P0).
+ * `flex`/`grid`/`safe-area` schemas in this module.
  *
  * Behaviour is byte-identical to the former flat `UILayoutPlugin.ts`, which
  * now re-exports from here (strangler-fig; legacy public symbols kept as
- * shims until REARCH_GUI P4).
+ * shims).
  */
 import type { App, Plugin } from '../../app';
 import { registerComponent } from '../../component';

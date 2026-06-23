@@ -10,7 +10,7 @@
  *          it with GfxDevice::setPipeline. Per-draw dynamic state — scissor rectangle and
  *          stencil reference — stays out of the pipeline (see setScissor/setStencilReference),
  *          mirroring WebGPU's split. This is the keystone abstraction that lets a WebGPU
- *          backend slot in beside the WebGL2 one (docs/REARCH_RENDER.md P2).
+ *          backend slot in beside the WebGL2 one.
  *
  * @author  ESEngine Team
  * @date    2026

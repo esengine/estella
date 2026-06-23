@@ -201,7 +201,7 @@ public:
     /**
      * @brief Uploads pixel data to a sub-rectangle of the texture.
      *
-     * Lets the dynamic glyph atlas (REARCH_GUI P1) pack glyphs one-by-one
+     * Lets the dynamic glyph atlas pack glyphs one-by-one
      * without re-uploading the whole atlas. The sub-rect must lie fully inside
      * the texture and `data` must be tightly packed in this texture's format.
      *

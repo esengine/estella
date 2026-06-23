@@ -27,7 +27,7 @@ namespace StateVisualsTransition {
 /**
  * @brief Maps state names to visual overrides on a target entity.
  *
- * @details A variable-length `states` list (REARCH_GUI F5 — replaced the old 8
+ * @details A variable-length `states` list (replaced the old 8
  *          hardcoded `slotN*` field quartets + stringly-keyed reflection). The
  *          visual system reads the owning entity's StateMachine.current, finds
  *          the matching VisualState by name, and applies its color / sprite /

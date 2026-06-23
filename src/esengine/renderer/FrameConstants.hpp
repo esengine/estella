@@ -8,7 +8,7 @@
  *          declares `layout(std140) uniform FrameConstants { mat4 u_projection; };`
  *          and Shader::compile auto-links that block to the binding point — there is
  *          no loose per-shader u_projection upload. This is the first non-texture
- *          resource of the eventual P2 BindGroup model (docs/REARCH_RENDER.md).
+ *          resource of the eventual BindGroup model.
  *
  * @author  ESEngine Team
  * @date    2026

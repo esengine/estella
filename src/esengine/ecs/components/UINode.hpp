@@ -11,8 +11,8 @@ namespace esengine::ecs {
 
 /**
  * @brief Per-item cross-axis alignment override (CSS align-self). Lives on
- *        UINode since UINode carries the flex-item properties (REARCH_GUI F4:
- *        the standalone FlexItem component was subsumed by UINode and removed).
+ *        UINode since UINode carries the flex-item properties (the standalone
+ *        FlexItem component was subsumed by UINode and removed).
  */
 ES_ENUM()
 enum class AlignSelf : u8 {
@@ -27,7 +27,7 @@ enum class AlignSelf : u8 {
  * @brief Box positioning scheme. Absolute takes the node out of flex flow and
  *        places it by `inset` against the parent's box — this is how anchor /
  *        stretch (the old RectTransform use cases) are expressed in the CSS
- *        model (REARCH_GUI F3 unification): e.g. inset 0 on all edges = stretch
+ *        model: e.g. inset 0 on all edges = stretch
  *        to fill; top+right set = anchor to the top-right corner.
  */
 ES_ENUM()
@@ -37,8 +37,8 @@ enum class UIPositionType : u8 {
 };
 
 /**
- * @brief UINode — the CSS box-model layout input (REARCH_GUI F3, the CSS/Flex
- *        primary layout model; see docs/REARCH_GUI.md).
+ * @brief UINode — the CSS box-model layout input (the CSS/Flex
+ *        primary layout model).
  *
  * Replaces the RectTransform anchor/offset/pivot model (UIRect) as the primary
  * way to author UI geometry: every size is a Dimension (px / percent / auto), fed

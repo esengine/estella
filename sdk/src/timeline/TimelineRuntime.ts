@@ -6,7 +6,7 @@ import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
 
 /**
- * Shared timeline runtime helpers (docs/REARCH_ANIMATION.md). The timeline is a
+ * Shared timeline runtime helpers. The timeline is a
  * pure-TS runtime now (see TimelineDrive); this module holds the pieces shared by
  * the drive and the editor: child-entity resolution, nested-path writes, and the
  * event dispatcher.

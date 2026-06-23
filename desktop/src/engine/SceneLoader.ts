@@ -14,7 +14,7 @@ const UUID_PREFIX = '@uuid:';
 export const SceneLoader = {
   /**
    * Fetch an `.esscene` (SceneData JSON) and load it through the engine's own
-   * asset system — the ONE asset-resolution path (REARCH_ASSETS.md). A uuid→url
+   * asset system — the ONE asset-resolution path. A uuid→url
    * manifest feeds the ref resolver; `Assets.preloadSceneAssets` loads every
    * referenced type (not just textures), and a resolved copy builds the World.
    * The raw scene (with `@uuid:` refs + components/fields the World drops) is
@@ -24,7 +24,7 @@ export const SceneLoader = {
    * URLs); the editor's project transport (estella:// + .meta) lives in
    * ProjectStore. Both now go through the same engine `Assets` loader.
    *
-   * Model-authoritative (REARCH_EDITOR_MODEL.md): SceneModel.adopt emits `reset`;
+   * Model-authoritative: SceneModel.adopt emits `reset`;
    * the Reconciler ignores it (the World is already built here) while SceneStore
    * bumps and panels re-read from the model.
    */

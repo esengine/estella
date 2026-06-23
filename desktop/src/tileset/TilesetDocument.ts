@@ -4,7 +4,7 @@
  * @file    TilesetDocument.ts
  * @brief   The open .estileset as a reactive editor document — the second
  *          {@link AssetDocument} (after the Sequencer's TimelineDocument), and the
- *          rule-of-three that confirmed the base is generic (docs/REARCH_TILEMAP.md T2).
+ *          rule-of-three that confirmed the base is generic.
  *
  * A tileset is a pure asset (unlike a timeline it binds to no scene entity), so this
  * subclass adds almost nothing over the generic reactive + snapshot-undo core — just

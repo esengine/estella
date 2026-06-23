@@ -4,7 +4,7 @@
  * @file    text/SdfGenerator.hpp
  * @brief   Signed distance field generation from an 8-bit alpha coverage bitmap.
  *
- * Used by the runtime dynamic glyph atlas (REARCH_GUI P1): glyphs are rasterized
+ * Used by the runtime dynamic glyph atlas: glyphs are rasterized
  * to alpha via Canvas2D on the TS side, then converted to an SDF here so they
  * stay crisp at any scale and support cheap outline/shadow in the shader. Pure
  * (no GL / no emscripten) so it is unit-testable and portable.

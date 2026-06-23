@@ -5,8 +5,8 @@
  * @brief   Serialize an in-memory TimelineAsset back to .estimeline JSON — the
  *          inverse of TimelineLoader.parseTimelineAsset.
  *
- * The runtime previously only LOADED timelines; authoring (the Sequencer editor,
- * docs/REARCH_ANIMATION.md) needs to write them back. Field names and the wrapMode
+ * The runtime previously only LOADED timelines; authoring (the Sequencer editor)
+ * needs to write them back. Field names and the wrapMode
  * string encoding mirror the loader exactly so parse(serialize(x)) round-trips —
  * notably AnimFrames tracks persist under the on-disk key `animFrames` (the loader
  * reads `raw.animFrames` into the in-memory `frames`).

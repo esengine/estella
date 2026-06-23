@@ -8,7 +8,7 @@
  *          differ. This base owns the shared geometry construction (parameterized over those
  *          differences) and the batch shader id, leaving each plugin only its ECS query and
  *          per-entity attribute resolution. Submission goes through BatchBuilder, so there is
- *          one quad-emitting path for the renderer keystone to target (docs/REARCH_RENDER.md P0).
+ *          one quad-emitting path for the renderer keystone to target.
  *
  * @author  ESEngine Team
  * @date    2026

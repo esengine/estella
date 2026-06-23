@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    TilemapPainter.tsx
- * @brief   The Tilemap painter panel (REARCH_TILEMAP T3b) — the brush palette + tools
+ * @brief   The Tilemap painter panel — the brush palette + tools
  *          for painting a selected scene `TilemapLayer` entity. Painting itself happens
  *          in the Viewport (this panel drives the active tool + brush via the paint
  *          store); the palette is the entity's referenced `.estileset` atlas.

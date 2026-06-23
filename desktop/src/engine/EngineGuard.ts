@@ -20,8 +20,6 @@ import { ABI_LAYOUT_HASH } from 'esengine';
  * without re-running the sync, and we must never block a genuinely-fine boot on
  * stale metadata. The authoritative fatal check stays in the runtime handshake,
  * which reads the real binary.
- *
- * @see REARCH frontier doc RC12 §E1.
  */
 
 const MANIFEST_URL = '/wasm/wasm.manifest.json';

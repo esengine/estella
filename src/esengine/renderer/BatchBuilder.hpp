@@ -7,8 +7,8 @@
  *          DrawCommand -> apply clip state -> push" sequence that each batch emitter
  *          (sprite/UI/text/particle/tilemap plugins + RenderFrame's spine/tile direct
  *          submits) used to copy verbatim. Giving the renderer one submission face here
- *          is the de-risking prerequisite for the GfxDevice keystone (docs/REARCH_RENDER.md
- *          P0): the keystone rewrites DrawList::execute against a single producer, not six.
+ *          is the de-risking prerequisite for the GfxDevice keystone: the keystone rewrites
+ *          DrawList::execute against a single producer, not six.
  *
  * @author  ESEngine Team
  * @date    2026

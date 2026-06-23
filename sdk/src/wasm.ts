@@ -13,7 +13,7 @@ import type { Registry as GeneratedRegistry } from './wasm.generated';
 // =============================================================================
 
 /**
- * A JS-owned C++ EstellaContext instance (REARCH_ENGINE_INSTANCING N1). Created
+ * A JS-owned C++ EstellaContext instance. Created
  * via `new module.EstellaContext()`, destroyed via `.delete()` — like Registry.
  * Owns one engine's GPU + logic subsystems; `setActiveContext` selects which one
  * the bindings route through.
@@ -83,7 +83,7 @@ export interface SpineBounds {
 
 export interface ESEngineModule {
     Registry: new () => CppRegistry;
-    /** JS-newable engine context (REARCH_ENGINE_INSTANCING N1). */
+    /** JS-newable engine context. */
     EstellaContext: new () => CppEngineContext;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -98,9 +98,9 @@ export interface ESEngineModule {
     initRendererWithContext(contextHandle: number): boolean;
     shutdownRenderer(): void;
     /**
-     * Select which EstellaContext the bindings route through (REARCH_ENGINE_INSTANCING
-     * N1). Pass null to clear. Existing initRenderer paths still set it implicitly
-     * until N3; this lets the editor own contexts explicitly.
+     * Select which EstellaContext the bindings route through. Pass null to clear.
+     * Existing initRenderer paths still set it implicitly; this lets the editor
+     * own contexts explicitly.
      */
     setActiveContext(ctx: CppEngineContext | null): void;
 
@@ -122,14 +122,14 @@ export interface ESEngineModule {
     getResourceManager(): CppResourceManager;
     /**
      * Convert a Canvas2D-rasterized alpha bitmap to a signed distance field for
-     * the runtime glyph atlas (REARCH_GUI P1). `alphaPtr`/`outPtr` are HEAPU8
+     * the runtime glyph atlas. `alphaPtr`/`outPtr` are HEAPU8
      * pointers to width*height byte buffers; the SDF is written into `outPtr`.
      */
     sdfFromAlpha?(alphaPtr: number, outPtr: number, width: number, height: number, spread: number): void;
     /**
      * UI draw order of an entity (its UIVisual.uiOrder, assigned by the UI
      * render-order pass), so SDF text quads interleave with UI quads. -1 if the
-     * entity is not a UI render node (REARCH_GUI P1.4d #1).
+     * entity is not a UI render node.
      */
     ui_getRenderOrder?(registry: CppRegistry, entity: number): number;
     getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
@@ -150,8 +150,8 @@ export interface ESEngineModule {
         layer: number, depth: number
     ): void;
     /**
-     * Submit pre-laid-out glyph quads against the dynamic SDF atlas (REARCH_GUI
-     * P1.3). Vertex format x,y,u,v,r,g,b,a; routed through the SDF batch variant.
+     * Submit pre-laid-out glyph quads against the dynamic SDF atlas.
+     * Vertex format x,y,u,v,r,g,b,a; routed through the SDF batch variant.
      */
     renderer_submitTextBatch?(
         verticesPtr: number, vertexCount: number,

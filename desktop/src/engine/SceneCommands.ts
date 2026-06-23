@@ -25,7 +25,7 @@ export interface TilePaint {
   tileId: number;
 }
 
-// — Model-authoritative commands (REARCH_EDITOR_MODEL.md) —
+// — Model-authoritative commands —
 //
 // Every mutation edits the SceneModel ONLY (the session's source of truth). The
 // model emits a change event; the Reconciler projects it to the World. Nothing
@@ -114,7 +114,7 @@ export class SceneCommandsImpl {
   private gesture: { label: string; touched: Map<string, FieldEdit> } | null = null;
 
   // Optional observer/interceptor on the field-edit door — the Sequencer's record
-  // mode registers it to auto-key edits (REARCH_ANIMATION). Returning true
+  // mode registers it to auto-key edits. Returning true
   // SUPPRESSES the scene write (reserved for future non-destructive record);
   // the recorder returns false (observe-only) so the edit still lands normally.
   // Kept generic: SceneCommands knows nothing about timelines.
@@ -302,7 +302,7 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Instantiate a prefab into the scene under `parent` (REARCH_PREFABS.md PF2):
+   * Instantiate a prefab into the scene under `parent`:
    * expand the asset into the model as ordinary entities (the Reconciler spawns
    * them), tagged with their prefab origin so save can collapse the subtree back
    * to a delta. The caller (ProjectStore / UI) loads the PrefabData asset; this
@@ -445,7 +445,7 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Paint tiles into a TilemapLayer entity — model-authoritative (REARCH_TILEMAP T3).
+   * Paint tiles into a TilemapLayer entity — model-authoritative.
    *
    * Tile data is a C++-side chunk store the scene carries as the TilemapLayer's
    * out-of-band `chunks` blob. We apply the edits live to the C++ tilemap (so the

@@ -53,7 +53,7 @@ class EditorSpineProvider implements RuntimeAssetProvider {
  * SpineManager so spine renders in the editor viewport. The World already holds
  * the SpineAnimation components (loadSceneData ran); this loads the runtime
  * assets + spawns the per-entity spine instances through the SAME shared loader
- * the builder runtime uses (REARCH_SPINE single-impl). No-op when the app has no
+ * the builder runtime uses. No-op when the app has no
  * spine provider/manager or the scene has no spine entities.
  */
 export async function loadEditorSpine(

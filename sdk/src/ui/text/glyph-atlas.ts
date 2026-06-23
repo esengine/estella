@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/glyph-atlas.ts
- * @brief   Runtime dynamic glyph atlas (REARCH_GUI P1) — the cache + multi-page
+ * @brief   Runtime dynamic glyph atlas — the cache + multi-page
  *          packer that turns "I need glyph X" into "here is its atlas rectangle".
  *
  * Design: the atlas is SDF-agnostic. It deals only in upload-ready bitmaps; the
@@ -10,7 +10,7 @@
  * the injected {@link AtlasPageStore} owns the GPU texture pages. Both are
  * interfaces so the orchestration is unit-testable (mock both) and the real
  * Canvas2D + engine implementations stay thin and swappable (e.g. a plain-alpha
- * rasterizer fallback per REARCH_GUI §7.6).
+ * rasterizer fallback).
  *
  * Because SDF is resolution-independent, each glyph is rasterized ONCE at a fixed
  * `sdfRenderSize`; the display size scales the quad at draw time. The cache key
