@@ -6,10 +6,12 @@
  *
  * The primary way to author UI geometry: every size is a {@link Dimension}
  * (px / percent / auto) fed straight into the single-pass Yoga solver, replacing
- * the RectTransform anchor/offset/pivot model. Container properties stay on
- * FlexContainer (→ UILayout in F4); anchors move to an optional UIAnchors
- * component. Mirrors the C++ `UINode` builtin; `computed_size_` is C++-internal
- * (not serialized). Construct lengths with `px()/percent()/auto()`.
+ * the RectTransform anchor/offset/pivot model. The per-item flex properties
+ * (grow/shrink/basis/alignSelf/margin/min-max) live here — the standalone
+ * FlexItem component was subsumed by UINode and removed (REARCH_GUI F4).
+ * Container properties stay on {@link FlexContainer}. Mirrors the C++ `UINode`
+ * builtin; `computed_size_` is C++-internal (not serialized). Construct lengths
+ * with `px()/percent()/auto()`.
  */
 import { defineBuiltin } from '../../component';
 import { auto, px, type Dimension } from './dimension';
@@ -23,6 +25,16 @@ export const UIPositionType = {
     Absolute: 1,
 } as const;
 export type UIPositionType = (typeof UIPositionType)[keyof typeof UIPositionType];
+
+/** Per-item cross-axis alignment override (mirrors the C++ AlignSelf enum). */
+export const AlignSelf = {
+    Auto: 0,
+    Start: 1,
+    Center: 2,
+    End: 3,
+    Stretch: 4,
+} as const;
+export type AlignSelf = (typeof AlignSelf)[keyof typeof AlignSelf];
 
 export interface UINodeData {
     /** Relative (flex flow) or Absolute (placed by inset). */

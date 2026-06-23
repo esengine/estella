@@ -33,8 +33,6 @@ export {
     type RichTextRun,
     type TextSegment,
     type ImageSegment,
-    GridLayout,
-    type GridLayoutData,
     intersectRects,
     invertMatrix4,
     screenToWorld,

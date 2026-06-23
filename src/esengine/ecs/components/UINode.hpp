@@ -6,9 +6,22 @@
 #include "../../core/UITypes.hpp"     // Dimension
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"        // glm::vec2 (computed output)
-#include "FlexItem.hpp"               // reuse AlignSelf
 
 namespace esengine::ecs {
+
+/**
+ * @brief Per-item cross-axis alignment override (CSS align-self). Lives on
+ *        UINode since UINode carries the flex-item properties (REARCH_GUI F4:
+ *        the standalone FlexItem component was subsumed by UINode and removed).
+ */
+ES_ENUM()
+enum class AlignSelf : u8 {
+    Auto,
+    Start,
+    Center,
+    End,
+    Stretch
+};
 
 /**
  * @brief Box positioning scheme. Absolute takes the node out of flex flow and

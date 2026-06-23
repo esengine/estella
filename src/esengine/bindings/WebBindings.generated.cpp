@@ -16,8 +16,6 @@
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
 #include "../ecs/components/FlexContainer.hpp"
-#include "../ecs/components/FlexItem.hpp"
-#include "../ecs/components/GridLayout.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
@@ -139,10 +137,6 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::FlexWrap>("FlexWrap")
         .value("NoWrap", esengine::ecs::FlexWrap::NoWrap)
         .value("Wrap", esengine::ecs::FlexWrap::Wrap);
-
-    enum_<esengine::ecs::GridDirection>("GridDirection")
-        .value("Vertical", esengine::ecs::GridDirection::Vertical)
-        .value("Horizontal", esengine::ecs::GridDirection::Horizontal);
 
     enum_<esengine::ecs::JustifyContent>("JustifyContent")
         .value("Start", esengine::ecs::JustifyContent::Start)
@@ -354,80 +348,6 @@ FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
     js.alignContent = static_cast<i32>(c.alignContent);
     js.gap = c.gap;
     js.padding = c.padding;
-    return js;
-}
-
-struct FlexItemJS {
-    f32 flexGrow;
-    f32 flexShrink;
-    f32 flexBasis;
-    i32 order;
-    i32 alignSelf;
-    Padding margin;
-    f32 minWidth;
-    f32 minHeight;
-    f32 maxWidth;
-    f32 maxHeight;
-    f32 widthPercent;
-    f32 heightPercent;
-};
-
-esengine::ecs::FlexItem flexitemFromJS(const FlexItemJS& js) {
-    esengine::ecs::FlexItem c;
-    c.flexGrow = js.flexGrow;
-    c.flexShrink = js.flexShrink;
-    c.flexBasis = js.flexBasis;
-    c.order = js.order;
-    c.alignSelf = static_cast<AlignSelf>(js.alignSelf);
-    c.margin = js.margin;
-    c.minWidth = js.minWidth;
-    c.minHeight = js.minHeight;
-    c.maxWidth = js.maxWidth;
-    c.maxHeight = js.maxHeight;
-    c.widthPercent = js.widthPercent;
-    c.heightPercent = js.heightPercent;
-    return c;
-}
-
-FlexItemJS flexitemToJS(const esengine::ecs::FlexItem& c) {
-    FlexItemJS js;
-    js.flexGrow = c.flexGrow;
-    js.flexShrink = c.flexShrink;
-    js.flexBasis = c.flexBasis;
-    js.order = c.order;
-    js.alignSelf = static_cast<i32>(c.alignSelf);
-    js.margin = c.margin;
-    js.minWidth = c.minWidth;
-    js.minHeight = c.minHeight;
-    js.maxWidth = c.maxWidth;
-    js.maxHeight = c.maxHeight;
-    js.widthPercent = c.widthPercent;
-    js.heightPercent = c.heightPercent;
-    return js;
-}
-
-struct GridLayoutJS {
-    i32 direction;
-    i32 crossAxisCount;
-    glm::vec2 itemSize;
-    glm::vec2 spacing;
-};
-
-esengine::ecs::GridLayout gridlayoutFromJS(const GridLayoutJS& js) {
-    esengine::ecs::GridLayout c;
-    c.direction = static_cast<GridDirection>(js.direction);
-    c.crossAxisCount = js.crossAxisCount;
-    c.itemSize = js.itemSize;
-    c.spacing = js.spacing;
-    return c;
-}
-
-GridLayoutJS gridlayoutToJS(const esengine::ecs::GridLayout& c) {
-    GridLayoutJS js;
-    js.direction = static_cast<i32>(c.direction);
-    js.crossAxisCount = c.crossAxisCount;
-    js.itemSize = c.itemSize;
-    js.spacing = c.spacing;
     return js;
 }
 
@@ -1046,26 +966,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("gap", &FlexContainerJS::gap)
         .field("padding", &FlexContainerJS::padding);
 
-    value_object<FlexItemJS>("FlexItem")
-        .field("flexGrow", &FlexItemJS::flexGrow)
-        .field("flexShrink", &FlexItemJS::flexShrink)
-        .field("flexBasis", &FlexItemJS::flexBasis)
-        .field("order", &FlexItemJS::order)
-        .field("alignSelf", &FlexItemJS::alignSelf)
-        .field("margin", &FlexItemJS::margin)
-        .field("minWidth", &FlexItemJS::minWidth)
-        .field("minHeight", &FlexItemJS::minHeight)
-        .field("maxWidth", &FlexItemJS::maxWidth)
-        .field("maxHeight", &FlexItemJS::maxHeight)
-        .field("widthPercent", &FlexItemJS::widthPercent)
-        .field("heightPercent", &FlexItemJS::heightPercent);
-
-    value_object<GridLayoutJS>("GridLayout")
-        .field("direction", &GridLayoutJS::direction)
-        .field("crossAxisCount", &GridLayoutJS::crossAxisCount)
-        .field("itemSize", &GridLayoutJS::itemSize)
-        .field("spacing", &GridLayoutJS::spacing);
-
     value_object<esengine::ecs::Interactable>("Interactable")
         .field("enabled", &esengine::ecs::Interactable::enabled)
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
@@ -1469,46 +1369,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::FlexContainer>(entity);
         }))
 
-        // FlexItem
-        .function("hasFlexItem", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::FlexItem>(static_cast<Entity>(e));
-        }))
-        .function("getFlexItem", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return FlexItemJS{};
-            return flexitemToJS(r.get<esengine::ecs::FlexItem>(entity));
-        }))
-        .function("addFlexItem", optional_override([](Registry& r, u32 e, const FlexItemJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::FlexItem>(entity, flexitemFromJS(js));
-        }))
-        .function("removeFlexItem", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::FlexItem>(entity)) return;
-            r.remove<esengine::ecs::FlexItem>(entity);
-        }))
-
-        // GridLayout
-        .function("hasGridLayout", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::GridLayout>(static_cast<Entity>(e));
-        }))
-        .function("getGridLayout", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::GridLayout>(entity)) return GridLayoutJS{};
-            return gridlayoutToJS(r.get<esengine::ecs::GridLayout>(entity));
-        }))
-        .function("addGridLayout", optional_override([](Registry& r, u32 e, const GridLayoutJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::GridLayout>(entity, gridlayoutFromJS(js));
-        }))
-        .function("removeGridLayout", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::GridLayout>(entity)) return;
-            r.remove<esengine::ecs::GridLayout>(entity);
-        }))
-
         // Interactable
         .function("hasInteractable", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Interactable>(static_cast<Entity>(e));
@@ -1883,8 +1743,6 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Children")));
     arr.set(i++, val(std::string("CircleCollider")));
     arr.set(i++, val(std::string("FlexContainer")));
-    arr.set(i++, val(std::string("FlexItem")));
-    arr.set(i++, val(std::string("GridLayout")));
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
@@ -1972,21 +1830,6 @@ static_assert(offsetof(esengine::ecs::FlexContainer, justifyContent) == 2, "ABI 
 static_assert(offsetof(esengine::ecs::FlexContainer, alignItems) == 3, "ABI offset drift: esengine::ecs::FlexContainer.alignItems (EHT expected 3)");
 static_assert(offsetof(esengine::ecs::FlexContainer, alignContent) == 4, "ABI offset drift: esengine::ecs::FlexContainer.alignContent (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::FlexContainer, gap) == 8, "ABI offset drift: esengine::ecs::FlexContainer.gap (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::FlexItem, flexGrow) == 0, "ABI offset drift: esengine::ecs::FlexItem.flexGrow (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::FlexItem, flexShrink) == 4, "ABI offset drift: esengine::ecs::FlexItem.flexShrink (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::FlexItem, flexBasis) == 8, "ABI offset drift: esengine::ecs::FlexItem.flexBasis (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::FlexItem, order) == 12, "ABI offset drift: esengine::ecs::FlexItem.order (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::FlexItem, alignSelf) == 16, "ABI offset drift: esengine::ecs::FlexItem.alignSelf (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::FlexItem, minWidth) == 36, "ABI offset drift: esengine::ecs::FlexItem.minWidth (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::FlexItem, minHeight) == 40, "ABI offset drift: esengine::ecs::FlexItem.minHeight (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::FlexItem, maxWidth) == 44, "ABI offset drift: esengine::ecs::FlexItem.maxWidth (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::FlexItem, maxHeight) == 48, "ABI offset drift: esengine::ecs::FlexItem.maxHeight (EHT expected 48)");
-static_assert(offsetof(esengine::ecs::FlexItem, widthPercent) == 52, "ABI offset drift: esengine::ecs::FlexItem.widthPercent (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::FlexItem, heightPercent) == 56, "ABI offset drift: esengine::ecs::FlexItem.heightPercent (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::GridLayout, direction) == 0, "ABI offset drift: esengine::ecs::GridLayout.direction (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::GridLayout, crossAxisCount) == 4, "ABI offset drift: esengine::ecs::GridLayout.crossAxisCount (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::GridLayout, itemSize) == 8, "ABI offset drift: esengine::ecs::GridLayout.itemSize (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::GridLayout, spacing) == 16, "ABI offset drift: esengine::ecs::GridLayout.spacing (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::Interactable, enabled) == 0, "ABI offset drift: esengine::ecs::Interactable.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Interactable, blockRaycast) == 1, "ABI offset drift: esengine::ecs::Interactable.blockRaycast (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::Interactable, raycastTarget) == 2, "ABI offset drift: esengine::ecs::Interactable.raycastTarget (EHT expected 2)");
@@ -2122,7 +1965,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "7540dc008d0e3d93";
+static const char* kEsAbiLayoutHash = "ea147a61d787f430";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

@@ -6,8 +6,7 @@
 #include "components/Transform.hpp"
 #include "components/Canvas.hpp"
 #include "components/FlexContainer.hpp"
-#include "components/FlexItem.hpp"   // AlignSelf
-#include "components/UINode.hpp"
+#include "components/UINode.hpp"   // UINode + AlignSelf
 
 #include <yoga/Yoga.h>
 #include <unordered_map>

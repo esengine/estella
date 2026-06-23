@@ -20,8 +20,7 @@ import { SystemLabel } from '../../systemLabels';
 import { Res } from '../../resource';
 import { UINode } from '../core/ui-node';
 import { UIVisual } from '../core/ui-visual';
-import { FlexContainer, FlexItem } from './flex';
-import { GridLayout } from './grid';
+import { FlexContainer } from './flex';
 import { UICameraInfo } from '../UICameraInfo';
 import type { UICameraData } from '../UICameraInfo';
 import { UILayoutGeneration } from '../UILayoutGeneration';
@@ -37,8 +36,6 @@ export class UILayoutPlugin implements Plugin {
         registerComponent('UINode', UINode);
         registerComponent('UIVisual', UIVisual);
         registerComponent('FlexContainer', FlexContainer);
-        registerComponent('FlexItem', FlexItem);
-        registerComponent('GridLayout', GridLayout);
 
         const world = app.world;
         const module = app.wasmModule as ESEngineModule;

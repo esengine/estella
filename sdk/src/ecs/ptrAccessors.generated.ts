@@ -373,106 +373,6 @@ export function createFlexContainerData(): FlexContainerPtrData {
     };
 }
 
-export interface FlexItemPtrData {
-    flexGrow: number;
-    flexShrink: number;
-    flexBasis: number;
-    order: number;
-    alignSelf: number;
-    minWidth: number;
-    minHeight: number;
-    maxWidth: number;
-    maxHeight: number;
-    widthPercent: number;
-    heightPercent: number;
-}
-
-export function fillFlexItem(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: FlexItemPtrData,
-): void {
-    out.flexGrow = f32[ptr >> 2];
-    out.flexShrink = f32[(ptr + 4) >> 2];
-    out.flexBasis = f32[(ptr + 8) >> 2];
-    out.order = u32[(ptr + 12) >> 2] | 0;
-    out.alignSelf = u8[ptr + 16];
-    out.minWidth = f32[(ptr + 36) >> 2];
-    out.minHeight = f32[(ptr + 40) >> 2];
-    out.maxWidth = f32[(ptr + 44) >> 2];
-    out.maxHeight = f32[(ptr + 48) >> 2];
-    out.widthPercent = f32[(ptr + 52) >> 2];
-    out.heightPercent = f32[(ptr + 56) >> 2];
-}
-
-export function writeFlexItem(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: FlexItemPtrData,
-): void {
-    f32[ptr >> 2] = data.flexGrow;
-    f32[(ptr + 4) >> 2] = data.flexShrink;
-    f32[(ptr + 8) >> 2] = data.flexBasis;
-    u32[(ptr + 12) >> 2] = data.order | 0;
-    u8[ptr + 16] = data.alignSelf;
-    f32[(ptr + 36) >> 2] = data.minWidth;
-    f32[(ptr + 40) >> 2] = data.minHeight;
-    f32[(ptr + 44) >> 2] = data.maxWidth;
-    f32[(ptr + 48) >> 2] = data.maxHeight;
-    f32[(ptr + 52) >> 2] = data.widthPercent;
-    f32[(ptr + 56) >> 2] = data.heightPercent;
-}
-
-export function createFlexItemData(): FlexItemPtrData {
-    return {
-        flexGrow: 0,
-        flexShrink: 0,
-        flexBasis: 0,
-        order: 0,
-        alignSelf: 0,
-        minWidth: 0,
-        minHeight: 0,
-        maxWidth: 0,
-        maxHeight: 0,
-        widthPercent: 0,
-        heightPercent: 0,
-    };
-}
-
-export interface GridLayoutPtrData {
-    direction: number;
-    crossAxisCount: number;
-    itemSize: Vec2;
-    spacing: Vec2;
-}
-
-export function fillGridLayout(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: GridLayoutPtrData,
-): void {
-    out.direction = u8[ptr];
-    out.crossAxisCount = u32[(ptr + 4) >> 2] | 0;
-    const itemSize_ = out.itemSize; itemSize_.x = f32[(ptr + 8) >> 2]; itemSize_.y = f32[((ptr + 8) >> 2) + 1];
-    const spacing_ = out.spacing; spacing_.x = f32[(ptr + 16) >> 2]; spacing_.y = f32[((ptr + 16) >> 2) + 1];
-}
-
-export function writeGridLayout(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: GridLayoutPtrData,
-): void {
-    u8[ptr] = data.direction;
-    u32[(ptr + 4) >> 2] = data.crossAxisCount | 0;
-    f32[(ptr + 8) >> 2] = data.itemSize.x; f32[((ptr + 8) >> 2) + 1] = data.itemSize.y;
-    f32[(ptr + 16) >> 2] = data.spacing.x; f32[((ptr + 16) >> 2) + 1] = data.spacing.y;
-}
-
-export function createGridLayoutData(): GridLayoutPtrData {
-    return {
-        direction: 0,
-        crossAxisCount: 0,
-        itemSize: { x: 0, y: 0 },
-        spacing: { x: 0, y: 0 },
-    };
-}
-
 export interface InteractablePtrData {
     enabled: boolean;
     blockRaycast: boolean;
@@ -1283,8 +1183,6 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
-    FlexItem: { fill: fillFlexItem, write: writeFlexItem, create: createFlexItemData },
-    GridLayout: { fill: fillGridLayout, write: writeGridLayout, create: createGridLayoutData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },

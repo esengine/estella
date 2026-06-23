@@ -3,7 +3,7 @@
 /**
  * @file    ui-components.test.ts
  * @brief   Integration tests for the UI components (UINode, UIMask,
- *          FlexContainer, FlexItem, Interactable, UIInteraction, Canvas) over
+ *          FlexContainer, Interactable, UIInteraction, Canvas) over
  *          the real WASM module — CRUD plus the single-pass Yoga layout.
  *
  * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
@@ -15,7 +15,6 @@ import { Transform, Sprite, Canvas } from '../src/component';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from '../src/ui/layout/flex';
-import { FlexItem } from '../src/ui/layout/flex';
 import { Interactable } from '../src/ui/behavior/interactable';
 import { UIInteraction } from '../src/ui/behavior/interactable';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
@@ -203,7 +202,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
         });
     });
 
-    describe('FlexContainer and FlexItem', () => {
+    describe('FlexContainer', () => {
         it('should insert FlexContainer with default values', () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
@@ -243,56 +242,16 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should insert FlexItem with defaults', () => {
-            const { app, registry } = createEditorApp();
-            const world = app.world;
-
-            const entity = world.spawn();
-            world.insert(entity, FlexItem);
-
-            expect(registry.hasFlexItem(entity)).toBe(true);
-            const fi = registry.getFlexItem(entity);
-            expect(fi.flexGrow).toBeCloseTo(0);
-            expect(fi.flexShrink).toBeCloseTo(1);
-            expect(fi.order).toBe(0);
-
-            disposeApp(app, registry);
-        });
-
-        it('should insert FlexItem with custom grow/shrink', () => {
-            const { app, registry } = createEditorApp();
-            const world = app.world;
-
-            const entity = world.spawn();
-            world.insert(entity, FlexItem, {
-                flexGrow: 2,
-                flexShrink: 0,
-                flexBasis: 100,
-                order: 3,
-            });
-
-            const fi = registry.getFlexItem(entity);
-            expect(fi.flexGrow).toBeCloseTo(2);
-            expect(fi.flexShrink).toBeCloseTo(0);
-            expect(fi.flexBasis).toBeCloseTo(100);
-            expect(fi.order).toBe(3);
-
-            disposeApp(app, registry);
-        });
-
-        it('should remove FlexContainer and FlexItem', () => {
+        it('should remove FlexContainer', () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const entity = world.spawn();
             world.insert(entity, FlexContainer);
-            world.insert(entity, FlexItem);
 
             world.remove(entity, FlexContainer);
-            world.remove(entity, FlexItem);
 
             expect(registry.hasFlexContainer(entity)).toBe(false);
-            expect(registry.hasFlexItem(entity)).toBe(false);
 
             disposeApp(app, registry);
         });

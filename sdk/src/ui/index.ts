@@ -63,7 +63,7 @@ export {
 // ─── Layer 1: Primitives ────────────────────────────────────────────────────
 
 export { DimensionUnit, type Dimension, px, percent, auto, isAuto } from './core/dimension';
-export { UINode, UIPositionType, type UINodeData } from './core/ui-node';
+export { UINode, UIPositionType, AlignSelf, type UINodeData } from './core/ui-node';
 
 export {
     UIVisual,
@@ -91,16 +91,7 @@ export {
     AlignItems,
     AlignContent,
     type FlexContainerData,
-    FlexItem,
-    AlignSelf,
-    type FlexItemData,
 } from './layout/flex';
-
-export {
-    GridLayout,
-    GridLayoutDirection,
-    type GridLayoutData,
-} from './layout/grid';
 
 // ─── Layer 2: Behaviors ─────────────────────────────────────────────────────
 

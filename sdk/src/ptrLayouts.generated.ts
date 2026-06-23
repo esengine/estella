@@ -109,31 +109,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'gap', type: 'vec2', offset: 8 },
         ],
     },
-    FlexItem: {
-        ptrFn: 'getFlexItemPtr',
-        fields: [
-            { name: 'flexGrow', type: 'f32', offset: 0 },
-            { name: 'flexShrink', type: 'f32', offset: 4 },
-            { name: 'flexBasis', type: 'f32', offset: 8 },
-            { name: 'order', type: 'i32', offset: 12 },
-            { name: 'alignSelf', type: 'u8', offset: 16 },
-            { name: 'minWidth', type: 'f32', offset: 36 },
-            { name: 'minHeight', type: 'f32', offset: 40 },
-            { name: 'maxWidth', type: 'f32', offset: 44 },
-            { name: 'maxHeight', type: 'f32', offset: 48 },
-            { name: 'widthPercent', type: 'f32', offset: 52 },
-            { name: 'heightPercent', type: 'f32', offset: 56 },
-        ],
-    },
-    GridLayout: {
-        ptrFn: 'getGridLayoutPtr',
-        fields: [
-            { name: 'direction', type: 'u8', offset: 0 },
-            { name: 'crossAxisCount', type: 'i32', offset: 4 },
-            { name: 'itemSize', type: 'vec2', offset: 8 },
-            { name: 'spacing', type: 'vec2', offset: 16 },
-        ],
-    },
     Interactable: {
         ptrFn: 'getInteractablePtr',
         fields: [

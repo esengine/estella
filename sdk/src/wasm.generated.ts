@@ -87,11 +87,6 @@ export enum FlexWrap {
     Wrap = 1,
 }
 
-export enum GridDirection {
-    Vertical = 0,
-    Horizontal = 1,
-}
-
 export enum JustifyContent {
     Start = 0,
     Center = 1,
@@ -231,28 +226,6 @@ export interface FlexContainer {
     alignContent: number;
     gap: Vec2;
     padding: Padding;
-}
-
-export interface FlexItem {
-    flexGrow: number;
-    flexShrink: number;
-    flexBasis: number;
-    order: number;
-    alignSelf: number;
-    margin: Padding;
-    minWidth: number;
-    minHeight: number;
-    maxWidth: number;
-    maxHeight: number;
-    widthPercent: number;
-    heightPercent: number;
-}
-
-export interface GridLayout {
-    direction: number;
-    crossAxisCount: number;
-    itemSize: Vec2;
-    spacing: Vec2;
 }
 
 export interface Interactable {
@@ -531,14 +504,6 @@ export interface Registry {
     getFlexContainer(entity: Entity): FlexContainer;
     addFlexContainer(entity: Entity, component: FlexContainer): void;
     removeFlexContainer(entity: Entity): void;
-    hasFlexItem(entity: Entity): boolean;
-    getFlexItem(entity: Entity): FlexItem;
-    addFlexItem(entity: Entity, component: FlexItem): void;
-    removeFlexItem(entity: Entity): void;
-    hasGridLayout(entity: Entity): boolean;
-    getGridLayout(entity: Entity): GridLayout;
-    addGridLayout(entity: Entity, component: GridLayout): void;
-    removeGridLayout(entity: Entity): void;
     hasInteractable(entity: Entity): boolean;
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
@@ -629,8 +594,6 @@ export interface ESEngineModule {
     Children: new () => Children;
     CircleCollider: new () => CircleCollider;
     FlexContainer: new () => FlexContainer;
-    FlexItem: new () => FlexItem;
-    GridLayout: new () => GridLayout;
     Interactable: new () => Interactable;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
