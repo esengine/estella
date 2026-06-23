@@ -77,6 +77,52 @@ export function buildInspector(
   return out;
 }
 
+/** Structural value equality for raw component data (numbers, vecs, colors, …). */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const ka = Object.keys(a as object);
+  const kb = Object.keys(b as object);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/**
+ * Multi-selection inspector: only the components shared by EVERY selected entity,
+ * with fields read from the primary (ids[0]). A field whose value differs across
+ * the selection is flagged `mixed`. Falls back to the single-entity inspector for
+ * 0/1 ids. `baseOf` is the primary's prefab base (reset target).
+ */
+export function buildMultiInspector(
+  data: SceneData | null,
+  ids: EntityId[],
+  baseOf?: (comp: string) => Record<string, unknown> | undefined,
+): InspectorComponent[] {
+  if (ids.length <= 1) return buildInspector(data, ids[0], baseOf);
+  const entities = ids
+    .map((id) => data?.entities.find((e) => e.id === id))
+    .filter((e): e is NonNullable<typeof e> => !!e);
+  if (entities.length <= 1) return buildInspector(data, ids[0], baseOf);
+  const primary = entities[0];
+  const dataOf = (e: typeof primary, name: string): Record<string, unknown> =>
+    (e.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
+  const out: InspectorComponent[] = [];
+  for (const { name, label } of modelInspectableComponents(primary)) {
+    if (!entities.every((e) => e.components.some((c) => c.type === name))) continue; // shared only
+    const datas = entities.map((e) => dataOf(e, name));
+    const enableBase = componentEnable(name, datas[0]) ?? undefined;
+    const enable = enableBase
+      ? { ...enableBase, mixed: !datas.every((d) => (componentEnable(name, d)?.value ?? enableBase.value) === enableBase.value) }
+      : undefined;
+    const fields = inspectorFields(name, datas[0], baseOf?.(name)).filter((f) => f.key !== enable?.key);
+    for (const f of fields) {
+      if (!datas.every((d) => deepEqual(d[f.key], datas[0][f.key]))) f.mixed = true;
+    }
+    out.push({ name, label, fields, enable });
+  }
+  return out;
+}
+
 /**
  * Read-only projection of the editor's source-of-truth model into view-models.
  * The outliner tree, inspector, and field reads
@@ -119,6 +165,15 @@ export class SceneQueryImpl {
   /** Full editable inspector model for a source entity — fields resolved per component. */
   readInspector(id: EntityId): InspectorComponent[] {
     return buildInspector(this.model.current, id, this.prefabBaseOf(id));
+  }
+
+  /**
+   * Multi-selection inspector: the components shared by every selected entity,
+   * fields read from the primary (ids[0]) and flagged `mixed` where the selection
+   * disagrees. Edits fan out to all; the reset target is the primary's base.
+   */
+  readMultiInspector(ids: EntityId[]): InspectorComponent[] {
+    return buildMultiInspector(this.model.current, ids, this.prefabBaseOf(ids[0]));
   }
 
   /**

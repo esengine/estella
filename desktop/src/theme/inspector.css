@@ -120,6 +120,13 @@
 .slider .thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: var(--text); transform: translate(-50%,-50%); box-shadow: var(--shadow-1); }
 /* compact exact-entry box paired with a slider track */
 .snum { width: 54px; flex-shrink: 0; display: flex; }
+
+/* multi-select: a value the selection disagrees on (shows a "—" placeholder) */
+.prop.mixed .prop-label { color: var(--text-mute); }
+.toggle.mixed { background: var(--srf-5); }
+.toggle.mixed::after { left: 50%; transform: translateX(-50%); background: var(--text-mute); }
+.comp-chk.mixed { background: var(--srf-5); border-color: var(--border-line); color: var(--text-mute); }
+.ent-multi { display: flex; align-items: center; color: var(--text-dim); font-weight: 600; }
 .toggle { width: 30px; height: 17px; border-radius: var(--r-pill); background: var(--srf-5); position: relative; cursor: pointer; flex-shrink: 0; transition: background var(--t-fast); }
 .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--text-dim); transition: left var(--t-fast) var(--e-out), background var(--t-fast); }
 .toggle.on { background: var(--acc); }

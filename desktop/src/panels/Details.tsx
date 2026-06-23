@@ -138,20 +138,23 @@ function useScrub(value: number, onCommit: (n: number) => void, opts: ScrubOpts 
   };
 }
 
-// Plain click-to-type numeric input. `suffix` (e.g. °) shows in the resting value.
+// Plain click-to-type numeric input. `suffix` (e.g. °) shows in the resting value;
+// `mixed` (multi-select disagreement) shows a "—" placeholder until typed over.
 function NumField({
   value,
   suffix,
+  mixed,
   onBegin,
   onEnd,
   onCommit,
-}: ControlGesture & { value: number; suffix?: string; onCommit: (n: number) => void }) {
+}: ControlGesture & { value: number; suffix?: string; mixed?: boolean; onCommit: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   return (
     <span className="field">
       <input
-        value={editing ? text : fmt(value) + (suffix ?? '')}
+        value={editing ? text : mixed ? '' : fmt(value) + (suffix ?? '')}
+        placeholder={mixed ? '—' : undefined}
         spellCheck={false}
         onFocus={() => {
           setText(fmt(value));
@@ -176,10 +179,11 @@ function NumField({
 function VecField({
   axis,
   value,
+  mixed,
   onBegin,
   onEnd,
   onCommit,
-}: ControlGesture & { axis: string; value: number; onCommit: (n: number) => void }) {
+}: ControlGesture & { axis: string; value: number; mixed?: boolean; onCommit: (n: number) => void }) {
   const scrub = useScrub(value, onCommit, { onBegin, onEnd });
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
@@ -189,7 +193,8 @@ function VecField({
         {axis.toUpperCase()}
       </i>
       <input
-        value={editing ? text : fmt(value)}
+        value={editing ? text : mixed ? '' : fmt(value)}
+        placeholder={mixed ? '—' : undefined}
         spellCheck={false}
         onFocus={() => {
           setText(fmt(value));
@@ -212,10 +217,11 @@ function VecField({
 
 function VecControl({
   value,
+  mixed,
   onBegin,
   onEnd,
   onChange,
-}: ControlGesture & { value: number[]; onChange: (v: number[]) => void }) {
+}: ControlGesture & { value: number[]; mixed?: boolean; onChange: (v: number[]) => void }) {
   return (
     <div className="vec">
       {value.map((n, i) => (
@@ -223,6 +229,7 @@ function VecControl({
           key={i}
           axis={AXES[i]}
           value={n}
+          mixed={mixed}
           onBegin={onBegin}
           onEnd={onEnd}
           onCommit={(v) => {
@@ -242,22 +249,24 @@ function VecControl({
 function EnumControl({
   value,
   options,
+  mixed,
   onBegin,
   onEnd,
   onChange,
-}: ControlGesture & { value: number; options: EnumOption[]; onChange: (v: number) => void }) {
+}: ControlGesture & { value: number; options: EnumOption[]; mixed?: boolean; onChange: (v: number) => void }) {
   const known = options.some((o) => o.value === value);
   return (
     <span className="field">
       <select
-        value={String(value)}
+        value={mixed ? '' : String(value)}
         onChange={(e) => {
           onBegin?.();
           onChange(Number(e.target.value));
           onEnd?.();
         }}
       >
-        {!known && <option value={String(value)}>{`(${value})`}</option>}
+        {mixed && <option value="">—</option>}
+        {!mixed && !known && <option value={String(value)}>{`(${value})`}</option>}
         {options.map((o) => (
           <option key={o.value} value={String(o.value)}>
             {prettyLabel(o.label)}
@@ -335,18 +344,20 @@ function SliderControl({
 
 function BoolControl({
   value,
+  mixed,
   onBegin,
   onEnd,
   onChange,
-}: ControlGesture & { value: boolean; onChange: (v: boolean) => void }) {
+}: ControlGesture & { value: boolean; mixed?: boolean; onChange: (v: boolean) => void }) {
   return (
     <span
-      className={`toggle${value ? ' on' : ''}`}
+      className={`toggle${value ? ' on' : ''}${mixed ? ' mixed' : ''}`}
       role="switch"
-      aria-checked={value}
+      aria-checked={mixed ? 'mixed' : value}
       onClick={() => {
         onBegin?.();
-        onChange(!value);
+        // From a mixed state, the first click commits everyone to enabled.
+        onChange(mixed ? true : !value);
         onEnd?.();
       }}
     />
@@ -355,16 +366,18 @@ function BoolControl({
 
 function StringControl({
   value,
+  mixed,
   onBegin,
   onEnd,
   onChange,
-}: ControlGesture & { value: string; onChange: (v: string) => void }) {
+}: ControlGesture & { value: string; mixed?: boolean; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   return (
     <span className="field">
       <input
-        value={editing ? text : value}
+        value={editing ? text : mixed ? '' : value}
+        placeholder={mixed ? '—' : undefined}
         spellCheck={false}
         onFocus={() => {
           setText(value);
@@ -483,17 +496,21 @@ function AssetControl({
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
 type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[]) => void;
 
-function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: string; field: InspectorField; write?: FieldWrite }) {
+function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
   const ranged = field.min != null || field.max != null;
+  const mixed = field.mixed === true;
   const clamp = (n: number) => {
     let v = n;
     if (field.min != null) v = Math.max(field.min, v);
     if (field.max != null) v = Math.min(field.max, v);
     return v;
   };
+  // An edit fans out to every selected entity (the open gesture coalesces them
+  // into one undo step); the live "Game" inspector routes to the realm instead.
   const apply = (value: number | boolean | string | number[]) => {
     const v = ranged && typeof value === 'number' ? clamp(value) : value;
-    return write ? write(field.key, field.type, v) : SceneCommands.setField(entity, comp, field.key, field.type, v as never);
+    if (write) return write(field.key, field.type, v);
+    for (const e of entities) SceneCommands.setField(e, comp, field.key, field.type, v as never);
   };
   const begin = () => (write ? undefined : SceneCommands.beginGesture(`Edit ${field.label}`));
   const end = () => (write ? undefined : SceneCommands.endGesture());
@@ -525,24 +542,25 @@ function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: stri
             onChange={apply}
           />
         ) : (
-          <NumField value={field.value as number} suffix={field.unit} onBegin={begin} onEnd={end} onCommit={apply} />
+          <NumField value={field.value as number} suffix={field.unit} mixed={mixed} onBegin={begin} onEnd={end} onCommit={apply} />
         );
       break;
     case 'angle':
-      control = <NumField value={field.value as number} suffix="°" onBegin={begin} onEnd={end} onCommit={apply} />;
+      control = <NumField value={field.value as number} suffix="°" mixed={mixed} onBegin={begin} onEnd={end} onCommit={apply} />;
       break;
     case 'vec2':
     case 'vec3':
-      control = <VecControl value={field.value as number[]} onBegin={begin} onEnd={end} onChange={apply} />;
+      control = <VecControl value={field.value as number[]} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'bool':
-      control = <BoolControl value={field.value as boolean} onBegin={begin} onEnd={end} onChange={apply} />;
+      control = <BoolControl value={field.value as boolean} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'enum':
       control = (
         <EnumControl
           value={field.value as number}
           options={field.options ?? []}
+          mixed={mixed}
           onBegin={begin}
           onEnd={end}
           onChange={apply}
@@ -564,10 +582,10 @@ function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: stri
       );
       break;
     default:
-      control = <StringControl value={String(field.value)} onBegin={begin} onEnd={end} onChange={apply} />;
+      control = <StringControl value={String(field.value)} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
   }
 
-  const modified = isModified(field);
+  const modified = !mixed && isModified(field);
   const reset = () => {
     if (field.defaultValue === undefined) return;
     begin();
@@ -576,7 +594,7 @@ function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: stri
   };
 
   return (
-    <div className={`prop${modified ? ' modified' : ''}`}>
+    <div className={`prop${modified ? ' modified' : ''}${mixed ? ' mixed' : ''}`}>
       <span className={`prop-label${isScalar ? ' scrub' : ''}`} {...(isScalar ? labelScrub : {})}>
         {field.label}
       </span>
@@ -595,14 +613,14 @@ function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: stri
 }
 
 function ComponentSection({
-  entity,
+  entities,
   comp,
   collapsed,
   onToggle,
   onMore,
   write,
 }: {
-  entity: EntityId;
+  entities: EntityId[];
   comp: InspectorComponent;
   collapsed: boolean;
   onToggle: () => void;
@@ -616,14 +634,20 @@ function ComponentSection({
   const advanced = comp.fields.filter((f) => f.advanced);
   const enable = comp.enable;
   const on = !enable || enable.value;
-  // The header checkbox toggles the component's enable field (one undo step), or
-  // is a static "always on" for components that can't be disabled (e.g. Transform).
+  // The header checkbox toggles the component's enable field across the whole
+  // selection (one undo step), or is a static "always on" for components that
+  // can't be disabled (e.g. Transform). From a mixed state, the first click enables all.
   const toggleEnable = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!enable) return;
-    const next = !enable.value;
-    if (write) write(enable.key, 'bool', next);
-    else SceneCommands.setField(entity, comp.name, enable.key, 'bool', next);
+    const next = enable.mixed ? true : !enable.value;
+    if (write) {
+      write(enable.key, 'bool', next);
+      return;
+    }
+    SceneCommands.beginGesture(`Toggle ${comp.label}`);
+    for (const id of entities) SceneCommands.setField(id, comp.name, enable.key, 'bool', next);
+    SceneCommands.endGesture();
   };
   return (
     <section className={`comp${collapsed ? '' : ' open'}${overridden ? ' override' : ''}${enable && !on ? ' disabled' : ''}`}>
@@ -632,9 +656,9 @@ function ComponentSection({
           <ChevronRight size={9} strokeWidth={3} />
         </span>
         <span
-          className={`comp-chk${on ? ' on' : ''}`}
+          className={`comp-chk${on ? ' on' : ''}${enable?.mixed ? ' mixed' : ''}`}
           role={enable ? 'checkbox' : undefined}
-          aria-checked={enable ? enable.value : undefined}
+          aria-checked={enable ? (enable.mixed ? 'mixed' : enable.value) : undefined}
           title={enable ? (enable.value ? 'Disable component' : 'Enable component') : undefined}
           onClick={enable ? toggleEnable : (e) => e.stopPropagation()}
         >
@@ -662,7 +686,7 @@ function ComponentSection({
         <div className="cinner">
           <div className="comp-fields">
             {primary.map((f) => (
-              <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} write={write} />
+              <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} />
             ))}
             {advanced.length > 0 && (
               <>
@@ -673,7 +697,7 @@ function ComponentSection({
                 <div className="subbody">
                   <div>
                     {advanced.map((f) => (
-                      <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} write={write} />
+                      <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} />
                     ))}
                   </div>
                 </div>
@@ -728,7 +752,7 @@ function GameDetails() {
           {inspector.map((comp) => (
             <ComponentSection
               key={comp.name}
-              entity={selection}
+              entities={[selection]}
               comp={comp}
               collapsed={collapsed.has(comp.name)}
               onToggle={() => toggle(comp.name)}
@@ -813,8 +837,19 @@ function EditorDetails() {
   // Re-render when a project component's schema changes (live edit of its source).
   useSyncExternalStore(subscribeSchemas, getSchemaRevision);
   const selectedId = useSelection((s) => s.selectedId);
+  const selectedIds = useSelection((s) => s.selectedIds);
   const selectedAsset = useSelection((s) => s.selectedAsset);
   const ready = engine.status === 'ready' && selectedId != null;
+
+  // Selection targets, primary (the active id) first. Edits fan out across all.
+  const ids = useMemo(
+    () => (selectedId == null ? [] : [selectedId, ...[...selectedIds].filter((i) => i !== selectedId)]),
+    [selectedId, selectedIds],
+  );
+  const multi = ids.length > 1;
+  // Apply a structural command to every selected entity. Field edits coalesce into
+  // one undo step via the gesture; add/remove component record per entity.
+  const fanOut = (action: (id: EntityId) => void) => ids.forEach(action);
 
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -833,8 +868,8 @@ function EditorDetails() {
     [ready, selectedId, revision],
   );
   const components = useMemo(
-    () => (ready ? SceneQuery.readInspector(selectedId!) : []),
-    [ready, selectedId, revision],
+    () => (ready ? SceneQuery.readMultiInspector(ids) : []),
+    [ready, ids, revision],
   );
 
   // Inspector search: keep components whose name matches (all fields), or that
@@ -908,25 +943,38 @@ function EditorDetails() {
 
       <div className="ent-head">
         <div className="ent-row1">
-          <input
-            key={selectedId}
-            className="ent-name"
-            defaultValue={entity.name}
-            spellCheck={false}
-            onBlur={(e) => SceneCommands.renameEntity(selectedId, e.target.value)}
-          />
+          {multi ? (
+            <div className="ent-name ent-multi">{ids.length} entities selected</div>
+          ) : (
+            <input
+              key={selectedId}
+              className="ent-name"
+              defaultValue={entity.name}
+              spellCheck={false}
+              onBlur={(e) => SceneCommands.renameEntity(selectedId, e.target.value)}
+            />
+          )}
         </div>
         <div className="ent-meta">
-          <span className="pill">
-            <span className="pk">Type</span>
-            {KIND_LABEL[entity.kind]}
-          </span>
-          <span className="pill">
-            <span className="pk">ID</span>
-            {selectedId}
-          </span>
+          {multi ? (
+            <span className="pill">
+              <span className="pk">Editing</span>
+              {ids.length} entities · shared components
+            </span>
+          ) : (
+            <>
+              <span className="pill">
+                <span className="pk">Type</span>
+                {KIND_LABEL[entity.kind]}
+              </span>
+              <span className="pill">
+                <span className="pk">ID</span>
+                {selectedId}
+              </span>
+            </>
+          )}
         </div>
-        {prefabName && (
+        {prefabName && !multi && (
           <div className="prefab-bar" title={prefabRef}>
             <span className="pic">
               <Package size={13} strokeWidth={1.8} />
@@ -947,7 +995,7 @@ function EditorDetails() {
         {visible.map((comp) => (
           <ComponentSection
             key={comp.name}
-            entity={selectedId}
+            entities={ids}
             comp={comp}
             collapsed={collapsed.has(comp.name)}
             onToggle={() => toggle(comp.name)}
@@ -965,10 +1013,10 @@ function EditorDetails() {
           y={compMenu.y}
           items={[
             {
-              label: 'Remove Component',
+              label: ids.length > 1 ? `Remove Component (${ids.length})` : 'Remove Component',
               danger: true,
               icon: <Trash2 size={13} strokeWidth={1.9} />,
-              onClick: () => SceneCommands.removeComponent(selectedId, compMenu.comp),
+              onClick: () => fanOut((id) => SceneCommands.removeComponent(id, compMenu.comp)),
             },
           ]}
           onClose={() => setCompMenu(null)}
@@ -977,7 +1025,7 @@ function EditorDetails() {
       {addOpen && modelEntity && (
         <AddComponentMenu
           entries={modelAddableComponentEntries(modelEntity)}
-          onAdd={(name) => SceneCommands.addComponent(selectedId, name)}
+          onAdd={(name) => fanOut((id) => SceneCommands.addComponent(id, name))}
           onClose={() => setAddOpen(false)}
         />
       )}

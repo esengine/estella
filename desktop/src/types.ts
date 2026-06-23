@@ -79,6 +79,11 @@ export interface InspectorField {
   unit?: string;
   /** A rarely-edited field — tucked behind the component's "Advanced" fold. */
   advanced?: boolean;
+  /**
+   * Multi-selection: the selected entities disagree on this field's value. `value`
+   * holds the primary entity's value (shown muted); an edit fans out to all.
+   */
+  mixed?: boolean;
 }
 
 export interface InspectorComponent {
@@ -89,9 +94,10 @@ export interface InspectorComponent {
   /**
    * The component's enable toggle — its `enabled`/`isActive`/`visible` field +
    * current value — surfaced in the header (and hidden from `fields`). Absent for
-   * components that can't be disabled (e.g. Transform).
+   * components that can't be disabled (e.g. Transform). `mixed` ⇒ a multi-selection
+   * disagrees (value is the primary's).
    */
-  enable?: { key: string; value: boolean };
+  enable?: { key: string; value: boolean; mixed?: boolean };
 }
 
 export type AssetType =

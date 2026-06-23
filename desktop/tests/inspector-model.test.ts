@@ -276,6 +276,69 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
   });
 });
 
+describe('Multi-selection inspector (D6)', () => {
+  function scene2(): SceneData {
+    return {
+      version: '1.0',
+      name: 'm',
+      entities: [
+        {
+          id: 1,
+          name: 'A',
+          parent: null,
+          children: [],
+          components: [
+            { type: 'Sprite', data: { layer: 0, enabled: true } },
+            { type: 'Camera', data: { isActive: true } },
+          ],
+        },
+        { id: 2, name: 'B', parent: null, children: [], components: [{ type: 'Sprite', data: { layer: 5, enabled: true } }] },
+      ],
+    } as unknown as SceneData;
+  }
+
+  it('shows only the components shared by every selected entity', () => {
+    const S = EditorSession.create();
+    S.model.adopt(scene2(), new Map([[1, 1], [2, 2]]));
+    const comps = S.query.readMultiInspector([1, 2]).map((c) => c.name);
+    expect(comps).toContain('Sprite');
+    expect(comps).not.toContain('Camera'); // only on entity 1
+  });
+
+  it('flags a field the selection disagrees on as mixed (primary value shown)', () => {
+    const S = EditorSession.create();
+    S.model.adopt(scene2(), new Map([[1, 1], [2, 2]]));
+    const sprite = S.query.readMultiInspector([1, 2]).find((c) => c.name === 'Sprite')!;
+    const layer = sprite.fields.find((f) => f.key === 'layer')!;
+    expect(layer.mixed).toBe(true);
+    expect(layer.value).toBe(0); // ids[0] (primary)
+    const color = sprite.fields.find((f) => f.key === 'color');
+    if (color) expect(color.mixed).toBeFalsy(); // both at default → agree
+  });
+
+  it('falls back to the full single-entity inspector for one id', () => {
+    const S = EditorSession.create();
+    S.model.adopt(scene2(), new Map([[1, 1], [2, 2]]));
+    expect(S.query.readMultiInspector([1]).map((c) => c.name)).toContain('Camera');
+  });
+
+  it('marks the enable toggle mixed when the selection disagrees', () => {
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'm',
+        entities: [
+          { id: 1, name: 'A', parent: null, children: [], components: [{ type: 'Sprite', data: { enabled: true } }] },
+          { id: 2, name: 'B', parent: null, children: [], components: [{ type: 'Sprite', data: { enabled: false } }] },
+        ],
+      } as unknown as SceneData,
+      new Map([[1, 1], [2, 2]]),
+    );
+    expect(S.query.readMultiInspector([1, 2]).find((c) => c.name === 'Sprite')!.enable?.mixed).toBe(true);
+  });
+});
+
 describe('Advanced fields (D5)', () => {
   it('flags rarely-edited builtin fields as advanced, leaving primaries plain', () => {
     const S = EditorSession.create();
