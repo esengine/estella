@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneData, PrefabData, ProcessedEntity } from 'esengine';
+import { TilemapAPI } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
@@ -16,6 +17,13 @@ import {
 
 type SceneEntity = SceneData['entities'][number];
 type SceneComponent = SceneEntity['components'][number];
+
+/** A single tile edit: set the tile at grid (x, y) to `tileId` (0 = erase). */
+export interface TilePaint {
+  x: number;
+  y: number;
+  tileId: number;
+}
 
 // — Model-authoritative commands (REARCH_EDITOR_MODEL.md) —
 //
@@ -431,6 +439,37 @@ export class SceneCommandsImpl {
       }
     }
     this.endGesture();
+  }
+
+  /**
+   * Paint tiles into a TilemapLayer entity — model-authoritative (REARCH_TILEMAP T3).
+   *
+   * Tile data is a C++-side chunk store the scene carries as the TilemapLayer's
+   * out-of-band `chunks` blob. We apply the edits live to the C++ tilemap (so the
+   * viewport updates immediately) and then commit the fresh blob into the model — the
+   * editor's source of truth, so a save (model serialize) and a play→stop rebuild
+   * (loadSceneData → codec re-imports the blob) both reproduce exactly what was painted.
+   * One undo step; its closures RE-RESOLVE the runtime entity (it changes across a
+   * play→stop rebuild) and re-import the snapshotted before/after blob.
+   */
+  paintTiles(sourceId: EntityId, edits: TilePaint[]): void {
+    if (edits.length === 0) return;
+    const rt = this.model.runtimeFor(sourceId);
+    if (rt === undefined) return;
+
+    const before = TilemapAPI.exportChunks(rt);
+    for (const e of edits) TilemapAPI.setTile(rt, e.x, e.y, e.tileId);
+    const after = TilemapAPI.exportChunks(rt);
+    if (after === before) return; // painted the same ids that were already there
+
+    this.model.setField(sourceId, 'TilemapLayer', 'chunks', after);
+
+    const restore = (blob: string) => {
+      const r = this.model.runtimeFor(sourceId);
+      if (r !== undefined) TilemapAPI.importChunks(r, blob);
+      this.model.setField(sourceId, 'TilemapLayer', 'chunks', blob);
+    };
+    this.history.record('Paint Tiles', () => restore(after), () => restore(before));
   }
 }
 
