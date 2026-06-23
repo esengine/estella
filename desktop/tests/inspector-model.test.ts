@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { SceneData } from 'esengine';
 import { EditorSession } from '@/engine/EditorSession';
-import { setUserSchemas, enumFieldOptions } from '@/engine/schema';
+import { setUserSchemas, enumFieldOptions, setBitmaskSource } from '@/engine/schema';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 
 /** A one-entity scene carrying a Camera with the given component-data overrides. */
@@ -289,6 +289,37 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
     expect(tex!.type).toBe('asset');
     expect(tex!.assetType).toBe('texture');
     expect(tex!.value).toBe(ref);
+  });
+});
+
+describe('Bitmask fields (collision layers)', () => {
+  afterEach(() => setBitmaskSource('collisionLayers', null));
+  function colliderScene(categoryBits: number): SceneData {
+    return {
+      version: '1.0',
+      name: 'c',
+      entities: [{ id: 1, name: 'C', parent: null, children: [], components: [{ type: 'BoxCollider', data: { categoryBits } }] }],
+    } as unknown as SceneData;
+  }
+  const catBits = (S: EditorSession) =>
+    S.query.readInspector(1).find((c) => c.name === 'BoxCollider')!.fields.find((f) => f.key === 'categoryBits')!;
+
+  it('renders a collision bitmask as 16 named-bit flags (default Layer N)', () => {
+    const S = EditorSession.create();
+    S.model.adopt(colliderScene(5), new Map([[1, 1]])); // bits 0 and 2
+    const cb = catBits(S);
+    expect(cb.type).toBe('flags');
+    expect(cb.value).toBe(5);
+    expect(cb.options!.length).toBe(16);
+    expect(cb.options![0]).toEqual({ label: 'Layer 0', value: 1 });
+    expect(cb.options![2]).toEqual({ label: 'Layer 2', value: 4 });
+  });
+
+  it('a registered source supplies the bit labels (named layers)', () => {
+    setBitmaskSource('collisionLayers', () => [{ label: 'Player', value: 1 }, { label: 'Enemy', value: 2 }]);
+    const S = EditorSession.create();
+    S.model.adopt(colliderScene(1), new Map([[1, 1]]));
+    expect(catBits(S).options!.map((o) => o.label)).toEqual(['Player', 'Enemy']);
   });
 });
 

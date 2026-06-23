@@ -36,6 +36,12 @@ export interface FieldMeta {
     enum?: ReadonlyArray<{ label: string; value: number }>;
     /** Render as a bitmask multi-select; each option is a single bit. */
     flags?: ReadonlyArray<{ label: string; value: number }>;
+    /**
+     * Render as a bitmask whose bit LABELS are resolved by the editor (e.g. named
+     * collision layers from project settings) rather than fixed here. `bits` is the
+     * count (default 32); `source` names the editor's label provider.
+     */
+    bitmask?: { bits?: number; source?: string };
     /** Hard numeric range — clamps both typed entry and drag-scrub. */
     min?: number;
     max?: number;

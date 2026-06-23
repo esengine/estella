@@ -8,6 +8,14 @@
 import type { Vec2 } from '../types';
 import { defineBuiltin, defineComponent, enumOptions } from '../component';
 
+// Box2D collision filtering: a body's own layers (category) and the layers it
+// collides with (mask), as named bitmasks. Bit labels come from the project's
+// collision-layer settings (the `collisionLayers` source) — see the editor.
+const COLLISION_FILTER_META = {
+    categoryBits: { bitmask: { bits: 16, source: 'collisionLayers' }, advanced: true },
+    maskBits: { bitmask: { bits: 16, source: 'collisionLayers' }, advanced: true },
+} as const;
+
 // =============================================================================
 // Component Data Interfaces
 // =============================================================================
@@ -139,7 +147,7 @@ export const BoxCollider = defineBuiltin<BoxColliderData>('BoxCollider', {
     enabled: true,
     categoryBits: 0x0001,
     maskBits: 0xFFFF,
-});
+}, { fields: { ...COLLISION_FILTER_META } });
 
 export const CircleCollider = defineBuiltin<CircleColliderData>('CircleCollider', {
     radius: 0.5,
@@ -151,7 +159,7 @@ export const CircleCollider = defineBuiltin<CircleColliderData>('CircleCollider'
     enabled: true,
     categoryBits: 0x0001,
     maskBits: 0xFFFF,
-});
+}, { fields: { ...COLLISION_FILTER_META } });
 
 export const CapsuleCollider = defineBuiltin<CapsuleColliderData>('CapsuleCollider', {
     radius: 0.25,
@@ -164,7 +172,7 @@ export const CapsuleCollider = defineBuiltin<CapsuleColliderData>('CapsuleCollid
     enabled: true,
     categoryBits: 0x0001,
     maskBits: 0xFFFF,
-});
+}, { fields: { ...COLLISION_FILTER_META } });
 
 export const SegmentCollider = defineBuiltin<SegmentColliderData>('SegmentCollider', {
     point1: { x: -0.5, y: 0 },
@@ -176,7 +184,7 @@ export const SegmentCollider = defineBuiltin<SegmentColliderData>('SegmentCollid
     enabled: true,
     categoryBits: 0x0001,
     maskBits: 0xFFFF,
-});
+}, { fields: { ...COLLISION_FILTER_META } });
 
 export const PolygonCollider = defineComponent<PolygonColliderData>('PolygonCollider', {
     vertices: [
@@ -193,7 +201,7 @@ export const PolygonCollider = defineComponent<PolygonColliderData>('PolygonColl
     enabled: true,
     categoryBits: 0x0001,
     maskBits: 0xFFFF,
-});
+}, { fields: { ...COLLISION_FILTER_META } });
 
 export const ChainCollider = defineComponent<ChainColliderData>('ChainCollider', {
     points: [
@@ -208,7 +216,7 @@ export const ChainCollider = defineComponent<ChainColliderData>('ChainCollider',
     categoryBits: 0x0001,
     maskBits: 0xFFFF,
     enabled: true,
-});
+}, { fields: { ...COLLISION_FILTER_META } });
 
 // =============================================================================
 // Joint Components

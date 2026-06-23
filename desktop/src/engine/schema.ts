@@ -189,6 +189,7 @@ export interface UserComponentSchema {
 export interface UserFieldMeta {
   enum?: EnumOption[];
   flags?: EnumOption[];
+  bitmask?: { bits?: number; source?: string };
   min?: number;
   max?: number;
   step?: number;
@@ -264,6 +265,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
     return {
       enum: fromDef.enum?.map((o) => ({ label: o.label, value: o.value })),
       flags: fromDef.flags?.map((o) => ({ label: o.label, value: o.value })),
+      bitmask: fromDef.bitmask,
       min: fromDef.min,
       max: fromDef.max,
       step: fromDef.step,
@@ -282,6 +284,23 @@ export function enumFieldOptions(compType: string, key: string): EnumOption[] | 
   return e && e.length ? e.map((o) => ({ ...o })) : null;
 }
 
+// Editor-registered bit-label providers for bitmask fields (e.g. project collision
+// layers). The component def only marks a field a bitmask + names a source; the
+// labels are project-scoped, so the project layer injects them here.
+const bitmaskSources = new Map<string, () => EnumOption[]>();
+/** Register (or clear) a named source of bitmask bit labels. */
+export function setBitmaskSource(name: string, provider: (() => EnumOption[]) | null): void {
+  if (provider) bitmaskSources.set(name, provider);
+  else bitmaskSources.delete(name);
+}
+/** The bit options for a bitmask field: its source's labels, else `Layer N`. */
+function bitmaskOptions(meta: { bits?: number; source?: string }): EnumOption[] {
+  const src = meta.source ? bitmaskSources.get(meta.source) : undefined;
+  if (src) return src();
+  const bits = meta.bits ?? 32;
+  return Array.from({ length: bits }, (_, i) => ({ label: `Layer ${i}`, value: 1 << i }));
+}
+
 /**
  * Build one inspector field: an **asset control** for asset-ref fields (carrying
  * the `@uuid:` ref or 0 for none), else a value-shape-inferred control.
@@ -297,6 +316,8 @@ function fieldFor(
   let field: InspectorField | null;
   if (at) {
     field = { key, label: prettyLabel(key), type: 'asset', value: typeof value === 'string' ? value : 0, assetType: at };
+  } else if (meta?.bitmask) {
+    field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: bitmaskOptions(meta.bitmask) };
   } else if (meta?.flags && meta.flags.length) {
     field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: meta.flags.map((o) => ({ ...o })) };
   } else if (meta?.enum && meta.enum.length) {

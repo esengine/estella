@@ -161,6 +161,9 @@
 .dd-opt .fchk { width: 13px; height: 13px; border: 1px solid var(--border-line); border-radius: var(--r-xs); display: grid; place-items: center; color: transparent; flex-shrink: 0; }
 .dd-opt .fchk.on { background: var(--acc); border-color: var(--acc); color: #fff; }
 .dd-empty { padding: 9px; text-align: center; color: var(--text-mute); font-size: var(--fs-xs); }
+.dd-allnone { display: flex; gap: 4px; padding: 2px 3px 5px; border-bottom: 1px solid var(--border); margin-bottom: 3px; }
+.dd-allnone button { flex: 1; height: 22px; background: var(--srf-4); border: 1px solid var(--border-line); border-radius: var(--r-xs); color: var(--text-dim); font-size: var(--fs-2xs); cursor: pointer; }
+.dd-allnone button:hover { background: var(--srf-5); color: var(--text); }
 
 /* asset picker — a thumbnail grid in the popover */
 .asset-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 2px; min-height: 0; max-height: 280px; }

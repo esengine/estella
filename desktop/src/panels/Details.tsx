@@ -325,8 +325,15 @@ function FlagsControl({
   const pop = usePopover();
   const trigger = useRef<HTMLButtonElement>(null);
   const bits = options.filter((o) => o.value !== 0);
+  const all = bits.reduce((m, o) => m | o.value, 0);
   const active = bits.filter((o) => (value & o.value) === o.value);
-  const summary = mixed ? '—' : active.length ? active.map((o) => prettyLabel(o.label)).join(' | ') : 'None';
+  const summary = mixed
+    ? '—'
+    : active.length === 0
+      ? 'None'
+      : active.length === bits.length && bits.length >= 4
+        ? 'Everything'
+        : active.map((o) => prettyLabel(o.label)).join(' | ');
   const close = () => {
     pop.close();
     onEnd?.();
@@ -343,7 +350,17 @@ function FlagsControl({
         <ChevronDown size={12} strokeWidth={2} />
       </button>
       {pop.anchor && (
-        <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 150)} onClose={close}>
+        <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 160)} onClose={close}>
+          {bits.length >= 6 && (
+            <div className="dd-allnone">
+              <button type="button" onClick={() => onChange(all)}>
+                Everything
+              </button>
+              <button type="button" onClick={() => onChange(0)}>
+                Nothing
+              </button>
+            </div>
+          )}
           <div className="dd-list">
             {bits.map((o) => {
               const on = !mixed && (value & o.value) === o.value;
