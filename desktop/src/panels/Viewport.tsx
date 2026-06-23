@@ -12,27 +12,18 @@ import { commands } from '@/commands';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController } from '@/engine/ViewportController';
-import { SceneCommands } from '@/engine/SceneCommands';
-import { SceneQuery } from '@/engine/SceneQuery';
 import { ProjectStore } from '@/project/ProjectStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
-import { TilemapAPI } from 'esengine';
-import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
-import type { TilePaint } from '@/engine/SceneCommands';
+import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 
-// Cursor (client px) → tile grid coords on a TilemapLayer entity: client→world via the
-// editor camera, then world→tile around the layer's world origin (its Transform).
-function cursorTile(clientX: number, clientY: number, sourceId: number): { x: number; y: number } | null {
-  const rt = SceneModel.runtimeFor(sourceId);
-  const wp = ViewportController.canvasToWorld(clientX, clientY);
-  const ep = rt != null ? ViewportController.getEntityXY(rt) : null;
-  if (rt == null || !wp || !ep) return null;
-  const t = TilemapAPI.worldToTile(rt, wp.x, wp.y, ep.x, ep.y);
-  return { x: Math.floor(t.x), y: Math.floor(t.y) };
-}
+// A React pointer event → the tool-facing PointerInput (no DOM coupling in tools).
+const toInput = (e: ReactPointerEvent): PointerInput => ({
+  clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId,
+  button: e.button, shift: e.shiftKey, alt: e.altKey,
+});
 
 // Visual manipulation glyph, centered on the selected entity, reflecting the
 // active tool. The drag itself (below) now applies move / rotate / scale.
@@ -77,12 +68,6 @@ function GizmoGlyph({ tool }: { tool: ToolMode }) {
   );
 }
 
-type Drag =
-  | { kind: 'move'; id: number; dx: number; dy: number }
-  | { kind: 'rotate'; id: number; cx: number; cy: number; startAngle: number; startRot: number }
-  | { kind: 'scale'; id: number; cx: number; cy: number; startDist: number; sx: number; sy: number; sz: number }
-  | { kind: 'pan'; px: number; py: number };
-
 const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] = [
   { mode: 'select', icon: MousePointer2, label: 'Select', key: 'Q' },
   { mode: 'move', icon: Move, label: 'Move', key: 'W' },
@@ -90,13 +75,8 @@ const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] 
   { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' },
 ];
 
-// Angle/scale snap increments applied while Snapping is on. Fixed for now — a
-// future Preferences panel will make these user-configurable. The Move step is
-// the user-chosen `snapStep` (viewport Snap dropdown), not a constant here.
-const SNAP_ROTATE = 15; // degrees
-const SNAP_SCALE = 0.1; // uniform scale step
-const SNAP_STEPS = [16, 32, 64]; // world units offered by the Snap dropdown
-const snap = (v: number, step: number) => Math.round(v / step) * step;
+// World units offered by the viewport Snap dropdown (move snap step).
+const SNAP_STEPS = [16, 32, 64];
 
 // One-line hint shown under the coord readout, reflecting the active tool.
 const TOOL_HINT: Record<ToolMode, string> = {
@@ -105,17 +85,6 @@ const TOOL_HINT: Record<ToolMode, string> = {
   rotate: 'Drag around the entity to rotate',
   scale: 'Drag out from the entity to scale',
 };
-
-// Entity's screen-center in viewport (client) coordinates.
-function entityClientCenter(id: number): { cx: number; cy: number } | null {
-  const pos = ViewportController.getEntityXY(id);
-  const canvas = EngineHost.canvas;
-  if (!pos || !canvas) return null;
-  const cv = ViewportController.worldToClient(pos.x, pos.y);
-  if (!cv) return null;
-  const rect = canvas.getBoundingClientRect();
-  return { cx: rect.left + cv.x, cy: rect.top + cv.y };
-}
 
 function OvTool({
   icon: Icon,
@@ -227,9 +196,15 @@ export function Viewport() {
   const playHostRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<Drag | null>(null);
-  // Active tilemap paint stroke (kept separate from the transform drag union above).
-  const paintRef = useRef<{ sourceId: number; tool: PaintTool; last: string; startX?: number; startY?: number } | null>(null);
+  // Camera pan (middle/right drag) is built-in navigation, separate from tools.
+  const panRef = useRef<{ px: number; py: number } | null>(null);
+  // The tool that owns the in-progress left-button stroke (move/up route to it).
+  const activeToolRef = useRef<EditorTool | null>(null);
+  // Host services handed to tools during a stroke; stable across renders.
+  const toolCtx = useMemo<ToolContext>(() => ({
+    capture: (id) => stageRef.current?.setPointerCapture(id),
+    release: (id) => stageRef.current?.releasePointerCapture(id),
+  }), []);
   const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const realm = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
@@ -349,82 +324,24 @@ export function Viewport() {
   const onPointerDown = (e: ReactPointerEvent) => {
     if (engine.status !== 'ready') return;
 
-    // Middle / right drag = pan the view.
+    // Middle / right drag = pan the view (camera navigation, always available
+    // regardless of the active tool).
     if (e.button === 1 || e.button === 2) {
       e.preventDefault();
-      dragRef.current = { kind: 'pan', px: e.clientX, py: e.clientY };
+      panRef.current = { px: e.clientX, py: e.clientY };
       stageRef.current?.setPointerCapture(e.pointerId);
       return;
     }
     if (e.button !== 0) return;
 
-    // Tile painting: when a paint tool is active over the SELECTED TilemapLayer, the
-    // left button paints (it must NOT re-pick/select another entity).
-    const paint = useTilemapPaint.getState();
-    const selId = useSelection.getState().selectedId;
-    const isTilemap = selId != null
-      && !!SceneModel.entityBySource(selId)?.components.some((c) => c.type === 'TilemapLayer');
-    if (paint.tool && isTilemap && selId != null) {
+    // Left button → the active tool owns the stroke (resolveActiveTool picks the
+    // tilemap paint tool over a selected layer, else the transform tool).
+    const t = resolveActiveTool();
+    if (t.onPointerDown(toInput(e), toolCtx)) {
       e.preventDefault();
-      const tile = cursorTile(e.clientX, e.clientY, selId);
-      if (!tile) return;
-      if (paint.tool === 'eyedropper') {
-        const rt = SceneModel.runtimeFor(selId);
-        const id = rt != null ? TilemapAPI.getTile(rt, tile.x, tile.y) : 0;
-        if (id > 0) paint.setBrush(id);
-        return;
-      }
-      if (paint.tool === 'rect') {
-        paintRef.current = { sourceId: selId, tool: 'rect', last: '', startX: tile.x, startY: tile.y };
-        stageRef.current?.setPointerCapture(e.pointerId);
-        return;
-      }
-      // brush / erase — a live stroke committed as one undo step on release.
-      const tileId = paint.tool === 'erase' ? 0 : paint.brushTileId;
-      SceneCommands.beginTilePaint(selId);
-      SceneCommands.paintTileLive(selId, tile.x, tile.y, tileId);
-      paintRef.current = { sourceId: selId, tool: paint.tool, last: `${tile.x},${tile.y}` };
-      stageRef.current?.setPointerCapture(e.pointerId);
-      return;
-    }
-
-    // Pick returns a runtime World entity (rendering domain); the editor selects
-    // and commands by stable source id. Resolve once: source id drives selection
-    // + SceneCommands; the runtime id drives ViewportController screen geometry.
-    const rtId = ViewportController.pickEntity(e.clientX, e.clientY);
-    const sourceId = rtId != null ? SceneModel.sourceFor(rtId) ?? null : null;
-    useSelection.getState().select(sourceId);
-    if (rtId == null || sourceId == null) return;
-
-    if (tool === 'rotate') {
-      const c = entityClientCenter(rtId);
-      const startRot = (SceneQuery.getFieldValue(sourceId, 'Transform', 'rotation') as number) ?? 0;
-      if (!c) return;
-      SceneCommands.beginGesture('Rotate');
-      dragRef.current = {
-        kind: 'rotate', id: sourceId, cx: c.cx, cy: c.cy,
-        startAngle: Math.atan2(e.clientY - c.cy, e.clientX - c.cx), startRot,
-      };
-      stageRef.current?.setPointerCapture(e.pointerId);
-    } else if (tool === 'scale') {
-      const c = entityClientCenter(rtId);
-      const s = (SceneQuery.getFieldValue(sourceId, 'Transform', 'scale') as number[]) ?? [1, 1, 1];
-      if (!c) return;
-      SceneCommands.beginGesture('Scale');
-      dragRef.current = {
-        kind: 'scale', id: sourceId, cx: c.cx, cy: c.cy,
-        startDist: Math.max(1, Math.hypot(e.clientX - c.cx, e.clientY - c.cy)),
-        sx: s[0] ?? 1, sy: s[1] ?? 1, sz: s[2] ?? 1,
-      };
-      stageRef.current?.setPointerCapture(e.pointerId);
+      activeToolRef.current = t;
     } else {
-      const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
-      const ep = ViewportController.getEntityXY(rtId);
-      if (wp && ep) {
-        SceneCommands.beginGesture('Move');
-        dragRef.current = { kind: 'move', id: sourceId, dx: ep.x - wp.x, dy: ep.y - wp.y };
-        stageRef.current?.setPointerCapture(e.pointerId);
-      }
+      activeToolRef.current = null;
     }
   };
 
@@ -432,87 +349,25 @@ export function Viewport() {
     const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
     if (wp) StatsStore.setCursor(wp.x, wp.y);
 
-    // Live brush/erase stroke: paint each newly-entered tile (rect previews on release).
-    const p = paintRef.current;
-    if (p) {
-      if (p.tool === 'brush' || p.tool === 'erase') {
-        const tile = cursorTile(e.clientX, e.clientY, p.sourceId);
-        if (tile) {
-          const key = `${tile.x},${tile.y}`;
-          if (key !== p.last) {
-            const tileId = p.tool === 'erase' ? 0 : useTilemapPaint.getState().brushTileId;
-            SceneCommands.paintTileLive(p.sourceId, tile.x, tile.y, tileId);
-            p.last = key;
-          }
-        }
-      }
-      return; // painting overrides transform drag
+    if (panRef.current) {
+      ViewportController.panByClient(panRef.current.px, panRef.current.py, e.clientX, e.clientY);
+      panRef.current.px = e.clientX;
+      panRef.current.py = e.clientY;
+      return;
     }
-
-    const drag = dragRef.current;
-    if (!drag) return;
-    const snapOn = useEditorStore.getState().snapping;
-
-    if (drag.kind === 'pan') {
-      ViewportController.panByClient(drag.px, drag.py, e.clientX, e.clientY);
-      drag.px = e.clientX;
-      drag.py = e.clientY;
-    } else if (drag.kind === 'move') {
-      if (wp) {
-        let x = wp.x + drag.dx;
-        let y = wp.y + drag.dy;
-        if (snapOn) {
-          const step = useEditorStore.getState().snapStep;
-          x = snap(x, step);
-          y = snap(y, step);
-        }
-        SceneCommands.setEntityXY(drag.id, x, y);
-      }
-    } else if (drag.kind === 'rotate') {
-      const angle = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
-      const deltaDeg = ((angle - drag.startAngle) * 180) / Math.PI;
-      // Screen y is down, so a clockwise screen drag is a negative world rotation.
-      let rot = drag.startRot - deltaDeg;
-      if (snapOn) rot = snap(rot, SNAP_ROTATE);
-      SceneCommands.setField(drag.id, 'Transform', 'rotation', 'angle', rot);
-    } else if (drag.kind === 'scale') {
-      const dist = Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy);
-      const f = dist / drag.startDist;
-      let sx = drag.sx * f;
-      let sy = drag.sy * f;
-      if (snapOn) { sx = snap(sx, SNAP_SCALE); sy = snap(sy, SNAP_SCALE); }
-      SceneCommands.setField(drag.id, 'Transform', 'scale', 'vec3', [sx, sy, drag.sz]);
-    }
+    activeToolRef.current?.onPointerMove(toInput(e), toolCtx);
   };
 
   const endDrag = (e: ReactPointerEvent) => {
-    // Commit an in-progress tile paint stroke first.
-    const p = paintRef.current;
-    if (p) {
+    if (panRef.current) {
       stageRef.current?.releasePointerCapture(e.pointerId);
-      paintRef.current = null;
-      if (p.tool === 'rect' && p.startX != null && p.startY != null) {
-        const tile = cursorTile(e.clientX, e.clientY, p.sourceId);
-        if (tile) {
-          const x0 = Math.min(p.startX, tile.x), x1 = Math.max(p.startX, tile.x);
-          const y0 = Math.min(p.startY, tile.y), y1 = Math.max(p.startY, tile.y);
-          const tileId = useTilemapPaint.getState().brushTileId;
-          const edits: TilePaint[] = [];
-          for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) edits.push({ x, y, tileId });
-          SceneCommands.paintTiles(p.sourceId, edits);
-        }
-      } else {
-        SceneCommands.endTilePaint();
-      }
+      panRef.current = null;
       return;
     }
-
-    const drag = dragRef.current;
-    if (!drag) return;
-    stageRef.current?.releasePointerCapture(e.pointerId);
-    dragRef.current = null;
-    // Camera pan is a direct view write (no undo); edits close their gesture.
-    if (drag.kind !== 'pan') SceneCommands.endGesture();
+    const t = activeToolRef.current;
+    if (!t) return;
+    activeToolRef.current = null;
+    t.onPointerUp(toInput(e), toolCtx);
   };
 
   // Drag a `.esprefab` from the Content Browser into the scene → instantiate it
