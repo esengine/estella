@@ -5,7 +5,6 @@ import {
     StateMachine,
     StateVisuals,
     TransitionFlag,
-    STATE_VISUALS_SLOT_COUNT,
     Interactable,
     UIInteraction,
     Focusable,
@@ -30,33 +29,15 @@ describe('ui2 behavior components', () => {
             expect(StateVisuals._name).toBe('StateVisuals');
         });
 
-        it('exposes exactly 8 slots', () => {
-            expect(STATE_VISUALS_SLOT_COUNT).toBe(8);
-            const d = StateVisuals._default as Record<string, unknown>;
-            for (let i = 0; i < 8; i++) {
-                expect(d[`slot${i}Name`]).toBe('');
-                expect(d[`slot${i}Color`]).toEqual({ r: 1, g: 1, b: 1, a: 1 });
-                expect(d[`slot${i}Sprite`]).toBe(0);
-                expect(d[`slot${i}Scale`]).toBe(1);
-            }
+        it('defaults to an empty states list (variable-length, REARCH_GUI F5)', () => {
+            const d = StateVisuals._default as { states: unknown[] };
+            expect(Array.isArray(d.states)).toBe(true);
+            expect(d.states).toHaveLength(0);
         });
 
         it('declares targetGraphic as an entity reference for serialization', () => {
             // EHT populates entityFields from ES_PROPERTY(entity_ref)
             expect(StateVisuals.entityFields).toContain('targetGraphic');
-        });
-
-        it('declares each slot color for editor color-picker detection', () => {
-            for (let i = 0; i < 8; i++) {
-                expect(StateVisuals.colorKeys).toContain(`slot${i}Color`);
-            }
-        });
-
-        it('declares each slot sprite as a texture asset field', () => {
-            const fields = StateVisuals.assetFields.map((f) => f.field);
-            for (let i = 0; i < 8; i++) {
-                expect(fields).toContain(`slot${i}Sprite`);
-            }
         });
     });
 

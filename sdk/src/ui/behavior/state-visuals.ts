@@ -1,5 +1,16 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    ui/behavior/state-visuals.ts
+ * @brief   StateVisuals — named state → visual overrides (REARCH_GUI F5).
+ *
+ * A variable-length `states` list replaced the old 8 hardcoded `slotN*` field
+ * quartets + stringly-keyed reflection. The apply system reads the entity's
+ * StateMachine.current, finds the matching {@link VisualState} by name, and
+ * applies its color/sprite/scale to `targetGraphic`. Mirrors the C++
+ * `StateVisuals` builtin; `VisualState` mirrors the C++ POD (flat r/g/b/a so it
+ * round-trips through the embind vector path).
+ */
 import { defineBuiltin } from '../../component';
 import type { Color, Entity } from '../../types';
 
@@ -12,36 +23,42 @@ export const TransitionFlag = {
 
 export type TransitionFlag = (typeof TransitionFlag)[keyof typeof TransitionFlag];
 
-export const STATE_VISUALS_SLOT_COUNT = 8;
+/** One named visual state (mirrors the C++ VisualState; color is flat r/g/b/a). */
+export interface VisualState {
+    name: string;
+    r: number;
+    g: number;
+    b: number;
+    a: number;
+    /** Texture-handle id for sprite swap; 0 = none. */
+    sprite: number;
+    scale: number;
+}
 
 export interface StateVisualsData {
     targetGraphic: Entity;
     transitionFlags: number;
     fadeDuration: number;
-
-    slot0Name: string; slot0Color: Color; slot0Sprite: number; slot0Scale: number;
-    slot1Name: string; slot1Color: Color; slot1Sprite: number; slot1Scale: number;
-    slot2Name: string; slot2Color: Color; slot2Sprite: number; slot2Scale: number;
-    slot3Name: string; slot3Color: Color; slot3Sprite: number; slot3Scale: number;
-    slot4Name: string; slot4Color: Color; slot4Sprite: number; slot4Scale: number;
-    slot5Name: string; slot5Color: Color; slot5Sprite: number; slot5Scale: number;
-    slot6Name: string; slot6Color: Color; slot6Sprite: number; slot6Scale: number;
-    slot7Name: string; slot7Color: Color; slot7Sprite: number; slot7Scale: number;
+    states: VisualState[];
 }
 
-const WHITE = (): Color => ({ r: 1, g: 1, b: 1, a: 1 });
+/** Build a {@link VisualState} from a name + Color (+ optional sprite/scale). */
+export function visualState(
+    name: string,
+    color: Color,
+    opts: { sprite?: number; scale?: number } = {},
+): VisualState {
+    return {
+        name,
+        r: color.r, g: color.g, b: color.b, a: color.a,
+        sprite: opts.sprite ?? 0,
+        scale: opts.scale ?? 1,
+    };
+}
 
 export const StateVisuals = defineBuiltin<StateVisualsData>('StateVisuals', {
     targetGraphic: 0 as Entity,
     transitionFlags: 0,
     fadeDuration: 0,
-
-    slot0Name: '', slot0Color: WHITE(), slot0Sprite: 0, slot0Scale: 1,
-    slot1Name: '', slot1Color: WHITE(), slot1Sprite: 0, slot1Scale: 1,
-    slot2Name: '', slot2Color: WHITE(), slot2Sprite: 0, slot2Scale: 1,
-    slot3Name: '', slot3Color: WHITE(), slot3Sprite: 0, slot3Scale: 1,
-    slot4Name: '', slot4Color: WHITE(), slot4Sprite: 0, slot4Scale: 1,
-    slot5Name: '', slot5Color: WHITE(), slot5Sprite: 0, slot5Scale: 1,
-    slot6Name: '', slot6Color: WHITE(), slot6Sprite: 0, slot6Scale: 1,
-    slot7Name: '', slot7Color: WHITE(), slot7Sprite: 0, slot7Scale: 1,
+    states: [],
 });

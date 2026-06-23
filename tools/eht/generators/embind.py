@@ -177,7 +177,11 @@ class EmbindGenerator:
                 if self.types.is_skip(prop.cpp_type):
                     continue
                 js_type = self.types.get_js_type(prop.cpp_type)
-                lines.append(f'    {js_type} {prop.name};')
+                if self.types.is_struct_vector(prop.cpp_type):
+                    # val has no default ctor usable for `{}` aggregate init.
+                    lines.append(f'    {js_type} {prop.name} = emscripten::val::array();')
+                else:
+                    lines.append(f'    {js_type} {prop.name};')
             lines.append('};')
             lines.append('')
 
@@ -196,6 +200,11 @@ class EmbindGenerator:
                 elif t in self.types.VECTOR_TYPES and self.types.VECTOR_TYPES[t][0] == 'u32' and 'Entity' in t:
                     lines.append(f'    c.{prop.name}.reserve(js.{prop.name}.size());')
                     lines.append(f'    for (auto v : js.{prop.name}) c.{prop.name}.push_back(Entity(v));')
+                elif self.types.is_struct_vector(t):
+                    elem = self.types.vector_elem(t)
+                    lines.append(f'    {{ const size_t n = js.{prop.name}["length"].as<size_t>();')
+                    lines.append(f'      c.{prop.name}.clear(); c.{prop.name}.reserve(n);')
+                    lines.append(f'      for (size_t i = 0; i < n; ++i) c.{prop.name}.push_back(js.{prop.name}[i].as<esengine::{elem}>()); }}')
                 else:
                     lines.append(f'    c.{prop.name} = js.{prop.name};')
             lines.append('    return c;')
@@ -217,6 +226,9 @@ class EmbindGenerator:
                 elif t in self.types.VECTOR_TYPES and self.types.VECTOR_TYPES[t][0] == 'u32' and 'Entity' in t:
                     lines.append(f'    js.{prop.name}.reserve(c.{prop.name}.size());')
                     lines.append(f'    for (auto e : c.{prop.name}) js.{prop.name}.push_back(static_cast<u32>(e));')
+                elif self.types.is_struct_vector(t):
+                    lines.append(f'    js.{prop.name} = emscripten::val::array();')
+                    lines.append(f'    for (size_t i = 0; i < c.{prop.name}.size(); ++i) js.{prop.name}.set(i, emscripten::val(c.{prop.name}[i]));')
                 else:
                     lines.append(f'    js.{prop.name} = c.{prop.name};')
             lines.append('    return js;')
@@ -235,6 +247,8 @@ class EmbindGenerator:
                         lines.append(f'    register_vector<{elem_type}>("{js_name}");')
                         lines.append('')
                         registered_vectors.add(js_name)
+                # Struct-vectors (std::vector<VisualState>) marshal as a JS array via
+                # emscripten::val in the wrapper from/toJS — no register_vector needed.
 
         for comp in self.components:
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name

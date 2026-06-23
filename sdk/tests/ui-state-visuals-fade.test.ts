@@ -11,6 +11,7 @@ import { StateMachine, type StateMachineData } from '../src/ui/behavior/state-ma
 import {
     StateVisuals,
     TransitionFlag,
+    visualState,
     type StateVisualsData,
 } from '../src/ui/behavior/state-visuals';
 import { UIVisual, type UIVisualData } from '../src/ui/core/ui-visual';
@@ -60,14 +61,7 @@ function makeVisuals(overrides: Partial<StateVisualsData>): StateVisualsData {
         targetGraphic: 0 as Entity,
         transitionFlags: 0,
         fadeDuration: 0,
-        slot0Name: '', slot0Color: { r: 1, g: 1, b: 1, a: 1 }, slot0Sprite: 0, slot0Scale: 1,
-        slot1Name: '', slot1Color: { r: 1, g: 1, b: 1, a: 1 }, slot1Sprite: 0, slot1Scale: 1,
-        slot2Name: '', slot2Color: { r: 1, g: 1, b: 1, a: 1 }, slot2Sprite: 0, slot2Scale: 1,
-        slot3Name: '', slot3Color: { r: 1, g: 1, b: 1, a: 1 }, slot3Sprite: 0, slot3Scale: 1,
-        slot4Name: '', slot4Color: { r: 1, g: 1, b: 1, a: 1 }, slot4Sprite: 0, slot4Scale: 1,
-        slot5Name: '', slot5Color: { r: 1, g: 1, b: 1, a: 1 }, slot5Sprite: 0, slot5Scale: 1,
-        slot6Name: '', slot6Color: { r: 1, g: 1, b: 1, a: 1 }, slot6Sprite: 0, slot6Scale: 1,
-        slot7Name: '', slot7Color: { r: 1, g: 1, b: 1, a: 1 }, slot7Sprite: 0, slot7Scale: 1,
+        states: [],
         ...overrides,
     } as StateVisualsData;
 }
@@ -110,8 +104,7 @@ describe('StateVisualsApplySystem — color fade', () => {
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.ColorTint,
             fadeDuration: 0,
-            slot0Name: 'pressed',
-            slot0Color: { r: 0, g: 0, b: 1, a: 1 },
+            states: [visualState('pressed', { r: 0, g: 0, b: 1, a: 1 })],
         }));
 
         const sys = createStateVisualsApplySystem(world as never);
@@ -126,8 +119,7 @@ describe('StateVisualsApplySystem — color fade', () => {
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.ColorTint,
             fadeDuration: 1.0,
-            slot0Name: 'pressed',
-            slot0Color: { r: 0, g: 0, b: 0, a: 1 },
+            states: [visualState('pressed', { r: 0, g: 0, b: 0, a: 1 })],
         }));
 
         const sys = createStateVisualsApplySystem(world as never);
@@ -147,8 +139,7 @@ describe('StateVisualsApplySystem — color fade', () => {
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.ColorTint,
             fadeDuration: 0.5,
-            slot0Name: 'pressed',
-            slot0Color: { r: 0, g: 0, b: 0, a: 1 },
+            states: [visualState('pressed', { r: 0, g: 0, b: 0, a: 1 })],
         }));
 
         const sys = createStateVisualsApplySystem(world as never);
@@ -164,8 +155,10 @@ describe('StateVisualsApplySystem — color fade', () => {
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.ColorTint,
             fadeDuration: 1.0,
-            slot0Name: 'a', slot0Color: { r: 0, g: 0, b: 0, a: 1 },
-            slot1Name: 'b', slot1Color: { r: 1, g: 0, b: 0, a: 1 },
+            states: [
+                visualState('a', { r: 0, g: 0, b: 0, a: 1 }),
+                visualState('b', { r: 1, g: 0, b: 0, a: 1 }),
+            ],
         }));
 
         const sys = createStateVisualsApplySystem(world as never);
@@ -198,8 +191,7 @@ describe('StateVisualsApplySystem — scale fade', () => {
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.Scale,
             fadeDuration: 1.0,
-            slot0Name: 'pressed',
-            slot0Scale: 2,
+            states: [visualState('pressed', { r: 1, g: 1, b: 1, a: 1 }, { scale: 2 })],
         }));
 
         const sys = createStateVisualsApplySystem(world as never);
@@ -221,8 +213,7 @@ describe('StateVisualsApplySystem — sprite swap', () => {
         world.insert(entity, StateVisuals, makeVisuals({
             transitionFlags: TransitionFlag.SpriteSwap,
             fadeDuration: 1.0,
-            slot0Name: 'pressed',
-            slot0Sprite: 42,
+            states: [visualState('pressed', { r: 1, g: 1, b: 1, a: 1 }, { sprite: 42 })],
         }));
 
         const sys = createStateVisualsApplySystem(world as never);

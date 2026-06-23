@@ -85,7 +85,7 @@ def get_editor_type(prop: Property, types: TypeSystem) -> str:
         return 'int'
     if t in TypeSystem.GLM_TYPES or t in TypeSystem.CUSTOM_STRUCTS:
         return 'float'  # Sub-components are all floats (or ints for uvec2)
-    if t in TypeSystem.VECTOR_TYPES:
+    if types.is_any_vector(t):
         return 'skip'  # Vector types not editable as simple fields
     return 'skip'
 
@@ -153,7 +153,7 @@ def convert_default_ts(prop: Property, types: TypeSystem,
         if raw and raw.startswith('"') and raw.endswith('"'):
             return raw
         return "''"
-    if t in types.VECTOR_TYPES:
+    if types.is_any_vector(t):
         return '[]'
     if t in types.CUSTOM_STRUCTS:
         members = types.CUSTOM_STRUCTS[t]

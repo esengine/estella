@@ -110,7 +110,8 @@ export {
 export {
     StateVisuals,
     TransitionFlag,
-    STATE_VISUALS_SLOT_COUNT,
+    visualState,
+    type VisualState,
     type StateVisualsData,
 } from './behavior/state-visuals';
 

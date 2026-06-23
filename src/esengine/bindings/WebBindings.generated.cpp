@@ -76,6 +76,15 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
     value_object<esengine::Dimension>("Dimension")
         .field("value", &esengine::Dimension::value)
         .field("unit", &esengine::Dimension::unit);
+
+    value_object<esengine::VisualState>("VisualState")
+        .field("name", &esengine::VisualState::name)
+        .field("r", &esengine::VisualState::r)
+        .field("g", &esengine::VisualState::g)
+        .field("b", &esengine::VisualState::b)
+        .field("a", &esengine::VisualState::a)
+        .field("sprite", &esengine::VisualState::sprite)
+        .field("scale", &esengine::VisualState::scale);
 }
 
 // =============================================================================
@@ -593,38 +602,7 @@ struct StateVisualsJS {
     u32 targetGraphic;
     u32 transitionFlags;
     f32 fadeDuration;
-    std::string slot0Name;
-    glm::vec4 slot0Color;
-    u32 slot0Sprite;
-    f32 slot0Scale;
-    std::string slot1Name;
-    glm::vec4 slot1Color;
-    u32 slot1Sprite;
-    f32 slot1Scale;
-    std::string slot2Name;
-    glm::vec4 slot2Color;
-    u32 slot2Sprite;
-    f32 slot2Scale;
-    std::string slot3Name;
-    glm::vec4 slot3Color;
-    u32 slot3Sprite;
-    f32 slot3Scale;
-    std::string slot4Name;
-    glm::vec4 slot4Color;
-    u32 slot4Sprite;
-    f32 slot4Scale;
-    std::string slot5Name;
-    glm::vec4 slot5Color;
-    u32 slot5Sprite;
-    f32 slot5Scale;
-    std::string slot6Name;
-    glm::vec4 slot6Color;
-    u32 slot6Sprite;
-    f32 slot6Scale;
-    std::string slot7Name;
-    glm::vec4 slot7Color;
-    u32 slot7Sprite;
-    f32 slot7Scale;
+    emscripten::val states = emscripten::val::array();
 };
 
 esengine::ecs::StateVisuals statevisualsFromJS(const StateVisualsJS& js) {
@@ -632,38 +610,9 @@ esengine::ecs::StateVisuals statevisualsFromJS(const StateVisualsJS& js) {
     c.targetGraphic = Entity(js.targetGraphic);
     c.transitionFlags = js.transitionFlags;
     c.fadeDuration = js.fadeDuration;
-    c.slot0Name = js.slot0Name;
-    c.slot0Color = js.slot0Color;
-    c.slot0Sprite = resource::TextureHandle(js.slot0Sprite);
-    c.slot0Scale = js.slot0Scale;
-    c.slot1Name = js.slot1Name;
-    c.slot1Color = js.slot1Color;
-    c.slot1Sprite = resource::TextureHandle(js.slot1Sprite);
-    c.slot1Scale = js.slot1Scale;
-    c.slot2Name = js.slot2Name;
-    c.slot2Color = js.slot2Color;
-    c.slot2Sprite = resource::TextureHandle(js.slot2Sprite);
-    c.slot2Scale = js.slot2Scale;
-    c.slot3Name = js.slot3Name;
-    c.slot3Color = js.slot3Color;
-    c.slot3Sprite = resource::TextureHandle(js.slot3Sprite);
-    c.slot3Scale = js.slot3Scale;
-    c.slot4Name = js.slot4Name;
-    c.slot4Color = js.slot4Color;
-    c.slot4Sprite = resource::TextureHandle(js.slot4Sprite);
-    c.slot4Scale = js.slot4Scale;
-    c.slot5Name = js.slot5Name;
-    c.slot5Color = js.slot5Color;
-    c.slot5Sprite = resource::TextureHandle(js.slot5Sprite);
-    c.slot5Scale = js.slot5Scale;
-    c.slot6Name = js.slot6Name;
-    c.slot6Color = js.slot6Color;
-    c.slot6Sprite = resource::TextureHandle(js.slot6Sprite);
-    c.slot6Scale = js.slot6Scale;
-    c.slot7Name = js.slot7Name;
-    c.slot7Color = js.slot7Color;
-    c.slot7Sprite = resource::TextureHandle(js.slot7Sprite);
-    c.slot7Scale = js.slot7Scale;
+    { const size_t n = js.states["length"].as<size_t>();
+      c.states.clear(); c.states.reserve(n);
+      for (size_t i = 0; i < n; ++i) c.states.push_back(js.states[i].as<esengine::VisualState>()); }
     return c;
 }
 
@@ -672,38 +621,8 @@ StateVisualsJS statevisualsToJS(const esengine::ecs::StateVisuals& c) {
     js.targetGraphic = static_cast<u32>(c.targetGraphic);
     js.transitionFlags = c.transitionFlags;
     js.fadeDuration = c.fadeDuration;
-    js.slot0Name = c.slot0Name;
-    js.slot0Color = c.slot0Color;
-    js.slot0Sprite = c.slot0Sprite.id();
-    js.slot0Scale = c.slot0Scale;
-    js.slot1Name = c.slot1Name;
-    js.slot1Color = c.slot1Color;
-    js.slot1Sprite = c.slot1Sprite.id();
-    js.slot1Scale = c.slot1Scale;
-    js.slot2Name = c.slot2Name;
-    js.slot2Color = c.slot2Color;
-    js.slot2Sprite = c.slot2Sprite.id();
-    js.slot2Scale = c.slot2Scale;
-    js.slot3Name = c.slot3Name;
-    js.slot3Color = c.slot3Color;
-    js.slot3Sprite = c.slot3Sprite.id();
-    js.slot3Scale = c.slot3Scale;
-    js.slot4Name = c.slot4Name;
-    js.slot4Color = c.slot4Color;
-    js.slot4Sprite = c.slot4Sprite.id();
-    js.slot4Scale = c.slot4Scale;
-    js.slot5Name = c.slot5Name;
-    js.slot5Color = c.slot5Color;
-    js.slot5Sprite = c.slot5Sprite.id();
-    js.slot5Scale = c.slot5Scale;
-    js.slot6Name = c.slot6Name;
-    js.slot6Color = c.slot6Color;
-    js.slot6Sprite = c.slot6Sprite.id();
-    js.slot6Scale = c.slot6Scale;
-    js.slot7Name = c.slot7Name;
-    js.slot7Color = c.slot7Color;
-    js.slot7Sprite = c.slot7Sprite.id();
-    js.slot7Scale = c.slot7Scale;
+    js.states = emscripten::val::array();
+    for (size_t i = 0; i < c.states.size(); ++i) js.states.set(i, emscripten::val(c.states[i]));
     return js;
 }
 
@@ -1084,38 +1003,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("targetGraphic", &StateVisualsJS::targetGraphic)
         .field("transitionFlags", &StateVisualsJS::transitionFlags)
         .field("fadeDuration", &StateVisualsJS::fadeDuration)
-        .field("slot0Name", &StateVisualsJS::slot0Name)
-        .field("slot0Color", &StateVisualsJS::slot0Color)
-        .field("slot0Sprite", &StateVisualsJS::slot0Sprite)
-        .field("slot0Scale", &StateVisualsJS::slot0Scale)
-        .field("slot1Name", &StateVisualsJS::slot1Name)
-        .field("slot1Color", &StateVisualsJS::slot1Color)
-        .field("slot1Sprite", &StateVisualsJS::slot1Sprite)
-        .field("slot1Scale", &StateVisualsJS::slot1Scale)
-        .field("slot2Name", &StateVisualsJS::slot2Name)
-        .field("slot2Color", &StateVisualsJS::slot2Color)
-        .field("slot2Sprite", &StateVisualsJS::slot2Sprite)
-        .field("slot2Scale", &StateVisualsJS::slot2Scale)
-        .field("slot3Name", &StateVisualsJS::slot3Name)
-        .field("slot3Color", &StateVisualsJS::slot3Color)
-        .field("slot3Sprite", &StateVisualsJS::slot3Sprite)
-        .field("slot3Scale", &StateVisualsJS::slot3Scale)
-        .field("slot4Name", &StateVisualsJS::slot4Name)
-        .field("slot4Color", &StateVisualsJS::slot4Color)
-        .field("slot4Sprite", &StateVisualsJS::slot4Sprite)
-        .field("slot4Scale", &StateVisualsJS::slot4Scale)
-        .field("slot5Name", &StateVisualsJS::slot5Name)
-        .field("slot5Color", &StateVisualsJS::slot5Color)
-        .field("slot5Sprite", &StateVisualsJS::slot5Sprite)
-        .field("slot5Scale", &StateVisualsJS::slot5Scale)
-        .field("slot6Name", &StateVisualsJS::slot6Name)
-        .field("slot6Color", &StateVisualsJS::slot6Color)
-        .field("slot6Sprite", &StateVisualsJS::slot6Sprite)
-        .field("slot6Scale", &StateVisualsJS::slot6Scale)
-        .field("slot7Name", &StateVisualsJS::slot7Name)
-        .field("slot7Color", &StateVisualsJS::slot7Color)
-        .field("slot7Sprite", &StateVisualsJS::slot7Sprite)
-        .field("slot7Scale", &StateVisualsJS::slot7Scale);
+        .field("states", &StateVisualsJS::states);
 
     value_object<TilemapLayerJS>("TilemapLayer")
         .field("cellSize", &TilemapLayerJS::cellSize)
@@ -1965,7 +1853,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "ea147a61d787f430";
+static const char* kEsAbiLayoutHash = "ffbf3c8be66d1354";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

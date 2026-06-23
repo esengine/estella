@@ -115,7 +115,7 @@ describe('createButton', () => {
         expect(world.has(btn, StateVisuals)).toBe(true);
     });
 
-    it('populates StateVisuals slots from the `states` map', () => {
+    it('populates the StateVisuals states list from the `states` map', () => {
         const btn = createButton({
             world: world as unknown as World,
             events,
@@ -126,11 +126,13 @@ describe('createButton', () => {
             transitionFlags: TransitionFlag.ColorTint,
         });
 
-        const sv = world.get(btn, StateVisuals) as Record<string, unknown>;
-        expect(sv['slot0Name']).toBe('normal');
-        expect(sv['slot1Name']).toBe('hover');
-        expect(sv['slot0Color']).toEqual({ r: 1, g: 0, b: 0, a: 1 });
-        expect(sv['transitionFlags']).toBe(TransitionFlag.ColorTint);
+        const sv = world.get(btn, StateVisuals) as {
+            states: Array<{ name: string; r: number; g: number; b: number; a: number }>;
+            transitionFlags: number;
+        };
+        expect(sv.states.map(s => s.name)).toEqual(['normal', 'hover']);
+        expect(sv.states[0]).toMatchObject({ r: 1, g: 0, b: 0, a: 1 });
+        expect(sv.transitionFlags).toBe(TransitionFlag.ColorTint);
     });
 
     it('starts in "disabled" state when opts.disabled is true', () => {
@@ -149,16 +151,16 @@ describe('createButton', () => {
         expect(i.enabled).toBe(false);
     });
 
-    it('throws when more than 8 states are supplied', () => {
-        expect(() =>
-            createButton({
-                world: world as unknown as World,
-                events,
-                states: Object.fromEntries(
-                    Array.from({ length: 9 }, (_, i) => [`s${i}`, {}]),
-                ),
-            }),
-        ).toThrow(/up to 8/);
+    it('supports an arbitrary number of states (variable-length, REARCH_GUI F5)', () => {
+        const btn = createButton({
+            world: world as unknown as World,
+            events,
+            states: Object.fromEntries(
+                Array.from({ length: 12 }, (_, i) => [`s${i}`, {}]),
+            ),
+        });
+        const sv = world.get(btn, StateVisuals) as { states: unknown[] };
+        expect(sv.states).toHaveLength(12);
     });
 
     it('fires onClick when the state transitions pressed → hover', () => {

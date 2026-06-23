@@ -5,7 +5,7 @@ import type { World } from '../../world';
 
 import { Interactable, UIInteraction } from '../behavior/interactable';
 import { StateMachine } from '../behavior/state-machine';
-import { StateVisuals, TransitionFlag, type StateVisualsData } from '../behavior/state-visuals';
+import { StateVisuals, TransitionFlag, visualState, type StateVisualsData } from '../behavior/state-visuals';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Text, type TextData } from '../core/text';
 
@@ -69,19 +69,15 @@ const INTERACTION_DEFAULT = {
 function makeStatesSV(colors: {
     normal: Color; hover: Color; pressed: Color;
 }): StateVisualsData {
-    const white = { r: 1, g: 1, b: 1, a: 1 };
     return {
         targetGraphic: 0 as Entity,
         transitionFlags: TransitionFlag.ColorTint,
         fadeDuration: 0,
-        slot0Name: 'normal',  slot0Color: colors.normal,  slot0Sprite: 0, slot0Scale: 1,
-        slot1Name: 'hover',   slot1Color: colors.hover,   slot1Sprite: 0, slot1Scale: 1,
-        slot2Name: 'pressed', slot2Color: colors.pressed, slot2Sprite: 0, slot2Scale: 1,
-        slot3Name: '', slot3Color: white, slot3Sprite: 0, slot3Scale: 1,
-        slot4Name: '', slot4Color: white, slot4Sprite: 0, slot4Scale: 1,
-        slot5Name: '', slot5Color: white, slot5Sprite: 0, slot5Scale: 1,
-        slot6Name: '', slot6Color: white, slot6Sprite: 0, slot6Scale: 1,
-        slot7Name: '', slot7Color: white, slot7Sprite: 0, slot7Scale: 1,
+        states: [
+            visualState('normal', colors.normal),
+            visualState('hover', colors.hover),
+            visualState('pressed', colors.pressed),
+        ],
     };
 }
 

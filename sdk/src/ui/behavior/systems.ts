@@ -11,7 +11,6 @@ import { StateMachine, type StateMachineData } from './state-machine';
 import {
     StateVisuals,
     TransitionFlag,
-    STATE_VISUALS_SLOT_COUNT,
     type StateVisualsData,
 } from './state-visuals';
 import { UIVisual, type UIVisualData } from '../core/ui-visual';
@@ -41,16 +40,12 @@ export function driverStateFor(
 }
 
 /**
- * Pure lookup: index of the StateVisuals slot whose name matches `state`.
- * Returns -1 if no slot matches (caller should skip applying visuals).
+ * Pure lookup: index into `sv.states` of the VisualState whose name matches
+ * `state`. Returns -1 if none matches (caller should skip applying visuals).
  */
 export function findStateSlot(sv: StateVisualsData, state: string): number {
     if (state === '') return -1;
-    const record = sv as unknown as Record<string, unknown>;
-    for (let i = 0; i < STATE_VISUALS_SLOT_COUNT; i++) {
-        if (record[`slot${i}Name`] === state) return i;
-    }
-    return -1;
+    return sv.states.findIndex(s => s.name === state);
 }
 
 /**
@@ -162,9 +157,9 @@ export function createStateVisualsApplySystem(world: World): SystemDef {
 
             const target = sv.targetGraphic !== 0 ? sv.targetGraphic : e;
             const flags = sv.transitionFlags;
-            const record = sv as unknown as Record<string, unknown>;
-            const targetColor = record[`slot${slot}Color`] as Color;
-            const targetScale = record[`slot${slot}Scale`] as number;
+            const state = sv.states[slot];
+            const targetColor: Color = { r: state.r, g: state.g, b: state.b, a: state.a };
+            const targetScale = state.scale;
             const fade = Math.max(0, sv.fadeDuration);
 
             // Detect a slot change. If we have no prior entry OR the entry
@@ -196,7 +191,7 @@ export function createStateVisualsApplySystem(world: World): SystemDef {
             if ((flags & TransitionFlag.SpriteSwap) && world.has(target, UIVisual)) {
                 // Sprite swap is discrete: apply immediately at the slot change.
                 const r = world.get(target, UIVisual) as UIVisualData;
-                r.texture = record[`slot${slot}Sprite`] as number;
+                r.texture = state.sprite;
                 world.insert(target, UIVisual, r);
             }
 

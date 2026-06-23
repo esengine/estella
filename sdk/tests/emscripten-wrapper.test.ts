@@ -114,4 +114,46 @@ describe.skipIf(!HAS_WASM)('Emscripten wrapper diagnostics', () => {
         registry.destroy(entity);
         (registry as unknown as { delete(): void }).delete();
     });
+
+    // REARCH_GUI F5: a std::vector<VisualState> component field must round-trip a
+    // plain JS array through embind (register_vector + value_object), incl. the
+    // std::string member. This is the path the button/dropdown widgets exercise.
+    it('round-trips a std::vector<VisualState> through embind', () => {
+        const registry = new module.Registry() as unknown as CppRegistry;
+        const entity = registry.create();
+
+        const reg = registry as unknown as {
+            addStateVisuals(e: number, c: unknown): void;
+            getStateVisuals(e: number): { states: unknown };
+        };
+        reg.addStateVisuals(entity, {
+            targetGraphic: 0,
+            transitionFlags: 1,
+            fadeDuration: 0.5,
+            states: [
+                { name: 'normal', r: 1, g: 0, b: 0, a: 1, sprite: 0, scale: 1 },
+                { name: 'hover', r: 0, g: 1, b: 0, a: 1, sprite: 7, scale: 1.25 },
+            ],
+        });
+
+        const states = reg.getStateVisuals(entity).states as
+            | Array<Record<string, number | string>>
+            | { size(): number; get(i: number): Record<string, number | string> };
+        // embind may hand back a plain array or a bound vector — accept both.
+        const isArr = Array.isArray(states);
+        const len = isArr ? (states as unknown[]).length : (states as { size(): number }).size();
+        const at = (i: number) => isArr
+            ? (states as Array<Record<string, number | string>>)[i]
+            : (states as { get(i: number): Record<string, number | string> }).get(i);
+
+        expect(len).toBe(2);
+        expect(at(0).name).toBe('normal');
+        expect(at(0).r).toBeCloseTo(1, 5);
+        expect(at(1).name).toBe('hover');
+        expect(at(1).sprite).toBe(7);
+        expect(at(1).scale).toBeCloseTo(1.25, 5);
+
+        registry.destroy(entity);
+        (registry as unknown as { delete(): void }).delete();
+    });
 });

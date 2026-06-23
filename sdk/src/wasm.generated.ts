@@ -10,6 +10,7 @@ import type { Entity, Vec2, Vec3, Vec4, Quat } from './types';
 export interface UVec2 { x: number; y: number; }
 export interface Padding { left: number; top: number; right: number; bottom: number; }
 export interface Dimension { value: number; unit: number; }
+export interface VisualState { name: string; r: number; g: number; b: number; a: number; sprite: number; scale: number; }
 export type Mat4 = number[];
 
 // Emscripten Vector Types
@@ -355,38 +356,7 @@ export interface StateVisuals {
     targetGraphic: number;
     transitionFlags: number;
     fadeDuration: number;
-    slot0Name: string;
-    slot0Color: Vec4;
-    slot0Sprite: number;
-    slot0Scale: number;
-    slot1Name: string;
-    slot1Color: Vec4;
-    slot1Sprite: number;
-    slot1Scale: number;
-    slot2Name: string;
-    slot2Color: Vec4;
-    slot2Sprite: number;
-    slot2Scale: number;
-    slot3Name: string;
-    slot3Color: Vec4;
-    slot3Sprite: number;
-    slot3Scale: number;
-    slot4Name: string;
-    slot4Color: Vec4;
-    slot4Sprite: number;
-    slot4Scale: number;
-    slot5Name: string;
-    slot5Color: Vec4;
-    slot5Sprite: number;
-    slot5Scale: number;
-    slot6Name: string;
-    slot6Color: Vec4;
-    slot6Sprite: number;
-    slot6Scale: number;
-    slot7Name: string;
-    slot7Color: Vec4;
-    slot7Sprite: number;
-    slot7Scale: number;
+    states: VisualState[];
 }
 
 export interface TilemapLayer {

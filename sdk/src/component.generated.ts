@@ -12,7 +12,7 @@ import type { AssetFieldType } from './scene';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'ea147a61d787f430';
+export const ABI_LAYOUT_HASH = 'ffbf3c8be66d1354';
 
 export interface AssetFieldMeta {
     field: string;
@@ -331,42 +331,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             targetGraphic: 0,
             transitionFlags: 0,
             fadeDuration: 0,
-            slot0Name: '',
-            slot0Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot0Sprite: 0,
-            slot0Scale: 1,
-            slot1Name: '',
-            slot1Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot1Sprite: 0,
-            slot1Scale: 1,
-            slot2Name: '',
-            slot2Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot2Sprite: 0,
-            slot2Scale: 1,
-            slot3Name: '',
-            slot3Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot3Sprite: 0,
-            slot3Scale: 1,
-            slot4Name: '',
-            slot4Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot4Sprite: 0,
-            slot4Scale: 1,
-            slot5Name: '',
-            slot5Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot5Sprite: 0,
-            slot5Scale: 1,
-            slot6Name: '',
-            slot6Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot6Sprite: 0,
-            slot6Scale: 1,
-            slot7Name: '',
-            slot7Color: { r: 1, g: 1, b: 1, a: 1 },
-            slot7Sprite: 0,
-            slot7Scale: 1,
+            states: [],
         },
-        assetFields: [{ field: 'slot0Sprite', type: 'texture' as AssetFieldType }, { field: 'slot1Sprite', type: 'texture' as AssetFieldType }, { field: 'slot2Sprite', type: 'texture' as AssetFieldType }, { field: 'slot3Sprite', type: 'texture' as AssetFieldType }, { field: 'slot4Sprite', type: 'texture' as AssetFieldType }, { field: 'slot5Sprite', type: 'texture' as AssetFieldType }, { field: 'slot6Sprite', type: 'texture' as AssetFieldType }, { field: 'slot7Sprite', type: 'texture' as AssetFieldType }],
+        assetFields: [],
         entityFields: ['targetGraphic'],
-        colorFields: ['slot0Color', 'slot1Color', 'slot2Color', 'slot3Color', 'slot4Color', 'slot5Color', 'slot6Color', 'slot7Color'],
+        colorFields: [],
         animatableFields: [],
     },
     TilemapLayer: {

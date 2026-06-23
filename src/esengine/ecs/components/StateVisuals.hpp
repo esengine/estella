@@ -4,10 +4,9 @@
 
 #include "../../core/Types.hpp"
 #include "../../core/Reflection.hpp"
-#include "../../math/Math.hpp"
-#include "../../resource/Handle.hpp"
+#include "../../core/UITypes.hpp"   // VisualState
 
-#include <string>
+#include <vector>
 
 namespace esengine::ecs {
 
@@ -28,11 +27,11 @@ namespace StateVisualsTransition {
 /**
  * @brief Maps state names to visual overrides on a target entity.
  *
- * @details Eight open slots, each labelled by `slotNName`. The visual
- *          system reads the owning entity's StateMachine.current, looks
- *          up the matching slot (empty names are treated as unused), and
- *          applies `color` / `sprite` / `scale` to `targetGraphic`
- *          according to `transitionFlags`.
+ * @details A variable-length `states` list (REARCH_GUI F5 — replaced the old 8
+ *          hardcoded `slotN*` field quartets + stringly-keyed reflection). The
+ *          visual system reads the owning entity's StateMachine.current, finds
+ *          the matching VisualState by name, and applies its color / sprite /
+ *          scale to `targetGraphic` according to `transitionFlags`.
  *
  *          `targetGraphic == INVALID_ENTITY` means "apply to self".
  */
@@ -49,47 +48,9 @@ struct StateVisuals {
     ES_PROPERTY()
     f32 fadeDuration{0.0f};
 
-    // -- slots (8 × 4 = 32 fields) --
-
-    ES_PROPERTY() std::string slot0Name;
-    ES_PROPERTY() glm::vec4   slot0Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot0Sprite;
-    ES_PROPERTY() f32         slot0Scale{1.0f};
-
-    ES_PROPERTY() std::string slot1Name;
-    ES_PROPERTY() glm::vec4   slot1Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot1Sprite;
-    ES_PROPERTY() f32         slot1Scale{1.0f};
-
-    ES_PROPERTY() std::string slot2Name;
-    ES_PROPERTY() glm::vec4   slot2Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot2Sprite;
-    ES_PROPERTY() f32         slot2Scale{1.0f};
-
-    ES_PROPERTY() std::string slot3Name;
-    ES_PROPERTY() glm::vec4   slot3Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot3Sprite;
-    ES_PROPERTY() f32         slot3Scale{1.0f};
-
-    ES_PROPERTY() std::string slot4Name;
-    ES_PROPERTY() glm::vec4   slot4Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot4Sprite;
-    ES_PROPERTY() f32         slot4Scale{1.0f};
-
-    ES_PROPERTY() std::string slot5Name;
-    ES_PROPERTY() glm::vec4   slot5Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot5Sprite;
-    ES_PROPERTY() f32         slot5Scale{1.0f};
-
-    ES_PROPERTY() std::string slot6Name;
-    ES_PROPERTY() glm::vec4   slot6Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot6Sprite;
-    ES_PROPERTY() f32         slot6Scale{1.0f};
-
-    ES_PROPERTY() std::string slot7Name;
-    ES_PROPERTY() glm::vec4   slot7Color{1.0f, 1.0f, 1.0f, 1.0f};
-    ES_PROPERTY(asset = texture) resource::TextureHandle slot7Sprite;
-    ES_PROPERTY() f32         slot7Scale{1.0f};
+    /** @brief Named visual states; looked up by StateMachine.current. */
+    ES_PROPERTY()
+    std::vector<VisualState> states;
 };
 
 }  // namespace esengine::ecs
