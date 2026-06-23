@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getAllRegisteredComponents, getUserComponents, getComponent } from 'esengine';
+import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, InspectorField } from '@/types';
 
@@ -191,28 +191,16 @@ export function isColorKey(compType: string, key: string): boolean {
 
 // — Asset-ref fields (which component fields hold a texture/material/font/... ref) —
 //
-// Editor presentation policy (like COMPONENT_CATEGORY): the engine's
-// AssetFieldRegistry isn't exported from the built `esengine` types, so the
-// builtin map is mirrored here; user/script components declare their asset fields
-// in schemas.json. The inspector renders these as an asset control, not a raw
-// `@uuid:` string. Mirror of sdk AssetFieldRegistry.initBuiltinAssetFields.
-const BUILTIN_ASSET_FIELDS: Record<string, Record<string, string>> = {
-  Sprite: { texture: 'texture', material: 'material' },
-  SpineAnimation: { material: 'material' },
-  BitmapText: { font: 'font' },
-  UIVisual: { texture: 'texture', material: 'material' },
-  SpriteAnimator: { clip: 'anim-clip' },
-  AudioSource: { clip: 'audio' },
-  ParticleEmitter: { texture: 'texture', material: 'material' },
-  Tilemap: { source: 'tilemap' },
-  TilemapLayer: { tileset: 'texture' },
-  TimelinePlayer: { timeline: 'timeline' },
-};
+// Single source of truth: engine components carry their asset-field descriptors on
+// the component def (codegen for C++ components, defineComponent for plugin ones) —
+// the SAME descriptors the runtime scene loader resolves, so the inspector and the
+// runtime never diverge. User/script components (absent from the engine registry)
+// declare theirs in schemas.json. The inspector renders these as an asset control,
+// not a raw `@uuid:` string.
 
 /** The asset kind a component field holds (texture/material/font/...), or null. */
 export function assetFieldType(compType: string, key: string): string | null {
-  const builtin = BUILTIN_ASSET_FIELDS[compType]?.[key];
-  if (builtin) return builtin;
+  for (const d of getComponentAssetFieldDescriptors(compType)) if (d.field === key) return d.type;
   for (const f of userSchema(compType)?.assetFields ?? []) if (f.field === key) return f.type;
   return null;
 }
