@@ -16,16 +16,19 @@ import { SpinePlugin, WebSpineWasmProvider } from './spine';
 import type { SpineWasmProvider } from './spine';
 
 export { uiPlugins };
+// REARCH_GUI F6: the single composed UI pipeline; the concept plugins below are
+// re-exported for granular/advanced wiring.
+export { uiPlugin, UIPlugin } from './ui/ui-plugin';
 export { textPlugin, TextPlugin } from './ui/text/plugin';
-export { uiMaskPlugin, UIMaskPlugin } from './ui/UIMaskPlugin';
-export { uiInteractionPlugin, UIInteractionPlugin } from './ui/UIInteractionPlugin';
-export { uiLayoutPlugin, UILayoutPlugin } from './ui/UILayoutPlugin';
-export { uiRenderOrderPlugin, UIRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
+export { uiMaskPlugin, UIMaskPlugin } from './ui/render/mask';
+export { uiInteractionPlugin, UIInteractionPlugin } from './ui/input/interaction';
+export { uiLayoutPlugin, UILayoutPlugin } from './ui/layout/layout';
+export { uiRenderOrderPlugin, UIRenderOrderPlugin } from './ui/render/render-order';
 export { textInputPlugin, TextInputPlugin } from './ui/TextInputPlugin';
 
-export { dragPlugin, DragPlugin } from './ui/DragPlugin';
-export { focusPlugin, FocusPlugin } from './ui/FocusPlugin';
-export { safeAreaPlugin, SafeAreaPlugin } from './ui/SafeAreaPlugin';
+export { dragPlugin, DragPlugin } from './ui/input/drag';
+export { focusPlugin, FocusPlugin } from './ui/input/focus';
+export { safeAreaPlugin, SafeAreaPlugin } from './ui/layout/safe-area';
 
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';
 export { AnimationPlugin, animationPlugin } from './animation';

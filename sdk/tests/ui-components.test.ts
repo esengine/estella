@@ -18,8 +18,8 @@ import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from '../src
 import { Interactable } from '../src/ui/behavior/interactable';
 import { UIInteraction } from '../src/ui/behavior/interactable';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
-import { uiLayoutPlugin } from '../src/ui/UILayoutPlugin';
-import { uiRenderOrderPlugin } from '../src/ui/UIRenderOrderPlugin';
+import { uiLayoutPlugin } from '../src/ui/layout/layout';
+import { uiRenderOrderPlugin } from '../src/ui/render/render-order';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 

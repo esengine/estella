@@ -1,24 +1,9 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { textPlugin } from './ui/text/plugin';
-import { uiMaskPlugin } from './ui/UIMaskPlugin';
-import { uiInteractionPlugin } from './ui/UIInteractionPlugin';
-import { uiBehaviorPlugin } from './ui/plugin';
-import { uiLayoutPlugin } from './ui/UILayoutPlugin';
-import { textInputPlugin } from './ui/TextInputPlugin';
-import { dragPlugin } from './ui/DragPlugin';
-import { focusPlugin } from './ui/FocusPlugin';
-import { safeAreaPlugin } from './ui/SafeAreaPlugin';
-import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
+import { uiPlugin } from './ui/ui-plugin';
 import type { Plugin } from './app';
 
-// `textPlugin` now renders the Text component via the dynamic SDF glyph atlas
-// (REARCH_GUI P1.4d); the legacy Canvas2D-per-entity path is retired. The
-// Image→UIRenderer copy plugin is gone too — UIVisual is drawn directly (F4).
-export const uiPlugins: Plugin[] = [
-    textPlugin, uiMaskPlugin, uiLayoutPlugin,
-    uiInteractionPlugin, uiBehaviorPlugin, dragPlugin,
-    textInputPlugin,
-    focusPlugin, safeAreaPlugin,
-    uiRenderOrderPlugin,
-];
+// REARCH_GUI F6: the ten hand-ordered UI concept plugins are now composed into
+// one declarative `uiPlugin`. The concept plugins remain individually exported
+// (from their modules) for granular wiring.
+export const uiPlugins: Plugin[] = [uiPlugin];

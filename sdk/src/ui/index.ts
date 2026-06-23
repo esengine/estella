@@ -253,9 +253,13 @@ export {
     type ScreenRect,
 } from './uiMath';
 
-// ─── Legacy plugins / resources still in ui/ ────────────────────────────────
+// ─── Plugins (composed UI pipeline + the concept plugins it builds) ─────────
 
-export { UIMaskPlugin, uiMaskPlugin } from './UIMaskPlugin';
+// REARCH_GUI F6: `uiPlugin` is the single declarative UI pipeline. The concept
+// plugins below remain exported for granular/advanced wiring.
+export { UIPlugin, uiPlugin } from './ui-plugin';
+
+export { UIMaskPlugin, uiMaskPlugin } from './render/mask';
 
 export {
     UICameraInfo,
@@ -267,9 +271,9 @@ export {
     type UILayoutGenerationData,
 } from './UILayoutGeneration';
 
-export { UILayoutPlugin, uiLayoutPlugin } from './UILayoutPlugin';
+export { UILayoutPlugin, uiLayoutPlugin } from './layout/layout';
 
-export { UIInteractionPlugin, uiInteractionPlugin } from './UIInteractionPlugin';
+export { UIInteractionPlugin, uiInteractionPlugin } from './input/interaction';
 
 export {
     TextInput,
@@ -278,18 +282,18 @@ export {
 
 export { TextInputPlugin, textInputPlugin } from './TextInputPlugin';
 
-export { DragPlugin, dragPlugin } from './DragPlugin';
+export { DragPlugin, dragPlugin } from './input/drag';
 
-export { FocusPlugin, focusPlugin } from './FocusPlugin';
+export { FocusPlugin, focusPlugin } from './input/focus';
 
 export {
     SafeArea,
     type SafeAreaData,
 } from './SafeArea';
 
-export { SafeAreaPlugin, safeAreaPlugin } from './SafeAreaPlugin';
+export { SafeAreaPlugin, safeAreaPlugin } from './layout/safe-area';
 
-export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './UIRenderOrderPlugin';
+export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './render/render-order';
 
 // Property Path Utilities
 export {
