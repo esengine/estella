@@ -27,6 +27,13 @@ export interface ComponentMetadata {
     spineFields?: SpineFieldMeta;
     entityFields?: string[];
     discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
+    /**
+     * Runtime-only state that must never persist: a transient component is
+     * skipped by {@link serializeScene} (e.g. per-frame pointer/drag/hover state
+     * that its driving system rebuilds each frame, REARCH_GUI F2). Systems still
+     * read/write it normally; only scene save omits it.
+     */
+    transient?: boolean;
 }
 
 // =============================================================================
@@ -44,6 +51,8 @@ export interface ComponentDef<T> {
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
+    /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
+    readonly transient: boolean;
     create(data?: Partial<T>): T;
 }
 
@@ -100,6 +109,7 @@ function createComponentDef<T extends object>(
         colorKeys: detectColorKeys(defaults),
         animatableFields: [],
         discoverAssets: metadata?.discoverAssets,
+        transient: metadata?.transient ?? false,
         create(data?: Partial<T>): T {
             if (keyInfo) {
                 const result = { ...defaultsRec };
@@ -203,6 +213,8 @@ export interface BuiltinComponentDef<T> {
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
+    /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
+    readonly transient: boolean;
 }
 
 // =============================================================================
@@ -281,6 +293,10 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         colorKeys: meta?.colorFields ?? detectColorKeys(defaults),
         animatableFields: meta?.animatableFields ?? [],
         discoverAssets: metadata?.discoverAssets,
+        // Builtins declare transience via the defineBuiltin metadata arg for now;
+        // a C++-side ES_COMPONENT(transient) annotation can flow through
+        // COMPONENT_META later (REARCH_GUI F6) without touching call sites.
+        transient: metadata?.transient ?? false,
     };
     builtinRegistry.set(name, def);
     return def;

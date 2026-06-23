@@ -66,6 +66,7 @@ export {
 
 // ─── Layer 1: Primitives ────────────────────────────────────────────────────
 
+export { DimensionUnit, type Dimension, px, percent, auto, isAuto } from './core/dimension';
 export { UIRect, type UIRectData } from './core/ui-rect';
 
 export {

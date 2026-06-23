@@ -614,6 +614,9 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
             if (STRUCTURAL_COMPONENTS.has(typeName)) continue;
             const comp = getComponent(typeName);
             if (!comp) continue;
+            // Runtime-only components (per-frame pointer/drag/hover state) never
+            // persist — their systems rebuild them each frame. See ComponentMetadata.transient.
+            if (comp.transient) continue;
             const data = world.tryGet(entity, comp);
             if (data === null) continue;
             const payload = data as Record<string, unknown>;
