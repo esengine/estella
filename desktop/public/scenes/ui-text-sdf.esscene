@@ -19,16 +19,19 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -220, "y": 0, "z": 0 } } },
+        { "type": "Transform", "data": { "position": { "x": -150, "y": 45, "z": 0 } } },
         {
           "type": "UIText",
           "data": {
-            "content": "Ag Hi 文字",
+            "content": "Ag Hi 文字\n<b>SDF</b> <color=#ff5050>rich</color>",
             "fontFamily": "sans-serif",
-            "fontSizePx": 72,
+            "fontSizePx": 64,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
             "style": 0,
-            "layer": 0
+            "layer": 0,
+            "richText": true,
+            "align": 1,
+            "lineHeight": 0
           }
         }
       ],
