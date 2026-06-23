@@ -57,6 +57,62 @@ export function createBitmapTextData(): BitmapTextPtrData {
     };
 }
 
+export interface BoxColliderPtrData {
+    halfExtents: Vec2;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export function fillBoxCollider(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: BoxColliderPtrData,
+): void {
+    const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1];
+    const offset_ = out.offset; offset_.x = f32[(ptr + 8) >> 2]; offset_.y = f32[((ptr + 8) >> 2) + 1];
+    out.density = f32[(ptr + 16) >> 2];
+    out.friction = f32[(ptr + 20) >> 2];
+    out.restitution = f32[(ptr + 24) >> 2];
+    out.isSensor = u8[ptr + 28] !== 0;
+    out.enabled = u8[ptr + 29] !== 0;
+    out.categoryBits = u32[(ptr + 32) >> 2];
+    out.maskBits = u32[(ptr + 36) >> 2];
+}
+
+export function writeBoxCollider(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: BoxColliderPtrData,
+): void {
+    f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y;
+    f32[(ptr + 8) >> 2] = data.offset.x; f32[((ptr + 8) >> 2) + 1] = data.offset.y;
+    f32[(ptr + 16) >> 2] = data.density;
+    f32[(ptr + 20) >> 2] = data.friction;
+    f32[(ptr + 24) >> 2] = data.restitution;
+    u8[ptr + 28] = data.isSensor ? 1 : 0;
+    u8[ptr + 29] = data.enabled ? 1 : 0;
+    u32[(ptr + 32) >> 2] = data.categoryBits;
+    u32[(ptr + 36) >> 2] = data.maskBits;
+}
+
+export function createBoxColliderData(): BoxColliderPtrData {
+    return {
+        halfExtents: { x: 0, y: 0 },
+        offset: { x: 0, y: 0 },
+        density: 0,
+        friction: 0,
+        restitution: 0,
+        isSensor: false,
+        enabled: false,
+        categoryBits: 0,
+        maskBits: 0,
+    };
+}
+
 export interface CameraPtrData {
     projectionType: number;
     fov: number;
@@ -157,118 +213,6 @@ export function createCanvasData(): CanvasPtrData {
     };
 }
 
-export interface BoxColliderPtrData {
-    halfExtents: Vec2;
-    offset: Vec2;
-    density: number;
-    friction: number;
-    restitution: number;
-    isSensor: boolean;
-    enabled: boolean;
-    categoryBits: number;
-    maskBits: number;
-}
-
-export function fillBoxCollider(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: BoxColliderPtrData,
-): void {
-    const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1];
-    const offset_ = out.offset; offset_.x = f32[(ptr + 8) >> 2]; offset_.y = f32[((ptr + 8) >> 2) + 1];
-    out.density = f32[(ptr + 16) >> 2];
-    out.friction = f32[(ptr + 20) >> 2];
-    out.restitution = f32[(ptr + 24) >> 2];
-    out.isSensor = u8[ptr + 28] !== 0;
-    out.enabled = u8[ptr + 29] !== 0;
-    out.categoryBits = u32[(ptr + 32) >> 2];
-    out.maskBits = u32[(ptr + 36) >> 2];
-}
-
-export function writeBoxCollider(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: BoxColliderPtrData,
-): void {
-    f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y;
-    f32[(ptr + 8) >> 2] = data.offset.x; f32[((ptr + 8) >> 2) + 1] = data.offset.y;
-    f32[(ptr + 16) >> 2] = data.density;
-    f32[(ptr + 20) >> 2] = data.friction;
-    f32[(ptr + 24) >> 2] = data.restitution;
-    u8[ptr + 28] = data.isSensor ? 1 : 0;
-    u8[ptr + 29] = data.enabled ? 1 : 0;
-    u32[(ptr + 32) >> 2] = data.categoryBits;
-    u32[(ptr + 36) >> 2] = data.maskBits;
-}
-
-export function createBoxColliderData(): BoxColliderPtrData {
-    return {
-        halfExtents: { x: 0, y: 0 },
-        offset: { x: 0, y: 0 },
-        density: 0,
-        friction: 0,
-        restitution: 0,
-        isSensor: false,
-        enabled: false,
-        categoryBits: 0,
-        maskBits: 0,
-    };
-}
-
-export interface CircleColliderPtrData {
-    radius: number;
-    offset: Vec2;
-    density: number;
-    friction: number;
-    restitution: number;
-    isSensor: boolean;
-    enabled: boolean;
-    categoryBits: number;
-    maskBits: number;
-}
-
-export function fillCircleCollider(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: CircleColliderPtrData,
-): void {
-    out.radius = f32[ptr >> 2];
-    const offset_ = out.offset; offset_.x = f32[(ptr + 4) >> 2]; offset_.y = f32[((ptr + 4) >> 2) + 1];
-    out.density = f32[(ptr + 12) >> 2];
-    out.friction = f32[(ptr + 16) >> 2];
-    out.restitution = f32[(ptr + 20) >> 2];
-    out.isSensor = u8[ptr + 24] !== 0;
-    out.enabled = u8[ptr + 25] !== 0;
-    out.categoryBits = u32[(ptr + 28) >> 2];
-    out.maskBits = u32[(ptr + 32) >> 2];
-}
-
-export function writeCircleCollider(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: CircleColliderPtrData,
-): void {
-    f32[ptr >> 2] = data.radius;
-    f32[(ptr + 4) >> 2] = data.offset.x; f32[((ptr + 4) >> 2) + 1] = data.offset.y;
-    f32[(ptr + 12) >> 2] = data.density;
-    f32[(ptr + 16) >> 2] = data.friction;
-    f32[(ptr + 20) >> 2] = data.restitution;
-    u8[ptr + 24] = data.isSensor ? 1 : 0;
-    u8[ptr + 25] = data.enabled ? 1 : 0;
-    u32[(ptr + 28) >> 2] = data.categoryBits;
-    u32[(ptr + 32) >> 2] = data.maskBits;
-}
-
-export function createCircleColliderData(): CircleColliderPtrData {
-    return {
-        radius: 0,
-        offset: { x: 0, y: 0 },
-        density: 0,
-        friction: 0,
-        restitution: 0,
-        isSensor: false,
-        enabled: false,
-        categoryBits: 0,
-        maskBits: 0,
-    };
-}
-
 export interface CapsuleColliderPtrData {
     radius: number;
     halfHeight: number;
@@ -329,9 +273,9 @@ export function createCapsuleColliderData(): CapsuleColliderPtrData {
     };
 }
 
-export interface SegmentColliderPtrData {
-    point1: Vec2;
-    point2: Vec2;
+export interface CircleColliderPtrData {
+    radius: number;
+    offset: Vec2;
     density: number;
     friction: number;
     restitution: number;
@@ -341,40 +285,40 @@ export interface SegmentColliderPtrData {
     maskBits: number;
 }
 
-export function fillSegmentCollider(
+export function fillCircleCollider(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: SegmentColliderPtrData,
+    ptr: number, out: CircleColliderPtrData,
 ): void {
-    const point1_ = out.point1; point1_.x = f32[ptr >> 2]; point1_.y = f32[(ptr >> 2) + 1];
-    const point2_ = out.point2; point2_.x = f32[(ptr + 8) >> 2]; point2_.y = f32[((ptr + 8) >> 2) + 1];
-    out.density = f32[(ptr + 16) >> 2];
-    out.friction = f32[(ptr + 20) >> 2];
-    out.restitution = f32[(ptr + 24) >> 2];
-    out.isSensor = u8[ptr + 28] !== 0;
-    out.enabled = u8[ptr + 29] !== 0;
-    out.categoryBits = u32[(ptr + 32) >> 2];
-    out.maskBits = u32[(ptr + 36) >> 2];
+    out.radius = f32[ptr >> 2];
+    const offset_ = out.offset; offset_.x = f32[(ptr + 4) >> 2]; offset_.y = f32[((ptr + 4) >> 2) + 1];
+    out.density = f32[(ptr + 12) >> 2];
+    out.friction = f32[(ptr + 16) >> 2];
+    out.restitution = f32[(ptr + 20) >> 2];
+    out.isSensor = u8[ptr + 24] !== 0;
+    out.enabled = u8[ptr + 25] !== 0;
+    out.categoryBits = u32[(ptr + 28) >> 2];
+    out.maskBits = u32[(ptr + 32) >> 2];
 }
 
-export function writeSegmentCollider(
+export function writeCircleCollider(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: SegmentColliderPtrData,
+    ptr: number, data: CircleColliderPtrData,
 ): void {
-    f32[ptr >> 2] = data.point1.x; f32[(ptr >> 2) + 1] = data.point1.y;
-    f32[(ptr + 8) >> 2] = data.point2.x; f32[((ptr + 8) >> 2) + 1] = data.point2.y;
-    f32[(ptr + 16) >> 2] = data.density;
-    f32[(ptr + 20) >> 2] = data.friction;
-    f32[(ptr + 24) >> 2] = data.restitution;
-    u8[ptr + 28] = data.isSensor ? 1 : 0;
-    u8[ptr + 29] = data.enabled ? 1 : 0;
-    u32[(ptr + 32) >> 2] = data.categoryBits;
-    u32[(ptr + 36) >> 2] = data.maskBits;
+    f32[ptr >> 2] = data.radius;
+    f32[(ptr + 4) >> 2] = data.offset.x; f32[((ptr + 4) >> 2) + 1] = data.offset.y;
+    f32[(ptr + 12) >> 2] = data.density;
+    f32[(ptr + 16) >> 2] = data.friction;
+    f32[(ptr + 20) >> 2] = data.restitution;
+    u8[ptr + 24] = data.isSensor ? 1 : 0;
+    u8[ptr + 25] = data.enabled ? 1 : 0;
+    u32[(ptr + 28) >> 2] = data.categoryBits;
+    u32[(ptr + 32) >> 2] = data.maskBits;
 }
 
-export function createSegmentColliderData(): SegmentColliderPtrData {
+export function createCircleColliderData(): CircleColliderPtrData {
     return {
-        point1: { x: 0, y: 0 },
-        point2: { x: 0, y: 0 },
+        radius: 0,
+        offset: { x: 0, y: 0 },
         density: 0,
         friction: 0,
         restitution: 0,
@@ -790,6 +734,62 @@ export function createRigidBodyData(): RigidBodyPtrData {
         fixedRotation: false,
         bullet: false,
         enabled: false,
+    };
+}
+
+export interface SegmentColliderPtrData {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export function fillSegmentCollider(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: SegmentColliderPtrData,
+): void {
+    const point1_ = out.point1; point1_.x = f32[ptr >> 2]; point1_.y = f32[(ptr >> 2) + 1];
+    const point2_ = out.point2; point2_.x = f32[(ptr + 8) >> 2]; point2_.y = f32[((ptr + 8) >> 2) + 1];
+    out.density = f32[(ptr + 16) >> 2];
+    out.friction = f32[(ptr + 20) >> 2];
+    out.restitution = f32[(ptr + 24) >> 2];
+    out.isSensor = u8[ptr + 28] !== 0;
+    out.enabled = u8[ptr + 29] !== 0;
+    out.categoryBits = u32[(ptr + 32) >> 2];
+    out.maskBits = u32[(ptr + 36) >> 2];
+}
+
+export function writeSegmentCollider(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: SegmentColliderPtrData,
+): void {
+    f32[ptr >> 2] = data.point1.x; f32[(ptr >> 2) + 1] = data.point1.y;
+    f32[(ptr + 8) >> 2] = data.point2.x; f32[((ptr + 8) >> 2) + 1] = data.point2.y;
+    f32[(ptr + 16) >> 2] = data.density;
+    f32[(ptr + 20) >> 2] = data.friction;
+    f32[(ptr + 24) >> 2] = data.restitution;
+    u8[ptr + 28] = data.isSensor ? 1 : 0;
+    u8[ptr + 29] = data.enabled ? 1 : 0;
+    u32[(ptr + 32) >> 2] = data.categoryBits;
+    u32[(ptr + 36) >> 2] = data.maskBits;
+}
+
+export function createSegmentColliderData(): SegmentColliderPtrData {
+    return {
+        point1: { x: 0, y: 0 },
+        point2: { x: 0, y: 0 },
+        density: 0,
+        friction: 0,
+        restitution: 0,
+        isSensor: false,
+        enabled: false,
+        categoryBits: 0,
+        maskBits: 0,
     };
 }
 
@@ -1269,18 +1269,18 @@ export interface PtrAccessor<T> {
 
 export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     BitmapText: { fill: fillBitmapText, write: writeBitmapText, create: createBitmapTextData },
+    BoxCollider: { fill: fillBoxCollider, write: writeBoxCollider, create: createBoxColliderData },
     Camera: { fill: fillCamera, write: writeCamera, create: createCameraData },
     Canvas: { fill: fillCanvas, write: writeCanvas, create: createCanvasData },
-    BoxCollider: { fill: fillBoxCollider, write: writeBoxCollider, create: createBoxColliderData },
-    CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
-    SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
+    CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     FlexItem: { fill: fillFlexItem, write: writeFlexItem, create: createFlexItemData },
     GridLayout: { fill: fillGridLayout, write: writeGridLayout, create: createGridLayoutData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
+    SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
     ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },

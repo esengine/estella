@@ -54,20 +54,20 @@ inline glm::quat eulerDegToQuat(const glm::vec3& deg) {
 std::vector<std::string> editor_getComponentNames() {
     return {
         "BitmapText",
+        "BoxCollider",
         "Camera",
         "Canvas",
-        "BoxCollider",
-        "CircleCollider",
         "CapsuleCollider",
-        "SegmentCollider",
+        "Children",
+        "CircleCollider",
         "FlexContainer",
         "FlexItem",
         "GridLayout",
-        "Parent",
-        "Children",
         "Interactable",
+        "Parent",
         "ParticleEmitter",
         "RigidBody",
+        "SegmentCollider",
         "ShapeRenderer",
         "SpineAnimation",
         "Sprite",
@@ -100,6 +100,20 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"font","type":"asset","group":"BitmapText"},
   {"key":"enabled","type":"bool","group":"BitmapText"}
         ])JSON";
+    } else if (name == "BoxCollider") {
+        return R"JSON([
+  {"key":"halfExtents.x","type":"float","group":"BoxCollider"},
+  {"key":"halfExtents.y","type":"float","group":"BoxCollider"},
+  {"key":"offset.x","type":"float","group":"BoxCollider"},
+  {"key":"offset.y","type":"float","group":"BoxCollider"},
+  {"key":"density","type":"float","group":"BoxCollider"},
+  {"key":"friction","type":"float","group":"BoxCollider"},
+  {"key":"restitution","type":"float","group":"BoxCollider"},
+  {"key":"isSensor","type":"bool","group":"BoxCollider"},
+  {"key":"enabled","type":"bool","group":"BoxCollider"},
+  {"key":"categoryBits","type":"int","group":"BoxCollider"},
+  {"key":"maskBits","type":"int","group":"BoxCollider"}
+        ])JSON";
     } else if (name == "Camera") {
         return R"JSON([
   {"key":"projectionType","type":"enum","group":"Camera","values":["Perspective","Orthographic"]},
@@ -128,33 +142,6 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"backgroundColor.b","type":"color","group":"Canvas"},
   {"key":"backgroundColor.a","type":"color","group":"Canvas"}
         ])JSON";
-    } else if (name == "BoxCollider") {
-        return R"JSON([
-  {"key":"halfExtents.x","type":"float","group":"BoxCollider"},
-  {"key":"halfExtents.y","type":"float","group":"BoxCollider"},
-  {"key":"offset.x","type":"float","group":"BoxCollider"},
-  {"key":"offset.y","type":"float","group":"BoxCollider"},
-  {"key":"density","type":"float","group":"BoxCollider"},
-  {"key":"friction","type":"float","group":"BoxCollider"},
-  {"key":"restitution","type":"float","group":"BoxCollider"},
-  {"key":"isSensor","type":"bool","group":"BoxCollider"},
-  {"key":"enabled","type":"bool","group":"BoxCollider"},
-  {"key":"categoryBits","type":"int","group":"BoxCollider"},
-  {"key":"maskBits","type":"int","group":"BoxCollider"}
-        ])JSON";
-    } else if (name == "CircleCollider") {
-        return R"JSON([
-  {"key":"radius","type":"float","group":"CircleCollider"},
-  {"key":"offset.x","type":"float","group":"CircleCollider"},
-  {"key":"offset.y","type":"float","group":"CircleCollider"},
-  {"key":"density","type":"float","group":"CircleCollider"},
-  {"key":"friction","type":"float","group":"CircleCollider"},
-  {"key":"restitution","type":"float","group":"CircleCollider"},
-  {"key":"isSensor","type":"bool","group":"CircleCollider"},
-  {"key":"enabled","type":"bool","group":"CircleCollider"},
-  {"key":"categoryBits","type":"int","group":"CircleCollider"},
-  {"key":"maskBits","type":"int","group":"CircleCollider"}
-        ])JSON";
     } else if (name == "CapsuleCollider") {
         return R"JSON([
   {"key":"radius","type":"float","group":"CapsuleCollider"},
@@ -169,19 +156,22 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"categoryBits","type":"int","group":"CapsuleCollider"},
   {"key":"maskBits","type":"int","group":"CapsuleCollider"}
         ])JSON";
-    } else if (name == "SegmentCollider") {
+    } else if (name == "Children") {
         return R"JSON([
-  {"key":"point1.x","type":"float","group":"SegmentCollider"},
-  {"key":"point1.y","type":"float","group":"SegmentCollider"},
-  {"key":"point2.x","type":"float","group":"SegmentCollider"},
-  {"key":"point2.y","type":"float","group":"SegmentCollider"},
-  {"key":"density","type":"float","group":"SegmentCollider"},
-  {"key":"friction","type":"float","group":"SegmentCollider"},
-  {"key":"restitution","type":"float","group":"SegmentCollider"},
-  {"key":"isSensor","type":"bool","group":"SegmentCollider"},
-  {"key":"enabled","type":"bool","group":"SegmentCollider"},
-  {"key":"categoryBits","type":"int","group":"SegmentCollider"},
-  {"key":"maskBits","type":"int","group":"SegmentCollider"}
+  {"key":"entities","type":"entity","group":"Children"}
+        ])JSON";
+    } else if (name == "CircleCollider") {
+        return R"JSON([
+  {"key":"radius","type":"float","group":"CircleCollider"},
+  {"key":"offset.x","type":"float","group":"CircleCollider"},
+  {"key":"offset.y","type":"float","group":"CircleCollider"},
+  {"key":"density","type":"float","group":"CircleCollider"},
+  {"key":"friction","type":"float","group":"CircleCollider"},
+  {"key":"restitution","type":"float","group":"CircleCollider"},
+  {"key":"isSensor","type":"bool","group":"CircleCollider"},
+  {"key":"enabled","type":"bool","group":"CircleCollider"},
+  {"key":"categoryBits","type":"int","group":"CircleCollider"},
+  {"key":"maskBits","type":"int","group":"CircleCollider"}
         ])JSON";
     } else if (name == "FlexContainer") {
         return R"JSON([
@@ -224,19 +214,15 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"spacing.x","type":"float","group":"GridLayout"},
   {"key":"spacing.y","type":"float","group":"GridLayout"}
         ])JSON";
-    } else if (name == "Parent") {
-        return R"JSON([
-  {"key":"entity","type":"entity","group":"Parent"}
-        ])JSON";
-    } else if (name == "Children") {
-        return R"JSON([
-  {"key":"entities","type":"entity","group":"Children"}
-        ])JSON";
     } else if (name == "Interactable") {
         return R"JSON([
   {"key":"enabled","type":"bool","group":"Interactable"},
   {"key":"blockRaycast","type":"bool","group":"Interactable"},
   {"key":"raycastTarget","type":"bool","group":"Interactable"}
+        ])JSON";
+    } else if (name == "Parent") {
+        return R"JSON([
+  {"key":"entity","type":"entity","group":"Parent"}
         ])JSON";
     } else if (name == "ParticleEmitter") {
         return R"JSON([
@@ -299,6 +285,20 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"fixedRotation","type":"bool","group":"RigidBody"},
   {"key":"bullet","type":"bool","group":"RigidBody"},
   {"key":"enabled","type":"bool","group":"RigidBody"}
+        ])JSON";
+    } else if (name == "SegmentCollider") {
+        return R"JSON([
+  {"key":"point1.x","type":"float","group":"SegmentCollider"},
+  {"key":"point1.y","type":"float","group":"SegmentCollider"},
+  {"key":"point2.x","type":"float","group":"SegmentCollider"},
+  {"key":"point2.y","type":"float","group":"SegmentCollider"},
+  {"key":"density","type":"float","group":"SegmentCollider"},
+  {"key":"friction","type":"float","group":"SegmentCollider"},
+  {"key":"restitution","type":"float","group":"SegmentCollider"},
+  {"key":"isSensor","type":"bool","group":"SegmentCollider"},
+  {"key":"enabled","type":"bool","group":"SegmentCollider"},
+  {"key":"categoryBits","type":"int","group":"SegmentCollider"},
+  {"key":"maskBits","type":"int","group":"SegmentCollider"}
         ])JSON";
     } else if (name == "ShapeRenderer") {
         return R"JSON([
@@ -523,23 +523,23 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     if (name == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) reg.emplace<esengine::ecs::BitmapText>(entity);
         return true;
+    } else if (name == "BoxCollider") {
+        if (!reg.has<esengine::ecs::BoxCollider>(entity)) reg.emplace<esengine::ecs::BoxCollider>(entity);
+        return true;
     } else if (name == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) reg.emplace<esengine::ecs::Camera>(entity);
         return true;
     } else if (name == "Canvas") {
         if (!reg.has<esengine::ecs::Canvas>(entity)) reg.emplace<esengine::ecs::Canvas>(entity);
         return true;
-    } else if (name == "BoxCollider") {
-        if (!reg.has<esengine::ecs::BoxCollider>(entity)) reg.emplace<esengine::ecs::BoxCollider>(entity);
-        return true;
-    } else if (name == "CircleCollider") {
-        if (!reg.has<esengine::ecs::CircleCollider>(entity)) reg.emplace<esengine::ecs::CircleCollider>(entity);
-        return true;
     } else if (name == "CapsuleCollider") {
         if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) reg.emplace<esengine::ecs::CapsuleCollider>(entity);
         return true;
-    } else if (name == "SegmentCollider") {
-        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) reg.emplace<esengine::ecs::SegmentCollider>(entity);
+    } else if (name == "Children") {
+        if (!reg.has<esengine::ecs::Children>(entity)) reg.emplace<esengine::ecs::Children>(entity);
+        return true;
+    } else if (name == "CircleCollider") {
+        if (!reg.has<esengine::ecs::CircleCollider>(entity)) reg.emplace<esengine::ecs::CircleCollider>(entity);
         return true;
     } else if (name == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) reg.emplace<esengine::ecs::FlexContainer>(entity);
@@ -550,20 +550,20 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "GridLayout") {
         if (!reg.has<esengine::ecs::GridLayout>(entity)) reg.emplace<esengine::ecs::GridLayout>(entity);
         return true;
-    } else if (name == "Parent") {
-        if (!reg.has<esengine::ecs::Parent>(entity)) reg.emplace<esengine::ecs::Parent>(entity);
-        return true;
-    } else if (name == "Children") {
-        if (!reg.has<esengine::ecs::Children>(entity)) reg.emplace<esengine::ecs::Children>(entity);
-        return true;
     } else if (name == "Interactable") {
         if (!reg.has<esengine::ecs::Interactable>(entity)) reg.emplace<esengine::ecs::Interactable>(entity);
+        return true;
+    } else if (name == "Parent") {
+        if (!reg.has<esengine::ecs::Parent>(entity)) reg.emplace<esengine::ecs::Parent>(entity);
         return true;
     } else if (name == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) reg.emplace<esengine::ecs::ParticleEmitter>(entity);
         return true;
     } else if (name == "RigidBody") {
         if (!reg.has<esengine::ecs::RigidBody>(entity)) reg.emplace<esengine::ecs::RigidBody>(entity);
+        return true;
+    } else if (name == "SegmentCollider") {
+        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) reg.emplace<esengine::ecs::SegmentCollider>(entity);
         return true;
     } else if (name == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) reg.emplace<esengine::ecs::ShapeRenderer>(entity);
@@ -610,34 +610,34 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
     if (!reg.valid(entity)) return false;
     if (name == "BitmapText") {
         if (reg.has<esengine::ecs::BitmapText>(entity)) { reg.remove<esengine::ecs::BitmapText>(entity); return true; }
+    } else if (name == "BoxCollider") {
+        if (reg.has<esengine::ecs::BoxCollider>(entity)) { reg.remove<esengine::ecs::BoxCollider>(entity); return true; }
     } else if (name == "Camera") {
         if (reg.has<esengine::ecs::Camera>(entity)) { reg.remove<esengine::ecs::Camera>(entity); return true; }
     } else if (name == "Canvas") {
         if (reg.has<esengine::ecs::Canvas>(entity)) { reg.remove<esengine::ecs::Canvas>(entity); return true; }
-    } else if (name == "BoxCollider") {
-        if (reg.has<esengine::ecs::BoxCollider>(entity)) { reg.remove<esengine::ecs::BoxCollider>(entity); return true; }
-    } else if (name == "CircleCollider") {
-        if (reg.has<esengine::ecs::CircleCollider>(entity)) { reg.remove<esengine::ecs::CircleCollider>(entity); return true; }
     } else if (name == "CapsuleCollider") {
         if (reg.has<esengine::ecs::CapsuleCollider>(entity)) { reg.remove<esengine::ecs::CapsuleCollider>(entity); return true; }
-    } else if (name == "SegmentCollider") {
-        if (reg.has<esengine::ecs::SegmentCollider>(entity)) { reg.remove<esengine::ecs::SegmentCollider>(entity); return true; }
+    } else if (name == "Children") {
+        if (reg.has<esengine::ecs::Children>(entity)) { reg.remove<esengine::ecs::Children>(entity); return true; }
+    } else if (name == "CircleCollider") {
+        if (reg.has<esengine::ecs::CircleCollider>(entity)) { reg.remove<esengine::ecs::CircleCollider>(entity); return true; }
     } else if (name == "FlexContainer") {
         if (reg.has<esengine::ecs::FlexContainer>(entity)) { reg.remove<esengine::ecs::FlexContainer>(entity); return true; }
     } else if (name == "FlexItem") {
         if (reg.has<esengine::ecs::FlexItem>(entity)) { reg.remove<esengine::ecs::FlexItem>(entity); return true; }
     } else if (name == "GridLayout") {
         if (reg.has<esengine::ecs::GridLayout>(entity)) { reg.remove<esengine::ecs::GridLayout>(entity); return true; }
-    } else if (name == "Parent") {
-        if (reg.has<esengine::ecs::Parent>(entity)) { reg.remove<esengine::ecs::Parent>(entity); return true; }
-    } else if (name == "Children") {
-        if (reg.has<esengine::ecs::Children>(entity)) { reg.remove<esengine::ecs::Children>(entity); return true; }
     } else if (name == "Interactable") {
         if (reg.has<esengine::ecs::Interactable>(entity)) { reg.remove<esengine::ecs::Interactable>(entity); return true; }
+    } else if (name == "Parent") {
+        if (reg.has<esengine::ecs::Parent>(entity)) { reg.remove<esengine::ecs::Parent>(entity); return true; }
     } else if (name == "ParticleEmitter") {
         if (reg.has<esengine::ecs::ParticleEmitter>(entity)) { reg.remove<esengine::ecs::ParticleEmitter>(entity); return true; }
     } else if (name == "RigidBody") {
         if (reg.has<esengine::ecs::RigidBody>(entity)) { reg.remove<esengine::ecs::RigidBody>(entity); return true; }
+    } else if (name == "SegmentCollider") {
+        if (reg.has<esengine::ecs::SegmentCollider>(entity)) { reg.remove<esengine::ecs::SegmentCollider>(entity); return true; }
     } else if (name == "ShapeRenderer") {
         if (reg.has<esengine::ecs::ShapeRenderer>(entity)) { reg.remove<esengine::ecs::ShapeRenderer>(entity); return true; }
     } else if (name == "SpineAnimation") {
@@ -670,20 +670,20 @@ bool editor_hasComponent(Registry& reg, u32 e, const std::string& name) {
     auto entity = static_cast<Entity>(e);
     if (!reg.valid(entity)) return false;
     if (name == "BitmapText") return reg.has<esengine::ecs::BitmapText>(entity);
+    if (name == "BoxCollider") return reg.has<esengine::ecs::BoxCollider>(entity);
     if (name == "Camera") return reg.has<esengine::ecs::Camera>(entity);
     if (name == "Canvas") return reg.has<esengine::ecs::Canvas>(entity);
-    if (name == "BoxCollider") return reg.has<esengine::ecs::BoxCollider>(entity);
-    if (name == "CircleCollider") return reg.has<esengine::ecs::CircleCollider>(entity);
     if (name == "CapsuleCollider") return reg.has<esengine::ecs::CapsuleCollider>(entity);
-    if (name == "SegmentCollider") return reg.has<esengine::ecs::SegmentCollider>(entity);
+    if (name == "Children") return reg.has<esengine::ecs::Children>(entity);
+    if (name == "CircleCollider") return reg.has<esengine::ecs::CircleCollider>(entity);
     if (name == "FlexContainer") return reg.has<esengine::ecs::FlexContainer>(entity);
     if (name == "FlexItem") return reg.has<esengine::ecs::FlexItem>(entity);
     if (name == "GridLayout") return reg.has<esengine::ecs::GridLayout>(entity);
-    if (name == "Parent") return reg.has<esengine::ecs::Parent>(entity);
-    if (name == "Children") return reg.has<esengine::ecs::Children>(entity);
     if (name == "Interactable") return reg.has<esengine::ecs::Interactable>(entity);
+    if (name == "Parent") return reg.has<esengine::ecs::Parent>(entity);
     if (name == "ParticleEmitter") return reg.has<esengine::ecs::ParticleEmitter>(entity);
     if (name == "RigidBody") return reg.has<esengine::ecs::RigidBody>(entity);
+    if (name == "SegmentCollider") return reg.has<esengine::ecs::SegmentCollider>(entity);
     if (name == "ShapeRenderer") return reg.has<esengine::ecs::ShapeRenderer>(entity);
     if (name == "SpineAnimation") return reg.has<esengine::ecs::SpineAnimation>(entity);
     if (name == "Sprite") return reg.has<esengine::ecs::Sprite>(entity);
@@ -706,20 +706,20 @@ std::vector<std::string> editor_getComponents(Registry& reg, u32 e) {
     std::vector<std::string> result;
     if (!reg.valid(entity)) return result;
     if (reg.has<esengine::ecs::BitmapText>(entity)) result.push_back("BitmapText");
+    if (reg.has<esengine::ecs::BoxCollider>(entity)) result.push_back("BoxCollider");
     if (reg.has<esengine::ecs::Camera>(entity)) result.push_back("Camera");
     if (reg.has<esengine::ecs::Canvas>(entity)) result.push_back("Canvas");
-    if (reg.has<esengine::ecs::BoxCollider>(entity)) result.push_back("BoxCollider");
-    if (reg.has<esengine::ecs::CircleCollider>(entity)) result.push_back("CircleCollider");
     if (reg.has<esengine::ecs::CapsuleCollider>(entity)) result.push_back("CapsuleCollider");
-    if (reg.has<esengine::ecs::SegmentCollider>(entity)) result.push_back("SegmentCollider");
+    if (reg.has<esengine::ecs::Children>(entity)) result.push_back("Children");
+    if (reg.has<esengine::ecs::CircleCollider>(entity)) result.push_back("CircleCollider");
     if (reg.has<esengine::ecs::FlexContainer>(entity)) result.push_back("FlexContainer");
     if (reg.has<esengine::ecs::FlexItem>(entity)) result.push_back("FlexItem");
     if (reg.has<esengine::ecs::GridLayout>(entity)) result.push_back("GridLayout");
-    if (reg.has<esengine::ecs::Parent>(entity)) result.push_back("Parent");
-    if (reg.has<esengine::ecs::Children>(entity)) result.push_back("Children");
     if (reg.has<esengine::ecs::Interactable>(entity)) result.push_back("Interactable");
+    if (reg.has<esengine::ecs::Parent>(entity)) result.push_back("Parent");
     if (reg.has<esengine::ecs::ParticleEmitter>(entity)) result.push_back("ParticleEmitter");
     if (reg.has<esengine::ecs::RigidBody>(entity)) result.push_back("RigidBody");
+    if (reg.has<esengine::ecs::SegmentCollider>(entity)) result.push_back("SegmentCollider");
     if (reg.has<esengine::ecs::ShapeRenderer>(entity)) result.push_back("ShapeRenderer");
     if (reg.has<esengine::ecs::SpineAnimation>(entity)) result.push_back("SpineAnimation");
     if (reg.has<esengine::ecs::Sprite>(entity)) result.push_back("Sprite");
@@ -751,6 +751,18 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "spacing") { c.spacing = value; }
         else { return false; }
         return true;
+    } else if (comp == "BoxCollider") {
+        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
+        if (field == "halfExtents.x") { c.halfExtents.x = value; }
+        else if (field == "halfExtents.y") { c.halfExtents.y = value; }
+        else if (field == "offset.x") { c.offset.x = value; }
+        else if (field == "offset.y") { c.offset.y = value; }
+        else if (field == "density") { c.density = value; }
+        else if (field == "friction") { c.friction = value; }
+        else if (field == "restitution") { c.restitution = value; }
+        else { return false; }
+        return true;
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return false;
         auto& c = reg.get<esengine::ecs::Camera>(entity);
@@ -776,11 +788,11 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         else if (field == "backgroundColor.a") { c.backgroundColor.a = value; }
         else { return false; }
         return true;
-    } else if (comp == "BoxCollider") {
-        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
-        if (field == "halfExtents.x") { c.halfExtents.x = value; }
-        else if (field == "halfExtents.y") { c.halfExtents.y = value; }
+    } else if (comp == "CapsuleCollider") {
+        if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::CapsuleCollider>(entity);
+        if (field == "radius") { c.radius = value; }
+        else if (field == "halfHeight") { c.halfHeight = value; }
         else if (field == "offset.x") { c.offset.x = value; }
         else if (field == "offset.y") { c.offset.y = value; }
         else if (field == "density") { c.density = value; }
@@ -794,30 +806,6 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         if (field == "radius") { c.radius = value; }
         else if (field == "offset.x") { c.offset.x = value; }
         else if (field == "offset.y") { c.offset.y = value; }
-        else if (field == "density") { c.density = value; }
-        else if (field == "friction") { c.friction = value; }
-        else if (field == "restitution") { c.restitution = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "CapsuleCollider") {
-        if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CapsuleCollider>(entity);
-        if (field == "radius") { c.radius = value; }
-        else if (field == "halfHeight") { c.halfHeight = value; }
-        else if (field == "offset.x") { c.offset.x = value; }
-        else if (field == "offset.y") { c.offset.y = value; }
-        else if (field == "density") { c.density = value; }
-        else if (field == "friction") { c.friction = value; }
-        else if (field == "restitution") { c.restitution = value; }
-        else { return false; }
-        return true;
-    } else if (comp == "SegmentCollider") {
-        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
-        if (field == "point1.x") { c.point1.x = value; }
-        else if (field == "point1.y") { c.point1.y = value; }
-        else if (field == "point2.x") { c.point2.x = value; }
-        else if (field == "point2.y") { c.point2.y = value; }
         else if (field == "density") { c.density = value; }
         else if (field == "friction") { c.friction = value; }
         else if (field == "restitution") { c.restitution = value; }
@@ -905,6 +893,18 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         if (field == "gravityScale") { c.gravityScale = value; }
         else if (field == "linearDamping") { c.linearDamping = value; }
         else if (field == "angularDamping") { c.angularDamping = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "SegmentCollider") {
+        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+        if (field == "point1.x") { c.point1.x = value; }
+        else if (field == "point1.y") { c.point1.y = value; }
+        else if (field == "point2.x") { c.point2.x = value; }
+        else if (field == "point2.y") { c.point2.y = value; }
+        else if (field == "density") { c.density = value; }
+        else if (field == "friction") { c.friction = value; }
+        else if (field == "restitution") { c.restitution = value; }
         else { return false; }
         return true;
     } else if (comp == "ShapeRenderer") {
@@ -1102,6 +1102,16 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "color.a") { return c.color.a; }
         else if (field == "fontSize") { return c.fontSize; }
         else if (field == "spacing") { return c.spacing; }
+    } else if (comp == "BoxCollider") {
+        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
+        if (field == "halfExtents.x") { return c.halfExtents.x; }
+        else if (field == "halfExtents.y") { return c.halfExtents.y; }
+        else if (field == "offset.x") { return c.offset.x; }
+        else if (field == "offset.y") { return c.offset.y; }
+        else if (field == "density") { return c.density; }
+        else if (field == "friction") { return c.friction; }
+        else if (field == "restitution") { return c.restitution; }
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::Camera>(entity);
@@ -1123,11 +1133,11 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "backgroundColor.g") { return c.backgroundColor.g; }
         else if (field == "backgroundColor.b") { return c.backgroundColor.b; }
         else if (field == "backgroundColor.a") { return c.backgroundColor.a; }
-    } else if (comp == "BoxCollider") {
-        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
-        if (field == "halfExtents.x") { return c.halfExtents.x; }
-        else if (field == "halfExtents.y") { return c.halfExtents.y; }
+    } else if (comp == "CapsuleCollider") {
+        if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::CapsuleCollider>(entity);
+        if (field == "radius") { return c.radius; }
+        else if (field == "halfHeight") { return c.halfHeight; }
         else if (field == "offset.x") { return c.offset.x; }
         else if (field == "offset.y") { return c.offset.y; }
         else if (field == "density") { return c.density; }
@@ -1139,26 +1149,6 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "radius") { return c.radius; }
         else if (field == "offset.x") { return c.offset.x; }
         else if (field == "offset.y") { return c.offset.y; }
-        else if (field == "density") { return c.density; }
-        else if (field == "friction") { return c.friction; }
-        else if (field == "restitution") { return c.restitution; }
-    } else if (comp == "CapsuleCollider") {
-        if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::CapsuleCollider>(entity);
-        if (field == "radius") { return c.radius; }
-        else if (field == "halfHeight") { return c.halfHeight; }
-        else if (field == "offset.x") { return c.offset.x; }
-        else if (field == "offset.y") { return c.offset.y; }
-        else if (field == "density") { return c.density; }
-        else if (field == "friction") { return c.friction; }
-        else if (field == "restitution") { return c.restitution; }
-    } else if (comp == "SegmentCollider") {
-        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return 0.0f;
-        const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
-        if (field == "point1.x") { return c.point1.x; }
-        else if (field == "point1.y") { return c.point1.y; }
-        else if (field == "point2.x") { return c.point2.x; }
-        else if (field == "point2.y") { return c.point2.y; }
         else if (field == "density") { return c.density; }
         else if (field == "friction") { return c.friction; }
         else if (field == "restitution") { return c.restitution; }
@@ -1236,6 +1226,16 @@ f32 editor_getFloat(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "gravityScale") { return c.gravityScale; }
         else if (field == "linearDamping") { return c.linearDamping; }
         else if (field == "angularDamping") { return c.angularDamping; }
+    } else if (comp == "SegmentCollider") {
+        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return 0.0f;
+        const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+        if (field == "point1.x") { return c.point1.x; }
+        else if (field == "point1.y") { return c.point1.y; }
+        else if (field == "point2.x") { return c.point2.x; }
+        else if (field == "point2.y") { return c.point2.y; }
+        else if (field == "density") { return c.density; }
+        else if (field == "friction") { return c.friction; }
+        else if (field == "restitution") { return c.restitution; }
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0.0f;
         const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
@@ -1400,6 +1400,13 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else if (field == "font") { c.font = resource::BitmapFontHandle(static_cast<u32>(value)); }
         else { return false; }
         return true;
+    } else if (comp == "BoxCollider") {
+        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
+        if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
+        else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
+        else { return false; }
+        return true;
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return false;
         auto& c = reg.get<esengine::ecs::Camera>(entity);
@@ -1414,20 +1421,6 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (field == "scaleMode") { c.scaleMode = static_cast<CanvasScaleMode>(value); }
         else { return false; }
         return true;
-    } else if (comp == "BoxCollider") {
-        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
-        if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
-        else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
-        else { return false; }
-        return true;
-    } else if (comp == "CircleCollider") {
-        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
-        if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
-        else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
-        else { return false; }
-        return true;
     } else if (comp == "CapsuleCollider") {
         if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) return false;
         auto& c = reg.get<esengine::ecs::CapsuleCollider>(entity);
@@ -1435,9 +1428,9 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
-    } else if (comp == "SegmentCollider") {
-        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+    } else if (comp == "CircleCollider") {
+        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
         if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
@@ -1493,6 +1486,13 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         if (!reg.has<esengine::ecs::RigidBody>(entity)) return false;
         auto& c = reg.get<esengine::ecs::RigidBody>(entity);
         if (field == "bodyType") { c.bodyType = static_cast<BodyType>(value); }
+        else { return false; }
+        return true;
+    } else if (comp == "SegmentCollider") {
+        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+        if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
+        else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "ShapeRenderer") {
@@ -1570,6 +1570,11 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         if (field == "align") { return static_cast<i32>(c.align); }
         else if (field == "layer") { return static_cast<i32>(c.layer); }
         else if (field == "font") { return static_cast<i32>(c.font.id()); }
+    } else if (comp == "BoxCollider") {
+        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
+        if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
+        else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::Camera>(entity);
@@ -1580,24 +1585,14 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         if (!reg.has<esengine::ecs::Canvas>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::Canvas>(entity);
         if (field == "scaleMode") { return static_cast<i32>(c.scaleMode); }
-    } else if (comp == "BoxCollider") {
-        if (!reg.has<esengine::ecs::BoxCollider>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
-        if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
-        else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
-    } else if (comp == "CircleCollider") {
-        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
-        if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
-        else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
     } else if (comp == "CapsuleCollider") {
         if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::CapsuleCollider>(entity);
         if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
         else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
-    } else if (comp == "SegmentCollider") {
-        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return 0;
-        const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+    } else if (comp == "CircleCollider") {
+        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
         if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
         else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
     } else if (comp == "FlexContainer") {
@@ -1641,6 +1636,11 @@ i32 editor_getInt(Registry& reg, u32 e, const std::string& comp, const std::stri
         if (!reg.has<esengine::ecs::RigidBody>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
         if (field == "bodyType") { return static_cast<i32>(c.bodyType); }
+    } else if (comp == "SegmentCollider") {
+        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return 0;
+        const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+        if (field == "categoryBits") { return static_cast<i32>(c.categoryBits); }
+        else if (field == "maskBits") { return static_cast<i32>(c.maskBits); }
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return 0;
         const auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
@@ -1702,12 +1702,6 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "isActive") { c.isActive = value; }
-        else { return false; }
-        return true;
     } else if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
         auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
@@ -1715,11 +1709,10 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
-    } else if (comp == "CircleCollider") {
-        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
-        if (field == "isSensor") { c.isSensor = value; }
-        else if (field == "enabled") { c.enabled = value; }
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "isActive") { c.isActive = value; }
         else { return false; }
         return true;
     } else if (comp == "CapsuleCollider") {
@@ -1729,9 +1722,9 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
-    } else if (comp == "SegmentCollider") {
-        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+    } else if (comp == "CircleCollider") {
+        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
@@ -1758,6 +1751,13 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         auto& c = reg.get<esengine::ecs::RigidBody>(entity);
         if (field == "fixedRotation") { c.fixedRotation = value; }
         else if (field == "bullet") { c.bullet = value; }
+        else if (field == "enabled") { c.enabled = value; }
+        else { return false; }
+        return true;
+    } else if (comp == "SegmentCollider") {
+        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
+        auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+        if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
@@ -1825,28 +1825,23 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::BitmapText>(entity);
         if (field == "enabled") { return c.enabled; }
-    } else if (comp == "Camera") {
-        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::Camera>(entity);
-        if (field == "isActive") { return c.isActive; }
     } else if (comp == "BoxCollider") {
         if (!reg.has<esengine::ecs::BoxCollider>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::BoxCollider>(entity);
         if (field == "isSensor") { return c.isSensor; }
         else if (field == "enabled") { return c.enabled; }
-    } else if (comp == "CircleCollider") {
-        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
-        if (field == "isSensor") { return c.isSensor; }
-        else if (field == "enabled") { return c.enabled; }
+    } else if (comp == "Camera") {
+        if (!reg.has<esengine::ecs::Camera>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::Camera>(entity);
+        if (field == "isActive") { return c.isActive; }
     } else if (comp == "CapsuleCollider") {
         if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) return false;
         const auto& c = reg.get<esengine::ecs::CapsuleCollider>(entity);
         if (field == "isSensor") { return c.isSensor; }
         else if (field == "enabled") { return c.enabled; }
-    } else if (comp == "SegmentCollider") {
-        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
-        const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+    } else if (comp == "CircleCollider") {
+        if (!reg.has<esengine::ecs::CircleCollider>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::CircleCollider>(entity);
         if (field == "isSensor") { return c.isSensor; }
         else if (field == "enabled") { return c.enabled; }
     } else if (comp == "Interactable") {
@@ -1867,6 +1862,11 @@ bool editor_getBool(Registry& reg, u32 e, const std::string& comp, const std::st
         const auto& c = reg.get<esengine::ecs::RigidBody>(entity);
         if (field == "fixedRotation") { return c.fixedRotation; }
         else if (field == "bullet") { return c.bullet; }
+        else if (field == "enabled") { return c.enabled; }
+    } else if (comp == "SegmentCollider") {
+        if (!reg.has<esengine::ecs::SegmentCollider>(entity)) return false;
+        const auto& c = reg.get<esengine::ecs::SegmentCollider>(entity);
+        if (field == "isSensor") { return c.isSensor; }
         else if (field == "enabled") { return c.enabled; }
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;

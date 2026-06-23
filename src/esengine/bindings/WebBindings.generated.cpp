@@ -74,6 +74,10 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
         .field("top", &esengine::Padding::top)
         .field("right", &esengine::Padding::right)
         .field("bottom", &esengine::Padding::bottom);
+
+    value_object<esengine::Dimension>("Dimension")
+        .field("value", &esengine::Dimension::value)
+        .field("unit", &esengine::Dimension::unit);
 }
 
 // =============================================================================
@@ -81,20 +85,31 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
 // =============================================================================
 
 EMSCRIPTEN_BINDINGS(esengine_enums) {
-    enum_<esengine::ecs::TextAlign>("TextAlign")
-        .value("Left", esengine::ecs::TextAlign::Left)
-        .value("Center", esengine::ecs::TextAlign::Center)
-        .value("Right", esengine::ecs::TextAlign::Right);
+    enum_<esengine::ecs::AlignContent>("AlignContent")
+        .value("Start", esengine::ecs::AlignContent::Start)
+        .value("Center", esengine::ecs::AlignContent::Center)
+        .value("End", esengine::ecs::AlignContent::End)
+        .value("Stretch", esengine::ecs::AlignContent::Stretch)
+        .value("SpaceBetween", esengine::ecs::AlignContent::SpaceBetween)
+        .value("SpaceAround", esengine::ecs::AlignContent::SpaceAround);
 
-    enum_<esengine::ecs::ProjectionType>("ProjectionType")
-        .value("Perspective", esengine::ecs::ProjectionType::Perspective)
-        .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
+    enum_<esengine::ecs::AlignItems>("AlignItems")
+        .value("Start", esengine::ecs::AlignItems::Start)
+        .value("Center", esengine::ecs::AlignItems::Center)
+        .value("End", esengine::ecs::AlignItems::End)
+        .value("Stretch", esengine::ecs::AlignItems::Stretch);
 
-    enum_<esengine::ecs::ClearFlags>("ClearFlags")
-        .value("Nothing", esengine::ecs::ClearFlags::Nothing)
-        .value("Color", esengine::ecs::ClearFlags::Color)
-        .value("Depth", esengine::ecs::ClearFlags::Depth)
-        .value("ColorAndDepth", esengine::ecs::ClearFlags::ColorAndDepth);
+    enum_<esengine::ecs::AlignSelf>("AlignSelf")
+        .value("Auto", esengine::ecs::AlignSelf::Auto)
+        .value("Start", esengine::ecs::AlignSelf::Start)
+        .value("Center", esengine::ecs::AlignSelf::Center)
+        .value("End", esengine::ecs::AlignSelf::End)
+        .value("Stretch", esengine::ecs::AlignSelf::Stretch);
+
+    enum_<esengine::ecs::BodyType>("BodyType")
+        .value("Static", esengine::ecs::BodyType::Static)
+        .value("Kinematic", esengine::ecs::BodyType::Kinematic)
+        .value("Dynamic", esengine::ecs::BodyType::Dynamic);
 
     enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
         .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
@@ -102,6 +117,18 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Expand", esengine::ecs::CanvasScaleMode::Expand)
         .value("Shrink", esengine::ecs::CanvasScaleMode::Shrink)
         .value("Match", esengine::ecs::CanvasScaleMode::Match);
+
+    enum_<esengine::ecs::ClearFlags>("ClearFlags")
+        .value("Nothing", esengine::ecs::ClearFlags::Nothing)
+        .value("Color", esengine::ecs::ClearFlags::Color)
+        .value("Depth", esengine::ecs::ClearFlags::Depth)
+        .value("ColorAndDepth", esengine::ecs::ClearFlags::ColorAndDepth);
+
+    enum_<esengine::ecs::EmitterShape>("EmitterShape")
+        .value("Point", esengine::ecs::EmitterShape::Point)
+        .value("Circle", esengine::ecs::EmitterShape::Circle)
+        .value("Rectangle", esengine::ecs::EmitterShape::Rectangle)
+        .value("Cone", esengine::ecs::EmitterShape::Cone);
 
     enum_<esengine::ecs::FlexDirection>("FlexDirection")
         .value("Row", esengine::ecs::FlexDirection::Row)
@@ -113,6 +140,10 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("NoWrap", esengine::ecs::FlexWrap::NoWrap)
         .value("Wrap", esengine::ecs::FlexWrap::Wrap);
 
+    enum_<esengine::ecs::GridDirection>("GridDirection")
+        .value("Vertical", esengine::ecs::GridDirection::Vertical)
+        .value("Horizontal", esengine::ecs::GridDirection::Horizontal);
+
     enum_<esengine::ecs::JustifyContent>("JustifyContent")
         .value("Start", esengine::ecs::JustifyContent::Start)
         .value("Center", esengine::ecs::JustifyContent::Center)
@@ -121,49 +152,22 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("SpaceAround", esengine::ecs::JustifyContent::SpaceAround)
         .value("SpaceEvenly", esengine::ecs::JustifyContent::SpaceEvenly);
 
-    enum_<esengine::ecs::AlignItems>("AlignItems")
-        .value("Start", esengine::ecs::AlignItems::Start)
-        .value("Center", esengine::ecs::AlignItems::Center)
-        .value("End", esengine::ecs::AlignItems::End)
-        .value("Stretch", esengine::ecs::AlignItems::Stretch);
+    enum_<esengine::ecs::MaskMode>("MaskMode")
+        .value("Scissor", esengine::ecs::MaskMode::Scissor)
+        .value("Stencil", esengine::ecs::MaskMode::Stencil);
 
-    enum_<esengine::ecs::AlignContent>("AlignContent")
-        .value("Start", esengine::ecs::AlignContent::Start)
-        .value("Center", esengine::ecs::AlignContent::Center)
-        .value("End", esengine::ecs::AlignContent::End)
-        .value("Stretch", esengine::ecs::AlignContent::Stretch)
-        .value("SpaceBetween", esengine::ecs::AlignContent::SpaceBetween)
-        .value("SpaceAround", esengine::ecs::AlignContent::SpaceAround);
-
-    enum_<esengine::ecs::AlignSelf>("AlignSelf")
-        .value("Auto", esengine::ecs::AlignSelf::Auto)
-        .value("Start", esengine::ecs::AlignSelf::Start)
-        .value("Center", esengine::ecs::AlignSelf::Center)
-        .value("End", esengine::ecs::AlignSelf::End)
-        .value("Stretch", esengine::ecs::AlignSelf::Stretch);
-
-    enum_<esengine::ecs::GridDirection>("GridDirection")
-        .value("Vertical", esengine::ecs::GridDirection::Vertical)
-        .value("Horizontal", esengine::ecs::GridDirection::Horizontal);
-
-    enum_<esengine::ecs::EmitterShape>("EmitterShape")
-        .value("Point", esengine::ecs::EmitterShape::Point)
-        .value("Circle", esengine::ecs::EmitterShape::Circle)
-        .value("Rectangle", esengine::ecs::EmitterShape::Rectangle)
-        .value("Cone", esengine::ecs::EmitterShape::Cone);
+    enum_<esengine::ecs::ProjectionType>("ProjectionType")
+        .value("Perspective", esengine::ecs::ProjectionType::Perspective)
+        .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
 
     enum_<esengine::ecs::SimulationSpace>("SimulationSpace")
         .value("World", esengine::ecs::SimulationSpace::World)
         .value("Local", esengine::ecs::SimulationSpace::Local);
 
-    enum_<esengine::ecs::BodyType>("BodyType")
-        .value("Static", esengine::ecs::BodyType::Static)
-        .value("Kinematic", esengine::ecs::BodyType::Kinematic)
-        .value("Dynamic", esengine::ecs::BodyType::Dynamic);
-
-    enum_<esengine::ecs::MaskMode>("MaskMode")
-        .value("Scissor", esengine::ecs::MaskMode::Scissor)
-        .value("Stencil", esengine::ecs::MaskMode::Stencil);
+    enum_<esengine::ecs::TextAlign>("TextAlign")
+        .value("Left", esengine::ecs::TextAlign::Left)
+        .value("Center", esengine::ecs::TextAlign::Center)
+        .value("Right", esengine::ecs::TextAlign::Right);
 
     enum_<esengine::ecs::UIVisualType>("UIVisualType")
         .value("None", esengine::ecs::UIVisualType::None)
@@ -282,6 +286,24 @@ CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
     js.scaleMode = static_cast<i32>(c.scaleMode);
     js.matchWidthOrHeight = c.matchWidthOrHeight;
     js.backgroundColor = c.backgroundColor;
+    return js;
+}
+
+struct ChildrenJS {
+    std::vector<u32> entities;
+};
+
+esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
+    esengine::ecs::Children c;
+    c.entities.reserve(js.entities.size());
+    for (auto v : js.entities) c.entities.push_back(Entity(v));
+    return c;
+}
+
+ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
+    ChildrenJS js;
+    js.entities.reserve(c.entities.size());
+    for (auto e : c.entities) js.entities.push_back(static_cast<u32>(e));
     return js;
 }
 
@@ -406,24 +428,6 @@ esengine::ecs::Parent parentFromJS(const ParentJS& js) {
 ParentJS parentToJS(const esengine::ecs::Parent& c) {
     ParentJS js;
     js.entity = static_cast<u32>(c.entity);
-    return js;
-}
-
-struct ChildrenJS {
-    std::vector<u32> entities;
-};
-
-esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
-    esengine::ecs::Children c;
-    c.entities.reserve(js.entities.size());
-    for (auto v : js.entities) c.entities.push_back(Entity(v));
-    return c;
-}
-
-ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
-    ChildrenJS js;
-    js.entities.reserve(c.entities.size());
-    for (auto e : c.entities) js.entities.push_back(static_cast<u32>(e));
     return js;
 }
 
@@ -879,6 +883,17 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("font", &BitmapTextJS::font)
         .field("enabled", &BitmapTextJS::enabled);
 
+    value_object<esengine::ecs::BoxCollider>("BoxCollider")
+        .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
+        .field("offset", &esengine::ecs::BoxCollider::offset)
+        .field("density", &esengine::ecs::BoxCollider::density)
+        .field("friction", &esengine::ecs::BoxCollider::friction)
+        .field("restitution", &esengine::ecs::BoxCollider::restitution)
+        .field("isSensor", &esengine::ecs::BoxCollider::isSensor)
+        .field("enabled", &esengine::ecs::BoxCollider::enabled)
+        .field("categoryBits", &esengine::ecs::BoxCollider::categoryBits)
+        .field("maskBits", &esengine::ecs::BoxCollider::maskBits);
+
     value_object<CameraJS>("Camera")
         .field("projectionType", &CameraJS::projectionType)
         .field("fov", &CameraJS::fov)
@@ -898,28 +913,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("matchWidthOrHeight", &CanvasJS::matchWidthOrHeight)
         .field("backgroundColor", &CanvasJS::backgroundColor);
 
-    value_object<esengine::ecs::BoxCollider>("BoxCollider")
-        .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
-        .field("offset", &esengine::ecs::BoxCollider::offset)
-        .field("density", &esengine::ecs::BoxCollider::density)
-        .field("friction", &esengine::ecs::BoxCollider::friction)
-        .field("restitution", &esengine::ecs::BoxCollider::restitution)
-        .field("isSensor", &esengine::ecs::BoxCollider::isSensor)
-        .field("enabled", &esengine::ecs::BoxCollider::enabled)
-        .field("categoryBits", &esengine::ecs::BoxCollider::categoryBits)
-        .field("maskBits", &esengine::ecs::BoxCollider::maskBits);
-
-    value_object<esengine::ecs::CircleCollider>("CircleCollider")
-        .field("radius", &esengine::ecs::CircleCollider::radius)
-        .field("offset", &esengine::ecs::CircleCollider::offset)
-        .field("density", &esengine::ecs::CircleCollider::density)
-        .field("friction", &esengine::ecs::CircleCollider::friction)
-        .field("restitution", &esengine::ecs::CircleCollider::restitution)
-        .field("isSensor", &esengine::ecs::CircleCollider::isSensor)
-        .field("enabled", &esengine::ecs::CircleCollider::enabled)
-        .field("categoryBits", &esengine::ecs::CircleCollider::categoryBits)
-        .field("maskBits", &esengine::ecs::CircleCollider::maskBits);
-
     value_object<esengine::ecs::CapsuleCollider>("CapsuleCollider")
         .field("radius", &esengine::ecs::CapsuleCollider::radius)
         .field("halfHeight", &esengine::ecs::CapsuleCollider::halfHeight)
@@ -932,16 +925,19 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::CapsuleCollider::categoryBits)
         .field("maskBits", &esengine::ecs::CapsuleCollider::maskBits);
 
-    value_object<esengine::ecs::SegmentCollider>("SegmentCollider")
-        .field("point1", &esengine::ecs::SegmentCollider::point1)
-        .field("point2", &esengine::ecs::SegmentCollider::point2)
-        .field("density", &esengine::ecs::SegmentCollider::density)
-        .field("friction", &esengine::ecs::SegmentCollider::friction)
-        .field("restitution", &esengine::ecs::SegmentCollider::restitution)
-        .field("isSensor", &esengine::ecs::SegmentCollider::isSensor)
-        .field("enabled", &esengine::ecs::SegmentCollider::enabled)
-        .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
-        .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
+    value_object<ChildrenJS>("Children")
+        .field("entities", &ChildrenJS::entities);
+
+    value_object<esengine::ecs::CircleCollider>("CircleCollider")
+        .field("radius", &esengine::ecs::CircleCollider::radius)
+        .field("offset", &esengine::ecs::CircleCollider::offset)
+        .field("density", &esengine::ecs::CircleCollider::density)
+        .field("friction", &esengine::ecs::CircleCollider::friction)
+        .field("restitution", &esengine::ecs::CircleCollider::restitution)
+        .field("isSensor", &esengine::ecs::CircleCollider::isSensor)
+        .field("enabled", &esengine::ecs::CircleCollider::enabled)
+        .field("categoryBits", &esengine::ecs::CircleCollider::categoryBits)
+        .field("maskBits", &esengine::ecs::CircleCollider::maskBits);
 
     value_object<FlexContainerJS>("FlexContainer")
         .field("direction", &FlexContainerJS::direction)
@@ -972,16 +968,13 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("itemSize", &GridLayoutJS::itemSize)
         .field("spacing", &GridLayoutJS::spacing);
 
-    value_object<ParentJS>("Parent")
-        .field("entity", &ParentJS::entity);
-
-    value_object<ChildrenJS>("Children")
-        .field("entities", &ChildrenJS::entities);
-
     value_object<esengine::ecs::Interactable>("Interactable")
         .field("enabled", &esengine::ecs::Interactable::enabled)
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
         .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
+
+    value_object<ParentJS>("Parent")
+        .field("entity", &ParentJS::entity);
 
     value_object<ParticleEmitterJS>("ParticleEmitter")
         .field("rate", &ParticleEmitterJS::rate)
@@ -1034,6 +1027,17 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("fixedRotation", &RigidBodyJS::fixedRotation)
         .field("bullet", &RigidBodyJS::bullet)
         .field("enabled", &RigidBodyJS::enabled);
+
+    value_object<esengine::ecs::SegmentCollider>("SegmentCollider")
+        .field("point1", &esengine::ecs::SegmentCollider::point1)
+        .field("point2", &esengine::ecs::SegmentCollider::point2)
+        .field("density", &esengine::ecs::SegmentCollider::density)
+        .field("friction", &esengine::ecs::SegmentCollider::friction)
+        .field("restitution", &esengine::ecs::SegmentCollider::restitution)
+        .field("isSensor", &esengine::ecs::SegmentCollider::isSensor)
+        .field("enabled", &esengine::ecs::SegmentCollider::enabled)
+        .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
+        .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
 
     value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
         .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
@@ -1207,6 +1211,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::BitmapText>(entity);
         }))
 
+        // BoxCollider
+        .function("hasBoxCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
+        }))
+        .function("getBoxCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::BoxCollider& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::BoxCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::BoxCollider>(entity);
+        }), allow_raw_pointers())
+        .function("addBoxCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::BoxCollider& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::BoxCollider>(entity, c);
+        }))
+        .function("removeBoxCollider", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return;
+            r.remove<esengine::ecs::BoxCollider>(entity);
+        }))
+
         // Camera
         .function("hasCamera", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Camera>(static_cast<Entity>(e));
@@ -1247,48 +1272,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Canvas>(entity);
         }))
 
-        // BoxCollider
-        .function("hasBoxCollider", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
-        }))
-        .function("getBoxCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::BoxCollider& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::BoxCollider s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return s_dummy;
-            return r.get<esengine::ecs::BoxCollider>(entity);
-        }), allow_raw_pointers())
-        .function("addBoxCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::BoxCollider& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::BoxCollider>(entity, c);
-        }))
-        .function("removeBoxCollider", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return;
-            r.remove<esengine::ecs::BoxCollider>(entity);
-        }))
-
-        // CircleCollider
-        .function("hasCircleCollider", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
-        }))
-        .function("getCircleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CircleCollider& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::CircleCollider s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return s_dummy;
-            return r.get<esengine::ecs::CircleCollider>(entity);
-        }), allow_raw_pointers())
-        .function("addCircleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CircleCollider& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::CircleCollider>(entity, c);
-        }))
-        .function("removeCircleCollider", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return;
-            r.remove<esengine::ecs::CircleCollider>(entity);
-        }))
-
         // CapsuleCollider
         .function("hasCapsuleCollider", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
@@ -1310,25 +1293,45 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::CapsuleCollider>(entity);
         }))
 
-        // SegmentCollider
-        .function("hasSegmentCollider", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+        // Children
+        .function("hasChildren", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Children>(static_cast<Entity>(e));
         }))
-        .function("getSegmentCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::SegmentCollider& {
+        .function("getChildren", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::SegmentCollider s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return s_dummy;
-            return r.get<esengine::ecs::SegmentCollider>(entity);
-        }), allow_raw_pointers())
-        .function("addSegmentCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::SegmentCollider& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return ChildrenJS{};
+            return childrenToJS(r.get<esengine::ecs::Children>(entity));
+        }))
+        .function("addChildren", optional_override([](Registry& r, u32 e, const ChildrenJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::SegmentCollider>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::Children>(entity, childrenFromJS(js));
         }))
-        .function("removeSegmentCollider", optional_override([](Registry& r, u32 e) {
+        .function("removeChildren", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return;
-            r.remove<esengine::ecs::SegmentCollider>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return;
+            r.remove<esengine::ecs::Children>(entity);
+        }))
+
+        // CircleCollider
+        .function("hasCircleCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
+        }))
+        .function("getCircleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CircleCollider& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::CircleCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::CircleCollider>(entity);
+        }), allow_raw_pointers())
+        .function("addCircleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CircleCollider& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::CircleCollider>(entity, c);
+        }))
+        .function("removeCircleCollider", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return;
+            r.remove<esengine::ecs::CircleCollider>(entity);
         }))
 
         // FlexContainer
@@ -1391,46 +1394,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::GridLayout>(entity);
         }))
 
-        // Parent
-        .function("hasParent", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
-        }))
-        .function("getParent", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return ParentJS{};
-            return parentToJS(r.get<esengine::ecs::Parent>(entity));
-        }))
-        .function("addParent", optional_override([](Registry& r, u32 e, const ParentJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Parent>(entity, parentFromJS(js));
-        }))
-        .function("removeParent", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return;
-            r.remove<esengine::ecs::Parent>(entity);
-        }))
-
-        // Children
-        .function("hasChildren", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Children>(static_cast<Entity>(e));
-        }))
-        .function("getChildren", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return ChildrenJS{};
-            return childrenToJS(r.get<esengine::ecs::Children>(entity));
-        }))
-        .function("addChildren", optional_override([](Registry& r, u32 e, const ChildrenJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Children>(entity, childrenFromJS(js));
-        }))
-        .function("removeChildren", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return;
-            r.remove<esengine::ecs::Children>(entity);
-        }))
-
         // Interactable
         .function("hasInteractable", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Interactable>(static_cast<Entity>(e));
@@ -1450,6 +1413,26 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::Interactable>(entity)) return;
             r.remove<esengine::ecs::Interactable>(entity);
+        }))
+
+        // Parent
+        .function("hasParent", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
+        }))
+        .function("getParent", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return ParentJS{};
+            return parentToJS(r.get<esengine::ecs::Parent>(entity));
+        }))
+        .function("addParent", optional_override([](Registry& r, u32 e, const ParentJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Parent>(entity, parentFromJS(js));
+        }))
+        .function("removeParent", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return;
+            r.remove<esengine::ecs::Parent>(entity);
         }))
 
         // ParticleEmitter
@@ -1490,6 +1473,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return;
             r.remove<esengine::ecs::RigidBody>(entity);
+        }))
+
+        // SegmentCollider
+        .function("hasSegmentCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+        }))
+        .function("getSegmentCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::SegmentCollider& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::SegmentCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::SegmentCollider>(entity);
+        }), allow_raw_pointers())
+        .function("addSegmentCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::SegmentCollider& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::SegmentCollider>(entity, c);
+        }))
+        .function("removeSegmentCollider", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return;
+            r.remove<esengine::ecs::SegmentCollider>(entity);
         }))
 
         // ShapeRenderer
@@ -1758,20 +1762,20 @@ emscripten::val esengineGetBuiltinComponentNames() {
     auto arr = val::array();
     size_t i = 0;
     arr.set(i++, val(std::string("BitmapText")));
+    arr.set(i++, val(std::string("BoxCollider")));
     arr.set(i++, val(std::string("Camera")));
     arr.set(i++, val(std::string("Canvas")));
-    arr.set(i++, val(std::string("BoxCollider")));
-    arr.set(i++, val(std::string("CircleCollider")));
     arr.set(i++, val(std::string("CapsuleCollider")));
-    arr.set(i++, val(std::string("SegmentCollider")));
+    arr.set(i++, val(std::string("Children")));
+    arr.set(i++, val(std::string("CircleCollider")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("FlexItem")));
     arr.set(i++, val(std::string("GridLayout")));
-    arr.set(i++, val(std::string("Parent")));
-    arr.set(i++, val(std::string("Children")));
     arr.set(i++, val(std::string("Interactable")));
+    arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("RigidBody")));
+    arr.set(i++, val(std::string("SegmentCollider")));
     arr.set(i++, val(std::string("ShapeRenderer")));
     arr.set(i++, val(std::string("SpineAnimation")));
     arr.set(i++, val(std::string("Sprite")));
@@ -1805,6 +1809,15 @@ static_assert(offsetof(esengine::ecs::BitmapText, spacing) == 36, "ABI offset dr
 static_assert(offsetof(esengine::ecs::BitmapText, layer) == 40, "ABI offset drift: esengine::ecs::BitmapText.layer (EHT expected 40)");
 static_assert(offsetof(esengine::ecs::BitmapText, font) == 44, "ABI offset drift: esengine::ecs::BitmapText.font (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::BitmapText, enabled) == 48, "ABI offset drift: esengine::ecs::BitmapText.enabled (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::BoxCollider, halfExtents) == 0, "ABI offset drift: esengine::ecs::BoxCollider.halfExtents (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::BoxCollider, offset) == 8, "ABI offset drift: esengine::ecs::BoxCollider.offset (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::BoxCollider, density) == 16, "ABI offset drift: esengine::ecs::BoxCollider.density (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::BoxCollider, friction) == 20, "ABI offset drift: esengine::ecs::BoxCollider.friction (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::BoxCollider, restitution) == 24, "ABI offset drift: esengine::ecs::BoxCollider.restitution (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::BoxCollider, isSensor) == 28, "ABI offset drift: esengine::ecs::BoxCollider.isSensor (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::BoxCollider, enabled) == 29, "ABI offset drift: esengine::ecs::BoxCollider.enabled (EHT expected 29)");
+static_assert(offsetof(esengine::ecs::BoxCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::BoxCollider.categoryBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::BoxCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::BoxCollider.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::Camera, projectionType) == 0, "ABI offset drift: esengine::ecs::Camera.projectionType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Camera, fov) == 4, "ABI offset drift: esengine::ecs::Camera.fov (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Camera, orthoSize) == 8, "ABI offset drift: esengine::ecs::Camera.orthoSize (EHT expected 8)");
@@ -1820,24 +1833,6 @@ static_assert(offsetof(esengine::ecs::Canvas, pixelsPerUnit) == 8, "ABI offset d
 static_assert(offsetof(esengine::ecs::Canvas, scaleMode) == 12, "ABI offset drift: esengine::ecs::Canvas.scaleMode (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::Canvas, matchWidthOrHeight) == 16, "ABI offset drift: esengine::ecs::Canvas.matchWidthOrHeight (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::Canvas, backgroundColor) == 20, "ABI offset drift: esengine::ecs::Canvas.backgroundColor (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::BoxCollider, halfExtents) == 0, "ABI offset drift: esengine::ecs::BoxCollider.halfExtents (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::BoxCollider, offset) == 8, "ABI offset drift: esengine::ecs::BoxCollider.offset (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::BoxCollider, density) == 16, "ABI offset drift: esengine::ecs::BoxCollider.density (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::BoxCollider, friction) == 20, "ABI offset drift: esengine::ecs::BoxCollider.friction (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::BoxCollider, restitution) == 24, "ABI offset drift: esengine::ecs::BoxCollider.restitution (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::BoxCollider, isSensor) == 28, "ABI offset drift: esengine::ecs::BoxCollider.isSensor (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::BoxCollider, enabled) == 29, "ABI offset drift: esengine::ecs::BoxCollider.enabled (EHT expected 29)");
-static_assert(offsetof(esengine::ecs::BoxCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::BoxCollider.categoryBits (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::BoxCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::BoxCollider.maskBits (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::CircleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CircleCollider.radius (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::CircleCollider, offset) == 4, "ABI offset drift: esengine::ecs::CircleCollider.offset (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::CircleCollider, density) == 12, "ABI offset drift: esengine::ecs::CircleCollider.density (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::CircleCollider, friction) == 16, "ABI offset drift: esengine::ecs::CircleCollider.friction (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::CircleCollider, restitution) == 20, "ABI offset drift: esengine::ecs::CircleCollider.restitution (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::CircleCollider, isSensor) == 24, "ABI offset drift: esengine::ecs::CircleCollider.isSensor (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::CircleCollider, enabled) == 25, "ABI offset drift: esengine::ecs::CircleCollider.enabled (EHT expected 25)");
-static_assert(offsetof(esengine::ecs::CircleCollider, categoryBits) == 28, "ABI offset drift: esengine::ecs::CircleCollider.categoryBits (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::CircleCollider, maskBits) == 32, "ABI offset drift: esengine::ecs::CircleCollider.maskBits (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CapsuleCollider.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, halfHeight) == 4, "ABI offset drift: esengine::ecs::CapsuleCollider.halfHeight (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, offset) == 8, "ABI offset drift: esengine::ecs::CapsuleCollider.offset (EHT expected 8)");
@@ -1848,15 +1843,15 @@ static_assert(offsetof(esengine::ecs::CapsuleCollider, isSensor) == 28, "ABI off
 static_assert(offsetof(esengine::ecs::CapsuleCollider, enabled) == 29, "ABI offset drift: esengine::ecs::CapsuleCollider.enabled (EHT expected 29)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::CapsuleCollider.categoryBits (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::CapsuleCollider.maskBits (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, point1) == 0, "ABI offset drift: esengine::ecs::SegmentCollider.point1 (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, point2) == 8, "ABI offset drift: esengine::ecs::SegmentCollider.point2 (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, density) == 16, "ABI offset drift: esengine::ecs::SegmentCollider.density (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, friction) == 20, "ABI offset drift: esengine::ecs::SegmentCollider.friction (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, restitution) == 24, "ABI offset drift: esengine::ecs::SegmentCollider.restitution (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, isSensor) == 28, "ABI offset drift: esengine::ecs::SegmentCollider.isSensor (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, enabled) == 29, "ABI offset drift: esengine::ecs::SegmentCollider.enabled (EHT expected 29)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::SegmentCollider.categoryBits (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::SegmentCollider.maskBits (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::CircleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CircleCollider.radius (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::CircleCollider, offset) == 4, "ABI offset drift: esengine::ecs::CircleCollider.offset (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::CircleCollider, density) == 12, "ABI offset drift: esengine::ecs::CircleCollider.density (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::CircleCollider, friction) == 16, "ABI offset drift: esengine::ecs::CircleCollider.friction (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::CircleCollider, restitution) == 20, "ABI offset drift: esengine::ecs::CircleCollider.restitution (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::CircleCollider, isSensor) == 24, "ABI offset drift: esengine::ecs::CircleCollider.isSensor (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::CircleCollider, enabled) == 25, "ABI offset drift: esengine::ecs::CircleCollider.enabled (EHT expected 25)");
+static_assert(offsetof(esengine::ecs::CircleCollider, categoryBits) == 28, "ABI offset drift: esengine::ecs::CircleCollider.categoryBits (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::CircleCollider, maskBits) == 32, "ABI offset drift: esengine::ecs::CircleCollider.maskBits (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::FlexContainer, direction) == 0, "ABI offset drift: esengine::ecs::FlexContainer.direction (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::FlexContainer, wrap) == 1, "ABI offset drift: esengine::ecs::FlexContainer.wrap (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::FlexContainer, justifyContent) == 2, "ABI offset drift: esengine::ecs::FlexContainer.justifyContent (EHT expected 2)");
@@ -1929,6 +1924,15 @@ static_assert(offsetof(esengine::ecs::RigidBody, angularDamping) == 12, "ABI off
 static_assert(offsetof(esengine::ecs::RigidBody, fixedRotation) == 16, "ABI offset drift: esengine::ecs::RigidBody.fixedRotation (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::RigidBody, bullet) == 17, "ABI offset drift: esengine::ecs::RigidBody.bullet (EHT expected 17)");
 static_assert(offsetof(esengine::ecs::RigidBody, enabled) == 18, "ABI offset drift: esengine::ecs::RigidBody.enabled (EHT expected 18)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, point1) == 0, "ABI offset drift: esengine::ecs::SegmentCollider.point1 (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, point2) == 8, "ABI offset drift: esengine::ecs::SegmentCollider.point2 (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, density) == 16, "ABI offset drift: esengine::ecs::SegmentCollider.density (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, friction) == 20, "ABI offset drift: esengine::ecs::SegmentCollider.friction (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, restitution) == 24, "ABI offset drift: esengine::ecs::SegmentCollider.restitution (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, isSensor) == 28, "ABI offset drift: esengine::ecs::SegmentCollider.isSensor (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, enabled) == 29, "ABI offset drift: esengine::ecs::SegmentCollider.enabled (EHT expected 29)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::SegmentCollider.categoryBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::SegmentCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::SegmentCollider.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, shapeType) == 0, "ABI offset drift: esengine::ecs::ShapeRenderer.shapeType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, color) == 4, "ABI offset drift: esengine::ecs::ShapeRenderer.color (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, size) == 20, "ABI offset drift: esengine::ecs::ShapeRenderer.size (EHT expected 20)");

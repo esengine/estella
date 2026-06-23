@@ -30,6 +30,20 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 48 },
         ],
     },
+    BoxCollider: {
+        ptrFn: 'getBoxColliderPtr',
+        fields: [
+            { name: 'halfExtents', type: 'vec2', offset: 0 },
+            { name: 'offset', type: 'vec2', offset: 8 },
+            { name: 'density', type: 'f32', offset: 16 },
+            { name: 'friction', type: 'f32', offset: 20 },
+            { name: 'restitution', type: 'f32', offset: 24 },
+            { name: 'isSensor', type: 'bool', offset: 28 },
+            { name: 'enabled', type: 'bool', offset: 29 },
+            { name: 'categoryBits', type: 'u32', offset: 32 },
+            { name: 'maskBits', type: 'u32', offset: 36 },
+        ],
+    },
     Camera: {
         ptrFn: 'getCameraPtr',
         fields: [
@@ -55,10 +69,11 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'backgroundColor', type: 'color', offset: 20 },
         ],
     },
-    BoxCollider: {
-        ptrFn: 'getBoxColliderPtr',
+    CapsuleCollider: {
+        ptrFn: 'getCapsuleColliderPtr',
         fields: [
-            { name: 'halfExtents', type: 'vec2', offset: 0 },
+            { name: 'radius', type: 'f32', offset: 0 },
+            { name: 'halfHeight', type: 'f32', offset: 4 },
             { name: 'offset', type: 'vec2', offset: 8 },
             { name: 'density', type: 'f32', offset: 16 },
             { name: 'friction', type: 'f32', offset: 20 },
@@ -81,35 +96,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 25 },
             { name: 'categoryBits', type: 'u32', offset: 28 },
             { name: 'maskBits', type: 'u32', offset: 32 },
-        ],
-    },
-    CapsuleCollider: {
-        ptrFn: 'getCapsuleColliderPtr',
-        fields: [
-            { name: 'radius', type: 'f32', offset: 0 },
-            { name: 'halfHeight', type: 'f32', offset: 4 },
-            { name: 'offset', type: 'vec2', offset: 8 },
-            { name: 'density', type: 'f32', offset: 16 },
-            { name: 'friction', type: 'f32', offset: 20 },
-            { name: 'restitution', type: 'f32', offset: 24 },
-            { name: 'isSensor', type: 'bool', offset: 28 },
-            { name: 'enabled', type: 'bool', offset: 29 },
-            { name: 'categoryBits', type: 'u32', offset: 32 },
-            { name: 'maskBits', type: 'u32', offset: 36 },
-        ],
-    },
-    SegmentCollider: {
-        ptrFn: 'getSegmentColliderPtr',
-        fields: [
-            { name: 'point1', type: 'vec2', offset: 0 },
-            { name: 'point2', type: 'vec2', offset: 8 },
-            { name: 'density', type: 'f32', offset: 16 },
-            { name: 'friction', type: 'f32', offset: 20 },
-            { name: 'restitution', type: 'f32', offset: 24 },
-            { name: 'isSensor', type: 'bool', offset: 28 },
-            { name: 'enabled', type: 'bool', offset: 29 },
-            { name: 'categoryBits', type: 'u32', offset: 32 },
-            { name: 'maskBits', type: 'u32', offset: 36 },
         ],
     },
     FlexContainer: {
@@ -212,6 +198,20 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'fixedRotation', type: 'bool', offset: 16 },
             { name: 'bullet', type: 'bool', offset: 17 },
             { name: 'enabled', type: 'bool', offset: 18 },
+        ],
+    },
+    SegmentCollider: {
+        ptrFn: 'getSegmentColliderPtr',
+        fields: [
+            { name: 'point1', type: 'vec2', offset: 0 },
+            { name: 'point2', type: 'vec2', offset: 8 },
+            { name: 'density', type: 'f32', offset: 16 },
+            { name: 'friction', type: 'f32', offset: 20 },
+            { name: 'restitution', type: 'f32', offset: 24 },
+            { name: 'isSensor', type: 'bool', offset: 28 },
+            { name: 'enabled', type: 'bool', offset: 29 },
+            { name: 'categoryBits', type: 'u32', offset: 32 },
+            { name: 'maskBits', type: 'u32', offset: 36 },
         ],
     },
     ShapeRenderer: {

@@ -9,6 +9,7 @@ import type { Entity, Vec2, Vec3, Vec4, Quat } from './types';
 // Additional Math Types
 export interface UVec2 { x: number; y: number; }
 export interface Padding { left: number; top: number; right: number; bottom: number; }
+export interface Dimension { value: number; unit: number; }
 export type Mat4 = number[];
 
 // Emscripten Vector Types
@@ -22,15 +23,42 @@ export interface VectorEntity {
 
 // Enums
 
-export enum TextAlign {
-    Left = 0,
+export enum AlignContent {
+    Start = 0,
     Center = 1,
-    Right = 2,
+    End = 2,
+    Stretch = 3,
+    SpaceBetween = 4,
+    SpaceAround = 5,
 }
 
-export enum ProjectionType {
-    Perspective = 0,
-    Orthographic = 1,
+export enum AlignItems {
+    Start = 0,
+    Center = 1,
+    End = 2,
+    Stretch = 3,
+}
+
+export enum AlignSelf {
+    Auto = 0,
+    Start = 1,
+    Center = 2,
+    End = 3,
+    Stretch = 4,
+}
+
+export enum BodyType {
+    Static = 0,
+    Kinematic = 1,
+    Dynamic = 2,
+}
+
+export enum CanvasScaleMode {
+    FixedWidth = 0,
+    FixedHeight = 1,
+    Expand = 2,
+    Shrink = 3,
+    Match = 4,
 }
 
 export enum ClearFlags {
@@ -40,12 +68,11 @@ export enum ClearFlags {
     ColorAndDepth = 3,
 }
 
-export enum CanvasScaleMode {
-    FixedWidth = 0,
-    FixedHeight = 1,
-    Expand = 2,
-    Shrink = 3,
-    Match = 4,
+export enum EmitterShape {
+    Point = 0,
+    Circle = 1,
+    Rectangle = 2,
+    Cone = 3,
 }
 
 export enum FlexDirection {
@@ -60,6 +87,11 @@ export enum FlexWrap {
     Wrap = 1,
 }
 
+export enum GridDirection {
+    Vertical = 0,
+    Horizontal = 1,
+}
+
 export enum JustifyContent {
     Start = 0,
     Center = 1,
@@ -69,40 +101,14 @@ export enum JustifyContent {
     SpaceEvenly = 5,
 }
 
-export enum AlignItems {
-    Start = 0,
-    Center = 1,
-    End = 2,
-    Stretch = 3,
+export enum MaskMode {
+    Scissor = 0,
+    Stencil = 1,
 }
 
-export enum AlignContent {
-    Start = 0,
-    Center = 1,
-    End = 2,
-    Stretch = 3,
-    SpaceBetween = 4,
-    SpaceAround = 5,
-}
-
-export enum AlignSelf {
-    Auto = 0,
-    Start = 1,
-    Center = 2,
-    End = 3,
-    Stretch = 4,
-}
-
-export enum GridDirection {
-    Vertical = 0,
-    Horizontal = 1,
-}
-
-export enum EmitterShape {
-    Point = 0,
-    Circle = 1,
-    Rectangle = 2,
-    Cone = 3,
+export enum ProjectionType {
+    Perspective = 0,
+    Orthographic = 1,
 }
 
 export enum SimulationSpace {
@@ -110,15 +116,10 @@ export enum SimulationSpace {
     Local = 1,
 }
 
-export enum BodyType {
-    Static = 0,
-    Kinematic = 1,
-    Dynamic = 2,
-}
-
-export enum MaskMode {
-    Scissor = 0,
-    Stencil = 1,
+export enum TextAlign {
+    Left = 0,
+    Center = 1,
+    Right = 2,
 }
 
 export enum UIVisualType {
@@ -139,6 +140,18 @@ export interface BitmapText {
     layer: number;
     font: number;
     enabled: boolean;
+}
+
+export interface BoxCollider {
+    halfExtents: Vec2;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface Camera {
@@ -162,30 +175,6 @@ export interface Canvas {
     backgroundColor: Vec4;
 }
 
-export interface BoxCollider {
-    halfExtents: Vec2;
-    offset: Vec2;
-    density: number;
-    friction: number;
-    restitution: number;
-    isSensor: boolean;
-    enabled: boolean;
-    categoryBits: number;
-    maskBits: number;
-}
-
-export interface CircleCollider {
-    radius: number;
-    offset: Vec2;
-    density: number;
-    friction: number;
-    restitution: number;
-    isSensor: boolean;
-    enabled: boolean;
-    categoryBits: number;
-    maskBits: number;
-}
-
 export interface CapsuleCollider {
     radius: number;
     halfHeight: number;
@@ -199,9 +188,13 @@ export interface CapsuleCollider {
     maskBits: number;
 }
 
-export interface SegmentCollider {
-    point1: Vec2;
-    point2: Vec2;
+export interface Children {
+    entities: VectorEntity;
+}
+
+export interface CircleCollider {
+    radius: number;
+    offset: Vec2;
     density: number;
     friction: number;
     restitution: number;
@@ -243,18 +236,14 @@ export interface GridLayout {
     spacing: Vec2;
 }
 
-export interface Parent {
-    entity: number;
-}
-
-export interface Children {
-    entities: VectorEntity;
-}
-
 export interface Interactable {
     enabled: boolean;
     blockRaycast: boolean;
     raycastTarget: boolean;
+}
+
+export interface Parent {
+    entity: number;
 }
 
 export interface ParticleEmitter {
@@ -309,6 +298,18 @@ export interface RigidBody {
     fixedRotation: boolean;
     bullet: boolean;
     enabled: boolean;
+}
+
+export interface SegmentCollider {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface ShapeRenderer {
@@ -466,6 +467,10 @@ export interface Registry {
     getBitmapText(entity: Entity): BitmapText;
     addBitmapText(entity: Entity, component: BitmapText): void;
     removeBitmapText(entity: Entity): void;
+    hasBoxCollider(entity: Entity): boolean;
+    getBoxCollider(entity: Entity): BoxCollider;
+    addBoxCollider(entity: Entity, component: BoxCollider): void;
+    removeBoxCollider(entity: Entity): void;
     hasCamera(entity: Entity): boolean;
     getCamera(entity: Entity): Camera;
     addCamera(entity: Entity, component: Camera): void;
@@ -474,22 +479,18 @@ export interface Registry {
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
     removeCanvas(entity: Entity): void;
-    hasBoxCollider(entity: Entity): boolean;
-    getBoxCollider(entity: Entity): BoxCollider;
-    addBoxCollider(entity: Entity, component: BoxCollider): void;
-    removeBoxCollider(entity: Entity): void;
-    hasCircleCollider(entity: Entity): boolean;
-    getCircleCollider(entity: Entity): CircleCollider;
-    addCircleCollider(entity: Entity, component: CircleCollider): void;
-    removeCircleCollider(entity: Entity): void;
     hasCapsuleCollider(entity: Entity): boolean;
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
-    hasSegmentCollider(entity: Entity): boolean;
-    getSegmentCollider(entity: Entity): SegmentCollider;
-    addSegmentCollider(entity: Entity, component: SegmentCollider): void;
-    removeSegmentCollider(entity: Entity): void;
+    hasChildren(entity: Entity): boolean;
+    getChildren(entity: Entity): Children;
+    addChildren(entity: Entity, component: Children): void;
+    removeChildren(entity: Entity): void;
+    hasCircleCollider(entity: Entity): boolean;
+    getCircleCollider(entity: Entity): CircleCollider;
+    addCircleCollider(entity: Entity, component: CircleCollider): void;
+    removeCircleCollider(entity: Entity): void;
     hasFlexContainer(entity: Entity): boolean;
     getFlexContainer(entity: Entity): FlexContainer;
     addFlexContainer(entity: Entity, component: FlexContainer): void;
@@ -502,18 +503,14 @@ export interface Registry {
     getGridLayout(entity: Entity): GridLayout;
     addGridLayout(entity: Entity, component: GridLayout): void;
     removeGridLayout(entity: Entity): void;
-    hasParent(entity: Entity): boolean;
-    getParent(entity: Entity): Parent;
-    addParent(entity: Entity, component: Parent): void;
-    removeParent(entity: Entity): void;
-    hasChildren(entity: Entity): boolean;
-    getChildren(entity: Entity): Children;
-    addChildren(entity: Entity, component: Children): void;
-    removeChildren(entity: Entity): void;
     hasInteractable(entity: Entity): boolean;
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
     removeInteractable(entity: Entity): void;
+    hasParent(entity: Entity): boolean;
+    getParent(entity: Entity): Parent;
+    addParent(entity: Entity, component: Parent): void;
+    removeParent(entity: Entity): void;
     hasParticleEmitter(entity: Entity): boolean;
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
@@ -522,6 +519,10 @@ export interface Registry {
     getRigidBody(entity: Entity): RigidBody;
     addRigidBody(entity: Entity, component: RigidBody): void;
     removeRigidBody(entity: Entity): void;
+    hasSegmentCollider(entity: Entity): boolean;
+    getSegmentCollider(entity: Entity): SegmentCollider;
+    addSegmentCollider(entity: Entity, component: SegmentCollider): void;
+    removeSegmentCollider(entity: Entity): void;
     hasShapeRenderer(entity: Entity): boolean;
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
@@ -585,20 +586,20 @@ export interface ESEngineModule {
      */
     getBuiltinComponentNames(): string[];
     BitmapText: new () => BitmapText;
+    BoxCollider: new () => BoxCollider;
     Camera: new () => Camera;
     Canvas: new () => Canvas;
-    BoxCollider: new () => BoxCollider;
-    CircleCollider: new () => CircleCollider;
     CapsuleCollider: new () => CapsuleCollider;
-    SegmentCollider: new () => SegmentCollider;
+    Children: new () => Children;
+    CircleCollider: new () => CircleCollider;
     FlexContainer: new () => FlexContainer;
     FlexItem: new () => FlexItem;
     GridLayout: new () => GridLayout;
-    Parent: new () => Parent;
-    Children: new () => Children;
     Interactable: new () => Interactable;
+    Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
     RigidBody: new () => RigidBody;
+    SegmentCollider: new () => SegmentCollider;
     ShapeRenderer: new () => ShapeRenderer;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;

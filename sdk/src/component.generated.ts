@@ -50,6 +50,23 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],
     },
+    BoxCollider: {
+        defaults: {
+            halfExtents: { x: 0.5, y: 0.5 },
+            offset: { x: 0, y: 0 },
+            density: 1,
+            friction: 0.3,
+            restitution: 0,
+            isSensor: false,
+            enabled: true,
+            categoryBits: 0,
+            maskBits: 0,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+    },
     Camera: {
         defaults: {
             projectionType: 0,
@@ -81,40 +98,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['backgroundColor'],
         animatableFields: [],
     },
-    BoxCollider: {
-        defaults: {
-            halfExtents: { x: 0.5, y: 0.5 },
-            offset: { x: 0, y: 0 },
-            density: 1,
-            friction: 0.3,
-            restitution: 0,
-            isSensor: false,
-            enabled: true,
-            categoryBits: 0,
-            maskBits: 0,
-        },
-        assetFields: [],
-        entityFields: [],
-        colorFields: [],
-        animatableFields: [],
-    },
-    CircleCollider: {
-        defaults: {
-            radius: 0.5,
-            offset: { x: 0, y: 0 },
-            density: 1,
-            friction: 0.3,
-            restitution: 0,
-            isSensor: false,
-            enabled: true,
-            categoryBits: 0,
-            maskBits: 0,
-        },
-        assetFields: [],
-        entityFields: [],
-        colorFields: [],
-        animatableFields: [],
-    },
     CapsuleCollider: {
         defaults: {
             radius: 0.25,
@@ -133,10 +116,19 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
-    SegmentCollider: {
+    Children: {
         defaults: {
-            point1: { x: -0.5, y: 0 },
-            point2: { x: 0.5, y: 0 },
+            entities: [],
+        },
+        assetFields: [],
+        entityFields: ['entities'],
+        colorFields: [],
+        animatableFields: [],
+    },
+    CircleCollider: {
+        defaults: {
+            radius: 0.5,
+            offset: { x: 0, y: 0 },
             density: 1,
             friction: 0.3,
             restitution: 0,
@@ -197,24 +189,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
-    Parent: {
-        defaults: {
-            entity: 0,
-        },
-        assetFields: [],
-        entityFields: ['entity'],
-        colorFields: [],
-        animatableFields: [],
-    },
-    Children: {
-        defaults: {
-            entities: [],
-        },
-        assetFields: [],
-        entityFields: ['entities'],
-        colorFields: [],
-        animatableFields: [],
-    },
     Interactable: {
         defaults: {
             enabled: true,
@@ -223,6 +197,15 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         },
         assetFields: [],
         entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+    },
+    Parent: {
+        defaults: {
+            entity: 0,
+        },
+        assetFields: [],
+        entityFields: ['entity'],
         colorFields: [],
         animatableFields: [],
     },
@@ -284,6 +267,23 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             fixedRotation: false,
             bullet: false,
             enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+    },
+    SegmentCollider: {
+        defaults: {
+            point1: { x: -0.5, y: 0 },
+            point2: { x: 0.5, y: 0 },
+            density: 1,
+            friction: 0.3,
+            restitution: 0,
+            isSensor: false,
+            enabled: true,
+            categoryBits: 0,
+            maskBits: 0,
         },
         assetFields: [],
         entityFields: [],

@@ -49,7 +49,8 @@ class TypeScriptGenerator:
             '    delete(): void;',
             '}',
             '',
-        ]
+        ])
+        return lines
 
     def _gen_enums(self) -> List[str]:
         if not self.enums:

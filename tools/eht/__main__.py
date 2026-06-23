@@ -35,6 +35,13 @@ def main() -> int:
     if cpp_parser.warnings:
         cpp_parser.print_warnings()
 
+    # Emit components/enums in a stable alphabetical order so the generated files
+    # are byte-reproducible across machines — Path.rglob order is filesystem-
+    # dependent, which otherwise churns every committed *.generated.* file when a
+    # different dev regenerates. (The ABI hash already canonicalizes by sorting.)
+    cpp_parser.components.sort(key=lambda c: c.name)
+    cpp_parser.enums.sort(key=lambda e: e.name)
+
     if args.verbose:
         print(f"  Found {len(cpp_parser.enums)} enums")
         print(f"  Found {len(cpp_parser.components)} components")

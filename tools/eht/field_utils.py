@@ -19,7 +19,6 @@ VEC3_SUBS = [('x', 'x'), ('y', 'y'), ('z', 'z')]
 VEC4_SUBS = [('x', 'x'), ('y', 'y'), ('z', 'z'), ('w', 'w')]
 VEC4_COLOR_SUBS = [('r', 'r'), ('g', 'g'), ('b', 'b'), ('a', 'a')]
 QUAT_SUBS = [('w', 'w'), ('x', 'x'), ('y', 'y'), ('z', 'z')]
-PADDING_SUBS = [('left', 'left'), ('top', 'top'), ('right', 'right'), ('bottom', 'bottom')]
 
 
 def is_color_field(prop: Property, types: TypeSystem) -> bool:
@@ -49,8 +48,8 @@ def get_sub_components(prop: Property, types: TypeSystem) -> List[Tuple[str, str
         return QUAT_SUBS
     if t == 'glm::uvec2':
         return VEC2_SUBS
-    if t == 'Padding':
-        return PADDING_SUBS
+    if t in TypeSystem.CUSTOM_STRUCTS:
+        return [(m, m) for m, _ in TypeSystem.CUSTOM_STRUCTS[t]]
     # Scalar
     return [('', '')]
 
@@ -84,7 +83,7 @@ def get_editor_type(prop: Property, types: TypeSystem) -> str:
         return 'float'
     if t in TypeSystem.PRIMITIVE_TYPES:
         return 'int'
-    if t in TypeSystem.GLM_TYPES or t in TypeSystem.CUSTOM_STRUCT_TYPES:
+    if t in TypeSystem.GLM_TYPES or t in TypeSystem.CUSTOM_STRUCTS:
         return 'float'  # Sub-components are all floats (or ints for uvec2)
     if t in TypeSystem.VECTOR_TYPES:
         return 'skip'  # Vector types not editable as simple fields
@@ -156,8 +155,28 @@ def convert_default_ts(prop: Property, types: TypeSystem,
         return "''"
     if t in types.VECTOR_TYPES:
         return '[]'
-    if t == 'Padding':
-        return '{ left: 0, top: 0, right: 0, bottom: 0 }'
+    if t in types.CUSTOM_STRUCTS:
+        members = types.CUSTOM_STRUCTS[t]
+        inner = raw.strip() if raw else ''
+        if inner.startswith('{') and inner.endswith('}'):
+            inner = inner[1:-1]
+        parts = [p.strip() for p in inner.split(',')] if inner.strip() else []
+        out = []
+        for i, (m, _mcpp) in enumerate(members):
+            p = parts[i] if i < len(parts) else None
+            if not p:
+                out.append(f'{m}: 0')
+            elif '::' in p:  # enum-valued member, e.g. DimensionUnit::Auto
+                val_name = p.split('::')[-1].strip()
+                resolved = '0'
+                for _key, vmap in enum_values.items():
+                    if val_name in vmap:
+                        resolved = str(vmap[val_name])
+                        break
+                out.append(f'{m}: {resolved}')
+            else:
+                out.append(f'{m}: {format_number(p)}')
+        return '{ ' + ', '.join(out) + ' }'
     if raw and 'static_cast' in raw:
         m = re.search(r'(\w+)::(\w+)', raw)
         if m:
