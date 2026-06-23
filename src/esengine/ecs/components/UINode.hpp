@@ -11,6 +11,19 @@
 namespace esengine::ecs {
 
 /**
+ * @brief Box positioning scheme. Absolute takes the node out of flex flow and
+ *        places it by `inset` against the parent's box — this is how anchor /
+ *        stretch (the old RectTransform use cases) are expressed in the CSS
+ *        model (REARCH_GUI F3 unification): e.g. inset 0 on all edges = stretch
+ *        to fill; top+right set = anchor to the top-right corner.
+ */
+ES_ENUM()
+enum class UIPositionType : u8 {
+    Relative,
+    Absolute
+};
+
+/**
  * @brief UINode — the CSS box-model layout input (REARCH_GUI F3, the CSS/Flex
  *        primary layout model; see docs/REARCH_GUI.md).
  *
@@ -26,6 +39,10 @@ namespace esengine::ecs {
  */
 ES_COMPONENT()
 struct UINode {
+    // Positioning: Relative = in flex flow; Absolute = placed by `inset`.
+    ES_PROPERTY()
+    UIPositionType position{UIPositionType::Relative};
+
     // Box size; auto = content-/flex-driven.
     ES_PROPERTY()
     Dimension width{0.0f, 2};
@@ -59,6 +76,18 @@ struct UINode {
     Dimension marginRight{0.0f, 0};
     ES_PROPERTY()
     Dimension marginBottom{0.0f, 0};
+
+    // Inset (offset from the parent's edges) for Absolute positioning;
+    // auto = that edge is unconstrained (size/flow decides). Mirrors CSS
+    // left/top/right/bottom.
+    ES_PROPERTY()
+    Dimension insetLeft{0.0f, 2};
+    ES_PROPERTY()
+    Dimension insetTop{0.0f, 2};
+    ES_PROPERTY()
+    Dimension insetRight{0.0f, 2};
+    ES_PROPERTY()
+    Dimension insetBottom{0.0f, 2};
 
     // Layout output (not serialized): resolved px size written by the Yoga pass.
     glm::vec2 computed_size_{0.0f};

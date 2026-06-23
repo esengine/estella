@@ -14,7 +14,19 @@
 import { defineBuiltin } from '../../component';
 import { auto, px, type Dimension } from './dimension';
 
+/** Positioning scheme (mirrors the C++ UIPositionType enum). */
+export const UIPositionType = {
+    /** In flex flow (default). */
+    Relative: 0,
+    /** Out of flow; placed by `inset` against the parent box — covers
+     *  anchor/stretch (the old RectTransform cases). */
+    Absolute: 1,
+} as const;
+export type UIPositionType = (typeof UIPositionType)[keyof typeof UIPositionType];
+
 export interface UINodeData {
+    /** Relative (flex flow) or Absolute (placed by inset). */
+    position: number;
     /** Box size; `auto()` = content-/flex-driven. */
     width: Dimension;
     height: Dimension;
@@ -34,9 +46,16 @@ export interface UINodeData {
     marginTop: Dimension;
     marginRight: Dimension;
     marginBottom: Dimension;
+    /** Offset from the parent's edges when `position` is Absolute; `auto()` =
+     *  that edge is unconstrained. Mirrors CSS left/top/right/bottom. */
+    insetLeft: Dimension;
+    insetTop: Dimension;
+    insetRight: Dimension;
+    insetBottom: Dimension;
 }
 
 export const UINode = defineBuiltin<UINodeData>('UINode', {
+    position: 0,
     width: auto(),
     height: auto(),
     minWidth: auto(),
@@ -51,4 +70,8 @@ export const UINode = defineBuiltin<UINodeData>('UINode', {
     marginTop: px(0),
     marginRight: px(0),
     marginBottom: px(0),
+    insetLeft: auto(),
+    insetTop: auto(),
+    insetRight: auto(),
+    insetBottom: auto(),
 });

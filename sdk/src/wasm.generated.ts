@@ -122,6 +122,11 @@ export enum TextAlign {
     Right = 2,
 }
 
+export enum UIPositionType {
+    Relative = 0,
+    Absolute = 1,
+}
+
 export enum UIVisualType {
     None = 0,
     SolidColor = 1,
@@ -432,6 +437,7 @@ export interface UIMask {
 }
 
 export interface UINode {
+    position: number;
     width: Dimension;
     height: Dimension;
     minWidth: Dimension;
@@ -446,6 +452,10 @@ export interface UINode {
     marginTop: Dimension;
     marginRight: Dimension;
     marginBottom: Dimension;
+    insetLeft: Dimension;
+    insetTop: Dimension;
+    insetRight: Dimension;
+    insetBottom: Dimension;
 }
 
 export interface UIRect {

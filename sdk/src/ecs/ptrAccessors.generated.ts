@@ -1138,6 +1138,7 @@ export function createUIMaskData(): UIMaskPtrData {
 }
 
 export interface UINodePtrData {
+    position: number;
     flexGrow: number;
     flexShrink: number;
     alignSelf: number;
@@ -1147,22 +1148,25 @@ export function fillUINode(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: UINodePtrData,
 ): void {
-    out.flexGrow = f32[(ptr + 48) >> 2];
-    out.flexShrink = f32[(ptr + 52) >> 2];
-    out.alignSelf = u8[ptr + 64];
+    out.position = u8[ptr];
+    out.flexGrow = f32[(ptr + 52) >> 2];
+    out.flexShrink = f32[(ptr + 56) >> 2];
+    out.alignSelf = u8[ptr + 68];
 }
 
 export function writeUINode(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: UINodePtrData,
 ): void {
-    f32[(ptr + 48) >> 2] = data.flexGrow;
-    f32[(ptr + 52) >> 2] = data.flexShrink;
-    u8[ptr + 64] = data.alignSelf;
+    u8[ptr] = data.position;
+    f32[(ptr + 52) >> 2] = data.flexGrow;
+    f32[(ptr + 56) >> 2] = data.flexShrink;
+    u8[ptr + 68] = data.alignSelf;
 }
 
 export function createUINodeData(): UINodePtrData {
     return {
+        position: 0,
         flexGrow: 0,
         flexShrink: 0,
         alignSelf: 0,

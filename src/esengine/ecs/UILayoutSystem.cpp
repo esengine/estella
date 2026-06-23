@@ -431,9 +431,20 @@ void applyMargin(YGNodeRef n, YGEdge edge, const Dimension& d) {
     else if (d.unit == DIM_AUTO) YGNodeStyleSetMarginAuto(n, edge);
     else YGNodeStyleSetMargin(n, edge, d.value);
 }
+void applyInset(YGNodeRef n, YGEdge edge, const Dimension& d) {
+    // Auto = that edge is unconstrained; leave it unset so size/flow decides.
+    if (d.unit == DIM_PERCENT) YGNodeStyleSetPositionPercent(n, edge, d.value);
+    else if (d.unit == DIM_PX) YGNodeStyleSetPosition(n, edge, d.value);
+}
 
 void applyUINodeStyle(Registry& registry, Entity entity, YGNodeRef yg) {
     auto& n = registry.get<UINode>(entity);
+    YGNodeStyleSetPositionType(yg, n.position == UIPositionType::Absolute
+        ? YGPositionTypeAbsolute : YGPositionTypeRelative);
+    applyInset(yg, YGEdgeLeft, n.insetLeft);
+    applyInset(yg, YGEdgeTop, n.insetTop);
+    applyInset(yg, YGEdgeRight, n.insetRight);
+    applyInset(yg, YGEdgeBottom, n.insetBottom);
     applyWidth(yg, n.width);
     applyHeight(yg, n.height);
     applyMinWidth(yg, n.minWidth);
