@@ -3,14 +3,15 @@
 import type { Entity } from '../../types';
 import type { World } from '../../world';
 
-import { UIRect, type UIRectData } from '../core/ui-rect';
+import { UINode, type UINodeData } from '../core/ui-node';
+import { px, percent } from '../core/dimension';
 
-import { spawnUIEntity, type UIRectInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIRendererInit } from './helpers';
 
 export interface SliderOptions {
     world: World;
     parent?: Entity;
-    rect?: UIRectInit;
+    node?: UINodeInit;
     min?: number;
     max?: number;
     value?: number;
@@ -64,33 +65,35 @@ export function createSlider(opts: SliderOptions): SliderHandle {
     const track = spawnUIEntity({
         world: opts.world,
         parent: opts.parent,
-        rect: opts.rect,
+        node: opts.node ?? { fill: true },
         renderer: opts.trackRenderer ?? DEFAULT_TRACK,
     });
 
     const fill = spawnUIEntity({
         world: opts.world,
         parent: track,
-        rect: fillRectAt(fraction(value, min, max)),
+        node: fillNodeAt(fraction(value, min, max)),
         renderer: opts.fillRenderer ?? DEFAULT_FILL,
     });
 
     const handle = spawnUIEntity({
         world: opts.world,
         parent: track,
-        rect: handleRectAt(fraction(value, min, max), handleWidth),
+        node: handleNodeAt(fraction(value, min, max), handleWidth),
         renderer: opts.handleRenderer ?? DEFAULT_HANDLE,
     });
 
+    // Value -> geometry: the fill's width is the value fraction; the handle's
+    // left inset tracks it (centered via a -half-width margin). CSS-box version
+    // of the old anchor mutation. (A driver system owns this in the F7 rework.)
     function writeVisuals(t: number): void {
-        const fillRect = opts.world.get(fill, UIRect) as UIRectData;
-        fillRect.anchorMax = { x: t, y: 1 };
-        opts.world.insert(fill, UIRect, fillRect);
+        const fillNode = opts.world.get(fill, UINode) as UINodeData;
+        fillNode.width = percent(t * 100);
+        opts.world.insert(fill, UINode, fillNode);
 
-        const handleRect = opts.world.get(handle, UIRect) as UIRectData;
-        handleRect.anchorMin = { x: t, y: 0 };
-        handleRect.anchorMax = { x: t, y: 1 };
-        opts.world.insert(handle, UIRect, handleRect);
+        const handleNode = opts.world.get(handle, UINode) as UINodeData;
+        handleNode.insetLeft = percent(t * 100);
+        opts.world.insert(handle, UINode, handleNode);
     }
 
     function setValue(next: number): void {
@@ -126,23 +129,27 @@ function fraction(value: number, min: number, max: number): number {
     return clamp((value - min) / (max - min), 0, 1);
 }
 
-function fillRectAt(t: number): UIRectInit {
+// Fill: absolute, pinned to the track's left/top/bottom, width = value fraction.
+function fillNodeAt(t: number): UINodeInit {
     return {
-        anchorMin: { x: 0, y: 0 },
-        anchorMax: { x: t, y: 1 },
-        offsetMin: { x: 0, y: 0 },
-        offsetMax: { x: 0, y: 0 },
+        position: 1, // Absolute
+        insetLeft: px(0),
+        insetTop: px(0),
+        insetBottom: px(0),
+        width: percent(t * 100),
     };
 }
 
-function handleRectAt(t: number, width: number): UIRectInit {
+// Handle: absolute, full height, fixed width, centered at the value fraction
+// (left inset = t%, shifted left by half its width).
+function handleNodeAt(t: number, width: number): UINodeInit {
     return {
-        anchorMin: { x: t, y: 0 },
-        anchorMax: { x: t, y: 1 },
-        offsetMin: { x: 0, y: 0 },
-        offsetMax: { x: 0, y: 0 },
-        size: { x: width, y: 0 },
-        pivot: { x: 0.5, y: 0.5 },
+        position: 1, // Absolute
+        insetTop: px(0),
+        insetBottom: px(0),
+        insetLeft: percent(t * 100),
+        marginLeft: px(-width / 2),
+        width: px(width),
     };
 }
 

@@ -7,6 +7,8 @@ import {
     UIEventQueue,
     UIEventType,
     UIRect,
+    UINode,
+    DimensionUnit,
     Text,
 } from '../src/ui';
 import type { Entity } from '../src/types';
@@ -116,30 +118,28 @@ describe('createSlider', () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('updates fill anchorMax.x on setValue', () => {
+    it('updates fill width (percent) on setValue', () => {
         const slider = createSlider({
             world: world as unknown as World,
             min: 0, max: 1, value: 0,
         });
         slider.setValue(0.25);
-        const rect = world.get(slider.fillEntity, UIRect) as {
-            anchorMax: { x: number; y: number };
+        const node = world.get(slider.fillEntity, UINode) as {
+            width: { value: number; unit: number };
         };
-        expect(rect.anchorMax.x).toBe(0.25);
+        expect(node.width).toEqual({ value: 25, unit: DimensionUnit.Percent });
     });
 
-    it('updates handle anchorMin/Max.x together to position it at t', () => {
+    it('updates handle left inset (percent) to position it at t', () => {
         const slider = createSlider({
             world: world as unknown as World,
             min: 0, max: 1, value: 0,
         });
         slider.setValue(0.5);
-        const rect = world.get(slider.handleEntity, UIRect) as {
-            anchorMin: { x: number; y: number };
-            anchorMax: { x: number; y: number };
+        const node = world.get(slider.handleEntity, UINode) as {
+            insetLeft: { value: number; unit: number };
         };
-        expect(rect.anchorMin.x).toBe(0.5);
-        expect(rect.anchorMax.x).toBe(0.5);
+        expect(node.insetLeft).toEqual({ value: 50, unit: DimensionUnit.Percent });
     });
 
     it('valueAtLocalX maps pointer X to value (with clamping)', () => {
