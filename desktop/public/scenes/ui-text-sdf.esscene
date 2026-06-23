@@ -19,19 +19,20 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -150, "y": 45, "z": 0 } } },
+        { "type": "Transform", "data": { "position": { "x": -180, "y": 120, "z": 0 } } },
         {
           "type": "UIText",
           "data": {
-            "content": "Ag Hi 文字\n<b>SDF</b> <color=#ff5050>rich</color>",
+            "content": "The quick brown fox 中文自动换行测试字符断行",
             "fontFamily": "sans-serif",
-            "fontSizePx": 64,
+            "fontSizePx": 44,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
             "style": 0,
             "layer": 0,
-            "richText": true,
-            "align": 1,
-            "lineHeight": 0
+            "richText": false,
+            "align": 0,
+            "lineHeight": 0,
+            "maxWidth": 360
           }
         }
       ],
