@@ -337,11 +337,16 @@ const PHYSICS_COMPONENT_TYPES = new Set([
     'SegmentCollider', 'PolygonCollider', 'ChainCollider',
 ]);
 
-/** True if any entity in the scene carries a physics component (content gate). */
+/** True if any entity carries a physics component, or a TilemapLayer that will spawn
+ *  colliders at runtime (its baked collidable tiles are invisible to a component scan). */
 function sceneUsesPhysics(sceneData: SceneData): boolean {
     for (const entity of sceneData.entities ?? []) {
         for (const comp of entity.components ?? []) {
             if (PHYSICS_COMPONENT_TYPES.has(comp.type)) return true;
+            if (comp.type === 'TilemapLayer') {
+                const ids = (comp.data as Record<string, unknown> | undefined)?.collidableTileIds;
+                if (Array.isArray(ids) && ids.length > 0) return true;
+            }
         }
     }
     return false;

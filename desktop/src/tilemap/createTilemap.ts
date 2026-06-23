@@ -7,8 +7,10 @@
  *          paintable entity, the tileset is the reusable asset it references.
  */
 
-import { parseTileset } from 'esengine';
+import { parseTileset, collidableTileIds } from 'esengine';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { SceneModel } from '@/engine/SceneModel';
+import { EditorHistory } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -46,6 +48,18 @@ export async function createTilemapFromTileset(tilesetPath: string): Promise<voi
   // field — carried losslessly in the model like the chunks blob.
   SceneCommands.setField(sourceId, 'TilemapLayer', 'tilesetAsset', 'string', tilesetRef);
   SceneCommands.endGesture();
+
+  // Bake the tileset's collidable tile ids onto the layer (out-of-band model data the
+  // runtime reads to spawn colliders — T4). Its own undo step so redo restores it.
+  const collIds = collidableTileIds(asset);
+  if (collIds.length > 0) {
+    SceneModel.setField(sourceId, 'TilemapLayer', 'collidableTileIds', collIds);
+    EditorHistory.record(
+      'Bake Tilemap Collision',
+      () => SceneModel.setField(sourceId, 'TilemapLayer', 'collidableTileIds', collIds),
+      () => SceneModel.setField(sourceId, 'TilemapLayer', 'collidableTileIds', []),
+    );
+  }
 
   useSelection.getState().select(sourceId);
   useTilemapPaint.getState().setTileset(tilesetPath);

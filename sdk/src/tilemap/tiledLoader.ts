@@ -39,6 +39,7 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
 }
 import { RigidBody, BoxCollider, CircleCollider, BodyType } from '../physics/PhysicsComponents';
 import { mergeCollisionTiles } from './collisionMerge';
+import { CHUNK_SIZE } from './chunkCodec';
 import { log } from '../logger';
 import { withMalloc } from '../wasmScratch';
 
@@ -603,6 +604,53 @@ export function generateTileCollision(
         mapData.tileWidth, mapData.tileHeight, collisionIds,
         originX, originY, mapData.height,
     );
+}
+
+/**
+ * @brief Build static box colliders for an INFINITE (chunked) tilemap layer from its
+ *        collidable tiles — the native scene-`TilemapLayer` path (REARCH_TILEMAP T4).
+ *
+ * Each chunk's collidable tiles are greedy-merged independently (no cross-chunk merge); a
+ * merged rect (x0,y0)-(x1,y1) maps to a world AABB by the SAME orthogonal convention
+ * `worldToTile` uses (tile tx covers world-x [origin.x+tx·tw, origin.x+(tx+1)·tw); world-y
+ * grows downward as ty rises), so colliders line up exactly with what the painter placed.
+ * (Isometric/staggered collision is not derived here.)
+ */
+export function generateChunkCollision(
+    world: World,
+    chunks: { x: number; y: number; tiles: Uint16Array }[],
+    collisionIds: Set<number>,
+    tileW: number,
+    tileH: number,
+    originX: number,
+    originY: number,
+): Entity[] {
+    const entities: Entity[] = [];
+    for (const chunk of chunks) {
+        const merged = mergeCollisionTiles(chunk.tiles, CHUNK_SIZE, CHUNK_SIZE, collisionIds);
+        const baseX = chunk.x * CHUNK_SIZE;
+        const baseY = chunk.y * CHUNK_SIZE;
+        for (const rect of merged) {
+            const x0 = baseX + rect.col;
+            const y0 = baseY + rect.row;
+            const x1 = x0 + rect.width - 1;
+            const y1 = y0 + rect.height - 1;
+            const entity = world.spawn();
+            world.insert(entity, Transform, {
+                position: {
+                    x: originX + ((x0 + x1 + 1) / 2) * tileW,
+                    y: originY - ((y0 + y1 + 1) / 2) * tileH,
+                    z: 0,
+                },
+            });
+            world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+            world.insert(entity, BoxCollider, {
+                halfExtents: { x: rect.width * tileW * 0.5, y: rect.height * tileH * 0.5 },
+            });
+            entities.push(entity);
+        }
+    }
+    return entities;
 }
 
 export function loadTiledMap(
