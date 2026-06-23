@@ -611,6 +611,9 @@ function ComponentSection({
 }) {
   const Icon = componentIcon(comp.name);
   const overridden = comp.fields.some(isModified);
+  const [advOpen, setAdvOpen] = useState(false);
+  const primary = comp.fields.filter((f) => !f.advanced);
+  const advanced = comp.fields.filter((f) => f.advanced);
   const enable = comp.enable;
   const on = !enable || enable.value;
   // The header checkbox toggles the component's enable field (one undo step), or
@@ -658,9 +661,24 @@ function ComponentSection({
       <div className="comp-body">
         <div className="cinner">
           <div className="comp-fields">
-            {comp.fields.map((f) => (
+            {primary.map((f) => (
               <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} write={write} />
             ))}
+            {advanced.length > 0 && (
+              <>
+                <div className={`subfold${advOpen ? ' open' : ''}`} onClick={() => setAdvOpen((o) => !o)}>
+                  <ChevronRight size={9} strokeWidth={3} />
+                  Advanced
+                </div>
+                <div className="subbody">
+                  <div>
+                    {advanced.map((f) => (
+                      <FieldRow key={f.key} entity={entity} comp={comp.name} field={f} write={write} />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

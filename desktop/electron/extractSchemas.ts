@@ -67,6 +67,7 @@ export interface SerializedFieldMeta {
   step?: number;
   slider?: boolean;
   unit?: string;
+  advanced?: boolean;
 }
 
 export interface ExtractSchemasResult {
@@ -191,7 +192,7 @@ interface UserComponentDef {
   assetFields?: readonly unknown[];
   spineFields?: unknown;
   entityFields?: readonly string[];
-  fieldMeta?: Record<string, SerializedFieldMeta>;
+  fieldMeta?: Record<string, SerializedFieldMeta & { advanced?: boolean }>;
 }
 
 // Keep only fields the inspector actually consumes (enum / numeric range / unit),
@@ -209,6 +210,7 @@ function pickFieldMeta(
     if (meta.step != null) m.step = meta.step;
     if (meta.slider != null) m.slider = meta.slider;
     if (meta.unit != null) m.unit = meta.unit;
+    if (meta.advanced != null) m.advanced = meta.advanced;
     if (Object.keys(m).length) out[key] = m;
   }
   return Object.keys(out).length ? out : undefined;

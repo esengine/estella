@@ -179,6 +179,7 @@ export interface UserFieldMeta {
   step?: number;
   slider?: boolean;
   unit?: string;
+  advanced?: boolean;
 }
 
 const userSchemas = new Map<string, UserComponentSchema>();
@@ -251,6 +252,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
       step: fromDef.step,
       slider: fromDef.slider,
       unit: fromDef.unit,
+      advanced: fromDef.advanced,
     };
   }
   return userSchema(compType)?.fields?.[key] ?? null;
@@ -272,29 +274,26 @@ function fieldFor(
   value: unknown,
   isColor: boolean,
 ): InspectorField | null {
-  const at = assetFieldType(compType, key);
-  if (at) {
-    return {
-      key,
-      label: prettyLabel(key),
-      type: 'asset',
-      value: typeof value === 'string' ? value : 0,
-      assetType: at,
-    };
-  }
   const meta = fieldMetaFor(compType, key);
-  if (meta?.enum && meta.enum.length) {
-    return { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: meta.enum.map((o) => ({ ...o })) };
+  const at = assetFieldType(compType, key);
+  let field: InspectorField | null;
+  if (at) {
+    field = { key, label: prettyLabel(key), type: 'asset', value: typeof value === 'string' ? value : 0, assetType: at };
+  } else if (meta?.enum && meta.enum.length) {
+    field = { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: meta.enum.map((o) => ({ ...o })) };
+  } else {
+    field = inferField(key, value, isColor);
+    if (field && field.type === 'number' && meta) {
+      if (meta.min != null) field.min = meta.min;
+      if (meta.max != null) field.max = meta.max;
+      if (meta.step != null) field.step = meta.step;
+      if (meta.unit != null) field.unit = meta.unit;
+      if (meta.slider && meta.min != null && meta.max != null) field.slider = true;
+    }
   }
-  const base = inferField(key, value, isColor);
-  if (base && base.type === 'number' && meta) {
-    if (meta.min != null) base.min = meta.min;
-    if (meta.max != null) base.max = meta.max;
-    if (meta.step != null) base.step = meta.step;
-    if (meta.unit != null) base.unit = meta.unit;
-    if (meta.slider && meta.min != null && meta.max != null) base.slider = true;
-  }
-  return base;
+  // Presentation policy that applies to any field type (folds rarely-edited fields).
+  if (field && meta?.advanced) field.advanced = true;
+  return field;
 }
 
 /**

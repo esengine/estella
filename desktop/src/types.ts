@@ -77,6 +77,8 @@ export interface InspectorField {
   slider?: boolean;
   /** Unit shown after the resting value (e.g. '°', 'px'). */
   unit?: string;
+  /** A rarely-edited field — tucked behind the component's "Advanced" fold. */
+  advanced?: boolean;
 }
 
 export interface InspectorComponent {

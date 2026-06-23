@@ -316,7 +316,7 @@ describe('Field metadata (editor presentation policy)', () => {
         expect(meta.fov).toMatchObject({ min: 1, max: 179, unit: '°' });
         expect(meta.orthoSize).toEqual({ min: 0 });
         // An unannotated field carries no metadata at all.
-        expect(meta.aspectRatio).toBeUndefined();
+        expect(meta.isActive).toBeUndefined();
     });
 
     it('a user component declares its own field metadata', () => {

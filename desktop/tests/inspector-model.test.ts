@@ -276,6 +276,41 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
   });
 });
 
+describe('Advanced fields (D5)', () => {
+  it('flags rarely-edited builtin fields as advanced, leaving primaries plain', () => {
+    const S = EditorSession.create();
+    S.model.adopt(sceneWithCamera({ fov: 60, nearPlane: 0.1 }), new Map([[1, 1]]));
+    const cam = S.query.readInspector(1).find((c) => c.name === 'Camera')!;
+    expect(cam.fields.find((f) => f.key === 'fov')!.advanced).toBeFalsy();
+    expect(cam.fields.find((f) => f.key === 'nearPlane')!.advanced).toBe(true);
+    expect(cam.fields.find((f) => f.key === 'aspectRatio')!.advanced).toBe(true);
+  });
+
+  it('lets a user component mark a field advanced via its schema', () => {
+    setUserSchemas([
+      {
+        name: 'Tuning',
+        isTag: false,
+        default: { power: 1, debugSeed: 0 },
+        colorKeys: [],
+        fields: { debugSeed: { advanced: true } },
+      },
+    ]);
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 't',
+        entities: [{ id: 1, name: 'T', parent: null, children: [], components: [{ type: 'Tuning', data: { power: 1, debugSeed: 0 } }] }],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const tuning = S.query.readInspector(1).find((c) => c.name === 'Tuning')!;
+    expect(tuning.fields.find((f) => f.key === 'power')!.advanced).toBeFalsy();
+    expect(tuning.fields.find((f) => f.key === 'debugSeed')!.advanced).toBe(true);
+  });
+});
+
 describe('Per-component enable (D4)', () => {
   function sceneWith(type: string, data: Record<string, unknown>): SceneData {
     return {

@@ -121,8 +121,10 @@ export const RigidBody = defineBuiltin<RigidBodyData>('RigidBody', {
 }, {
     fields: {
         bodyType: { enum: enumOptions(BodyType) },
-        linearDamping: { min: 0 },
-        angularDamping: { min: 0 },
+        linearDamping: { min: 0, advanced: true },
+        angularDamping: { min: 0, advanced: true },
+        fixedRotation: { advanced: true },
+        bullet: { advanced: true },
     },
 });
 
