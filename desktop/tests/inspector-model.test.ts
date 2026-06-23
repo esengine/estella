@@ -113,6 +113,22 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
     expect(enumFieldOptions('Camera', 'orthoSize')).toBeNull(); // a plain number, not an enum
   });
 
+  it("builds a bitmask field as type 'flags' carrying its bit options", () => {
+    const fresh = EditorSession.create();
+    fresh.model.adopt(
+      {
+        version: '1.0',
+        name: 'cam',
+        entities: [{ id: 1, name: 'Cam', parent: null, children: [], components: [{ type: 'Camera', data: { clearFlags: 3 } }] }],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const cf = fresh.query.readInspector(1).find((c) => c.name === 'Camera')!.fields.find((f) => f.key === 'clearFlags')!;
+    expect(cf.type).toBe('flags');
+    expect(cf.value).toBe(3); // Color | Depth
+    expect(cf.options!.map((o) => o.label)).toEqual(['Color', 'Depth']);
+  });
+
   it("builds an enum field as type 'enum' carrying its options + stored int", () => {
     const fresh = EditorSession.create();
     fresh.model.adopt(

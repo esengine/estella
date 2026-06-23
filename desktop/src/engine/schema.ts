@@ -184,6 +184,7 @@ export interface UserComponentSchema {
 /** A serialized field's editor metadata, as carried in `schemas.json`. */
 export interface UserFieldMeta {
   enum?: EnumOption[];
+  flags?: EnumOption[];
   min?: number;
   max?: number;
   step?: number;
@@ -258,6 +259,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
   if (fromDef) {
     return {
       enum: fromDef.enum?.map((o) => ({ label: o.label, value: o.value })),
+      flags: fromDef.flags?.map((o) => ({ label: o.label, value: o.value })),
       min: fromDef.min,
       max: fromDef.max,
       step: fromDef.step,
@@ -291,6 +293,8 @@ function fieldFor(
   let field: InspectorField | null;
   if (at) {
     field = { key, label: prettyLabel(key), type: 'asset', value: typeof value === 'string' ? value : 0, assetType: at };
+  } else if (meta?.flags && meta.flags.length) {
+    field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: meta.flags.map((o) => ({ ...o })) };
   } else if (meta?.enum && meta.enum.length) {
     field = { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: meta.enum.map((o) => ({ ...o })) };
   } else {

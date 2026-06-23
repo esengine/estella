@@ -34,6 +34,8 @@ export interface AssetRef {
 export interface FieldMeta {
     /** Render as a dropdown of these options; the stored value is the option's int. */
     enum?: ReadonlyArray<{ label: string; value: number }>;
+    /** Render as a bitmask multi-select; each option is a single bit. */
+    flags?: ReadonlyArray<{ label: string; value: number }>;
     /** Hard numeric range — clamps both typed entry and drag-scrub. */
     min?: number;
     max?: number;
@@ -589,7 +591,8 @@ export const Camera = defineBuiltin<CameraData>('Camera',
     {
         fields: {
             projectionType: { enum: enumOptions(ProjectionType) },
-            clearFlags: { enum: enumOptions(ClearFlags) },
+            // A bitmask (ColorAndDepth = Color | Depth), so a multi-select, not a dropdown.
+            clearFlags: { flags: [{ label: 'Color', value: 1 }, { label: 'Depth', value: 2 }] },
             fov: { min: 1, max: 179, unit: '°' },
             orthoSize: { min: 0 },
             nearPlane: { min: 0, advanced: true },

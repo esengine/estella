@@ -13,7 +13,25 @@ import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
+import { assetTypeOf } from '@/project/assetMeta';
+import type { AssetType } from '@/types';
 import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type WorkspaceState } from './format';
+
+/** Whether an asset of the editor `type` is a valid pick for a `fieldType` slot. */
+function assetMatchesSlot(type: AssetType, fieldType?: string): boolean {
+  if (!fieldType) return true;
+  // A 'texture' slot accepts any image (texture or sprite); others match by name.
+  if (fieldType === 'texture') return type === 'texture' || type === 'sprite';
+  return type === fieldType;
+}
+
+/** A pickable asset for the inspector's asset picker. */
+export interface AssetEntry {
+  ref: string;
+  path: string;
+  name: string;
+  type: AssetType;
+}
 
 /**
  * Editor-side project/workspace model (RC12 §E7-3 / §E6-1).
@@ -520,6 +538,18 @@ class ProjectStoreImpl {
     if (typeof ref !== 'string' || !ref.startsWith(UUID_PREFIX)) return null;
     const path = this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase());
     return path ? { path, name: path.split('/').pop() ?? path } : null;
+  }
+
+  /** Project assets valid for an asset slot (the inspector's asset picker), by name. */
+  listAssets(fieldType?: string): AssetEntry[] {
+    const out: AssetEntry[] = [];
+    for (const [uuid, path] of this.uuidToPath) {
+      const name = path.split('/').pop() ?? path;
+      const type = assetTypeOf(name);
+      if (!assetMatchesSlot(type, fieldType)) continue;
+      out.push({ ref: UUID_PREFIX + uuid, path, name, type });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**

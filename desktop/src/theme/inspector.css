@@ -121,6 +121,38 @@
 /* compact exact-entry box paired with a slider track */
 .snum { width: 54px; flex-shrink: 0; display: flex; }
 
+/* ── themed dropdown / flags / asset picker (a Popover under the field) ── */
+.field.dropdown { padding: 0; overflow: hidden; }
+.dd-trigger { width: 100%; height: 100%; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 7px; background: none; border: none; color: var(--text); font-size: var(--fs-sm); cursor: pointer; min-width: 0; }
+.dd-val { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-val.mixed { color: var(--text-mute); }
+.dd-trigger > svg { color: var(--text-mute); flex-shrink: 0; }
+.dd-trigger:hover > svg { color: var(--text-dim); }
+
+.popover { position: fixed; z-index: 150; background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); box-shadow: var(--shadow-3); padding: 3px; max-height: 320px; display: flex; flex-direction: column; min-width: 0; }
+.dd-search { display: flex; align-items: center; gap: 6px; padding: 4px 7px; margin-bottom: 2px; border-bottom: 1px solid var(--border); color: var(--text-mute); flex-shrink: 0; }
+.dd-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--text); font-size: var(--fs-sm); }
+.dd-search input::placeholder { color: var(--text-mute); }
+.dd-list { overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+.dd-opt { display: flex; align-items: center; gap: 7px; height: 25px; padding: 0 8px; background: none; border: none; color: var(--text-dim); font-size: var(--fs-sm); text-align: left; cursor: pointer; border-radius: var(--r-sm); }
+.dd-opt:hover { background: var(--acc-soft); color: var(--text); }
+.dd-opt.on { color: var(--acc-hi); }
+.dd-opt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-opt > svg { color: var(--acc-hi); flex-shrink: 0; }
+.dd-opt .fchk { width: 13px; height: 13px; border: 1px solid var(--border-line); border-radius: var(--r-xs); display: grid; place-items: center; color: transparent; flex-shrink: 0; }
+.dd-opt .fchk.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+.dd-empty { padding: 9px; text-align: center; color: var(--text-mute); font-size: var(--fs-xs); }
+
+/* asset picker — a thumbnail grid in the popover */
+.asset-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 2px; min-height: 0; max-height: 280px; }
+.asset-opt { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 4px; background: none; border: 1px solid transparent; border-radius: var(--r-sm); color: var(--text-dim); font-size: var(--fs-2xs); cursor: pointer; min-width: 0; }
+.asset-opt:hover { background: var(--acc-soft); color: var(--text); }
+.asset-opt.on { border-color: var(--acc); color: var(--acc-hi); }
+.asset-opt .th { width: 42px; height: 42px; border-radius: var(--r-xs); background: var(--inset); display: grid; place-items: center; color: var(--text-mute); overflow: hidden; flex-shrink: 0; }
+.asset-opt .th img { width: 100%; height: 100%; object-fit: contain; }
+.asset-opt .an { width: 100%; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asset-grid .dd-empty { grid-column: 1 / -1; }
+
 /* multi-select: a value the selection disagrees on (shows a "—" placeholder) */
 .prop.mixed .prop-label { color: var(--text-mute); }
 .toggle.mixed { background: var(--srf-5); }

@@ -80,6 +80,7 @@ export function toModelValue(
   switch (type) {
     case 'number':
     case 'enum':
+    case 'flags':
       return Number(value);
     case 'bool':
       return Boolean(value);

@@ -62,6 +62,7 @@ export interface ComponentSchema {
 /** The serialized editor metadata of one component field. */
 export interface SerializedFieldMeta {
   enum?: Array<{ label: string; value: number }>;
+  flags?: Array<{ label: string; value: number }>;
   min?: number;
   max?: number;
   step?: number;
@@ -193,7 +194,7 @@ interface UserComponentDef {
   assetFields?: readonly unknown[];
   spineFields?: unknown;
   entityFields?: readonly string[];
-  fieldMeta?: Record<string, SerializedFieldMeta & { advanced?: boolean; category?: string }>;
+  fieldMeta?: Record<string, SerializedFieldMeta & { advanced?: boolean; category?: string; flags?: Array<{ label: string; value: number }> }>;
 }
 
 // Keep only fields the inspector actually consumes (enum / numeric range / unit),
@@ -206,6 +207,7 @@ function pickFieldMeta(
   for (const [key, meta] of Object.entries(fieldMeta)) {
     const m: SerializedFieldMeta = {};
     if (meta.enum && meta.enum.length) m.enum = meta.enum.map((o) => ({ ...o }));
+    if (meta.flags && meta.flags.length) m.flags = meta.flags.map((o) => ({ ...o }));
     if (meta.min != null) m.min = meta.min;
     if (meta.max != null) m.max = meta.max;
     if (meta.step != null) m.step = meta.step;

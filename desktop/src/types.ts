@@ -36,6 +36,7 @@ export type InspectorFieldType =
   | 'angle' // 2D rotation: a quaternion shown/edited as Z degrees
   | 'color'
   | 'enum' // an int field with named options, shown as a dropdown
+  | 'flags' // an int bitmask, shown as a multi-select of its bits
   | 'asset'; // a texture/material/font/... ref (@uuid: string, or 0 for none)
 
 /** A dropdown option for an `enum` field: the label shown, the int stored. */

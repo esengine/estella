@@ -5,6 +5,7 @@ import {
   Box,
   Camera,
   Check,
+  ChevronDown,
   ChevronRight,
   Code2,
   Component as ComponentIcon,
@@ -39,8 +40,9 @@ import type { SceneData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
+import { Popover, usePopover } from '@/components/Popover';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
@@ -243,9 +245,9 @@ function VecControl({
   );
 }
 
-// A named-int dropdown (e.g. Camera projection, body type). The stored value is
-// the option's int; an out-of-range value keeps a synthetic row so the select
-// never silently misrepresents the model.
+// A named-int dropdown (e.g. Camera projection, body type) — a themed popover, not
+// a native <select>, so the list matches the editor and searches when long. The
+// stored value is the option's int; an unknown value shows a "(n)" placeholder.
 function EnumControl({
   value,
   options,
@@ -254,25 +256,107 @@ function EnumControl({
   onEnd,
   onChange,
 }: ControlGesture & { value: number; options: EnumOption[]; mixed?: boolean; onChange: (v: number) => void }) {
-  const known = options.some((o) => o.value === value);
+  const pop = usePopover();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [q, setQ] = useState('');
+  const cur = options.find((o) => o.value === value);
+  const label = mixed ? '' : cur ? prettyLabel(cur.label) : `(${value})`;
+  const searchable = options.length > 8;
+  const ql = q.trim().toLowerCase();
+  const filtered = ql ? options.filter((o) => prettyLabel(o.label).toLowerCase().includes(ql)) : options;
+  const close = () => {
+    pop.close();
+    onEnd?.();
+  };
+  const toggle = () => {
+    if (pop.isOpen) return close();
+    setQ('');
+    onBegin?.();
+    pop.open(trigger.current);
+  };
   return (
-    <span className="field">
-      <select
-        value={mixed ? '' : String(value)}
-        onChange={(e) => {
-          onBegin?.();
-          onChange(Number(e.target.value));
-          onEnd?.();
-        }}
-      >
-        {mixed && <option value="">—</option>}
-        {!mixed && !known && <option value={String(value)}>{`(${value})`}</option>}
-        {options.map((o) => (
-          <option key={o.value} value={String(o.value)}>
-            {prettyLabel(o.label)}
-          </option>
-        ))}
-      </select>
+    <span className="field dropdown">
+      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
+        <span className={`dd-val${mixed ? ' mixed' : ''}`}>{mixed ? '—' : label}</span>
+        <ChevronDown size={12} strokeWidth={2} />
+      </button>
+      {pop.anchor && (
+        <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 150)} onClose={close}>
+          {searchable && (
+            <div className="dd-search">
+              <Search size={12} strokeWidth={2} />
+              <input autoFocus placeholder="Search" value={q} spellCheck={false} onChange={(e) => setQ(e.target.value)} />
+            </div>
+          )}
+          <div className="dd-list">
+            {filtered.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                className={`dd-opt${o.value === value && !mixed ? ' on' : ''}`}
+                onClick={() => {
+                  onChange(o.value);
+                  close();
+                }}
+              >
+                <span className="dd-opt-label">{prettyLabel(o.label)}</span>
+                {o.value === value && !mixed && <Check size={12} strokeWidth={2.4} />}
+              </button>
+            ))}
+            {filtered.length === 0 && <div className="dd-empty">No match</div>}
+          </div>
+        </Popover>
+      )}
+    </span>
+  );
+}
+
+// An int bitmask, edited as a multi-select of its bits (e.g. Camera clear flags).
+// The popover stays open across toggles; the whole burst is one undo step (the
+// field's gesture coalesces). The summary reads "Color | Depth" or "None".
+function FlagsControl({
+  value,
+  options,
+  mixed,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & { value: number; options: EnumOption[]; mixed?: boolean; onChange: (v: number) => void }) {
+  const pop = usePopover();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const bits = options.filter((o) => o.value !== 0);
+  const active = bits.filter((o) => (value & o.value) === o.value);
+  const summary = mixed ? '—' : active.length ? active.map((o) => prettyLabel(o.label)).join(' | ') : 'None';
+  const close = () => {
+    pop.close();
+    onEnd?.();
+  };
+  const toggle = () => {
+    if (pop.isOpen) return close();
+    onBegin?.();
+    pop.open(trigger.current);
+  };
+  return (
+    <span className="field dropdown">
+      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
+        <span className={`dd-val${mixed ? ' mixed' : ''}`}>{summary}</span>
+        <ChevronDown size={12} strokeWidth={2} />
+      </button>
+      {pop.anchor && (
+        <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 150)} onClose={close}>
+          <div className="dd-list">
+            {bits.map((o) => {
+              const on = !mixed && (value & o.value) === o.value;
+              return (
+                <button key={o.value} type="button" className="dd-opt" onClick={() => onChange(value ^ o.value)}>
+                  <span className={`fchk${on ? ' on' : ''}`}>{on && <Check size={10} strokeWidth={3.2} />}</span>
+                  <span className="dd-opt-label">{prettyLabel(o.label)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Popover>
+      )}
     </span>
   );
 }
@@ -428,8 +512,11 @@ function ColorControl({
   );
 }
 
-// An asset-ref field: a drop target showing the bound asset (thumbnail + name).
-// The trailing button clears when bound (×), or reads as the pick affordance.
+const isImageAsset = (t: AssetType): boolean => t === 'texture' || t === 'sprite';
+
+// An asset-ref field: a drop target showing the bound asset, PLUS a pick popover
+// (search + thumbnail grid of the project's matching assets) on the lens button —
+// so a ref can be set without dragging from the Content Browser. Clear with ×.
 function AssetControl({
   value,
   assetType,
@@ -442,22 +529,46 @@ function AssetControl({
   onChange: (v: string | number) => void;
 }) {
   const [over, setOver] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const pop = usePopover();
+  const [q, setQ] = useState('');
   const info = ProjectStore.assetInfo(value);
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setOver(false);
-    const path = e.dataTransfer.getData('application/x-estella-asset') || e.dataTransfer.getData('text/plain');
-    if (!path) return;
+  const setRefFromPath = (path: string) => {
     onBegin?.();
     void ProjectStore.assetRefForPath(path, assetType).then((ref) => {
       if (ref) onChange(ref);
       onEnd?.();
     });
   };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setOver(false);
+    const path = e.dataTransfer.getData('application/x-estella-asset') || e.dataTransfer.getData('text/plain');
+    if (path) setRefFromPath(path);
+  };
+
+  const openPick = () => {
+    setQ('');
+    onBegin?.();
+    pop.open(box.current);
+  };
+  const close = () => {
+    pop.close();
+    onEnd?.();
+  };
+  const pick = (ref: string | number) => {
+    onChange(ref);
+    close();
+  };
+  const ql = q.trim().toLowerCase();
+  const assets = pop.isOpen
+    ? ProjectStore.listAssets(assetType).filter((a) => !ql || a.name.toLowerCase().includes(ql))
+    : [];
 
   return (
     <div
+      ref={box}
       className={`assetref${over ? ' is-over' : ''}`}
       title={info?.path}
       onDragOver={(e) => {
@@ -475,19 +586,52 @@ function AssetControl({
         )}
       </span>
       <span className="an">{info ? info.name : 'None'}</span>
-      <button
-        type="button"
-        className="pk"
-        title={info ? 'Clear' : 'Pick'}
-        onClick={() => {
-          if (!info) return;
-          onBegin?.();
-          onChange(0);
-          onEnd?.();
-        }}
-      >
-        {info ? <X size={11} strokeWidth={2} /> : <Search size={11} strokeWidth={2} />}
+      <button type="button" className="pk" title="Pick asset" onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
+        <Search size={11} strokeWidth={2} />
       </button>
+      {info && (
+        <button
+          type="button"
+          className="pk"
+          title="Clear"
+          onClick={() => {
+            onBegin?.();
+            onChange(0);
+            onEnd?.();
+          }}
+        >
+          <X size={11} strokeWidth={2} />
+        </button>
+      )}
+      {pop.anchor && (
+        <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 240)} onClose={close}>
+          <div className="dd-search">
+            <Search size={12} strokeWidth={2} />
+            <input autoFocus placeholder="Search assets" value={q} spellCheck={false} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="asset-grid">
+            <button type="button" className={`asset-opt${value === 0 || !info ? ' on' : ''}`} onClick={() => pick(0)}>
+              <span className="th">
+                <X size={13} strokeWidth={2} />
+              </span>
+              <span className="an">None</span>
+            </button>
+            {assets.map((a) => (
+              <button key={a.ref} type="button" className={`asset-opt${a.ref === value ? ' on' : ''}`} title={a.path} onClick={() => pick(a.ref)}>
+                <span className="th">
+                  {isImageAsset(a.type) ? (
+                    <img src={`estella://project/${a.path}`} alt="" draggable={false} />
+                  ) : (
+                    <AssetIcon type={a.type} size={18} />
+                  )}
+                </span>
+                <span className="an">{a.name}</span>
+              </button>
+            ))}
+            {assets.length === 0 && <div className="dd-empty">No matching assets</div>}
+          </div>
+        </Popover>
+      )}
     </div>
   );
 }
@@ -558,6 +702,18 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     case 'enum':
       control = (
         <EnumControl
+          value={field.value as number}
+          options={field.options ?? []}
+          mixed={mixed}
+          onBegin={begin}
+          onEnd={end}
+          onChange={apply}
+        />
+      );
+      break;
+    case 'flags':
+      control = (
+        <FlagsControl
           value={field.value as number}
           options={field.options ?? []}
           mixed={mixed}
