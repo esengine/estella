@@ -21,6 +21,7 @@ import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
 import { fetchPhysicsModule } from './physics';
 import type { Vec2 } from './types';
+import { decodeImagePixels } from './asset/imageDecode';
 
 const UUID_PREFIX = '@uuid:';
 
@@ -47,12 +48,11 @@ export interface PlayRealmRuntimeConfig {
 
 /**
  * Fetches scene assets over the realm origin, resolving `@uuid:` refs through the
- * editor-supplied manifest. Images are decoded via fetch → blob →
- * `createImageBitmap` → canvas → getImageData (NOT `<img crossorigin>`: Chromium
- * refuses CORS-mode images for custom schemes like `estella://`, and a non-CORS
- * `<img>` would taint the canvas so getImageData throws — fetch+blob sidesteps
- * both). `estella://` is fetchable because it's a privileged supportFetchAPI
- * scheme; the editor's handler returns `access-control-allow-origin: *`.
+ * editor-supplied manifest. Images go fetch → blob → the shared `decodeImagePixels`
+ * (NOT `<img crossorigin>`: Chromium refuses CORS-mode images for custom schemes
+ * like `estella://`, and a non-CORS `<img>` would taint the canvas so getImageData
+ * throws — fetch+blob sidesteps both). `estella://` is fetchable because it's a
+ * privileged supportFetchAPI scheme; the editor returns `access-control-allow-origin: *`.
  */
 class FetchAssetProvider implements RuntimeAssetProvider {
     constructor(private readonly manifest: Record<string, string>) {}
@@ -68,19 +68,7 @@ class FetchAssetProvider implements RuntimeAssetProvider {
         const url = this.resolvePath(ref);
         const res = await fetch(url);
         if (!res.ok) throw new Error(`image fetch failed (${res.status}): ${url}`);
-        const bitmap = await createImageBitmap(await res.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-        try {
-            const cv = document.createElement('canvas');
-            cv.width = bitmap.width;
-            cv.height = bitmap.height;
-            const ctx = cv.getContext('2d');
-            if (!ctx) throw new Error('2d context unavailable');
-            ctx.drawImage(bitmap, 0, 0);
-            const id = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-            return { width: bitmap.width, height: bitmap.height, pixels: new Uint8Array(id.data.buffer) };
-        } finally {
-            bitmap.close();
-        }
+        return decodeImagePixels(await res.blob());
     }
 
     async readText(ref: string): Promise<string> {

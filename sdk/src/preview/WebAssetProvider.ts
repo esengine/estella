@@ -9,6 +9,7 @@ import type { RuntimeAssetProvider } from '../runtimeLoader';
 import type { SceneData } from '../scene';
 import { getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor } from '../scene';
 import { getAssetTypeEntry } from '../assetTypes';
+import { decodeImagePixels } from '../asset/imageDecode';
 import { log } from '../logger';
 
 export class WebAssetProvider implements RuntimeAssetProvider {
@@ -124,20 +125,8 @@ export class WebAssetProvider implements RuntimeAssetProvider {
     }
 
     async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
-        const url = this.resolveUrl(ref);
-        const resp = await fetch(url);
-        const blob = await resp.blob();
-        const bitmap = await createImageBitmap(blob);
-        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(bitmap, 0, 0);
-        const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-        bitmap.close();
-        return {
-            width: imageData.width,
-            height: imageData.height,
-            pixels: new Uint8Array(imageData.data.buffer),
-        };
+        const resp = await fetch(this.resolveUrl(ref));
+        return decodeImagePixels(await resp.blob());
     }
 
     resolvePath(ref: string): string {

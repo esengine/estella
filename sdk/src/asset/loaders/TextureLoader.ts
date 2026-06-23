@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { platformCreateCanvas, platformCreateImage } from '../../platform';
+import { decodeImageBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasmScratch';
@@ -136,12 +137,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             img.onload = async () => {
                 if (typeof createImageBitmap !== 'undefined') {
                     try {
-                        const bitmap = await createImageBitmap(img, {
-                            premultiplyAlpha: 'none',
-                            colorSpaceConversion: 'none',
-                            imageOrientation: flip ? 'flipY' : 'from-image',
-                        });
-                        resolve(bitmap);
+                        resolve(await decodeImageBitmap(img, flip));
                         return;
                     } catch {
                         // fallback

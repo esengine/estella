@@ -2,12 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { SpinePlugin, loadSpineSceneEntities } from 'esengine/spine';
 import type { RuntimeAssetProvider } from 'esengine/spine';
-import type { App, SceneData } from 'esengine';
+import { decodeImagePixels, type App, type SceneData } from 'esengine';
 
 /**
  * Fetch-backed asset provider for spine in the editor: skeleton/atlas come over
- * fetch as text/bytes; the atlas PNG is decoded to RGBA via createImageBitmap →
- * canvas → getImageData (the same path the play realm uses — robust across the
+ * fetch as text/bytes; the atlas PNG is decoded to RGBA via the shared
+ * `decodeImagePixels` (the same path the play realm uses — robust across the
  * editor's http/app:// origins). `toUrl` maps an asset ref to a fetchable URL.
  */
 class EditorSpineProvider implements RuntimeAssetProvider {
@@ -32,19 +32,7 @@ class EditorSpineProvider implements RuntimeAssetProvider {
   async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
     const r = await fetch(this.toUrl(ref));
     if (!r.ok) throw new Error(`spine texture ${r.status}: ${ref}`);
-    const bitmap = await createImageBitmap(await r.blob(), {
-      premultiplyAlpha: 'none',
-      colorSpaceConversion: 'none',
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('2d context unavailable for spine texture decode');
-    ctx.drawImage(bitmap, 0, 0);
-    bitmap.close?.();
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    return { width: canvas.width, height: canvas.height, pixels: new Uint8Array(data.data.buffer) };
+    return decodeImagePixels(await r.blob());
   }
 }
 
