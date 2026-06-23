@@ -135,6 +135,61 @@ export interface RichTextLayoutOptions extends TextLayoutOptions {
     color: RGBA;
 }
 
+/** Horizontal alignment: 0 = left, 1 = center, 2 = right. */
+export const TEXT_ALIGN_LEFT = 0;
+export const TEXT_ALIGN_CENTER = 1;
+export const TEXT_ALIGN_RIGHT = 2;
+
+export interface MultilineTextOptions extends TextLayoutOptions {
+    /** Baseline-to-baseline distance in px. Default fontSizePx * 1.2. */
+    lineHeight?: number;
+    /** 0 left | 1 center | 2 right. Default left. */
+    align?: number;
+    /** Parse rich markup (`<b>` etc.) per line. */
+    rich?: boolean;
+    /** Base color (used by rich runs without their own color). */
+    color?: RGBA;
+}
+
+/**
+ * Lay out multi-line text (REARCH_GUI P1.4): splits on `\n`, lays each line out
+ * (rich or plain), stacks lines downward (y-up: line 0 on top) by `lineHeight`,
+ * and horizontally aligns each line within the widest line's block. Pure →
+ * unit-testable. (Word-wrap to a max width is a later addition.)
+ */
+export function layoutText(
+    text: string,
+    atlas: GlyphAtlas,
+    fontFamily: string,
+    opts: MultilineTextOptions,
+    style = 0,
+): TextLayout {
+    const lineHeight = opts.lineHeight ?? opts.fontSizePx * 1.2;
+    const align = opts.align ?? TEXT_ALIGN_LEFT;
+    const baseColor = opts.color ?? ([1, 1, 1, 1] as const);
+    const lines = text.split('\n');
+
+    const lineLayouts = lines.map(line => (opts.rich
+        ? layoutRichLine(line, atlas, fontFamily, { fontSizePx: opts.fontSizePx, letterSpacing: opts.letterSpacing, color: baseColor }, style)
+        : layoutLine(line, atlas, fontFamily, opts, style)));
+
+    const blockWidth = lineLayouts.reduce((m, l) => Math.max(m, l.width), 0);
+    const glyphs: LaidGlyph[] = [];
+
+    for (let i = 0; i < lineLayouts.length; i++) {
+        const ll = lineLayouts[i];
+        const dx = align === TEXT_ALIGN_CENTER ? (blockWidth - ll.width) / 2
+            : align === TEXT_ALIGN_RIGHT ? (blockWidth - ll.width)
+            : 0;
+        const dy = -i * lineHeight; // y-up: first line on top
+        for (const g of ll.glyphs) {
+            glyphs.push({ ...g, x0: g.x0 + dx, x1: g.x1 + dx, y0: g.y0 + dy, y1: g.y1 + dy });
+        }
+    }
+
+    return { glyphs, width: blockWidth, lineHeight: lines.length * lineHeight };
+}
+
 /**
  * Lay out a single line of rich text (REARCH_GUI P1.4): `<b>`, `<i>`,
  * `<color=#rrggbb[aa]>`, `<font size=N>` runs (parsed by parseRichText) become

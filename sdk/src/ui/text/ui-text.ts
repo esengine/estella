@@ -24,6 +24,10 @@ export interface UITextData {
     layer: number;
     /** Parse `<b>/<i>/<color>/<font size>` markup in `content`. */
     richText: boolean;
+    /** Horizontal alignment: 0 left | 1 center | 2 right. */
+    align: number;
+    /** Baseline-to-baseline px for multi-line text; 0 = auto (fontSizePx × 1.2). */
+    lineHeight: number;
 }
 
 export const UIText = defineComponent<UITextData>('UIText', {
@@ -34,6 +38,8 @@ export const UIText = defineComponent<UITextData>('UIText', {
     style: 0,
     layer: 0,
     richText: false,
+    align: 0,
+    lineHeight: 0,
 });
 
 /**

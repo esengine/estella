@@ -47,6 +47,8 @@ export class UITextPlugin implements Plugin {
                         color: [t.color.r, t.color.g, t.color.b, t.color.a],
                         style: t.style,
                         richText: t.richText,
+                        align: t.align,
+                        lineHeight: t.lineHeight || undefined,
                     },
                     this.matrix_,
                     entity as number,

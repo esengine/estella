@@ -12,7 +12,7 @@ import type { ESEngineModule } from '../../wasm';
 import { GlyphAtlas } from './glyph-atlas';
 import { CanvasGlyphRasterizer, type CanvasGlyphRasterizerOptions } from './glyph-rasterizer';
 import { EngineAtlasPageStore } from './atlas-page-store';
-import { layoutLine, layoutRichLine, buildGlyphVertices, type LaidGlyph, type RGBA } from './layout';
+import { layoutText, buildGlyphVertices, type LaidGlyph, type RGBA } from './layout';
 import { submitTextBatch } from './submit';
 
 /** Receives one (vertices, indices) batch per atlas page used by the text. */
@@ -28,6 +28,12 @@ export interface DrawTextParams {
     style?: number;
     /** Parse `<b>/<i>/<color>/<font size>` markup (REARCH_GUI P1.4). */
     richText?: boolean;
+    /** Horizontal alignment: 0 left | 1 center | 2 right. */
+    align?: number;
+    /** Baseline-to-baseline distance (px) for multi-line text. */
+    lineHeight?: number;
+    /** Extra advance between glyphs (px). */
+    letterSpacing?: number;
 }
 
 /**
@@ -36,9 +42,14 @@ export interface DrawTextParams {
  * and geometry are unit-testable.
  */
 export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTextParams): void {
-    const layout = p.richText
-        ? layoutRichLine(p.text, atlas, p.fontFamily, { fontSizePx: p.fontSizePx, color: p.color }, p.style ?? 0)
-        : layoutLine(p.text, atlas, p.fontFamily, { fontSizePx: p.fontSizePx }, p.style ?? 0);
+    const layout = layoutText(p.text, atlas, p.fontFamily, {
+        fontSizePx: p.fontSizePx,
+        letterSpacing: p.letterSpacing,
+        lineHeight: p.lineHeight,
+        align: p.align,
+        rich: p.richText,
+        color: p.color,
+    }, p.style ?? 0);
     if (layout.glyphs.length === 0) return;
 
     // A string can reference glyphs across several atlas pages; each page is a
