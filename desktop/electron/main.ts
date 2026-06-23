@@ -38,14 +38,18 @@ import type { WorkspaceState } from '../src/project/format';
 //    over a STABLE origin instead of file://. Under file:// the engine glue path
 //    `${location.origin}/wasm/esengine.js` resolves to the filesystem root (404);
 //    app:// gives a real origin where `/wasm/...` + the play iframe resolve.
+// corsEnabled: the renderer reads texture pixels via `<img crossOrigin>` (TextureLoader)
+// + `fetch`, which are CORS requests. Without it Chromium rejects custom-scheme cross-
+// origin at the scheme level (even though the handler returns `access-control-allow-origin:
+// *`) — blocking project textures in dev (http://localhost origin) and any cross-scheme load.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'estella',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
   },
   {
     scheme: 'app',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
   },
 ]);
 
