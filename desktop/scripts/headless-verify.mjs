@@ -18,7 +18,7 @@
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -108,6 +108,20 @@ app.whenReady().then(async () => {
       return { w: c.width, h: c.height, totalPixels: px.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
     })()`);
     const drawCalls = await exec('window.__estellaHeadless.api.getStats().drawCalls');
+    // Optional PNG dump (ESTELLA_VERIFY_OUT) of the engine framebuffer (not the
+    // page) so the rendered frame can be eyeballed. GL readback is bottom-up → flip.
+    if (process.env.ESTELLA_VERIFY_OUT) {
+      const dataUrl = await exec(`(() => {
+        const c = window.__estellaHeadless.api.captureViewport();
+        const cv = document.createElement('canvas'); cv.width = c.width; cv.height = c.height;
+        const ctx = cv.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
+        const w = c.width, h = c.height, src = c.rgba;
+        for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(src.subarray(sy, sy + w * 4), y * w * 4); }
+        ctx.putImageData(img, 0, 0);
+        return cv.toDataURL('image/png');
+      })()`);
+      await writeFile(process.env.ESTELLA_VERIFY_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
+    }
     finish({ ok: true, entityCount, drawCalls, capture }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);

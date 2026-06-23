@@ -7,24 +7,35 @@
  */
 import type { ESEngineModule } from '../../wasm';
 import { createTextureFromPixels, updateTextureSubregion } from '../../runtimeAssets';
+import { requireResourceManager } from '../../resourceManager';
 import type { AtlasPageStore } from './glyph-atlas';
 
 export class EngineAtlasPageStore implements AtlasPageStore {
+    // pageId is the GL texture id (what the batch binds); uploads need the engine
+    // handle, so keep the mapping.
+    private readonly handleByGlId = new Map<number, number>();
+
     constructor(private readonly module: ESEngineModule) {}
 
     createPage(size: number): number {
         // Blank (transparent) RGBA8 page; linear filtering keeps SDF text smooth
         // when scaled, clamp avoids edge bleed at the page border.
         const pixels = new Uint8Array(size * size * 4);
-        return createTextureFromPixels(
+        const handle = createTextureFromPixels(
             this.module,
             { width: size, height: size, pixels },
             /* flipY */ false,
             { filterMode: 'linear', wrapMode: 'clamp' },
         );
+        // The batch binds by GL texture id (mirrors how spine resolves its atlas
+        // pages); submitTextBatch gets this id as the page id.
+        const glId = requireResourceManager().getTextureGLId(handle);
+        this.handleByGlId.set(glId, handle);
+        return glId;
     }
 
     uploadSubRegion(pageId: number, x: number, y: number, w: number, h: number, pixels: Uint8Array): void {
-        updateTextureSubregion(this.module, pageId, x, y, w, h, pixels);
+        const handle = this.handleByGlId.get(pageId) ?? pageId;
+        updateTextureSubregion(this.module, handle, x, y, w, h, pixels);
     }
 }
