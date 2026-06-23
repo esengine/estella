@@ -22,16 +22,6 @@ interface TilemapModule {
                     opacity: number): void;
     tilemap_setVisible(entity: number, visible: boolean): void;
     tilemap_setOriginEntity(layerKey: number, originEntity: number): void;
-    tilemap_submitLayer(entity: number, textureId: number,
-                        sortLayer: number, depth: number,
-                        tilesetColumns: number,
-                        uvTileWidth: number, uvTileHeight: number,
-                        originX: number, originY: number,
-                        camLeft: number, camBottom: number,
-                        camRight: number, camTop: number,
-                        tintR: number, tintG: number, tintB: number, tintA: number,
-                        opacity: number,
-                        parallaxX: number, parallaxY: number): void;
 
     tilemap_setTileAnimation(entity: number, tileId: number,
                               framesPtr: number, frameCount: number): void;
@@ -177,24 +167,6 @@ export const TilemapAPI = {
 
     setOriginEntity(layerKey: number, originEntity: number): void {
         module_?.tilemap_setOriginEntity(layerKey, originEntity);
-    },
-
-    submitLayer(entity: number, textureId: number,
-                sortLayer: number, depth: number,
-                tilesetColumns: number,
-                uvTileWidth: number, uvTileHeight: number,
-                originX: number, originY: number,
-                camLeft: number, camBottom: number,
-                camRight: number, camTop: number,
-                tintR: number, tintG: number, tintB: number, tintA: number,
-                opacity: number,
-                parallaxX: number, parallaxY: number): void {
-        module_?.tilemap_submitLayer(
-            entity, textureId, sortLayer, depth,
-            tilesetColumns, uvTileWidth, uvTileHeight,
-            originX, originY, camLeft, camBottom, camRight, camTop,
-            tintR, tintG, tintB, tintA, opacity, parallaxX, parallaxY
-        );
     },
 
     setTileAnimation(entity: number, tileId: number,

@@ -262,13 +262,6 @@ export interface ESEngineModule {
     tilemap_hasLayer?(entity: number): boolean;
     tilemap_exportChunks?(entity: number): string;
     tilemap_importChunks?(entity: number, encoded: string): boolean;
-    tilemap_submitLayer?(entity: number, textureId: number,
-                         sortLayer: number, depth: number,
-                         tilesetColumns: number,
-                         uvTileWidth: number, uvTileHeight: number,
-                         originX: number, originY: number,
-                         camLeft: number, camBottom: number,
-                         camRight: number, camTop: number): void;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;

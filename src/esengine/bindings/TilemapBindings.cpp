@@ -81,85 +81,6 @@ bool tilemap_hasLayer(u32 entity) {
     return getTilemapSystem().hasLayer(Entity::fromRaw(entity));
 }
 
-void tilemap_submitLayer(u32 entity, u32 textureId,
-                         i32 sortLayer, f32 depth,
-                         u32 tilesetColumns,
-                         f32 uvTileWidth, f32 uvTileHeight,
-                         f32 originX, f32 originY,
-                         f32 camLeft, f32 camBottom,
-                         f32 camRight, f32 camTop,
-                         f32 tintR, f32 tintG, f32 tintB, f32 tintA,
-                         f32 opacity,
-                         f32 parallaxX, f32 parallaxY) {
-    auto* frame = ctx().tryGet<RenderFrame>();
-    if (!frame) return;
-
-    auto* rm = ctx().tryGet<resource::ResourceManager>();
-    if (!rm) return;
-    auto texHandle = resource::TextureHandle(textureId);
-    auto* tex = rm->getTexture(texHandle);
-    if (!tex) return;
-    u32 glTextureId = tex->getId();
-
-    auto layerEntity = Entity::fromRaw(entity);
-    const auto* layerData = getTilemapSystem().getLayerData(layerEntity);
-    if (!layerData) return;
-
-    glm::vec4 finalColor(tintR, tintG, tintB, tintA * opacity);
-
-    f32 camCenterX = (camLeft + camRight) * 0.5f;
-    f32 camCenterY = (camBottom + camTop) * 0.5f;
-    f32 parallaxOffsetX = camCenterX * (1.0f - parallaxX);
-    f32 parallaxOffsetY = camCenterY * (1.0f - parallaxY);
-    f32 adjOriginX = originX + parallaxOffsetX;
-    f32 adjOriginY = originY + parallaxOffsetY;
-
-    auto range = tilemap::computeVisibleRange(
-        camLeft, -camTop, camRight, -camBottom,
-        adjOriginX, -adjOriginY,
-        layerData->tile_width, layerData->tile_height,
-        layerData->width, layerData->height);
-    if (range.empty()) return;
-
-    for (i32 ty = range.min_y; ty < range.max_y; ++ty) {
-        for (i32 tx = range.min_x; tx < range.max_x; ++tx) {
-            u16 rawTile = layerData->tiles[
-                static_cast<usize>(ty) * layerData->width + static_cast<usize>(tx)];
-
-            u16 tileId = rawTile & tilemap::TILE_ID_MASK;
-            if (tileId == tilemap::EMPTY_TILE) continue;
-
-            bool flipH = (rawTile & tilemap::TILE_FLIP_H) != 0;
-            bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
-
-            u32 tileIndex = tileId - 1;
-            u32 tileCol = tileIndex % tilesetColumns;
-            u32 tileRow = tileIndex / tilesetColumns;
-
-            f32 worldX = adjOriginX + static_cast<f32>(tx) * layerData->tile_width
-                         + layerData->tile_width * 0.5f;
-            f32 worldY = adjOriginY - static_cast<f32>(ty) * layerData->tile_height
-                         - layerData->tile_height * 0.5f;
-
-            f32 u0 = static_cast<f32>(tileCol) * uvTileWidth;
-            f32 v0 = static_cast<f32>(tileRow) * uvTileHeight;
-            f32 su = uvTileWidth;
-            f32 sv = uvTileHeight;
-
-            if (flipH) { u0 += uvTileWidth; su = -su; }
-            if (flipV) { v0 += uvTileHeight; sv = -sv; }
-
-            frame->submitTileQuad(
-                glm::vec2(worldX, worldY),
-                glm::vec2(layerData->tile_width, layerData->tile_height),
-                glm::vec2(u0, v0), glm::vec2(su, sv),
-                finalColor, glTextureId,
-                layerEntity, sortLayer, depth
-            );
-        }
-    }
-}
-
 void tilemap_setRenderProps(u32 entity, u32 textureHandle, u32 tilesetColumns,
                             f32 uvTileW, f32 uvTileH,
                             i32 sortLayer, f32 depth,
@@ -754,7 +675,6 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tilemap_fillRect", &esengine::tilemap_fillRect);
     emscripten::function("tilemap_setTiles", &esengine::tilemap_setTiles);
     emscripten::function("tilemap_hasLayer", &esengine::tilemap_hasLayer);
-    emscripten::function("tilemap_submitLayer", &esengine::tilemap_submitLayer);
     emscripten::function("tilemap_setRenderProps", &esengine::tilemap_setRenderProps);
     emscripten::function("tilemap_setTint", &esengine::tilemap_setTint);
     emscripten::function("tilemap_setVisible", &esengine::tilemap_setVisible);

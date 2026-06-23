@@ -30,36 +30,68 @@ TileRange computeVisibleRange(f32 camLeft, f32 camBottom, f32 camRight, f32 camT
     return {minX, minY, maxX, maxY};
 }
 
-void TilemapSystem::buildChunksFromTiles(LayerData& layer) {
+// Tiles live in a sparse chunk map (the single store), addressed by floor-division so any
+// coordinate works — negative included (infinite painting).
+namespace {
+
+inline i32 chunkOf(i32 a) {  // floor(a / CHUNK_SIZE), negative-safe
+    const i32 n = static_cast<i32>(CHUNK_SIZE);
+    return (a >= 0) ? (a / n) : -(((-a) + n - 1) / n);
+}
+
+// Finite layers (width>0) bound writes; infinite layers (width==0) take any coord.
+inline bool inBounds(const TilemapSystem::LayerData& layer, i32 x, i32 y) {
+    if (layer.width == 0 && layer.height == 0) return true;
+    return x >= 0 && y >= 0
+        && static_cast<u32>(x) < layer.width && static_cast<u32>(y) < layer.height;
+}
+
+inline u16 readTile(const TilemapSystem::LayerData& layer, i32 x, i32 y) {
+    const i32 cx = chunkOf(x), cy = chunkOf(y);
+    auto it = layer.chunks.find({cx, cy});
+    if (it == layer.chunks.end()) return EMPTY_TILE;
+    const i32 lx = x - cx * static_cast<i32>(CHUNK_SIZE);
+    const i32 ly = y - cy * static_cast<i32>(CHUNK_SIZE);
+    return it->second.tiles[static_cast<usize>(ly) * CHUNK_SIZE + static_cast<usize>(lx)];
+}
+
+inline void writeTile(TilemapSystem::LayerData& layer, i32 x, i32 y, u16 value) {
+    const i32 cx = chunkOf(x), cy = chunkOf(y);
+    ChunkData& chunk = layer.chunks[{cx, cy}];
+    const i32 lx = x - cx * static_cast<i32>(CHUNK_SIZE);
+    const i32 ly = y - cy * static_cast<i32>(CHUNK_SIZE);
+    chunk.tiles[static_cast<usize>(ly) * CHUNK_SIZE + static_cast<usize>(lx)] = value;
+    chunk.dirty = true;
+}
+
+// Tiled finite-layer load: chunk a flat row-major array, storing only non-empty chunks.
+void buildChunksFromFlat(TilemapSystem::LayerData& layer,
+                         const u16* tiles, u32 width, u32 height, u32 count) {
     layer.chunks.clear();
-    u32 chunksX = (layer.width + CHUNK_SIZE - 1) / CHUNK_SIZE;
-    u32 chunksY = (layer.height + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    const u32 chunksX = (width + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    const u32 chunksY = (height + CHUNK_SIZE - 1) / CHUNK_SIZE;
     for (u32 cy = 0; cy < chunksY; ++cy) {
         for (u32 cx = 0; cx < chunksX; ++cx) {
-            ChunkCoord coord{static_cast<i32>(cx), static_cast<i32>(cy)};
-            auto& chunk = layer.chunks[coord];
-            chunk.dirty = true;
-            std::memset(chunk.tiles, 0, sizeof(chunk.tiles));
+            ChunkData chunk;
+            bool any = false;
             for (u32 ly = 0; ly < CHUNK_SIZE; ++ly) {
-                u32 ty = cy * CHUNK_SIZE + ly;
-                if (ty >= layer.height) break;
+                const u32 ty = cy * CHUNK_SIZE + ly;
+                if (ty >= height) break;
                 for (u32 lx = 0; lx < CHUNK_SIZE; ++lx) {
-                    u32 tx = cx * CHUNK_SIZE + lx;
-                    if (tx >= layer.width) break;
-                    chunk.tiles[ly * CHUNK_SIZE + lx] = layer.tiles[ty * layer.width + tx];
+                    const u32 tx = cx * CHUNK_SIZE + lx;
+                    if (tx >= width) break;
+                    const usize i = static_cast<usize>(ty) * width + tx;
+                    const u16 v = (i < count) ? tiles[i] : EMPTY_TILE;
+                    chunk.tiles[ly * CHUNK_SIZE + lx] = v;
+                    if (v != EMPTY_TILE) any = true;
                 }
             }
+            if (any) layer.chunks[{static_cast<i32>(cx), static_cast<i32>(cy)}] = chunk;
         }
     }
 }
 
-void TilemapSystem::markChunkDirtyAt(LayerData& layer, i32 tileX, i32 tileY) {
-    ChunkCoord coord{tileX / static_cast<i32>(CHUNK_SIZE), tileY / static_cast<i32>(CHUNK_SIZE)};
-    auto it = layer.chunks.find(coord);
-    if (it != layer.chunks.end()) {
-        it->second.dirty = true;
-    }
-}
+}  // namespace
 
 void TilemapSystem::markAllChunksDirty(Entity entity) {
     auto* layer = getLayerDataMut(entity);
@@ -76,8 +108,6 @@ void TilemapSystem::initLayer(Entity entity, u32 width, u32 height,
     layer.height = height;
     layer.tile_width = tileWidth;
     layer.tile_height = tileHeight;
-    layer.tiles.resize(static_cast<usize>(width) * height, EMPTY_TILE);
-    buildChunksFromTiles(layer);
     layers_[entity] = std::move(layer);
 }
 
@@ -125,52 +155,27 @@ const TilemapSystem::LayerData* TilemapSystem::getLayerData(Entity entity) const
 void TilemapSystem::setTile(Entity entity, i32 x, i32 y, u16 tileId) {
     auto it = layers_.find(entity);
     if (it == layers_.end()) return;
-
     auto& layer = it->second;
-    if (x < 0 || y < 0 ||
-        static_cast<u32>(x) >= layer.width ||
-        static_cast<u32>(y) >= layer.height) {
-        return;
-    }
-
-    layer.tiles[static_cast<usize>(y) * layer.width + static_cast<usize>(x)] = tileId;
-    markChunkDirtyAt(layer, x, y);
+    if (!inBounds(layer, x, y)) return;
+    writeTile(layer, x, y, tileId);
 }
 
 u16 TilemapSystem::getTile(Entity entity, i32 x, i32 y) const {
     auto it = layers_.find(entity);
     if (it == layers_.end()) return EMPTY_TILE;
-
     const auto& layer = it->second;
-    if (x < 0 || y < 0 ||
-        static_cast<u32>(x) >= layer.width ||
-        static_cast<u32>(y) >= layer.height) {
-        return EMPTY_TILE;
-    }
-
-    return layer.tiles[static_cast<usize>(y) * layer.width + static_cast<usize>(x)];
+    if (!inBounds(layer, x, y)) return EMPTY_TILE;
+    return readTile(layer, x, y);
 }
 
 void TilemapSystem::fillRect(Entity entity, i32 x, i32 y,
                               u32 w, u32 h, u16 tileId) {
     auto it = layers_.find(entity);
     if (it == layers_.end()) return;
-
     auto& layer = it->second;
-    i32 x0 = std::max(x, 0);
-    i32 y0 = std::max(y, 0);
-    i32 x1 = std::min(x + static_cast<i32>(w), static_cast<i32>(layer.width));
-    i32 y1 = std::min(y + static_cast<i32>(h), static_cast<i32>(layer.height));
-
-    for (i32 ty = y0; ty < y1; ++ty) {
-        for (i32 tx = x0; tx < x1; ++tx) {
-            layer.tiles[static_cast<usize>(ty) * layer.width + static_cast<usize>(tx)] = tileId;
-        }
-    }
-    for (i32 cy = y0 / static_cast<i32>(CHUNK_SIZE); cy <= (y1 - 1) / static_cast<i32>(CHUNK_SIZE); ++cy) {
-        for (i32 cx = x0 / static_cast<i32>(CHUNK_SIZE); cx <= (x1 - 1) / static_cast<i32>(CHUNK_SIZE); ++cx) {
-            auto cit = layer.chunks.find({cx, cy});
-            if (cit != layer.chunks.end()) cit->second.dirty = true;
+    for (i32 ty = y; ty < y + static_cast<i32>(h); ++ty) {
+        for (i32 tx = x; tx < x + static_cast<i32>(w); ++tx) {
+            if (inBounds(layer, tx, ty)) writeTile(layer, tx, ty, tileId);
         }
     }
 }
@@ -178,12 +183,8 @@ void TilemapSystem::fillRect(Entity entity, i32 x, i32 y,
 void TilemapSystem::setTiles(Entity entity, const u16* tiles, u32 count) {
     auto it = layers_.find(entity);
     if (it == layers_.end()) return;
-
     auto& layer = it->second;
-    u32 copyCount = std::min(count,
-                             static_cast<u32>(layer.tiles.size()));
-    std::memcpy(layer.tiles.data(), tiles, copyCount * sizeof(u16));
-    buildChunksFromTiles(layer);
+    buildChunksFromFlat(layer, tiles, layer.width, layer.height, count);
 }
 
 TilemapSystem::LayerData* TilemapSystem::getLayerDataMut(Entity entity) {
@@ -288,34 +289,21 @@ std::string TilemapSystem::getTileProperty(Entity entity, u16 tileId,
 void TilemapSystem::flipTile(Entity entity, i32 x, i32 y,
                               bool flipH, bool flipV, bool flipD) {
     auto* layer = getLayerDataMut(entity);
-    if (!layer) return;
-    if (x < 0 || y < 0 ||
-        static_cast<u32>(x) >= layer->width ||
-        static_cast<u32>(y) >= layer->height) return;
-
-    auto idx = static_cast<usize>(y) * layer->width + static_cast<usize>(x);
-    u16 raw = layer->tiles[idx];
-    u16 id = raw & TILE_ID_MASK;
+    if (!layer || !inBounds(*layer, x, y)) return;
+    u16 id = readTile(*layer, x, y) & TILE_ID_MASK;
     if (id == EMPTY_TILE) return;
 
     u16 flags = 0;
     if (flipH) flags |= TILE_FLIP_H;
     if (flipV) flags |= TILE_FLIP_V;
     if (flipD) flags |= TILE_FLIP_D;
-    layer->tiles[idx] = id | flags;
-    markChunkDirtyAt(*layer, x, y);
+    writeTile(*layer, x, y, id | flags);
 }
 
 void TilemapSystem::rotateTile(Entity entity, i32 x, i32 y, i32 degrees) {
     auto* layer = getLayerDataMut(entity);
-    if (!layer) return;
-    if (x < 0 || y < 0 ||
-        static_cast<u32>(x) >= layer->width ||
-        static_cast<u32>(y) >= layer->height) return;
-
-    auto idx = static_cast<usize>(y) * layer->width + static_cast<usize>(x);
-    u16 raw = layer->tiles[idx];
-    u16 id = raw & TILE_ID_MASK;
+    if (!layer || !inBounds(*layer, x, y)) return;
+    u16 id = readTile(*layer, x, y) & TILE_ID_MASK;
     if (id == EMPTY_TILE) return;
 
     i32 rot = ((degrees % 360) + 360) % 360;
@@ -326,8 +314,7 @@ void TilemapSystem::rotateTile(Entity entity, i32 x, i32 y, i32 degrees) {
         case 270: flags = TILE_FLIP_V | TILE_FLIP_D; break;
         default: break;
     }
-    layer->tiles[idx] = id | flags;
-    markChunkDirtyAt(*layer, x, y);
+    writeTile(*layer, x, y, id | flags);
 }
 
 void TilemapSystem::setGridType(Entity entity, GridType type) {

@@ -97,11 +97,10 @@ public:
     void setGridType(Entity entity, GridType type);
 
     struct LayerData {
-        u32 width = 0;
+        u32 width = 0;   // finite-layer bounds (0 = infinite); tiles live in `chunks`.
         u32 height = 0;
         f32 tile_width = 0;
         f32 tile_height = 0;
-        std::vector<u16> tiles;
 
         u32 texture_handle = 0;
         u32 tileset_columns = 1;
@@ -147,8 +146,6 @@ public:
     const LayerMap& allLayers() const { return layers_; }
 
 private:
-    void buildChunksFromTiles(LayerData& layer);
-    void markChunkDirtyAt(LayerData& layer, i32 tileX, i32 tileY);
     LayerMap layers_;
 };
 
