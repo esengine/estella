@@ -72,6 +72,8 @@ export type AssetType =
   | 'material'
   | 'script'
   | 'animation'
+  | 'tileset'
+  | 'tilemap'
   | 'file';
 
 export interface AssetItem {

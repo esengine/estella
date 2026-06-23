@@ -1,0 +1,105 @@
+/* SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0 */
+/* SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team */
+/* The .estileset editor panel (docs/REARCH_TILEMAP.md T2). */
+
+.ts-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--srf-1, #16181c);
+  color: var(--text, #d6d9de);
+  font-size: 12px;
+}
+
+.ts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line, #2a2d33);
+  background: var(--srf-2, #1b1e23);
+  flex: 0 0 auto;
+}
+
+.ts-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-dim, #9aa0aa);
+}
+.ts-field span { user-select: none; }
+.ts-field input[type='number'] {
+  width: 46px;
+  background: var(--inset, #0f1115);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text, #d6d9de);
+  padding: 2px 4px;
+  font: inherit;
+}
+.ts-field input[type='range'] { width: 90px; }
+
+.ts-sep { width: 1px; align-self: stretch; background: var(--line, #2a2d33); margin: 0 2px; }
+.ts-grow { flex: 1 1 auto; }
+.ts-stat { color: var(--text-faint, #6b717c); font-variant-numeric: tabular-nums; }
+
+.ts-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--star, #4c8fd6);
+  color: var(--on-accent, #fff);
+  border: none;
+  border-radius: 3px;
+  padding: 4px 9px;
+  cursor: pointer;
+  font: inherit;
+}
+.ts-save:disabled { background: var(--control, #2a2d33); color: var(--text-faint, #6b717c); cursor: default; }
+
+.ts-canvas {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 16px;
+  /* A checkerboard so transparent atlas regions read clearly. */
+  background:
+    linear-gradient(45deg, var(--srf-0, #101216) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(-45deg, var(--srf-0, #101216) 25%, transparent 25%) 0 8px / 16px 16px,
+    linear-gradient(45deg, transparent 75%, var(--srf-0, #101216) 75%) 8px -8px / 16px 16px,
+    linear-gradient(-45deg, transparent 75%, var(--srf-0, #101216) 75%) -8px 0 / 16px 16px,
+    var(--srf-1, #16181c);
+}
+
+.ts-stage { position: relative; }
+.ts-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  user-select: none;
+}
+
+.ts-cell {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+.ts-cell:hover { border-color: var(--star, #4c8fd6); background: rgba(76, 143, 214, 0.12); }
+.ts-cell.is-solid {
+  background: rgba(240, 100, 90, 0.34);
+  border-color: rgba(240, 100, 90, 0.85);
+}
+.ts-cell.is-solid:hover { background: rgba(240, 100, 90, 0.5); }
+
+.ts-empty,
+.ts-warn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 6px;
+  color: var(--text-faint, #6b717c);
+}
+.ts-hint { font-size: 11px; }

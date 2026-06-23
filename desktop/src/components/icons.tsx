@@ -60,6 +60,8 @@ const ASSET_ICON: Record<AssetType, { icon: LucideIcon; tint: string }> = {
   material: { icon: Blend, tint: '#c0917a' },
   script: { icon: FileCode2, tint: '#93a3bf' },
   animation: { icon: Clapperboard, tint: '#9bb39a' },
+  tileset: { icon: Grid3x3, tint: '#9b8fc0' },
+  tilemap: { icon: Grid3x3, tint: '#7fa6c4' },
   file: { icon: File, tint: 'var(--text-dim)' },
 };
 

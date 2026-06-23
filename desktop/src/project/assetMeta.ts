@@ -22,6 +22,8 @@ export function assetTypeOf(name: string): AssetType {
   if (ext === 'esmat') return 'material';
   // Unified animation clip (.esanim) + legacy multi-track timeline (.estimeline).
   if (ext === 'esanim' || ext === 'estimeline') return 'animation';
+  if (ext === 'estileset') return 'tileset';
+  if (ext === 'estilemap') return 'tilemap';
   return 'file';
 }
 
@@ -38,6 +40,8 @@ export const TYPE_CODE: Record<AssetType, string> = {
   audio: 'AUD',
   script: 'TS',
   animation: 'ANM',
+  tileset: 'TST',
+  tilemap: 'TMP',
 };
 
 export const baseName = (p: string) => (p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p);

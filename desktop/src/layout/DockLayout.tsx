@@ -15,6 +15,7 @@ import { ContentBrowser } from '@/panels/ContentBrowser';
 import { OutputLog } from '@/panels/OutputLog';
 import { GamePanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
+import { TilesetEditor } from '@/panels/TilesetEditor';
 import { dockApi } from '@/layout/dockApi';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
@@ -25,6 +26,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   content: () => <ContentBrowser />,
   log: () => <OutputLog />,
   sequencer: () => <Sequencer />,
+  tileset: () => <TilesetEditor />,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => <GamePanel />,
 };
@@ -33,7 +35,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
 // Details, and Content Browser + Output Log as sibling tabs along the bottom
 // (resize/close via dockview). The Content Drawer (Ctrl+Space) is a separate
 // quick-access overlay on top.
-const LAYOUT_KEY = 'estella.editor.layout.v5';
+const LAYOUT_KEY = 'estella.editor.layout.v6';
 
 function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   // Viewport is the anchor; the right column stacks Outliner over Details.
@@ -85,6 +87,18 @@ function ensureSequencer(api: DockviewReadyEvent['api']) {
   });
 }
 
+// Same idea for the Tileset editor — a bottom-dock tab added to fresh + restored layouts.
+function ensureTileset(api: DockviewReadyEvent['api']) {
+  if (api.getPanel('tileset')) return;
+  const ref = api.getPanel('content') ? 'content' : api.getPanel('sequencer') ? 'sequencer' : undefined;
+  api.addPanel({
+    id: 'tileset',
+    component: 'tileset',
+    title: 'Tileset',
+    position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
+  });
+}
+
 // A collapse/expand chevron in every dock group's header (the design's `.pcol`).
 // Collapses the group to its tab bar by height; hidden on the Viewport/Game group
 // (the center stage isn't an accordion). State follows the live group height, so
@@ -131,6 +145,7 @@ export function DockLayout() {
     // Ensure the Sequencer tab exists, then keep the Content Browser fronted so
     // adding it doesn't steal the bottom dock's active tab on load.
     ensureSequencer(api);
+    ensureTileset(api);
     api.getPanel('content')?.api.setActive();
 
     // Persist the dock arrangement so it survives reloads — a real editor habit.

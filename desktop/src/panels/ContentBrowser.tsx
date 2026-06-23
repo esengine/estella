@@ -11,6 +11,7 @@ import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMeta';
 import { openAnimationClip } from '@/timeline/openClip';
+import { openTileset, createTilesetFromTexture } from '@/tileset/openTileset';
 import { fsRefresh } from '@/project/fsWatch';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';
@@ -304,6 +305,8 @@ export function ContentBrowser() {
       void ProjectStore.openScene(path);
     } else if (assetType(name) === 'animation') {
       void openAnimationClip(path);
+    } else if (assetType(name) === 'tileset') {
+      void openTileset(path);
     }
   };
 
@@ -451,10 +454,14 @@ export function ContentBrowser() {
     }
     const { path, entry } = ctx.target;
     const isScene = !entry.isDir && assetType(entry.name) === 'scene';
+    const isTexture = !entry.isDir && (assetType(entry.name) === 'texture' || assetType(entry.name) === 'sprite');
     const ref = entry.isDir ? null : ProjectStore.assetRef(path);
     return [
       ...(entry.isDir || isScene
         ? [{ label: 'Open', onClick: () => onOpen(path, entry.isDir, entry.name) }]
+        : []),
+      ...(isTexture
+        ? [{ label: 'Create Tileset', onClick: () => void createTilesetFromTexture(path) }]
         : []),
       { label: 'Rename', onClick: () => setRenaming(path) },
       { label: 'Duplicate', onClick: () => void duplicate(path) },
