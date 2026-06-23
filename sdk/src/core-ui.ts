@@ -77,8 +77,6 @@ export {
     type DragStateData,
     type FocusableData,
     type SafeAreaData,
-    UIThemeRes,
-    DARK_THEME,
     /** @internal entity-tree helper for widget composition */
     withChildEntity,
     /** @internal state-driven tint helper used by widget state-visuals */
@@ -91,5 +89,4 @@ export {
     colorWithAlpha,
     /** @internal per-entity state map used by interaction behaviour */
     EntityStateMap,
-    type UITheme,
 } from './ui';

@@ -290,13 +290,6 @@ export { SafeAreaPlugin, safeAreaPlugin } from './SafeAreaPlugin';
 
 export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './UIRenderOrderPlugin';
 
-// UI Theme
-export {
-    UIThemeRes,
-    DARK_THEME,
-    type UITheme,
-} from './UITheme';
-
 // Property Path Utilities
 export {
     getNestedProperty,
