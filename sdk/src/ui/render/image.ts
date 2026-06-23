@@ -8,9 +8,10 @@ import { Image, ImageType, FillMethod, FillOrigin } from '../core/image';
 import type { ImageData } from '../core/image';
 import { UIRect } from '../core/ui-rect';
 import type { UIRectData } from '../core/ui-rect';
+import { UINode } from '../core/ui-node';
 import { UIRenderer, UIVisualType } from '../core/ui-renderer';
 import type { UIRendererData } from '../core/ui-renderer';
-import { getEffectiveWidth, getEffectiveHeight, ensureUIRenderer } from '../uiHelpers';
+import { getEffectiveWidth, getEffectiveHeight, getUINodeWidth, getUINodeHeight, ensureUIRenderer } from '../uiHelpers';
 import { SystemLabel, PluginName } from '../../systemLabels';
 
 export class ImagePlugin implements Plugin {
@@ -25,6 +26,7 @@ export class ImagePlugin implements Plugin {
 
         world.enableChangeTracking(Image);
         world.enableChangeTracking(UIRect);
+        world.enableChangeTracking(UINode);
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
@@ -42,12 +44,14 @@ export class ImagePlugin implements Plugin {
                     const uiRect = world.has(entity, UIRect)
                         ? world.get(entity, UIRect) as UIRectData
                         : null;
+                    const hasNode = world.has(entity, UINode);
 
                     const prevTick = lastRenderedTick.get(entity);
                     if (prevTick !== undefined && world.has(entity, UIRenderer)) {
                         const imageChanged = world.isChangedSince(entity, Image, prevTick);
-                        const rectChanged = uiRect && world.isChangedSince(entity, UIRect, prevTick);
-                        if (!imageChanged && !rectChanged) continue;
+                        const boxChanged = (uiRect && world.isChangedSince(entity, UIRect, prevTick))
+                            || (hasNode && world.isChangedSince(entity, UINode, prevTick));
+                        if (!imageChanged && !boxChanged) continue;
                     }
 
                     ensureUIRenderer(world, entity);
@@ -97,8 +101,8 @@ export class ImagePlugin implements Plugin {
                             }
                         }
                     } else if (image.imageType === ImageType.Tiled) {
-                        const w = uiRect ? getEffectiveWidth(uiRect, entity) : 0;
-                        const h = uiRect ? getEffectiveHeight(uiRect, entity) : 0;
+                        const w = hasNode ? getUINodeWidth(entity) : uiRect ? getEffectiveWidth(uiRect, entity) : 0;
+                        const h = hasNode ? getUINodeHeight(entity) : uiRect ? getEffectiveHeight(uiRect, entity) : 0;
                         if (image.tileSize.x > 0 && image.tileSize.y > 0) {
                             renderer.uvScale = { x: w / image.tileSize.x, y: h / image.tileSize.y };
                         }

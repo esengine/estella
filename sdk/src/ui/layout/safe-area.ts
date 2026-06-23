@@ -20,6 +20,9 @@ import { UICameraInfo } from '../UICameraInfo';
 import type { UICameraData } from '../UICameraInfo';
 import { UIRect } from '../core/ui-rect';
 import type { UIRectData } from '../core/ui-rect';
+import { UINode } from '../core/ui-node';
+import type { UINodeData } from '../core/ui-node';
+import { px } from '../core/dimension';
 import { SystemLabel, PluginName } from '../../systemLabels';
 
 export interface SafeAreaData {
@@ -151,6 +154,31 @@ export class SafeAreaPlugin implements Plugin {
 
                     if (changed) {
                         world.insert(entity, UIRect, rect);
+                    }
+                }
+
+                // UINode targets (CSS box): safe-area insets map to the node's
+                // absolute insets. The node is expected to be position:Absolute.
+                for (const entity of world.getEntitiesWithComponents([SafeArea, UINode])) {
+                    const sa = world.get(entity, SafeArea) as SafeAreaData;
+                    const node = world.get(entity, UINode) as UINodeData;
+
+                    const top = sa.applyTop ? cachedInsets.top * insetScale : 0;
+                    const bottom = sa.applyBottom ? cachedInsets.bottom * insetScale : 0;
+                    const left = sa.applyLeft ? cachedInsets.left * insetScale : 0;
+                    const right = sa.applyRight ? cachedInsets.right * insetScale : 0;
+
+                    let changed = false;
+                    const set = (k: 'insetLeft' | 'insetTop' | 'insetRight' | 'insetBottom', v: number) => {
+                        if (node[k].value !== v || node[k].unit !== 0) { node[k] = px(v); changed = true; }
+                    };
+                    set('insetLeft', left);
+                    set('insetBottom', bottom);
+                    set('insetRight', right);
+                    set('insetTop', top);
+
+                    if (changed) {
+                        world.insert(entity, UINode, node);
                     }
                 }
             },
