@@ -540,8 +540,9 @@ void layoutUINodeSubtree(
         f32 localY = (1.0f - ppy) * ph - yt - 0.5f * fh;
 
         if (auto* t = registry.tryGet<Transform>(e)) {
-            t->position.x = localX;
-            t->position.y = localY;
+            // Leave tween-driven position axes alone (see TweenSystem anim_override_).
+            if (!(un.anim_override_ & UINode::ANIM_POS_X)) t->position.x = localX;
+            if (!(un.anim_override_ & UINode::ANIM_POS_Y)) t->position.y = localY;
         }
         tree.nodes_[k].flags &= ~(LAYOUT_DIRTY | HAS_DIRTY_CHILD);
     }

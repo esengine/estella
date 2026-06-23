@@ -6,6 +6,7 @@
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/UIRect.hpp"
+#include "../ecs/components/UINode.hpp"
 
 #include <glm/glm.hpp>
 #include <cmath>
@@ -132,18 +133,25 @@ void TweenSystem::resumeTween(ecs::Registry& registry, Entity tweenEntity) {
 // generic enum+switch can be deleted with the C++ timeline in P4c). Mirrors the
 // per-field semantics exactly: rotation.z → half-angle quaternion, and the UIRect
 // `anim_override_` flags so UI layout doesn't clobber animated Transform fields.
+// Flag the entity's layout component (modern UINode or legacy UIRect) so the
+// layout pass leaves the tween-driven Transform field alone this frame.
+static void markUIAnimOverride(ecs::Registry& registry, Entity entity, u8 flag) {
+    if (auto* n = registry.tryGet<ecs::UINode>(entity)) n->anim_override_ |= flag;
+    else if (auto* r = registry.tryGet<ecs::UIRect>(entity)) r->anim_override_ |= flag;
+}
+
 static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget target, f32 value) {
     switch (target) {
         case TweenTarget::TransformPositionX:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->position.x = value;
-                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) r->anim_override_ |= ecs::UIRect::ANIM_POS_X;
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_X);
             }
             break;
         case TweenTarget::TransformPositionY:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->position.y = value;
-                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) r->anim_override_ |= ecs::UIRect::ANIM_POS_Y;
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_Y);
             }
             break;
         case TweenTarget::TransformPositionZ:
@@ -152,20 +160,20 @@ static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget 
         case TweenTarget::TransformScaleX:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->scale.x = value;
-                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) r->anim_override_ |= ecs::UIRect::ANIM_SCALE_X;
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_X);
             }
             break;
         case TweenTarget::TransformScaleY:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->scale.y = value;
-                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) r->anim_override_ |= ecs::UIRect::ANIM_SCALE_Y;
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_Y);
             }
             break;
         case TweenTarget::TransformRotationZ:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 f32 h = value * 0.5f;
                 c->rotation = glm::quat(std::cos(h), 0.0f, 0.0f, std::sin(h));
-                if (auto* r = registry.tryGet<ecs::UIRect>(entity)) r->anim_override_ |= ecs::UIRect::ANIM_ROT_Z;
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_ROT_Z);
             }
             break;
         case TweenTarget::SpriteColorR:

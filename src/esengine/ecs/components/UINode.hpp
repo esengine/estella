@@ -92,6 +92,15 @@ struct UINode {
     // Layout output (not serialized): resolved px size written by the Yoga pass.
     glm::vec2 computed_size_{0.0f};
 
+    // Set by the tween system for Transform fields it drives, so the layout pass
+    // leaves those fields alone this frame (cleared each frame). Mirrors UIRect.
+    u8 anim_override_{0};
+    static constexpr u8 ANIM_POS_X   = 1;
+    static constexpr u8 ANIM_POS_Y   = 2;
+    static constexpr u8 ANIM_ROT_Z   = 4;
+    static constexpr u8 ANIM_SCALE_X = 8;
+    static constexpr u8 ANIM_SCALE_Y = 16;
+
     UINode() = default;
 };
 

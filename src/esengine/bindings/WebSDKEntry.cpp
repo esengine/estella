@@ -630,11 +630,15 @@ void uiRect_clearAnimOverrides(ecs::Registry& registry) {
     for (auto entity : registry.view<ecs::UIRect>()) {
         registry.get<ecs::UIRect>(entity).anim_override_ = 0;
     }
+    for (auto entity : registry.view<ecs::UINode>()) {
+        registry.get<ecs::UINode>(entity).anim_override_ = 0;
+    }
 }
 
 void uiRect_setAnimOverride(ecs::Registry& registry, u32 entity, u8 flags) {
-    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
-    if (rect) {
+    if (auto* n = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity))) {
+        n->anim_override_ |= flags;
+    } else if (auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity))) {
         rect->anim_override_ |= flags;
     }
 }
