@@ -62,18 +62,47 @@
 ### 2.1 原则
 **一套 ECS 原生保留模式 UI 框架:每个关注点一个负责人(schema 与其 system 同模块),整套一条显式有序管线(单个 `UIPlugin`),C++ 管热循环、TS 管策略,渲染接 render-rearch、动画接 animation-rearch。**
 
-### 2.2 统一组件集（一套到底，消灭 legacy/new 双轨）
-| 组件 | 角色 | 取代 |
+### 2.2 类型地基（先于组件，根因修复）
+
+旧组件难看的根因不是设计者偷懒,而是 **builtin 序列化只支持扁平字段**(详见 §2.6):`StateVisuals` 被迫拆成 8-slot 32 字段、尺寸要 `width:f32,widthUnit:u8` 这样拆。先把地基立起来,组件才能写得现代:
+
+| 地基类型 | 形状 | 取代的反模式 |
 |---|---|---|
-| `UINode` | 布局盒:锚点/偏移/尺寸/pivot(输入)+ 计算矩形(Yoga 输出) | UIRect |
-| `Flex` / `FlexItem` / `Grid` | 布局意图(Yoga 解算) | FlexContainer/FlexItem/GridLayout(清理重命名) |
-| `UIStyle` | 解析后的视觉样式:背景色/图、边框、圆角、不透明度、tint(由样式系统驱动) | 散落各 widget 的裸色 + 孤立 UITheme |
-| `UIImage` | sprite / nine-slice / tiled / filled | Image |
-| `UIText` | 文本内容 + 字体/字号/样式引用 → MSDF 字形 run | **BitmapText + Text 两者** |
-| `UIRenderer` | 低层 draw 组件(由 UIStyle/UIImage/UIText 计算,C++ 渲染读取) | UIRenderer(收敛为计算产物) |
-| `Interactable` / `UIInteraction` | 命中门控(配置)/ 帧状态(计算) | 同名,清理 |
-| `Focusable` / `Draggable` | 焦点 / 拖拽配置 | 同名 |
-| `StateMachine` / `StateVisuals` | FSM 状态 / 状态→视觉(过渡走动画运行时) | 同名,去私有 lerp |
+| `Dimension` | `{ value: f32, unit: Px\|Percent\|Auto }` | `size`/`offset`/`min/max`/`widthPercent` 四套尺寸表达 + `-1` sentinel |
+| `Edges<T>` | `{ left, top, right, bottom }`(T=Dimension 或标量) | `Padding` vs `Vec4 sliceBorder` vs 4 个 bool 三套"四条边" |
+| `AssetRef` | 资产引用 + 资产元数据(texture/font/material) | 裸 `number` handle、`fontFamily:'Arial'` 字符串、不一致的 assetFields |
+| `Visibility` | `{ display: Visible\|Hidden\|None }`(共享引擎概念) | 散落在 UIRenderer/Image/UIMask/Interactable 的 `enabled` 重载 |
+| **全枚举化** | `ES_ENUM enum class : u8` | 该用枚举处的 `number`/`bool`(见 §2.2 词汇表注) |
+| **transient 标记** | 组件/字段不进 `.esscene` | `justPressed`/`DragState`/`previous`/`isFocused`/`dirty` 等帧态被序列化 |
+
+> 这些需要 codegen 支持任意 POD 嵌套结构(`Dimension`)与结构数组(`VisualStates.states[]`)—— 那是 §2.6 的根因修复,排在组件落地之前。
+
+### 2.2′ 统一组件词汇表（一套到底,消灭 legacy/new 双轨）
+
+布局主模型 = **CSS/Flex(决策 2026-06-22)**:`UINode` 是 CSS 盒,anchor/offset/pivot 降级为可选 `UIAnchors`(见 §1.5)。
+
+| 层 | 组件 | 角色 | 取代 / 修法 |
+|---|---|---|---|
+| **布局** | `UINode` | CSS 盒:`position`/`width/height/min/max`(Dimension)/`inset`/`flex*`/`alignSelf`/`margin`(Edges) | UIRect + FlexItem(合一,去锚点为主) |
+| | `UIAnchors` | 可选:RectTransform 锚点/pivot(给需要的人) | UIRect 锚点部分(降级为可选) |
+| | `UILayout` | 容器布局意图:`mode: Flex\|Grid` + flex/真 grid 模板(Yoga 解算) | FlexContainer + GridLayout(合一) |
+| | `UISafeArea` | 安全区内缩 → 喂布局 | SafeArea(4 bool → EdgeFlags) |
+| **视觉** | `UIVisual` | 背景:`kind: None\|Color\|Texture\|NineSlice\|Tiled\|Filled` + AssetRef + 单一 fill 词汇 + `sliceBorder:Edges` | **UIRenderer + Image 合一**;删 render/image.ts 延迟拷贝 |
+| | `UIText` | 文本内容 + `parseMode`(纯/富) → SDF 字形 run | core/text.ts Text 的内容部分 |
+| | `TextStyle` | 字体(AssetRef)/字号/`fontWeight`/`fontStyle`/color/stroke/shadow(可继承可主题化) | Text 的样式部分(拆出);bold/italic→枚举 |
+| | `UIMask` | 裁剪 | 同名,`maskTexture`→AssetRef |
+| | `Visibility` | 显隐(共享) | 抽出散落 enabled |
+| **交互** | `Interactable` | 命中门控:`pickingMode: Ignore\|Pass\|Block` | blockRaycast+raycastTarget 合并 |
+| | `PointerState` | 帧态:hover/press + 指针位置/按键/touch(**transient**) | UIInteraction(清理 + 不序列化) |
+| | `VisualStates` | 变长 `states[]{name,color?,sprite?,scale?}` + `Transition{duration,easing}`(过渡走动画运行时) | **StateMachine + StateVisuals 合一**,去 8-slot/反射/私有 lerp |
+| | `Focusable` | `tabIndex`(单一事实源 = FocusManager) | 删 isFocused |
+| | `Draggable` / `DragState` | 拖拽配置:`axis` + `constraint:Rect?` / 帧态(**transient**) | lockX/Y→axis;DragState 不序列化 |
+| **Widget/数据** | `Button/Toggle/Slider/ProgressBar/Dropdown/Dialog` | 组件 + 驱动 system(value→geometry 归 system) | widget factory(从手改 anchor 升级) |
+| | `TextField` | 文本输入(组合 UIText/TextStyle,走 SDF) | legacy TextInput(去重复排版 + 序列化帧态) |
+| | `UIScroll` | 滚动组件,前置 collection/ScrollContainer | legacy ScrollView(双实现收一) |
+| | `ThemeTokens` | 语义 token:颜色角色 + spacing/typography scale | UITheme(去 per-widget 上帝对象,接入 widget) |
+
+> 词汇表注(全枚举化,消灭裸 number/bool):`pickingMode`、`fontWeight`/`fontStyle`、Draggable `axis`、`fillDirection`(单一权威,替 FillMethod/FillOrigin/字符串三套)、`UIVisual.kind`、`UILayout.mode`、`UIMask.mode`、SafeArea `EdgeFlags`。`collection/*`(虚拟化 ListView/ViewPool/DataSource)与事件总线 `core/events.ts` 保留,仅统一 axis/direction 词汇。
 
 ### 2.3 模块结构（schema 与 system 同处，单一负责人）
 ```
@@ -110,18 +139,52 @@ PostUpdate:  ScrollView → RenderOrder → Render(DrawList)
 
 ---
 
+## 2.6 序列化约束与 codegen 根因修复（决策 2026-06-22）
+
+builtin 组件经 **EHT codegen**(`tools/eht/`,正则扫 `ES_COMPONENT`/`ES_PROPERTY` → 生成 embind 绑定 + TS 镜像 + ptr 快路径)镜像并序列化进 `.esscene`(JSON,经 embind `getComp` 取字段)。当前能力矩阵:
+
+| 字段形状 | 可序列化? | 机制 / 限制 |
+|---|---|---|
+| 标量 / vec2/3/4/quat / color / 枚举(u8) / handle / Entity / string | ✅ | 类型表 + embind |
+| `Padding` 嵌套结构 | ✅(唯一硬编码) | `CUSTOM_STRUCT_TYPES` 单例 |
+| `vector<Entity>` | ✅(唯一硬编码) | `VECTOR_TYPES` 单例 |
+| **任意 POD 嵌套结构**(`Dimension`/`Edges`) | ❌ | 需改 4-5 张 Python 表 + 正则解析嵌套花括号 |
+| **结构数组**(`vector<StateEntry>`) | ❌ | 无 element-struct marshaller;ptr 无法定尺寸 |
+| `glm::mat4` / `std::function` / map / variant | ❌ | `SKIP_TYPES` |
+
+证据见 `tools/eht/type_system.py`(`CUSTOM_STRUCT_TYPES`/`VECTOR_TYPES`/`CPP_TO_TS`)、`tools/eht/generators/ptr_layout.py`(size/align)、`tools/eht/generators/embind.py`(`value_object`)、`tools/eht/field_utils.py`、`tools/eht/parser.py`(`RE_PROPERTY`)。
+
+**这是旧组件难看的根因**:`StateVisuals` 的 8-slot 32 字段、尺寸的 `f32+u8` 拆分,都是被这个矩阵逼出来的——不是设计取舍。
+
+**决策(选 B,根因修复,非扁平化 stopgap)**:泛化 EHT codegen,使其支持
+1. **任意小 POD 嵌套结构**(把写死的 `Padding` 改为可注册集合)→ `Dimension`/`Edges` 成一等字段;**F1**。
+2. **结构数组 `vector<struct>`**(element-struct marshaller + 真成员解析)→ `VisualStates.states[]` 等;**F5**(较重,排在文本/视觉之后)。
+
+原则:**纯增量**——只新增类型支持,不改现有扁平字段处理;以"重新生成后现有 `*.generated.*` 逐字节一致 + 全套测试绿"证明零回归。收益是**引擎级**:此后任意组件(不止 UI)都能用干净的嵌套/数组字段。
+
+**布局主模型 = CSS/Flex**:`UILayoutSystem.cpp` 当前 RectTransform-primary(手写锚点数学,Yoga 仅用于 flex 容器子节点)。改为整棵 UI 子树**单趟 Yoga**(`YGNodeStyleSetPosition`/`*Percent`/`*Auto` + position type 已原生支持),`Dimension` 按 unit 派发 `Set*`/`Set*Percent`/`Set*Auto`,锚点数学降为 `UIAnchors` fallback;hit-test/render-order/draw 读 `computed_size_`/`pivot` 输出不变。约 150-250 LOC 单文件;**F3**。
+
+**编辑器**:Inspector 由字段元数据自动生成(`desktop/src/engine/schema.ts inferField` + `panels/Details.tsx`),扁平字段零工作量自动出现;新形状(Dimension/Edges)需在 `inferField` + Details 加控件(随 F1 一并)。
+
+---
+
 ## 3. 分阶段落地（rewrite 序：建新 → 迁移 → 删遗留）
+
+> **历史(已完成,新 F 序取代旧 P 序)**:旧 **P0**(layout/input/render 概念模块化 + shim)与旧 **P1**(动态 SDF 字形图集文本:`Text` 单一 SDF 渲染、退役 Canvas2D-每实体、富文本/多行/对齐/换行/CJK/UIRect 定位/z-order 全像素验证)**均已完成并推送**。详见 §7 与 `memory/gui-rearch.md`。下表是组件模型重构的新主线(2026-06-22 起):
 
 | 阶段 | 内容 | 产出/判据 |
 |---|---|---|
-| **P0 骨架** | 锁定 §2.2 组件集 + §2.3 模块结构 + 单 `UIPlugin` 管线;新 system 初期可 wrap/port 现逻辑保持可跑。遗留隔离待删 | 新框架骨架立起,UI 测试套件仍绿 |
-| **P1 文本 keystone** | 单一 MSDF 字形图集路径,退役 BitmapText + Canvas2D-每实体,接 render-rearch 批次 | 清晰度↑、draw call↓、富文本/系统字体统一 |
-| **P2 样式/主题** | USS 式级联 token + 主题资产,UIStyle 解析,widget 读主题 | 去裸色,主题可切换 |
-| **P3 绑定 + 组合** | 响应式 observable→字段;声明式 widget builder | 删 setValue 样板,组合不再手 spawn |
-| **P4 移植 + 删遗留** | widget 移植到新模型、examples 迁移、**删除全部遗留 plugin**(UIInteraction/Drag/Focus/Image/Text/TextInput/ScrollView/SafeArea/UIRenderOrder/UIMask + ScrollView.ts/TextInput.ts/SafeArea.ts/TextRenderer 旧路径) | `index.ts` 单一现代 barrel,无 legacy 段 |
-| **P5 动画整合** | StateVisuals/过渡委托 animation-rearch | 去私有 lerp |
+| **F0 规范** | 本文 §2.2/§2.6 + 记忆锁定:CSS/Flex 词汇表 + codegen 根因修复 + transient + 单 UIPlugin + 注释金标准 | 单一事实源 |
+| **F1 codegen 根因** | 泛化 EHT 支持任意 POD 嵌套结构(Padding 单例→可注册集) + 编辑器控件 | 现有 `*.generated.*` 重生逐字节一致 + 全套绿;Dimension/Edges 可作 builtin 字段 |
+| **F2 地基类型** | Dimension/Edges/AssetRef/Visibility/枚举 + transient 机制 | 地基可用,测试绿 |
+| **F3 UINode + 布局** | UINode(CSS 盒)+ UIAnchors(可选)+ UILayoutSystem.cpp 单趟 Yoga 重写 | 布局像素验证;锚点降级为 fallback |
+| **F4 视觉/文本组件** | UIVisual(并 UIRenderer+Image)+ Visibility 抽出 + UIText/TextStyle 拆分 + UILayout(并 Flex+Grid)+ UISafeArea | 删延迟拷贝;像素验证 |
+| **F5 结构数组 + 状态** | 泛化 codegen vector<struct> + VisualStates(并 StateMachine+StateVisuals,变长 states[],过渡走动画) | 退役 8-slot/反射/私有 lerp |
+| **F6 交互 + 单管线** | Interactable/PointerState/Focusable/Draggable 重做 + 合 12 plugin 为单 UIPlugin + SystemSets + 删 shim/字符串排序 + index.ts 收敛 | 单一现代 barrel(破坏性 API 集中此);测试重写后绿 |
+| **F7 主题/绑定/widget** | ThemeTokens + 响应式绑定 + widget 组件化(value→geometry 归 system)+ UIScroll 统一、删 legacy ScrollView | 去裸色/去 setValue 样板 |
+| **F8 文本收尾** | SDF 描边/阴影(text.esshader 专用管线)+ TextField(取代 TextInput,走 SDF)+ 退役 Canvas2D TextRenderer/BitmapText | 文本栈单一化 |
 
-> P1(文本)是最大单点收益,可在 P0 骨架后优先并行推进。
+> 每阶段:`build -t web`(改 C++/shader/codegen 时)+ `cd sdk && npx vitest run` + `npx tsc --noEmit` + 触及渲染处像素验证(electron headless)。破坏性公共 API 变更集中在 **F6** 一次。
 
 ---
 
@@ -183,4 +246,4 @@ PostUpdate:  ScrollView → RenderOrder → Render(DrawList)
 
 ---
 
-> 状态(2026-06-22):方向 **A(ECS 原生 clean rewrite)**。**P0 纯重定位完成**(layout/input/render 概念模块化 + shim,全套 2268 测试绿)。**P1 开工**:统一动态 SDF 字形图集文本,从 P1.0(图集子区域基元)起。记忆见 `gui-rearch.md`。
+> 状态(2026-06-22):方向 **A(ECS 原生 clean rewrite)**,布局主模型 **CSS/Flex**。旧 **P0**(概念模块化)+ 旧 **P1**(SDF 字形文本,全像素验证)**已完成推送**。组件模型重构主线改用 **F0–F8**(§3):**F0 规范已写入本文 §2.2/§2.6**,下一步 **F1**(泛化 EHT codegen 支持 POD 嵌套结构)。记忆见 `memory/gui-rearch.md`。
