@@ -38,7 +38,9 @@ export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
   spine: { extensions: ['atlas', 'skel'], badge: 'SPN', icon: PersonStanding, tint: '#9b8fc0' },
   audio: { extensions: ['ogg', 'mp3', 'wav'], badge: 'AUD', icon: Music, tint: '#7faf9c' },
   prefab: { extensions: ['esprefab'], badge: 'PFB', icon: Component, tint: '#c2a274' },
-  material: { extensions: ['esmat'], badge: 'MAT', icon: Blend, tint: '#c0917a' },
+  // .esmaterial is the real extension (the SDK MaterialAssetLoader only loads it);
+  // .esmat is tolerated as a legacy alias (cf. electron/importAssets.ts).
+  material: { extensions: ['esmaterial', 'esmat'], badge: 'MAT', icon: Blend, tint: '#c0917a' },
   script: { extensions: ['ts', 'js'], badge: 'TS', icon: FileCode2, tint: '#93a3bf' },
   // Unified animation clip (.esanim) + legacy multi-track timeline (.estimeline).
   animation: { extensions: ['esanim', 'estimeline'], badge: 'ANM', icon: Clapperboard, tint: '#9bb39a' },

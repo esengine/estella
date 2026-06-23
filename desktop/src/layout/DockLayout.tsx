@@ -75,42 +75,27 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   });
 }
 
-// Add the Sequencer as a bottom-dock tab if it isn't present yet. Run on both the
-// fresh-build and the restored-layout paths so existing saved layouts (pre-v5
-// Sequencer) gain the tab without resetting the user's whole arrangement.
-function ensureSequencer(api: DockviewReadyEvent['api']) {
-  if (api.getPanel('sequencer')) return;
-  const ref = api.getPanel('content') ? 'content' : api.getPanel('log') ? 'log' : undefined;
-  api.addPanel({
-    id: 'sequencer',
-    component: 'sequencer',
-    title: 'Sequencer',
-    position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
-  });
-}
+// Bottom-dock editor tabs added on both fresh builds and restored layouts, so a
+// saved layout predating a tab gains it without resetting the user's arrangement.
+// Each docks next to the first of `refs` that exists; tabs are added in order, so
+// a later tab may reference an earlier one. Adding a bottom-dock tab is one entry.
+const BOTTOM_TABS: { id: string; component: string; title: string; refs: string[] }[] = [
+  { id: 'sequencer', component: 'sequencer', title: 'Sequencer', refs: ['content', 'log'] },
+  { id: 'tileset', component: 'tileset', title: 'Tileset', refs: ['content', 'sequencer'] },
+  { id: 'tilemap', component: 'tilemap', title: 'Tilemap', refs: ['content', 'tileset'] },
+];
 
-// Same idea for the Tileset editor — a bottom-dock tab added to fresh + restored layouts.
-function ensureTileset(api: DockviewReadyEvent['api']) {
-  if (api.getPanel('tileset')) return;
-  const ref = api.getPanel('content') ? 'content' : api.getPanel('sequencer') ? 'sequencer' : undefined;
-  api.addPanel({
-    id: 'tileset',
-    component: 'tileset',
-    title: 'Tileset',
-    position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
-  });
-}
-
-// The Tilemap painter — same bottom-dock tab treatment.
-function ensureTilemap(api: DockviewReadyEvent['api']) {
-  if (api.getPanel('tilemap')) return;
-  const ref = api.getPanel('content') ? 'content' : api.getPanel('tileset') ? 'tileset' : undefined;
-  api.addPanel({
-    id: 'tilemap',
-    component: 'tilemap',
-    title: 'Tilemap',
-    position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
-  });
+function ensureBottomTabs(api: DockviewReadyEvent['api']) {
+  for (const tab of BOTTOM_TABS) {
+    if (api.getPanel(tab.id)) continue;
+    const ref = tab.refs.find((r) => api.getPanel(r));
+    api.addPanel({
+      id: tab.id,
+      component: tab.component,
+      title: tab.title,
+      position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
+    });
+  }
 }
 
 // A collapse/expand chevron in every dock group's header (the design's `.pcol`).
@@ -156,11 +141,9 @@ export function DockLayout() {
       buildDefaultLayout(api);
     }
 
-    // Ensure the Sequencer tab exists, then keep the Content Browser fronted so
-    // adding it doesn't steal the bottom dock's active tab on load.
-    ensureSequencer(api);
-    ensureTileset(api);
-    ensureTilemap(api);
+    // Ensure the bottom-dock editor tabs exist, then keep the Content Browser
+    // fronted so adding them doesn't steal the bottom dock's active tab on load.
+    ensureBottomTabs(api);
     api.getPanel('content')?.api.setActive();
 
     // Persist the dock arrangement so it survives reloads — a real editor habit.

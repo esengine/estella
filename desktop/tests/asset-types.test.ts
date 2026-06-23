@@ -16,6 +16,8 @@ describe('asset type registry', () => {
     expect(assetTypeOf('a.atlas')).toBe('spine');
     expect(assetTypeOf('a.skel')).toBe('spine');
     expect(assetTypeOf('a.esprefab')).toBe('prefab');
+    expect(assetTypeOf('a.esmaterial')).toBe('material'); // real ext (SDK loader)
+    expect(assetTypeOf('a.esmat')).toBe('material'); // legacy alias
     expect(assetTypeOf('a.esmat')).toBe('material');
     expect(assetTypeOf('a.esanim')).toBe('animation');
     expect(assetTypeOf('a.estimeline')).toBe('animation');

@@ -321,6 +321,25 @@ export function Viewport() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Esc cancels an in-progress stroke (revert the live drag via the tool's
+  // transaction) instead of deselecting. Capture phase so it pre-empts the global
+  // Esc→deselect command; a no-op when no stroke is active (deselect then runs).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (activeToolRef.current) {
+        activeToolRef.current.cancel?.(toolCtx);
+        activeToolRef.current = null;
+        e.stopImmediatePropagation();
+      } else if (panRef.current) {
+        panRef.current = null;
+        e.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [toolCtx]);
+
   const onPointerDown = (e: ReactPointerEvent) => {
     if (engine.status !== 'ready') return;
 
