@@ -1,0 +1,77 @@
+{
+  "version": "1.0",
+  "name": "SDF text outline + shadow (REARCH_GUI F8)",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2, 3],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Backdrop",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.32, "g": 0.34, "b": 0.40, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "EffectText",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 100, "unit": 0 },
+            "insetTop": { "value": 240, "unit": 0 },
+            "width": { "value": 600, "unit": 0 },
+            "height": { "value": 120, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Outline + Shadow 描边阴影",
+            "fontFamily": "sans-serif",
+            "fontSize": 64,
+            "color": { "r": 1, "g": 0.9, "b": 0.2, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1,
+            "strokeColor": { "r": 0, "g": 0, "b": 0, "a": 1 },
+            "strokeWidth": 3,
+            "shadowColor": { "r": 0, "g": 0, "b": 0, "a": 0.6 },
+            "shadowOffsetX": 7,
+            "shadowOffsetY": 7
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

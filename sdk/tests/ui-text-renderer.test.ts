@@ -49,6 +49,33 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         expect(totalVerts).toBe(6 * 4 * 8);                        // all 6 glyphs emitted
     });
 
+    it('emits shadow + outline passes behind the fill (REARCH_GUI F8)', () => {
+        const atlas = makeAtlas(1024);
+        const sink = vi.fn();
+        drawTextWith(atlas, sink, {
+            text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+            shadow: { color: [0, 0, 0, 1], dx: 2, dy: 2 },
+            outline: { color: [0, 0, 0, 1], width: 1 },
+        });
+        // 1 shadow + 8 outline directions + 1 fill = 10 single-page batches.
+        expect(sink).toHaveBeenCalledTimes(10);
+        // Shadow (first pass) is offset on x by dx; fill (last pass) is not.
+        const shadowX = sink.mock.calls[0][0][0];
+        const fillX = sink.mock.calls[9][0][0];
+        expect(shadowX - fillX).toBeCloseTo(2, 5);
+    });
+
+    it('skips shadow/outline passes when transparent or zero-width', () => {
+        const atlas = makeAtlas(1024);
+        const sink = vi.fn();
+        drawTextWith(atlas, sink, {
+            text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+            shadow: { color: [0, 0, 0, 0], dx: 2, dy: 2 }, // transparent → skip
+            outline: { color: [0, 0, 0, 1], width: 0 },    // zero width → skip
+        });
+        expect(sink).toHaveBeenCalledTimes(1); // fill only
+    });
+
     it('emits nothing for empty / whitespace-only text', () => {
         const atlas = makeAtlas(1024);
         const sink = vi.fn();

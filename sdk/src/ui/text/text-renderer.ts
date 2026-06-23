@@ -42,7 +42,18 @@ export interface DrawTextParams {
     verticalAlign?: number;
     /** Box height (px) for vertical alignment; omit for top-anchored. */
     boxHeight?: number;
+    /** Drop shadow: an offset, recolored copy of the glyphs drawn behind the fill. */
+    shadow?: { color: RGBA; dx: number; dy: number };
+    /** Outline: recolored glyph copies fanned out by `width` px around the fill. */
+    outline?: { color: RGBA; width: number };
 }
+
+// 8-direction offsets (unit) for the outline fan — scaled by the outline width.
+const OUTLINE_OFFSETS: ReadonlyArray<readonly [number, number]> = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1],
+];
 
 /**
  * Lay out `text` against `atlas` and emit one quad batch per atlas page to
@@ -77,10 +88,30 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         if (!arr) { arr = []; byPage.set(g.pageId, arr); }
         arr.push(g);
     }
-    for (const [pageId, glyphs] of byPage) {
-        const { vertices, indices } = buildGlyphVertices(glyphs, p.color, p.originX ?? 0, originY);
-        sink(vertices, indices, pageId);
+
+    const baseX = p.originX ?? 0;
+    // Emit the glyph set once per page, recolored + offset. All passes are SDF
+    // glyphs in the same atlas/layer, so they batch and draw in submit order —
+    // shadow + outline first (behind), fill last (on top).
+    const emitPass = (color: RGBA, dx: number, dy: number): void => {
+        for (const [pageId, glyphs] of byPage) {
+            const { vertices, indices } = buildGlyphVertices(glyphs, color, baseX + dx, originY + dy);
+            sink(vertices, indices, pageId);
+        }
+    };
+
+    // Shadow (offset drop copy). y-up local space: a positive screen-down offset
+    // moves the copy toward -y.
+    if (p.shadow && p.shadow.color[3] > 0) {
+        emitPass(p.shadow.color, p.shadow.dx, -p.shadow.dy);
     }
+    // Outline (8-direction fan around the glyph).
+    if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) {
+        const w = p.outline.width;
+        for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(p.outline.color, ox * w, oy * w);
+    }
+    // Fill (on top).
+    emitPass(p.color, 0, 0);
 }
 
 export interface TextRendererOptions extends CanvasGlyphRasterizerOptions {

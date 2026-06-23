@@ -15,6 +15,7 @@ import { defineSystem, Schedule } from '../../system';
 import type { ESEngineModule, CppRegistry } from '../../wasm';
 import type { Entity } from '../../types';
 import { SdfTextRenderer } from './text-renderer';
+import type { RGBA } from './layout';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, type TextData } from '../core/text';
 import { UINode } from '../core/ui-node';
@@ -94,6 +95,20 @@ export class TextPlugin implements Plugin {
                     layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
                 }
 
+                const shadow = t.shadowColor.a > 0 && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0)
+                    ? {
+                        color: [t.shadowColor.r, t.shadowColor.g, t.shadowColor.b, t.shadowColor.a] as RGBA,
+                        dx: t.shadowOffsetX,
+                        dy: t.shadowOffsetY,
+                    }
+                    : undefined;
+                const outline = t.strokeWidth > 0 && t.strokeColor.a > 0
+                    ? {
+                        color: [t.strokeColor.r, t.strokeColor.g, t.strokeColor.b, t.strokeColor.a] as RGBA,
+                        width: t.strokeWidth,
+                    }
+                    : undefined;
+
                 this.renderer_.drawText(
                     {
                         text: t.content,
@@ -109,6 +124,8 @@ export class TextPlugin implements Plugin {
                         boxHeight,
                         originX,
                         originY,
+                        shadow,
+                        outline,
                     },
                     this.matrix_,
                     entity as number,
