@@ -12,6 +12,7 @@ import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMeta';
 import { openAnimationClip } from '@/timeline/openClip';
 import { openTileset, createTilesetFromTexture } from '@/tileset/openTileset';
+import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { fsRefresh } from '@/project/fsWatch';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';
@@ -455,6 +456,7 @@ export function ContentBrowser() {
     const { path, entry } = ctx.target;
     const isScene = !entry.isDir && assetType(entry.name) === 'scene';
     const isTexture = !entry.isDir && (assetType(entry.name) === 'texture' || assetType(entry.name) === 'sprite');
+    const isTileset = !entry.isDir && assetType(entry.name) === 'tileset';
     const ref = entry.isDir ? null : ProjectStore.assetRef(path);
     return [
       ...(entry.isDir || isScene
@@ -462,6 +464,9 @@ export function ContentBrowser() {
         : []),
       ...(isTexture
         ? [{ label: 'Create Tileset', onClick: () => void createTilesetFromTexture(path) }]
+        : []),
+      ...(isTileset
+        ? [{ label: 'Create Tilemap', onClick: () => void createTilemapFromTileset(path) }]
         : []),
       { label: 'Rename', onClick: () => setRenaming(path) },
       { label: 'Duplicate', onClick: () => void duplicate(path) },

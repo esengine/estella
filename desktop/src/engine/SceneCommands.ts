@@ -119,6 +119,9 @@ export class SceneCommandsImpl {
   // the recorder returns false (observe-only) so the edit still lands normally.
   // Kept generic: SceneCommands knows nothing about timelines.
   private editHook: EditHook | null = null;
+  // An in-progress tilemap paint stroke: the chunk blob snapshotted at stroke start
+  // ({@link beginTilePaint}), committed as one undo step at {@link endTilePaint}.
+  private tilePaint: { sourceId: number; before: string } | null = null;
 
   constructor(
     private readonly model: SceneModelImpl,
@@ -456,9 +459,41 @@ export class SceneCommandsImpl {
     if (edits.length === 0) return;
     const rt = this.model.runtimeFor(sourceId);
     if (rt === undefined) return;
-
     const before = TilemapAPI.exportChunks(rt);
     for (const e of edits) TilemapAPI.setTile(rt, e.x, e.y, e.tileId);
+    this.commitTilePaint_(sourceId, before);
+  }
+
+  /**
+   * Begin a live paint stroke (a viewport brush/erase drag). Snapshots the chunk
+   * blob now; paint live with {@link paintTileLive}; commit one undo step with
+   * {@link endTilePaint}. Mirrors the field-edit gesture (begin/…/end) so a drag is
+   * one undo step while staying live in the viewport.
+   */
+  beginTilePaint(sourceId: EntityId): void {
+    const rt = this.model.runtimeFor(sourceId);
+    this.tilePaint = rt === undefined ? null : { sourceId, before: TilemapAPI.exportChunks(rt) };
+  }
+
+  /** Paint one tile live (no model write / no undo) during an open stroke. */
+  paintTileLive(sourceId: EntityId, x: number, y: number, tileId: number): void {
+    const rt = this.model.runtimeFor(sourceId);
+    if (rt !== undefined) TilemapAPI.setTile(rt, x, y, tileId);
+  }
+
+  /** Commit the open paint stroke as one undo step (no-op if nothing changed). */
+  endTilePaint(): void {
+    const s = this.tilePaint;
+    this.tilePaint = null;
+    if (s) this.commitTilePaint_(s.sourceId, s.before);
+  }
+
+  // Shared commit: snapshot the post-edit blob, write it to the model (the truth
+  // for save + rebuild), and record one undo step whose closures re-resolve the
+  // runtime entity (it changes across a play→stop rebuild) and re-import the blob.
+  private commitTilePaint_(sourceId: EntityId, before: string): void {
+    const rt = this.model.runtimeFor(sourceId);
+    if (rt === undefined) return;
     const after = TilemapAPI.exportChunks(rt);
     if (after === before) return; // painted the same ids that were already there
 

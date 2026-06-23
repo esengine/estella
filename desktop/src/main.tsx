@@ -23,6 +23,7 @@ import './theme/viewport.css';
 import './theme/content.css';
 import './theme/sequencer.css';
 import './theme/tileset.css';
+import './theme/tilemap.css';
 import './theme/chrome.css';
 import './theme/menus.css';
 import './theme/settings.css';

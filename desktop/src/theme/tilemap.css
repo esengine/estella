@@ -1,0 +1,79 @@
+/* SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0 */
+/* SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team */
+/* The Tilemap painter panel (docs/REARCH_TILEMAP.md T3b). */
+
+.tp-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--srf-1, #16181c);
+  color: var(--text, #d6d9de);
+  font-size: 12px;
+}
+
+.tp-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line, #2a2d33);
+  background: var(--srf-2, #1b1e23);
+  flex: 0 0 auto;
+}
+.tp-grow { flex: 1 1 auto; }
+.tp-brush { color: var(--text-faint, #6b717c); font-variant-numeric: tabular-nums; }
+
+.tp-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  background: var(--control, #24272d);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  cursor: pointer;
+}
+.tp-tool:hover { color: var(--text, #d6d9de); border-color: var(--control-hover, #333740); }
+.tp-tool.is-active {
+  background: var(--star, #4c8fd6);
+  border-color: var(--star, #4c8fd6);
+  color: var(--on-accent, #fff);
+}
+
+.tp-palette {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 12px;
+  background: var(--srf-0, #101216);
+}
+.tp-atlas { position: relative; }
+.tp-img { display: block; image-rendering: pixelated; user-select: none; }
+
+.tp-cell {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.tp-cell:hover { border-color: rgba(76, 143, 214, 0.6); background: rgba(76, 143, 214, 0.14); }
+.tp-cell.is-sel {
+  border-color: var(--star, #4c8fd6);
+  box-shadow: inset 0 0 0 1px var(--star, #4c8fd6);
+  background: rgba(76, 143, 214, 0.18);
+}
+
+.tp-empty,
+.tp-warn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  color: var(--text-faint, #6b717c);
+}
+.tp-hint { font-size: 11px; max-width: 280px; }

@@ -84,4 +84,21 @@ describe('SceneCommands.paintTiles', () => {
     cmds.paintTiles(1, [{ x: 0, y: 0, tileId: 1 }]);
     expect(history.canUndo()).toBe(false);
   });
+
+  it('begin/live/end paints a stroke live and commits one undo step', () => {
+    const setTile = vi.spyOn(TilemapAPI, 'setTile').mockImplementation(() => {});
+    const importChunks = vi.spyOn(TilemapAPI, 'importChunks').mockReturnValue(true);
+    vi.spyOn(TilemapAPI, 'exportChunks')
+      .mockReturnValueOnce('B0') // begin snapshot
+      .mockReturnValueOnce('B1'); // end → commit after-snapshot
+    cmds.beginTilePaint(1);
+    cmds.paintTileLive(1, 0, 0, 7);
+    cmds.paintTileLive(1, 1, 0, 7);
+    cmds.endTilePaint();
+    expect(setTile).toHaveBeenCalledTimes(2);
+    expect(chunksOf(model)).toBe('B1');
+    history.undo();
+    expect(importChunks).toHaveBeenLastCalledWith(100, 'B0');
+    expect(chunksOf(model)).toBe('B0');
+  });
 });

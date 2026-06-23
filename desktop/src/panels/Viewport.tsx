@@ -19,6 +19,20 @@ import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
+import { TilemapAPI } from 'esengine';
+import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
+import type { TilePaint } from '@/engine/SceneCommands';
+
+// Cursor (client px) → tile grid coords on a TilemapLayer entity: client→world via the
+// editor camera, then world→tile around the layer's world origin (its Transform).
+function cursorTile(clientX: number, clientY: number, sourceId: number): { x: number; y: number } | null {
+  const rt = SceneModel.runtimeFor(sourceId);
+  const wp = ViewportController.canvasToWorld(clientX, clientY);
+  const ep = rt != null ? ViewportController.getEntityXY(rt) : null;
+  if (rt == null || !wp || !ep) return null;
+  const t = TilemapAPI.worldToTile(rt, wp.x, wp.y, ep.x, ep.y);
+  return { x: Math.floor(t.x), y: Math.floor(t.y) };
+}
 
 // Visual manipulation glyph, centered on the selected entity, reflecting the
 // active tool. The drag itself (below) now applies move / rotate / scale.
@@ -214,6 +228,8 @@ export function Viewport() {
   const gizmoRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
+  // Active tilemap paint stroke (kept separate from the transform drag union above).
+  const paintRef = useRef<{ sourceId: number; tool: PaintTool; last: string; startX?: number; startY?: number } | null>(null);
   const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const realm = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
@@ -342,6 +358,36 @@ export function Viewport() {
     }
     if (e.button !== 0) return;
 
+    // Tile painting: when a paint tool is active over the SELECTED TilemapLayer, the
+    // left button paints (it must NOT re-pick/select another entity).
+    const paint = useTilemapPaint.getState();
+    const selId = useSelection.getState().selectedId;
+    const isTilemap = selId != null
+      && !!SceneModel.entityBySource(selId)?.components.some((c) => c.type === 'TilemapLayer');
+    if (paint.tool && isTilemap && selId != null) {
+      e.preventDefault();
+      const tile = cursorTile(e.clientX, e.clientY, selId);
+      if (!tile) return;
+      if (paint.tool === 'eyedropper') {
+        const rt = SceneModel.runtimeFor(selId);
+        const id = rt != null ? TilemapAPI.getTile(rt, tile.x, tile.y) : 0;
+        if (id > 0) paint.setBrush(id);
+        return;
+      }
+      if (paint.tool === 'rect') {
+        paintRef.current = { sourceId: selId, tool: 'rect', last: '', startX: tile.x, startY: tile.y };
+        stageRef.current?.setPointerCapture(e.pointerId);
+        return;
+      }
+      // brush / erase — a live stroke committed as one undo step on release.
+      const tileId = paint.tool === 'erase' ? 0 : paint.brushTileId;
+      SceneCommands.beginTilePaint(selId);
+      SceneCommands.paintTileLive(selId, tile.x, tile.y, tileId);
+      paintRef.current = { sourceId: selId, tool: paint.tool, last: `${tile.x},${tile.y}` };
+      stageRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+
     // Pick returns a runtime World entity (rendering domain); the editor selects
     // and commands by stable source id. Resolve once: source id drives selection
     // + SceneCommands; the runtime id drives ViewportController screen geometry.
@@ -385,6 +431,24 @@ export function Viewport() {
   const onPointerMove = (e: ReactPointerEvent) => {
     const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
     if (wp) StatsStore.setCursor(wp.x, wp.y);
+
+    // Live brush/erase stroke: paint each newly-entered tile (rect previews on release).
+    const p = paintRef.current;
+    if (p) {
+      if (p.tool === 'brush' || p.tool === 'erase') {
+        const tile = cursorTile(e.clientX, e.clientY, p.sourceId);
+        if (tile) {
+          const key = `${tile.x},${tile.y}`;
+          if (key !== p.last) {
+            const tileId = p.tool === 'erase' ? 0 : useTilemapPaint.getState().brushTileId;
+            SceneCommands.paintTileLive(p.sourceId, tile.x, tile.y, tileId);
+            p.last = key;
+          }
+        }
+      }
+      return; // painting overrides transform drag
+    }
+
     const drag = dragRef.current;
     if (!drag) return;
     const snapOn = useEditorStore.getState().snapping;
@@ -422,6 +486,27 @@ export function Viewport() {
   };
 
   const endDrag = (e: ReactPointerEvent) => {
+    // Commit an in-progress tile paint stroke first.
+    const p = paintRef.current;
+    if (p) {
+      stageRef.current?.releasePointerCapture(e.pointerId);
+      paintRef.current = null;
+      if (p.tool === 'rect' && p.startX != null && p.startY != null) {
+        const tile = cursorTile(e.clientX, e.clientY, p.sourceId);
+        if (tile) {
+          const x0 = Math.min(p.startX, tile.x), x1 = Math.max(p.startX, tile.x);
+          const y0 = Math.min(p.startY, tile.y), y1 = Math.max(p.startY, tile.y);
+          const tileId = useTilemapPaint.getState().brushTileId;
+          const edits: TilePaint[] = [];
+          for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) edits.push({ x, y, tileId });
+          SceneCommands.paintTiles(p.sourceId, edits);
+        }
+      } else {
+        SceneCommands.endTilePaint();
+      }
+      return;
+    }
+
     const drag = dragRef.current;
     if (!drag) return;
     stageRef.current?.releasePointerCapture(e.pointerId);

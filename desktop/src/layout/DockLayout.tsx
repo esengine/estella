@@ -16,6 +16,7 @@ import { OutputLog } from '@/panels/OutputLog';
 import { GamePanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
+import { TilemapPainter } from '@/panels/TilemapPainter';
 import { dockApi } from '@/layout/dockApi';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
@@ -27,6 +28,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   log: () => <OutputLog />,
   sequencer: () => <Sequencer />,
   tileset: () => <TilesetEditor />,
+  tilemap: () => <TilemapPainter />,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => <GamePanel />,
 };
@@ -99,6 +101,18 @@ function ensureTileset(api: DockviewReadyEvent['api']) {
   });
 }
 
+// The Tilemap painter — same bottom-dock tab treatment.
+function ensureTilemap(api: DockviewReadyEvent['api']) {
+  if (api.getPanel('tilemap')) return;
+  const ref = api.getPanel('content') ? 'content' : api.getPanel('tileset') ? 'tileset' : undefined;
+  api.addPanel({
+    id: 'tilemap',
+    component: 'tilemap',
+    title: 'Tilemap',
+    position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
+  });
+}
+
 // A collapse/expand chevron in every dock group's header (the design's `.pcol`).
 // Collapses the group to its tab bar by height; hidden on the Viewport/Game group
 // (the center stage isn't an accordion). State follows the live group height, so
@@ -146,6 +160,7 @@ export function DockLayout() {
     // adding it doesn't steal the bottom dock's active tab on load.
     ensureSequencer(api);
     ensureTileset(api);
+    ensureTilemap(api);
     api.getPanel('content')?.api.setActive();
 
     // Persist the dock arrangement so it survives reloads — a real editor habit.
