@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "name": "SDF TextInput (REARCH_GUI F8)",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Field",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 200, "unit": 0 },
+            "insetTop": { "value": 270, "unit": 0 },
+            "width": { "value": 400, "unit": 0 },
+            "height": { "value": 48, "unit": 0 }
+          }
+        },
+        {
+          "type": "TextInput",
+          "data": {
+            "value": "SDF 输入框 hello",
+            "fontFamily": "sans-serif",
+            "fontSize": 28,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "backgroundColor": { "r": 0.12, "g": 0.13, "b": 0.18, "a": 1 },
+            "padding": 10
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

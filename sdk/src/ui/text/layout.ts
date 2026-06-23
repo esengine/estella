@@ -88,7 +88,7 @@ export interface GlyphVertexData {
 
 /**
  * Build interleaved vertices (x,y,u,v,r,g,b,a) + indices for a set of laid-out
- * glyphs (typically the subset that shares one atlas page — see TextRenderer).
+ * glyphs (typically the subset that shares one atlas page).
  * Atlas v0 (top) maps to the screen-top corner, v1 (bottom) to screen-bottom,
  * so the quad samples the glyph upright. `originX/Y` offsets all glyphs (e.g. to
  * place the text by its UINode-resolved box origin).

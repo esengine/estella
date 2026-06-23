@@ -2,25 +2,30 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
-import { RuntimeConfig } from '../defaults';
 import { defineSystem, Schedule } from '../system';
 import { registerComponent } from '../component';
 import { TextInput, type TextInputData } from './TextInput';
-import { UINode } from './core/ui-node';
+import { UINode, UIPositionType, type UINodeData } from './core/ui-node';
 import { UIVisual, UIVisualType } from './core/ui-visual';
 import type { UIVisualData } from './core/ui-visual';
+import { Text, TextAlign, TextVerticalAlign, type TextData } from './core/text';
 import { Interactable } from './behavior/interactable';
 import { Focusable } from './behavior/focusable';
 import { FocusManager, FocusManagerState } from './behavior/focusable';
 import { UIEvents, UIEventQueue } from './core/events';
 import { Res } from '../resource';
-import { platformCreateCanvas } from '../platform';
-import { requireResourceManager } from '../resourceManager';
 import { playModeOnly } from '../env';
-import { wrapText, nextPowerOf2, ensureComponent, colorToRgba, getUINodeWidth, getUINodeHeight } from './uiHelpers';
-import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
+import { ensureComponent, getUINodeWidth, getUINodeHeight } from './uiHelpers';
+import { spawnUIEntity } from './widgets/helpers';
+import { px } from './core/dimension';
+import { SdfTextRenderer } from './text/text-renderer';
+import { measureWidth } from './text/layout';
+import { CURSOR_BLINK_INTERVAL } from './uiConstants';
 import { SystemLabel, PluginName } from '../systemLabels';
 import { log } from '../logger';
+
+/** Masking bullet for password fields. */
+const PASSWORD_CHAR = '●';
 
 export class TextInputPlugin implements Plugin {
     name = PluginName.TextInput;
@@ -48,17 +53,19 @@ export class TextInputPlugin implements Plugin {
         const module = moduleOrNull;
 
         const world = app.world;
-        const textureCache = new Map<Entity, number>();
-        const canvas = platformCreateCanvas(RuntimeConfig.textCanvasSize, 64);
-        const ctxOrNull = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctxOrNull) {
-            log.warn('ui', 'TextInputPlugin: failed to create 2D canvas context');
-            return;
-        }
-        const ctx = ctxOrNull as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-        let wasmPixelPtr = 0;
-        let wasmPixelSize = 0;
+        // REARCH_GUI F8: the editable text renders through the shared SDF glyph
+        // atlas — a child Text entity (drawn by textPlugin) + a child UIVisual
+        // caret quad, composited over the entity's background UIVisual. No more
+        // per-entity Canvas2D rasterization / texture upload. `measureRenderer`
+        // owns an atlas used only to position the caret (measureWidth); its glyph
+        // advances match the child Text's atlas (same font config).
+        const childrenOf = new Map<Entity, { text: Entity; caret: Entity }>();
+        let measureRenderer: SdfTextRenderer | null = null;
+        const ensureMeasure = (): SdfTextRenderer => {
+            if (!measureRenderer) measureRenderer = new SdfTextRenderer(module);
+            return measureRenderer;
+        };
 
         let composing = false;
         let cursorVisible = true;
@@ -155,16 +162,11 @@ export class TextInputPlugin implements Plugin {
             textarea.removeEventListener('keydown', onKeyDown);
             textarea.removeEventListener('blur', onBlur);
             textarea.remove();
-            const rm = requireResourceManager();
-            for (const tex of textureCache.values()) {
-                rm.releaseTexture(tex);
+            for (const ch of childrenOf.values()) {
+                if (world.valid(ch.text)) world.despawn(ch.text);
+                if (world.valid(ch.caret)) world.despawn(ch.caret);
             }
-            textureCache.clear();
-            if (wasmPixelPtr !== 0) {
-                module._free(wasmPixelPtr);
-                wasmPixelPtr = 0;
-                wasmPixelSize = 0;
-            }
+            childrenOf.clear();
         };
 
         function syncFromTextarea(): void {
@@ -251,7 +253,10 @@ export class TextInputPlugin implements Plugin {
             { name: 'TextInputFocusSystem' }
         ), { runAfter: [SystemLabel.Focus] });
 
-        // Render system
+        // Render system — composite the input from SDF child entities (a child
+        // Text drawn by textPlugin + a child caret quad) over the entity's
+        // background UIVisual. Tree-DFS render order layers bg < text < caret. No
+        // Canvas2D, no per-entity texture (REARCH_GUI F8).
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
@@ -266,170 +271,118 @@ export class TextInputPlugin implements Plugin {
                     if (cursorTimer >= CURSOR_BLINK_INTERVAL) {
                         cursorTimer -= CURSOR_BLINK_INTERVAL;
                         cursorVisible = !cursorVisible;
-                        const ti = world.get(focused, TextInput) as TextInputData;
-                        ti.dirty = true;
                     }
                 }
 
-                const rm = requireResourceManager();
-                for (const [e, tex] of textureCache) {
+                // Reap the child entities of removed inputs.
+                for (const [e, ch] of childrenOf) {
                     if (!world.valid(e) || !world.has(e, TextInput)) {
-                        rm.releaseTexture(tex);
-                        textureCache.delete(e);
+                        if (world.valid(ch.text)) world.despawn(ch.text);
+                        if (world.valid(ch.caret)) world.despawn(ch.caret);
+                        childrenOf.delete(e);
                     }
                 }
-                const entities = world.getEntitiesWithComponents([TextInput, UINode]);
 
-                for (const entity of entities) {
+                for (const entity of world.getEntitiesWithComponents([TextInput, UINode])) {
                     const ti = world.get(entity, TextInput) as TextInputData;
-                    if (!ti.dirty) continue;
+                    const h = getUINodeHeight(entity);
+                    if (getUINodeWidth(entity) <= 0 || h <= 0) continue;
 
-                    // Texture size = the UINode's resolved (Yoga-computed) box.
-                    const w = Math.ceil(getUINodeWidth(entity));
-                    const h = Math.ceil(getUINodeHeight(entity));
-                    if (w <= 0 || h <= 0) continue;
-
-                    if (!world.has(entity, UIVisual)) {
-                        world.insert(entity, UIVisual, {
-                            visualType: UIVisualType.None,
-                            texture: 0,
-                            color: { r: 1, g: 1, b: 1, a: 1 },
-                            uvOffset: { x: 0, y: 0 },
-                            uvScale: { x: 1, y: 1 },
-                            sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
-                            tileSize: { x: 32, y: 32 },
-                            fillMethod: 0,
-                            fillOrigin: 0,
-                            fillAmount: 1,
-                            material: 0,
-                            enabled: true,
-                        });
-                    }
-
-                    renderTextInput(entity, ti, w, h);
-                    ti.dirty = false;
+                    ensureBackground(entity, ti);
+                    const ch = ensureChildren(entity, ti);
+                    syncTextChild(ch.text, ti);
+                    syncCaretChild(ch.caret, ti, h);
                 }
             },
             { name: 'TextInputRenderSystem' }
         ));
 
-        function renderTextInput(entity: Entity, ti: TextInputData, w: number, h: number): void {
-            if (canvas.width < w || canvas.height < h) {
-                canvas.width = nextPowerOf2(Math.max(canvas.width, w));
-                canvas.height = nextPowerOf2(Math.max(canvas.height, h));
-            }
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            ctx.fillStyle = colorToRgba(ti.backgroundColor);
-            ctx.fillRect(0, 0, w, h);
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(ti.padding, 0, w - ti.padding * 2, h);
-            ctx.clip();
-
-            ctx.font = `${ti.fontSize}px ${ti.fontFamily}`;
-            ctx.textBaseline = 'top';
-            ctx.textAlign = 'left';
-
-            const isEmpty = ti.value.length === 0;
-            const displayText = isEmpty
-                ? ti.placeholder
-                : ti.password
-                    ? '\u25CF'.repeat(ti.value.length)
+        /** Visible string: placeholder when empty, bullets when password. */
+        const displayString = (ti: TextInputData): string =>
+            ti.value.length === 0 ? ti.placeholder
+                : ti.password ? PASSWORD_CHAR.repeat(ti.value.length)
                     : ti.value;
 
-            ctx.fillStyle = colorToRgba(isEmpty ? ti.placeholderColor : ti.color);
-
-            const lineHeight = Math.ceil(ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO);
-            const padding = ti.padding;
-
-            if (ti.multiline) {
-                const lines = wrapText(ctx, displayText, w - padding * 2);
-                let y = padding;
-                for (const line of lines) {
-                    ctx.fillText(line, padding, y);
-                    y += lineHeight;
-                }
-            } else {
-                const textY = (h - ti.fontSize) / 2;
-                ctx.fillText(displayText, padding, textY);
+        function ensureBackground(entity: Entity, ti: TextInputData): void {
+            if (!world.has(entity, UIVisual)) {
+                world.insert(entity, UIVisual, {
+                    visualType: UIVisualType.SolidColor, texture: 0,
+                    color: { ...ti.backgroundColor },
+                    uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 },
+                    sliceBorder: { x: 0, y: 0, z: 0, w: 0 }, tileSize: { x: 32, y: 32 },
+                    fillMethod: 0, fillOrigin: 0, fillAmount: 1, material: 0, enabled: true,
+                });
+                return;
             }
-
-            if (ti.focused && cursorVisible) {
-                const cursorText = ti.password
-                    ? '\u25CF'.repeat(ti.cursorPos)
-                    : ti.value.substring(0, ti.cursorPos);
-
-                let cursorX: number;
-                let cursorY: number;
-                let cursorH: number;
-
-                if (ti.multiline) {
-                    const lines = wrapText(ctx, ti.value, w - padding * 2);
-                    let charCount = 0;
-                    let cursorLine = 0;
-                    let cursorCol = 0;
-                    for (let i = 0; i < lines.length; i++) {
-                        const lineLen = lines[i].length;
-                        if (charCount + lineLen >= ti.cursorPos) {
-                            cursorLine = i;
-                            cursorCol = ti.cursorPos - charCount;
-                            break;
-                        }
-                        charCount += lineLen;
-                        if (i < lines.length - 1 && charCount < ti.value.length && ti.value[charCount] === '\n') {
-                            charCount++;
-                        }
-                        cursorLine = i + 1;
-                        cursorCol = 0;
-                    }
-                    const partialLine = cursorLine < lines.length ? lines[cursorLine].substring(0, cursorCol) : '';
-                    cursorX = padding + ctx.measureText(partialLine).width;
-                    cursorY = padding + cursorLine * lineHeight;
-                    cursorH = lineHeight;
-                } else {
-                    cursorX = padding + ctx.measureText(cursorText).width;
-                    cursorY = (h - ti.fontSize) / 2;
-                    cursorH = ti.fontSize;
-                }
-
-                ctx.fillStyle = colorToRgba(ti.color);
-                ctx.fillRect(cursorX, cursorY, 2, cursorH);
+            const bg = world.get(entity, UIVisual) as UIVisualData;
+            const c = ti.backgroundColor;
+            if (bg.visualType !== UIVisualType.SolidColor || !bg.enabled
+                || bg.color.r !== c.r || bg.color.g !== c.g || bg.color.b !== c.b || bg.color.a !== c.a) {
+                bg.visualType = UIVisualType.SolidColor;
+                bg.color = { ...c };
+                bg.enabled = true;
+                world.insert(entity, UIVisual, bg);
             }
+        }
 
-            ctx.restore();
+        function ensureChildren(entity: Entity, ti: TextInputData): { text: Entity; caret: Entity } {
+            const existing = childrenOf.get(entity);
+            if (existing && world.valid(existing.text) && world.valid(existing.caret)) return existing;
+            const pad = px(ti.padding);
+            const text = spawnUIEntity({
+                world, parent: entity,
+                node: { position: UIPositionType.Absolute, insetLeft: pad, insetTop: px(0), insetRight: pad, insetBottom: px(0) },
+                text: {
+                    content: '', fontFamily: ti.fontFamily, fontSize: ti.fontSize,
+                    align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
+                },
+            });
+            const caret = spawnUIEntity({
+                world, parent: entity,
+                node: { position: UIPositionType.Absolute, width: px(2), height: px(ti.fontSize), insetLeft: px(ti.padding), insetTop: px(0) },
+                visual: { visualType: UIVisualType.SolidColor, color: ti.color, enabled: false },
+            });
+            const ch = { text, caret };
+            childrenOf.set(entity, ch);
+            return ch;
+        }
 
-            const imageData = ctx.getImageData(0, 0, w, h);
-            const pixels = new Uint8Array(imageData.data.buffer);
-            const rm = requireResourceManager();
-
-            if (pixels.length > wasmPixelSize) {
-                if (wasmPixelPtr !== 0) {
-                    module._free(wasmPixelPtr);
-                }
-                wasmPixelPtr = module._malloc(pixels.length);
-                wasmPixelSize = pixels.length;
+        function syncTextChild(textEntity: Entity, ti: TextInputData): void {
+            const t = world.get(textEntity, Text) as TextData;
+            const show = displayString(ti);
+            const col = ti.value.length === 0 ? ti.placeholderColor : ti.color;
+            if (t.content !== show || t.fontFamily !== ti.fontFamily || t.fontSize !== ti.fontSize
+                || t.wordWrap !== ti.multiline
+                || t.color.r !== col.r || t.color.g !== col.g || t.color.b !== col.b || t.color.a !== col.a) {
+                t.content = show;
+                t.fontFamily = ti.fontFamily;
+                t.fontSize = ti.fontSize;
+                t.wordWrap = ti.multiline;
+                t.color = { ...col };
+                world.insert(textEntity, Text, t);
             }
-            module.HEAPU8.set(pixels, wasmPixelPtr);
+        }
 
-            const existingTex = textureCache.get(entity);
-            if (existingTex !== undefined) {
-                rm.releaseTexture(existingTex);
+        function syncCaretChild(caretEntity: Entity, ti: TextInputData, boxH: number): void {
+            const cursorText = ti.password
+                ? PASSWORD_CHAR.repeat(ti.cursorPos)
+                : ti.value.substring(0, ti.cursorPos);
+            const caretX = ti.padding + measureWidth(cursorText, ensureMeasure().atlas, ti.fontFamily, ti.fontSize, 0);
+            const caretTop = Math.max(0, (boxH - ti.fontSize) / 2);
+            const node = world.get(caretEntity, UINode) as UINodeData;
+            if (node.insetLeft.value !== caretX || node.insetTop.value !== caretTop || node.height.value !== ti.fontSize) {
+                node.insetLeft = px(caretX);
+                node.insetTop = px(caretTop);
+                node.height = px(ti.fontSize);
+                world.insert(caretEntity, UINode, node);
             }
-
-            const textureHandle = rm.createTexture(w, h, wasmPixelPtr, pixels.length, 1, true);
-            textureCache.set(entity, textureHandle);
-
-            const renderer = world.get(entity, UIVisual) as UIVisualData;
-            renderer.texture = textureHandle;
-            renderer.visualType = UIVisualType.Image;
-            renderer.uvOffset = { x: 0, y: 0 };
-            renderer.uvScale = { x: 1, y: 1 };
-            renderer.color = { r: 1, g: 1, b: 1, a: 1 };
-            renderer.enabled = true;
-            world.insert(entity, UIVisual, renderer);
+            const v = world.get(caretEntity, UIVisual) as UIVisualData;
+            const show = ti.focused && cursorVisible;
+            if (v.enabled !== show || v.color.r !== ti.color.r || v.color.g !== ti.color.g || v.color.b !== ti.color.b) {
+                v.enabled = show;
+                v.color = { ...ti.color };
+                world.insert(caretEntity, UIVisual, v);
+            }
         }
     }
 }

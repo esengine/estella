@@ -231,13 +231,8 @@ export {
 
 // ─── Rendering / text helpers ───────────────────────────────────────────────
 
-// TextRenderer (Canvas2D) is retained only for TextInput until P1.5 migrates it.
-export {
-    TextRenderer,
-    type TextRenderResult,
-} from './TextRenderer';
-
-// The canonical Text component is now rendered via the SDF glyph atlas (P1.4d).
+// All text — display (Text) and editable (TextInput) — now renders through the
+// SDF glyph atlas; the Canvas2D TextRenderer was retired in REARCH_GUI F8.
 export { TextPlugin, textPlugin } from './text/plugin';
 
 // UI Math Utilities
