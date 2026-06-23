@@ -44,6 +44,7 @@
 #include "../ecs/components/Velocity.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/UIRect.hpp"
+#include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/Collider.hpp"
@@ -593,6 +594,20 @@ f32 getUIRectComputedHeight(ecs::Registry& registry, u32 entity) {
     return rect->computed_size_.y;
 }
 
+// UINode (CSS box, REARCH_GUI F3) computed size — its internal computed_size_ is
+// not embind-readable, so expose it the same way as UIRect for TS uiHelpers.
+f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity) {
+    auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
+    if (!node) return 0.0f;
+    return node->computed_size_.x;
+}
+
+f32 getUINodeComputedHeight(ecs::Registry& registry, u32 entity) {
+    auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
+    if (!node) return 0.0f;
+    return node->computed_size_.y;
+}
+
 void setUIRectSize(ecs::Registry& registry, u32 entity, f32 w, f32 h) {
     auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
     if (!rect) return;
@@ -651,6 +666,8 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiFlexLayout_update", &esengine::uiFlexLayout_update);
     emscripten::function("getUIRectComputedWidth", &esengine::getUIRectComputedWidth);
     emscripten::function("getUIRectComputedHeight", &esengine::getUIRectComputedHeight);
+    emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);
+    emscripten::function("getUINodeComputedHeight", &esengine::getUINodeComputedHeight);
     emscripten::function("uiTree_markStructureDirty", &esengine::uiTree_markStructureDirty);
     emscripten::function("uiTree_markDirty", &esengine::uiTree_markDirty);
     emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);

@@ -5,6 +5,7 @@
 #include "Registry.hpp"
 #include "components/Hierarchy.hpp"
 #include "components/UIRect.hpp"
+#include "components/UINode.hpp"
 #include "components/Sprite.hpp"
 #include "components/UIRenderer.hpp"
 #include "components/Canvas.hpp"
@@ -12,7 +13,8 @@
 namespace esengine::ecs {
 
 inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
-    if (registry.has<UIRect>(entity)) {
+    // A UI render node is anything laid out: legacy UIRect or modern UINode.
+    if (registry.has<UIRect>(entity) || registry.has<UINode>(entity)) {
         auto* uiRenderer = registry.tryGet<UIRenderer>(entity);
         if (uiRenderer) {
             uiRenderer->uiOrder = counter;

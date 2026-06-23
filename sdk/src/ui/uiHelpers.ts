@@ -310,6 +310,22 @@ export function getEffectiveHeight(rect: UIRectData, entity: Entity): number {
     return rect.size.y;
 }
 
+/** Resolved px width of a UINode (its Yoga-computed size; REARCH_GUI F3). 0 if unresolved. */
+export function getUINodeWidth(entity: Entity): number {
+    if (module_ && nativeRegistry_ && module_.getUINodeComputedWidth) {
+        return module_.getUINodeComputedWidth(nativeRegistry_, entity);
+    }
+    return 0;
+}
+
+/** Resolved px height of a UINode. 0 if unresolved. */
+export function getUINodeHeight(entity: Entity): number {
+    if (module_ && nativeRegistry_ && module_.getUINodeComputedHeight) {
+        return module_.getUINodeComputedHeight(nativeRegistry_, entity);
+    }
+    return 0;
+}
+
 export function setUIRectSizeNative(entity: Entity, w: number, h: number): void {
     if (module_ && nativeRegistry_) {
         module_.setUIRectSize(nativeRegistry_, entity, w, h);

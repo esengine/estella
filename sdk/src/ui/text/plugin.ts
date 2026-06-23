@@ -18,7 +18,8 @@ import { SdfTextRenderer } from './text-renderer';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, type TextData } from '../core/text';
 import { UIRect, type UIRectData } from '../core/ui-rect';
-import { getEffectiveWidth, getEffectiveHeight, ensureUIRenderer } from '../uiHelpers';
+import { UINode } from '../core/ui-node';
+import { getEffectiveWidth, getEffectiveHeight, getUINodeWidth, getUINodeHeight, ensureUIRenderer } from '../uiHelpers';
 
 // Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
 const UI_BASE_LAYER = 1000;
@@ -40,6 +41,9 @@ export class TextPlugin implements Plugin {
         // sibling UI elements. Idempotent; runs before the PostUpdate order pass.
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
             for (const e of world.getEntitiesWithComponents([Text, UIRect])) {
+                ensureUIRenderer(world, e as Entity);
+            }
+            for (const e of world.getEntitiesWithComponents([Text, UINode])) {
                 ensureUIRenderer(world, e as Entity);
             }
         }, { name: 'TextRenderNodeSystem' }));
@@ -66,19 +70,30 @@ export class TextPlugin implements Plugin {
                 // Text.lineHeight is a ratio of fontSize (legacy convention).
                 const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
 
-                // A UIRect (UI canvas) is the text box: place + align + wrap inside
-                // it and sort by the UI render order. No UIRect ⇒ a world-space
-                // label at the entity origin, layer 0.
+                // The layout box: a UINode (CSS box, pivot-centered) or legacy
+                // UIRect. Text is placed + aligned + wrapped inside it and sorted
+                // by the UI render order. No box ⇒ a world-space label at the
+                // entity origin, layer 0.
                 let originX: number | undefined;
                 let originY: number | undefined;
                 let maxWidth: number | undefined;
                 let boxHeight: number | undefined;
                 let layer = 0;
-                if (world.has(entity, UIRect)) {
+                let w = 0, h = 0, pivotX = 0.5, pivotY = 0.5, hasBox = false;
+                if (world.has(entity, UINode)) {
+                    w = getUINodeWidth(entity);
+                    h = getUINodeHeight(entity);
+                    hasBox = w > 0 || h > 0;
+                } else if (world.has(entity, UIRect)) {
                     const rect = world.get(entity, UIRect) as UIRectData;
-                    const w = getEffectiveWidth(rect, entity);
-                    const h = getEffectiveHeight(rect, entity);
-                    const box = rectTextBox(rect.pivot.x, rect.pivot.y, w, h, t.fontSize);
+                    w = getEffectiveWidth(rect, entity);
+                    h = getEffectiveHeight(rect, entity);
+                    pivotX = rect.pivot.x;
+                    pivotY = rect.pivot.y;
+                    hasBox = true;
+                }
+                if (hasBox) {
+                    const box = rectTextBox(pivotX, pivotY, w, h, t.fontSize);
                     originX = box.originX;
                     originY = box.originY;
                     boxHeight = box.boxHeight;
