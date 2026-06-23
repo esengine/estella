@@ -258,6 +258,46 @@ class ProjectStoreImpl {
     this.store.setState({ project: { ...st, currentScene: rel } });
   }
 
+  /** A fresh, untitled scene document: a single orthographic Camera at the origin. */
+  private blankScene(): SceneData {
+    return {
+      version: '1.0',
+      name: 'Untitled',
+      entities: [
+        {
+          id: 0,
+          name: 'Camera',
+          parent: null,
+          children: [],
+          components: [
+            { type: 'Transform', data: { position: { x: 0, y: 0, z: 10 } } },
+            { type: 'Camera', data: { projectionType: 1, orthoSize: 300, isActive: true, priority: 0 } },
+          ],
+          visible: true,
+        },
+      ],
+    } as unknown as SceneData;
+  }
+
+  /**
+   * Start a fresh, UNTITLED scene (the UE/Unity "New Scene"): a blank document with
+   * just a default Camera, adopted into the model. `currentScene` is null so the file
+   * is created on first Save (which routes to Save-As). Clears history + selection like
+   * a load, so undo can't reach the previous scene's entities. No disk write yet.
+   */
+  async newScene(): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const blank = this.blankScene();
+    await this.buildAssetRegistry(); // keep the uuid→path registry current for new refs
+    EditorHistory.clear();
+    useSelection.getState().select(null);
+    Reconciler.setAssetResolver((uuid) => this.handleForUuid(uuid));
+    Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
+    EngineHost.syncEditorViewToScene();
+    this.store.setState({ project: { ...st, currentScene: null } });
+  }
+
   /**
    * Load the project's asset index (the main-process AssetDatabase scan,
    * REARCH_ASSETS.md A2) into a uuid→path registry, then point the engine

@@ -70,4 +70,10 @@ describe('command registry', () => {
     expect(commands.get('entity.delete')?.label).toBe('Delete');
     expect(commands.get('entity.delete')?.keybinding).toEqual(['delete', 'backspace']);
   });
+
+  it('registers New Scene (mod+n)', () => {
+    const cmd = commands.get('scene.new');
+    expect(cmd?.label).toBe('New Scene');
+    expect(cmd?.keybinding).toBe('mod+n');
+  });
 });

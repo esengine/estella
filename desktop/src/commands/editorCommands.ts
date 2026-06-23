@@ -24,6 +24,18 @@ const tool = (mode: ToolMode) => () => editor().setTool(mode);
 
 // — File / project —
 commands.register({
+  id: 'scene.new',
+  label: 'New Scene',
+  category: 'File',
+  keybinding: 'mod+n',
+  isEnabled: () => !!ProjectStore.getSnapshot(),
+  run: () => {
+    // Discard guard: history is the editor's unsaved-changes proxy (no dirty flag).
+    if (EditorHistory.canUndo() && !window.confirm('New scene? Unsaved changes will be lost.')) return;
+    void ProjectStore.newScene().then(() => sel().select(null));
+  },
+});
+commands.register({
   id: 'project.open',
   label: 'Open Project…',
   category: 'File',

@@ -75,6 +75,8 @@ export function MenuBar() {
     {
       title: 'File',
       items: [
+        cmdItem('scene.new'),
+        { sep: true },
         cmdItem('project.open'),
         { sep: true },
         cmdItem('project.save'),
