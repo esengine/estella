@@ -372,6 +372,7 @@ export {
     UI_TEXT_BOLD,
     UI_TEXT_ITALIC,
     composeTRS,
+    rectTextBox,
     type UITextData,
 } from './text/ui-text';
 

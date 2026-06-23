@@ -64,3 +64,20 @@ export function composeTRS(out: Float32Array, t: Vec3, q: Quat, s: Vec3): Float3
     out[12] = t.x; out[13] = t.y; out[14] = t.z; out[15] = 1;
     return out;
 }
+
+/**
+ * Place a text block inside a UIRect (REARCH_GUI P1.4c). The entity Transform
+ * sits at the rect's pivot (UI layout positions the pivot), so glyph local
+ * positions (baseline y=0, y-up) need offsetting to the rect's top-left, and the
+ * rect width becomes the wrap/align box. Top-vertical-aligned; first line's
+ * baseline sits one ascent below the rect top (ascent ≈ fontSize × 0.8). Pure.
+ */
+export function rectTextBox(
+    pivotX: number, pivotY: number, width: number, height: number, fontSizePx: number,
+): { originX: number; originY: number; maxWidth: number } {
+    return {
+        originX: -pivotX * width,                          // rect left edge, local to the pivot
+        originY: (1 - pivotY) * height - fontSizePx * 0.8, // rect top (y-up) minus first-line ascent
+        maxWidth: width,
+    };
+}

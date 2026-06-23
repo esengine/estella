@@ -46,4 +46,10 @@ describe('REARCH_GUI P1.4c: multi-line + alignment', () => {
         expect(layout.glyphs.length).toBe(2);
         expect(layout.width).toBeCloseTo(11);
     });
+
+    it('centers within the box (maxWidth) when given, not just the line width', () => {
+        const boxed = layoutText('AB', makeAtlas(), 'Arial', { fontSizePx: 24, align: TEXT_ALIGN_CENTER, maxWidth: 100 });
+        // line width 11 centered in a 100 box ⇒ +44.5 from the left-aligned x0 (0.5)
+        expect(boxed.glyphs[0].x0).toBeCloseTo(0.5 + (100 - 11) / 2);
+    });
 });

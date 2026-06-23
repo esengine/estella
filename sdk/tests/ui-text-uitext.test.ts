@@ -4,7 +4,7 @@
  *        full on-screen path (UITextPlugin → render) is render-host-verified.
  */
 import { describe, it, expect } from 'vitest';
-import { composeTRS } from '../src/ui/text/ui-text';
+import { composeTRS, rectTextBox } from '../src/ui/text/ui-text';
 
 const IDQ = { x: 0, y: 0, z: 0, w: 1 };
 
@@ -27,5 +27,20 @@ describe('REARCH_GUI P1.3c: composeTRS', () => {
         expect(m[4]).toBeCloseTo(-1);  // -sinθ
         expect(m[5]).toBeCloseTo(0);   // cosθ
         expect(m[15]).toBe(1);
+    });
+});
+
+describe('REARCH_GUI P1.4c: rectTextBox (UIRect text placement)', () => {
+    it('offsets a center-pivot rect to its top-left + wrap box', () => {
+        const box = rectTextBox(0.5, 0.5, 200, 100, 24);
+        expect(box.originX).toBeCloseTo(-100);          // left of a center-pivoted 200-wide rect
+        expect(box.originY).toBeCloseTo(50 - 24 * 0.8); // rect top (y-up) minus first-line ascent
+        expect(box.maxWidth).toBe(200);
+    });
+
+    it('top-left-pivot rect: left edge at the pivot', () => {
+        const box = rectTextBox(0, 1, 200, 100, 24);
+        expect(box.originX).toBeCloseTo(0);
+        expect(box.originY).toBeCloseTo(-24 * 0.8);
     });
 });

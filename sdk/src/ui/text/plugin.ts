@@ -12,7 +12,9 @@ import { registerComponent } from '../../component';
 import type { ESEngineModule } from '../../wasm';
 import type { Entity } from '../../types';
 import { SdfTextRenderer } from './text-renderer';
-import { UIText, type UITextData, composeTRS } from './ui-text';
+import { UIText, type UITextData, composeTRS, rectTextBox } from './ui-text';
+import { UIRect, type UIRectData } from '../core/ui-rect';
+import { getEffectiveWidth, getEffectiveHeight } from '../uiHelpers';
 
 export class UITextPlugin implements Plugin {
     name = 'uiText';
@@ -39,6 +41,22 @@ export class UITextPlugin implements Plugin {
                 }
                 const tr = world.get(entity, Transform) as TransformData;
                 composeTRS(this.matrix_, tr.worldPosition, tr.worldRotation, tr.worldScale);
+
+                // In a UIRect (UI canvas), place + align + wrap the text inside the
+                // rect box; otherwise it's a world-space label at the entity origin.
+                let originX: number | undefined;
+                let originY: number | undefined;
+                let maxWidth = t.maxWidth || undefined;
+                if (world.has(entity, UIRect)) {
+                    const rect = world.get(entity, UIRect) as UIRectData;
+                    const w = getEffectiveWidth(rect, entity);
+                    const h = getEffectiveHeight(rect, entity);
+                    const box = rectTextBox(rect.pivot.x, rect.pivot.y, w, h, t.fontSizePx);
+                    originX = box.originX;
+                    originY = box.originY;
+                    if (!maxWidth) maxWidth = box.maxWidth;
+                }
+
                 this.renderer_.drawText(
                     {
                         text: t.content,
@@ -49,7 +67,9 @@ export class UITextPlugin implements Plugin {
                         richText: t.richText,
                         align: t.align,
                         lineHeight: t.lineHeight || undefined,
-                        maxWidth: t.maxWidth || undefined,
+                        maxWidth,
+                        originX,
+                        originY,
                     },
                     this.matrix_,
                     entity as number,

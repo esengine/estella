@@ -232,13 +232,15 @@ export function layoutText(
         ? layoutRichLine(line, atlas, fontFamily, { fontSizePx: opts.fontSizePx, letterSpacing: opts.letterSpacing, color: baseColor }, style)
         : layoutLine(line, atlas, fontFamily, opts, style)));
 
-    const blockWidth = lineLayouts.reduce((m, l) => Math.max(m, l.width), 0);
+    const contentWidth = lineLayouts.reduce((m, l) => Math.max(m, l.width), 0);
+    // Align within the wrap/rect box when one is given, else within the widest line.
+    const alignWidth = (opts.maxWidth && opts.maxWidth > 0) ? opts.maxWidth : contentWidth;
     const glyphs: LaidGlyph[] = [];
 
     for (let i = 0; i < lineLayouts.length; i++) {
         const ll = lineLayouts[i];
-        const dx = align === TEXT_ALIGN_CENTER ? (blockWidth - ll.width) / 2
-            : align === TEXT_ALIGN_RIGHT ? (blockWidth - ll.width)
+        const dx = align === TEXT_ALIGN_CENTER ? (alignWidth - ll.width) / 2
+            : align === TEXT_ALIGN_RIGHT ? (alignWidth - ll.width)
             : 0;
         const dy = -i * lineHeight; // y-up: first line on top
         for (const g of ll.glyphs) {
@@ -246,7 +248,7 @@ export function layoutText(
         }
     }
 
-    return { glyphs, width: blockWidth, lineHeight: lines.length * lineHeight };
+    return { glyphs, width: contentWidth, lineHeight: lines.length * lineHeight };
 }
 
 /**
