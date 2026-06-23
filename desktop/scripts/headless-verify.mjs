@@ -63,7 +63,7 @@ function serveDist() {
 }
 
 function finish(result, server) {
-  const ok = result.ok && result.capture?.rendered;
+  const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true);
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE}`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   process.exitCode = ok ? 0 : 1;
@@ -110,6 +110,29 @@ app.whenReady().then(async () => {
       return { w: c.width, h: c.height, totalPixels: px.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
     })()`);
     const drawCalls = await exec('window.__estellaHeadless.api.getStats().drawCalls');
+    // Optional color/orientation assertion: ESTELLA_VERIFY_EXPECT is a JSON array of
+    // { x, y, rgb:[r,g,b], tol? } where x,y are normalized [0,1] from the TOP-LEFT.
+    // This is the guard the all-textures-upside-down upload bug would have tripped
+    // (TextureLoader imageOrientation) — `rendered` (color variation) alone misses it.
+    let expect = null;
+    if (process.env.ESTELLA_VERIFY_EXPECT) {
+      const points = JSON.parse(process.env.ESTELLA_VERIFY_EXPECT);
+      expect = await exec(`(() => {
+        const pts = ${JSON.stringify(points)};
+        const c = window.__estellaHeadless.api.captureViewport();
+        const { width: w, height: h, rgba } = c;
+        const out = pts.map((p) => {
+          const px = Math.round(p.x * (w - 1));
+          const glRow = (h - 1) - Math.round(p.y * (h - 1)); // GL readback is bottom-up
+          const i = (glRow * w + px) * 4;
+          const got = [rgba[i], rgba[i + 1], rgba[i + 2]];
+          const tol = p.tol ?? 24;
+          const ok = got.every((g, k) => Math.abs(g - p.rgb[k]) <= tol);
+          return { x: p.x, y: p.y, want: p.rgb, got, ok };
+        });
+        return { points: out, ok: out.every((o) => o.ok) };
+      })()`);
+    }
     // Optional PNG dump (ESTELLA_VERIFY_OUT) of the engine framebuffer (not the
     // page) so the rendered frame can be eyeballed. GL readback is bottom-up → flip.
     if (process.env.ESTELLA_VERIFY_OUT) {
@@ -124,7 +147,7 @@ app.whenReady().then(async () => {
       })()`);
       await writeFile(process.env.ESTELLA_VERIFY_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
     }
-    finish({ ok: true, entityCount, drawCalls, capture }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

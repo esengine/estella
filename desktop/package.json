@@ -19,6 +19,7 @@
     "verify:render:text": "vite build && ESTELLA_VERIFY_SCENE=/scenes/ui-text-sdf.esscene ESTELLA_VERIFY_MANIFEST=/scenes/ui-text-sdf.textures.json electron scripts/headless-verify.mjs",
     "verify:render:text:rect": "vite build && ESTELLA_VERIFY_SCENE=/scenes/ui-text-rect.esscene ESTELLA_VERIFY_MANIFEST=/scenes/ui-text-sdf.textures.json electron scripts/headless-verify.mjs",
     "verify:render:uinode": "vite build && ESTELLA_VERIFY_SCENE=/scenes/ui-node-flex.esscene ESTELLA_VERIFY_MANIFEST=/scenes/ui-node-flex.textures.json ESTELLA_VERIFY_W=800 ESTELLA_VERIFY_H=600 electron scripts/headless-verify.mjs",
+    "verify:render:tilemap": "vite build && ESTELLA_VERIFY_SCENE=/scenes/tilemap-flip.esscene ESTELLA_VERIFY_MANIFEST=/scenes/tilemap-flip.textures.json ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.46,\\\"y\\\":0.5,\\\"rgb\\\":[255,0,0]},{\\\"x\\\":0.84,\\\"y\\\":0.5,\\\"rgb\\\":[0,255,0]},{\\\"x\\\":0.46,\\\"y\\\":0.84,\\\"rgb\\\":[0,0,255]},{\\\"x\\\":0.84,\\\"y\\\":0.84,\\\"rgb\\\":[255,255,0]}]\" electron scripts/headless-verify.mjs",
     "verify:smoke": "vite build && electron scripts/headless-smoke.mjs",
     "mcp": "electron electron/mcp/server.mjs",
     "mcp:smoke": "vite build && node electron/mcp/smoke.mjs"

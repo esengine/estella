@@ -97,7 +97,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             return this.loadCompressed(path, ctx, settings);
         }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
-        const img = await this.loadImage(url);
+        const img = await this.loadImage(url, flip);
         return this.createTextureFromImage(img, flip, settings);
     }
 
@@ -121,7 +121,15 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         return { handle: r.handle, width: r.width, height: r.height };
     }
 
-    private loadImage(src: string): Promise<HTMLImageElement | ImageBitmap> {
+    /**
+     * Decode `src` into a GPU-uploadable source. When `createImageBitmap` is
+     * available we bake the vertical orientation into the bitmap here via
+     * `imageOrientation`, NOT later via `UNPACK_FLIP_Y_WEBGL`: Chromium/ANGLE
+     * silently ignore that pixel-store flag for `ImageBitmap` sources, so relying
+     * on it uploads every texture upside-down. The raw `<img>` fallback keeps the
+     * flag (it works for element/pixel sources) — see {@link createTextureFromImage}.
+     */
+    private loadImage(src: string, flip: boolean): Promise<HTMLImageElement | ImageBitmap> {
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
             img.crossOrigin = 'anonymous';
@@ -131,6 +139,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                         const bitmap = await createImageBitmap(img, {
                             premultiplyAlpha: 'none',
                             colorSpaceConversion: 'none',
+                            imageOrientation: flip ? 'flipY' : 'from-image',
                         });
                         resolve(bitmap);
                         return;
@@ -151,10 +160,16 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const { width, height } = img;
         const gl = this.getWebGL2Context();
 
+        // A bitmap is already oriented by loadImage (imageOrientation); flipping it
+        // again at upload would double-flip it. Only raw <img>/pixel sources need
+        // the UNPACK_FLIP_Y_WEBGL flip.
+        const uploadFlip = (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap)
+            ? false : flip;
+
         if (gl) {
-            return this.createTextureWebGL2(gl, img, width, height, flip, settings);
+            return this.createTextureWebGL2(gl, img, width, height, uploadFlip, settings);
         }
-        return this.createTextureFallback(img, width, height, flip);
+        return this.createTextureFallback(img, width, height, uploadFlip);
     }
 
     private getWebGL2Context(): WebGL2RenderingContext | null {
