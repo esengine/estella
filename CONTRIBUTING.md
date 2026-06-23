@@ -150,4 +150,15 @@ For feature requests, describe the use case and the desired behavior.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+Estella is distributed under the [PolyForm Noncommercial License 1.0.0](LICENSE),
+and the copyright holder also offers it under separate commercial licenses.
+
+By submitting a contribution, you agree that:
+
+1. You own, or otherwise have the right to submit, your contribution.
+2. Your contribution is licensed to the project and its users under the same
+   [PolyForm Noncommercial License 1.0.0](LICENSE) that covers the project.
+3. You additionally grant the copyright holder (ESEngine Team) a perpetual,
+   worldwide, irrevocable, royalty-free right to relicense your contribution
+   under other terms, including commercial licenses, so that the project can be
+   offered commercially. You retain copyright in your contribution.

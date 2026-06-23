@@ -5,7 +5,7 @@
 **A fast 2D game engine powered by WebAssembly and ECS**
 
 [![CI](https://github.com/esengine/estella/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/estella/actions/workflows/build.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
@@ -98,4 +98,8 @@ We welcome contributions! Please read the [Contributing Guide](CONTRIBUTING.md) 
 
 ## License
 
-Estella is [MIT licensed](LICENSE).
+Estella is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+You may use, modify, and share it **for any noncommercial purpose**. **Commercial use
+is not permitted** under this license — to use Estella commercially, obtain a separate
+commercial license from the copyright holder (see [LICENSE](LICENSE) for contact).
