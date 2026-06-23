@@ -6,13 +6,13 @@ import type { World } from '../../world';
 import { UIEventType, type UIEventQueue } from '../core/events';
 
 import { createButton, type ButtonStateVisual } from './button';
-import { spawnUIEntity, setUIVisible, type UIRectInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, setUIVisible, type UINodeInit, type UIRendererInit } from './helpers';
 
 export interface ToggleOptions {
     world: World;
     events: UIEventQueue;
     parent?: Entity;
-    rect?: UIRectInit;
+    node?: UINodeInit;
 
     /** Background renderer for the frame. */
     background?: UIRendererInit;
@@ -22,11 +22,11 @@ export interface ToggleOptions {
 
     /**
      * Optional rendering for the on-state indicator ("check mark").
-     * A child entity hidden when off, shown when on. Size defaults to
-     * the parent rect; override via `checkRect`.
+     * A child entity hidden when off, shown when on. Fills the parent by
+     * default; override via `check.node`.
      */
     check?: {
-        rect?: UIRectInit;
+        node?: UINodeInit;
         color?: Color;
         sprite?: number;
     };
@@ -59,7 +59,7 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
         world,
         events,
         parent: opts.parent,
-        rect: opts.rect,
+        node: opts.node,
         background: opts.background,
         states: opts.interactionStates,
         disabled: opts.disabled,
@@ -68,7 +68,7 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
     const check = spawnUIEntity({
         world,
         parent: button,
-        rect: opts.check?.rect ?? { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 } },
+        node: opts.check?.node ?? { fill: true },
         renderer: opts.check
             ? {
                   color: opts.check.color,

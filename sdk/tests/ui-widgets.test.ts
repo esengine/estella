@@ -11,6 +11,7 @@ import {
     StateMachine,
     StateVisuals,
     UIRect,
+    UINode,
     UIRenderer,
     UIEventQueue,
     UIEventType,
@@ -107,7 +108,7 @@ describe('createButton', () => {
             },
         });
 
-        expect(world.has(btn, UIRect)).toBe(true);
+        expect(world.has(btn, UINode)).toBe(true);
         expect(world.has(btn, UIRenderer)).toBe(true);
         expect(world.has(btn, Interactable)).toBe(true);
         expect(world.has(btn, StateMachine)).toBe(true);

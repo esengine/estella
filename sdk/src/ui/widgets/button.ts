@@ -14,7 +14,7 @@ import { UIEventType, type UIEventQueue } from '../core/events';
 
 import {
     spawnUIEntity,
-    type UIRectInit,
+    type UINodeInit,
     type UIRendererInit,
     type TextInit,
 } from './helpers';
@@ -33,7 +33,8 @@ export interface ButtonOptions {
     world: World;
     events: UIEventQueue;
     parent?: Entity;
-    rect?: UIRectInit;
+    /** CSS-box layout. Default: fill the parent. */
+    node?: UINodeInit;
     /** Background renderer config. Default: solid white quad. */
     background?: UIRendererInit;
     /** Label text. Omit to skip spawning a child label entity. */
@@ -90,7 +91,7 @@ export function createButton(opts: ButtonOptions): Entity {
     const entity = spawnUIEntity({
         world,
         parent: opts.parent,
-        rect: opts.rect,
+        node: opts.node ?? { fill: true },
         renderer: opts.background ?? {},
     });
 
@@ -128,7 +129,7 @@ export function createButton(opts: ButtonOptions): Entity {
         spawnUIEntity({
             world,
             parent: entity,
-            rect: { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 } },
+            node: { fill: true },
             text: textInit,
         });
     }
