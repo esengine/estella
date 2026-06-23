@@ -13,7 +13,7 @@ import {
   isRenderComponent,
   userSchema,
   angleZToQuat,
-  hexToRgb,
+  hexToRgba,
   prettyLabel,
 } from './schema';
 
@@ -96,10 +96,9 @@ export function toModelValue(
     }
     case 'angle':
       return angleZToQuat(Number(value));
-    case 'color': {
-      const a = (cur[key] as { a?: number } | undefined)?.a ?? 1;
-      return { ...(cur[key] as object), ...hexToRgb(String(value)), a };
-    }
+    case 'color':
+      // The hex carries alpha (#rrggbbaa), so it fully describes RGBA.
+      return { ...(cur[key] as object), ...hexToRgba(String(value)) };
     default:
       return value;
   }

@@ -114,7 +114,26 @@
 .ax.w, .ax.h { background: var(--srf-5); color: var(--text-dim); }
 .vfield input { width: 100%; min-width: 0; background: none; border: none; outline: none; padding: 0 5px; font-size: var(--fs-xs); color: var(--text); font-family: var(--mono); }
 
-.sw { width: 22px; height: 18px; border-radius: var(--r-xs); border: 1px solid var(--border-line); flex-shrink: 0; cursor: pointer; }
+.sw { position: relative; width: 28px; height: 18px; border-radius: var(--r-xs); border: 1px solid var(--border-line); flex-shrink: 0; cursor: pointer; overflow: hidden; padding: 0;
+  background-image: linear-gradient(45deg,#777 25%,transparent 25%),linear-gradient(-45deg,#777 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#777 75%),linear-gradient(-45deg,transparent 75%,#777 75%);
+  background-size: 8px 8px; background-position: 0 0,0 4px,4px -4px,-4px 0; background-color: #fff; }
+.sw-fill { position: absolute; inset: 0; }
+
+/* themed HSV + alpha color picker (a Popover under the swatch) */
+.cp { display: flex; flex-direction: column; gap: 9px; padding: 6px; width: 100%; }
+.cp-sv { position: relative; width: 100%; height: 124px; border-radius: var(--r-xs); cursor: crosshair; touch-action: none; overflow: hidden; }
+.cp-sv-white { position: absolute; inset: 0; background: linear-gradient(90deg, #fff, rgba(255,255,255,0)); }
+.cp-sv-black { position: absolute; inset: 0; background: linear-gradient(0deg, #000, rgba(0,0,0,0)); }
+.cp-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); transform: translate(-50%,-50%); pointer-events: none; }
+.cp-hue { position: relative; height: 12px; border-radius: var(--r-pill); cursor: pointer; touch-action: none;
+  background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.cp-alpha { position: relative; height: 12px; border-radius: var(--r-pill); cursor: pointer; touch-action: none; overflow: hidden;
+  background-image: linear-gradient(45deg,#777 25%,transparent 25%),linear-gradient(-45deg,#777 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#777 75%),linear-gradient(-45deg,transparent 75%,#777 75%);
+  background-size: 8px 8px; background-position: 0 0,0 4px,4px -4px,-4px 0; background-color: #fff; }
+.cp-alpha-fill { position: absolute; inset: 0; }
+.cp-bar-dot { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,.4); box-shadow: var(--shadow-1); transform: translate(-50%,-50%); pointer-events: none; }
+.cp-hex { width: 100%; height: 24px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 8px; color: var(--text); font-family: var(--mono); font-size: var(--fs-sm); outline: none; }
+.cp-hex:focus { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
 .slider { flex: 1; height: 6px; background: var(--inset); border-radius: var(--r-pill); position: relative; cursor: ew-resize; touch-action: none; }
 .slider .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--acc); border-radius: var(--r-pill); }
 .slider .thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: var(--text); transform: translate(-50%,-50%); box-shadow: var(--shadow-1); }

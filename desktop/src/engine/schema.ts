@@ -132,20 +132,24 @@ const chan = (n: number) =>
   Math.max(0, Math.min(255, Math.round(n * 255)))
     .toString(16)
     .padStart(2, '0');
-const rgbToHex = (c: { r: number; g: number; b: number }) =>
-  `#${chan(c.r)}${chan(c.g)}${chan(c.b)}`;
-export const hexToRgb = (hex: string) => {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return { r: 1, g: 1, b: 1 };
-  const n = parseInt(m[1], 16);
-  return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
+/** RGBA (0..1 channels) → `#rrggbbaa` — color fields carry alpha so it's editable. */
+const rgbaToHex = (c: { r: number; g: number; b: number; a?: number }) =>
+  `#${chan(c.r)}${chan(c.g)}${chan(c.b)}${chan(c.a ?? 1)}`;
+/** `#rrggbb` or `#rrggbbaa` → RGBA (0..1); alpha defaults to 1 for a 6-digit hex. */
+export const hexToRgba = (hex: string) => {
+  const m = /^#?([0-9a-f]{6}([0-9a-f]{2})?)$/i.exec(hex.trim());
+  if (!m) return { r: 1, g: 1, b: 1, a: 1 };
+  const h = m[1];
+  const n = parseInt(h.slice(0, 6), 16);
+  const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+  return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255, a };
 };
 
 /** Infer an editable field from a live component value + its key. */
 export function inferField(key: string, v: unknown, isColor: boolean): InspectorField | null {
   const label = prettyLabel(key);
   if (isColor && v && typeof v === 'object') {
-    return { key, label, type: 'color', value: rgbToHex(v as { r: number; g: number; b: number }) };
+    return { key, label, type: 'color', value: rgbaToHex(v as { r: number; g: number; b: number; a?: number }) };
   }
   if (typeof v === 'number') return { key, label, type: 'number', value: v };
   if (typeof v === 'boolean') return { key, label, type: 'bool', value: v };
