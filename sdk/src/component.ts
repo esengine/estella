@@ -8,6 +8,7 @@
 import { Entity, Vec2, Vec3, Color, Quat } from './types';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPRITE_SIZE } from './defaults';
 import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
+import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
@@ -22,10 +23,40 @@ export interface AssetRef {
     path: string;
 }
 
+/**
+ * Per-field editor presentation metadata — the engine's UPROPERTY analog. A
+ * component declares it once at its definition site; the editor's inspector reads
+ * it via {@link getComponentFieldMeta} and renders the matching control, falling
+ * back to value-shape inference for any field without metadata. None of this is
+ * read by the runtime (which stores raw values); it is purely authoring policy
+ * co-located with the component so the inspector and the data never diverge.
+ */
+export interface FieldMeta {
+    /** Render as a dropdown of these options; the stored value is the option's int. */
+    enum?: ReadonlyArray<{ label: string; value: number }>;
+    /** Hard numeric range — clamps both typed entry and drag-scrub. */
+    min?: number;
+    max?: number;
+    /** Scrub/step granularity (per pixel for drag, per arrow for the input). */
+    step?: number;
+    /** Render the number as a slider; requires a finite {@link min}/{@link max}. */
+    slider?: boolean;
+    /** Unit shown after the resting value (e.g. '°', 'px', '%'). */
+    unit?: string;
+    /** Human label / tooltip overriding the key-derived ones. */
+    label?: string;
+    tooltip?: string;
+    /** Group under a category header; `advanced` tucks the field behind a fold. */
+    category?: string;
+    advanced?: boolean;
+}
+
 export interface ComponentMetadata {
     assetFields?: AssetFieldMeta[];
     spineFields?: SpineFieldMeta;
     entityFields?: string[];
+    /** Per-field editor presentation policy, keyed by field name. */
+    fields?: Record<string, FieldMeta>;
     discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /**
      * Runtime-only state that must never persist: a transient component is
@@ -34,6 +65,29 @@ export interface ComponentMetadata {
      * read/write it normally; only scene save omits it.
      */
     transient?: boolean;
+}
+
+/**
+ * Build dropdown options from an enum const, so the labels derive from the same
+ * definition the runtime uses (no hand-mirrored value→label drift). `only` curates
+ * the member set when an enum carries alias entries that share a value (e.g.
+ * ScaleMode); otherwise duplicate values are dropped, keeping the first label.
+ */
+export function enumOptions(
+    obj: Record<string, unknown>,
+    only?: readonly string[],
+): ReadonlyArray<{ label: string; value: number }> {
+    const seen = new Set<number>();
+    const out: { label: string; value: number }[] = [];
+    for (const [k, v] of Object.entries(obj)) {
+        // A TS numeric `enum` also carries reverse (value→name) entries; only the
+        // name→number direction is a real option.
+        if (typeof v !== 'number') continue;
+        if (only ? !only.includes(k) : seen.has(v)) continue;
+        seen.add(v);
+        out.push({ label: k, value: v });
+    }
+    return out;
 }
 
 // =============================================================================
@@ -50,6 +104,7 @@ export interface ComponentDef<T> {
     readonly entityFields: readonly string[];
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
+    readonly fieldMeta: Readonly<Record<string, FieldMeta>>;
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
     readonly transient: boolean;
@@ -108,6 +163,7 @@ function createComponentDef<T extends object>(
         entityFields: metadata?.entityFields ?? [],
         colorKeys: detectColorKeys(defaults),
         animatableFields: [],
+        fieldMeta: metadata?.fields ?? {},
         discoverAssets: metadata?.discoverAssets,
         transient: metadata?.transient ?? false,
         create(data?: Partial<T>): T {
@@ -212,6 +268,7 @@ export interface BuiltinComponentDef<T> {
     readonly entityFields: readonly string[];
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
+    readonly fieldMeta: Readonly<Record<string, FieldMeta>>;
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
     readonly transient: boolean;
@@ -256,6 +313,11 @@ export function getComponent(name: string): AnyComponentDef | undefined {
     return builtinRegistry.get(name) ?? userComponents().get(name);
 }
 
+/** A component's per-field editor presentation metadata (empty if none declared). */
+export function getComponentFieldMeta(name: string): Readonly<Record<string, FieldMeta>> {
+    return getComponent(name)?.fieldMeta ?? {};
+}
+
 function detectColorKeys(defaults: unknown): readonly string[] {
     if (defaults === null || typeof defaults !== 'object') return [];
     const keys: string[] = [];
@@ -292,6 +354,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         entityFields: metadata?.entityFields ?? meta?.entityFields ?? [],
         colorKeys: meta?.colorFields ?? detectColorKeys(defaults),
         animatableFields: meta?.animatableFields ?? [],
+        fieldMeta: metadata?.fields ?? {},
         discoverAssets: metadata?.discoverAssets,
         // Builtins declare transience via the defineBuiltin metadata arg for now;
         // a C++-side ES_COMPONENT(transient) annotation can flow through
@@ -490,11 +553,19 @@ export const WorldTransform = Transform;
 export const Sprite = defineBuiltin<SpriteData>('Sprite',
     metaDefaults<SpriteData>('Sprite', {
         size: { x: DEFAULT_SPRITE_SIZE.x, y: DEFAULT_SPRITE_SIZE.y },
-    })
+    }),
+    { fields: { layer: { step: 1 } } }
 );
 
 export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
-    metaDefaults<ShapeRendererData>('ShapeRenderer')
+    metaDefaults<ShapeRendererData>('ShapeRenderer'),
+    {
+        fields: {
+            shapeType: { enum: enumOptions(ShapeType) },
+            cornerRadius: { min: 0 },
+            layer: { step: 1 },
+        },
+    }
 );
 
 export const Camera = defineBuiltin<CameraData>('Camera',
@@ -504,7 +575,18 @@ export const Camera = defineBuiltin<CameraData>('Camera',
         aspectRatio: 1.77,
         isActive: true,
         showFrustum: false,
-    })
+    }),
+    {
+        fields: {
+            projectionType: { enum: enumOptions(ProjectionType) },
+            clearFlags: { enum: enumOptions(ClearFlags) },
+            fov: { min: 1, max: 179, unit: '°' },
+            orthoSize: { min: 0 },
+            nearPlane: { min: 0 },
+            farPlane: { min: 0 },
+            priority: { step: 1 },
+        },
+    }
 );
 
 export const Canvas = defineBuiltin<CanvasData>('Canvas',
@@ -512,7 +594,17 @@ export const Canvas = defineBuiltin<CanvasData>('Canvas',
         designResolution: { x: DEFAULT_DESIGN_WIDTH, y: DEFAULT_DESIGN_HEIGHT },
         pixelsPerUnit: DEFAULT_PIXELS_PER_UNIT,
         scaleMode: ScaleMode.FixedHeight,
-    })
+    }),
+    {
+        fields: {
+            scaleMode: {
+                enum: enumOptions(ScaleMode, ['FixedWidth', 'FixedHeight', 'Expand', 'Shrink', 'Match']),
+            },
+            // 0 = match width, 1 = match height (only meaningful in the Match mode).
+            matchWidthOrHeight: { min: 0, max: 1, slider: true },
+            pixelsPerUnit: { min: 1 },
+        },
+    }
 );
 
 export const Velocity = defineBuiltin<VelocityData>('Velocity',
@@ -528,15 +620,31 @@ export const Children = defineBuiltin<ChildrenData>('Children',
 );
 
 export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText',
-    metaDefaults<BitmapTextData>('BitmapText')
+    metaDefaults<BitmapTextData>('BitmapText'),
+    { fields: { fontSize: { min: 1 }, layer: { step: 1 } } }
 );
 
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation',
-    metaDefaults<SpineAnimationData>('SpineAnimation')
+    metaDefaults<SpineAnimationData>('SpineAnimation'),
+    {
+        fields: {
+            timeScale: { min: 0 },
+            skeletonScale: { min: 0 },
+            layer: { step: 1 },
+        },
+    }
 );
 
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
-    metaDefaults<TilemapLayerData>('TilemapLayer')
+    metaDefaults<TilemapLayerData>('TilemapLayer'),
+    {
+        fields: {
+            opacity: { min: 0, max: 1, slider: true },
+            tilesetColumns: { min: 1, step: 1 },
+            tilesetRows: { min: 1, step: 1 },
+            renderLayer: { step: 1 },
+        },
+    }
 );
 
 // =============================================================================
@@ -617,7 +725,32 @@ export interface ParticleEmitterData {
 }
 
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
-    metaDefaults<ParticleEmitterData>('ParticleEmitter')
+    metaDefaults<ParticleEmitterData>('ParticleEmitter'),
+    {
+        fields: {
+            shape: { enum: enumOptions(EmitterShape) },
+            simulationSpace: { enum: enumOptions(SimulationSpace) },
+            sizeEasing: { enum: enumOptions(ParticleEasing) },
+            colorEasing: { enum: enumOptions(ParticleEasing) },
+            blendMode: { enum: enumOptions(BlendMode) },
+            rate: { min: 0 },
+            burstCount: { min: 0, step: 1 },
+            maxParticles: { min: 1, step: 1 },
+            duration: { min: 0 },
+            lifetimeMin: { min: 0 },
+            lifetimeMax: { min: 0 },
+            shapeAngle: { unit: '°' },
+            angleSpreadMin: { unit: '°' },
+            angleSpreadMax: { unit: '°' },
+            rotationMin: { unit: '°' },
+            rotationMax: { unit: '°' },
+            spriteColumns: { min: 1, step: 1 },
+            spriteRows: { min: 1, step: 1 },
+            spriteFPS: { min: 0 },
+            damping: { min: 0 },
+            layer: { step: 1 },
+        },
+    }
 );
 
 export const Disabled = defineTag('Disabled');

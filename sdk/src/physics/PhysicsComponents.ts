@@ -6,7 +6,7 @@
  */
 
 import type { Vec2 } from '../types';
-import { defineBuiltin, defineComponent } from '../component';
+import { defineBuiltin, defineComponent, enumOptions } from '../component';
 
 // =============================================================================
 // Component Data Interfaces
@@ -95,6 +95,18 @@ export interface ChainColliderData {
 }
 
 // =============================================================================
+// Body Type Enum (matches C++ BodyType)
+// =============================================================================
+
+export const BodyType = {
+    Static: 0,
+    Kinematic: 1,
+    Dynamic: 2
+} as const;
+
+export type BodyType = (typeof BodyType)[keyof typeof BodyType];
+
+// =============================================================================
 // Builtin Component Instances
 // =============================================================================
 
@@ -106,6 +118,12 @@ export const RigidBody = defineBuiltin<RigidBodyData>('RigidBody', {
     fixedRotation: false,
     bullet: false,
     enabled: true
+}, {
+    fields: {
+        bodyType: { enum: enumOptions(BodyType) },
+        linearDamping: { min: 0 },
+        angularDamping: { min: 0 },
+    },
 });
 
 export const BoxCollider = defineBuiltin<BoxColliderData>('BoxCollider', {
@@ -353,15 +371,3 @@ export const WheelJoint = defineComponent<WheelJointData>('WheelJoint', {
     collideConnected: false,
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
-
-// =============================================================================
-// Body Type Enum (matches C++ BodyType)
-// =============================================================================
-
-export const BodyType = {
-    Static: 0,
-    Kinematic: 1,
-    Dynamic: 2
-} as const;
-
-export type BodyType = (typeof BodyType)[keyof typeof BodyType];

@@ -6,6 +6,7 @@ import {
     defineBuiltin,
     defineTag,
     getComponent,
+    getComponentFieldMeta,
     getUserComponent,
     getUserComponents,
     getComponentRegistry,
@@ -13,6 +14,9 @@ import {
     getComponentDefaults,
     clearUserComponents,
     unregisterComponent,
+    enumOptions,
+    Camera,
+    ProjectionType,
 } from '../src/component';
 import { AppContext, getDefaultContext, setDefaultContext } from '../src/context';
 
@@ -280,5 +284,52 @@ describe('Component registry tiers (builtins global, user per-context)', () => {
 
         // Restored context still has the original user component.
         expect(getComponentRegistry().has('TierUserA')).toBe(true);
+    });
+});
+
+describe('Field metadata (editor presentation policy)', () => {
+    beforeEach(() => {
+        clearUserComponents();
+    });
+
+    it('enumOptions derives label→value pairs from a const, dropping value aliases', () => {
+        const opts = enumOptions(ProjectionType);
+        expect(opts).toEqual(
+            expect.arrayContaining([{ label: 'Perspective', value: 0 }, { label: 'Orthographic', value: 1 }]),
+        );
+
+        // Alias members sharing a value collapse to the first label.
+        const aliased = enumOptions({ A: 0, B: 1, BAlias: 1 });
+        expect(aliased).toEqual([{ label: 'A', value: 0 }, { label: 'B', value: 1 }]);
+
+        // A TS numeric enum's reverse (value→name) entries are not options.
+        expect(enumOptions({ Normal: 0, '0': 'Normal' } as Record<string, unknown>)).toEqual([
+            { label: 'Normal', value: 0 },
+        ]);
+    });
+
+    it('a builtin exposes enum + numeric field metadata; the runtime never reads it', () => {
+        const meta = getComponentFieldMeta('Camera');
+        expect(meta.projectionType?.enum).toEqual(enumOptions(ProjectionType));
+        expect(Camera.fieldMeta.projectionType?.enum).toBe(meta.projectionType?.enum);
+        // Numeric range/unit policy rides the same channel.
+        expect(meta.fov).toMatchObject({ min: 1, max: 179, unit: '°' });
+        expect(meta.orthoSize).toEqual({ min: 0 });
+        // An unannotated field carries no metadata at all.
+        expect(meta.aspectRatio).toBeUndefined();
+    });
+
+    it('a user component declares its own field metadata', () => {
+        const Mover = defineComponent('Mover', { mode: 0 }, {
+            fields: { mode: { enum: [{ label: 'Walk', value: 0 }, { label: 'Run', value: 1 }] } },
+        });
+        expect(Mover.fieldMeta.mode?.enum?.map((o) => o.label)).toEqual(['Walk', 'Run']);
+        expect(getComponentFieldMeta('Mover').mode?.enum?.[1]).toEqual({ label: 'Run', value: 1 });
+    });
+
+    it('a component without metadata returns an empty map', () => {
+        defineComponent('Plain', { hp: 100 });
+        expect(getComponentFieldMeta('Plain')).toEqual({});
+        expect(getComponentFieldMeta('Nonexistent')).toEqual({});
     });
 });
