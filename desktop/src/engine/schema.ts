@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors } from 'esengine';
+import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentFieldMeta } from 'esengine';
 import type { App, SceneData } from 'esengine';
-import type { NodeKind, InspectorField } from '@/types';
+import type { NodeKind, InspectorField, EnumOption } from '@/types';
 
 type SceneEntityLike = SceneData['entities'][number];
 
@@ -167,6 +167,18 @@ export interface UserComponentSchema {
   colorKeys: string[];
   /** Asset-ref fields (e.g. `[{field:'texture', type:'texture'}]`). */
   assetFields?: Array<{ field: string; type: string }>;
+  /** Per-field editor metadata (enum + numeric range/unit), keyed by field name. */
+  fields?: Record<string, UserFieldMeta>;
+}
+
+/** A serialized field's editor metadata, as carried in `schemas.json`. */
+export interface UserFieldMeta {
+  enum?: EnumOption[];
+  min?: number;
+  max?: number;
+  step?: number;
+  slider?: boolean;
+  unit?: string;
 }
 
 const userSchemas = new Map<string, UserComponentSchema>();
@@ -219,6 +231,37 @@ export function assetFieldType(compType: string, key: string): string | null {
   return null;
 }
 
+// — Field presentation metadata (the SDK's UPROPERTY analog) —
+//
+// A component declares per-field editor policy (enum options, numeric range,
+// step, slider, unit) at its definition site, so e.g. Camera.projectionType
+// renders as a "Perspective / Orthographic" dropdown and TilemapLayer.opacity as
+// a 0..1 slider — and the enum labels can never drift from the engine's enum
+// constants. Builtins resolve via the engine registry; user/script components
+// (absent from it) declare theirs in schemas.json.
+
+/** Merged per-field metadata: the engine component def first, then the user schema. */
+export function fieldMetaFor(compType: string, key: string): UserFieldMeta | null {
+  const fromDef = getComponentFieldMeta(compType)[key];
+  if (fromDef) {
+    return {
+      enum: fromDef.enum?.map((o) => ({ label: o.label, value: o.value })),
+      min: fromDef.min,
+      max: fromDef.max,
+      step: fromDef.step,
+      slider: fromDef.slider,
+      unit: fromDef.unit,
+    };
+  }
+  return userSchema(compType)?.fields?.[key] ?? null;
+}
+
+/** The dropdown options for an enum field, or null if the field isn't an enum. */
+export function enumFieldOptions(compType: string, key: string): EnumOption[] | null {
+  const e = fieldMetaFor(compType, key)?.enum;
+  return e && e.length ? e.map((o) => ({ ...o })) : null;
+}
+
 /**
  * Build one inspector field: an **asset control** for asset-ref fields (carrying
  * the `@uuid:` ref or 0 for none), else a value-shape-inferred control.
@@ -239,7 +282,19 @@ function fieldFor(
       assetType: at,
     };
   }
-  return inferField(key, value, isColor);
+  const meta = fieldMetaFor(compType, key);
+  if (meta?.enum && meta.enum.length) {
+    return { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: meta.enum.map((o) => ({ ...o })) };
+  }
+  const base = inferField(key, value, isColor);
+  if (base && base.type === 'number' && meta) {
+    if (meta.min != null) base.min = meta.min;
+    if (meta.max != null) base.max = meta.max;
+    if (meta.step != null) base.step = meta.step;
+    if (meta.unit != null) base.unit = meta.unit;
+    if (meta.slider && meta.min != null && meta.max != null) base.slider = true;
+  }
+  return base;
 }
 
 /**
@@ -247,8 +302,17 @@ function fieldFor(
  * comes from (in order): the engine registry, the user schema, or — as a
  * best-effort fallback — the data values themselves; asset-ref fields become an
  * asset control. `DERIVED_FIELDS` are skipped.
+ *
+ * Each field also carries `defaultValue` — the value a reset reverts to — taken
+ * from `baseData` (the prefab-instance base, when given) else the component's
+ * registered default. The caller diffs `value` vs `defaultValue` to mark
+ * overrides; an entity with no prefab base just compares against the default.
  */
-export function inspectorFields(compType: string, data: Record<string, unknown>): InspectorField[] {
+export function inspectorFields(
+  compType: string,
+  data: Record<string, unknown>,
+  baseData?: Record<string, unknown>,
+): InspectorField[] {
   const def = componentByName(compType);
   const schema = def ? undefined : userSchema(compType);
   const colorKeys = new Set<string>(def ? def.colorKeys : (schema?.colorKeys ?? []));
@@ -260,9 +324,40 @@ export function inspectorFields(compType: string, data: Record<string, unknown>)
     if (DERIVED_FIELDS.has(key)) continue;
     const value = key in data ? data[key] : defaults?.[key];
     const f = fieldFor(compType, key, value, colorKeys.has(key));
-    if (f) fields.push(f);
+    if (!f) continue;
+    // Reset target: the prefab base for this key, else the registered default.
+    const baseRaw = baseData && key in baseData ? baseData[key] : defaults?.[key];
+    if (baseRaw !== undefined) {
+      const bf = fieldFor(compType, key, baseRaw, colorKeys.has(key));
+      if (bf) f.defaultValue = bf.value;
+    }
+    fields.push(f);
   }
   return fields;
+}
+
+// The boolean field a component's header enable-checkbox toggles: `enabled` for
+// most, `isActive` (Camera) / `visible` (TilemapLayer) for the few that name it
+// differently. Promoted to the header (and hidden from the body field list) — the
+// UE per-component enable affordance. Null when the component can't be disabled
+// (Transform, Canvas), where the header shows a static, non-interactive check.
+const ENABLE_KEYS = ['enabled', 'isActive', 'visible'] as const;
+
+/** The component's enable field + current value, or null if it has none. */
+export function componentEnable(
+  compType: string,
+  data: Record<string, unknown>,
+): { key: string; value: boolean } | null {
+  const def = componentByName(compType);
+  const defaults = def ? componentDefaults(def) : userSchema(compType)?.default;
+  const src = defaults ?? data;
+  for (const key of ENABLE_KEYS) {
+    if (typeof src[key] === 'boolean') {
+      const raw = key in data ? data[key] : src[key];
+      return { key, value: raw !== false };
+    }
+  }
+  return null;
 }
 
 // — Model-based reflection (the editor reads the model, not the World) —

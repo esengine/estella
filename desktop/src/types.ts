@@ -35,7 +35,14 @@ export type InspectorFieldType =
   | 'vec3'
   | 'angle' // 2D rotation: a quaternion shown/edited as Z degrees
   | 'color'
+  | 'enum' // an int field with named options, shown as a dropdown
   | 'asset'; // a texture/material/font/... ref (@uuid: string, or 0 for none)
+
+/** A dropdown option for an `enum` field: the label shown, the int stored. */
+export interface EnumOption {
+  label: string;
+  value: number;
+}
 
 export type InspectorFieldValue =
   | number
@@ -52,6 +59,24 @@ export interface InspectorField {
   value: InspectorFieldValue;
   /** For `type: 'asset'` — the asset kind (texture/material/font/...). */
   assetType?: string;
+  /** For `type: 'enum'` — the selectable options (label + stored int). */
+  options?: EnumOption[];
+  /**
+   * The value this field resets to — the prefab-instance base if the entity is a
+   * prefab instance, else the component's registered default. Absent when no base
+   * is known. `value !== defaultValue` ⇒ the field is "modified" (override).
+   */
+  defaultValue?: InspectorFieldValue;
+  // — Numeric presentation (number fields only) —
+  /** Hard range; clamps both typed entry and drag-scrub. */
+  min?: number;
+  max?: number;
+  /** Scrub/step granularity (defaults to 0.1 per pixel). */
+  step?: number;
+  /** Render as a slider; set only when `min`/`max` are both finite. */
+  slider?: boolean;
+  /** Unit shown after the resting value (e.g. '°', 'px'). */
+  unit?: string;
 }
 
 export interface InspectorComponent {
@@ -59,6 +84,12 @@ export interface InspectorComponent {
   name: string;
   label: string;
   fields: InspectorField[];
+  /**
+   * The component's enable toggle — its `enabled`/`isActive`/`visible` field +
+   * current value — surfaced in the header (and hidden from `fields`). Absent for
+   * components that can't be disabled (e.g. Transform).
+   */
+  enable?: { key: string; value: boolean };
 }
 
 export type AssetType =

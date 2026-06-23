@@ -55,6 +55,18 @@ export interface ComponentSchema {
   spineFields?: unknown;
   /** Field keys that hold an Entity handle. */
   entityFields: string[];
+  /** Per-field editor metadata (enum + numeric range/unit), keyed by field name. */
+  fields?: Record<string, SerializedFieldMeta>;
+}
+
+/** The serialized editor metadata of one component field. */
+export interface SerializedFieldMeta {
+  enum?: Array<{ label: string; value: number }>;
+  min?: number;
+  max?: number;
+  step?: number;
+  slider?: boolean;
+  unit?: string;
 }
 
 export interface ExtractSchemasResult {
@@ -179,6 +191,27 @@ interface UserComponentDef {
   assetFields?: readonly unknown[];
   spineFields?: unknown;
   entityFields?: readonly string[];
+  fieldMeta?: Record<string, SerializedFieldMeta>;
+}
+
+// Keep only fields the inspector actually consumes (enum / numeric range / unit),
+// dropping empties so schemas.json doesn't balloon with `{}` per field.
+function pickFieldMeta(
+  fieldMeta: UserComponentDef['fieldMeta'],
+): ComponentSchema['fields'] | undefined {
+  if (!fieldMeta) return undefined;
+  const out: Record<string, SerializedFieldMeta> = {};
+  for (const [key, meta] of Object.entries(fieldMeta)) {
+    const m: SerializedFieldMeta = {};
+    if (meta.enum && meta.enum.length) m.enum = meta.enum.map((o) => ({ ...o }));
+    if (meta.min != null) m.min = meta.min;
+    if (meta.max != null) m.max = meta.max;
+    if (meta.step != null) m.step = meta.step;
+    if (meta.slider != null) m.slider = meta.slider;
+    if (meta.unit != null) m.unit = meta.unit;
+    if (Object.keys(m).length) out[key] = m;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function toSchema(def: unknown): ComponentSchema {
@@ -193,5 +226,7 @@ function toSchema(def: unknown): ComponentSchema {
     entityFields: [...(d.entityFields ?? [])],
   };
   if (d.spineFields) schema.spineFields = d.spineFields;
+  const fields = pickFieldMeta(d.fieldMeta);
+  if (fields) schema.fields = fields;
   return schema;
 }

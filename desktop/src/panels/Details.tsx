@@ -16,6 +16,7 @@ import {
   Move3d,
   Package,
   Plus,
+  RotateCcw,
   Search,
   Square,
   Trash2,
@@ -35,14 +36,28 @@ import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { PlayInspect } from '@/engine/PlayInspect';
 import type { SceneData } from 'esengine';
-import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, EntityId, NodeKind } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
+
+// Field-value equality for the "modified" (override) mark. Vectors compare
+// element-wise; numbers tolerate float drift so a no-op edit doesn't read as one.
+function fieldEqual(a: InspectorFieldValue, b: InspectorFieldValue): boolean {
+  if (Array.isArray(a) && Array.isArray(b))
+    return a.length === b.length && a.every((n, i) => Math.abs(n - (b[i] as number)) < 1e-6);
+  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-6;
+  return a === b;
+}
+
+/** Whether a field differs from its reset target (prefab base, else class default). */
+function isModified(f: InspectorField): boolean {
+  return f.defaultValue !== undefined && !fieldEqual(f.value, f.defaultValue);
+}
 
 // Component domain → header glyph, derived from the component name (the engine
 // exposes no category metadata). The icon hue is neutral by design — set in CSS.
@@ -77,11 +92,18 @@ interface ControlGesture {
   onEnd?: () => void;
 }
 
+interface ScrubOpts extends ControlGesture {
+  /** Units per pixel of drag (default 0.1); Shift = ÷10, Alt = ×10. */
+  step?: number;
+  min?: number;
+  max?: number;
+}
+
 // Drag-to-scrub. The affordance lives on the property LABEL (scalars) or the
 // colored axis TAB (vectors) — NOT the input — so the field stays a plain
-// click-to-type box. Press + drag horizontally to nudge: Shift = fine (0.01/px),
-// Alt = coarse (1/px), else 0.1/px; a press under the 3px threshold is ignored.
-function useScrub(value: number, onCommit: (n: number) => void, onBegin?: () => void, onEnd?: () => void) {
+// click-to-type box. Press + drag horizontally to nudge; a press under the 3px
+// threshold is ignored. The result clamps to [min,max] when the field is ranged.
+function useScrub(value: number, onCommit: (n: number) => void, opts: ScrubOpts = {}) {
   const scrub = useRef<{ x: number; base: number; moved: boolean } | null>(null);
   return {
     onPointerDown: (e: React.PointerEvent) => {
@@ -97,17 +119,21 @@ function useScrub(value: number, onCommit: (n: number) => void, onBegin?: () => 
       if (!s.moved) {
         if (Math.abs(dx) < 3) return;
         s.moved = true;
-        onBegin?.();
+        opts.onBegin?.();
       }
-      const step = e.shiftKey ? 0.01 : e.altKey ? 1 : 0.1;
-      onCommit(Math.round((s.base + dx * step) * 1000) / 1000);
+      const base = opts.step ?? 0.1;
+      const step = e.shiftKey ? base / 10 : e.altKey ? base * 10 : base;
+      let next = Math.round((s.base + dx * step) * 1000) / 1000;
+      if (opts.min != null) next = Math.max(opts.min, next);
+      if (opts.max != null) next = Math.min(opts.max, next);
+      onCommit(next);
     },
     onPointerUp: (e: React.PointerEvent) => {
       const s = scrub.current;
       scrub.current = null;
       if (!s) return;
       e.currentTarget.releasePointerCapture?.(e.pointerId);
-      if (s.moved) onEnd?.();
+      if (s.moved) opts.onEnd?.();
     },
   };
 }
@@ -154,7 +180,7 @@ function VecField({
   onEnd,
   onCommit,
 }: ControlGesture & { axis: string; value: number; onCommit: (n: number) => void }) {
-  const scrub = useScrub(value, onCommit, onBegin, onEnd);
+  const scrub = useScrub(value, onCommit, { onBegin, onEnd });
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   return (
@@ -207,6 +233,103 @@ function VecControl({
         />
       ))}
     </div>
+  );
+}
+
+// A named-int dropdown (e.g. Camera projection, body type). The stored value is
+// the option's int; an out-of-range value keeps a synthetic row so the select
+// never silently misrepresents the model.
+function EnumControl({
+  value,
+  options,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & { value: number; options: EnumOption[]; onChange: (v: number) => void }) {
+  const known = options.some((o) => o.value === value);
+  return (
+    <span className="field">
+      <select
+        value={String(value)}
+        onChange={(e) => {
+          onBegin?.();
+          onChange(Number(e.target.value));
+          onEnd?.();
+        }}
+      >
+        {!known && <option value={String(value)}>{`(${value})`}</option>}
+        {options.map((o) => (
+          <option key={o.value} value={String(o.value)}>
+            {prettyLabel(o.label)}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+// A bounded number: a draggable track (the .slider widget) paired with a compact
+// exact-entry box. Both snap to `step` and clamp to [min,max].
+function SliderControl({
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (n: number) => void;
+}) {
+  const track = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const span = max - min;
+  const pct = span > 0 ? Math.max(0, Math.min(1, (value - min) / span)) : 0;
+  const setFromX = (clientX: number) => {
+    const el = track.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const t = r.width ? Math.max(0, Math.min(1, (clientX - r.left) / r.width)) : 0;
+    let v = min + t * span;
+    if (step) v = Math.round(v / step) * step;
+    onChange(Math.max(min, Math.min(max, Math.round(v * 1000) / 1000)));
+  };
+  return (
+    <>
+      <div
+        ref={track}
+        className="slider"
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          dragging.current = true;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          onBegin?.();
+          setFromX(e.clientX);
+        }}
+        onPointerMove={(e) => {
+          if (dragging.current) setFromX(e.clientX);
+        }}
+        onPointerUp={(e) => {
+          if (!dragging.current) return;
+          dragging.current = false;
+          e.currentTarget.releasePointerCapture?.(e.pointerId);
+          onEnd?.();
+        }}
+      >
+        <span className="fill" style={{ width: `${pct * 100}%` }} />
+        <span className="thumb" style={{ left: `${pct * 100}%` }} />
+      </div>
+      <span className="snum">
+        <NumField value={value} suffix={unit} onBegin={onBegin} onEnd={onEnd} onCommit={onChange} />
+      </span>
+    </>
   );
 }
 
@@ -361,19 +484,49 @@ function AssetControl({
 type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[]) => void;
 
 function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: string; field: InspectorField; write?: FieldWrite }) {
-  const apply = (value: number | boolean | string | number[]) =>
-    write ? write(field.key, field.type, value) : SceneCommands.setField(entity, comp, field.key, field.type, value as never);
+  const ranged = field.min != null || field.max != null;
+  const clamp = (n: number) => {
+    let v = n;
+    if (field.min != null) v = Math.max(field.min, v);
+    if (field.max != null) v = Math.min(field.max, v);
+    return v;
+  };
+  const apply = (value: number | boolean | string | number[]) => {
+    const v = ranged && typeof value === 'number' ? clamp(value) : value;
+    return write ? write(field.key, field.type, v) : SceneCommands.setField(entity, comp, field.key, field.type, v as never);
+  };
   const begin = () => (write ? undefined : SceneCommands.beginGesture(`Edit ${field.label}`));
   const end = () => (write ? undefined : SceneCommands.endGesture());
 
-  // Scalars (number/angle) scrub from the label; vectors from their axis tabs.
-  const isScalar = field.type === 'number' || field.type === 'angle';
-  const labelScrub = useScrub(isScalar ? (field.value as number) : 0, apply, begin, end);
+  // Plain numbers + angles scrub from the label; vectors from their axis tabs; a
+  // slider owns its own drag so its label stays inert.
+  const isScalar = (field.type === 'number' && !field.slider) || field.type === 'angle';
+  const labelScrub = useScrub(isScalar ? (field.value as number) : 0, apply, {
+    onBegin: begin,
+    onEnd: end,
+    step: field.step,
+    min: field.min,
+    max: field.max,
+  });
 
   let control;
   switch (field.type) {
     case 'number':
-      control = <NumField value={field.value as number} onBegin={begin} onEnd={end} onCommit={apply} />;
+      control =
+        field.slider && field.min != null && field.max != null ? (
+          <SliderControl
+            value={field.value as number}
+            min={field.min}
+            max={field.max}
+            step={field.step}
+            unit={field.unit}
+            onBegin={begin}
+            onEnd={end}
+            onChange={apply}
+          />
+        ) : (
+          <NumField value={field.value as number} suffix={field.unit} onBegin={begin} onEnd={end} onCommit={apply} />
+        );
       break;
     case 'angle':
       control = <NumField value={field.value as number} suffix="°" onBegin={begin} onEnd={end} onCommit={apply} />;
@@ -384,6 +537,17 @@ function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: stri
       break;
     case 'bool':
       control = <BoolControl value={field.value as boolean} onBegin={begin} onEnd={end} onChange={apply} />;
+      break;
+    case 'enum':
+      control = (
+        <EnumControl
+          value={field.value as number}
+          options={field.options ?? []}
+          onBegin={begin}
+          onEnd={end}
+          onChange={apply}
+        />
+      );
       break;
     case 'color':
       control = <ColorControl value={field.value as string} onBegin={begin} onEnd={end} onChange={apply} />;
@@ -403,13 +567,29 @@ function FieldRow({ entity, comp, field, write }: { entity: EntityId; comp: stri
       control = <StringControl value={String(field.value)} onBegin={begin} onEnd={end} onChange={apply} />;
   }
 
+  const modified = isModified(field);
+  const reset = () => {
+    if (field.defaultValue === undefined) return;
+    begin();
+    apply(field.defaultValue);
+    end();
+  };
+
   return (
-    <div className="prop">
+    <div className={`prop${modified ? ' modified' : ''}`}>
       <span className={`prop-label${isScalar ? ' scrub' : ''}`} {...(isScalar ? labelScrub : {})}>
         {field.label}
       </span>
       <div className="prop-value">{control}</div>
-      <button type="button" className="prop-reset" tabIndex={-1} />
+      <button
+        type="button"
+        className={`prop-reset${modified ? ' show' : ''}`}
+        tabIndex={-1}
+        title="Reset to default"
+        onClick={modified ? reset : undefined}
+      >
+        <RotateCcw size={11} strokeWidth={2} />
+      </button>
     </div>
   );
 }
@@ -430,15 +610,32 @@ function ComponentSection({
   write?: FieldWrite;
 }) {
   const Icon = componentIcon(comp.name);
+  const overridden = comp.fields.some(isModified);
+  const enable = comp.enable;
+  const on = !enable || enable.value;
+  // The header checkbox toggles the component's enable field (one undo step), or
+  // is a static "always on" for components that can't be disabled (e.g. Transform).
+  const toggleEnable = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!enable) return;
+    const next = !enable.value;
+    if (write) write(enable.key, 'bool', next);
+    else SceneCommands.setField(entity, comp.name, enable.key, 'bool', next);
+  };
   return (
-    <section className={`comp${collapsed ? '' : ' open'}`}>
+    <section className={`comp${collapsed ? '' : ' open'}${overridden ? ' override' : ''}${enable && !on ? ' disabled' : ''}`}>
       <header className="comp-head" onClick={onToggle}>
         <span className="comp-arrow">
           <ChevronRight size={9} strokeWidth={3} />
         </span>
-        {/* Component enable — visual for now; per-component enable isn't yet exposed. */}
-        <span className="comp-chk on" onClick={(e) => e.stopPropagation()}>
-          <Check size={9} strokeWidth={3.2} />
+        <span
+          className={`comp-chk${on ? ' on' : ''}`}
+          role={enable ? 'checkbox' : undefined}
+          aria-checked={enable ? enable.value : undefined}
+          title={enable ? (enable.value ? 'Disable component' : 'Enable component') : undefined}
+          onClick={enable ? toggleEnable : (e) => e.stopPropagation()}
+        >
+          {on && <Check size={9} strokeWidth={3.2} />}
         </span>
         <span className="comp-icon">
           <Icon size={13} strokeWidth={1.9} />

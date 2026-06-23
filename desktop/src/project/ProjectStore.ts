@@ -9,6 +9,7 @@ import { Reconciler } from '@/engine/Reconciler';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
@@ -80,6 +81,17 @@ class ProjectStoreImpl {
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
+  constructor() {
+    // The inspector's override-aware reset reads prefab base data from the loaded
+    // `.esprefab` cache this store owns. Non-variant prefabs resolve their base
+    // directly from the asset entities; a variant/nested base degrades to the
+    // component default (the entry simply isn't found here).
+    setPrefabBaseResolver((ref, prefabId) => {
+      const pe = this.prefabCache.get(ref)?.entities.find((e) => e.prefabEntityId === prefabId);
+      return pe ? pe.components : null;
+    });
+  }
+
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
   private get state(): ProjectState | null {
     return this.store.getState().project;

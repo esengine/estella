@@ -76,6 +76,9 @@
 .comp-icon { color: var(--text-dim); display: grid; place-items: center; }
 .comp-name { font-weight: 600; font-size: var(--fs-sm); color: var(--text); flex: 1; }
 .comp.override .comp-name::after { content: ''; display: inline-block; width: 5px; height: 5px; background: var(--warn); border-radius: 50%; margin-left: 7px; vertical-align: middle; }
+/* a disabled component dims its icon/name + body; the enable checkbox stays full */
+.comp.disabled .comp-icon, .comp.disabled .comp-name { opacity: .45; }
+.comp.disabled .comp-body { opacity: .5; }
 .comp-badge { font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); }
 .comp-menu { width: 22px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast); }
 .comp-head:hover .comp-menu { opacity: 1; }
@@ -112,9 +115,11 @@
 .vfield input { width: 100%; min-width: 0; background: none; border: none; outline: none; padding: 0 5px; font-size: var(--fs-xs); color: var(--text); font-family: var(--mono); }
 
 .sw { width: 22px; height: 18px; border-radius: var(--r-xs); border: 1px solid var(--border-line); flex-shrink: 0; cursor: pointer; }
-.slider { flex: 1; height: 6px; background: var(--inset); border-radius: var(--r-pill); position: relative; cursor: pointer; }
+.slider { flex: 1; height: 6px; background: var(--inset); border-radius: var(--r-pill); position: relative; cursor: ew-resize; touch-action: none; }
 .slider .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--acc); border-radius: var(--r-pill); }
 .slider .thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: var(--text); transform: translate(-50%,-50%); box-shadow: var(--shadow-1); }
+/* compact exact-entry box paired with a slider track */
+.snum { width: 54px; flex-shrink: 0; display: flex; }
 .toggle { width: 30px; height: 17px; border-radius: var(--r-pill); background: var(--srf-5); position: relative; cursor: pointer; flex-shrink: 0; transition: background var(--t-fast); }
 .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--text-dim); transition: left var(--t-fast) var(--e-out), background var(--t-fast); }
 .toggle.on { background: var(--acc); }

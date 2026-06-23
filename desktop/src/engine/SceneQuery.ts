@@ -8,6 +8,7 @@ import {
   inspectorFields,
   inferField,
   isColorKey,
+  componentEnable,
   modelInspectableComponents,
   modelKindOf,
   modelNameOf,
@@ -52,14 +53,26 @@ export function buildEntityInfo(data: SceneData | null, id: EntityId): { name: s
   return { name: modelNameOf(e, kind), kind, components: modelInspectableComponents(e).map((c) => c.label) };
 }
 
-/** Full inspector model for one entity in a SceneData. */
-export function buildInspector(data: SceneData | null, id: EntityId): InspectorComponent[] {
+/**
+ * Full inspector model for one entity in a SceneData. `baseOf` (optional) supplies
+ * a per-component override base — the prefab-instance base data, when the entity
+ * is a prefab instance — so reset/override marks compare against the prefab rather
+ * than the class default. Without it, fields fall back to the component default.
+ */
+export function buildInspector(
+  data: SceneData | null,
+  id: EntityId,
+  baseOf?: (comp: string) => Record<string, unknown> | undefined,
+): InspectorComponent[] {
   const e = data?.entities.find((x) => x.id === id);
   if (!e) return [];
   const out: InspectorComponent[] = [];
   for (const { name, label } of modelInspectableComponents(e)) {
     const cdata = (e.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
-    out.push({ name, label, fields: inspectorFields(name, cdata) });
+    const enable = componentEnable(name, cdata) ?? undefined;
+    // The enable field is promoted to the header checkbox — drop it from the body.
+    const fields = inspectorFields(name, cdata, baseOf?.(name)).filter((f) => f.key !== enable?.key);
+    out.push({ name, label, fields, enable });
   }
   return out;
 }
@@ -105,7 +118,26 @@ export class SceneQueryImpl {
 
   /** Full editable inspector model for a source entity — fields resolved per component. */
   readInspector(id: EntityId): InspectorComponent[] {
-    return buildInspector(this.model.current, id);
+    return buildInspector(this.model.current, id, this.prefabBaseOf(id));
+  }
+
+  /**
+   * The prefab-instance base for an entity: a per-component lookup into the prefab
+   * asset's data, so the inspector marks/resets fields against the prefab (the UE
+   * override semantic) rather than the class default. Undefined when the entity
+   * isn't a prefab instance or no resolver is registered (e.g. isolated tests) —
+   * then fields fall back to the component default. The prefab asset is owned by
+   * the project layer, so the data source is injected (see {@link setPrefabBaseResolver}).
+   */
+  private prefabBaseOf(id: EntityId): ((comp: string) => Record<string, unknown> | undefined) | undefined {
+    if (!prefabBaseResolver) return undefined;
+    const tag = this.model.prefabTag(id);
+    if (!tag) return undefined;
+    const ref = tag.prefab ?? this.model.prefabTag(tag.instanceRoot)?.prefab;
+    if (!ref) return undefined;
+    const comps = prefabBaseResolver(ref, tag.prefabId);
+    if (!comps) return undefined;
+    return (comp) => comps.find((c) => c.type === comp)?.data;
   }
 
   /** Read one inspector field's current value (for undo before/after capture). */
@@ -116,6 +148,19 @@ export class SceneQueryImpl {
     const f = inferField(key, data[key], isColorKey(compName, key));
     return f ? f.value : null;
   }
+}
+
+/** Resolves a prefab instance's base component data, by ref + the entity's prefab id. */
+export type PrefabBaseComponents = Array<{ type: string; data: Record<string, unknown> }>;
+export type PrefabBaseResolver = (ref: string, prefabId: string) => PrefabBaseComponents | null;
+
+// Injected by the project layer (it owns the loaded `.esprefab` cache). Left unset
+// in isolated sessions/tests, where reset falls back to the component default.
+let prefabBaseResolver: PrefabBaseResolver | null = null;
+
+/** Register the source of prefab-instance base data (for override-aware reset). */
+export function setPrefabBaseResolver(resolver: PrefabBaseResolver | null): void {
+  prefabBaseResolver = resolver;
 }
 
 /** The app's default-session query surface. Other sessions construct their own SceneQueryImpl(model, store). */

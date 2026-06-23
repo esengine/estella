@@ -75,6 +75,7 @@ export function toModelValue(
 ): unknown {
   switch (type) {
     case 'number':
+    case 'enum':
       return Number(value);
     case 'bool':
       return Boolean(value);
