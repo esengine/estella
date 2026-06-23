@@ -1,11 +1,13 @@
 # Tilemap — Architecture & Rearchitecture
 
-**Status (2026-06-23):** **T0 + T1 DONE + pushed** (T1 = runtime tile collision for the
-asset-driven `Tilemap{source}` path, closing the long-standing "B2-1" debt); **T2 in
-progress** (Tileset editor + `.estileset`). Tilemap runtime = a C++ side concern
-(`src/esengine/tilemap/TilemapSystem.cpp` chunk store + `renderer/plugins/
-TilemapRenderPlugin.cpp`), driven by the SDK (`sdk/src/tilemap/*`). The editor has **no**
-tilemap/tileset authoring tools yet.
+**Status (2026-06-23):** **COMPLETE — T0–T4 done + pushed.** T1 = runtime tile collision for
+the asset-driven `Tilemap{source}` path (closed the "B2-1" debt); T2 = Tileset editor +
+`.estileset`; T3 = the Tilemap painter (model-authoritative `paintTiles` + viewport painting +
+palette + Create-Tilemap); T4 = native-path runtime collision (painted `TilemapLayer` →
+colliders from its `.estileset`'s collidable tiles, carried out-of-band) + physics auto-gate.
+Tilemap runtime = a C++ side concern (`src/esengine/tilemap/TilemapSystem.cpp` chunk store +
+`renderer/plugins/TilemapRenderPlugin.cpp`), driven by the SDK (`sdk/src/tilemap/*`). Optional
+polish remains (per-tile polygon/iso collision, bucket fill, re-bake, terrain/autotile).
 
 ## Verdict
 
