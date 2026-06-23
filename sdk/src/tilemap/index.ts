@@ -5,12 +5,16 @@ export { TilemapAPI, initTilemapAPI, shutdownTilemapAPI } from './tilemapAPI';
 export { TilemapPlugin, tilemapPlugin } from './tilemapPlugin';
 export {
     parseTiledMap, parseTmjJson, loadTiledMap, loadTiledCollisionObjects,
-    generateTileCollision, resolveRelativePath,
+    generateTileCollision, generateLayerCollision, resolveRelativePath,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
     type TiledObjectData, type TiledObjectGroupData, type TiledObjectShape,
     type TiledAnimFrame, type TilemapLoadOptions,
 } from './tiledLoader';
 export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
+export {
+    TILESET_FORMAT_VERSION, parseTileset, serializeTileset, createTileset, collidableTileIds,
+    type TilesetAsset, type TilesetTile, type TilesetCollision, type TilesetAnimFrame,
+} from './tilesetAsset';
 export {
     registerTilemapSource, getTilemapSource, clearTilemapSourceCache,
     type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,

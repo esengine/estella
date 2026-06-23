@@ -281,6 +281,11 @@ export {
     registerTilemapSource,
     getTilemapSource,
     clearTilemapSourceCache,
+    TILESET_FORMAT_VERSION,
+    parseTileset,
+    serializeTileset,
+    createTileset,
+    collidableTileIds,
     type TilemapData,
     type TilemapLayerData,
     type TiledMapData,
@@ -290,6 +295,10 @@ export {
     type LoadedTilemapSource,
     type LoadedTilemapLayer,
     type LoadedTilemapTileset,
+    type TilesetAsset,
+    type TilesetTile,
+    type TilesetCollision,
+    type TilesetAnimFrame,
 } from './tilemap';
 
 // =============================================================================
