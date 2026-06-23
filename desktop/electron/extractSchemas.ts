@@ -62,6 +62,7 @@ export interface ComponentSchema {
 /** The serialized editor metadata of one component field. */
 export interface SerializedFieldMeta {
   enum?: Array<{ label: string; value: number }>;
+  enumSource?: string;
   flags?: Array<{ label: string; value: number }>;
   bitmask?: { bits?: number; source?: string };
   min?: number;
@@ -208,6 +209,7 @@ function pickFieldMeta(
   for (const [key, meta] of Object.entries(fieldMeta)) {
     const m: SerializedFieldMeta = {};
     if (meta.enum && meta.enum.length) m.enum = meta.enum.map((o) => ({ ...o }));
+    if (meta.enumSource) m.enumSource = meta.enumSource;
     if (meta.flags && meta.flags.length) m.flags = meta.flags.map((o) => ({ ...o }));
     if (meta.bitmask) m.bitmask = { ...meta.bitmask };
     if (meta.min != null) m.min = meta.min;

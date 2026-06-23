@@ -10,7 +10,7 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
-import { setUserSchemas, userSchema, setBitmaskSource, type UserComponentSchema } from '@/engine/schema';
+import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { assetTypeOf } from '@/project/assetMeta';
@@ -115,6 +115,8 @@ class ProjectStoreImpl {
     });
     // Collider layer-mask fields resolve their bit labels from this project setting.
     setBitmaskSource('collisionLayers', () => this.collisionLayerOptions());
+    // Render `layer` fields become a dropdown once the project names sorting layers.
+    setEnumSource('sortingLayers', () => this.sortingLayerOptions());
   }
 
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
@@ -524,6 +526,37 @@ class ProjectStoreImpl {
   collisionLayerOptions(): Array<{ label: string; value: number }> {
     const names = this.physicsFeature().collisionLayers;
     return names.map((name, i) => ({ label: name || `Layer ${i}`, value: 1 << i }));
+  }
+
+  /** Named render sorting layers (z-order = slot index). Default empty list. */
+  renderingFeature(): { sortingLayers: string[] } {
+    const r = this.state?.features?.rendering;
+    return { sortingLayers: Array.from({ length: 8 }, (_, i) => r?.sortingLayers?.[i] ?? '') };
+  }
+
+  /** Sorting-layer dropdown options for render `layer` fields — only the NAMED
+   *  slots (value = slot index = z-order); empty ⇒ the field stays a free number. */
+  sortingLayerOptions(): Array<{ label: string; value: number }> {
+    return this.renderingFeature()
+      .sortingLayers.map((name, i) => ({ label: name.trim(), value: i }))
+      .filter((o) => o.label !== '');
+  }
+
+  /** Set rendering-feature config (sorting layers) and persist to the manifest. */
+  async setRendering(patch: { sortingLayers?: string[] }): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering, ...patch };
+    const features: ProjectFeatures = { ...st.features, rendering };
+    this.store.setState({ project: { ...st, features } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      raw.features = { ...((raw.features as Record<string, unknown>) ?? {}), rendering };
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push('Failed to save sorting layers', 'error');
+      console.error('[project] setRendering write failed', e);
+    }
   }
 
   /**

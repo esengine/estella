@@ -13,6 +13,26 @@ import { ProjectStore } from '@/project/ProjectStore';
 // ── Physics (the enable flag = UE Plugins-Browser analog; gravity = Project Settings) ──
 settingsRegistry.registerSection({ id: 'physics', label: 'Physics', category: 'project', order: 1 });
 
+// ── Rendering (named sorting layers feed the inspector's render `layer` dropdown) ──
+settingsRegistry.registerSection({ id: 'rendering', label: 'Rendering', category: 'project', order: 2 });
+
+settingsRegistry.register({
+  id: 'project.rendering.sortingLayers',
+  type: 'stringList',
+  scope: 'project',
+  section: 'rendering',
+  group: 'Sorting Layers',
+  label: 'Layer names',
+  description: 'Name render sorting layers (lowest first); a render `layer` field then picks from them instead of a raw number.',
+  count: 8,
+  placeholder: (i) => `Layer ${i}`,
+  default: Array.from({ length: 8 }, () => ''),
+  bind: {
+    get: () => ProjectStore.renderingFeature().sortingLayers,
+    set: (v) => void ProjectStore.setRendering({ sortingLayers: v }),
+  },
+});
+
 settingsRegistry.register({
   id: 'project.physics.enabled',
   type: 'boolean',

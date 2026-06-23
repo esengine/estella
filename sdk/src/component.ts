@@ -34,6 +34,12 @@ export interface AssetRef {
 export interface FieldMeta {
     /** Render as a dropdown of these options; the stored value is the option's int. */
     enum?: ReadonlyArray<{ label: string; value: number }>;
+    /**
+     * Render as a dropdown whose options are resolved by the editor from a named
+     * source (e.g. project sorting layers) — falls back to a plain number when the
+     * source yields none, so free-int editing survives a project with no named set.
+     */
+    enumSource?: string;
     /** Render as a bitmask multi-select; each option is a single bit. */
     flags?: ReadonlyArray<{ label: string; value: number }>;
     /**
@@ -564,7 +570,7 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite',
     }),
     {
         fields: {
-            layer: { step: 1 },
+            layer: { step: 1, enumSource: 'sortingLayers' },
             pivot: { advanced: true },
             uvOffset: { advanced: true },
             uvScale: { advanced: true },
@@ -581,7 +587,7 @@ export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
         fields: {
             shapeType: { enum: enumOptions(ShapeType) },
             cornerRadius: { min: 0 },
-            layer: { step: 1 },
+            layer: { step: 1, enumSource: 'sortingLayers' },
         },
     }
 );
@@ -651,7 +657,7 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
         fields: {
             timeScale: { min: 0 },
             skeletonScale: { min: 0 },
-            layer: { step: 1 },
+            layer: { step: 1, enumSource: 'sortingLayers' },
         },
     }
 );
@@ -663,7 +669,7 @@ export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
             opacity: { min: 0, max: 1, slider: true },
             tilesetColumns: { min: 1, step: 1 },
             tilesetRows: { min: 1, step: 1 },
-            renderLayer: { step: 1 },
+            renderLayer: { step: 1, enumSource: 'sortingLayers' },
         },
     }
 );
@@ -787,7 +793,7 @@ export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitt
             spriteFPS: { min: 0, category: 'Texture' },
             spriteLoop: { category: 'Texture' },
             blendMode: { enum: enumOptions(BlendMode), category: 'Rendering' },
-            layer: { step: 1, category: 'Rendering' },
+            layer: { step: 1, category: 'Rendering', enumSource: 'sortingLayers' },
             material: { category: 'Rendering' },
             simulationSpace: { enum: enumOptions(SimulationSpace), category: 'Rendering' },
         },

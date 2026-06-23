@@ -70,6 +70,10 @@ export interface ProjectFeatures {
     /** Names for the 16 Box2D collision-filter layers (the inspector's layer masks). */
     collisionLayers?: string[];
   };
+  rendering?: {
+    /** Named render sorting layers (the inspector's `layer` dropdown); index = z-order. */
+    sortingLayers?: string[];
+  };
 }
 
 /** Committed project identity + config (`project.esproject`). */
@@ -194,6 +198,12 @@ export function parseManifest(raw: unknown): ProjectManifest {
         physics.collisionLayers = p.collisionLayers.slice(0, 16).map((n) => (typeof n === 'string' ? n : ''));
       }
       features.physics = physics;
+    }
+    if (f.rendering && typeof f.rendering === 'object') {
+      const r = f.rendering as Record<string, unknown>;
+      if (Array.isArray(r.sortingLayers)) {
+        features.rendering = { sortingLayers: r.sortingLayers.slice(0, 32).map((n) => (typeof n === 'string' ? n : '')) };
+      }
     }
     if (Object.keys(features).length > 0) manifest.features = features;
   }

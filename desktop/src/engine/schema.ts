@@ -188,6 +188,7 @@ export interface UserComponentSchema {
 /** A serialized field's editor metadata, as carried in `schemas.json`. */
 export interface UserFieldMeta {
   enum?: EnumOption[];
+  enumSource?: string;
   flags?: EnumOption[];
   bitmask?: { bits?: number; source?: string };
   min?: number;
@@ -264,6 +265,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
   if (fromDef) {
     return {
       enum: fromDef.enum?.map((o) => ({ label: o.label, value: o.value })),
+      enumSource: fromDef.enumSource,
       flags: fromDef.flags?.map((o) => ({ label: o.label, value: o.value })),
       bitmask: fromDef.bitmask,
       min: fromDef.min,
@@ -292,6 +294,19 @@ const bitmaskSources = new Map<string, () => EnumOption[]>();
 export function setBitmaskSource(name: string, provider: (() => EnumOption[]) | null): void {
   if (provider) bitmaskSources.set(name, provider);
   else bitmaskSources.delete(name);
+}
+
+// Editor-registered providers of dynamic enum options (e.g. project sorting
+// layers). A field with `enumSource` becomes a dropdown when its source yields
+// options, else a plain number — so free-int editing survives an empty set.
+const enumSources = new Map<string, () => EnumOption[]>();
+/** Register (or clear) a named source of dynamic enum options. */
+export function setEnumSource(name: string, provider: (() => EnumOption[]) | null): void {
+  if (provider) enumSources.set(name, provider);
+  else enumSources.delete(name);
+}
+function enumSourceOptions(name: string): EnumOption[] {
+  return enumSources.get(name)?.() ?? [];
 }
 /** The bit options for a bitmask field: its source's labels, else `Layer N`. */
 function bitmaskOptions(meta: { bits?: number; source?: string }): EnumOption[] {
@@ -322,6 +337,8 @@ function fieldFor(
     field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: meta.flags.map((o) => ({ ...o })) };
   } else if (meta?.enum && meta.enum.length) {
     field = { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: meta.enum.map((o) => ({ ...o })) };
+  } else if (meta?.enumSource && enumSourceOptions(meta.enumSource).length) {
+    field = { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: enumSourceOptions(meta.enumSource) };
   } else {
     field = inferField(key, value, isColor);
     if (field && field.type === 'number' && meta) {

@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { SceneData } from 'esengine';
 import { EditorSession } from '@/engine/EditorSession';
-import { setUserSchemas, enumFieldOptions, setBitmaskSource } from '@/engine/schema';
+import { setUserSchemas, enumFieldOptions, setBitmaskSource, setEnumSource } from '@/engine/schema';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 
 /** A one-entity scene carrying a Camera with the given component-data overrides. */
@@ -289,6 +289,38 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
     expect(tex!.type).toBe('asset');
     expect(tex!.assetType).toBe('texture');
     expect(tex!.value).toBe(ref);
+  });
+});
+
+describe('Sorting-layer enum source (render layer)', () => {
+  afterEach(() => setEnumSource('sortingLayers', null));
+  function spriteScene(layer: number): SceneData {
+    return {
+      version: '1.0',
+      name: 's',
+      entities: [{ id: 1, name: 'S', parent: null, children: [], components: [{ type: 'Sprite', data: { layer } }] }],
+    } as unknown as SceneData;
+  }
+  const layerField = (S: EditorSession) =>
+    S.query.readInspector(1).find((c) => c.name === 'Sprite')!.fields.find((f) => f.key === 'layer')!;
+
+  it('a render layer stays a free number when no sorting layers are named', () => {
+    const S = EditorSession.create();
+    S.model.adopt(spriteScene(3), new Map([[1, 1]]));
+    const lf = layerField(S);
+    expect(lf.type).toBe('number');
+    expect(lf.value).toBe(3);
+    expect(lf.step).toBe(1);
+  });
+
+  it('becomes a named dropdown once sorting layers are defined', () => {
+    setEnumSource('sortingLayers', () => [{ label: 'Background', value: 0 }, { label: 'Foreground', value: 1 }]);
+    const S = EditorSession.create();
+    S.model.adopt(spriteScene(1), new Map([[1, 1]]));
+    const lf = layerField(S);
+    expect(lf.type).toBe('enum');
+    expect(lf.value).toBe(1);
+    expect(lf.options!.map((o) => o.label)).toEqual(['Background', 'Foreground']);
   });
 });
 
