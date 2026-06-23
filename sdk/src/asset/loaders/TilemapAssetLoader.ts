@@ -33,6 +33,11 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
         registerTilemapSource(path, {
             tileWidth: mapData.tileWidth,
             tileHeight: mapData.tileHeight,
+            // Carry every parsed field the runtime cache/plugin consume — the loader
+            // previously dropped orientation/animations/properties/collision, so isometric
+            // asset-loaded maps rendered flat, tile animations never ran, and tilemaps had
+            // no physics collision (the B2-1 gap).
+            orientation: mapData.orientation,
             layers: mapData.layers.map(l => ({
                 name: l.name,
                 width: l.width,
@@ -42,6 +47,9 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 infinite: l.infinite ?? false,
             })),
             tilesets,
+            collisionTileIds: mapData.collisionTileIds,
+            tileAnimations: mapData.tileAnimations,
+            tileProperties: mapData.tileProperties,
         });
 
         return { sourceId: path };

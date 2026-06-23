@@ -543,27 +543,39 @@ export function loadTiledCollisionObjects(
     return entities;
 }
 
-export function generateTileCollision(
+/**
+ * @brief Greedy-merge a tile grid's collidable cells into static box colliders.
+ *
+ * Grid-agnostic core shared by the Tiled-import (`generateTileCollision`) and the runtime
+ * asset (`TilemapSyncSystem`) paths. Tiles are stored top-down (row 0 = top) while the
+ * world is y-up, so rows flip within `flipHeight` tile-rows of pixel height; each merged
+ * rect becomes one static `BoxCollider` body placed relative to (originX, originY) — the
+ * tilemap entity's world origin.
+ *
+ * @param flipHeight Tile-rows used for the y-flip (defaults to the grid height; the Tiled
+ *        path passes the MAP height so a sub-sized layer flips against the map box).
+ */
+export function generateLayerCollision(
     world: World,
-    layer: TiledLayerData,
-    mapData: TiledMapData,
+    tiles: ArrayLike<number>,
+    gridWidth: number,
+    gridHeight: number,
+    tileW: number,
+    tileH: number,
     collisionIds: Set<number>,
     originX: number,
     originY: number,
+    flipHeight: number = gridHeight,
 ): Entity[] {
-    const merged = mergeCollisionTiles(
-        layer.tiles, layer.width, layer.height, collisionIds,
-    );
+    const merged = mergeCollisionTiles(tiles, gridWidth, gridHeight, collisionIds);
     const entities: Entity[] = [];
-    const tileW = mapData.tileWidth;
-    const tileH = mapData.tileHeight;
-    const mapPixelH = mapData.height * tileH;
+    const pixelH = flipHeight * tileH;
 
     for (const rect of merged) {
         const mergedW = rect.width * tileW;
         const mergedH = rect.height * tileH;
         const worldX = originX + rect.col * tileW + mergedW * 0.5;
-        const worldY = originY + (mapPixelH - rect.row * tileH) - mergedH * 0.5;
+        const worldY = originY + (pixelH - rect.row * tileH) - mergedH * 0.5;
 
         const entity = world.spawn();
         world.insert(entity, Transform, {
@@ -576,6 +588,21 @@ export function generateTileCollision(
         entities.push(entity);
     }
     return entities;
+}
+
+export function generateTileCollision(
+    world: World,
+    layer: TiledLayerData,
+    mapData: TiledMapData,
+    collisionIds: Set<number>,
+    originX: number,
+    originY: number,
+): Entity[] {
+    return generateLayerCollision(
+        world, layer.tiles, layer.width, layer.height,
+        mapData.tileWidth, mapData.tileHeight, collisionIds,
+        originX, originY, mapData.height,
+    );
 }
 
 export function loadTiledMap(

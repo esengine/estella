@@ -9,8 +9,11 @@ import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource } from './tilesetCache';
+import { generateLayerCollision } from './tiledLoader';
 import { getTextureDimensions } from '../resourceManager';
 import { Time } from '../resource';
+import { playModeOnly } from '../env';
+import type { Entity } from '../types';
 
 const SYNTHETIC_KEY_BASE = 0x40000000;
 const MAX_LAYERS_PER_ENTITY = 256;
@@ -36,6 +39,8 @@ export class TilemapPlugin implements Plugin {
         parallaxX: number; parallaxY: number;
         visible: boolean;
     }>();
+    /** tilemap entity → the static collider entities derived from its collidable tiles (play-mode only). */
+    private collisionEntities_ = new Map<number, Entity[]>();
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -63,12 +68,24 @@ export class TilemapPlugin implements Plugin {
         const animatedLayers = this.animatedLayers_;
         const sourceEntityKeys = this.sourceEntityKeys_;
         const layerState = this.layerState_;
+        const collisionEntities = this.collisionEntities_;
 
         const tilemapSyncSystem: SystemDef = {
             _id: Symbol('TilemapSyncSystem'),
             _name: 'TilemapSyncSystem',
             _params: [],
             _fn: () => {
+                // Tile colliders are runtime-only artifacts (never in the edit world,
+                // never serialized): generate them in play mode, drop them on stop so the
+                // next Play regenerates from the current tiles.
+                const playMode = playModeOnly();
+                if (!playMode && collisionEntities.size > 0) {
+                    for (const [, ents] of collisionEntities) {
+                        for (const e of ents) world.despawn(e);
+                    }
+                    collisionEntities.clear();
+                }
+
                 const layerEntities = world.getEntitiesWithComponents(
                     [TilemapLayer, Transform],
                 );
@@ -219,6 +236,29 @@ export class TilemapPlugin implements Plugin {
                         }
                         sourceEntityKeys.set(entity, keys);
                     }
+
+                    if (
+                        playMode
+                        && !collisionEntities.has(entity)
+                        && cached.collisionTileIds && cached.collisionTileIds.length > 0
+                    ) {
+                        const ids = new Set(cached.collisionTileIds);
+                        const tf = world.tryGet(entity, Transform) as
+                            { position: { x: number; y: number } } | null;
+                        const ox = tf?.position.x ?? 0;
+                        const oy = tf?.position.y ?? 0;
+                        const spawned: Entity[] = [];
+                        for (const layer of cached.layers) {
+                            // T1 covers finite layers (flat tile arrays); infinite/chunk
+                            // collision is deferred (see docs/REARCH_TILEMAP.md).
+                            if (layer.infinite || layer.tiles.length === 0) continue;
+                            spawned.push(...generateLayerCollision(
+                                world, layer.tiles, layer.width, layer.height,
+                                cached.tileWidth, cached.tileHeight, ids, ox, oy,
+                            ));
+                        }
+                        collisionEntities.set(entity, spawned);
+                    }
                 }
 
                 const currentTilemapSet = new Set(tilemapEntities);
@@ -231,6 +271,12 @@ export class TilemapPlugin implements Plugin {
                             layerState.delete(key);
                         }
                         sourceEntityKeys.delete(entity);
+
+                        const colliders = collisionEntities.get(entity);
+                        if (colliders) {
+                            for (const e of colliders) world.despawn(e);
+                            collisionEntities.delete(entity);
+                        }
                     }
                 }
 
@@ -254,6 +300,8 @@ export class TilemapPlugin implements Plugin {
         this.animatedLayers_.clear();
         this.sourceEntityKeys_.clear();
         this.layerState_.clear();
+        // Collider entities die with the world on reset/teardown; just drop our bookkeeping.
+        this.collisionEntities_.clear();
     }
 
     cleanup(): void {

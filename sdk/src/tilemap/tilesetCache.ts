@@ -30,6 +30,8 @@ export interface LoadedTilemapSource {
     tilesets: LoadedTilemapTileset[];
     tileAnimations?: Map<number, { tileId: number; duration: number }[]>;
     tileProperties?: Map<number, Map<string, string>>;
+    /** Tile ids flagged collidable (a `collision=true` tile property). Drives runtime collider generation. */
+    collisionTileIds?: number[];
 }
 
 const tilemapCache_ = new Map<string, LoadedTilemapSource>();

@@ -13,9 +13,10 @@ import {
     getTilemapSource,
     clearTilemapSourceCache,
 } from '../src/tilemap/tilesetCache';
-import { loadTiledMap, parseTmjJson, resolveRelativePath, loadTiledCollisionObjects } from '../src/tilemap/tiledLoader';
+import { loadTiledMap, parseTmjJson, resolveRelativePath, loadTiledCollisionObjects, generateLayerCollision } from '../src/tilemap/tiledLoader';
 import type { TiledMapData } from '../src/tilemap/tiledLoader';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
+import { BodyType } from '../src/physics/PhysicsComponents';
 import { clearUserComponents } from '../src/component';
 import type { World } from '../src/world';
 import type { Entity } from '../src/types';
@@ -980,5 +981,71 @@ describe('loadTiledMap — collision integration', () => {
             collisionTileIds: [1],
         });
         expect(entities.length).toBeGreaterThan(1);
+    });
+});
+
+describe('generateLayerCollision (B2-1 runtime tile collision)', () => {
+    interface MockEntity { Transform?: any; RigidBody?: any; BoxCollider?: any }
+
+    function createMockWorld(): { world: World; store: Map<number, MockEntity> } {
+        let nextId = 1;
+        const store = new Map<number, MockEntity>();
+        const world = {
+            spawn: vi.fn(() => {
+                const id = nextId++ as Entity;
+                store.set(id, {});
+                return id;
+            }),
+            insert: vi.fn((entity: Entity, comp: any, data: any) => {
+                (store.get(entity) as any)[comp._name] = data;
+            }),
+        } as unknown as World;
+        return { world, store };
+    }
+
+    it('merges a solid block into one centered static box collider', () => {
+        const { world, store } = createMockWorld();
+        // 2×2 grid, all tile id 1 (collidable), 16px tiles → one merged 32×32 rect.
+        const tiles = new Uint16Array([1, 1, 1, 1]);
+        const ents = generateLayerCollision(world, tiles, 2, 2, 16, 16, new Set([1]), 0, 0);
+
+        expect(ents).toHaveLength(1);
+        const e = store.get(ents[0])!;
+        expect(e.Transform.position).toEqual({ x: 16, y: 16, z: 0 });
+        expect(e.BoxCollider.halfExtents).toEqual({ x: 16, y: 16 });
+        expect(e.RigidBody.bodyType).toBe(BodyType.Static);
+    });
+
+    it('flips rows to y-up so the bottom row sits at low world-Y', () => {
+        const { world, store } = createMockWorld();
+        // 1 column × 3 rows, only the BOTTOM row (row index 2, stored last) is collidable.
+        const tiles = new Uint16Array([0, 0, 1]);
+        const ents = generateLayerCollision(world, tiles, 1, 3, 10, 10, new Set([1]), 0, 0);
+
+        expect(ents).toHaveLength(1);
+        // pixelH=30; row2 → worldY = (30 - 20) - 5 = 5 (near the bottom of a y-up world).
+        expect(store.get(ents[0])!.Transform.position).toEqual({ x: 5, y: 5, z: 0 });
+    });
+
+    it('offsets colliders by the tilemap entity world origin', () => {
+        const { world, store } = createMockWorld();
+        const tiles = new Uint16Array([1, 1, 1, 1]);
+        const ents = generateLayerCollision(world, tiles, 2, 2, 16, 16, new Set([1]), 100, 200);
+        expect(store.get(ents[0])!.Transform.position).toEqual({ x: 116, y: 216, z: 0 });
+    });
+
+    it('ignores non-collidable and empty tiles', () => {
+        const { world } = createMockWorld();
+        const tiles = new Uint16Array([0, 2, 0, 0]); // tile 2 not in the collision set
+        expect(generateLayerCollision(world, tiles, 2, 2, 16, 16, new Set([1]), 0, 0)).toHaveLength(0);
+    });
+
+    it('carries collisionTileIds through the runtime source cache', () => {
+        clearTilemapSourceCache();
+        registerTilemapSource('lvl.tmj', {
+            tileWidth: 16, tileHeight: 16, layers: [], tilesets: [],
+            collisionTileIds: [3, 7],
+        });
+        expect(getTilemapSource('lvl.tmj')?.collisionTileIds).toEqual([3, 7]);
     });
 });
