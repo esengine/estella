@@ -35,7 +35,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
 // Details, and Content Browser + Output Log as sibling tabs along the bottom
 // (resize/close via dockview). The Content Drawer (Ctrl+Space) is a separate
 // quick-access overlay on top.
-const LAYOUT_KEY = 'estella.editor.layout.v6';
+const LAYOUT_KEY = 'estella.editor.layout.v5';
 
 function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   // Viewport is the anchor; the right column stacks Outliner over Details.
