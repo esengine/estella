@@ -10,15 +10,7 @@ import {
   Volume2,
   Lightbulb,
   CircleDot,
-  Folder,
-  Film,
-  Clapperboard,
-  FileImage,
-  Music,
   Component,
-  Blend,
-  FileCode2,
-  File,
   Type,
   Grid3x3,
   Sparkles,
@@ -28,6 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { NodeKind, AssetType } from '@/types';
+import { ASSET_TYPES } from '@/project/assetTypes';
 
 // Scene-node kind → glyph. Keeps the outliner legible at a glance.
 const NODE_ICON: Record<NodeKind, LucideIcon> = {
@@ -47,31 +40,13 @@ export function NodeIcon({ kind, size = 14 }: { kind: NodeKind; size?: number })
   return <Glyph size={size} strokeWidth={1.75} />;
 }
 
-// Asset type → glyph + muted type tint. Desaturated (vs candy colors) so the
-// content browser stays scannable by type but reads as a professional tool.
-const ASSET_ICON: Record<AssetType, { icon: LucideIcon; tint: string }> = {
-  folder: { icon: Folder, tint: 'var(--star)' },
-  scene: { icon: Film, tint: '#c98a93' },
-  sprite: { icon: Image, tint: '#7fa6c4' },
-  texture: { icon: FileImage, tint: '#7fa6c4' },
-  spine: { icon: PersonStanding, tint: '#9b8fc0' },
-  audio: { icon: Music, tint: '#7faf9c' },
-  prefab: { icon: Component, tint: '#c2a274' },
-  material: { icon: Blend, tint: '#c0917a' },
-  script: { icon: FileCode2, tint: '#93a3bf' },
-  animation: { icon: Clapperboard, tint: '#9bb39a' },
-  tileset: { icon: Grid3x3, tint: '#9b8fc0' },
-  tilemap: { icon: Grid3x3, tint: '#7fa6c4' },
-  file: { icon: File, tint: 'var(--text-dim)' },
-};
-
 export function AssetIcon({ type, size = 22 }: { type: AssetType; size?: number }) {
-  const { icon: Glyph, tint } = ASSET_ICON[type];
+  const { icon: Glyph, tint } = ASSET_TYPES[type];
   return <Glyph size={size} strokeWidth={1.5} color={tint} />;
 }
 
 export function assetTint(type: AssetType): string {
-  return ASSET_ICON[type].tint;
+  return ASSET_TYPES[type].tint;
 }
 
 // Component (by registry name) → glyph, for the Add-Component picker. Known

@@ -6,12 +6,11 @@ import { ChevronRight, Search, LayoutGrid, List, Import, FolderOpen, FolderPlus,
 import { AssetIcon, assetTint } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { ProjectStore } from '@/project/ProjectStore';
-import { EditorHistory } from '@/engine/EditorHistory';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMeta';
-import { openAnimationClip } from '@/timeline/openClip';
-import { openTileset, createTilesetFromTexture } from '@/tileset/openTileset';
+import { ASSET_OPEN } from '@/project/assetOpen';
+import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { fsRefresh } from '@/project/fsWatch';
 import type { DirEntry } from '@/project/format';
@@ -294,21 +293,14 @@ export function ContentBrowser() {
     return [...list].sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
   }, [entries, q, filters]);
 
-  // Double-click: enter folders; open scenes as the editor document (guarding
-  // unsaved edits — history is cleared on open, so canUndo ≈ "edited this session").
+  // Double-click: enter folders; otherwise dispatch through the per-type open
+  // table (scene/clip/tileset editors).
   const onOpen = (path: string, isDir: boolean, name: string) => {
     if (isDir) {
       go(path);
       return;
     }
-    if (assetType(name) === 'scene') {
-      if (EditorHistory.canUndo() && !window.confirm(`Open ${name}? Unsaved changes will be lost.`)) return;
-      void ProjectStore.openScene(path);
-    } else if (assetType(name) === 'animation') {
-      void openAnimationClip(path);
-    } else if (assetType(name) === 'tileset') {
-      void openTileset(path);
-    }
+    ASSET_OPEN[assetType(name)]?.(path, name);
   };
 
   // After any fs mutation: re-read open directories + re-scan the asset registry
