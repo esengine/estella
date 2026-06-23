@@ -5,17 +5,21 @@
  *          path. A pre-flush callback scans Text entities, composes the world
  *          transform, places the text inside its UIRect box (no auto-size — the
  *          UIRect is the box; rendering never mutates layout) and draws batched
- *          SDF glyph quads. Renderer is created lazily.
+ *          SDF glyph quads, layered to interleave with sibling UI elements.
  */
 import type { App, Plugin } from '../../app';
 import { Transform, type TransformData, registerComponent } from '../../component';
-import type { ESEngineModule } from '../../wasm';
+import { defineSystem, Schedule } from '../../system';
+import type { ESEngineModule, CppRegistry } from '../../wasm';
 import type { Entity } from '../../types';
 import { SdfTextRenderer } from './text-renderer';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, type TextData } from '../core/text';
 import { UIRect, type UIRectData } from '../core/ui-rect';
-import { getEffectiveWidth, getEffectiveHeight } from '../uiHelpers';
+import { getEffectiveWidth, getEffectiveHeight, ensureUIRenderer } from '../uiHelpers';
+
+// Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
+const UI_BASE_LAYER = 1000;
 
 export class TextPlugin implements Plugin {
     name = 'text';
@@ -26,10 +30,24 @@ export class TextPlugin implements Plugin {
     build(app: App): void {
         registerComponent('Text', Text);
 
+        const world = app.world;
+
+        // A Text node inside a UIRect is a UI render node: ensure it carries a
+        // UIRenderer (visualType None — not drawn as a quad) so the UI
+        // render-order pass assigns it a uiOrder and the SDF glyphs sort with
+        // sibling UI elements. Idempotent; runs before the PostUpdate order pass.
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
+            for (const e of world.getEntitiesWithComponents([Text, UIRect])) {
+                ensureUIRenderer(world, e as Entity);
+            }
+        }, { name: 'TextRenderNodeSystem' }));
+
         const pipeline = app.pipeline;
         if (!pipeline) return; // logic-only host → nothing to draw
 
-        const world = app.world;
+        const module = app.wasmModule as ESEngineModule;
+        const registry = world.getCppRegistry() as CppRegistry;
+
         pipeline.addPreFlushCallback(() => {
             for (const e of world.getEntitiesWithComponents([Text, Transform])) {
                 const entity = e as Entity;
@@ -46,12 +64,14 @@ export class TextPlugin implements Plugin {
                 // Text.lineHeight is a ratio of fontSize (legacy convention).
                 const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
 
-                // A UIRect (UI canvas) is the text box: place + align + wrap inside it.
-                // No UIRect ⇒ a world-space label anchored at the entity origin.
+                // A UIRect (UI canvas) is the text box: place + align + wrap inside
+                // it and sort by the UI render order. No UIRect ⇒ a world-space
+                // label at the entity origin, layer 0.
                 let originX: number | undefined;
                 let originY: number | undefined;
                 let maxWidth: number | undefined;
                 let boxHeight: number | undefined;
+                let layer = 0;
                 if (world.has(entity, UIRect)) {
                     const rect = world.get(entity, UIRect) as UIRectData;
                     const w = getEffectiveWidth(rect, entity);
@@ -61,6 +81,11 @@ export class TextPlugin implements Plugin {
                     originY = box.originY;
                     boxHeight = box.boxHeight;
                     if (t.wordWrap) maxWidth = box.maxWidth;
+
+                    const order = module.ui_getRenderOrder
+                        ? module.ui_getRenderOrder(registry, entity as number)
+                        : -1;
+                    layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
                 }
 
                 this.renderer_.drawText(
@@ -81,7 +106,7 @@ export class TextPlugin implements Plugin {
                     },
                     this.matrix_,
                     entity as number,
-                    0, // layer: UI z-order integration with UIElementPlugin is a follow-up
+                    layer,
                     tr.worldPosition.z,
                 );
             }

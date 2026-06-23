@@ -124,6 +124,12 @@ export interface ESEngineModule {
      * pointers to width*height byte buffers; the SDF is written into `outPtr`.
      */
     sdfFromAlpha?(alphaPtr: number, outPtr: number, width: number, height: number, spread: number): void;
+    /**
+     * UI draw order of an entity (its UIRenderer.uiOrder, assigned by the UI
+     * render-order pass), so SDF text quads interleave with UI quads. -1 if the
+     * entity is not a UI render node (REARCH_GUI P1.4d #1).
+     */
+    ui_getRenderOrder?(registry: CppRegistry, entity: number): number;
     getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
 
     renderer_submitSpineBatch?(

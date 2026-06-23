@@ -42,6 +42,7 @@
 #include "../ecs/components/Velocity.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/UIRect.hpp"
+#include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/Collider.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
@@ -541,6 +542,15 @@ void uiRenderOrder_update(ecs::Registry& registry) {
     ecs::uiRenderOrderUpdate(registry);
 }
 
+// REARCH_GUI P1.4d (#1 z-order): the SDF text path (TS) reads an entity's UI
+// draw order so glyph quads interleave with UI quads. uiRenderOrderUpdate
+// assigns uiOrder to every UIRenderer in the UI tree (text nodes carry a
+// visualType=None UIRenderer purely to be ordered). -1 = not a UI node.
+i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity) {
+    auto* ui = registry.tryGet<ecs::UIRenderer>(Entity::fromRaw(entity));
+    return ui ? ui->uiOrder : -1;
+}
+
 void uiFlexLayout_update(ecs::Registry& registry) {
     // Flex layout is now integrated into uiLayout_update via unified layout pass.
     // Kept as no-op for backward compatibility with TS plugin.
@@ -627,6 +637,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
     emscripten::function("uiHitTest_getHitEntityPrev", &esengine::uiHitTest_getHitEntityPrev);
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
+    emscripten::function("ui_getRenderOrder", &esengine::ui_getRenderOrder);
     emscripten::function("uiFlexLayout_update", &esengine::uiFlexLayout_update);
     emscripten::function("getUIRectComputedWidth", &esengine::getUIRectComputedWidth);
     emscripten::function("getUIRectComputedHeight", &esengine::getUIRectComputedHeight);
