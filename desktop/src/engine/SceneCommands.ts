@@ -9,6 +9,8 @@ import { expandInstance } from './PrefabInstance';
 import {
   componentByName,
   componentDefaults,
+  componentEnable,
+  isRenderComponent,
   userSchema,
   angleZToQuat,
   hexToRgb,
@@ -17,6 +19,8 @@ import {
 
 type SceneEntity = SceneData['entities'][number];
 type SceneComponent = SceneEntity['components'][number];
+/** A reversible model mutation: `forward` (re)applies it, `reverse` undoes it. */
+type UndoOp = { forward: () => void; reverse: () => void };
 
 /** A single tile edit: set the tile at grid (x, y) to `tileId` (0 = erase). */
 export interface TilePaint {
@@ -445,9 +449,11 @@ export class SceneCommandsImpl {
   }
 
   /** Add a component (with its registered/schema defaults) to an entity. Undoable. */
-  addComponent(sourceId: EntityId, compName: string): void {
+  // Apply an add to the model and return its undo op, or null if it's a no-op
+  // (entity gone / component already present). Shared by the single + batch paths.
+  private addComponentOp(sourceId: EntityId, compName: string): UndoOp | null {
     const entity = this.model.entityBySource(sourceId);
-    if (!entity || entity.components.some((c) => c.type === compName)) return;
+    if (!entity || entity.components.some((c) => c.type === compName)) return null;
     const def = componentByName(compName);
     // Builtins default from the engine registry; user/script components from the
     // schemas.json shape; an unknown-but-named component starts empty.
@@ -455,25 +461,45 @@ export class SceneCommandsImpl {
       ? structuredClone(componentDefaults(def))
       : structuredClone(userSchema(compName)?.default ?? {});
     this.model.setComponent(sourceId, compName, data);
-    this.history.record(
-      `Add ${prettyLabel(compName)}`,
-      () => this.model.setComponent(sourceId, compName, structuredClone(data)),
-      () => this.model.removeComponent(sourceId, compName),
-    );
+    return {
+      forward: () => this.model.setComponent(sourceId, compName, structuredClone(data)),
+      reverse: () => this.model.removeComponent(sourceId, compName),
+    };
+  }
+
+  private removeComponentOp(sourceId: EntityId, compName: string): UndoOp | null {
+    if (compName === 'Transform' || compName === 'Name') return null; // protected
+    const comp = this.model.entityBySource(sourceId)?.components.find((c) => c.type === compName);
+    if (!comp) return null;
+    const data = structuredClone(comp.data);
+    this.model.removeComponent(sourceId, compName);
+    return {
+      forward: () => this.model.removeComponent(sourceId, compName),
+      reverse: () => this.model.setComponent(sourceId, compName, structuredClone(data)),
+    };
+  }
+
+  addComponent(sourceId: EntityId, compName: string): void {
+    const op = this.addComponentOp(sourceId, compName);
+    if (op) this.history.record(`Add ${prettyLabel(compName)}`, op.forward, op.reverse);
   }
 
   /** Remove a component from an entity (Transform / Name are protected). Undoable. */
   removeComponent(sourceId: EntityId, compName: string): void {
-    if (compName === 'Transform' || compName === 'Name') return;
-    const comp = this.model.entityBySource(sourceId)?.components.find((c) => c.type === compName);
-    if (!comp) return;
-    const data = structuredClone(comp.data);
-    this.model.removeComponent(sourceId, compName);
-    this.history.record(
-      `Remove ${prettyLabel(compName)}`,
-      () => this.model.removeComponent(sourceId, compName),
-      () => this.model.setComponent(sourceId, compName, structuredClone(data)),
-    );
+    const op = this.removeComponentOp(sourceId, compName);
+    if (op) this.history.record(`Remove ${prettyLabel(compName)}`, op.forward, op.reverse);
+  }
+
+  /** Add a component to many entities (multi-select) as ONE undo step. */
+  addComponentMany(sourceIds: readonly EntityId[], compName: string): void {
+    const ops = sourceIds.map((id) => this.addComponentOp(id, compName)).filter((o): o is UndoOp => !!o);
+    this.history.batch(`Add ${prettyLabel(compName)}`, ops);
+  }
+
+  /** Remove a component from many entities (multi-select) as ONE undo step. */
+  removeComponentMany(sourceIds: readonly EntityId[], compName: string): void {
+    const ops = sourceIds.map((id) => this.removeComponentOp(id, compName)).filter((o): o is UndoOp => !!o);
+    this.history.batch(`Remove ${prettyLabel(compName)}`, ops);
   }
 
   /**
@@ -485,11 +511,12 @@ export class SceneCommandsImpl {
     const entity = this.model.entityBySource(sourceId);
     if (!entity) return;
     this.beginGesture(visible ? 'Show' : 'Hide');
+    // Toggle only RENDER components' enable flag (each via its own key — Sprite
+    // uses `enabled`, TilemapLayer `visible`), so hiding never disables physics.
     for (const comp of entity.components) {
-      const data = comp.data as Record<string, unknown>;
-      if (data && typeof data === 'object' && 'enabled' in data) {
-        this.setField(sourceId, comp.type, 'enabled', 'bool', visible);
-      }
+      if (!isRenderComponent(comp.type)) continue;
+      const en = componentEnable(comp.type, comp.data as Record<string, unknown>);
+      if (en) this.setField(sourceId, comp.type, en.key, 'bool', visible);
     }
     this.endGesture();
   }

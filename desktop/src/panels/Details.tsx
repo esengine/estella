@@ -871,9 +871,6 @@ function EditorDetails() {
     [selectedId, selectedIds],
   );
   const multi = ids.length > 1;
-  // Apply a structural command to every selected entity. Field edits coalesce into
-  // one undo step via the gesture; add/remove component record per entity.
-  const fanOut = (action: (id: EntityId) => void) => ids.forEach(action);
 
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -1040,7 +1037,7 @@ function EditorDetails() {
               label: ids.length > 1 ? `Remove Component (${ids.length})` : 'Remove Component',
               danger: true,
               icon: <Trash2 size={13} strokeWidth={1.9} />,
-              onClick: () => fanOut((id) => SceneCommands.removeComponent(id, compMenu.comp)),
+              onClick: () => SceneCommands.removeComponentMany(ids, compMenu.comp),
             },
           ]}
           onClose={() => setCompMenu(null)}
@@ -1049,7 +1046,7 @@ function EditorDetails() {
       {addOpen && modelEntity && (
         <AddComponentMenu
           entries={modelAddableComponentEntries(modelEntity)}
-          onAdd={(name) => fanOut((id) => SceneCommands.addComponent(id, name))}
+          onAdd={(name) => SceneCommands.addComponentMany(ids, name)}
           onClose={() => setAddOpen(false)}
         />
       )}

@@ -31,6 +31,16 @@ export class EditorHistoryImpl {
     this.bump();
   }
 
+  /** Register several already-applied mutations as ONE undo step (e.g. a
+   *  multi-selection add/remove). No-op on an empty op list. */
+  batch(label: string, ops: ReadonlyArray<{ forward: () => void; reverse: () => void }>) {
+    if (ops.length === 0) return;
+    const tx = this.tm.begin(label);
+    for (const op of ops) tx.addDeferred(op);
+    this.tm.commit(tx);
+    this.bump();
+  }
+
   undo() {
     if (this.tm.undo()) this.bump();
   }

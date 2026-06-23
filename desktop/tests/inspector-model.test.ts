@@ -374,6 +374,61 @@ describe('Advanced fields (D5)', () => {
   });
 });
 
+describe('Polish: render-scoped visibility + batch undo', () => {
+  const TF = { position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+
+  it('a disabled non-render component leaves the entity visible; a disabled renderer hides it', () => {
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'v',
+        entities: [
+          {
+            id: 1,
+            name: 'A',
+            parent: null,
+            children: [],
+            components: [{ type: 'Sprite', data: { enabled: true } }, { type: 'RigidBody', data: { enabled: false } }],
+          },
+          { id: 2, name: 'B', parent: null, children: [], components: [{ type: 'Sprite', data: { enabled: false } }] },
+        ],
+      } as unknown as SceneData,
+      new Map([[1, 1], [2, 2]]),
+    );
+    const tree = S.query.readSceneTree();
+    expect(tree.find((n) => n.id === 1)!.visible).toBe(true); // physics off, still rendered
+    expect(tree.find((n) => n.id === 2)!.visible).toBe(false); // sprite off → hidden
+  });
+
+  it('multi-select add then remove component is one undo step each', () => {
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'm',
+        entities: [
+          { id: 1, name: 'A', parent: null, children: [], components: [{ type: 'Transform', data: TF }] },
+          { id: 2, name: 'B', parent: null, children: [], components: [{ type: 'Transform', data: TF }] },
+        ],
+      } as unknown as SceneData,
+      new Map([[1, 1], [2, 2]]),
+    );
+    const hasSprite = (id: number) => S.query.readInspector(id).some((c) => c.name === 'Sprite');
+
+    S.commands.addComponentMany([1, 2], 'Sprite');
+    expect([hasSprite(1), hasSprite(2)]).toEqual([true, true]);
+    S.history.undo(); // ONE step removes it from both
+    expect([hasSprite(1), hasSprite(2)]).toEqual([false, false]);
+
+    S.commands.addComponentMany([1, 2], 'Sprite');
+    S.commands.removeComponentMany([1, 2], 'Sprite');
+    expect([hasSprite(1), hasSprite(2)]).toEqual([false, false]);
+    S.history.undo(); // ONE step restores it on both
+    expect([hasSprite(1), hasSprite(2)]).toEqual([true, true]);
+  });
+});
+
 describe('Category grouping (D7)', () => {
   it('groups builtin fields by category (ParticleEmitter)', () => {
     const S = EditorSession.create();

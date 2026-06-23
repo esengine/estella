@@ -34,6 +34,16 @@ export type AnyComp = Parameters<WorldT['has']>[1];
 
 // Structural/relationship components that drive the tree, not the inspector.
 const HIDDEN_COMPONENTS = new Set(['Parent', 'Children', 'Name']);
+// Components whose enable flag drives the entity's RENDER visibility (the Outliner
+// eye + hidden state). Disabling a non-render component (physics, audio, a script)
+// turns that behaviour off without hiding the entity.
+const RENDER_COMPONENTS = new Set([
+  'Sprite', 'ShapeRenderer', 'SpineAnimation', 'BitmapText', 'TilemapLayer', 'ParticleEmitter',
+]);
+/** Whether a component's enable flag participates in the entity's render visibility. */
+export function isRenderComponent(name: string): boolean {
+  return RENDER_COMPONENTS.has(name);
+}
 // Computed world-space mirrors on Transform — never editable.
 const DERIVED_FIELDS = new Set(['worldPosition', 'worldRotation', 'worldScale']);
 // Inspector display order; anything not listed follows in registration order.
@@ -418,11 +428,13 @@ export function modelNameOf(entity: SceneEntityLike, kind: NodeKind): string {
   return entity.name || `${cap(kind)} ${entity.id}`;
 }
 
-/** A source entity reads as hidden if any component is explicitly disabled. */
+/** Hidden iff a RENDER component is disabled — a disabled physics/audio/script
+ *  component leaves the entity visible (only its behaviour is off). */
 export function modelIsVisible(entity: SceneEntityLike): boolean {
   for (const c of entity.components) {
-    const d = c.data as Record<string, unknown>;
-    if (d && typeof d === 'object' && 'enabled' in d && d.enabled === false) return false;
+    if (!RENDER_COMPONENTS.has(c.type)) continue;
+    const en = componentEnable(c.type, c.data as Record<string, unknown>);
+    if (en && !en.value) return false;
   }
   return true;
 }
