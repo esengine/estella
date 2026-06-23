@@ -10,12 +10,17 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
-import { setUserSchemas, userSchema, type UserComponentSchema } from '@/engine/schema';
+import { setUserSchemas, userSchema, setBitmaskSource, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
 import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type WorkspaceState } from './format';
+
+/** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
+function normalizeLayers(layers?: string[]): string[] {
+  return Array.from({ length: 16 }, (_, i) => layers?.[i] ?? (i === 0 ? 'Default' : ''));
+}
 
 /** Whether an asset of the editor `type` is a valid pick for a `fieldType` slot. */
 function assetMatchesSlot(type: AssetType, fieldType?: string): boolean {
@@ -108,6 +113,8 @@ class ProjectStoreImpl {
       const pe = this.prefabCache.get(ref)?.entities.find((e) => e.prefabEntityId === prefabId);
       return pe ? pe.components : null;
     });
+    // Collider layer-mask fields resolve their bit labels from this project setting.
+    setBitmaskSource('collisionLayers', () => this.collisionLayerOptions());
   }
 
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
@@ -504,9 +511,19 @@ class ProjectStoreImpl {
   }
 
   /** The project's declared physics feature, with defaults (for Project Settings). */
-  physicsFeature(): { enabled: boolean; gravity: { x: number; y: number } } {
+  physicsFeature(): { enabled: boolean; gravity: { x: number; y: number }; collisionLayers: string[] } {
     const p = this.state?.features?.physics;
-    return { enabled: p?.enabled ?? false, gravity: p?.gravity ?? { x: 0, y: -9.81 } };
+    return {
+      enabled: p?.enabled ?? false,
+      gravity: p?.gravity ?? { x: 0, y: -9.81 },
+      collisionLayers: normalizeLayers(p?.collisionLayers),
+    };
+  }
+
+  /** Collision-layer bit options for the inspector's mask controls (name, else `Layer N`). */
+  collisionLayerOptions(): Array<{ label: string; value: number }> {
+    const names = this.physicsFeature().collisionLayers;
+    return names.map((name, i) => ({ label: name || `Layer ${i}`, value: 1 << i }));
   }
 
   /**
@@ -516,7 +533,7 @@ class ProjectStoreImpl {
    * parser doesn't model survive; in-memory state updates first so the toggle
    * reflects immediately.
    */
-  async setPhysics(patch: { enabled?: boolean; gravity?: { x: number; y: number } }): Promise<void> {
+  async setPhysics(patch: { enabled?: boolean; gravity?: { x: number; y: number }; collisionLayers?: string[] }): Promise<void> {
     const st = this.state;
     if (!st) return;
     const physics: NonNullable<ProjectFeatures['physics']> = { ...st.features?.physics, ...patch };

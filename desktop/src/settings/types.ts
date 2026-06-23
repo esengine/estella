@@ -76,11 +76,21 @@ export interface KeybindingSetting extends BaseSetting<string> {
   commandId: string;
 }
 
+/** A fixed-length list of text slots (e.g. named collision/sorting layers). */
+export interface StringListSetting extends BaseSetting<string[]> {
+  type: 'stringList';
+  /** Number of editable slots. */
+  count: number;
+  /** Placeholder for an empty slot, by index. */
+  placeholder?: (i: number) => string;
+}
+
 export type Setting =
   | BooleanSetting
   | NumberSetting
   | EnumSetting
   | ColorSetting
-  | KeybindingSetting;
+  | KeybindingSetting
+  | StringListSetting;
 
-export type SettingValue = boolean | number | string;
+export type SettingValue = boolean | number | string | string[];

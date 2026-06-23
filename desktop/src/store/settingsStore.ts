@@ -78,7 +78,10 @@ export const useSettings = create<SettingsState>((set, get) => ({
   isChanged: (id) => {
     const desc = settingsRegistry.get(id);
     if (!desc) return false;
-    return get().getValue(id) !== desc.default;
+    const cur = get().getValue(id);
+    // Arrays (e.g. layer names) compare by value, not reference.
+    if (Array.isArray(cur) || Array.isArray(desc.default)) return JSON.stringify(cur) !== JSON.stringify(desc.default);
+    return cur !== desc.default;
   },
 }));
 

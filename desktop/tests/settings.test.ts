@@ -31,6 +31,15 @@ describe('settings registry', () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((s) => s.type === 'keybinding')).toBe(true);
   });
+
+  it('registers the collision-layers list setting (16 slots, Default at 0)', () => {
+    const s = settingsRegistry.get('project.physics.collisionLayers');
+    expect(s?.type).toBe('stringList');
+    expect((s?.default as string[]).length).toBe(16);
+    expect((s?.default as string[])[0]).toBe('Default');
+    // A list setting at its default reads unchanged (compared by value, not reference).
+    expect(useSettings.getState().isChanged('project.physics.collisionLayers')).toBe(false);
+  });
 });
 
 describe('settings store', () => {

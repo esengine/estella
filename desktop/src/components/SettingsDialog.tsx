@@ -15,7 +15,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
-import type { Setting, NumberSetting, KeybindingSetting } from '@/settings/types';
+import type { Setting, NumberSetting, KeybindingSetting, StringListSetting } from '@/settings/types';
 
 const CATEGORY_LABEL: Record<string, string> = {
   editor: 'Editor',
@@ -118,6 +118,29 @@ function KeybindCapture({ setting }: { setting: KeybindingSetting }) {
   );
 }
 
+function StringListControl({ setting }: { setting: StringListSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const value = useSettings((s) => s.getValue<string[]>(setting.id)) ?? [];
+  return (
+    <div className="set-list">
+      {Array.from({ length: setting.count }, (_, i) => (
+        <input
+          key={i}
+          className="set-list-item"
+          value={value[i] ?? ''}
+          placeholder={setting.placeholder?.(i) ?? String(i)}
+          spellCheck={false}
+          onChange={(e) => {
+            const next = Array.from({ length: setting.count }, (_, j) => value[j] ?? '');
+            next[i] = e.target.value;
+            setValue(setting.id, next);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function Control({ setting }: { setting: Setting }) {
   const setValue = useSettings((s) => s.setValue);
   const value = useSettings((s) => s.getValue(setting.id));
@@ -174,6 +197,8 @@ function Control({ setting }: { setting: Setting }) {
       );
     case 'keybinding':
       return <KeybindCapture setting={setting} />;
+    case 'stringList':
+      return <StringListControl setting={setting} />;
   }
 }
 

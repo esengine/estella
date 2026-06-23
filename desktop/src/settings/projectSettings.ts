@@ -44,6 +44,23 @@ settingsRegistry.register({
 });
 
 settingsRegistry.register({
+  id: 'project.physics.collisionLayers',
+  type: 'stringList',
+  scope: 'project',
+  section: 'physics',
+  group: 'Collision Layers',
+  label: 'Layer names',
+  description: 'Names for the 16 collision-filter layers — shown in collider Category/Mask pickers.',
+  count: 16,
+  placeholder: (i) => `Layer ${i}`,
+  default: Array.from({ length: 16 }, (_, i) => (i === 0 ? 'Default' : '')),
+  bind: {
+    get: () => ProjectStore.physicsFeature().collisionLayers,
+    set: (v) => void ProjectStore.setPhysics({ collisionLayers: v }),
+  },
+});
+
+settingsRegistry.register({
   id: 'project.physics.gravityY',
   type: 'number',
   scope: 'project',

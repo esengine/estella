@@ -67,6 +67,8 @@ export interface ProjectFeatures {
   physics?: {
     enabled?: boolean;
     gravity?: { x: number; y: number };
+    /** Names for the 16 Box2D collision-filter layers (the inspector's layer masks). */
+    collisionLayers?: string[];
   };
 }
 
@@ -187,6 +189,9 @@ export function parseManifest(raw: unknown): ProjectManifest {
       const g = p.gravity as { x?: unknown; y?: unknown } | undefined;
       if (g && typeof g.x === 'number' && typeof g.y === 'number') {
         physics.gravity = { x: g.x, y: g.y };
+      }
+      if (Array.isArray(p.collisionLayers)) {
+        physics.collisionLayers = p.collisionLayers.slice(0, 16).map((n) => (typeof n === 'string' ? n : ''));
       }
       features.physics = physics;
     }
