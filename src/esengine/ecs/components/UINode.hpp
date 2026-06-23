@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+#pragma once
+
+#include "../../core/Types.hpp"
+#include "../../core/UITypes.hpp"     // Dimension
+#include "../../core/Reflection.hpp"
+#include "../../math/Math.hpp"        // glm::vec2 (computed output)
+#include "FlexItem.hpp"               // reuse AlignSelf
+
+namespace esengine::ecs {
+
+/**
+ * @brief UINode — the CSS box-model layout input (REARCH_GUI F3, the CSS/Flex
+ *        primary layout model; see docs/REARCH_GUI.md).
+ *
+ * Replaces the RectTransform anchor/offset/pivot model (UIRect) as the primary
+ * way to author UI geometry: every size is a Dimension (px / percent / auto), fed
+ * straight into the single-pass Yoga solver. Anchors live on the optional
+ * UIAnchors component for holdouts. `unit` literals below: 0=Px, 1=Percent,
+ * 2=Auto (mirrors the TS DimensionUnit enum).
+ *
+ * Container properties (direction/justify/align/gap) stay on FlexContainer
+ * (folded into UILayout in F4). Absolute positioning (position + inset) is added
+ * when the layout pass implements it.
+ */
+ES_COMPONENT()
+struct UINode {
+    // Box size; auto = content-/flex-driven.
+    ES_PROPERTY()
+    Dimension width{0.0f, 2};
+    ES_PROPERTY()
+    Dimension height{0.0f, 2};
+    ES_PROPERTY()
+    Dimension minWidth{0.0f, 2};
+    ES_PROPERTY()
+    Dimension minHeight{0.0f, 2};
+    ES_PROPERTY()
+    Dimension maxWidth{0.0f, 2};
+    ES_PROPERTY()
+    Dimension maxHeight{0.0f, 2};
+
+    // Flex item behaviour.
+    ES_PROPERTY()
+    f32 flexGrow{0.0f};
+    ES_PROPERTY()
+    f32 flexShrink{1.0f};
+    ES_PROPERTY()
+    Dimension flexBasis{0.0f, 2};
+    ES_PROPERTY()
+    AlignSelf alignSelf{AlignSelf::Auto};
+
+    // Outer margin (px by default).
+    ES_PROPERTY()
+    Dimension marginLeft{0.0f, 0};
+    ES_PROPERTY()
+    Dimension marginTop{0.0f, 0};
+    ES_PROPERTY()
+    Dimension marginRight{0.0f, 0};
+    ES_PROPERTY()
+    Dimension marginBottom{0.0f, 0};
+
+    // Layout output (not serialized): resolved px size written by the Yoga pass.
+    glm::vec2 computed_size_{0.0f};
+
+    UINode() = default;
+};
+
+}  // namespace esengine::ecs

@@ -1137,6 +1137,38 @@ export function createUIMaskData(): UIMaskPtrData {
     };
 }
 
+export interface UINodePtrData {
+    flexGrow: number;
+    flexShrink: number;
+    alignSelf: number;
+}
+
+export function fillUINode(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: UINodePtrData,
+): void {
+    out.flexGrow = f32[(ptr + 48) >> 2];
+    out.flexShrink = f32[(ptr + 52) >> 2];
+    out.alignSelf = u8[ptr + 64];
+}
+
+export function writeUINode(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: UINodePtrData,
+): void {
+    f32[(ptr + 48) >> 2] = data.flexGrow;
+    f32[(ptr + 52) >> 2] = data.flexShrink;
+    u8[ptr + 64] = data.alignSelf;
+}
+
+export function createUINodeData(): UINodePtrData {
+    return {
+        flexGrow: 0,
+        flexShrink: 0,
+        alignSelf: 0,
+    };
+}
+
 export interface UIRectPtrData {
     anchorMin: Vec2;
     anchorMax: Vec2;
@@ -1288,6 +1320,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
+    UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },
     UIRect: { fill: fillUIRect, write: writeUIRect, create: createUIRectData },
     UIRenderer: { fill: fillUIRenderer, write: writeUIRenderer, create: createUIRendererData },
     Velocity: { fill: fillVelocity, write: writeVelocity, create: createVelocityData },

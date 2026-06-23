@@ -31,6 +31,7 @@
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
+#include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/Velocity.hpp"
@@ -833,6 +834,61 @@ UIMaskJS uimaskToJS(const esengine::ecs::UIMask& c) {
     return js;
 }
 
+struct UINodeJS {
+    Dimension width;
+    Dimension height;
+    Dimension minWidth;
+    Dimension minHeight;
+    Dimension maxWidth;
+    Dimension maxHeight;
+    f32 flexGrow;
+    f32 flexShrink;
+    Dimension flexBasis;
+    i32 alignSelf;
+    Dimension marginLeft;
+    Dimension marginTop;
+    Dimension marginRight;
+    Dimension marginBottom;
+};
+
+esengine::ecs::UINode uinodeFromJS(const UINodeJS& js) {
+    esengine::ecs::UINode c;
+    c.width = js.width;
+    c.height = js.height;
+    c.minWidth = js.minWidth;
+    c.minHeight = js.minHeight;
+    c.maxWidth = js.maxWidth;
+    c.maxHeight = js.maxHeight;
+    c.flexGrow = js.flexGrow;
+    c.flexShrink = js.flexShrink;
+    c.flexBasis = js.flexBasis;
+    c.alignSelf = static_cast<AlignSelf>(js.alignSelf);
+    c.marginLeft = js.marginLeft;
+    c.marginTop = js.marginTop;
+    c.marginRight = js.marginRight;
+    c.marginBottom = js.marginBottom;
+    return c;
+}
+
+UINodeJS uinodeToJS(const esengine::ecs::UINode& c) {
+    UINodeJS js;
+    js.width = c.width;
+    js.height = c.height;
+    js.minWidth = c.minWidth;
+    js.minHeight = c.minHeight;
+    js.maxWidth = c.maxWidth;
+    js.maxHeight = c.maxHeight;
+    js.flexGrow = c.flexGrow;
+    js.flexShrink = c.flexShrink;
+    js.flexBasis = c.flexBasis;
+    js.alignSelf = static_cast<i32>(c.alignSelf);
+    js.marginLeft = c.marginLeft;
+    js.marginTop = c.marginTop;
+    js.marginRight = c.marginRight;
+    js.marginBottom = c.marginBottom;
+    return js;
+}
+
 struct UIRendererJS {
     i32 visualType;
     u32 texture;
@@ -1148,6 +1204,22 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<UIMaskJS>("UIMask")
         .field("enabled", &UIMaskJS::enabled)
         .field("mode", &UIMaskJS::mode);
+
+    value_object<UINodeJS>("UINode")
+        .field("width", &UINodeJS::width)
+        .field("height", &UINodeJS::height)
+        .field("minWidth", &UINodeJS::minWidth)
+        .field("minHeight", &UINodeJS::minHeight)
+        .field("maxWidth", &UINodeJS::maxWidth)
+        .field("maxHeight", &UINodeJS::maxHeight)
+        .field("flexGrow", &UINodeJS::flexGrow)
+        .field("flexShrink", &UINodeJS::flexShrink)
+        .field("flexBasis", &UINodeJS::flexBasis)
+        .field("alignSelf", &UINodeJS::alignSelf)
+        .field("marginLeft", &UINodeJS::marginLeft)
+        .field("marginTop", &UINodeJS::marginTop)
+        .field("marginRight", &UINodeJS::marginRight)
+        .field("marginBottom", &UINodeJS::marginBottom);
 
     value_object<esengine::ecs::UIRect>("UIRect")
         .field("anchorMin", &esengine::ecs::UIRect::anchorMin)
@@ -1683,6 +1755,26 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::UIMask>(entity);
         }))
 
+        // UINode
+        .function("hasUINode", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UINode>(static_cast<Entity>(e));
+        }))
+        .function("getUINode", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UINode>(entity)) return UINodeJS{};
+            return uinodeToJS(r.get<esengine::ecs::UINode>(entity));
+        }))
+        .function("addUINode", optional_override([](Registry& r, u32 e, const UINodeJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UINode>(entity, uinodeFromJS(js));
+        }))
+        .function("removeUINode", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UINode>(entity)) return;
+            r.remove<esengine::ecs::UINode>(entity);
+        }))
+
         // UIRect
         .function("hasUIRect", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::UIRect>(static_cast<Entity>(e));
@@ -1785,6 +1877,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Transform")));
     arr.set(i++, val(std::string("UIInteraction")));
     arr.set(i++, val(std::string("UIMask")));
+    arr.set(i++, val(std::string("UINode")));
     arr.set(i++, val(std::string("UIRect")));
     arr.set(i++, val(std::string("UIRenderer")));
     arr.set(i++, val(std::string("Velocity")));
@@ -1984,6 +2077,9 @@ static_assert(offsetof(esengine::ecs::UIInteraction, justPressed) == 2, "ABI off
 static_assert(offsetof(esengine::ecs::UIInteraction, justReleased) == 3, "ABI offset drift: esengine::ecs::UIInteraction.justReleased (EHT expected 3)");
 static_assert(offsetof(esengine::ecs::UIMask, enabled) == 0, "ABI offset drift: esengine::ecs::UIMask.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIMask, mode) == 1, "ABI offset drift: esengine::ecs::UIMask.mode (EHT expected 1)");
+static_assert(offsetof(esengine::ecs::UINode, flexGrow) == 48, "ABI offset drift: esengine::ecs::UINode.flexGrow (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::UINode, flexShrink) == 52, "ABI offset drift: esengine::ecs::UINode.flexShrink (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::UINode, alignSelf) == 64, "ABI offset drift: esengine::ecs::UINode.alignSelf (EHT expected 64)");
 static_assert(offsetof(esengine::ecs::UIRect, anchorMin) == 0, "ABI offset drift: esengine::ecs::UIRect.anchorMin (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIRect, anchorMax) == 8, "ABI offset drift: esengine::ecs::UIRect.anchorMax (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::UIRect, offsetMin) == 16, "ABI offset drift: esengine::ecs::UIRect.offsetMin (EHT expected 16)");
@@ -2006,7 +2102,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "579120e76e895e7c";
+static const char* kEsAbiLayoutHash = "25bb0ec77b88b51a";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

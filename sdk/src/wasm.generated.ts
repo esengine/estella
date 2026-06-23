@@ -431,6 +431,23 @@ export interface UIMask {
     mode: number;
 }
 
+export interface UINode {
+    width: Dimension;
+    height: Dimension;
+    minWidth: Dimension;
+    minHeight: Dimension;
+    maxWidth: Dimension;
+    maxHeight: Dimension;
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: Dimension;
+    alignSelf: number;
+    marginLeft: Dimension;
+    marginTop: Dimension;
+    marginRight: Dimension;
+    marginBottom: Dimension;
+}
+
 export interface UIRect {
     anchorMin: Vec2;
     anchorMax: Vec2;
@@ -559,6 +576,10 @@ export interface Registry {
     getUIMask(entity: Entity): UIMask;
     addUIMask(entity: Entity, component: UIMask): void;
     removeUIMask(entity: Entity): void;
+    hasUINode(entity: Entity): boolean;
+    getUINode(entity: Entity): UINode;
+    addUINode(entity: Entity, component: UINode): void;
+    removeUINode(entity: Entity): void;
     hasUIRect(entity: Entity): boolean;
     getUIRect(entity: Entity): UIRect;
     addUIRect(entity: Entity, component: UIRect): void;
@@ -609,6 +630,7 @@ export interface ESEngineModule {
     Transform: new () => Transform;
     UIInteraction: new () => UIInteraction;
     UIMask: new () => UIMask;
+    UINode: new () => UINode;
     UIRect: new () => UIRect;
     UIRenderer: new () => UIRenderer;
     Velocity: new () => Velocity;
