@@ -11,6 +11,7 @@ import { Text, type TextData } from '../core/text';
 
 import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
 import { px, percent } from '../core/dimension';
+import { themeColors } from '../theme/tokens';
 
 export interface DropdownOptions<T> {
     world: World;
@@ -35,7 +36,7 @@ export interface DropdownOptions<T> {
         pressed?: Color;
     };
     /** Popup panel background. */
-    popupRenderer?: UIVisualInit;
+    popupVisual?: UIVisualInit;
     /** Height of each option row in pixels. Default 32. */
     optionHeight?: number;
 
@@ -53,14 +54,6 @@ export interface DropdownHandle<T> {
     close(): void;
     dispose(): void;
 }
-
-const DEFAULT_BTN_NORMAL: Color  = { r: 0.22, g: 0.22, b: 0.26, a: 1 };
-const DEFAULT_BTN_HOVER:  Color  = { r: 0.28, g: 0.28, b: 0.32, a: 1 };
-const DEFAULT_BTN_PRESS:  Color  = { r: 0.18, g: 0.18, b: 0.22, a: 1 };
-const DEFAULT_OPT_NORMAL: Color  = { r: 0.20, g: 0.20, b: 0.24, a: 1 };
-const DEFAULT_OPT_HOVER:  Color  = { r: 0.30, g: 0.50, b: 0.90, a: 1 };
-const DEFAULT_OPT_PRESS:  Color  = { r: 0.20, g: 0.40, b: 0.75, a: 1 };
-const DEFAULT_POPUP_BG:   Color  = { r: 0.14, g: 0.14, b: 0.16, a: 1 };
 
 const INTERACTION_DEFAULT = {
     hovered: false, pressed: false, justPressed: false, justReleased: false,
@@ -94,15 +87,16 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     const optionHeight = opts.optionHeight ?? 32;
     let selectedIndex = opts.selectedIndex ?? 0;
 
+    const c = themeColors();
     const btnColors = {
-        normal:  opts.buttonStates?.normal  ?? DEFAULT_BTN_NORMAL,
-        hover:   opts.buttonStates?.hover   ?? DEFAULT_BTN_HOVER,
-        pressed: opts.buttonStates?.pressed ?? DEFAULT_BTN_PRESS,
+        normal:  opts.buttonStates?.normal  ?? c.control,
+        hover:   opts.buttonStates?.hover   ?? c.controlHover,
+        pressed: opts.buttonStates?.pressed ?? c.controlActive,
     };
     const optColors = {
-        normal:  opts.optionStates?.normal  ?? DEFAULT_OPT_NORMAL,
-        hover:   opts.optionStates?.hover   ?? DEFAULT_OPT_HOVER,
-        pressed: opts.optionStates?.pressed ?? DEFAULT_OPT_PRESS,
+        normal:  opts.optionStates?.normal  ?? c.control,
+        hover:   opts.optionStates?.hover   ?? c.primaryHover,
+        pressed: opts.optionStates?.pressed ?? c.primaryActive,
     };
 
     // Button root.
@@ -146,7 +140,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
                 insetTop: percent(100),
                 height: px(totalHeight),
             },
-            visual: opts.popupRenderer ?? { color: DEFAULT_POPUP_BG },
+            visual: opts.popupVisual ?? { color: c.surfaceElevated },
         });
 
         for (let i = 0; i < opts.options.length; i++) {

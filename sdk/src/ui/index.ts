@@ -295,6 +295,17 @@ export { SafeAreaPlugin, safeAreaPlugin } from './layout/safe-area';
 
 export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './render/render-order';
 
+// ─── Theme (design tokens) ──────────────────────────────────────────────────
+
+export {
+    DARK_TOKENS,
+    getTheme,
+    setTheme,
+    themeColors,
+    type ThemeTokens,
+    type ThemeColors,
+} from './theme/tokens';
+
 // Property Path Utilities
 export {
     getNestedProperty,

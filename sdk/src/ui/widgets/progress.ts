@@ -7,6 +7,7 @@ import { UINode, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
 
 import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
+import { themeColors } from '../theme/tokens';
 
 export interface ProgressOptions {
     world: World;
@@ -39,12 +40,13 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
     const { world } = opts;
     const direction = opts.direction ?? 'right';
     let value = clamp01(opts.value ?? 0);
+    const c = themeColors();
 
     const track = spawnUIEntity({
         world,
         parent: opts.parent,
         node: opts.node ?? { fill: true },
-        visual: opts.background ?? { color: { r: 0.15, g: 0.15, b: 0.15, a: 1 } },
+        visual: opts.background ?? { color: c.track },
     });
 
     const fill = spawnUIEntity({
@@ -52,7 +54,7 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
         parent: track,
         node: nodeForProgress(direction, value),
         visual: {
-            color: opts.fill?.color ?? { r: 0.25, g: 0.56, b: 0.96, a: 1 },
+            color: opts.fill?.color ?? c.primary,
             texture: opts.fill?.sprite ?? 0,
             visualType: opts.fill?.sprite ? 2 /* Image */ : 1 /* SolidColor */,
         },

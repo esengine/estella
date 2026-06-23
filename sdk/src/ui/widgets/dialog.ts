@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { Color, Entity } from '../../types';
+import type { Entity } from '../../types';
 import type { World } from '../../world';
 
 import { Interactable, UIInteraction } from '../behavior/interactable';
 
 import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
 import { px, percent } from '../core/dimension';
+import { themeColors } from '../theme/tokens';
 
 export interface DialogOptions {
     world: World;
     parent?: Entity;
     /** Full-viewport backdrop. Default: fill the parent. */
     backdropNode?: UINodeInit;
-    /** Backdrop visuals. Default: 50% black overlay. */
-    backdropRenderer?: UIVisualInit;
+    /** Backdrop visuals. Default: themed scrim. */
+    backdropVisual?: UIVisualInit;
     /** Panel box (the modal). Default: 400x300 centered. */
     panelNode?: UINodeInit;
-    panelRenderer?: UIVisualInit;
+    panelVisual?: UIVisualInit;
     /** Start hidden. Default true. */
     startHidden?: boolean;
 }
@@ -31,9 +32,6 @@ export interface DialogHandle {
     dispose(): void;
 }
 
-const DEFAULT_BACKDROP_COLOR: Color = { r: 0, g: 0, b: 0, a: 0.5 };
-const DEFAULT_PANEL_COLOR: Color = { r: 0.16, g: 0.16, b: 0.18, a: 1 };
-
 /**
  * Modal dialog: backdrop entity (blocks clicks behind it) with a
  * centered panel child. Hidden by default; `open()` / `close()`
@@ -43,12 +41,13 @@ const DEFAULT_PANEL_COLOR: Color = { r: 0.16, g: 0.16, b: 0.18, a: 1 };
  */
 export function createDialog(opts: DialogOptions): DialogHandle {
     const { world } = opts;
+    const c = themeColors();
 
     const backdrop = spawnUIEntity({
         world,
         parent: opts.parent,
         node: opts.backdropNode ?? { fill: true },
-        visual: opts.backdropRenderer ?? { color: DEFAULT_BACKDROP_COLOR },
+        visual: opts.backdropVisual ?? { color: c.backdrop },
     });
 
     // Blocks hit-test on the scene behind the dialog.
@@ -74,7 +73,7 @@ export function createDialog(opts: DialogOptions): DialogHandle {
             marginLeft: px(-200),
             marginTop: px(-150),
         },
-        visual: opts.panelRenderer ?? { color: DEFAULT_PANEL_COLOR },
+        visual: opts.panelVisual ?? { color: c.surface },
     });
 
     let open = !(opts.startHidden ?? true);

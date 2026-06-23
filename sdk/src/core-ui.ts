@@ -89,4 +89,11 @@ export {
     colorWithAlpha,
     /** @internal per-entity state map used by interaction behaviour */
     EntityStateMap,
+    // Theme design tokens (REARCH_GUI F7)
+    DARK_TOKENS,
+    getTheme,
+    setTheme,
+    themeColors,
+    type ThemeTokens,
+    type ThemeColors,
 } from './ui';
