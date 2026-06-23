@@ -116,7 +116,9 @@ export function MenuBar() {
         cmdItem('build.scripts'),
         {
           label: 'Extract Component Schemas',
-          onClick: () => void window.estella?.project?.extractSchemas?.()
+          // refreshUserSchemas extracts AND reloads into the editor (so the
+          // inspector updates), unlike a bare extract that only writes the file.
+          onClick: () => void ProjectStore.refreshUserSchemas()
             .then(() => Toasts.push('Extracted component schemas', 'success'))
             .catch(() => Toasts.push('Extract failed', 'error')),
           disabled: !project,

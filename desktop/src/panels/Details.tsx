@@ -35,7 +35,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { PlayInspect } from '@/engine/PlayInspect';
 import type { SceneData } from 'esengine';
-import { modelAddableComponentEntries } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
@@ -595,6 +595,8 @@ export function Details() {
 function EditorDetails() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const revision = useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
+  // Re-render when a project component's schema changes (live edit of its source).
+  useSyncExternalStore(subscribeSchemas, getSchemaRevision);
   const selectedId = useSelection((s) => s.selectedId);
   const selectedAsset = useSelection((s) => s.selectedAsset);
   const ready = engine.status === 'ready' && selectedId != null;

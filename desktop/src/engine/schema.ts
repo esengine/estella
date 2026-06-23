@@ -171,10 +171,24 @@ export interface UserComponentSchema {
 
 const userSchemas = new Map<string, UserComponentSchema>();
 
-/** Replace the user-component schema source (called on project open). */
+// Revision bumped whenever the user-component schemas change, so the inspector
+// re-renders when a project component is edited live (not only on scene change).
+const schemaListeners = new Set<() => void>();
+let schemaRevision = 0;
+/** Subscribe to user-schema changes (for useSyncExternalStore). */
+export const subscribeSchemas = (fn: () => void): (() => void) => {
+  schemaListeners.add(fn);
+  return () => { schemaListeners.delete(fn); };
+};
+export const getSchemaRevision = (): number => schemaRevision;
+
+/** Replace the user-component schema source (project open, manual extract, or a
+ *  live edit of the project's component sources). Notifies subscribers. */
 export function setUserSchemas(schemas: UserComponentSchema[]): void {
   userSchemas.clear();
   for (const s of schemas) userSchemas.set(s.name, s);
+  schemaRevision++;
+  for (const l of schemaListeners) l();
 }
 
 /** The user schema for a component name, if any. */
