@@ -612,6 +612,24 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   );
 }
 
+// A collapsible sub-section inside a component (a property category, or Advanced).
+// Children stay mounted so the grid-rows height transition animates both ways.
+function Fold({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <>
+      <div className={`subfold${open ? ' open' : ''}`} onClick={onToggle}>
+        <ChevronRight size={9} strokeWidth={3} />
+        {label}
+      </div>
+      <div className="subbody">
+        <div>{children}</div>
+      </div>
+    </>
+  );
+}
+
+const ADVANCED_FOLD = '__advanced__';
+
 function ComponentSection({
   entities,
   comp,
@@ -629,9 +647,22 @@ function ComponentSection({
 }) {
   const Icon = componentIcon(comp.name);
   const overridden = comp.fields.some(isModified);
-  const [advOpen, setAdvOpen] = useState(false);
-  const primary = comp.fields.filter((f) => !f.advanced);
-  const advanced = comp.fields.filter((f) => f.advanced);
+  // Categories default open, the Advanced fold defaults closed.
+  const [openFolds, setOpenFolds] = useState<Record<string, boolean>>({});
+  const isOpen = (name: string) => openFolds[name] ?? name !== ADVANCED_FOLD;
+  const toggleFold = (name: string) => setOpenFolds((s) => ({ ...s, [name]: !isOpen(name) }));
+
+  // Bucket fields: a category wins (grouped under its header); else advanced (the
+  // Advanced fold); else ungrouped at the top.
+  const ungrouped: InspectorField[] = [];
+  const advancedFields: InspectorField[] = [];
+  const groups = new Map<string, InspectorField[]>();
+  for (const f of comp.fields) {
+    if (f.category) (groups.get(f.category) ?? groups.set(f.category, []).get(f.category)!).push(f);
+    else if (f.advanced) advancedFields.push(f);
+    else ungrouped.push(f);
+  }
+  const row = (f: InspectorField) => <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} />;
   const enable = comp.enable;
   const on = !enable || enable.value;
   // The header checkbox toggles the component's enable field across the whole
@@ -685,23 +716,16 @@ function ComponentSection({
       <div className="comp-body">
         <div className="cinner">
           <div className="comp-fields">
-            {primary.map((f) => (
-              <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} />
+            {ungrouped.map(row)}
+            {[...groups].map(([cat, fields]) => (
+              <Fold key={cat} label={cat} open={isOpen(cat)} onToggle={() => toggleFold(cat)}>
+                {fields.map(row)}
+              </Fold>
             ))}
-            {advanced.length > 0 && (
-              <>
-                <div className={`subfold${advOpen ? ' open' : ''}`} onClick={() => setAdvOpen((o) => !o)}>
-                  <ChevronRight size={9} strokeWidth={3} />
-                  Advanced
-                </div>
-                <div className="subbody">
-                  <div>
-                    {advanced.map((f) => (
-                      <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} />
-                    ))}
-                  </div>
-                </div>
-              </>
+            {advancedFields.length > 0 && (
+              <Fold label="Advanced" open={isOpen(ADVANCED_FOLD)} onToggle={() => toggleFold(ADVANCED_FOLD)}>
+                {advancedFields.map(row)}
+              </Fold>
             )}
           </div>
         </div>

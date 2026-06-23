@@ -79,6 +79,8 @@ export interface InspectorField {
   unit?: string;
   /** A rarely-edited field — tucked behind the component's "Advanced" fold. */
   advanced?: boolean;
+  /** Groups the field under a collapsible category header (UE's property categories). */
+  category?: string;
   /**
    * Multi-selection: the selected entities disagree on this field's value. `value`
    * holds the primary entity's value (shown muted); an edit fans out to all.

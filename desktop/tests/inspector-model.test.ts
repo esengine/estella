@@ -374,6 +374,51 @@ describe('Advanced fields (D5)', () => {
   });
 });
 
+describe('Category grouping (D7)', () => {
+  it('groups builtin fields by category (ParticleEmitter)', () => {
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'p',
+        entities: [{ id: 1, name: 'P', parent: null, children: [], components: [{ type: 'ParticleEmitter', data: {} }] }],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const pe = S.query.readInspector(1).find((c) => c.name === 'ParticleEmitter')!;
+    const cats = new Set(pe.fields.map((f) => f.category).filter(Boolean));
+    expect(cats).toContain('Emission');
+    expect(cats).toContain('Rendering');
+    expect(pe.fields.find((f) => f.key === 'rate')!.category).toBe('Emission');
+    // Categorized fields are not also flagged advanced (category wins).
+    expect(pe.fields.every((f) => !(f.category && f.advanced))).toBe(true);
+  });
+
+  it('lets a user component declare a field category via its schema', () => {
+    setUserSchemas([
+      {
+        name: 'Gun',
+        isTag: false,
+        default: { fireRate: 1, recoil: 0 },
+        colorKeys: [],
+        fields: { recoil: { category: 'Feel' } },
+      },
+    ]);
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'g',
+        entities: [{ id: 1, name: 'G', parent: null, children: [], components: [{ type: 'Gun', data: { fireRate: 1, recoil: 0 } }] }],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const gun = S.query.readInspector(1).find((c) => c.name === 'Gun')!;
+    expect(gun.fields.find((f) => f.key === 'recoil')!.category).toBe('Feel');
+    expect(gun.fields.find((f) => f.key === 'fireRate')!.category).toBeUndefined();
+  });
+});
+
 describe('Per-component enable (D4)', () => {
   function sceneWith(type: string, data: Record<string, unknown>): SceneData {
     return {

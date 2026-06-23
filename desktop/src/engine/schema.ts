@@ -180,6 +180,7 @@ export interface UserFieldMeta {
   slider?: boolean;
   unit?: string;
   advanced?: boolean;
+  category?: string;
 }
 
 const userSchemas = new Map<string, UserComponentSchema>();
@@ -253,6 +254,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
       slider: fromDef.slider,
       unit: fromDef.unit,
       advanced: fromDef.advanced,
+      category: fromDef.category,
     };
   }
   return userSchema(compType)?.fields?.[key] ?? null;
@@ -291,8 +293,9 @@ function fieldFor(
       if (meta.slider && meta.min != null && meta.max != null) field.slider = true;
     }
   }
-  // Presentation policy that applies to any field type (folds rarely-edited fields).
+  // Presentation policy that applies to any field type (folds + category grouping).
   if (field && meta?.advanced) field.advanced = true;
+  if (field && meta?.category) field.category = meta.category;
   return field;
 }
 
