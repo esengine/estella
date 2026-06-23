@@ -3,14 +3,15 @@
 import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
-import { UIRect, type UIRectData } from '../core/ui-rect';
+import { UINode, type UINodeData } from '../core/ui-node';
+import { px, percent } from '../core/dimension';
 
-import { spawnUIEntity, type UIRectInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIRendererInit } from './helpers';
 
 export interface ProgressOptions {
     world: World;
     parent?: Entity;
-    rect?: UIRectInit;
+    node?: UINodeInit;
     /** Background (track) renderer. */
     background?: UIRendererInit;
     /** Fill renderer config (the filled bar). */
@@ -42,14 +43,14 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
     const track = spawnUIEntity({
         world,
         parent: opts.parent,
-        rect: opts.rect,
+        node: opts.node ?? { fill: true },
         renderer: opts.background ?? { color: { r: 0.15, g: 0.15, b: 0.15, a: 1 } },
     });
 
     const fill = spawnUIEntity({
         world,
         parent: track,
-        rect: anchorsForProgress(direction, value),
+        node: nodeForProgress(direction, value),
         renderer: {
             color: opts.fill?.color ?? { r: 0.25, g: 0.56, b: 0.96, a: 1 },
             texture: opts.fill?.sprite ?? 0,
@@ -57,15 +58,16 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
         },
     });
 
+    const horizontal = direction === 'right' || direction === 'left';
+
     function setValue(v: number): void {
         const next = clamp01(v);
         if (next === value) return;
         value = next;
-        const rect = world.get(fill, UIRect) as UIRectData;
-        const updated = anchorsForProgress(direction, value);
-        rect.anchorMin = updated.anchorMin!;
-        rect.anchorMax = updated.anchorMax!;
-        world.insert(fill, UIRect, rect);
+        const node = world.get(fill, UINode) as UINodeData;
+        if (horizontal) node.width = percent(value * 100);
+        else node.height = percent(value * 100);
+        world.insert(fill, UINode, node);
     }
 
     return {
@@ -83,18 +85,19 @@ function clamp01(v: number): number {
     return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-function anchorsForProgress(
+// Fill grows along `dir`: pinned to 3 edges, with width/height = value fraction.
+function nodeForProgress(
     dir: 'right' | 'left' | 'up' | 'down',
     t: number,
-): UIRectInit {
+): UINodeInit {
     switch (dir) {
         case 'right':
-            return { anchorMin: { x: 0, y: 0 }, anchorMax: { x: t, y: 1 } };
+            return { position: 1, insetLeft: px(0), insetTop: px(0), insetBottom: px(0), width: percent(t * 100) };
         case 'left':
-            return { anchorMin: { x: 1 - t, y: 0 }, anchorMax: { x: 1, y: 1 } };
+            return { position: 1, insetRight: px(0), insetTop: px(0), insetBottom: px(0), width: percent(t * 100) };
         case 'up':
-            return { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: t } };
+            return { position: 1, insetLeft: px(0), insetRight: px(0), insetBottom: px(0), height: percent(t * 100) };
         case 'down':
-            return { anchorMin: { x: 0, y: 1 - t }, anchorMax: { x: 1, y: 1 } };
+            return { position: 1, insetLeft: px(0), insetRight: px(0), insetTop: px(0), height: percent(t * 100) };
     }
 }

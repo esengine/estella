@@ -9,13 +9,14 @@ import { StateVisuals, TransitionFlag, type StateVisualsData } from '../behavior
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Text, type TextData } from '../core/text';
 
-import { spawnUIEntity, type UIRectInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIRendererInit } from './helpers';
+import { px, percent } from '../core/dimension';
 
 export interface DropdownOptions<T> {
     world: World;
     events: UIEventQueue;
     parent?: Entity;
-    rect?: UIRectInit;
+    node?: UINodeInit;
 
     options: readonly T[];
     selectedIndex?: number;
@@ -112,7 +113,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     const button = spawnUIEntity({
         world,
         parent: opts.parent,
-        rect: opts.rect,
+        node: opts.node ?? { fill: true },
         renderer: { color: btnColors.normal },
     });
     world.insert(button, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
@@ -123,7 +124,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     const label = spawnUIEntity({
         world,
         parent: button,
-        rect: { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 } },
+        node: { fill: true },
         text: { content: labelOf(opts.options[selectedIndex]!, selectedIndex) },
     });
 
@@ -141,18 +142,20 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         popupPanel = spawnUIEntity({
             world,
             parent: button,
-            rect: {
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 1, y: 0 },
-                offsetMin: { x: 0, y: -totalHeight },
-                offsetMax: { x: 0, y: 0 },
+            // Below the button: absolute, full width, top at the button's bottom edge.
+            node: {
+                position: 1,
+                insetLeft: px(0),
+                insetRight: px(0),
+                insetTop: percent(100),
+                height: px(totalHeight),
             },
             renderer: opts.popupRenderer ?? { color: DEFAULT_POPUP_BG },
         });
 
         for (let i = 0; i < opts.options.length; i++) {
             const index = i;
-            const row = spawnOptionRow(index, totalHeight);
+            const row = spawnOptionRow(index);
             const off = events.on(row, UIEventType.StateChanged, (e) => {
                 const d = e.data as { from: string; to: string };
                 if (d.from === 'pressed' && d.to === 'hover') {
@@ -163,15 +166,17 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         }
     }
 
-    function spawnOptionRow(index: number, totalHeight: number): Entity {
-        const yTop = 1 - (index * optionHeight) / totalHeight;
-        const yBottom = 1 - ((index + 1) * optionHeight) / totalHeight;
+    function spawnOptionRow(index: number): Entity {
         const row = spawnUIEntity({
             world,
             parent: popupPanel!,
-            rect: {
-                anchorMin: { x: 0, y: yBottom },
-                anchorMax: { x: 1, y: yTop },
+            // Stacked top-down: absolute, full width, row i at i*optionHeight.
+            node: {
+                position: 1,
+                insetLeft: px(0),
+                insetRight: px(0),
+                insetTop: px(index * optionHeight),
+                height: px(optionHeight),
             },
             renderer: { color: optColors.normal },
         });
@@ -183,7 +188,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         spawnUIEntity({
             world,
             parent: row,
-            rect: { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 } },
+            node: { fill: true },
             text: { content: labelOf(opts.options[index]!, index) },
         });
 

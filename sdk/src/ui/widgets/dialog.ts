@@ -5,17 +5,18 @@ import type { World } from '../../world';
 
 import { Interactable, UIInteraction } from '../behavior/interactable';
 
-import { spawnUIEntity, setUIVisible, type UIRectInit, type UIRendererInit } from './helpers';
+import { spawnUIEntity, setUIVisible, type UINodeInit, type UIRendererInit } from './helpers';
+import { px, percent } from '../core/dimension';
 
 export interface DialogOptions {
     world: World;
     parent?: Entity;
-    /** Full-viewport backdrop rect. Default: stretched to parent. */
-    backdropRect?: UIRectInit;
+    /** Full-viewport backdrop. Default: fill the parent. */
+    backdropNode?: UINodeInit;
     /** Backdrop visuals. Default: 50% black overlay. */
     backdropRenderer?: UIRendererInit;
-    /** Panel rect (the modal box). Default: 400x300 centered. */
-    panelRect?: UIRectInit;
+    /** Panel box (the modal). Default: 400x300 centered. */
+    panelNode?: UINodeInit;
     panelRenderer?: UIRendererInit;
     /** Start hidden. Default true. */
     startHidden?: boolean;
@@ -46,7 +47,7 @@ export function createDialog(opts: DialogOptions): DialogHandle {
     const backdrop = spawnUIEntity({
         world,
         parent: opts.parent,
-        rect: opts.backdropRect ?? { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 } },
+        node: opts.backdropNode ?? { fill: true },
         renderer: opts.backdropRenderer ?? { color: DEFAULT_BACKDROP_COLOR },
     });
 
@@ -63,11 +64,15 @@ export function createDialog(opts: DialogOptions): DialogHandle {
     const panel = spawnUIEntity({
         world,
         parent: backdrop,
-        rect: opts.panelRect ?? {
-            anchorMin: { x: 0.5, y: 0.5 },
-            anchorMax: { x: 0.5, y: 0.5 },
-            size: { x: 400, y: 300 },
-            pivot: { x: 0.5, y: 0.5 },
+        // Centered modal: absolute, 50% inset shifted back by half its size.
+        node: opts.panelNode ?? {
+            position: 1,
+            width: px(400),
+            height: px(300),
+            insetLeft: percent(50),
+            insetTop: percent(50),
+            marginLeft: px(-200),
+            marginTop: px(-150),
         },
         renderer: opts.panelRenderer ?? { color: DEFAULT_PANEL_COLOR },
     });

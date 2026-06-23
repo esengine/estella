@@ -12,6 +12,7 @@ import {
     StateVisuals,
     UIRect,
     UINode,
+    DimensionUnit,
     UIRenderer,
     UIEventQueue,
     UIEventType,
@@ -285,32 +286,32 @@ describe('createProgress', () => {
         expect(q.value()).toBe(0);
     });
 
-    it('setValue clamps and updates fill anchorMax.x (default "right")', () => {
+    it('setValue updates fill width % (default "right", pinned left)', () => {
         const p = createProgress({
             world: world as unknown as World,
             value: 0,
         });
         p.setValue(0.4);
-        const rect = world.get(p.fillEntity, UIRect) as {
-            anchorMin: { x: number; y: number };
-            anchorMax: { x: number; y: number };
+        const node = world.get(p.fillEntity, UINode) as {
+            width: { value: number; unit: number };
+            insetLeft: { value: number; unit: number };
         };
-        expect(rect.anchorMin).toEqual({ x: 0, y: 0 });
-        expect(rect.anchorMax).toEqual({ x: 0.4, y: 1 });
+        expect(node.width).toEqual({ value: 40, unit: DimensionUnit.Percent });
+        expect(node.insetLeft).toEqual({ value: 0, unit: DimensionUnit.Px });
     });
 
-    it('uses reversed anchors when direction = "left"', () => {
+    it('pins the fill to the right when direction = "left"', () => {
         const p = createProgress({
             world: world as unknown as World,
             direction: 'left',
             value: 0.25,
         });
-        const rect = world.get(p.fillEntity, UIRect) as {
-            anchorMin: { x: number; y: number };
-            anchorMax: { x: number; y: number };
+        const node = world.get(p.fillEntity, UINode) as {
+            width: { value: number; unit: number };
+            insetRight: { value: number; unit: number };
         };
-        expect(rect.anchorMin.x).toBe(0.75);
-        expect(rect.anchorMax.x).toBe(1);
+        expect(node.width).toEqual({ value: 25, unit: DimensionUnit.Percent });
+        expect(node.insetRight).toEqual({ value: 0, unit: DimensionUnit.Px });
     });
 
     it('dispose despawns the track', () => {
