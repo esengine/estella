@@ -6,7 +6,7 @@ import { RuntimeConfig } from '../defaults';
 import { defineSystem, Schedule } from '../system';
 import { registerComponent } from '../component';
 import { TextInput, type TextInputData } from './TextInput';
-import { UIRect, type UIRectData } from './core/ui-rect';
+import { UINode } from './core/ui-node';
 import { UIRenderer, UIVisualType } from './core/ui-renderer';
 import type { UIRendererData } from './core/ui-renderer';
 import { Interactable } from './behavior/interactable';
@@ -17,7 +17,7 @@ import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
 import { requireResourceManager } from '../resourceManager';
 import { playModeOnly } from '../env';
-import { wrapText, nextPowerOf2, ensureComponent, colorToRgba } from './uiHelpers';
+import { wrapText, nextPowerOf2, ensureComponent, colorToRgba, getUINodeWidth, getUINodeHeight } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 import { SystemLabel, PluginName } from '../systemLabels';
 import { log } from '../logger';
@@ -278,15 +278,15 @@ export class TextInputPlugin implements Plugin {
                         textureCache.delete(e);
                     }
                 }
-                const entities = world.getEntitiesWithComponents([TextInput, UIRect]);
+                const entities = world.getEntitiesWithComponents([TextInput, UINode]);
 
                 for (const entity of entities) {
                     const ti = world.get(entity, TextInput) as TextInputData;
                     if (!ti.dirty) continue;
 
-                    const uiRect = world.get(entity, UIRect) as UIRectData;
-                    const w = Math.ceil(uiRect.size.x);
-                    const h = Math.ceil(uiRect.size.y);
+                    // Texture size = the UINode's resolved (Yoga-computed) box.
+                    const w = Math.ceil(getUINodeWidth(entity));
+                    const h = Math.ceil(getUINodeHeight(entity));
                     if (w <= 0 || h <= 0) continue;
 
                     if (!world.has(entity, UIRenderer)) {
