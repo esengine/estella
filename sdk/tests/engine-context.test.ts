@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Engine instancing N1 (REARCH_ENGINE_INSTANCING.md): EstellaContext is a
  *        JS-newable embind instance + setActiveContext routes the bindings to it.

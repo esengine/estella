@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export const DEFAULT_DESIGN_WIDTH = 1920;
 export const DEFAULT_DESIGN_HEIGHT = 1080;
 export const DEFAULT_PIXELS_PER_UNIT = 100;

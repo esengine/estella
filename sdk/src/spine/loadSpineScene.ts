@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    loadSpineScene.ts
  * @brief   Shared spine scene loader. For every SpineAnimation entity in a scene

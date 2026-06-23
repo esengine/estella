@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.1 — verifies the C++ 8SSEDT signed-distance-field
  *        generator (text/SdfGenerator.cpp) end-to-end through the `sdfFromAlpha`

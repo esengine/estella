@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.1 — ShelfPacker (glyph atlas rectangle packer). Pure
  *        logic; verifies row advance, wrapping, no overlaps, page-full + oversize

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  SceneModel (JSON-first L1) — proves the editor's source-of-truth model
  *        retains exactly what the live World drops on projection: unknown

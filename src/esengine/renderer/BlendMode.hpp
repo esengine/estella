@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    BlendMode.hpp
  * @brief   Blend mode enumeration for custom rendering
@@ -6,7 +8,7 @@
  * @date    2026
  *
  * @copyright Copyright (c) 2026 ESEngine Team
- *            Licensed under the MIT License.
+ *            Licensed under the PolyForm Noncommercial License 1.0.0.
  */
 #pragma once
 

@@ -20,7 +20,7 @@ class TypeScriptGenerator:
         return '\n'.join(lines)
 
     def _gen_header(self) -> List[str]:
-        return [
+        lines = [
             '/**',
             ' * @file    wasm.generated.ts',
             ' * @brief   ESEngine WASM Bindings TypeScript Definitions',
@@ -31,7 +31,13 @@ class TypeScriptGenerator:
             '',
             '// Additional Math Types',
             'export interface UVec2 { x: number; y: number; }',
-            'export interface Padding { left: number; top: number; right: number; bottom: number; }',
+        ]
+        # Registered POD structs (Padding, Dimension, ...) → one TS interface each,
+        # driven by the type-system registry (a new struct needs no codegen edit).
+        for name, members in self.types.CUSTOM_STRUCTS.items():
+            fields = ' '.join(f'{m}: {self.types.member_ts_type(cpp)};' for m, cpp in members)
+            lines.append(f'export interface {name} {{ {fields} }}')
+        lines.extend([
             'export type Mat4 = number[];',
             '',
             '// Emscripten Vector Types',

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.3b — pure text layout + glyph-vertex building. Driven via
  *        a real GlyphAtlas backed by mock rasterizer/store (no Canvas/GL), so the

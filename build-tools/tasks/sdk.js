@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import path from 'path';
 import { mkdir, cp, readFile, writeFile, readdir } from 'fs/promises';
 import { existsSync } from 'fs';

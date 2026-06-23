@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    scheduler-cycles.test.ts
  * @brief   Cycle detection quality + re-sort idempotence after sortSystems.

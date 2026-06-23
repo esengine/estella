@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  LogStore source parsing — the two log line shapes that flow through
  *        console into the Output Log: the SDK logger's "[time] [LEVEL] [cat] msg"

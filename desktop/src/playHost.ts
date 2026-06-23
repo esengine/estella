@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  playHost.ts — the isolated play realm's host module (REARCH_EDITOR_REALM
  *        import-map phase). Unlike the R1 Vite `play.ts` (which bundles its own

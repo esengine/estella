@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
 import type { MaterialAssetData, ShaderHandle } from '../../material';
 import { Material } from '../../material';

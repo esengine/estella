@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.3a — verifies the SDF glyph-quad submit binding
  *        (renderer_submitTextBatch) is registered on the engine module. The

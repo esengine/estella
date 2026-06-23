@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.0 — the texture sub-region upload primitive that the
  *        dynamic glyph atlas (P1.1) builds on. The actual GL upload needs a GL

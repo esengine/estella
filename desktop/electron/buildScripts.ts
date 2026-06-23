@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Project-script bundler (REARCH_EDITOR_REALM.md Phase P1 / RC12 §E8-1).
  *

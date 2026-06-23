@@ -15,7 +15,6 @@ class PtrLayoutGenerator:
         'glm::vec2': 8, 'glm::uvec2': 8,
         'glm::vec3': 12,
         'glm::vec4': 16, 'glm::quat': 16,
-        'Padding': 16,
     }
 
     TYPE_ALIGNS = {
@@ -26,7 +25,6 @@ class PtrLayoutGenerator:
         'glm::vec2': 4, 'glm::uvec2': 4,
         'glm::vec3': 4,
         'glm::vec4': 4, 'glm::quat': 4,
-        'Padding': 4,
     }
 
     CPP_TO_PTR_TYPE = {
@@ -70,12 +68,32 @@ class PtrLayoutGenerator:
                 return (sz, sz)
         return (1, 1)
 
+    def _custom_struct_size_align(self, t: str):
+        """(size, align) of a registered POD struct under standard C++ layout —
+        members placed in order with per-member alignment, struct size padded to
+        its max member alignment. Matches the compiler (the generated
+        static_assert(offsetof) on each following field proves it)."""
+        offset = 0
+        max_align = 1
+        for _, member_cpp in self.types.CUSTOM_STRUCTS[t]:
+            msize = self.TYPE_SIZES[member_cpp]
+            malign = self.TYPE_ALIGNS[member_cpp]
+            if offset % malign != 0:
+                offset += malign - (offset % malign)
+            offset += msize
+            max_align = max(max_align, malign)
+        if offset % max_align != 0:
+            offset += max_align - (offset % max_align)
+        return (offset, max_align)
+
     def _field_size_align(self, cpp_type: str):
         """Return (size, align) for ANY field type so the offset cursor can
         advance past it, or None if the size is genuinely unknown."""
         t = self.types.clean_type(cpp_type)
         if t in self.TYPE_SIZES:
             return (self.TYPE_SIZES[t], self.TYPE_ALIGNS[t])
+        if t in self.types.CUSTOM_STRUCTS:
+            return self._custom_struct_size_align(t)
         if self.types.is_handle(t):
             return (4, 4)
         if self.types.is_enum(t):

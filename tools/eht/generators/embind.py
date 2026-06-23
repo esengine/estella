@@ -121,15 +121,20 @@ class EmbindGenerator:
             '        .field("x", &glm::quat::x)',
             '        .field("y", &glm::quat::y)',
             '        .field("z", &glm::quat::z);',
-            '',
-            '    value_object<esengine::Padding>("Padding")',
-            '        .field("left", &esengine::Padding::left)',
-            '        .field("top", &esengine::Padding::top)',
-            '        .field("right", &esengine::Padding::right)',
-            '        .field("bottom", &esengine::Padding::bottom);',
+        ]
+        # Registered POD structs (Padding, Dimension, ...) — one value_object each,
+        # driven by the type-system registry so a new struct needs no codegen edit.
+        for name, members in self.types.CUSTOM_STRUCTS.items():
+            lines.append('')
+            lines.append(f'    value_object<esengine::{name}>("{name}")')
+            for i, (member, _) in enumerate(members):
+                term = ';' if i == len(members) - 1 else ''
+                lines.append(f'        .field("{member}", &esengine::{name}::{member}){term}')
+        lines.extend([
             '}',
             '',
-        ]
+        ])
+        return lines
 
     def _gen_enums(self) -> List[str]:
         if not self.enums:

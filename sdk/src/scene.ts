@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    scene.ts
  * @brief   Scene loading utilities
@@ -10,6 +12,7 @@ import { discoverSceneAssets } from './asset/discoverAssets';
 import { requireResourceManager } from './resourceManager';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { log } from './logger';
+import { ESTELLA_SCENE_GENERATOR } from './provenance';
 import {
     expandEntry,
     preloadNestedPrefabs,
@@ -53,6 +56,8 @@ export interface TextureMetadata {
 export interface SceneData {
     version: string;
     name: string;
+    /** Origin tag of the engine that wrote this scene (see provenance.ts). */
+    generator?: string;
     entities: SceneEntityData[];
     textureMetadata?: Record<string, TextureMetadata>;
 }
@@ -633,6 +638,7 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
     return {
         version: SCENE_FORMAT_VERSION,
         name: sceneName,
+        generator: ESTELLA_SCENE_GENERATOR,
         entities,
     };
 }

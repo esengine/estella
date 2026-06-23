@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    WebSDKEntry.cpp
  * @brief   ESEngine Web SDK entry point with rendering support
@@ -6,7 +8,7 @@
  * @date    2026
  *
  * @copyright Copyright (c) 2026 ESEngine Team
- *            Licensed under the MIT License.
+ *            Licensed under the PolyForm Noncommercial License 1.0.0.
  */
 
 
@@ -201,6 +203,14 @@ bool initRendererInternal(const char* canvasSelector) {
     }
 
     ES_LOG_INFO("WebGL2 context created for '{}'", canvasSelector);
+
+    // Build provenance signature — kept self-contained (not via the umbrella
+    // header) so the literal is guaranteed to land in this translation unit and
+    // survive in the shipped binary. Emitted once at init as an origin marker.
+    static constexpr const char* kEstellaBuildProvenance =
+        "estella-build:9abbd5b4-06f3-47df-b968-826763c6879a";
+    ES_LOG_INFO("Estella runtime provenance {}", kEstellaBuildProvenance);
+
     g_activeContext = &legacyCtx().context();
     return g_activeContext->init(static_cast<int>(webglCtx));
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { World } from './world';
 import type { Entity } from './types';
 import type { Assets } from './asset/Assets';

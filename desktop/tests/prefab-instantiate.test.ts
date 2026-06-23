@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  SceneCommands.instantiatePrefab against a real headless World
  *        (REARCH_PREFABS.md PF2). Proves a prefab instantiates into the model as

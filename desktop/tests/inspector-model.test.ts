@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Unknown / user-component inspector (REARCH_EDITOR_MODEL.md E1). Project
  *        components never run in the editor realm, so the engine registry doesn't

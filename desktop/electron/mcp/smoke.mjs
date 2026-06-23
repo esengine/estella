@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  MCP smoke test (docs/REARCH_EDITOR_AUTOMATION.md P2). Run by node: spawns
  *        the Electron-hosted editor MCP server over stdio (the way a real MCP

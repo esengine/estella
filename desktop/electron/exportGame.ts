@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Game export (REARCH_EDITOR_REALM Phase S — play == ship). Produces a
  *        self-contained, static-servable web build of the open project:

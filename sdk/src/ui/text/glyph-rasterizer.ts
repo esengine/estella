@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/glyph-rasterizer.ts
  * @brief   Canvas2D glyph rasterizer → SDF, the real GlyphRasterizer for the

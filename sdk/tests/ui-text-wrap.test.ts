@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.4c — word-wrap (parity step toward retiring Canvas2D Text,
  *        which has wordWrap). Greedy space-wrap + char-break for long words / CJK

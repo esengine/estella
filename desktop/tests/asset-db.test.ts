@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  AssetDatabase scanner (REARCH_ASSETS.md A2). A pure-node step: walk a
  *        project's `.meta` sidecars into a uuid↔path registry + a dependency

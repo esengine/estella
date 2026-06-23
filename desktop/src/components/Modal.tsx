@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Modal.tsx — a centered modal dialog (backdrop + portal). The editor's
  *        general dialog primitive: dismiss on backdrop press / Escape, with a

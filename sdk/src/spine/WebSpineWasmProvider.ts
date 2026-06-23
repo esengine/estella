@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    WebSpineWasmProvider.ts
  * @brief   Browser SpineWasmProvider — fetches the per-version spine side

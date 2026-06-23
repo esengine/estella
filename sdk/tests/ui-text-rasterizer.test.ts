@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.3b — the pure pixel transforms of the Canvas2D glyph
  *        rasterizer (extractAlpha + sdfToAtlasRgba) and their round-trip through

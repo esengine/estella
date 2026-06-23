@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Project filesystem mutations (Content Browser asset ops). Covers the
  *        non-obvious correctness: rename carries the `.meta` sidecar (asset

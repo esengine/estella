@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  BuildDialog.tsx — the UE5-style "Package Project" modal (REARCH_EDITOR_REALM
  *        Phase S). Pick a platform + configuration + output, hit Build, watch the

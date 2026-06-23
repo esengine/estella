@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    run-mode.test.ts
  * @brief   Editor/runtime + edit/play run mode (env.ts) gates gameplay systems.

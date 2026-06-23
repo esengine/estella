@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.4 — composeTRS (entity world matrix) + rectTextBox
  *        (UIRect text placement) for the SDF text plugin. Pure → unit-tested

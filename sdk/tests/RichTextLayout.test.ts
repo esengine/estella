@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
 import { layoutRichText, createFontSet, type LayoutLine } from '../src/ui/RichTextLayout';
 import type { RichTextRun, ImageSegment } from '../src/ui/RichTextParser';

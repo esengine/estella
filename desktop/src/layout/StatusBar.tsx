@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useSyncExternalStore } from 'react';
 import { Gauge, MousePointer2, Boxes, FolderOpen } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';

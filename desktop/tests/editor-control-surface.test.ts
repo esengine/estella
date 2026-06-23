@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Regression net for EditorControlSurface — the one canonical
  *        programmatic entry to a session (REARCH_EDITOR_MODEL.md P2 +

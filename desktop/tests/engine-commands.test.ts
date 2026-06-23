@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Regression net for the editor's read/write/undo core (SceneCommands +
  *        SceneQuery) against a real headless World. Proves the model-authoritative

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getAllRegisteredComponents, getUserComponents, getComponent } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, InspectorField } from '@/types';

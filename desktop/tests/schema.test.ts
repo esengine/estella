@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Editor schema pure-function tests — establishes the desktop vitest
  *        harness and pins the inspector value-shape inference / conversions that

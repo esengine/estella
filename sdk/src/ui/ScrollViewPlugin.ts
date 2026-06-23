@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
 import { registerComponent, Transform, Children, Sprite } from '../component';
 import type { TransformData, ChildrenData, SpriteData } from '../component';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useSyncExternalStore, useState, useRef, useEffect } from 'react';
 import type { SubsystemStatus } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';

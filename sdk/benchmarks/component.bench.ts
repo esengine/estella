@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { bench, describe } from 'vitest';
 import { defineComponent, getComponent, getAllRegisteredComponents, clearUserComponents } from '../src/component';
 import { computeQueryCacheKey } from '../src/world';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, FontResult } from '../AssetLoader';
 import { requireResourceManager } from '../../resourceManager';
 import { getAssetTypeEntry } from '../../assetTypes';

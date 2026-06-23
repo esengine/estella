@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineSystem, type SystemDef } from '../../system';
 import { Transform, type TransformData } from '../../component';
 import { Res, Time, type TimeData } from '../../resource';

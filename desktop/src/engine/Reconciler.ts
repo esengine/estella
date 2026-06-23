@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Name, Parent, getComponent, resetWorldTo } from 'esengine';
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';

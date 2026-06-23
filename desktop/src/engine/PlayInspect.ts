@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  PlayInspect.ts — the editor's "Game" inspection source (UE5-PIE Details).
  *        While playing, it polls the running realm for a live SceneData snapshot

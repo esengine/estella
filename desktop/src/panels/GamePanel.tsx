@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { useEditorStore } from '@/store/editorStore';

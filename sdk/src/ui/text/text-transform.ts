@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/text-transform.ts
  * @brief   Pure placement helpers for SDF text (REARCH_GUI P1.4d): the entity

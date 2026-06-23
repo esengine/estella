@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Editor command system — keybinding parsing/matching/formatting and the
  *        registry's event resolution + enablement gating. Pure logic (no WASM):

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    wasm-bridge.test.ts
  * @brief   The single SDK→WASM bridge base class: it installs the terminal-abort

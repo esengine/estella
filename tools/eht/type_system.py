@@ -14,8 +14,15 @@ class TypeSystem:
 
     GLM_TYPES = {'glm::vec2', 'glm::vec3', 'glm::vec4', 'glm::quat', 'glm::uvec2'}
 
-    CUSTOM_STRUCT_TYPES = {
-        'Padding': ('Padding', [('left', 'left'), ('top', 'top'), ('right', 'right'), ('bottom', 'bottom')]),
+    # Small POD structs usable as builtin component fields: serialized via embind,
+    # sized for the pointer cursor, mirrored to a TS interface + editor controls.
+    # Generalizes the former single Padding special case. Each entry maps a struct
+    # name to its ordered (member_name, member_cpp_type) list; member types must be
+    # primitives in PtrLayoutGenerator.TYPE_SIZES. The struct must be defined and
+    # included by WebBindings (core/UITypes.hpp) and be a standard C++ POD.
+    CUSTOM_STRUCTS = {
+        'Padding': [('left', 'f32'), ('top', 'f32'), ('right', 'f32'), ('bottom', 'f32')],
+        'Dimension': [('value', 'f32'), ('unit', 'u8')],
     }
 
     SKIP_TYPES = {'glm::mat4', 'std::function'}
@@ -31,7 +38,6 @@ class TypeSystem:
         'std::string': 'string', 'Entity': 'number',
         'glm::vec2': 'Vec2', 'glm::vec3': 'Vec3', 'glm::vec4': 'Vec4',
         'glm::quat': 'Quat', 'glm::uvec2': 'UVec2',
-        'Padding': 'Padding',
     }
 
     def __init__(self, enums: List[Enum]):
@@ -76,7 +82,15 @@ class TypeSystem:
         return self.clean_type(cpp_type) in self.GLM_TYPES
 
     def is_custom_struct(self, cpp_type: str) -> bool:
-        return self.clean_type(cpp_type) in self.CUSTOM_STRUCT_TYPES
+        return self.clean_type(cpp_type) in self.CUSTOM_STRUCTS
+
+    def custom_struct_members(self, cpp_type: str):
+        """Return the [(member_name, member_cpp_type), ...] list for a custom struct."""
+        return self.CUSTOM_STRUCTS[self.clean_type(cpp_type)]
+
+    def member_ts_type(self, member_cpp_type: str) -> str:
+        """TS type for a custom-struct member (always a primitive)."""
+        return self.CPP_TO_TS.get(member_cpp_type, 'number')
 
     def needs_wrapper(self, cpp_type: str) -> bool:
         return self.is_enum(cpp_type) or self.is_handle(cpp_type)
@@ -115,6 +129,6 @@ class TypeSystem:
             return 'number'
         if t in self.VECTOR_TYPES:
             return self.VECTOR_TYPES[t][2]
-        if t in self.CUSTOM_STRUCT_TYPES:
-            return self.CUSTOM_STRUCT_TYPES[t][0]
+        if t in self.CUSTOM_STRUCTS:
+            return t  # the struct name is its own TS interface name
         return 'unknown'

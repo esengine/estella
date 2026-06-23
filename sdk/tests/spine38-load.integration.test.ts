@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    spine38-load.integration.test.ts
  * @brief   Proves the 3.8 side module actually loads and animates a real 3.8

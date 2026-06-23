@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export interface AtlasFrameInfo {
     atlas: string;
     frame: { x: number; y: number; w: number; h: number };

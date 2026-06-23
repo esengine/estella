@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.3b — drawTextWith orchestration: lays text out against a
  *        (mock-backed) GlyphAtlas and emits one quad batch per atlas page. Pure

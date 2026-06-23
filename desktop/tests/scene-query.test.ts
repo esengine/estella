@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  SceneQuery.readSceneTree — the outliner tree is derived from the MODEL
  *        (REARCH_EDITOR_MODEL.md §3.4), nested by each entity's `parent` field so

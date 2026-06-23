@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
 import { getComponent, Assets, migratePrefabData, extractPrefab } from 'esengine';
 import type { SceneData, PrefabData, ExtractEntity } from 'esengine';

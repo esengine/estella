@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Shared editor domain types. These mirror the shapes the engine bridge
 // (CoreApiBridge / generated EditorAPI) will eventually supply, so panels are
 // written against the real contract from day one — the mock layer just fills it.

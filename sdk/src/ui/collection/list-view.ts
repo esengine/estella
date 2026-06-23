@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Transform, type TransformData } from '../../component';
 import type { Entity, Vec2 } from '../../types';
 import type { World } from '../../world';

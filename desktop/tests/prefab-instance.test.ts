@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Prefab instance expand/collapse round-trip (REARCH_PREFABS.md PF2 core).
  *        The data-loss safety net: a prefab instance is saved as a DELTA

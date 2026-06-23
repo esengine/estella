@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    resourcemanager-bridge.test.ts
  * @brief   The C++ ResourceManager embind object is guarded via WasmBridge with

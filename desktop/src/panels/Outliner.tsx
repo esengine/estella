@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronRight, Eye, EyeOff, Lock, Search, Plus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';

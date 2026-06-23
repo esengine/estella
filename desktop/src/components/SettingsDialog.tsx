@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  SettingsDialog.tsx — the settings window (the design's `.set-*`), driven
  *        entirely by the settings registry + store. The dialog knows nothing about

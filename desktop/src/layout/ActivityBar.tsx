@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Far-left icon rail (activity bar). Reveals docked panels and toggles the
 // Content Drawer — the summoned quick-access surface.
 import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Clapperboard, Settings } from 'lucide-react';

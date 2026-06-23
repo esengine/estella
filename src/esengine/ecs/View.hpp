@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    View.hpp
  * @brief   ECS View for querying entities with specific components
@@ -8,7 +10,7 @@
  * @date    2025
  *
  * @copyright Copyright (c) 2025 ESEngine Team
- *            Licensed under the MIT License.
+ *            Licensed under the PolyForm Noncommercial License 1.0.0.
  */
 #pragma once
 

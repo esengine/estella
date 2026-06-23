@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Game export orchestration (REARCH_EDITOR_REALM Phase S). Asserts
  *        exportGame produces a self-contained web build: cooked assets + manifest,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    spine-dedup.test.ts
  * @brief   S4-A: ModuleBackend shares one loaded skeleton across every entity of

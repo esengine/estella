@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  settingsStore.ts — reactive values for the settings registry, with
  *        per-user persistence. Store-owned settings live here (persisted to

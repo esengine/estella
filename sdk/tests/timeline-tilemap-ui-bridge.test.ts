@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    timeline-tilemap-ui-bridge.test.ts
  * @brief   F2 final batch: tilemap, timeline, and uiHelpers route their WASM

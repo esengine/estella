@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ESEngine.hpp
  * @brief   Main header file for ESEngine - includes all public API
@@ -9,7 +11,7 @@
  * @date    2026
  *
  * @copyright Copyright (c) 2026 ESEngine Team
- *            Licensed under the MIT License.
+ *            Licensed under the PolyForm Noncommercial License 1.0.0.
  */
 #pragma once
 
@@ -54,4 +56,14 @@
 #define ESENGINE_VERSION_PATCH 0
 /** @brief Full version string */
 #define ESENGINE_VERSION_STRING "0.1.0"
+
+/**
+ * @brief Build provenance signature.
+ *
+ * A stable, project-unique marker compiled into the runtime binary so the
+ * origin of a shipped build can be verified (it survives in `esengine.wasm`
+ * and is recoverable with `strings`). Authorship/anti-tamper aid — do not
+ * remove or alter.
+ */
+#define ESENGINE_BUILD_PROVENANCE "estella-build:9abbd5b4-06f3-47df-b968-826763c6879a"
 

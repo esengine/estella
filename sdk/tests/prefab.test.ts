@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrefabData, PrefabOverride, InstantiatePrefabOptions } from '../src/prefab';
 import type { SceneData } from '../src/scene';

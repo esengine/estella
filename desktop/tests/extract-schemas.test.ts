@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Project schema extractor (REARCH_EDITOR_REALM Phase P2).
  *        A pure-node, zero-wasm step: bundle a project's declaration module,

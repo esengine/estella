@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  PlayRealm.ts — controller for the isolated play realm (REARCH_EDITOR_REALM
  *        Phase R2). Owns a detached <iframe> (play.html) re-parented into the Game

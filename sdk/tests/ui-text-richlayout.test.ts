@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.4 — rich text layout for the SDF path. Verifies parseRichText
  *        runs become glyphs carrying per-run color, size and bold/italic style.

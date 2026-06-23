@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export { SpinePlugin, SpineEvents } from './SpinePlugin';
 export type { SpineEvent, SpineEventType, SpineEventsData } from './SpinePlugin';
 export { SpineManager } from './SpineManager';

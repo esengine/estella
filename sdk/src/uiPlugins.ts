@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { textPlugin } from './ui/text/plugin';
 import { uiMaskPlugin } from './ui/UIMaskPlugin';
 import { uiInteractionPlugin } from './ui/UIInteractionPlugin';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getComponent, SpineAnimation } from '../component';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
 import type { AudioAPI } from '../audio/Audio';

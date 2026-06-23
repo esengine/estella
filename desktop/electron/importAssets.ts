@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Asset import (Content Browser C4). Copies external files into the open
  *        project and writes a `.meta` sidecar (fresh uuid + type + importer

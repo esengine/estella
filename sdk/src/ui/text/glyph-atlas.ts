@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/glyph-atlas.ts
  * @brief   Runtime dynamic glyph atlas (REARCH_GUI P1) — the cache + multi-page

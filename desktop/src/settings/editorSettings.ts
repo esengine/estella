@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  editorSettings.ts — the editor's built-in settings, registered as a side
  *        effect (import this once at boot). Each is wired to a REAL backing: a CSS

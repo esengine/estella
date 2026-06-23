@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * Unit tests for sdk/src/ui2/collection/view-pool.ts.
  * Uses a minimal mock World — enough to exercise onDespawn + valid.

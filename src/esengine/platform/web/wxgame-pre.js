@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Emscripten extern-pre-js for WeChat MiniGame
 // Provides minimal browser globals that -sENVIRONMENT=web assumes exist.
 // Injected OUTSIDE the module IIFE, so these are available at module evaluation time.

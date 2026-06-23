@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Play-realm host assembly (REARCH_EDITOR_REALM import-map phase). Stages a
  *        self-contained realm under the project's `.esengine/play/` so the editor

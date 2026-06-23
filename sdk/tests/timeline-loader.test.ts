@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../src/timeline/TimelineLoader';
 import { WrapMode, TrackType, type TimelineAsset } from '../src/timeline/TimelineTypes';

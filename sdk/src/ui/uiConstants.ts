@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export const TEXT_PADDING_RATIO = 0.2;
 export const TEXT_ASCENT_RATIO = 0.8;
 export const TEXT_CANVAS_SHRINK_FRAMES = 60;

@@ -1,0 +1,40 @@
+Estella / ESEngine
+Copyright (c) 2024-present ESEngine Team. All rights reserved.
+
+This software is licensed under the PolyForm Noncommercial License 1.0.0.
+See the LICENSE file for the full terms.
+
+Noncommercial use is permitted under that license. COMMERCIAL USE REQUIRES A
+SEPARATE COMMERCIAL LICENSE from the copyright holder. To obtain one, contact
+the ESEngine Team at 359807859@qq.com.
+
+================================================================================
+Third-Party Components
+================================================================================
+
+This product bundles third-party components under their own licenses. Those
+licenses apply only to the corresponding component, not to Estella as a whole,
+and Estella's PolyForm Noncommercial License does not extend to them. Each
+component's full license text is included in its directory under third_party/.
+
+  Component            Location                          License
+  -------------------  --------------------------------  ------------------------
+  Box2D                third_party/box2d                 MIT
+  GLFW                 third_party/glfw                  zlib/libpng
+  GLM                  third_party/glm                   The Happy Bunny / MIT
+  nlohmann/json        third_party/nlohmann              MIT
+  doctest              third_party/doctest               MIT
+  glad                 third_party/glad                  MIT / Public Domain
+  cute_tiled           third_party/cute_tiled            zlib / Public Domain
+  stb                  third_party/stb                   MIT / Public Domain
+  basis_universal      third_party/basis_universal       Apache-2.0
+  Yoga                 third_party/yoga                  MIT
+  Spine Runtimes       third_party/spine-runtimes-*      Spine Runtimes License
+
+NOTE on the Spine Runtimes: they are NOT open source. Use of the Spine Runtimes
+requires a valid Spine license from Esoteric Software, governed by the Spine
+Runtimes License Agreement (see third_party/spine-runtimes-*/LICENSE). This
+obligation is independent of, and additional to, Estella's own license.
+
+Where a bundled component does not carry a top-level license file, its license
+header appears in the component's source files.

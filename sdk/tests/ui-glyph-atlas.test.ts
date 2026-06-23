@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  REARCH_GUI P1.1c — GlyphAtlas orchestration. The Canvas2D rasterizer
  *        isn't headless-renderable, so the atlas takes injectable GlyphRasterizer

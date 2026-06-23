@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { create } from 'zustand';
 
 // Sequencer UI + playback state (docs/REARCH_ANIMATION.md L4). Kept separate from

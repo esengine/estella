@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { CoreApiBridge } from './CoreApiBridge';
 import { handleWasmError } from './wasmError';

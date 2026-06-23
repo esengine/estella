@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  gameHost.ts — the exported game's runtime host (REARCH_EDITOR_REALM
  *        Phase S). Bundled by exportGame (esbuild, esengine inlined) into a

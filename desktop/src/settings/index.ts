@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  index.ts — settings barrel. Importing this registers the built-in
  *        settings (./editorSettings side effect) and exposes the registry + types.
