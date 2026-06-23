@@ -1,10 +1,11 @@
 # Tilemap — Architecture & Rearchitecture
 
-**Status (2026-06-23):** plan drafted; **T1 in progress** (runtime tile collision for the
-asset-driven `Tilemap{source}` path — closes the long-standing "B2-1" debt item). Tilemap
-runtime = a C++ side concern (`src/esengine/tilemap/TilemapSystem.cpp` chunk store +
-`renderer/plugins/TilemapRenderPlugin.cpp`), driven by the SDK
-(`sdk/src/tilemap/*`). The editor has **no** tilemap/tileset authoring tools yet.
+**Status (2026-06-23):** **T0 + T1 DONE + pushed** (T1 = runtime tile collision for the
+asset-driven `Tilemap{source}` path, closing the long-standing "B2-1" debt); **T2 in
+progress** (Tileset editor + `.estileset`). Tilemap runtime = a C++ side concern
+(`src/esengine/tilemap/TilemapSystem.cpp` chunk store + `renderer/plugins/
+TilemapRenderPlugin.cpp`), driven by the SDK (`sdk/src/tilemap/*`). The editor has **no**
+tilemap/tileset authoring tools yet.
 
 ## Verdict
 
@@ -35,22 +36,42 @@ scene file. Two gaps keep it below a shippable 2D-tilemap workflow:
 
 ## Authoring model decision (the keystone)
 
-**Native asset model, UE5/Paper2D-aligned** (chosen over scene-embedded `TilemapLayer`
-painting — that complicates undo via the out-of-band chunk codec, isn't reusable across
-scenes, and doesn't match the asset-editor mockups):
+**The Unity/Godot consensus, adapted to this engine's editor-first / model-authoritative
+core** — *not* the UE-Paper2D standalone-tilemap-asset model (an earlier draft of this doc
+leaned that way; on review it fights the engine's grain). Three axes, each resolved to the
+optimum for *this* engine:
 
-- **`.estileset`** — the tileset palette asset = `{ texture: "@uuid:…", tileWidth,
-  tileHeight, columns, margin, spacing, tiles: { [tileId]: { collision?, properties?,
-  animation? } } }`. The reusable palette AND the single source of truth for which tiles
-  collide. Edited in the **Tileset editor** (an `AssetDocument` subclass).
-- **`.estilemap`** — the tilemap asset = `{ tileWidth, tileHeight, orientation, tileset:
-  "@uuid:…", layers: [{ name, width, height, infinite, tiles | chunks, opacity, tint,
-  parallax, visible }] }`. Edited in the **Tilemap editor** (paint/fill/erase per layer).
-  Runtime loads it via a NEW native parser in `TilemapAssetLoader` (alongside `.tmj`),
-  referenced from a scene by the existing `Tilemap{source}` component.
-- Tiled `.tmj`/`.tmx` import stays for interop (one-way: import → `.estilemap`).
-- **Collision** is derived at runtime from `(layer tiles) × (tileset collision flags)`,
-  greedy-merged. Both the Tiled and native paths converge on the same generator.
+1. **Tileset = `.estileset` reusable asset** (universal across Unity/Godot/UE). The single
+   source of truth for how a tile looks (atlas slicing) AND behaves. Richer than a
+   collision boolean — per-tile collision **shapes**, animation, properties, with an
+   extensible slot for terrain/autotile rules:
+   ```jsonc
+   {
+     "version": "1", "texture": "@uuid:…",
+     "tileWidth": 16, "tileHeight": 16, "columns": 8, "margin": 0, "spacing": 0,
+     "tiles": {                          // sparse — only tiles carrying metadata
+       "5":  { "collision": { "type": "box" }, "animation": [{ "tile": 5, "durationMs": 100 }] },
+       "12": { "collision": { "type": "polygon", "points": [[0,0],[16,0],[16,8]] } }  // a slope
+     }
+   }
+   ```
+   Edited in the **Tileset editor** (an `AssetDocument` subclass — `.estileset` IS a file).
+2. **Tilemap data = scene-embedded first-class `TilemapLayer` entities** (Unity component /
+   Godot node), NOT a standalone asset. Why this beats the standalone-asset model here:
+   (a) painting becomes ordinary **scene editing** through SceneCommands/Reconciler — the
+   same model-authoritative pipeline as the rest of the editor; (b) each layer is a real
+   entity (selectable / transformable / parentable / z-orderable), vs the `Tilemap{source}`
+   synthetic-layer black box; (c) no redundant new format. Tiles persist via the existing
+   out-of-band chunk codec; undo via a tile-region command diff (T3 decides model-field vs
+   command-diff). The `Tilemap{source}` component (Tiled `.tmj` import + a *future optional*
+   standalone `.estilemap` for cross-scene reuse) stays as the SECONDARY import path.
+3. **Collision authority = the tileset** (Godot model). Colliders are derived at runtime
+   from `(placed tiles) × (tileset collision shapes)`: boxes greedy-merged (T1), custom
+   polygons emitted per-tile (later). Change the `.estileset` → every map updates. T1's
+   Tiled-property collision stays for the import path; both converge on
+   `generateLayerCollision`. **C++ stays render-only** — `.estileset` resolution (texture
+   handle + collision shapes) happens in the SDK plugin (engine's C++-mechanics /
+   SDK-assets split).
 
 ## Phases
 
@@ -66,17 +87,24 @@ scenes, and doesn't match the asset-editor mockups):
   *Caveat:* tile colliders need the physics module loaded — `sceneUsesPhysics` content-scan
   can't see runtime-spawned colliders, so a collision tilemap needs `features.physics` (or
   another physics body in the scene). Folded into T4's tileset-collision flow.
-- **T2 — Tileset editor + `.estileset`.** `AssetDocument<TilesetAsset>` + Tileset panel
-  (texture grid, click-to-toggle per-tile collision / properties) + Content-Browser open +
-  asset-type registration. The palette + collision authority.
-- **T3 — Tilemap editor + `.estilemap`.** `AssetDocument<TilemapAsset>` + Tilemap panel
-  (layer list, brush/fill/erase/rect/bucket, tileset palette picker) + live viewport
-  preview (a `TilemapPreview` mirroring edits into a synthetic C++ layer) + a native
-  `.estilemap` parser in `TilemapAssetLoader`.
-- **T4 — Unify native-path collision.** Generate colliders for `.estilemap` /
-  `TilemapLayer` tilemaps from the referenced `.estileset` collision flags; resolve the
-  physics-enablement dependency (a tilemap carrying collidable tiles signals
-  `sceneUsesPhysics`).
+- **T2 — Tileset editor + `.estileset`.** SDK format (`tilesetAsset.ts`: `TilesetAsset`
+  type + `parseTileset`/`serializeTileset` + version, exported via the tilemap barrel) +
+  `AssetDocument<TilesetAsset>` + Tileset panel (texture grid overlay, tileW/H/margin/
+  spacing controls, click/drag to toggle per-tile collision) + Content-Browser open +
+  Create-Tileset-from-texture + asset-type registration. The palette + collision authority.
+- **T3 — Tilemap painter (scene-embedded `TilemapLayer`).** Paint into first-class
+  `TilemapLayer` entities through SceneCommands/Reconciler (model-authoritative), with a
+  selected `.estileset` as the brush palette: layer list, brush/fill/erase/rect/bucket/
+  eyedropper, live in the viewport (no separate preview mirror needed — it's the real
+  scene). Decide tile-data home (model-field chunks vs command-diff undo). Create-Tilemap
+  spawns a `TilemapLayer` entity referencing an `.estileset`.
+- **T4 — Unify native-path collision + physics enablement.** Resolve the referenced
+  `.estileset`'s collision shapes for scene `TilemapLayer` entities → `generateLayerCollision`
+  (boxes) + per-tile polygons; make a tilemap carrying collidable tiles signal
+  `sceneUsesPhysics` (closes the T1 caveat: runtime-spawned colliders are invisible to the
+  content-scan gate). See [[estella-physics-audit]] / [[subsystem-observability]].
+- **Later (extensible, not now):** standalone `.estilemap` asset for cross-scene reuse;
+  terrain/autotile (wang/rule tiles) in `.estileset`; one-way platforms + physics layers.
 
 ## Key files
 
