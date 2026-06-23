@@ -333,18 +333,16 @@ export interface ESEngineModule {
     uiHitTest_getHitEntityPrev(): number;
     uiRenderOrder_update(registry: CppRegistry): void;
     uiFlexLayout_update(registry: CppRegistry): void;
-    getUIRectComputedWidth(registry: CppRegistry, entity: number): number;
-    getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
     getUINodeComputedWidth?(registry: CppRegistry, entity: number): number;
     getUINodeComputedHeight?(registry: CppRegistry, entity: number): number;
-    setUIRectSize(registry: CppRegistry, entity: number, w: number, h: number): void;
     uiTree_markStructureDirty(): void;
     uiTree_markDirty(entity: number): void;
     uiTree_markAllDirty(): void;
     transform_update(registry: CppRegistry): void;
+    // Layout anim-override flags (function names predate the UINode rename; they
+    // now operate on UINode.anim_override_).
     uiRect_clearAnimOverrides(registry: CppRegistry): void;
     uiRect_setAnimOverride(registry: CppRegistry, entity: number, flags: number): void;
-    uiRect_patchOffset(registry: CppRegistry, entity: number, minX: number, minY: number, maxX: number, maxY: number): void;
     transform_patchPosition(registry: CppRegistry, entity: number, x: number, y: number, z: number): void;
 
     // Animation (Tween) API
@@ -367,7 +365,6 @@ export interface ESEngineModule {
     getSpritePtr(registry: CppRegistry, entity: number): number;
     getVelocityPtr(registry: CppRegistry, entity: number): number;
     getCameraPtr(registry: CppRegistry, entity: number): number;
-    getUIRectPtr(registry: CppRegistry, entity: number): number;
     getRigidBodyPtr(registry: CppRegistry, entity: number): number;
     getBoxColliderPtr(registry: CppRegistry, entity: number): number;
     getCircleColliderPtr(registry: CppRegistry, entity: number): number;

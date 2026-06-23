@@ -18,7 +18,6 @@ import { registerComponent } from '../../component';
 import { defineSystem, Schedule } from '../../system';
 import { SystemLabel } from '../../systemLabels';
 import { Res } from '../../resource';
-import { UIRect } from '../core/ui-rect';
 import { UINode } from '../core/ui-node';
 import { UIRenderer } from '../core/ui-renderer';
 import { FlexContainer, FlexItem } from './flex';
@@ -35,7 +34,6 @@ export class UILayoutPlugin implements Plugin {
     name = 'uiLayout';
 
     build(app: App): void {
-        registerComponent('UIRect', UIRect);
         registerComponent('UINode', UINode);
         registerComponent('UIRenderer', UIRenderer);
         registerComponent('FlexContainer', FlexContainer);

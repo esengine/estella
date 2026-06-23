@@ -3,7 +3,7 @@
 /**
  * @file    ui/layout/safe-area.ts
  * @brief   Safe-area concept — component + the PreUpdate system that pushes
- *          platform safe-area insets into UIRect offsets, co-located.
+ *          platform safe-area insets into UINode insets, co-located.
  *
  * Part of REARCH_GUI P0: the layout concept (Yoga driver + safe-area) is the
  * first concept relocated out of the flat legacy plugins into a cohesive
@@ -18,8 +18,6 @@ import { Res } from '../../resource';
 import { defineSystem, Schedule } from '../../system';
 import { UICameraInfo } from '../UICameraInfo';
 import type { UICameraData } from '../UICameraInfo';
-import { UIRect } from '../core/ui-rect';
-import type { UIRectData } from '../core/ui-rect';
 import { UINode } from '../core/ui-node';
 import type { UINodeData } from '../core/ui-node';
 import { px } from '../core/dimension';
@@ -131,31 +129,6 @@ export class SafeAreaPlugin implements Plugin {
 
                 const dpr = platformDevicePixelRatio();
                 const insetScale = isWeChat() ? (worldH / camera.screenH) : (dpr * worldH / camera.screenH);
-
-                const entities = world.getEntitiesWithComponents([SafeArea, UIRect]);
-                for (const entity of entities) {
-                    const sa = world.get(entity, SafeArea) as SafeAreaData;
-                    const rect = world.get(entity, UIRect) as UIRectData;
-
-                    const top = sa.applyTop ? cachedInsets.top * insetScale : 0;
-                    const bottom = sa.applyBottom ? cachedInsets.bottom * insetScale : 0;
-                    const left = sa.applyLeft ? cachedInsets.left * insetScale : 0;
-                    const right = sa.applyRight ? cachedInsets.right * insetScale : 0;
-
-                    let changed = false;
-                    if (rect.offsetMin.x !== left || rect.offsetMin.y !== bottom) {
-                        rect.offsetMin = { x: left, y: bottom };
-                        changed = true;
-                    }
-                    if (rect.offsetMax.x !== -right || rect.offsetMax.y !== -top) {
-                        rect.offsetMax = { x: -right, y: -top };
-                        changed = true;
-                    }
-
-                    if (changed) {
-                        world.insert(entity, UIRect, rect);
-                    }
-                }
 
                 // UINode targets (CSS box): safe-area insets map to the node's
                 // absolute insets. The node is expected to be position:Absolute.

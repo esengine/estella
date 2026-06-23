@@ -3,8 +3,6 @@
 import type { App, Plugin } from '../../app';
 import { registerComponent, Transform, Parent, Sprite } from '../../component';
 import type { TransformData, ParentData, SpriteData } from '../../component';
-import { UIRect } from '../core/ui-rect';
-import type { UIRectData } from '../core/ui-rect';
 import { UINode } from '../core/ui-node';
 import type { UINodeData } from '../core/ui-node';
 import { px } from '../core/dimension';
@@ -209,15 +207,6 @@ export class DragPlugin implements Plugin {
                         node.insetLeft = px(baseL + localDelta.x);
                         node.insetTop = px(baseT - localDelta.y); // inset top is y-down
                         world.insert(activeEntity, UINode, node);
-                    } else if (world.has(activeEntity, UIRect)) {
-                        const rect = world.get(activeEntity, UIRect) as UIRectData;
-                        const localDelta = worldToLocalDelta(
-                            world, activeEntity,
-                            dragState.deltaWorld.x, dragState.deltaWorld.y
-                        );
-                        rect.offsetMin.x += localDelta.x;
-                        rect.offsetMin.y += localDelta.y;
-                        world.insert(activeEntity, UIRect, rect);
                     } else if (world.has(activeEntity, Transform)) {
                         const localDelta = worldToLocalDelta(
                             world, activeEntity,

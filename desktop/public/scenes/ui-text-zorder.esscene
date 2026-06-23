@@ -8,8 +8,25 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
       ],
       "visible": true
     },
@@ -17,11 +34,28 @@
       "id": 1,
       "name": "Canvas",
       "parent": null,
-      "children": [2],
+      "children": [
+        2
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
-        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "size": { "x": 800, "y": 600 }, "pivot": { "x": 0.5, "y": 0.5 } } }
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
       ],
       "visible": true
     },
@@ -29,11 +63,57 @@
       "id": 2,
       "name": "Panel",
       "parent": 1,
-      "children": [3],
+      "children": [
+        3
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "size": { "x": 460, "y": 150 }, "pivot": { "x": 0.5, "y": 0.5 } } },
-        { "type": "UIRenderer", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.32, "b": 0.6, "a": 1 }, "enabled": true } }
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 460.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -230.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 150.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": -75.0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIRenderer",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.2,
+              "g": 0.32,
+              "b": 0.6,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
       ],
       "visible": true
     },
@@ -43,15 +123,52 @@
       "parent": 2,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "size": { "x": 440, "y": 130 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 440.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -220.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 130.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": -65.0,
+              "unit": 0
+            }
+          }
+        },
         {
           "type": "Text",
           "data": {
             "content": "文字在面板上 Text on panel",
             "fontFamily": "sans-serif",
             "fontSize": 44,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1,
             "wordWrap": true

@@ -43,7 +43,6 @@
 #include "../core/World.hpp"
 #include "../ecs/components/Velocity.hpp"
 #include "../ecs/components/Camera.hpp"
-#include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/RigidBody.hpp"
@@ -290,12 +289,6 @@ int getCameraPtr(ecs::Registry& r, u32 e) {
     return static_cast<int>(reinterpret_cast<uintptr_t>(c));
 }
 
-int getUIRectPtr(ecs::Registry& r, u32 e) {
-    auto* rect = r.tryGet<ecs::UIRect>(Entity::fromRaw(e));
-    if (!rect) return 0;
-    return static_cast<int>(reinterpret_cast<uintptr_t>(rect));
-}
-
 int getRigidBodyPtr(ecs::Registry& r, u32 e) {
     auto* rb = r.tryGet<ecs::RigidBody>(Entity::fromRaw(e));
     if (!rb) return 0;
@@ -321,7 +314,6 @@ EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
     emscripten::function("getSpritePtr", &esengine::getSpritePtr);
     emscripten::function("getVelocityPtr", &esengine::getVelocityPtr);
     emscripten::function("getCameraPtr", &esengine::getCameraPtr);
-    emscripten::function("getUIRectPtr", &esengine::getUIRectPtr);
     emscripten::function("getRigidBodyPtr", &esengine::getRigidBodyPtr);
     emscripten::function("getBoxColliderPtr", &esengine::getBoxColliderPtr);
     emscripten::function("getCircleColliderPtr", &esengine::getCircleColliderPtr);
@@ -582,20 +574,8 @@ void uiTree_markAllDirty() {
     ctx().require<ecs::UISystem>().tree.markAllDirty();
 }
 
-f32 getUIRectComputedWidth(ecs::Registry& registry, u32 entity) {
-    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
-    if (!rect) return 0.0f;
-    return rect->computed_size_.x;
-}
-
-f32 getUIRectComputedHeight(ecs::Registry& registry, u32 entity) {
-    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
-    if (!rect) return 0.0f;
-    return rect->computed_size_.y;
-}
-
-// UINode (CSS box, REARCH_GUI F3) computed size — its internal computed_size_ is
-// not embind-readable, so expose it the same way as UIRect for TS uiHelpers.
+// UINode (CSS box) computed size — its internal computed_size_ is not
+// embind-readable, so expose it for TS uiHelpers.
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity) {
     auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
     if (!node) return 0.0f;
@@ -608,14 +588,6 @@ f32 getUINodeComputedHeight(ecs::Registry& registry, u32 entity) {
     return node->computed_size_.y;
 }
 
-void setUIRectSize(ecs::Registry& registry, u32 entity, f32 w, f32 h) {
-    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
-    if (!rect) return;
-    rect->size.x = w;
-    rect->size.y = h;
-    ctx().require<ecs::UISystem>().treeMarkDirty(Entity::fromRaw(entity));
-}
-
 void transform_update(ecs::Registry& registry) {
     esengine::World world{registry, ctx().services(), 0.0f};
     if (auto* ts = ctx().tryGet<ecs::TransformSystem>()) {
@@ -626,10 +598,9 @@ void transform_update(ecs::Registry& registry) {
     }
 }
 
+// Per-frame clear of UINode tween anim-override flags (set by the tween system,
+// read by the layout pass). Name kept (ui_*) for the TS binding.
 void uiRect_clearAnimOverrides(ecs::Registry& registry) {
-    for (auto entity : registry.view<ecs::UIRect>()) {
-        registry.get<ecs::UIRect>(entity).anim_override_ = 0;
-    }
     for (auto entity : registry.view<ecs::UINode>()) {
         registry.get<ecs::UINode>(entity).anim_override_ = 0;
     }
@@ -638,17 +609,7 @@ void uiRect_clearAnimOverrides(ecs::Registry& registry) {
 void uiRect_setAnimOverride(ecs::Registry& registry, u32 entity, u8 flags) {
     if (auto* n = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity))) {
         n->anim_override_ |= flags;
-    } else if (auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity))) {
-        rect->anim_override_ |= flags;
     }
-}
-
-void uiRect_patchOffset(ecs::Registry& registry, u32 entity,
-                        f32 minX, f32 minY, f32 maxX, f32 maxY) {
-    auto* rect = registry.tryGet<ecs::UIRect>(Entity::fromRaw(entity));
-    if (!rect) return;
-    rect->offsetMin = {minX, minY};
-    rect->offsetMax = {maxX, maxY};
 }
 
 void transform_patchPosition(ecs::Registry& registry, u32 entity,
@@ -668,18 +629,14 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
     emscripten::function("ui_getRenderOrder", &esengine::ui_getRenderOrder);
     emscripten::function("uiFlexLayout_update", &esengine::uiFlexLayout_update);
-    emscripten::function("getUIRectComputedWidth", &esengine::getUIRectComputedWidth);
-    emscripten::function("getUIRectComputedHeight", &esengine::getUIRectComputedHeight);
     emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);
     emscripten::function("getUINodeComputedHeight", &esengine::getUINodeComputedHeight);
     emscripten::function("uiTree_markStructureDirty", &esengine::uiTree_markStructureDirty);
     emscripten::function("uiTree_markDirty", &esengine::uiTree_markDirty);
     emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);
-    emscripten::function("setUIRectSize", &esengine::setUIRectSize);
     emscripten::function("transform_update", &esengine::transform_update);
     emscripten::function("uiRect_clearAnimOverrides", &esengine::uiRect_clearAnimOverrides);
     emscripten::function("uiRect_setAnimOverride", &esengine::uiRect_setAnimOverride);
-    emscripten::function("uiRect_patchOffset", &esengine::uiRect_patchOffset);
     emscripten::function("transform_patchPosition", &esengine::transform_patchPosition);
 }
 

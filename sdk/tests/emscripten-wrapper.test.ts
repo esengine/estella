@@ -1,15 +1,36 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Diagnostic test: verify Object.entries behavior with Emscripten reference wrappers
+ * @file    emscripten-wrapper.test.ts
+ * @brief   Diagnostic: verify Object.entries / getter-setter / world.insert
+ *          behaviour for Emscripten value-object reference wrappers, exercised
+ *          through UINode's nested `Dimension` structs (the UIRect anchor
+ *          structs this used to probe were retired in REARCH_GUI F3).
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
-import { Transform } from '../src/component';
-import { UIRect } from '../src/ui/core/ui-rect';
-import type { UIRectData } from '../src/ui/core/ui-rect';
+import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
+
+/** px / auto Dimension literals (unit 0 = Px, 2 = Auto). */
+const px = (v: number) => ({ value: v, unit: 0 });
+const auto = () => ({ value: 0, unit: 2 });
+
+/** A complete UINode value-object (embind requires every member present). */
+function fullNode(over: Partial<UINodeData> = {}): UINodeData {
+    return {
+        position: 0,
+        width: auto(), height: auto(),
+        minWidth: auto(), minHeight: auto(),
+        maxWidth: auto(), maxHeight: auto(),
+        flexGrow: 0, flexShrink: 1, flexBasis: auto(),
+        alignSelf: 0,
+        marginLeft: px(0), marginTop: px(0), marginRight: px(0), marginBottom: px(0),
+        insetLeft: auto(), insetTop: auto(), insetRight: auto(), insetBottom: auto(),
+        ...over,
+    } as UINodeData;
+}
 
 describe.skipIf(!HAS_WASM)('Emscripten wrapper diagnostics', () => {
     let module: ESEngineModule;
@@ -18,67 +39,26 @@ describe.skipIf(!HAS_WASM)('Emscripten wrapper diagnostics', () => {
         module = await loadWasmModule();
     });
 
-    it('Object.entries on Emscripten getUIRect reference wrapper', () => {
+    it('Object.entries on Emscripten getUINode reference wrapper', () => {
         const registry = new module.Registry() as unknown as CppRegistry;
         const entity = registry.create();
 
-        // Add UIRect with specific values
-        registry.addUIRect(entity, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 0.5, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 50, y: 50 },
-            pivot: { x: 0.5, y: 0.5 },
-        } as any);
+        registry.addUINode(entity, fullNode({ width: px(50), height: px(50) }) as never);
 
-        // Get the reference wrapper
-        const ref = registry.getUIRect(entity);
+        const ref = registry.getUINode(entity);
 
-        // Check values via getter
-        console.log('=== Direct property access ===');
-        console.log('ref.anchorMin:', JSON.stringify(ref.anchorMin));
-        console.log('ref.anchorMax:', JSON.stringify(ref.anchorMax));
-        console.log('ref.size:', JSON.stringify(ref.size));
+        // The nested Dimension wrapper must read back via its getter.
+        expect(ref.width.value).toBeCloseTo(50, 5);
+        expect(ref.width.unit).toBe(0);
+        expect(ref.height.value).toBeCloseTo(50, 5);
 
-        // Check Object.entries
-        const entries = Object.entries(ref as any);
-        console.log('\n=== Object.entries ===');
-        console.log('entries length:', entries.length);
-        console.log('entries:', JSON.stringify(entries));
-
-        // Check Object.keys
-        const keys = Object.keys(ref as any);
-        console.log('\n=== Object.keys ===');
-        console.log('keys:', JSON.stringify(keys));
-
-        // Check own property names
-        const ownProps = Object.getOwnPropertyNames(ref as any);
-        console.log('\n=== Object.getOwnPropertyNames ===');
-        console.log('ownProps:', JSON.stringify(ownProps));
-
-        // Check own property descriptors
-        const descs = Object.getOwnPropertyDescriptors(ref as any);
-        console.log('\n=== Own property descriptors ===');
-        for (const [k, d] of Object.entries(descs)) {
-            console.log(`  ${k}: value=${d.value}, get=${typeof d.get}, set=${typeof d.set}, enum=${d.enumerable}`);
-        }
-
-        // Check prototype properties
-        const proto = Object.getPrototypeOf(ref);
-        if (proto) {
-            const protoDescs = Object.getOwnPropertyDescriptors(proto);
-            console.log('\n=== Prototype property descriptors ===');
-            for (const [k, d] of Object.entries(protoDescs)) {
-                console.log(`  ${k}: value=${typeof d.value}, get=${typeof d.get}, set=${typeof d.set}, enum=${d.enumerable}`);
-            }
-        }
-
-        expect(ref.anchorMax.x).toBeCloseTo(0.5, 5);
-        expect(ref.anchorMax.y).toBeCloseTo(1, 5);
+        // Object.* introspection on the embind reference wrapper must not throw.
+        expect(() => Object.entries(ref as unknown as object)).not.toThrow();
+        expect(() => Object.keys(ref as unknown as object)).not.toThrow();
+        expect(() => Object.getOwnPropertyNames(ref as unknown as object)).not.toThrow();
 
         registry.destroy(entity);
-        (registry as any).delete();
+        (registry as unknown as { delete(): void }).delete();
     });
 
     it('world.insert with Emscripten wrapper preserves values', () => {
@@ -89,82 +69,49 @@ describe.skipIf(!HAS_WASM)('Emscripten wrapper diagnostics', () => {
         const world = app.world;
         const entity = world.spawn();
 
-        // Insert UIRect with specific stretch anchors
-        world.insert(entity, UIRect, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 },
-            pivot: { x: 0.5, y: 0.5 },
-        });
+        world.insert(entity, UINode, fullNode());
 
-        // Get the reference wrapper
-        const ref = world.get(entity, UIRect) as UIRectData;
+        const ref = world.get(entity, UINode) as UINodeData;
 
-        console.log('\n=== Before modification ===');
-        console.log('anchorMax:', JSON.stringify(ref.anchorMax));
+        // Modify nested struct fields via the wrapper setters.
+        ref.width = px(120);
+        ref.height = px(64);
+        ref.position = 1;
 
-        // Modify via wrapper (like applyDirectionalFill does)
-        ref.anchorMin = { x: 0, y: 0 };
-        ref.anchorMax = { x: 0.5, y: 1 };
-        ref.offsetMin = { x: 0, y: 0 };
-        ref.offsetMax = { x: 0, y: 0 };
+        expect(ref.width.value).toBeCloseTo(120, 5);
 
-        console.log('After setter, anchorMax:', JSON.stringify(ref.anchorMax));
+        // Re-insert the wrapper and read back: values must survive the round-trip.
+        world.insert(entity, UINode, ref);
 
-        // Re-insert (like applyDirectionalFill does)
-        world.insert(entity, UIRect, ref);
-
-        // Read back
-        const after = world.get(entity, UIRect) as UIRectData;
-        console.log('\n=== After world.insert ===');
-        console.log('anchorMax:', JSON.stringify(after.anchorMax));
-        console.log('size:', JSON.stringify(after.size));
-        console.log('pivot:', JSON.stringify(after.pivot));
-
-        // THIS IS THE KEY CHECK
-        expect(after.anchorMax.x).toBeCloseTo(0.5, 5);
-        expect(after.anchorMax.y).toBeCloseTo(1, 5);
-        expect(after.anchorMin.x).toBeCloseTo(0, 5);
-        expect(after.anchorMin.y).toBeCloseTo(0, 5);
+        const after = world.get(entity, UINode) as UINodeData;
+        expect(after.width.value).toBeCloseTo(120, 5);
+        expect(after.width.unit).toBe(0);
+        expect(after.height.value).toBeCloseTo(64, 5);
+        expect(after.position).toBe(1);
 
         world.despawn(entity);
         world.disconnectCpp();
-        (registry as any).delete();
+        (registry as unknown as { delete(): void }).delete();
     });
 
     it('nested field modification on Emscripten wrapper', () => {
         const registry = new module.Registry() as unknown as CppRegistry;
         const entity = registry.create();
 
-        registry.addUIRect(entity, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 200, y: 200 },
-            pivot: { x: 0.5, y: 0.5 },
-        } as any);
+        registry.addUINode(entity, fullNode({ width: px(200), height: px(200) }) as never);
 
-        const ref = registry.getUIRect(entity);
+        const ref = registry.getUINode(entity);
 
-        // Try nested modification (the problematic pattern from syncHandleRect)
-        console.log('\n=== Nested field modification ===');
-        console.log('Before: anchorMin.x =', ref.anchorMin.x);
+        // Mutating a nested member in place writes to a COPY, not C++ memory…
+        ref.width.value = 0.7;
 
-        // This modifies a COPY, not C++ memory
-        ref.anchorMin.x = 0.7;
-        console.log('After ref.anchorMin.x = 0.7, actual value =', ref.anchorMin.x);
+        // …whereas assigning a whole Dimension struct writes through.
+        ref.width = px(140);
 
-        // This SHOULD write to C++ memory
-        ref.anchorMin = { x: 0.7, y: 0.3 };
-        console.log('After ref.anchorMin = {0.7, 0.3}, actual value =', ref.anchorMin.x, ref.anchorMin.y);
-
-        expect(ref.anchorMin.x).toBeCloseTo(0.7, 5);
-        expect(ref.anchorMin.y).toBeCloseTo(0.3, 5);
+        expect(ref.width.value).toBeCloseTo(140, 5);
+        expect(ref.width.unit).toBe(0);
 
         registry.destroy(entity);
-        (registry as any).delete();
+        (registry as unknown as { delete(): void }).delete();
     });
 });

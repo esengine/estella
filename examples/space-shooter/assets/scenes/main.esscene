@@ -129,25 +129,8 @@
           }
         },
         {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": {
-              "x": 0.5,
-              "y": 0.5
-            },
-            "anchorMax": {
-              "x": 0.5,
-              "y": 0.5
-            },
-            "size": {
-              "x": 600,
-              "y": 1080
-            },
-            "pivot": {
-              "x": 0.5,
-              "y": 0.5
-            }
-          }
+          "type": "UINode",
+          "data": {}
         }
       ],
       "visible": true
@@ -163,27 +146,32 @@
           "data": {}
         },
         {
-          "type": "UIRect",
+          "type": "UINode",
           "data": {
-            "anchorMin": {
-              "x": 0,
-              "y": 1
+            "position": 1,
+            "width": {
+              "value": 200.0,
+              "unit": 0
             },
-            "anchorMax": {
-              "x": 0,
-              "y": 1
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
             },
-            "offsetMin": {
-              "x": 20,
-              "y": -40
+            "marginLeft": {
+              "value": 20.0,
+              "unit": 0
             },
-            "size": {
-              "x": 200,
-              "y": 40
+            "height": {
+              "value": 40.0,
+              "unit": 0
             },
-            "pivot": {
-              "x": 0,
-              "y": 1
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 40.0,
+              "unit": 0
             }
           }
         },
@@ -226,27 +214,32 @@
           }
         },
         {
-          "type": "UIRect",
+          "type": "UINode",
           "data": {
-            "anchorMin": {
-              "x": 1,
-              "y": 1
+            "position": 1,
+            "width": {
+              "value": 24.0,
+              "unit": 0
             },
-            "anchorMax": {
-              "x": 1,
-              "y": 1
+            "insetLeft": {
+              "value": 100.0,
+              "unit": 1
             },
-            "offsetMin": {
-              "x": -84,
-              "y": -20
+            "marginLeft": {
+              "value": -108.0,
+              "unit": 0
             },
-            "size": {
-              "x": 24,
-              "y": 24
+            "height": {
+              "value": 24.0,
+              "unit": 0
             },
-            "pivot": {
-              "x": 1,
-              "y": 1
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 20.0,
+              "unit": 0
             }
           }
         },
@@ -286,27 +279,32 @@
           }
         },
         {
-          "type": "UIRect",
+          "type": "UINode",
           "data": {
-            "anchorMin": {
-              "x": 1,
-              "y": 1
+            "position": 1,
+            "width": {
+              "value": 24.0,
+              "unit": 0
             },
-            "anchorMax": {
-              "x": 1,
-              "y": 1
+            "insetLeft": {
+              "value": 100.0,
+              "unit": 1
             },
-            "offsetMin": {
-              "x": -52,
-              "y": -20
+            "marginLeft": {
+              "value": -76.0,
+              "unit": 0
             },
-            "size": {
-              "x": 24,
-              "y": 24
+            "height": {
+              "value": 24.0,
+              "unit": 0
             },
-            "pivot": {
-              "x": 1,
-              "y": 1
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 20.0,
+              "unit": 0
             }
           }
         },
@@ -346,27 +344,32 @@
           }
         },
         {
-          "type": "UIRect",
+          "type": "UINode",
           "data": {
-            "anchorMin": {
-              "x": 1,
-              "y": 1
+            "position": 1,
+            "width": {
+              "value": 24.0,
+              "unit": 0
             },
-            "anchorMax": {
-              "x": 1,
-              "y": 1
+            "insetLeft": {
+              "value": 100.0,
+              "unit": 1
             },
-            "offsetMin": {
-              "x": -20,
-              "y": -20
+            "marginLeft": {
+              "value": -44.0,
+              "unit": 0
             },
-            "size": {
-              "x": 24,
-              "y": 24
+            "height": {
+              "value": 24.0,
+              "unit": 0
             },
-            "pivot": {
-              "x": 1,
-              "y": 1
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 20.0,
+              "unit": 0
             }
           }
         },
@@ -400,27 +403,32 @@
           "data": {}
         },
         {
-          "type": "UIRect",
+          "type": "UINode",
           "data": {
-            "anchorMin": {
-              "x": 0.5,
-              "y": 0.5
+            "position": 1,
+            "width": {
+              "value": 400.0,
+              "unit": 0
             },
-            "anchorMax": {
-              "x": 0.5,
-              "y": 0.5
+            "insetLeft": {
+              "value": 50.0,
+              "unit": 1
             },
-            "offsetMin": {
-              "x": 0,
-              "y": 0
+            "marginLeft": {
+              "value": -200.0,
+              "unit": 0
             },
-            "size": {
-              "x": 400,
-              "y": 120
+            "height": {
+              "value": 120.0,
+              "unit": 0
             },
-            "pivot": {
-              "x": 0.5,
-              "y": 0.5
+            "insetTop": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": -60.0,
+              "unit": 0
             }
           }
         },

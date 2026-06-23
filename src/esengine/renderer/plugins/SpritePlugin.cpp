@@ -6,7 +6,7 @@
 #include "../Texture.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Sprite.hpp"
-#include "../../ecs/components/UIRect.hpp"
+#include "../../ecs/components/UINode.hpp"
 
 #include <cmath>
 
@@ -24,7 +24,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
     for (auto entity : spriteView) {
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
         if (!sprite.enabled) continue;
-        if (registry.has<ecs::UIRect>(entity)) continue;
+        if (registry.has<ecs::UINode>(entity)) continue;  // UI sprites are drawn by UIElementPlugin
 
         auto& transform = spriteView.get<ecs::Transform>(entity);
         transform.ensureDecomposed();

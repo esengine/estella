@@ -3,7 +3,7 @@
 #include "RenderFrame.hpp"
 #include "../core/Log.hpp"
 #include "../ecs/components/Transform.hpp"
-#include "../ecs/components/UIRect.hpp"
+#include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIMask.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 
@@ -45,20 +45,18 @@ ScreenRect computeMaskScreenRect(
     ecs::Registry& registry, Entity entity,
     const glm::mat4& vp, i32 vpX, i32 vpY, i32 vpW, i32 vpH
 ) {
-    if (!registry.has<ecs::UIRect>(entity) || !registry.has<ecs::Transform>(entity)) {
+    if (!registry.has<ecs::UINode>(entity) || !registry.has<ecs::Transform>(entity)) {
         return {0, 0, 0, 0};
     }
-    const auto& uiRect = registry.get<ecs::UIRect>(entity);
+    const auto& node = registry.get<ecs::UINode>(entity);
     const auto& transform = registry.get<ecs::Transform>(entity);
 
-    f32 sizeX = uiRect.computed_size_.x > 0 ? uiRect.computed_size_.x : uiRect.size.x;
-    f32 sizeY = uiRect.computed_size_.y > 0 ? uiRect.computed_size_.y : uiRect.size.y;
-    f32 worldW = sizeX * transform.worldScale.x;
-    f32 worldH = sizeY * transform.worldScale.y;
+    f32 worldW = node.computed_size_.x * transform.worldScale.x;
+    f32 worldH = node.computed_size_.y * transform.worldScale.y;
     f32 cx = transform.worldPosition.x;
     f32 cy = transform.worldPosition.y;
-    f32 px = uiRect.pivot.x;
-    f32 py = uiRect.pivot.y;
+    f32 px = 0.5f;  // UINode box is pivot-centered
+    f32 py = 0.5f;
 
     f32 localLeft = -worldW * px;
     f32 localRight = worldW * (1.0f - px);

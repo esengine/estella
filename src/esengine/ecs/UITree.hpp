@@ -4,7 +4,6 @@
 
 #include "Registry.hpp"
 #include "components/Hierarchy.hpp"
-#include "components/UIRect.hpp"
 #include "components/UINode.hpp"
 #include "components/Canvas.hpp"
 #include "components/Transform.hpp"
@@ -31,7 +30,7 @@ struct UITree {
     void rebuild(Registry& reg) {
         nodes_.clear();
         reg.each<Canvas>([&](Entity entity, Canvas&) {
-            if (!reg.has<UIRect>(entity) || !reg.has<Transform>(entity)) return;
+            if (!reg.has<UINode>(entity) || !reg.has<Transform>(entity)) return;
             buildDFS(reg, entity, INVALID_ENTITY, 0);
         });
         structure_dirty_ = false;
@@ -80,9 +79,8 @@ struct UITree {
 
 private:
     void buildDFS(Registry& reg, Entity entity, Entity layoutParent, u16 depth) {
-        // A layout node is anything the layout pass positions: the legacy UIRect
-        // (anchor model) or the modern UINode (CSS box, REARCH_GUI F3).
-        bool isLayoutNode = reg.has<UIRect>(entity) || reg.has<UINode>(entity);
+        // A layout node is any UINode (the single CSS-box layout model).
+        bool isLayoutNode = reg.has<UINode>(entity);
         i32 nodeIndex = -1;
 
         if (isLayoutNode) {

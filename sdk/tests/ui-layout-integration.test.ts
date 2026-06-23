@@ -1,22 +1,79 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Integration tests: App.tick() drives UI layout via real WASM module.
+ * @file    ui-layout-integration.test.ts
+ * @brief   Integration tests: App.tick() drives the single-pass UINode Yoga
+ *          layout via the real WASM module.
  *
  * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
-import { World } from '../src/world';
-import { UIRect, type UIRectData } from '../src/ui/core/ui-rect';
+import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { Canvas } from '../src/component';
-import { UICameraInfo, type UICameraData } from '../src/ui/UICameraInfo';
+import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { uiLayoutPlugin } from '../src/ui/UILayoutPlugin';
 import { uiRenderOrderPlugin } from '../src/ui/UIRenderOrderPlugin';
 import { Transform, Sprite } from '../src/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
+
+// ── Dimension literals (unit 0 = Px, 1 = Percent, 2 = Auto) ─────────────────
+const px = (v: number) => ({ value: v, unit: 0 });
+const pct = (v: number) => ({ value: v, unit: 1 });
+const auto = () => ({ value: 0, unit: 2 });
+
+/** A complete UINode value-object (embind requires every member present). */
+function node(over: Partial<UINodeData> = {}): UINodeData {
+    return {
+        position: 0,
+        width: auto(), height: auto(),
+        minWidth: auto(), minHeight: auto(),
+        maxWidth: auto(), maxHeight: auto(),
+        flexGrow: 0, flexShrink: 1, flexBasis: auto(),
+        alignSelf: 0,
+        marginLeft: px(0), marginTop: px(0), marginRight: px(0), marginBottom: px(0),
+        insetLeft: auto(), insetTop: auto(), insetRight: auto(), insetBottom: auto(),
+        ...over,
+    } as UINodeData;
+}
+
+/** Stretch to fill the parent box (Absolute + inset 0 on all edges). */
+function fillNode(): UINodeData {
+    return node({ position: 1, insetLeft: px(0), insetTop: px(0), insetRight: px(0), insetBottom: px(0) });
+}
+
+/** Fixed-size in-flow box. */
+function sizedNode(w: number, h: number): UINodeData {
+    return node({ width: px(w), height: px(h) });
+}
+
+/** Fill the parent inset by `n` px on every edge (Absolute). */
+function insetNode(n: number): UINodeData {
+    return node({ position: 1, insetLeft: px(n), insetTop: px(n), insetRight: px(n), insetBottom: px(n) });
+}
+
+function makeTransform(x = 0, y = 0) {
+    return {
+        position: { x, y, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
+    };
+}
+
+function makeSprite(w = 100, h = 100) {
+    return {
+        texture: 0,
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        size: { x: w, y: h },
+        uvOffset: { x: 0, y: 0 },
+        uvScale: { x: 1, y: 1 },
+        layer: 0,
+        flipX: false,
+        flipY: false,
+    };
+}
 
 describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => {
     let module: ESEngineModule;
@@ -50,7 +107,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
             try { world.despawn(e); } catch (_) {}
         }
         world.disconnectCpp();
-        (registry as any).delete();
+        (registry as unknown as { delete(): void }).delete();
     }
 
     function setCanvasRect(app: App, left: number, bottom: number, right: number, top: number): void {
@@ -62,25 +119,17 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         cam.valid = true;
     }
 
+    const nodeW = (registry: CppRegistry, e: number) => module.getUINodeComputedWidth!(registry, e);
+    const nodeH = (registry: CppRegistry, e: number) => module.getUINodeComputedHeight!(registry, e);
+
     it('should call uiLayout_update via tick without error', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
         const root = world.spawn();
         world.insert(root, Canvas, {});
-        world.insert(root, UIRect, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 },
-            pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(root, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
+        world.insert(root, UINode, fillNode());
+        world.insert(root, Transform, makeTransform());
 
         setCanvasRect(app, -400, -300, 400, 300);
 
@@ -89,60 +138,27 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         disposeApp(app, registry);
     });
 
-    it('should compute layout for child UIRect entities', async () => {
+    it('should compute layout for child UINode entities', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
         const root = world.spawn();
         world.insert(root, Canvas, {});
-        world.insert(root, UIRect, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 },
-            pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(root, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
+        world.insert(root, UINode, fillNode());
+        world.insert(root, Transform, makeTransform());
 
         const child = world.spawn();
         world.setParent(child, root);
-        world.insert(child, UIRect, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 10, y: 10 },
-            offsetMax: { x: -10, y: -10 },
-            size: { x: 0, y: 0 },
-            pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(child, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
-        world.insert(child, Sprite, {
-            texture: 0,
-            color: { r: 1, g: 1, b: 1, a: 1 },
-            size: { x: 100, y: 100 },
-            uvOffset: { x: 0, y: 0 },
-            uvScale: { x: 1, y: 1 },
-            layer: 0,
-            flipX: false,
-            flipY: false,
-        });
+        world.insert(child, UINode, insetNode(10));
+        world.insert(child, Transform, makeTransform());
+        world.insert(child, Sprite, makeSprite());
 
         setCanvasRect(app, -400, -300, 400, 300);
 
         await app.tick(1 / 60);
 
-        const computedW = module.getUIRectComputedWidth(registry, child);
-        const computedH = module.getUIRectComputedHeight(registry, child);
-        expect(computedW).toBeCloseTo(780, 0);
-        expect(computedH).toBeCloseTo(580, 0);
+        expect(nodeW(registry, child)).toBeCloseTo(780, 0);
+        expect(nodeH(registry, child)).toBeCloseTo(580, 0);
 
         disposeApp(app, registry);
     });
@@ -153,41 +169,15 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         const root = world.spawn();
         world.insert(root, Canvas, {});
-        world.insert(root, UIRect, {
-            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(root, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
-        world.insert(root, Sprite, {
-            texture: 0, color: { r: 1, g: 1, b: 1, a: 1 },
-            size: { x: 800, y: 600 },
-            uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 },
-            layer: 0, flipX: false, flipY: false,
-        });
+        world.insert(root, UINode, fillNode());
+        world.insert(root, Transform, makeTransform());
+        world.insert(root, Sprite, makeSprite(800, 600));
 
         const child = world.spawn();
         world.setParent(child, root);
-        world.insert(child, UIRect, {
-            anchorMin: { x: 0.5, y: 0.5 }, anchorMax: { x: 0.5, y: 0.5 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 100, y: 100 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(child, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
-        world.insert(child, Sprite, {
-            texture: 0, color: { r: 1, g: 1, b: 1, a: 1 },
-            size: { x: 100, y: 100 },
-            uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 },
-            layer: 0, flipX: false, flipY: false,
-        });
+        world.insert(child, UINode, sizedNode(100, 100));
+        world.insert(child, Transform, makeTransform());
+        world.insert(child, Sprite, makeSprite());
 
         setCanvasRect(app, -400, -300, 400, 300);
 
@@ -200,68 +190,38 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         disposeApp(app, registry);
     });
 
-    it('should handle fill anchors for slider-like entities', async () => {
+    it('should handle 50%-width fill for slider-like entities', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
         const root = world.spawn();
         world.insert(root, Canvas, {});
-        world.insert(root, UIRect, {
-            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(root, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
+        world.insert(root, UINode, fillNode());
+        world.insert(root, Transform, makeTransform());
 
         const background = world.spawn();
         world.setParent(background, root);
-        world.insert(background, UIRect, {
-            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(background, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
-        world.insert(background, Sprite, {
-            texture: 0, color: { r: 0.5, g: 0.5, b: 0.5, a: 1 },
-            size: { x: 200, y: 30 },
-            uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 },
-            layer: 0, flipX: false, flipY: false,
-        });
+        world.insert(background, UINode, fillNode());
+        world.insert(background, Transform, makeTransform());
+        world.insert(background, Sprite, makeSprite(200, 30));
 
         const fill = world.spawn();
         world.setParent(fill, background);
-        world.insert(fill, UIRect, {
-            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 0.5, y: 1 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(fill, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
-        world.insert(fill, Sprite, {
-            texture: 0, color: { r: 0, g: 0.8, b: 0, a: 1 },
-            size: { x: 100, y: 30 },
-            uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 },
-            layer: 0, flipX: false, flipY: false,
-        });
+        world.insert(fill, UINode, node({
+            position: 1,
+            insetLeft: px(0), insetTop: px(0),
+            width: pct(50), height: pct(100),
+        }));
+        world.insert(fill, Transform, makeTransform());
+        world.insert(fill, Sprite, makeSprite(100, 30));
 
         setCanvasRect(app, -400, -300, 400, 300);
 
         await app.tick(1 / 60);
 
-        const fillW = module.getUIRectComputedWidth(registry, fill);
-        const fillH = module.getUIRectComputedHeight(registry, fill);
-        const bgW = module.getUIRectComputedWidth(registry, background);
+        const fillW = nodeW(registry, fill);
+        const fillH = nodeH(registry, fill);
+        const bgW = nodeW(registry, background);
 
         expect(fillW).toBeGreaterThan(0);
         expect(fillH).toBeGreaterThan(0);
@@ -276,16 +236,8 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         const root = world.spawn();
         world.insert(root, Canvas, {});
-        world.insert(root, UIRect, {
-            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(root, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
+        world.insert(root, UINode, fillNode());
+        world.insert(root, Transform, makeTransform());
 
         setCanvasRect(app, -400, -300, 400, 300);
 
@@ -302,58 +254,34 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         const root = world.spawn();
         world.insert(root, Canvas, {});
-        world.insert(root, UIRect, {
-            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(root, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
+        world.insert(root, UINode, fillNode());
+        world.insert(root, Transform, makeTransform());
 
         const cam = app.getResource(UICameraInfo);
         cam.valid = false;
 
         await expect(async () => await app.tick(1 / 60)).not.toThrow();
 
-        const w = module.getUIRectComputedWidth(registry, root);
-        expect(w).toBe(0);
+        expect(nodeW(registry, root)).toBe(0);
 
         disposeApp(app, registry);
     });
 
-    it('Canvas without UIRect: layout should not overwrite Transform positions', async () => {
+    it('Canvas without UINode: layout should not overwrite Transform positions', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
+        // Root is a Canvas but has no UINode → it is not a layout root, so its
+        // subtree is never laid out and the child Transform is left untouched.
         const root = world.spawn();
         world.insert(root, Canvas, {});
-        world.insert(root, Transform, {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
+        world.insert(root, Transform, makeTransform());
 
         const child = world.spawn();
         world.setParent(child, root);
-        world.insert(child, UIRect, {
-            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 0, y: 0 },
-            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            size: { x: 200, y: 100 }, pivot: { x: 0.5, y: 0.5 },
-        });
-        world.insert(child, Transform, {
-            position: { x: 50, y: 75, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
-        world.insert(child, Sprite, {
-            texture: 0, color: { r: 1, g: 1, b: 1, a: 1 },
-            size: { x: 100, y: 100 },
-            uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 },
-            layer: 0, flipX: false, flipY: false,
-        });
+        world.insert(child, UINode, sizedNode(200, 100));
+        world.insert(child, Transform, makeTransform(50, 75));
+        world.insert(child, Sprite, makeSprite());
 
         setCanvasRect(app, -400, -300, 400, 300);
         await app.tick(1 / 60);

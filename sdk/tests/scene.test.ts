@@ -35,15 +35,6 @@ const Transform = defineBuiltin('Transform', {
     scale: { x: 1, y: 1, z: 1 },
 });
 
-const UIRect = defineBuiltin('UIRect', {
-    anchorMin: { x: 0, y: 0 },
-    anchorMax: { x: 1, y: 1 },
-    offsetMin: { x: 0, y: 0 },
-    offsetMax: { x: 0, y: 0 },
-    size: { x: 100, y: 100 },
-    pivot: { x: 0.5, y: 0.5 },
-});
-
 const UIMask = defineBuiltin('UIMask', {
     mode: 0,
     enabled: true,
@@ -289,22 +280,6 @@ describe('Scene', () => {
                 migrateSceneData(oneCompScene({ type: 'WorldTransform', data: {} }))
                     .data.entities[0].components[0].type,
             ).toBe('Transform');
-        });
-
-        it('splits legacy UIRect.anchor into anchorMin/anchorMax', () => {
-            const { data } = migrateSceneData(oneCompScene({ type: 'UIRect', data: { anchor: { x: 0.5, y: 0.5 } } }));
-            const d = data.entities[0].components[0].data;
-            expect(d.anchorMin).toEqual({ x: 0.5, y: 0.5 });
-            expect(d.anchorMax).toEqual({ x: 0.5, y: 0.5 });
-            expect(d.anchor).toBeUndefined();
-        });
-
-        it('does not overwrite an existing anchorMin', () => {
-            const { data } = migrateSceneData(oneCompScene({
-                type: 'UIRect',
-                data: { anchor: { x: 0, y: 0 }, anchorMin: { x: 0.1, y: 0.1 }, anchorMax: { x: 0.9, y: 0.9 } },
-            }));
-            expect(data.entities[0].components[0].data.anchorMin).toEqual({ x: 0.1, y: 0.1 });
         });
 
         it('converts UIMask mode strings to ints', () => {

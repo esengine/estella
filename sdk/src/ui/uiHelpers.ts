@@ -7,81 +7,12 @@ import { Image } from './core/image';
 import type { ImageData } from './core/image';
 import type { Entity, Color } from '../types';
 import type { World } from '../world';
-import { UIRect } from './core/ui-rect';
-import type { UIRectData } from './core/ui-rect';
 import { UIRenderer, UIVisualType } from './core/ui-renderer';
 import type { UIRendererData } from './core/ui-renderer';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { Interactable } from './behavior/interactable';
-
-export interface LayoutRect {
-    left: number;
-    bottom: number;
-    right: number;
-    top: number;
-}
-
-export interface LayoutResult {
-    originX: number;
-    originY: number;
-    width: number;
-    height: number;
-    rect: LayoutRect;
-}
-
-export function computeUIRectLayout(
-    anchorMin: { x: number; y: number },
-    anchorMax: { x: number; y: number },
-    offsetMin: { x: number; y: number },
-    offsetMax: { x: number; y: number },
-    size: { x: number; y: number },
-    parentRect: LayoutRect,
-    pivot: { x: number; y: number } = { x: 0.5, y: 0.5 },
-): LayoutResult {
-    const parentW = parentRect.right - parentRect.left;
-    const parentH = parentRect.top - parentRect.bottom;
-
-    const aLeft = parentRect.left + anchorMin.x * parentW;
-    const aRight = parentRect.left + anchorMax.x * parentW;
-    const aBottom = parentRect.bottom + anchorMin.y * parentH;
-    const aTop = parentRect.bottom + anchorMax.y * parentH;
-
-    let myLeft: number;
-    let myBottom: number;
-    let myRight: number;
-    let myTop: number;
-
-    if (anchorMin.x === anchorMax.x) {
-        myLeft = aLeft + offsetMin.x - size.x * pivot.x;
-        myRight = myLeft + size.x;
-    } else {
-        myLeft = aLeft + offsetMin.x;
-        myRight = aRight + offsetMax.x;
-    }
-
-    if (anchorMin.y === anchorMax.y) {
-        myBottom = aBottom + offsetMin.y - size.y * pivot.y;
-        myTop = myBottom + size.y;
-    } else {
-        myBottom = aBottom + offsetMin.y;
-        myTop = aTop + offsetMax.y;
-    }
-
-    const width = Math.max(0, myRight - myLeft);
-    const height = Math.max(0, myTop - myBottom);
-    const originX = myLeft + pivot.x * width;
-    const originY = myBottom + pivot.y * height;
-
-    return {
-        originX,
-        originY,
-        width,
-        height,
-        rect: { left: myLeft, bottom: myBottom, right: myRight, top: myTop },
-    };
-}
 
 const bridge = new CoreApiBridge('uiHelpers');
 let module_: ESEngineModule | null = null;
@@ -93,85 +24,6 @@ export function initUIHelpers(module: ESEngineModule, registry: CppRegistry): vo
     nativeRegistry_ = registry;
 }
 
-
-interface FillAnchors {
-    anchorMin: { x: number; y: number };
-    anchorMax: { x: number; y: number };
-    offsetMin: { x: number; y: number };
-    offsetMax: { x: number; y: number };
-}
-
-export function computeFillAnchors(direction: number, value: number): FillAnchors {
-    switch (direction) {
-        case FillDirection.RightToLeft:
-            return {
-                anchorMin: { x: 1 - value, y: 0 }, anchorMax: { x: 1, y: 1 },
-                offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            };
-        case FillDirection.BottomToTop:
-            return {
-                anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: value },
-                offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            };
-        case FillDirection.TopToBottom:
-            return {
-                anchorMin: { x: 0, y: 1 - value }, anchorMax: { x: 1, y: 1 },
-                offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            };
-        default:
-            return {
-                anchorMin: { x: 0, y: 0 }, anchorMax: { x: value, y: 1 },
-                offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
-            };
-    }
-}
-
-export function computeHandleAnchors(
-    direction: number, value: number,
-): { anchorMin: { x: number; y: number }; anchorMax: { x: number; y: number } } {
-    switch (direction) {
-        case FillDirection.RightToLeft:
-            return { anchorMin: { x: 1 - value, y: 0.5 }, anchorMax: { x: 1 - value, y: 0.5 } };
-        case FillDirection.BottomToTop:
-            return { anchorMin: { x: 0.5, y: value }, anchorMax: { x: 0.5, y: value } };
-        case FillDirection.TopToBottom:
-            return { anchorMin: { x: 0.5, y: 1 - value }, anchorMax: { x: 0.5, y: 1 - value } };
-        default:
-            return { anchorMin: { x: value, y: 0.5 }, anchorMax: { x: value, y: 0.5 } };
-    }
-}
-
-export function computeFillSize(
-    direction: number, value: number, parentW: number, parentH: number,
-): { x: number; y: number } {
-    switch (direction) {
-        case FillDirection.BottomToTop:
-        case FillDirection.TopToBottom:
-            return { x: parentW, y: parentH * value };
-        default:
-            return { x: parentW * value, y: parentH };
-    }
-}
-
-export function applyDirectionalFill(
-    world: World,
-    fillEntity: Entity,
-    direction: number,
-    value: number,
-): void {
-    if (!world.has(fillEntity, UIRect)) return;
-    const fillRect = world.get(fillEntity, UIRect) as UIRectData;
-    const anchors = computeFillAnchors(direction, value);
-    fillRect.anchorMin = anchors.anchorMin;
-    fillRect.anchorMax = anchors.anchorMax;
-    if (anchors.anchorMin.x === anchors.anchorMax.x) {
-        fillRect.size = { ...fillRect.size, x: 0 };
-    }
-    if (anchors.anchorMin.y === anchors.anchorMax.y) {
-        fillRect.size = { ...fillRect.size, y: 0 };
-    }
-    world.insert(fillEntity, UIRect, fillRect);
-}
 
 export function applyColorTransition(
     transition: ColorTransition,
@@ -294,22 +146,6 @@ export function getEntityDepth(world: World, entity: Entity): number {
     return depth;
 }
 
-export function getEffectiveWidth(rect: UIRectData, entity: Entity): number {
-    if (module_ && nativeRegistry_) {
-        const w = module_.getUIRectComputedWidth(nativeRegistry_, entity);
-        if (w > 0) return w;
-    }
-    return rect.size.x;
-}
-
-export function getEffectiveHeight(rect: UIRectData, entity: Entity): number {
-    if (module_ && nativeRegistry_) {
-        const h = module_.getUIRectComputedHeight(nativeRegistry_, entity);
-        if (h > 0) return h;
-    }
-    return rect.size.y;
-}
-
 /** Resolved px width of a UINode (its Yoga-computed size; REARCH_GUI F3). 0 if unresolved. */
 export function getUINodeWidth(entity: Entity): number {
     if (module_ && nativeRegistry_ && module_.getUINodeComputedWidth) {
@@ -326,11 +162,6 @@ export function getUINodeHeight(entity: Entity): number {
     return 0;
 }
 
-export function setUIRectSizeNative(entity: Entity, w: number, h: number): void {
-    if (module_ && nativeRegistry_) {
-        module_.setUIRectSize(nativeRegistry_, entity, w, h);
-    }
-}
 
 export function syncFillSpriteSize(
     world: World,

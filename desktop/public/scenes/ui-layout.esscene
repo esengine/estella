@@ -11,7 +11,11 @@
         {
           "type": "Transform",
           "data": {
-            "position": { "x": 0, "y": 0, "z": 10 }
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
           }
         },
         {
@@ -30,24 +34,49 @@
       "id": 1,
       "name": "Canvas",
       "parent": null,
-      "children": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+      "children": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "Canvas",
           "data": {
-            "designResolution": { "x": 800, "y": 600 },
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
             "scaleMode": 2
           }
         },
         {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "size": { "x": 800, "y": 600 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
+          "type": "UINode",
+          "data": {}
         }
       ],
       "visible": true
@@ -58,15 +87,38 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0.5, "y": 1 },
-            "anchorMax": { "x": 0.5, "y": 1 },
-            "offsetMin": { "x": 0, "y": -40 },
-            "size": { "x": 400, "y": 40 },
-            "pivot": { "x": 0.5, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 400.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -200.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 40.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 40.0,
+              "unit": 0
+            }
           }
         },
         {
@@ -74,7 +126,12 @@
           "data": {
             "content": "UIRect Anchor Layout",
             "fontSize": 28,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -88,21 +145,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 10, "y": -10 },
-            "size": { "x": 180, "y": 120 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 180.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 10.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 120.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 10.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.2, "g": 0.4, "b": 0.7, "a": 0.8 }
+            "color": {
+              "r": 0.2,
+              "g": 0.4,
+              "b": 0.7,
+              "a": 0.8
+            }
           }
         }
       ],
@@ -114,15 +199,38 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 10, "y": -10 },
-            "size": { "x": 180, "y": 120 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 180.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 10.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 120.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 10.0,
+              "unit": 0
+            }
           }
         },
         {
@@ -130,7 +238,12 @@
           "data": {
             "content": "Top-Left",
             "fontSize": 16,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -144,21 +257,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 1, "y": 1 },
-            "anchorMax": { "x": 1, "y": 1 },
-            "offsetMin": { "x": -10, "y": -10 },
-            "size": { "x": 180, "y": 120 },
-            "pivot": { "x": 1, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 180.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 100.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -190.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 120.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 10.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.7, "g": 0.2, "b": 0.4, "a": 0.8 }
+            "color": {
+              "r": 0.7,
+              "g": 0.2,
+              "b": 0.4,
+              "a": 0.8
+            }
           }
         }
       ],
@@ -170,15 +311,38 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 1, "y": 1 },
-            "anchorMax": { "x": 1, "y": 1 },
-            "offsetMin": { "x": -10, "y": -10 },
-            "size": { "x": 180, "y": 120 },
-            "pivot": { "x": 1, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 180.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 100.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -190.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 120.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 10.0,
+              "unit": 0
+            }
           }
         },
         {
@@ -186,7 +350,12 @@
           "data": {
             "content": "Top-Right",
             "fontSize": 16,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -200,21 +369,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 0 },
-            "anchorMax": { "x": 1, "y": 0 },
-            "offsetMin": { "x": 10, "y": 10 },
-            "size": { "x": 780, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0 }
+            "position": 1,
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "insetRight": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 10.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 80.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 100.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": -90.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.2, "g": 0.6, "b": 0.3, "a": 0.8 }
+            "color": {
+              "r": 0.2,
+              "g": 0.6,
+              "b": 0.3,
+              "a": 0.8
+            }
           }
         }
       ],
@@ -226,15 +423,38 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 0 },
-            "anchorMax": { "x": 1, "y": 0 },
-            "offsetMin": { "x": 10, "y": 10 },
-            "size": { "x": 780, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0 }
+            "position": 1,
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "insetRight": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 10.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 80.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 100.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": -90.0,
+              "unit": 0
+            }
           }
         },
         {
@@ -242,7 +462,12 @@
           "data": {
             "content": "Bottom Stretch",
             "fontSize": 16,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -256,21 +481,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 0, "y": 0 },
-            "size": { "x": 200, "y": 150 },
-            "pivot": { "x": 0.5, "y": 0.5 }
+            "position": 1,
+            "width": {
+              "value": 200.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -100.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 150.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": -75.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.6, "g": 0.4, "b": 0.2, "a": 0.8 }
+            "color": {
+              "r": 0.6,
+              "g": 0.4,
+              "b": 0.2,
+              "a": 0.8
+            }
           }
         }
       ],
@@ -282,15 +535,38 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 0, "y": 0 },
-            "size": { "x": 200, "y": 150 },
-            "pivot": { "x": 0.5, "y": 0.5 }
+            "position": 1,
+            "width": {
+              "value": 200.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -100.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 150.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 50.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": -75.0,
+              "unit": 0
+            }
           }
         },
         {
@@ -298,7 +574,12 @@
           "data": {
             "content": "Center",
             "fontSize": 16,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -312,21 +593,45 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 0.15 },
-            "anchorMax": { "x": 0, "y": 0.85 },
-            "offsetMin": { "x": 200, "y": 0 },
-            "size": { "x": 120, "y": 300 },
-            "pivot": { "x": 0, "y": 0.5 }
+            "position": 1,
+            "width": {
+              "value": 120.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 200.0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 15.0,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 15.0,
+              "unit": 1
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.5, "g": 0.2, "b": 0.6, "a": 0.8 }
+            "color": {
+              "r": 0.5,
+              "g": 0.2,
+              "b": 0.6,
+              "a": 0.8
+            }
           }
         }
       ],
@@ -338,15 +643,34 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 0.15 },
-            "anchorMax": { "x": 0, "y": 0.85 },
-            "offsetMin": { "x": 200, "y": 0 },
-            "size": { "x": 120, "y": 300 },
-            "pivot": { "x": 0, "y": 0.5 }
+            "position": 1,
+            "width": {
+              "value": 120.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 200.0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 15.0,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 15.0,
+              "unit": 1
+            }
           }
         },
         {
@@ -354,7 +678,12 @@
           "data": {
             "content": "Left Stretch",
             "fontSize": 16,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -368,21 +697,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 430, "y": -195 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 430.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 195.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.85, "g": 0.15, "b": 0.15, "a": 0.9 }
+            "color": {
+              "r": 0.85,
+              "g": 0.15,
+              "b": 0.15,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -394,21 +751,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 493, "y": -195 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 493.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 195.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.85, "g": 0.5, "b": 0.15, "a": 0.9 }
+            "color": {
+              "r": 0.85,
+              "g": 0.5,
+              "b": 0.15,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -420,21 +805,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 556, "y": -195 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 556.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 195.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.85, "g": 0.85, "b": 0.15, "a": 0.9 }
+            "color": {
+              "r": 0.85,
+              "g": 0.85,
+              "b": 0.15,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -446,21 +859,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 619, "y": -195 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 619.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 195.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.5, "g": 0.85, "b": 0.15, "a": 0.9 }
+            "color": {
+              "r": 0.5,
+              "g": 0.85,
+              "b": 0.15,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -472,21 +913,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 430, "y": -258 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 430.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 258.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.15, "g": 0.85, "b": 0.15, "a": 0.9 }
+            "color": {
+              "r": 0.15,
+              "g": 0.85,
+              "b": 0.15,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -498,21 +967,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 493, "y": -258 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 493.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 258.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.15, "g": 0.85, "b": 0.5, "a": 0.9 }
+            "color": {
+              "r": 0.15,
+              "g": 0.85,
+              "b": 0.5,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -524,21 +1021,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 556, "y": -258 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 556.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 258.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.15, "g": 0.85, "b": 0.85, "a": 0.9 }
+            "color": {
+              "r": 0.15,
+              "g": 0.85,
+              "b": 0.85,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -550,21 +1075,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 619, "y": -258 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 619.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 258.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.15, "g": 0.5, "b": 0.85, "a": 0.9 }
+            "color": {
+              "r": 0.15,
+              "g": 0.5,
+              "b": 0.85,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -576,21 +1129,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 430, "y": -321 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 430.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 321.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.15, "g": 0.15, "b": 0.85, "a": 0.9 }
+            "color": {
+              "r": 0.15,
+              "g": 0.15,
+              "b": 0.85,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -602,21 +1183,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 493, "y": -321 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 493.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 321.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.5, "g": 0.15, "b": 0.85, "a": 0.9 }
+            "color": {
+              "r": 0.5,
+              "g": 0.15,
+              "b": 0.85,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -628,21 +1237,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 556, "y": -321 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 556.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 321.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.85, "g": 0.15, "b": 0.85, "a": 0.9 }
+            "color": {
+              "r": 0.85,
+              "g": 0.15,
+              "b": 0.85,
+              "a": 0.9
+            }
           }
         }
       ],
@@ -654,21 +1291,49 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
         {
-          "type": "UIRect",
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
           "data": {
-            "anchorMin": { "x": 0, "y": 1 },
-            "anchorMax": { "x": 0, "y": 1 },
-            "offsetMin": { "x": 619, "y": -321 },
-            "size": { "x": 55, "y": 55 },
-            "pivot": { "x": 0, "y": 1 }
+            "position": 1,
+            "width": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 619.0,
+              "unit": 0
+            },
+            "height": {
+              "value": 55.0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0.0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 321.0,
+              "unit": 0
+            }
           }
         },
         {
           "type": "Image",
           "data": {
-            "color": { "r": 0.85, "g": 0.15, "b": 0.5, "a": 0.9 }
+            "color": {
+              "r": 0.85,
+              "g": 0.15,
+              "b": 0.5,
+              "a": 0.9
+            }
           }
         }
       ],

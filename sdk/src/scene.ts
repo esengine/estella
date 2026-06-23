@@ -328,7 +328,6 @@ export function migrateSceneData(raw: SceneData): SceneMigrationResult {
         // loader expands them first, so any seen here belong to the sync path
         // and are left untouched (spawnAndLoadEntities warns + skips them).
         if (isPrefabEntry(entity)) continue;
-        if (migrateEntityToUIRenderer(entity)) migrated = true;
         for (const comp of entity.components) {
             if (normalizeLegacyComponent(comp)) migrated = true;
         }
@@ -338,48 +337,12 @@ export function migrateSceneData(raw: SceneData): SceneMigrationResult {
     return { data, migrated, fromVersion, toVersion: SCENE_FORMAT_VERSION };
 }
 
-/** Legacy UIRect+Sprite (no UIRenderer) → UIRenderer. Returns true if changed. */
-function migrateEntityToUIRenderer(entityData: SceneEntityData): boolean {
-    const hasUIRect = entityData.components.some(c => c.type === 'UIRect');
-    const spriteIdx = entityData.components.findIndex(c => c.type === 'Sprite');
-    const hasUIRenderer = entityData.components.some(c => c.type === 'UIRenderer');
-
-    if (!hasUIRect || spriteIdx === -1 || hasUIRenderer) return false;
-
-    const sprite = entityData.components[spriteIdx].data;
-    const tex = sprite.texture as number | undefined;
-    entityData.components.push({
-        type: 'UIRenderer',
-        data: {
-            visualType: tex ? 2 : 1,
-            texture: tex ?? 0,
-            color: sprite.color ?? { r: 1, g: 1, b: 1, a: 1 },
-            uvOffset: sprite.uvOffset ?? { x: 0, y: 0 },
-            uvScale: sprite.uvScale ?? { x: 1, y: 1 },
-            sliceBorder: sprite.sliceBorder ?? { x: 0, y: 0, z: 0, w: 0 },
-            material: sprite.material ?? 0,
-            enabled: sprite.enabled ?? true,
-        },
-    });
-    entityData.components.splice(spriteIdx, 1);
-    return true;
-}
-
 /** Normalize legacy component spellings in place. Returns true if changed. */
 function normalizeLegacyComponent(compData: SceneComponentData): boolean {
     let changed = false;
     if (compData.type === 'LocalTransform' || compData.type === 'WorldTransform') {
         compData.type = 'Transform';
         changed = true;
-    }
-    if (compData.type === 'UIRect') {
-        const rectData = compData.data as Record<string, unknown>;
-        if (rectData.anchor && !rectData.anchorMin) {
-            rectData.anchorMin = { ...(rectData.anchor as Record<string, unknown>) };
-            rectData.anchorMax = { ...(rectData.anchor as Record<string, unknown>) };
-            delete rectData.anchor;
-            changed = true;
-        }
     }
     if (compData.type === 'UIMask') {
         const maskData = compData.data as Record<string, unknown>;

@@ -34,11 +34,11 @@ export function composeTRS(out: Float32Array, t: Vec3, q: Quat, s: Vec3): Float3
 }
 
 /**
- * Place a text block inside a UIRect. The entity Transform sits at the rect's
+ * Place a text block inside a UINode box. The entity Transform sits at the box's
  * pivot (UI layout positions the pivot), so glyph local positions (baseline y=0,
- * y-up) are offset to the rect's top-left; the rect width is the wrap/align box
+ * y-up) are offset to the box's top-left; the box width is the wrap/align area
  * and `boxHeight` lets the renderer apply vertical alignment. Top-vertical by
- * default: the first line's baseline is one ascent below the rect top
+ * default: the first line's baseline is one ascent below the box top
  * (ascent ≈ fontSize × 0.8). Pure.
  */
 export function rectTextBox(

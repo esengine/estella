@@ -1,27 +1,63 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Integration tests: UI components (UIRect, UIMask, FlexContainer, FlexItem,
- * Interactable, UIInteraction, Canvas) via real WASM module.
+ * @file    ui-components.test.ts
+ * @brief   Integration tests for the UI components (UINode, UIMask,
+ *          FlexContainer, FlexItem, Interactable, UIInteraction, Canvas) over
+ *          the real WASM module — CRUD plus the single-pass Yoga layout.
  *
  * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
-import { World } from '../src/world';
 import { Transform, Sprite, Canvas } from '../src/component';
-import { UIRect } from '../src/ui/core/ui-rect';
+import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from '../src/ui/layout/flex';
 import { FlexItem } from '../src/ui/layout/flex';
 import { Interactable } from '../src/ui/behavior/interactable';
 import { UIInteraction } from '../src/ui/behavior/interactable';
-import { UICameraInfo, type UICameraData } from '../src/ui/UICameraInfo';
+import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { uiLayoutPlugin } from '../src/ui/UILayoutPlugin';
 import { uiRenderOrderPlugin } from '../src/ui/UIRenderOrderPlugin';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
+
+// ── Dimension literals (unit 0 = Px, 1 = Percent, 2 = Auto) ─────────────────
+const px = (v: number) => ({ value: v, unit: 0 });
+const pct = (v: number) => ({ value: v, unit: 1 });
+const auto = () => ({ value: 0, unit: 2 });
+
+/** A complete UINode value-object (embind requires every member present). */
+function node(over: Partial<UINodeData> = {}): UINodeData {
+    return {
+        position: 0,
+        width: auto(), height: auto(),
+        minWidth: auto(), minHeight: auto(),
+        maxWidth: auto(), maxHeight: auto(),
+        flexGrow: 0, flexShrink: 1, flexBasis: auto(),
+        alignSelf: 0,
+        marginLeft: px(0), marginTop: px(0), marginRight: px(0), marginBottom: px(0),
+        insetLeft: auto(), insetTop: auto(), insetRight: auto(), insetBottom: auto(),
+        ...over,
+    } as UINodeData;
+}
+
+/** Stretch to fill the parent box (Absolute + inset 0 on all edges). */
+function fillNode(): UINodeData {
+    return node({ position: 1, insetLeft: px(0), insetTop: px(0), insetRight: px(0), insetBottom: px(0) });
+}
+
+/** Fixed-size in-flow box. */
+function sizedNode(w: number, h: number): UINodeData {
+    return node({ width: px(w), height: px(h) });
+}
+
+/** Fill the parent inset by `n` px on every edge (Absolute). */
+function insetNode(n: number): UINodeData {
+    return node({ position: 1, insetLeft: px(n), insetTop: px(n), insetRight: px(n), insetBottom: px(n) });
+}
 
 describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
     let module: ESEngineModule;
@@ -55,7 +91,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             try { world.despawn(e); } catch (_) {}
         }
         world.disconnectCpp();
-        (registry as any).delete();
+        (registry as unknown as { delete(): void }).delete();
     }
 
     function setCanvasRect(app: App, left: number, bottom: number, right: number, top: number): void {
@@ -88,57 +124,37 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
         };
     }
 
-    function makeFullRect() {
-        return {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 0, y: 0 },
-            pivot: { x: 0.5, y: 0.5 },
-        };
-    }
+    const nodeW = (registry: CppRegistry, e: number) => module.getUINodeComputedWidth!(registry, e);
+    const nodeH = (registry: CppRegistry, e: number) => module.getUINodeComputedHeight!(registry, e);
 
-    function makeCenterRect(w: number, h: number) {
-        return {
-            anchorMin: { x: 0.5, y: 0.5 },
-            anchorMax: { x: 0.5, y: 0.5 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: w, y: h },
-            pivot: { x: 0.5, y: 0.5 },
-        };
-    }
-
-    describe('UIRect CRUD', () => {
-        it('should insert and read UIRect via CppRegistry', () => {
+    describe('UINode CRUD', () => {
+        it('should insert and read UINode via CppRegistry', () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const entity = world.spawn();
-            world.insert(entity, UIRect, makeCenterRect(200, 100));
+            world.insert(entity, UINode, sizedNode(200, 100));
 
-            expect(registry.hasUIRect(entity)).toBe(true);
+            expect(registry.hasUINode(entity)).toBe(true);
 
-            const rect = registry.getUIRect(entity);
-            expect(rect.size.x).toBeCloseTo(200);
-            expect(rect.size.y).toBeCloseTo(100);
-            expect(rect.pivot.x).toBeCloseTo(0.5);
-            expect(rect.pivot.y).toBeCloseTo(0.5);
+            const n = registry.getUINode(entity);
+            expect(n.width.value).toBeCloseTo(200);
+            expect(n.width.unit).toBe(0);
+            expect(n.height.value).toBeCloseTo(100);
 
             disposeApp(app, registry);
         });
 
-        it('should remove UIRect', () => {
+        it('should remove UINode', () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const entity = world.spawn();
-            world.insert(entity, UIRect, makeFullRect());
-            expect(registry.hasUIRect(entity)).toBe(true);
+            world.insert(entity, UINode, fillNode());
+            expect(registry.hasUINode(entity)).toBe(true);
 
-            world.remove(entity, UIRect);
-            expect(registry.hasUIRect(entity)).toBe(false);
+            world.remove(entity, UINode);
+            expect(registry.hasUINode(entity)).toBe(false);
 
             disposeApp(app, registry);
         });
@@ -364,83 +380,61 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
     });
 
     describe('UI layout with deep hierarchy', () => {
-        it('should compute layout for 3-level nested UIRect', async () => {
+        it('should compute layout for 3-level nested UINode', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
 
             const mid = world.spawn();
             world.setParent(mid, root);
-            world.insert(mid, UIRect, {
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 1, y: 1 },
-                offsetMin: { x: 20, y: 20 },
-                offsetMax: { x: -20, y: -20 },
-                size: { x: 0, y: 0 },
-                pivot: { x: 0.5, y: 0.5 },
-            });
+            world.insert(mid, UINode, insetNode(20));
             world.insert(mid, Transform, makeTransform());
 
             const leaf = world.spawn();
             world.setParent(leaf, mid);
-            world.insert(leaf, UIRect, {
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 1, y: 1 },
-                offsetMin: { x: 10, y: 10 },
-                offsetMax: { x: -10, y: -10 },
-                size: { x: 0, y: 0 },
-                pivot: { x: 0.5, y: 0.5 },
-            });
+            world.insert(leaf, UINode, insetNode(10));
             world.insert(leaf, Transform, makeTransform());
             world.insert(leaf, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
             await app.tick(1 / 60);
 
-            const rootW = module.getUIRectComputedWidth(registry, root);
-            const rootH = module.getUIRectComputedHeight(registry, root);
-            expect(rootW).toBeCloseTo(800, 0);
-            expect(rootH).toBeCloseTo(600, 0);
+            expect(nodeW(registry, root)).toBeCloseTo(800, 0);
+            expect(nodeH(registry, root)).toBeCloseTo(600, 0);
 
-            const midW = module.getUIRectComputedWidth(registry, mid);
-            const midH = module.getUIRectComputedHeight(registry, mid);
-            expect(midW).toBeCloseTo(760, 0);
-            expect(midH).toBeCloseTo(560, 0);
+            expect(nodeW(registry, mid)).toBeCloseTo(760, 0);
+            expect(nodeH(registry, mid)).toBeCloseTo(560, 0);
 
-            const leafW = module.getUIRectComputedWidth(registry, leaf);
-            const leafH = module.getUIRectComputedHeight(registry, leaf);
-            expect(leafW).toBeCloseTo(740, 0);
-            expect(leafH).toBeCloseTo(540, 0);
+            expect(nodeW(registry, leaf)).toBeCloseTo(740, 0);
+            expect(nodeH(registry, leaf)).toBeCloseTo(540, 0);
 
             disposeApp(app, registry);
         });
 
-        it('should compute fixed-size centered child correctly', async () => {
+        it('should compute fixed-size child correctly', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
 
             const child = world.spawn();
             world.setParent(child, root);
-            world.insert(child, UIRect, makeCenterRect(200, 150));
+            world.insert(child, UINode, sizedNode(200, 150));
             world.insert(child, Transform, makeTransform());
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
             await app.tick(1 / 60);
 
-            const w = module.getUIRectComputedWidth(registry, child);
-            const h = module.getUIRectComputedHeight(registry, child);
-            expect(w).toBeCloseTo(200, 0);
-            expect(h).toBeCloseTo(150, 0);
+            expect(nodeW(registry, child)).toBeCloseTo(200, 0);
+            expect(nodeH(registry, child)).toBeCloseTo(150, 0);
 
             disposeApp(app, registry);
         });
@@ -453,7 +447,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
             world.insert(root, Sprite, makeSprite());
 
@@ -461,7 +455,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             for (let i = 0; i < 5; i++) {
                 const child = world.spawn();
                 world.setParent(child, root);
-                world.insert(child, UIRect, makeCenterRect(50, 50));
+                world.insert(child, UINode, sizedNode(50, 50));
                 world.insert(child, Transform, makeTransform());
                 world.insert(child, Sprite, makeSprite());
                 children.push(child);
@@ -485,19 +479,19 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
             world.insert(root, Sprite, makeSprite());
 
             const mid = world.spawn();
             world.setParent(mid, root);
-            world.insert(mid, UIRect, makeFullRect());
+            world.insert(mid, UINode, fillNode());
             world.insert(mid, Transform, makeTransform());
             world.insert(mid, Sprite, makeSprite());
 
             const leaf = world.spawn();
             world.setParent(leaf, mid);
-            world.insert(leaf, UIRect, makeCenterRect(50, 50));
+            world.insert(leaf, UINode, sizedNode(50, 50));
             world.insert(leaf, Transform, makeTransform());
             world.insert(leaf, Sprite, makeSprite());
 
@@ -515,142 +509,120 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
         });
     });
 
-    describe('anchor-based layout variations', () => {
-        it('should compute left-anchored child (25% width)', async () => {
+    describe('percent / inset sizing variations', () => {
+        it('should compute left child at 25% width, full height', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
 
             const child = world.spawn();
             world.setParent(child, root);
-            world.insert(child, UIRect, {
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 0.25, y: 1 },
-                offsetMin: { x: 0, y: 0 },
-                offsetMax: { x: 0, y: 0 },
-                size: { x: 0, y: 0 },
-                pivot: { x: 0.5, y: 0.5 },
-            });
+            world.insert(child, UINode, node({
+                position: 1,
+                insetLeft: px(0), insetTop: px(0),
+                width: pct(25), height: pct(100),
+            }));
             world.insert(child, Transform, makeTransform());
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
             await app.tick(1 / 60);
 
-            const w = module.getUIRectComputedWidth(registry, child);
-            const h = module.getUIRectComputedHeight(registry, child);
-            expect(w).toBeCloseTo(200, 0);
-            expect(h).toBeCloseTo(600, 0);
+            expect(nodeW(registry, child)).toBeCloseTo(200, 0);
+            expect(nodeH(registry, child)).toBeCloseTo(600, 0);
 
             disposeApp(app, registry);
         });
 
-        it('should compute bottom-anchored child (50% height)', async () => {
+        it('should compute bottom child at full width, 50% height', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
 
             const child = world.spawn();
             world.setParent(child, root);
-            world.insert(child, UIRect, {
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 1, y: 0.5 },
-                offsetMin: { x: 0, y: 0 },
-                offsetMax: { x: 0, y: 0 },
-                size: { x: 0, y: 0 },
-                pivot: { x: 0.5, y: 0.5 },
-            });
+            world.insert(child, UINode, node({
+                position: 1,
+                insetLeft: px(0), insetBottom: px(0),
+                width: pct(100), height: pct(50),
+            }));
             world.insert(child, Transform, makeTransform());
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
             await app.tick(1 / 60);
 
-            const w = module.getUIRectComputedWidth(registry, child);
-            const h = module.getUIRectComputedHeight(registry, child);
-            expect(w).toBeCloseTo(800, 0);
-            expect(h).toBeCloseTo(300, 0);
+            expect(nodeW(registry, child)).toBeCloseTo(800, 0);
+            expect(nodeH(registry, child)).toBeCloseTo(300, 0);
 
             disposeApp(app, registry);
         });
 
-        it('should compute offset from edges', async () => {
+        it('should compute fill inset by 50px on every edge', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
 
             const child = world.spawn();
             world.setParent(child, root);
-            world.insert(child, UIRect, {
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 1, y: 1 },
-                offsetMin: { x: 50, y: 50 },
-                offsetMax: { x: -50, y: -50 },
-                size: { x: 0, y: 0 },
-                pivot: { x: 0.5, y: 0.5 },
-            });
+            world.insert(child, UINode, insetNode(50));
             world.insert(child, Transform, makeTransform());
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
             await app.tick(1 / 60);
 
-            const w = module.getUIRectComputedWidth(registry, child);
-            const h = module.getUIRectComputedHeight(registry, child);
-            expect(w).toBeCloseTo(700, 0);
-            expect(h).toBeCloseTo(500, 0);
+            expect(nodeW(registry, child)).toBeCloseTo(700, 0);
+            expect(nodeH(registry, child)).toBeCloseTo(500, 0);
 
             disposeApp(app, registry);
         });
     });
 
     describe('dynamic layout changes', () => {
-        it('should update layout when anchors change between ticks', async () => {
+        it('should update layout when sizing changes between ticks', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
 
             const child = world.spawn();
             world.setParent(child, root);
-            world.insert(child, UIRect, {
-                anchorMin: { x: 0, y: 0 },
-                anchorMax: { x: 0.5, y: 1 },
-                offsetMin: { x: 0, y: 0 },
-                offsetMax: { x: 0, y: 0 },
-                size: { x: 0, y: 0 },
-                pivot: { x: 0.5, y: 0.5 },
-            });
+            world.insert(child, UINode, node({
+                position: 1,
+                insetLeft: px(0), insetTop: px(0),
+                width: pct(50), height: pct(100),
+            }));
             world.insert(child, Transform, makeTransform());
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
             await app.tick(1 / 60);
 
-            expect(module.getUIRectComputedWidth(registry, child)).toBeCloseTo(400, 0);
+            expect(nodeW(registry, child)).toBeCloseTo(400, 0);
 
-            const rect = registry.getUIRect(child);
-            rect.anchorMax.x = 1;
-            registry.addUIRect(child, rect);
+            const n = registry.getUINode(child);
+            n.width = pct(100);
+            registry.addUINode(child, n);
 
             await app.tick(1 / 60);
 
-            expect(module.getUIRectComputedWidth(registry, child)).toBeCloseTo(800, 0);
+            expect(nodeW(registry, child)).toBeCloseTo(800, 0);
 
             disposeApp(app, registry);
         });
@@ -661,7 +633,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
 
             setCanvasRect(app, -400, -300, 400, 300);
@@ -669,16 +641,14 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
 
             const child = world.spawn();
             world.setParent(child, root);
-            world.insert(child, UIRect, makeCenterRect(300, 200));
+            world.insert(child, UINode, sizedNode(300, 200));
             world.insert(child, Transform, makeTransform());
             world.insert(child, Sprite, makeSprite());
 
             await app.tick(1 / 60);
 
-            const w = module.getUIRectComputedWidth(registry, child);
-            const h = module.getUIRectComputedHeight(registry, child);
-            expect(w).toBeCloseTo(300, 0);
-            expect(h).toBeCloseTo(200, 0);
+            expect(nodeW(registry, child)).toBeCloseTo(300, 0);
+            expect(nodeH(registry, child)).toBeCloseTo(200, 0);
 
             disposeApp(app, registry);
         });
@@ -689,21 +659,21 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
 
             const root = world.spawn();
             world.insert(root, Canvas, {});
-            world.insert(root, UIRect, makeFullRect());
+            world.insert(root, UINode, fillNode());
             world.insert(root, Transform, makeTransform());
             world.insert(root, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
             await app.tick(1 / 60);
 
-            expect(module.getUIRectComputedWidth(registry, root)).toBeCloseTo(800, 0);
-            expect(module.getUIRectComputedHeight(registry, root)).toBeCloseTo(600, 0);
+            expect(nodeW(registry, root)).toBeCloseTo(800, 0);
+            expect(nodeH(registry, root)).toBeCloseTo(600, 0);
 
             setCanvasRect(app, -500, -400, 500, 400);
             await app.tick(1 / 60);
 
-            expect(module.getUIRectComputedWidth(registry, root)).toBeCloseTo(1000, 0);
-            expect(module.getUIRectComputedHeight(registry, root)).toBeCloseTo(800, 0);
+            expect(nodeW(registry, root)).toBeCloseTo(1000, 0);
+            expect(nodeH(registry, root)).toBeCloseTo(800, 0);
 
             disposeApp(app, registry);
         });

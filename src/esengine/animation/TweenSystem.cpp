@@ -5,7 +5,6 @@
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Camera.hpp"
-#include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/UINode.hpp"
 
 #include <glm/glm.hpp>
@@ -131,13 +130,12 @@ void TweenSystem::resumeTween(ecs::Registry& registry, Entity tweenEntity) {
 // Tween owns the writes for its fixed 13 targets (was routed through the generic
 // animTargets `applyAnimatedValue`; REARCH_ANIMATION P4b decouples it so the
 // generic enum+switch can be deleted with the C++ timeline in P4c). Mirrors the
-// per-field semantics exactly: rotation.z → half-angle quaternion, and the UIRect
+// per-field semantics exactly: rotation.z → half-angle quaternion, and the UINode
 // `anim_override_` flags so UI layout doesn't clobber animated Transform fields.
-// Flag the entity's layout component (modern UINode or legacy UIRect) so the
-// layout pass leaves the tween-driven Transform field alone this frame.
+// Flag the entity's UINode so the layout pass leaves the tween-driven Transform
+// field alone this frame.
 static void markUIAnimOverride(ecs::Registry& registry, Entity entity, u8 flag) {
     if (auto* n = registry.tryGet<ecs::UINode>(entity)) n->anim_override_ |= flag;
-    else if (auto* r = registry.tryGet<ecs::UIRect>(entity)) r->anim_override_ |= flag;
 }
 
 static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget target, f32 value) {

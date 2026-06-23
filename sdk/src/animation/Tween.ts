@@ -47,7 +47,7 @@ export { ValueTweenHandle } from './ValueTween';
  * TweenSystem.cpp. That's a larger cross-layer change tracked
  * separately; for now TweenTarget is the stable subset.
  *
- * If you need to tween a field not in this list (e.g. UIRect.anchorMin.x),
+ * If you need to tween a field not in this list (e.g. UINode.insetLeft.value),
  * use `tween.value(...)` with a callback that writes the field yourself,
  * or drive it via Timeline.
  */

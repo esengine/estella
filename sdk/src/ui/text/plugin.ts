@@ -5,8 +5,8 @@
  * @brief   TextPlugin — renders the `Text` component via the dynamic SDF glyph
  *          atlas (REARCH_GUI P1.4d), replacing the legacy Canvas2D-per-entity
  *          path. A pre-flush callback scans Text entities, composes the world
- *          transform, places the text inside its UIRect box (no auto-size — the
- *          UIRect is the box; rendering never mutates layout) and draws batched
+ *          transform, places the text inside its UINode box (no auto-size — the
+ *          UINode is the box; rendering never mutates layout) and draws batched
  *          SDF glyph quads, layered to interleave with sibling UI elements.
  */
 import type { App, Plugin } from '../../app';
@@ -17,9 +17,8 @@ import type { Entity } from '../../types';
 import { SdfTextRenderer } from './text-renderer';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, type TextData } from '../core/text';
-import { UIRect, type UIRectData } from '../core/ui-rect';
 import { UINode } from '../core/ui-node';
-import { getEffectiveWidth, getEffectiveHeight, getUINodeWidth, getUINodeHeight, ensureUIRenderer } from '../uiHelpers';
+import { getUINodeWidth, getUINodeHeight, ensureUIRenderer } from '../uiHelpers';
 
 // Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
 const UI_BASE_LAYER = 1000;
@@ -35,14 +34,11 @@ export class TextPlugin implements Plugin {
 
         const world = app.world;
 
-        // A Text node inside a UIRect is a UI render node: ensure it carries a
+        // A Text node inside a UINode is a UI render node: ensure it carries a
         // UIRenderer (visualType None — not drawn as a quad) so the UI
         // render-order pass assigns it a uiOrder and the SDF glyphs sort with
         // sibling UI elements. Idempotent; runs before the PostUpdate order pass.
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
-            for (const e of world.getEntitiesWithComponents([Text, UIRect])) {
-                ensureUIRenderer(world, e as Entity);
-            }
             for (const e of world.getEntitiesWithComponents([Text, UINode])) {
                 ensureUIRenderer(world, e as Entity);
             }
@@ -71,7 +67,7 @@ export class TextPlugin implements Plugin {
                 const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
 
                 // The layout box: a UINode (CSS box, pivot-centered) or legacy
-                // UIRect. Text is placed + aligned + wrapped inside it and sorted
+                // UINode. Text is placed + aligned + wrapped inside it and sorted
                 // by the UI render order. No box ⇒ a world-space label at the
                 // entity origin, layer 0.
                 let originX: number | undefined;
@@ -79,21 +75,14 @@ export class TextPlugin implements Plugin {
                 let maxWidth: number | undefined;
                 let boxHeight: number | undefined;
                 let layer = 0;
-                let w = 0, h = 0, pivotX = 0.5, pivotY = 0.5, hasBox = false;
+                let w = 0, h = 0, hasBox = false;
                 if (world.has(entity, UINode)) {
                     w = getUINodeWidth(entity);
                     h = getUINodeHeight(entity);
                     hasBox = w > 0 || h > 0;
-                } else if (world.has(entity, UIRect)) {
-                    const rect = world.get(entity, UIRect) as UIRectData;
-                    w = getEffectiveWidth(rect, entity);
-                    h = getEffectiveHeight(rect, entity);
-                    pivotX = rect.pivot.x;
-                    pivotY = rect.pivot.y;
-                    hasBox = true;
                 }
                 if (hasBox) {
-                    const box = rectTextBox(pivotX, pivotY, w, h, t.fontSize);
+                    const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
                     originX = box.originX;
                     originY = box.originY;
                     boxHeight = box.boxHeight;

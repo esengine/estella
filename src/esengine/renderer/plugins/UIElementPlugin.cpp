@@ -6,7 +6,6 @@
 #include "../Texture.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/UIRenderer.hpp"
-#include "../../ecs/components/UIRect.hpp"
 #include "../../ecs/components/UINode.hpp"
 
 #include <cmath>
@@ -26,18 +25,11 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
         const auto& renderer = uiView.get<ecs::UIRenderer>(entity);
         if (!renderer.enabled || renderer.visualType == ecs::UIVisualType::None) continue;
 
-        // Geometry source: the legacy UIRect (anchor, explicit pivot) or the
-        // modern UINode (CSS box, REARCH_GUI F3 — always pivot-centered).
-        f32 w, h, pivotX, pivotY;
-        if (const auto* rect = registry.tryGet<ecs::UIRect>(entity)) {
-            w = rect->computed_size_.x; h = rect->computed_size_.y;
-            pivotX = rect->pivot.x; pivotY = rect->pivot.y;
-        } else if (const auto* node = registry.tryGet<ecs::UINode>(entity)) {
-            w = node->computed_size_.x; h = node->computed_size_.y;
-            pivotX = 0.5f; pivotY = 0.5f;
-        } else {
-            continue;
-        }
+        // Geometry from the UINode (CSS box) — always pivot-centered.
+        const auto* node = registry.tryGet<ecs::UINode>(entity);
+        if (!node) continue;
+        f32 w = node->computed_size_.x, h = node->computed_size_.y;
+        f32 pivotX = 0.5f, pivotY = 0.5f;
         if (w <= 0.0f && h <= 0.0f) continue;
 
         auto& transform = uiView.get<ecs::Transform>(entity);

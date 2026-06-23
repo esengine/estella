@@ -14,10 +14,6 @@ export {
 // Shared Helpers
 export {
     initUIHelpers,
-    computeFillAnchors,
-    computeHandleAnchors,
-    computeFillSize,
-    applyDirectionalFill,
     applyColorTransition,
     wrapText,
     nextPowerOf2,
@@ -68,7 +64,6 @@ export {
 
 export { DimensionUnit, type Dimension, px, percent, auto, isAuto } from './core/dimension';
 export { UINode, UIPositionType, type UINodeData } from './core/ui-node';
-export { UIRect, type UIRectData } from './core/ui-rect';
 
 export {
     UIRenderer,
@@ -200,12 +195,12 @@ export {
 
 export {
     identityTransform,
-    buildUIRect,
+    buildUINode,
     buildUIRenderer,
     buildText,
     spawnUIEntity,
     setUIVisible,
-    type UIRectInit,
+    type UINodeInit,
     type UIRendererInit,
     type TextInit,
     type UIEntityInit,
@@ -280,12 +275,6 @@ export {
     UICameraInfo,
     type UICameraData,
 } from './UICameraInfo';
-
-export {
-    computeUIRectLayout,
-    type LayoutRect,
-    type LayoutResult,
-} from './uiHelpers';
 
 export {
     UILayoutGeneration,

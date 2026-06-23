@@ -47,7 +47,7 @@
  *          - asset=<type>     : marks field as asset reference (texture, material, font, audio, etc.)
  *          - animatable       : marks field as animatable via timeline
  *          - entity_ref       : marks field as entity reference (for ID remapping)
- *          - anim_flag=<flag> : animation side-effect flag (e.g. ANIM_POS_X on UIRect)
+ *          - anim_flag=<flag> : animation side-effect flag (e.g. ANIM_POS_X on UINode)
  *
  *          Examples:
  *            ES_PROPERTY(asset=texture)

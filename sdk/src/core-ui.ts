@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    core-ui.ts
- * @brief   UI layer surface (text, rect, renderer, interactables, layout).
+ * @brief   UI layer surface (text, UINode box, renderer, interactables, layout).
  *
- * Most application code reaches for `Text` / `UIRect` / `Interactable`
- * directly. The `compute*` / `withChildEntity` / `setEntityColor`-style
- * helpers are engine-internal glue re-exported for now so that the
- * UILayout / UIInteraction plugins that ship in the SDK can consume
- * them; they are not intended to be part of the stable public API.
+ * Most application code reaches for `Text` / `UINode` / `Interactable`
+ * directly. The `withChildEntity` / `setEntityColor`-style helpers are
+ * engine-internal glue re-exported for now so that the UILayout /
+ * UIInteraction plugins that ship in the SDK can consume them; they are
+ * not intended to be part of the stable public API.
  *
  * Re-exported wholesale by `core.ts`.
  */
@@ -18,7 +18,6 @@ export {
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
-    UIRect,
     UIRenderer,
     UIVisualType,
     UILayoutGeneration,
@@ -49,17 +48,7 @@ export {
     UIEventQueue,
     makeInteractable,
     UICameraInfo,
-    /** @internal layout-compute helper; used by UILayoutPlugin, unstable */
-    computeUIRectLayout,
-    /** @internal layout-compute helper; used by UILayoutPlugin, unstable */
-    computeFillAnchors,
-    /** @internal layout-compute helper; used by UILayoutPlugin, unstable */
-    computeHandleAnchors,
-    /** @internal layout-compute helper; used by UILayoutPlugin, unstable */
-    computeFillSize,
-    /** @internal layout-compute helper; used by UILayoutPlugin, unstable */
-    applyDirectionalFill,
-    /** @internal layout-compute helper; used by UILayoutPlugin, unstable */
+    /** @internal fill-sprite sizing helper used by widget composition, unstable */
     syncFillSpriteSize,
     TextInput,
     Image,
@@ -74,7 +63,6 @@ export {
     FocusManagerState,
     SafeArea,
     type TextData,
-    type UIRectData,
     type UIMaskData,
     type MaskMode,
     type TextRenderResult,
@@ -86,8 +74,6 @@ export {
     type UIEventHandler,
     type Unsubscribe,
     type UICameraData,
-    type LayoutRect,
-    type LayoutResult,
     type TextInputData,
     type UIRendererData,
     type UILayoutGenerationData,

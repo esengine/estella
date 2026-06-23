@@ -32,7 +32,6 @@
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
 #include "../ecs/components/UINode.hpp"
-#include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/Velocity.hpp"
 
@@ -1245,14 +1244,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("insetRight", &UINodeJS::insetRight)
         .field("insetBottom", &UINodeJS::insetBottom);
 
-    value_object<esengine::ecs::UIRect>("UIRect")
-        .field("anchorMin", &esengine::ecs::UIRect::anchorMin)
-        .field("anchorMax", &esengine::ecs::UIRect::anchorMax)
-        .field("offsetMin", &esengine::ecs::UIRect::offsetMin)
-        .field("offsetMax", &esengine::ecs::UIRect::offsetMax)
-        .field("size", &esengine::ecs::UIRect::size)
-        .field("pivot", &esengine::ecs::UIRect::pivot);
-
     value_object<UIRendererJS>("UIRenderer")
         .field("visualType", &UIRendererJS::visualType)
         .field("texture", &UIRendererJS::texture)
@@ -1799,27 +1790,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::UINode>(entity);
         }))
 
-        // UIRect
-        .function("hasUIRect", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::UIRect>(static_cast<Entity>(e));
-        }))
-        .function("getUIRect", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIRect& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::UIRect s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return s_dummy;
-            return r.get<esengine::ecs::UIRect>(entity);
-        }), allow_raw_pointers())
-        .function("addUIRect", optional_override([](Registry& r, u32 e, const esengine::ecs::UIRect& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::UIRect>(entity, c);
-        }))
-        .function("removeUIRect", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::UIRect>(entity)) return;
-            r.remove<esengine::ecs::UIRect>(entity);
-        }))
-
         // UIRenderer
         .function("hasUIRenderer", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
@@ -1902,7 +1872,6 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("UIInteraction")));
     arr.set(i++, val(std::string("UIMask")));
     arr.set(i++, val(std::string("UINode")));
-    arr.set(i++, val(std::string("UIRect")));
     arr.set(i++, val(std::string("UIRenderer")));
     arr.set(i++, val(std::string("Velocity")));
     return arr;
@@ -2105,12 +2074,6 @@ static_assert(offsetof(esengine::ecs::UINode, position) == 0, "ABI offset drift:
 static_assert(offsetof(esengine::ecs::UINode, flexGrow) == 52, "ABI offset drift: esengine::ecs::UINode.flexGrow (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::UINode, flexShrink) == 56, "ABI offset drift: esengine::ecs::UINode.flexShrink (EHT expected 56)");
 static_assert(offsetof(esengine::ecs::UINode, alignSelf) == 68, "ABI offset drift: esengine::ecs::UINode.alignSelf (EHT expected 68)");
-static_assert(offsetof(esengine::ecs::UIRect, anchorMin) == 0, "ABI offset drift: esengine::ecs::UIRect.anchorMin (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::UIRect, anchorMax) == 8, "ABI offset drift: esengine::ecs::UIRect.anchorMax (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::UIRect, offsetMin) == 16, "ABI offset drift: esengine::ecs::UIRect.offsetMin (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::UIRect, offsetMax) == 24, "ABI offset drift: esengine::ecs::UIRect.offsetMax (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::UIRect, size) == 32, "ABI offset drift: esengine::ecs::UIRect.size (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::UIRect, pivot) == 40, "ABI offset drift: esengine::ecs::UIRect.pivot (EHT expected 40)");
 static_assert(offsetof(esengine::ecs::UIRenderer, visualType) == 0, "ABI offset drift: esengine::ecs::UIRenderer.visualType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIRenderer, texture) == 4, "ABI offset drift: esengine::ecs::UIRenderer.texture (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::UIRenderer, color) == 8, "ABI offset drift: esengine::ecs::UIRenderer.color (EHT expected 8)");
@@ -2127,7 +2090,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "dba3504ff7b44cfd";
+static const char* kEsAbiLayoutHash = "b20732a9b17a5058";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

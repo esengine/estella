@@ -7,7 +7,6 @@ import {
 import type { Entity, Vec2 } from '../../types';
 import type { World } from '../../world';
 
-import { UIRect, type UIRectData } from '../core/ui-rect';
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { px, percent, auto, type Dimension } from '../core/dimension';
 import { UIRenderer, UIVisualType, type UIRendererData } from '../core/ui-renderer';
@@ -22,30 +21,6 @@ export function identityTransform(): TransformData {
         worldPosition: { x: 0, y: 0, z: 0 },
         worldRotation: { w: 1, x: 0, y: 0, z: 0 },
         worldScale: { x: 1, y: 1, z: 1 },
-    };
-}
-
-export interface UIRectInit {
-    anchorMin?: Vec2;
-    anchorMax?: Vec2;
-    offsetMin?: Vec2;
-    offsetMax?: Vec2;
-    size?: Vec2;
-    pivot?: Vec2;
-}
-
-/**
- * Default rect covers the full parent (stretched anchors). Override with
- * size + pivot for fixed-size elements.
- */
-export function buildUIRect(init: UIRectInit = {}): UIRectData {
-    return {
-        anchorMin: init.anchorMin ?? { x: 0, y: 0 },
-        anchorMax: init.anchorMax ?? { x: 1, y: 1 },
-        offsetMin: init.offsetMin ?? { x: 0, y: 0 },
-        offsetMax: init.offsetMax ?? { x: 0, y: 0 },
-        size: init.size ?? { x: 0, y: 0 },
-        pivot: init.pivot ?? { x: 0.5, y: 0.5 },
     };
 }
 
@@ -150,16 +125,14 @@ export function buildText(init: TextInit = {}): TextData {
 export interface UIEntityInit {
     world: World;
     parent?: Entity;
-    /** Modern CSS-box layout (preferred). */
+    /** CSS-box layout (defaults to fill the parent). */
     node?: UINodeInit;
-    /** Legacy RectTransform layout (used until a widget is migrated to `node`). */
-    rect?: UIRectInit;
     renderer?: UIRendererInit;
     text?: TextInit;
 }
 
 /**
- * Spawn a UI entity with Transform + UIRect, optionally UIRenderer and
+ * Spawn a UI entity with Transform + UINode, optionally UIRenderer and
  * Text, optionally parented. Returns the entity.
  *
  * Widgets compose with this to avoid repeating the same insert dance.
@@ -169,12 +142,7 @@ export function spawnUIEntity(init: UIEntityInit): Entity {
     const entity = world.spawn();
 
     world.insert(entity, Transform, identityTransform());
-    // Prefer the modern UINode box; legacy UIRect only until the caller migrates.
-    if (init.node) {
-        world.insert(entity, UINode, buildUINode(init.node));
-    } else {
-        world.insert(entity, UIRect, buildUIRect(init.rect));
-    }
+    world.insert(entity, UINode, buildUINode(init.node));
 
     if (init.renderer) {
         world.insert(entity, UIRenderer, buildUIRenderer(init.renderer));

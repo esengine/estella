@@ -8,8 +8,25 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
       ],
       "visible": true
     },
@@ -17,11 +34,28 @@
       "id": 1,
       "name": "Canvas",
       "parent": null,
-      "children": [2],
+      "children": [
+        2
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
-        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "size": { "x": 800, "y": 600 }, "pivot": { "x": 0.5, "y": 0.5 } } }
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
       ],
       "visible": true
     },
@@ -29,11 +63,42 @@
       "id": 2,
       "name": "Panel",
       "parent": 1,
-      "children": [3, 4, 5],
+      "children": [
+        3,
+        4,
+        5
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "width": { "value": 100, "unit": 1 }, "height": { "value": 100, "unit": 1 } } },
-        { "type": "UIRenderer", "data": { "visualType": 1, "color": { "r": 0.12, "g": 0.12, "b": 0.15, "a": 1 }, "enabled": true } }
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "width": {
+              "value": 100,
+              "unit": 1
+            },
+            "height": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIRenderer",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.12,
+              "g": 0.12,
+              "b": 0.15,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
       ],
       "visible": true
     },
@@ -43,9 +108,45 @@
       "parent": 2,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "position": 1, "insetTop": { "value": 20, "unit": 0 }, "insetLeft": { "value": 20, "unit": 0 }, "width": { "value": 160, "unit": 0 }, "height": { "value": 100, "unit": 0 } } },
-        { "type": "UIRenderer", "data": { "visualType": 1, "color": { "r": 0.85, "g": 0.25, "b": 0.25, "a": 1 }, "enabled": true } }
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetTop": {
+              "value": 20,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 20,
+              "unit": 0
+            },
+            "width": {
+              "value": 160,
+              "unit": 0
+            },
+            "height": {
+              "value": 100,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIRenderer",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.85,
+              "g": 0.25,
+              "b": 0.25,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
       ],
       "visible": true
     },
@@ -55,9 +156,45 @@
       "parent": 2,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "position": 1, "insetTop": { "value": 20, "unit": 0 }, "insetRight": { "value": 20, "unit": 0 }, "width": { "value": 160, "unit": 0 }, "height": { "value": 100, "unit": 0 } } },
-        { "type": "UIRenderer", "data": { "visualType": 1, "color": { "r": 0.25, "g": 0.8, "b": 0.35, "a": 1 }, "enabled": true } }
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetTop": {
+              "value": 20,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 20,
+              "unit": 0
+            },
+            "width": {
+              "value": 160,
+              "unit": 0
+            },
+            "height": {
+              "value": 100,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIRenderer",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.25,
+              "g": 0.8,
+              "b": 0.35,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
       ],
       "visible": true
     },
@@ -67,9 +204,45 @@
       "parent": 2,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 }, "height": { "value": 80, "unit": 0 } } },
-        { "type": "UIRenderer", "data": { "visualType": 1, "color": { "r": 0.3, "g": 0.45, "b": 0.9, "a": 1 }, "enabled": true } }
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "height": {
+              "value": 80,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIRenderer",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.3,
+              "g": 0.45,
+              "b": 0.9,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
       ],
       "visible": true
     }

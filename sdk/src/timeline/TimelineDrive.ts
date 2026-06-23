@@ -111,7 +111,7 @@ export interface AdvanceContext {
     audio?: AudioAPI | null;
     /** Skip-channel filter (editor mute); forwarded to the sampler. */
     sampleOpts?: SampleOptions;
-    /** Side-effect hook after a property field is applied (e.g. UIRect anim flags). */
+    /** Side-effect hook after a property field is applied (e.g. UINode anim flags). */
     onPropertyApplied?: (entity: Entity, asset: TimelineAsset) => void;
 }
 

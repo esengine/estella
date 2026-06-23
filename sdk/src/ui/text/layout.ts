@@ -91,7 +91,7 @@ export interface GlyphVertexData {
  * glyphs (typically the subset that shares one atlas page — see TextRenderer).
  * Atlas v0 (top) maps to the screen-top corner, v1 (bottom) to screen-bottom,
  * so the quad samples the glyph upright. `originX/Y` offsets all glyphs (e.g. to
- * place the text by its UIRect-resolved anchor).
+ * place the text by its UINode-resolved box origin).
  */
 export function buildGlyphVertices(
     glyphs: readonly LaidGlyph[],

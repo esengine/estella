@@ -1173,50 +1173,6 @@ export function createUINodeData(): UINodePtrData {
     };
 }
 
-export interface UIRectPtrData {
-    anchorMin: Vec2;
-    anchorMax: Vec2;
-    offsetMin: Vec2;
-    offsetMax: Vec2;
-    size: Vec2;
-    pivot: Vec2;
-}
-
-export function fillUIRect(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: UIRectPtrData,
-): void {
-    const anchorMin_ = out.anchorMin; anchorMin_.x = f32[ptr >> 2]; anchorMin_.y = f32[(ptr >> 2) + 1];
-    const anchorMax_ = out.anchorMax; anchorMax_.x = f32[(ptr + 8) >> 2]; anchorMax_.y = f32[((ptr + 8) >> 2) + 1];
-    const offsetMin_ = out.offsetMin; offsetMin_.x = f32[(ptr + 16) >> 2]; offsetMin_.y = f32[((ptr + 16) >> 2) + 1];
-    const offsetMax_ = out.offsetMax; offsetMax_.x = f32[(ptr + 24) >> 2]; offsetMax_.y = f32[((ptr + 24) >> 2) + 1];
-    const size_ = out.size; size_.x = f32[(ptr + 32) >> 2]; size_.y = f32[((ptr + 32) >> 2) + 1];
-    const pivot_ = out.pivot; pivot_.x = f32[(ptr + 40) >> 2]; pivot_.y = f32[((ptr + 40) >> 2) + 1];
-}
-
-export function writeUIRect(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: UIRectPtrData,
-): void {
-    f32[ptr >> 2] = data.anchorMin.x; f32[(ptr >> 2) + 1] = data.anchorMin.y;
-    f32[(ptr + 8) >> 2] = data.anchorMax.x; f32[((ptr + 8) >> 2) + 1] = data.anchorMax.y;
-    f32[(ptr + 16) >> 2] = data.offsetMin.x; f32[((ptr + 16) >> 2) + 1] = data.offsetMin.y;
-    f32[(ptr + 24) >> 2] = data.offsetMax.x; f32[((ptr + 24) >> 2) + 1] = data.offsetMax.y;
-    f32[(ptr + 32) >> 2] = data.size.x; f32[((ptr + 32) >> 2) + 1] = data.size.y;
-    f32[(ptr + 40) >> 2] = data.pivot.x; f32[((ptr + 40) >> 2) + 1] = data.pivot.y;
-}
-
-export function createUIRectData(): UIRectPtrData {
-    return {
-        anchorMin: { x: 0, y: 0 },
-        anchorMax: { x: 0, y: 0 },
-        offsetMin: { x: 0, y: 0 },
-        offsetMax: { x: 0, y: 0 },
-        size: { x: 0, y: 0 },
-        pivot: { x: 0, y: 0 },
-    };
-}
-
 export interface UIRendererPtrData {
     visualType: number;
     texture: number;
@@ -1325,7 +1281,6 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },
-    UIRect: { fill: fillUIRect, write: writeUIRect, create: createUIRectData },
     UIRenderer: { fill: fillUIRenderer, write: writeUIRenderer, create: createUIRendererData },
     Velocity: { fill: fillVelocity, write: writeVelocity, create: createVelocityData },
 };

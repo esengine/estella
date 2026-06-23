@@ -309,17 +309,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'alignSelf', type: 'u8', offset: 68 },
         ],
     },
-    UIRect: {
-        ptrFn: 'getUIRectPtr',
-        fields: [
-            { name: 'anchorMin', type: 'vec2', offset: 0 },
-            { name: 'anchorMax', type: 'vec2', offset: 8 },
-            { name: 'offsetMin', type: 'vec2', offset: 16 },
-            { name: 'offsetMax', type: 'vec2', offset: 24 },
-            { name: 'size', type: 'vec2', offset: 32 },
-            { name: 'pivot', type: 'vec2', offset: 40 },
-        ],
-    },
     UIRenderer: {
         ptrFn: 'getUIRendererPtr',
         fields: [

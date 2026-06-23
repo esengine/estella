@@ -13,7 +13,6 @@
 #include "components/Interactable.hpp"
 #include "components/Transform.hpp"
 #include "components/UIInteraction.hpp"
-#include "components/UIRect.hpp"
 #include "components/UINode.hpp"
 
 namespace esengine::ecs {
@@ -44,22 +43,12 @@ void UISystem::hitTestUpdate(
         auto& t = registry.get<Transform>(entity);
         t.ensureDecomposed();
 
-        // Hit geometry from the modern UINode (CSS box, pivot-centered) or the
-        // legacy UIRect.
-        f32 baseW, baseH, pivotX, pivotY;
-        if (auto* node = registry.tryGet<UINode>(entity)) {
-            baseW = node->computed_size_.x;
-            baseH = node->computed_size_.y;
-            pivotX = 0.5f;
-            pivotY = 0.5f;
-        } else if (auto* rect = registry.tryGet<UIRect>(entity)) {
-            baseW = rect->computed_size_.x > 0.0f ? rect->computed_size_.x : rect->size.x;
-            baseH = rect->computed_size_.y > 0.0f ? rect->computed_size_.y : rect->size.y;
-            pivotX = rect->pivot.x;
-            pivotY = rect->pivot.y;
-        } else {
-            continue;
-        }
+        // Hit geometry from the UINode (CSS box, pivot-centered).
+        auto* node = registry.tryGet<UINode>(entity);
+        if (!node) continue;
+        f32 baseW = node->computed_size_.x;
+        f32 baseH = node->computed_size_.y;
+        f32 pivotX = 0.5f, pivotY = 0.5f;
 
         f32 worldW = baseW * t.worldScale.x;
         f32 worldH = baseH * t.worldScale.y;

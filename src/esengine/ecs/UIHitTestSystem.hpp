@@ -11,7 +11,6 @@
 #include "Registry.hpp"
 #include "components/Transform.hpp"
 #include "components/Hierarchy.hpp"
-#include "components/UIRect.hpp"
 #include "components/UINode.hpp"
 #include "components/UIMask.hpp"
 
@@ -61,30 +60,19 @@ inline bool isClippedByMask(
         auto* mask = registry.tryGet<UIMask>(ancestor);
         if (mask && mask->enabled) {
             auto* t = registry.tryGet<Transform>(ancestor);
-            if (t) {
-                // Mask geometry from the modern UINode (pivot-centered) or UIRect.
-                f32 baseW = 0.0f, baseH = 0.0f, pivotX = 0.5f, pivotY = 0.5f;
-                bool haveBox = false;
-                if (auto* node = registry.tryGet<UINode>(ancestor)) {
-                    baseW = node->computed_size_.x; baseH = node->computed_size_.y;
-                    haveBox = true;
-                } else if (auto* rect = registry.tryGet<UIRect>(ancestor)) {
-                    baseW = rect->computed_size_.x > 0.0f ? rect->computed_size_.x : rect->size.x;
-                    baseH = rect->computed_size_.y > 0.0f ? rect->computed_size_.y : rect->size.y;
-                    pivotX = rect->pivot.x; pivotY = rect->pivot.y;
-                    haveBox = true;
-                }
-                if (haveBox) {
-                    t->ensureDecomposed();
-                    if (!pointInOBB(
-                        worldMouseX, worldMouseY,
-                        t->worldPosition.x, t->worldPosition.y,
-                        baseW * t->worldScale.x, baseH * t->worldScale.y,
-                        pivotX, pivotY,
-                        t->worldRotation.z, t->worldRotation.w
-                    )) {
-                        return true;
-                    }
+            auto* node = registry.tryGet<UINode>(ancestor);
+            if (t && node) {
+                t->ensureDecomposed();
+                // UINode mask box is pivot-centered.
+                if (!pointInOBB(
+                    worldMouseX, worldMouseY,
+                    t->worldPosition.x, t->worldPosition.y,
+                    node->computed_size_.x * t->worldScale.x,
+                    node->computed_size_.y * t->worldScale.y,
+                    0.5f, 0.5f,
+                    t->worldRotation.z, t->worldRotation.w
+                )) {
+                    return true;
                 }
             }
         }

@@ -458,15 +458,6 @@ export interface UINode {
     insetBottom: Dimension;
 }
 
-export interface UIRect {
-    anchorMin: Vec2;
-    anchorMax: Vec2;
-    offsetMin: Vec2;
-    offsetMax: Vec2;
-    size: Vec2;
-    pivot: Vec2;
-}
-
 export interface UIRenderer {
     visualType: number;
     texture: number;
@@ -590,10 +581,6 @@ export interface Registry {
     getUINode(entity: Entity): UINode;
     addUINode(entity: Entity, component: UINode): void;
     removeUINode(entity: Entity): void;
-    hasUIRect(entity: Entity): boolean;
-    getUIRect(entity: Entity): UIRect;
-    addUIRect(entity: Entity, component: UIRect): void;
-    removeUIRect(entity: Entity): void;
     hasUIRenderer(entity: Entity): boolean;
     getUIRenderer(entity: Entity): UIRenderer;
     addUIRenderer(entity: Entity, component: UIRenderer): void;
@@ -641,7 +628,6 @@ export interface ESEngineModule {
     UIInteraction: new () => UIInteraction;
     UIMask: new () => UIMask;
     UINode: new () => UINode;
-    UIRect: new () => UIRect;
     UIRenderer: new () => UIRenderer;
     Velocity: new () => Velocity;
 }

@@ -11,7 +11,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { WasmModuleAborted } from '../src/moduleHealth';
 import { CoreApiBridge } from '../src/CoreApiBridge';
 import { TilemapAPI, initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
-import { initUIHelpers, setUIRectSizeNative } from '../src/ui/uiHelpers';
+import { initUIHelpers, getUINodeWidth } from '../src/ui/uiHelpers';
 import { TimelineApi } from '../src/timeline/TimelineControl';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
@@ -65,7 +65,7 @@ describe('tilemap bridge', () => {
 describe('uiHelpers bridge', () => {
     function makeModule(): ESEngineModule {
         return {
-            setUIRectSize: vi.fn(),
+            getUINodeComputedWidth: vi.fn().mockReturnValue(0),
             onAbort: undefined,
         } as unknown as ESEngineModule;
     }
@@ -74,9 +74,9 @@ describe('uiHelpers bridge', () => {
     it('routes ui calls through the guard when healthy', () => {
         const m = makeModule();
         initUIHelpers(m, registry);
-        setUIRectSizeNative(1 as unknown as Entity, 10, 20);
-        expect((m as unknown as { setUIRectSize: ReturnType<typeof vi.fn> }).setUIRectSize)
-            .toHaveBeenCalledWith(registry, 1, 10, 20);
+        getUINodeWidth(1 as unknown as Entity);
+        expect((m as unknown as { getUINodeComputedWidth: ReturnType<typeof vi.fn> }).getUINodeComputedWidth)
+            .toHaveBeenCalledWith(registry, 1);
     });
 
     it('refuses ui calls after an abort', () => {
@@ -84,9 +84,9 @@ describe('uiHelpers bridge', () => {
         initUIHelpers(m, registry);
         abort(m);
         let caught: unknown;
-        try { setUIRectSizeNative(1 as unknown as Entity, 10, 20); } catch (e) { caught = e; }
+        try { getUINodeWidth(1 as unknown as Entity); } catch (e) { caught = e; }
         expect(caught).toBeInstanceOf(WasmModuleAborted);
-        expect((caught as WasmModuleAborted).context).toBe('uiHelpers.setUIRectSize');
+        expect((caught as WasmModuleAborted).context).toBe('uiHelpers.getUINodeComputedWidth');
     });
 });
 
