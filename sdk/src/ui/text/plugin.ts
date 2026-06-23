@@ -49,6 +49,7 @@ export class UITextPlugin implements Plugin {
                         richText: t.richText,
                         align: t.align,
                         lineHeight: t.lineHeight || undefined,
+                        maxWidth: t.maxWidth || undefined,
                     },
                     this.matrix_,
                     entity as number,

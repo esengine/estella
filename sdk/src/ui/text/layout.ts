@@ -149,6 +149,61 @@ export interface MultilineTextOptions extends TextLayoutOptions {
     rich?: boolean;
     /** Base color (used by rich runs without their own color). */
     color?: RGBA;
+    /** Word-wrap width in display px (plain text only). 0/undefined = no wrap. */
+    maxWidth?: number;
+}
+
+/** Sum of glyph advances for a string at the given size (display px). Pure. */
+export function measureWidth(
+    text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number, style: number, letterSpacing = 0,
+): number {
+    const scale = fontSizePx / atlas.renderSize;
+    let w = 0;
+    for (const ch of text) {
+        const cp = ch.codePointAt(0);
+        if (cp === undefined) continue;
+        const g = atlas.getGlyph(cp, fontFamily, style);
+        if (g) w += g.advance * scale + letterSpacing;
+    }
+    return w;
+}
+
+/**
+ * Greedy word-wrap a single line to `maxWidth` (display px). Breaks at spaces;
+ * a single token wider than the line (long word, or CJK runs which have no
+ * spaces) is broken character-by-character. Returns the wrapped sub-lines.
+ */
+export function wrapLine(
+    text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number,
+    style: number, maxWidth: number, letterSpacing = 0,
+): string[] {
+    const measure = (s: string) => measureWidth(s, atlas, fontFamily, fontSizePx, style, letterSpacing);
+    const out: string[] = [];
+    let cur = '';
+    const flush = () => { const t = cur.replace(/\s+$/, ''); if (t) out.push(t); cur = ''; };
+    const charBreak = (token: string) => {
+        for (const ch of token) {
+            if (cur && measure(cur + ch) > maxWidth) flush();
+            cur += ch;
+        }
+    };
+
+    for (const token of text.split(/(\s+)/)) {
+        if (token === '') continue;
+        if (/^\s+$/.test(token)) { if (cur) cur += token; continue; } // keep inter-word spaces, drop leading
+        if (!cur) {
+            if (measure(token) <= maxWidth) cur = token;
+            else charBreak(token);
+        } else if (measure(cur + token) <= maxWidth) {
+            cur += token;
+        } else {
+            flush();
+            if (measure(token) <= maxWidth) cur = token;
+            else charBreak(token);
+        }
+    }
+    flush();
+    return out.length ? out : [''];
 }
 
 /**
@@ -167,7 +222,11 @@ export function layoutText(
     const lineHeight = opts.lineHeight ?? opts.fontSizePx * 1.2;
     const align = opts.align ?? TEXT_ALIGN_LEFT;
     const baseColor = opts.color ?? ([1, 1, 1, 1] as const);
-    const lines = text.split('\n');
+    const rawLines = text.split('\n');
+    // Word-wrap (plain text only) before stacking; explicit \n still hard-breaks.
+    const lines = (opts.maxWidth && opts.maxWidth > 0 && !opts.rich)
+        ? rawLines.flatMap(l => wrapLine(l, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0))
+        : rawLines;
 
     const lineLayouts = lines.map(line => (opts.rich
         ? layoutRichLine(line, atlas, fontFamily, { fontSizePx: opts.fontSizePx, letterSpacing: opts.letterSpacing, color: baseColor }, style)

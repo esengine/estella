@@ -407,6 +407,8 @@ export {
     layoutLine,
     layoutRichLine,
     layoutText,
+    wrapLine,
+    measureWidth,
     buildGlyphVertices,
     TEXT_ALIGN_LEFT,
     TEXT_ALIGN_CENTER,

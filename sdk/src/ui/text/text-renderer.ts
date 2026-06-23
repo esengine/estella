@@ -34,6 +34,8 @@ export interface DrawTextParams {
     lineHeight?: number;
     /** Extra advance between glyphs (px). */
     letterSpacing?: number;
+    /** Word-wrap width in px (plain text); 0/undefined = no wrap. */
+    maxWidth?: number;
 }
 
 /**
@@ -49,6 +51,7 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         align: p.align,
         rich: p.richText,
         color: p.color,
+        maxWidth: p.maxWidth,
     }, p.style ?? 0);
     if (layout.glyphs.length === 0) return;
 

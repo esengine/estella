@@ -28,6 +28,8 @@ export interface UITextData {
     align: number;
     /** Baseline-to-baseline px for multi-line text; 0 = auto (fontSizePx × 1.2). */
     lineHeight: number;
+    /** Word-wrap width in px (plain text); 0 = no wrap. */
+    maxWidth: number;
 }
 
 export const UIText = defineComponent<UITextData>('UIText', {
@@ -40,6 +42,7 @@ export const UIText = defineComponent<UITextData>('UIText', {
     richText: false,
     align: 0,
     lineHeight: 0,
+    maxWidth: 0,
 });
 
 /**
