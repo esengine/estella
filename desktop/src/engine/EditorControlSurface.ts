@@ -25,7 +25,7 @@ import type {
 } from '@/types';
 import type { SceneData, SubsystemStatus } from 'esengine';
 import { EngineHost } from './EngineHost';
-import type { SceneCommandsImpl } from './SceneCommands';
+import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
 import type { EditorHistoryImpl } from './EditorHistory';
@@ -134,6 +134,15 @@ export class EditorControlSurfaceImpl {
   }
   endGesture(): void {
     this.s.commands.endGesture();
+  }
+  /** Open a scoped edit transaction (commit as one undo step, or abort to roll
+   *  back live). The handle form of begin/endGesture, with cancel support. */
+  transaction(label: string): EditorTransaction {
+    return this.s.commands.transaction(label);
+  }
+  /** Run `fn` inside a transaction: commit on return, abort + rethrow on throw. */
+  transact(label: string, fn: () => void): void {
+    this.s.commands.transact(label, fn);
   }
 
   // =========================================================================

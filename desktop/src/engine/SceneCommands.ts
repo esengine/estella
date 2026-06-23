@@ -25,6 +25,17 @@ export interface TilePaint {
   tileId: number;
 }
 
+/**
+ * A scoped edit transaction (the editor's FScopedTransaction). A burst of field
+ * writes between open and `commit` collapses into one undo step; `abort` reverts
+ * them live and records nothing. Hand it to a tool's drag so the stroke is one
+ * undoable step with cancel support.
+ */
+export interface EditorTransaction {
+  commit(): void;
+  abort(): void;
+}
+
 // — Model-authoritative commands —
 //
 // Every mutation edits the SceneModel ONLY (the session's source of truth). The
@@ -177,6 +188,44 @@ export class SceneCommandsImpl {
       () => edits.forEach((e) => this.model.setField(e.sourceId, e.comp, e.key, e.after)),
       () => edits.forEach((e) => this.model.setField(e.sourceId, e.comp, e.key, e.before)),
     );
+  }
+
+  /**
+   * Cancel the current gesture: restore each touched field to its captured BEFORE
+   * value (live — the viewport snaps back via the Reconciler) and discard it with
+   * no undo step. Powers a tool drag's Esc-to-cancel.
+   */
+  abortGesture(): void {
+    const g = this.gesture;
+    this.gesture = null;
+    if (!g) return;
+    for (const e of g.touched.values()) this.model.setField(e.sourceId, e.comp, e.key, e.before);
+  }
+
+  /**
+   * Open a scoped edit transaction over the coalescing gesture — the modern
+   * handle form of {@link beginGesture}/{@link endGesture} with cancel support.
+   * One transaction is active at a time (one stroke); the handle is idempotent.
+   */
+  transaction(label: string): EditorTransaction {
+    this.beginGesture(label);
+    let done = false;
+    return {
+      commit: () => { if (!done) { done = true; this.endGesture(); } },
+      abort: () => { if (!done) { done = true; this.abortGesture(); } },
+    };
+  }
+
+  /** Run `fn` inside a transaction: commit on return, abort + rethrow on throw. */
+  transact(label: string, fn: () => void): void {
+    const tx = this.transaction(label);
+    try {
+      fn();
+      tx.commit();
+    } catch (e) {
+      tx.abort();
+      throw e;
+    }
   }
 
   /**
