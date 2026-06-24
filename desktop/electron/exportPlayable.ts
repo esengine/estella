@@ -48,7 +48,7 @@ const mimeOf = (p: string): string => MIME[path.extname(p).slice(1).toLowerCase(
 /** Escape `</script` so inlined content can't close the host <script> early. */
 const inlineSafe = (s: string): string => s.replace(/<\/script/gi, '<\\/script');
 
-function indexHtml(title: string, glue: string, globals: string, bundle: string): string {
+function indexHtml(title: string, globals: string, bundle: string): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -63,7 +63,6 @@ function indexHtml(title: string, glue: string, globals: string, bundle: string)
   </head>
   <body>
     <canvas id="canvas"></canvas>
-    <script>${inlineSafe(glue)}</script>
     <script>${inlineSafe(globals)}</script>
     <script>${inlineSafe(bundle)}</script>
   </body>
@@ -72,9 +71,9 @@ function indexHtml(title: string, glue: string, globals: string, bundle: string)
 }
 
 /**
- * Export the open project as a single-file playable ad. `playableHostEntry` is the
- * host source (src/playableHost.ts); `glueFile` the SINGLE_FILE engine glue
- * (esengine.single.js from `-t playable`).
+ * Export the open project as a single-file playable ad. Reuses the shipped WEB
+ * engine runtime (esengine.js glue + esengine.wasm) inlined — no separate
+ * SINGLE_FILE build. `playableHostEntry` is the host source; `wasmDir` the web wasm dir.
  */
 export async function exportPlayable(opts: {
   root: string;
@@ -84,7 +83,8 @@ export async function exportPlayable(opts: {
   /** Web SDK dist dir — `esengine` is INLINED for playable (no import map), so the
    *  bundle aliases it here (the project root has no esengine to resolve). */
   sdkDir: string;
-  glueFile: string;
+  /** Web wasm dir (esengine.js glue + esengine.wasm) — inlined into the single HTML. */
+  wasmDir: string;
   outDir: string;
   title?: string;
   minify?: boolean;
@@ -155,20 +155,31 @@ export async function exportPlayable(opts: {
     errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
   }
 
-  // 5. The SINGLE_FILE glue (global ESEngineModule, wasm embedded). Required — a
-  //    playable can't run without it, so a miss is an ERROR (not a broken bundle).
+  // 5. Engine runtime: reuse the shipped WEB build (esengine.js glue + esengine.wasm),
+  //    inlined — the host loads the glue via a blob module + feeds the wasm (base64)
+  //    through instantiateWasm. No separate single-file build needed.
+  progress({ phase: 'Inlining engine' });
   let glue = '';
-  if (existsSync(opts.glueFile)) glue = await readFile(opts.glueFile, 'utf8');
-  else errors.push(`single-file engine runtime missing — run \`node build-tools/cli.js build -t playable\` (expected ${opts.glueFile})`);
+  let wasmB64 = '';
+  const gluePath = path.join(opts.wasmDir, 'esengine.js');
+  const wasmPath = path.join(opts.wasmDir, 'esengine.wasm');
+  if (existsSync(gluePath) && existsSync(wasmPath)) {
+    glue = await readFile(gluePath, 'utf8');
+    wasmB64 = (await readFile(wasmPath)).toString('base64');
+  } else {
+    errors.push(`engine runtime not found in ${opts.wasmDir} (need esengine.js + esengine.wasm)`);
+  }
 
   // 6. Assemble the single HTML, then drop the temp cook dir.
   progress({ phase: 'Assembling HTML' });
   const globals =
+    `window.__ENGINE_GLUE__=${JSON.stringify(glue)};` +
+    `window.__ENGINE_WASM__=${JSON.stringify(wasmB64)};` +
     `window.__GAME_ASSETS__=${JSON.stringify(assets)};` +
     `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};`;
   const outFile = path.join(absOut, 'index.html');
-  await writeFile(outFile, indexHtml(title, glue, globals, bundle));
+  await writeFile(outFile, indexHtml(title, globals, bundle));
   await rm(cookDir, { recursive: true, force: true });
 
   const bytes = (await stat(outFile)).size;

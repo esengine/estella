@@ -208,8 +208,6 @@ export async function exportGame(opts: {
   platform?: ExportPlatform;
   /** Playable host source (src/playableHost.ts). */
   playableHostEntry?: string;
-  /** SINGLE_FILE engine glue (esengine.single.js from `-t playable`) for playable ads. */
-  glueFile?: string;
   /** Desktop installer id (Project Settings → Packaging → Desktop); default com.estella.<slug>. */
   desktopAppId?: string;
   /** Desktop product/display name (Project Settings); default the project title. */
@@ -252,7 +250,7 @@ export async function exportGame(opts: {
       scriptsEntry: opts.scriptsEntry,
       playableHostEntry: opts.playableHostEntry ?? path.join(path.dirname(opts.gameHostEntry), 'playableHost.ts'),
       sdkDir: opts.sdkDistDir,
-      glueFile: opts.glueFile ?? path.join(opts.wasmDir, 'esengine.single.js'),
+      wasmDir: opts.wasmDir,
       outDir: opts.outDir,
       title,
       minify: opts.minify,

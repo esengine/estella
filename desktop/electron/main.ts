@@ -287,9 +287,6 @@ ipcMain.handle(
     // `node build-tools/cli.js build -t wechat`. Absent → exportWeChat warns.
     const wechatWasm = [path.join(VITE_PUBLIC, 'wasm-wechat'), path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'wechat')]
       .find(existsSync) ?? path.join(VITE_PUBLIC, 'wasm-wechat');
-    // Playable's SINGLE_FILE glue lives in the wasm runtime dir (sibling of
-    // esengine.js), synced there by `build -t playable`. Absent → exportPlayable errors.
-    const glueFile = path.join(webWasm, 'esengine.single.js');
     const plat = manifest.packaging?.platforms;
     return exportGame({
       root,
@@ -299,7 +296,6 @@ ipcMain.handle(
       scriptsEntry: resolveScripts(manifest).main,
       sdkDistDir,
       wasmDir: opts?.platform === 'wechat' ? wechatWasm : webWasm,
-      glueFile,
       outDir: opts?.outDir || 'dist-game',
       title: manifest.name,
       platform: opts?.platform,

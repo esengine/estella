@@ -12,14 +12,22 @@
 import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime } from 'esengine';
 import type { ESEngineModule as EngineModule, SceneData } from 'esengine';
 
-// The SINGLE_FILE glue exposes ESEngineModule as a global (MODULARIZE +
-// EXPORT_ES6=0), wasm embedded, so no locateFile / instantiateWasm wiring here.
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
-// large base64 asset blob isn't re-parsed as code).
+// large base64 blobs aren't re-parsed as code). The glue is the WEB esengine.js
+// (ESM) text; the wasm is base64-encoded esengine.wasm.
+declare const __ENGINE_GLUE__: string;
+declare const __ENGINE_WASM__: string;
 declare const __GAME_ASSETS__: Record<string, string>;
 declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
 declare const __GAME_FIRST__: string;
+
+function decodeBase64(b64: string): Uint8Array {
+  const raw = atob(b64);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -31,11 +39,22 @@ async function boot(): Promise<void> {
   window.addEventListener('resize', resize);
   resize();
 
-  const factory = (globalThis as unknown as { ESEngineModule?: EngineFactory }).ESEngineModule;
-  if (typeof factory !== 'function') {
-    throw new Error('Engine runtime (esengine.single.js) not loaded — rebuild the playable: `node build-tools/cli.js build -t playable`.');
-  }
-  const module = await factory({ canvas });
+  if (!__ENGINE_GLUE__ || !__ENGINE_WASM__) throw new Error('Engine runtime not inlined — re-export the playable.');
+  // The esengine.js glue is ESM, so run it via a blob module (own scope); feed the
+  // embedded wasm through instantiateWasm so nothing is fetched (single-file).
+  const blobUrl = URL.createObjectURL(new Blob([__ENGINE_GLUE__], { type: 'text/javascript' }));
+  const { default: createEngine } = (await import(/* @vite-ignore */ blobUrl)) as { default: EngineFactory };
+  const wasmBytes = decodeBase64(__ENGINE_WASM__);
+  const module = await createEngine({
+    canvas,
+    instantiateWasm(imports: WebAssembly.Imports, cb: (inst: WebAssembly.Instance, mod?: WebAssembly.Module) => void) {
+      WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
+        (r) => cb(r.instance, r.module),
+        (err) => console.error('[playable] wasm instantiate failed', err),
+      );
+      return {};
+    },
+  });
 
   const gl = canvas.getContext('webgl2', {
     alpha: false,

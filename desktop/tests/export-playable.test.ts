@@ -11,7 +11,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { exportGame } from '../electron/exportGame';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PLAYABLE_HOST = path.join(HERE, '..', 'src', 'playableHost.ts');
 
 let root: string;
 let out: string;
@@ -30,16 +34,19 @@ beforeAll(() => {
     JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }),
   );
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
-  // Host + project script BOTH import 'esengine' (aliased to the stub SDK below) —
-  // exercises the real esengine resolution, so a missing alias fails the build.
+  // Project script imports 'esengine' (aliased to the stub SDK below); the REAL
+  // playableHost is bundled too — so this exercises actual esengine resolution +
+  // host bundling (the old stub host hid the resolution bug).
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), `import { defineComponent } from 'esengine';\ndefineComponent('SpawnMarker', {});\n`);
-  writeFileSync(path.join(root, '_host.ts'), `import { createWebApp } from 'esengine';\nvoid createWebApp;\nglobalThis.__HOST__ = 'playable-host-boot';\n`);
-  // Stub SDK dist (the bundle aliases `esengine` → <sdkDir>/index.js).
+  // Stub SDK dist exporting what the real host + scripts import (bundles for real).
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.js'), `export function createWebApp(){return{};}\nexport function defineComponent(){}\n`);
-  // Stub SINGLE_FILE glue (real one comes from `-t playable`).
-  writeFileSync(path.join(root, '_glue.js'), `globalThis.ESEngineModule = function(){};/*SINGLE_FILE_GLUE*/\n`);
+  writeFileSync(path.join(root, '_sdk', 'index.js'),
+    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function defineComponent(){}\n`);
+  // Stub web wasm runtime (glue text + wasm) — playable inlines these, no separate build.
+  mkdirSync(path.join(root, '_wasm'), { recursive: true });
+  writeFileSync(path.join(root, '_wasm', 'esengine.js'), `export default function(){}/*WEB_GLUE*/\n`);
+  writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'WASMBYTES');
 
   out = path.join(root, 'dist-playable');
 }, 60_000);
@@ -52,8 +59,7 @@ describe('exportGame (playable)', () => {
       root,
       entryScene: 'scenes/main.esscene',
       gameHostEntry: 'unused-for-playable',
-      playableHostEntry: path.join(root, '_host.ts'),
-      glueFile: path.join(root, '_glue.js'),
+      playableHostEntry: PLAYABLE_HOST,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
@@ -71,8 +77,10 @@ describe('exportGame (playable)', () => {
     expect(existsSync(path.join(out, 'assets'))).toBe(false);
 
     const html = readFileSync(path.join(out, 'index.html'), 'utf8');
-    expect(html).toContain('SINGLE_FILE_GLUE');                       // glue inlined
-    expect(html).toContain('playable-host-boot');                    // host bundled
+    expect(html).toContain('WEB_GLUE');                              // web glue text inlined
+    expect(html).toContain('__ENGINE_GLUE__');                       // glue + wasm inlined as globals
+    expect(html).toContain('__ENGINE_WASM__');
+    expect(html).toContain('createObjectURL');                       // real host bundled (blob loader)
     expect(html).toContain('SpawnMarker');                           // project script bundled
     expect(html).toContain(`@uuid:${TEX}`);                          // asset keyed by ref
     expect(html).toContain('data:image/png;base64,');               // asset inlined as data URL
