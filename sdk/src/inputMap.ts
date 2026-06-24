@@ -37,6 +37,15 @@ export interface ActionDef {
     bindings: Binding[];
 }
 
+/** The serialized form of a whole map — the content of an `.inputmap` asset.
+ *  Data-driven input: author/ship this JSON, then {@link loadInputMapAsset}. */
+export interface InputMapAsset {
+    version: number;
+    actions: Record<string, ActionDef>;
+}
+
+const INPUT_MAP_ASSET_VERSION = 1;
+
 // — Binding constructors (Capitalized, matching the engine DSL: Query/Mut/With) —
 export const Key = (code: string): Binding => ({ kind: 'key', code });
 export const MouseButton = (button: number): Binding => ({ kind: 'mouse', button });
@@ -188,6 +197,16 @@ export class InputMap {
         for (const [name, def] of this.defs_) out[name] = def.bindings.map((b) => ({ ...b }));
         return out;
     }
+
+    /** Serialize the FULL map (action types + bindings) — an `.inputmap` asset's
+     *  content. (vs {@link toJSON}, which is bindings-only for rebind persistence.) */
+    toAsset(): InputMapAsset {
+        const actions: Record<string, ActionDef> = {};
+        for (const [name, def] of this.defs_) {
+            actions[name] = { type: def.type, bindings: def.bindings.map((b) => ({ ...b })) };
+        }
+        return { version: INPUT_MAP_ASSET_VERSION, actions };
+    }
     /** Override bindings for actions that EXIST in this map (unknown names ignored,
      *  so stale saved data for a removed action never resurrects it). */
     loadJSON(data: Record<string, Binding[]>): void {
@@ -277,4 +296,13 @@ export function defineInputMap(actions: Record<string, ActionDef>): InputMap {
         defineSystem([Res(Input)], (input) => map.evaluate(input), { name: 'InputMapEval' }),
     );
     return map;
+}
+
+/**
+ * Build a live InputMap from a loaded `.inputmap` asset (data-driven input —
+ * fetch / import the JSON, then call this). Registers the evaluation system, same
+ * as {@link defineInputMap}.
+ */
+export function loadInputMapAsset(asset: InputMapAsset): InputMap {
+    return defineInputMap(asset.actions);
 }

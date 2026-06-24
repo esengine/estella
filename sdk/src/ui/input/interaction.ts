@@ -84,7 +84,7 @@ export class UIInteractionPlugin implements Plugin {
                     }
                 }
 
-                if (!camera.valid) return;
+                if (!camera.valid) { input.pointerOverUI = false; return; }
 
                 const dpr = platformDevicePixelRatio();
                 const mouseGLX = input.mouseX * dpr;
@@ -128,6 +128,9 @@ export class UIInteractionPlugin implements Plugin {
                 if (hoveredEntity !== null && !world.valid(hoveredEntity)) {
                     hoveredEntity = null;
                 }
+
+                // Gameplay reads this (Update) to skip input the UI claimed.
+                input.pointerOverUI = hitEntity !== null;
 
                 if (hoveredEntity !== hitEntity) {
                     if (hoveredEntity !== null && world.valid(hoveredEntity) && world.has(hoveredEntity, UIInteraction)) {

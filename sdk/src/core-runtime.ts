@@ -186,6 +186,7 @@ export { GestureDetector, type SwipeDirection } from './gesture';
 
 export {
     defineInputMap,
+    loadInputMapAsset,
     InputMap,
     Key,
     MouseButton,
@@ -200,6 +201,7 @@ export {
     type Binding,
     type ActionDef,
     type ActionType,
+    type InputMapAsset,
     type ListenOptions,
 } from './inputMap';
 

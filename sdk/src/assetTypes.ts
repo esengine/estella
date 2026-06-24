@@ -36,6 +36,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['atlas'], contentType: 'text', editorType: 'spine-atlas', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['skel'], contentType: 'binary', editorType: 'spine-skeleton', addressableType: 'spine', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['json'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: false, hasTransitiveDeps: false },
+    // Input map (defineInputMap / loadInputMapAsset) — data-driven key/gamepad bindings.
+    { extensions: ['inputmap'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['bmfont'], contentType: 'json', editorType: 'bitmap-font', addressableType: 'bitmap-font', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['fnt'], contentType: 'text', editorType: 'bitmap-font', addressableType: 'bitmap-font', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esprefab'], contentType: 'json', editorType: 'prefab', addressableType: 'prefab', wechatPackInclude: true, hasTransitiveDeps: true },

@@ -174,6 +174,16 @@ export class InputState {
         return p?.connected ? p : undefined;
     }
 
+    /** True when the pointer is over an interactive UI element this frame (set each
+     *  frame by the UI interaction system). Gameplay checks this to ignore input
+     *  the UI handled — e.g. don't fire a weapon when clicking a HUD button.
+     *  Unity's `EventSystem.IsPointerOverGameObject()` analog. */
+    pointerOverUI = false;
+
+    isPointerOverUI(): boolean {
+        return this.pointerOverUI;
+    }
+
     /** Ingest this frame's snapshots: shift current→prev (edge detection) then
      *  store new values. Pads absent from `snapshots` are marked disconnected. */
     updateGamepads(snapshots: GamepadSnapshot[]): void {
