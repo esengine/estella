@@ -42,7 +42,7 @@ beforeAll(() => {
   // Stub SDK dist exporting what the real host + scripts import (bundles for real).
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'index.js'),
-    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function defineComponent(){}\n`);
+    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\n`);
   // Stub web wasm runtime (glue text + wasm) — playable inlines these, no separate build.
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), `export default function(){}/*WEB_GLUE*/\n`);
@@ -88,5 +88,64 @@ describe('exportGame (playable)', () => {
     expect(html).toContain('"main"');                                // first scene name
     expect(html).toContain('__GAME_SCENES__');
     expect(html).toContain('<title>Playable Demo</title>');
+  }, 60_000);
+});
+
+/**
+ * The fix this whole path delivers: the exporter runs the runtime's physics/spine
+ * gating and inlines exactly those modules — so a physics scene ships with physics,
+ * and a missing module fails the export loudly instead of shipping silently broken.
+ */
+describe('exportGame (playable) — side-module embedding', () => {
+  const PSCN = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+
+  function setupRoot(withPhysicsArtifact: boolean): { r: string; o: string } {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-playable-phys-'));
+    mkdirSync(path.join(r, 'scenes'), { recursive: true });
+    // A RigidBody makes sceneUsesPhysics() true → the runtime needs physics.
+    writeFileSync(path.join(r, 'scenes', 'main.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'RigidBody', data: { bodyType: 1 } }] }] }));
+    writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(PSCN, 'scene'));
+    mkdirSync(path.join(r, '_sdk'), { recursive: true });
+    writeFileSync(path.join(r, '_sdk', 'index.js'),
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\n`);
+    mkdirSync(path.join(r, '_wasm'), { recursive: true });
+    writeFileSync(path.join(r, '_wasm', 'esengine.js'), `export default function(){}\n`);
+    writeFileSync(path.join(r, '_wasm', 'esengine.wasm'), 'WASMBYTES');
+    if (withPhysicsArtifact) {
+      writeFileSync(path.join(r, '_wasm', 'physics.js'), `export default function(){}/*PHYS_GLUE*/\n`);
+      writeFileSync(path.join(r, '_wasm', 'physics.wasm'), 'PHYSWASM');
+    }
+    return { r, o: path.join(r, 'dist') };
+  }
+
+  const run = (r: string, o: string) => exportGame({
+    root: r, entryScene: 'scenes/main.esscene', gameHostEntry: 'x', playableHostEntry: PLAYABLE_HOST,
+    sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
+  });
+
+  it('inlines physics into __SIDE_MODULES__ when the scene uses physics', async () => {
+    const { r, o } = setupRoot(true);
+    try {
+      const res = await run(r, o);
+      expect(res.ok).toBe(true);
+      const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+      expect(html).toContain('__SIDE_MODULES__');
+      expect(html).toContain('"physics"');
+      expect(html).toContain(Buffer.from('PHYSWASM').toString('base64')); // physics.wasm inlined
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('fails the export when the scene needs physics but physics.wasm is absent', async () => {
+    const { r, o } = setupRoot(false);
+    try {
+      const res = await run(r, o);
+      expect(res.ok).toBe(false);
+      expect(res.errors.join('\n')).toMatch(/physics/);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
   }, 60_000);
 });

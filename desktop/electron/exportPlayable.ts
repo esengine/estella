@@ -21,6 +21,10 @@ import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
+import {
+  sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
+  spineModuleId, SIDE_MODULE_FILE,
+} from './sideModuleScan';
 
 export interface ExportPlayableResult {
   ok: boolean;
@@ -71,6 +75,51 @@ function indexHtml(title: string, globals: string, bundle: string): string {
 }
 
 /**
+ * The export-time mirror of the runtime's physics/spine self-gating: scan the
+ * scene for needed modules and inline their glue+wasm as base64 (single-file, no
+ * fetch). A needed module absent from `wasmDir` is pushed as a HARD error — the
+ * playable would otherwise ship silently broken (the bug this whole path fixes).
+ */
+async function collectSideModules(
+  sceneData: unknown,
+  manifestEntries: CookManifest['entries'],
+  cookDir: string,
+  wasmDir: string,
+  errors: string[],
+): Promise<Record<string, { glueBase64: string; wasmBase64: string }>> {
+  const ids = new Set<string>();
+  if (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0])) ids.add('physics');
+  for (const e of manifestEntries) {
+    try {
+      if (e.type === 'spine-skeleton') {
+        const v = detectSpineVersion(new Uint8Array(await readFile(path.join(cookDir, e.path))));
+        if (v) ids.add(spineModuleId(v));
+      } else if (e.path.toLowerCase().endsWith('.json')) {
+        const v = detectSpineVersionJson(await readFile(path.join(cookDir, e.path), 'utf8'));
+        if (v) ids.add(spineModuleId(v));
+      }
+    } catch { /* unreadable cook entry — cookAssets already warned; skip */ }
+  }
+
+  const registry: Record<string, { glueBase64: string; wasmBase64: string }> = {};
+  for (const id of ids) {
+    const file = SIDE_MODULE_FILE[id];
+    if (!file) { errors.push(`internal: no artifact mapping for side module "${id}"`); continue; }
+    const gluePath = path.join(wasmDir, `${file}.js`);
+    const wasmPath = path.join(wasmDir, `${file}.wasm`);
+    if (!existsSync(gluePath) || !existsSync(wasmPath)) {
+      errors.push(`scene needs "${id}" but ${file}.js/${file}.wasm are missing from the wasm dir — build the module and re-export.`);
+      continue;
+    }
+    registry[id] = {
+      glueBase64: (await readFile(gluePath)).toString('base64'),
+      wasmBase64: (await readFile(wasmPath)).toString('base64'),
+    };
+  }
+  return registry;
+}
+
+/**
  * Export the open project as a single-file playable ad. Reuses the shipped WEB
  * engine runtime (esengine.js glue + esengine.wasm) inlined — no separate
  * SINGLE_FILE build. `playableHostEntry` is the host source; `wasmDir` the web wasm dir.
@@ -106,8 +155,10 @@ export async function exportPlayable(opts: {
   // 2. Assets → base64 data URLs, keyed by the scene's @uuid: refs.
   progress({ phase: 'Encoding assets' });
   const assets: Record<string, string> = {};
+  let manifestEntries: CookManifest['entries'] = [];
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
+    manifestEntries = manifest.entries;
     for (const e of manifest.entries) {
       const buf = await readFile(path.join(cookDir, e.path));
       assets[`@uuid:${e.uuid}`] = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
@@ -170,11 +221,19 @@ export async function exportPlayable(opts: {
     errors.push(`engine runtime not found in ${opts.wasmDir} (need esengine.js + esengine.wasm)`);
   }
 
+  // 5b. Side modules (physics / spine): run the runtime's gating scan, then inline
+  //     exactly the modules the scene needs (playables are single-file + size-capped).
+  //     A needed module missing from wasmDir is a HARD error — better a failed
+  //     export than a playable that silently ships without physics.
+  progress({ phase: 'Embedding modules' });
+  const sideModules = await collectSideModules(scenes[0]?.data, manifestEntries, cookDir, opts.wasmDir, errors);
+
   // 6. Assemble the single HTML, then drop the temp cook dir.
   progress({ phase: 'Assembling HTML' });
   const globals =
     `window.__ENGINE_GLUE__=${JSON.stringify(glue)};` +
     `window.__ENGINE_WASM__=${JSON.stringify(wasmB64)};` +
+    `window.__SIDE_MODULES__=${JSON.stringify(sideModules)};` +
     `window.__GAME_ASSETS__=${JSON.stringify(assets)};` +
     `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};`;

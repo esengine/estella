@@ -50,7 +50,10 @@ export default {
         physics: {
             buildDir: 'build-physics',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
-            // ESM variant (EXPORT_ES6=1) for the web editor — imported like esengine.js.
+            // ESM variant (EXPORT_ES6=1, `export default`) — the ONE physics build
+            // for every realm. The SideModuleHost loader resolves the factory the
+            // same way everywhere (fetch / inlined base64 / WeChat require), so
+            // there is no separate side-module or playable physics build.
             targets: ['physics_module_esm'],
             outputs: {
                 'sdk/physics.js': 'wasm/web/physics.js',
@@ -64,41 +67,6 @@ export default {
             outputs: {
                 'sdk/basis.js': 'wasm/web/basis.js',
                 'sdk/basis.wasm': 'wasm/web/basis.wasm',
-            },
-        },
-        'web-main': {
-            buildDir: 'build-web-main',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_BUILD_MAIN_MODULE=ON'],
-            targets: ['esengine_sdk_main'],
-            outputs: {
-                'sdk/esengine.js': 'wasm/web/esengine.js',
-                'sdk/esengine.wasm': 'wasm/web/esengine.wasm',
-            },
-        },
-        'wechat-main': {
-            buildDir: 'build-wxgame-main',
-            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_BUILD_MAIN_MODULE=ON'],
-            targets: ['esengine_wxgame_main'],
-            outputs: {
-                'sdk/esengine.wxgame.js': 'wasm/wechat/esengine.wxgame.js',
-                'sdk/esengine.wxgame.wasm': 'wasm/wechat/esengine.wxgame.wasm',
-            },
-        },
-        'physics-side': {
-            buildDir: 'build-web-main',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON', '-DES_BUILD_SIDE_MODULE=ON'],
-            targets: ['physics_side_module'],
-            outputs: {
-                'sdk/physics.wasm': 'wasm/web/physics.wasm',
-            },
-        },
-        'physics-playable': {
-            buildDir: 'build-physics-playable',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
-            targets: ['physics_module'],
-            outputs: {
-                'sdk/physics.js': 'wasm/playable/physics.js',
-                'sdk/physics.wasm': 'wasm/playable/physics.wasm',
             },
         },
         spine: {

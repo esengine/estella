@@ -9,15 +9,18 @@
  *        the SAME shipping runtime via initPlayableRuntime (play == ship). Nothing
  *        is fetched — the whole game is one self-contained .html (ad-network ready).
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime } from 'esengine';
-import type { ESEngineModule as EngineModule, SceneData } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost } from 'esengine';
+import type { ESEngineModule as EngineModule, SceneData, EmbeddedSideModuleRegistry } from 'esengine';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
 // large base64 blobs aren't re-parsed as code). The glue is the WEB esengine.js
-// (ESM) text; the wasm is base64-encoded esengine.wasm.
+// (ESM) text; the wasm is base64-encoded esengine.wasm. __SIDE_MODULES__ holds
+// the base64 glue+wasm for exactly the optional modules (physics/spine) the scene
+// uses — the exporter ran the runtime's gating scan to pick them.
 declare const __ENGINE_GLUE__: string;
 declare const __ENGINE_WASM__: string;
+declare const __SIDE_MODULES__: EmbeddedSideModuleRegistry;
 declare const __GAME_ASSETS__: Record<string, string>;
 declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
 declare const __GAME_FIRST__: string;
@@ -69,6 +72,8 @@ async function boot(): Promise<void> {
   const app = createWebApp(module, {
     glContextHandle: glHandle,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
+    // Physics + spine resolve from the inlined base64 registry (no fetch).
+    sideModules: createEmbeddedSideModuleHost(typeof __SIDE_MODULES__ !== 'undefined' ? __SIDE_MODULES__ : {}),
   });
   setEditorMode(false);
   setPlayMode(true);
