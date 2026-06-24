@@ -487,6 +487,11 @@ export function Outliner() {
       onDragStart={onDragStartRow}
       onDragOver={onDragOverRow}
       onDrop={onDropRow}
+      onDragEnd={() => {
+        dragIds.current = null;
+        dragFolder.current = null;
+        setDrop(null);
+      }}
     />
   );
 

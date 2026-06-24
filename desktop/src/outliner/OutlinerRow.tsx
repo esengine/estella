@@ -69,6 +69,7 @@ export interface OutlinerRowProps {
   onDragStart?: (item: OutlinerItem, e: React.DragEvent) => void;
   onDragOver?: (item: OutlinerItem, e: React.DragEvent) => void;
   onDrop?: (item: OutlinerItem, e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
 }
 
 export function OutlinerRow(props: OutlinerRowProps) {
@@ -119,6 +120,7 @@ export function OutlinerRow(props: OutlinerRowProps) {
       onDragStart={props.onDragStart ? (e) => props.onDragStart!(item, e) : undefined}
       onDragOver={props.onDragOver ? (e) => props.onDragOver!(item, e) : undefined}
       onDrop={props.onDrop ? (e) => props.onDrop!(item, e) : undefined}
+      onDragEnd={props.onDragEnd}
     >
       <span
         className={`twist${showTwist ? '' : ' leaf'}`}
