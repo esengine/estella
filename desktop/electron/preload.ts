@@ -43,6 +43,12 @@ const api = {
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
     exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable' }): Promise<ExportGameResult> =>
       ipcRenderer.invoke('project:exportGame', opts),
+    /** Subscribe to export build-log phases while a package runs. Returns unsubscribe. */
+    onExportProgress: (cb: (p: { phase: string; detail?: string }) => void): (() => void) => {
+      const listener = (_e: unknown, p: { phase: string; detail?: string }) => cb(p);
+      ipcRenderer.on('project:exportProgress', listener);
+      return () => ipcRenderer.removeListener('project:exportProgress', listener);
+    },
     /** Stage the isolated play realm (host + SDK + wasm + project bundle) under
      *  `.esengine/play/`; returns the project-relative host page path. */
     preparePlayRealm: (): Promise<PlayRealmResult> => ipcRenderer.invoke('project:preparePlayRealm'),

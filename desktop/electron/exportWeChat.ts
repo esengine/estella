@@ -26,6 +26,7 @@ import { writeFile, mkdir, cp, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
+import type { OnExportProgress } from './exportProgress';
 
 export interface ExportWeChatResult {
   ok: boolean;
@@ -115,18 +116,22 @@ export async function exportWeChat(opts: {
   outDir: string;
   title?: string;
   minify?: boolean;
+  onProgress?: OnExportProgress;
 }): Promise<ExportWeChatResult> {
   const title = opts.title ?? 'Game';
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(opts.root, opts.outDir);
+  const progress = opts.onProgress ?? (() => {});
   const warnings: string[] = [];
   const errors: string[] = [];
   await mkdir(absOut, { recursive: true });
 
   // 1. Cook reachable assets (paths preserved) + the flat manifest.
+  progress({ phase: 'Cooking assets' });
   const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut });
   warnings.push(...cook.warnings);
 
   // 2. Flat manifest → AddressableManifest (asset-manifest.json); drop the web one.
+  progress({ phase: 'Building manifest' });
   try {
     await writeFile(path.join(absOut, 'asset-manifest.json'), await buildAddressableManifest(absOut));
     await rm(path.join(absOut, 'assets.manifest.json'), { force: true });
@@ -135,6 +140,7 @@ export async function exportWeChat(opts: {
   }
 
   // 3. Entry scene → scenes/<name>.json with @uuid: refs stripped to bare uuids.
+  progress({ phase: 'Transforming scene' });
   const sceneName = path.basename(opts.entryScene).replace(/\.[^.]+$/, '');
   try {
     const raw = JSON.parse(await readFile(path.join(absOut, opts.entryScene), 'utf8'));
@@ -153,6 +159,7 @@ export async function exportWeChat(opts: {
     `export function boot(engineFactory) {\n` +
     `  return initWeChatRuntime({ engineFactory, sceneNames: ${JSON.stringify([sceneName])}, firstScene: ${JSON.stringify(sceneName)} });\n` +
     `}\n`;
+  progress({ phase: 'Bundling game' });
   try {
     const res = await build({
       stdin: { contents: entrySrc, resolveDir: opts.root, loader: 'js', sourcefile: 'wechat-entry.js' },
@@ -179,6 +186,7 @@ export async function exportWeChat(opts: {
   await writeFile(path.join(absOut, 'project.config.json'), projectConfigJson(title));
 
   // 6. The -t wechat engine runtime (WXWebAssembly glue + binary + side modules).
+  progress({ phase: 'Copying runtime' });
   if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(absOut, 'wasm'), { recursive: true });
   else warnings.push(`wechat wasm runtime dir not found: ${opts.wasmDir}`);
 

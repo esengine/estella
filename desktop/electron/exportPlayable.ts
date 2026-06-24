@@ -19,6 +19,7 @@ import { writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
+import type { OnExportProgress } from './exportProgress';
 
 export interface ExportPlayableResult {
   ok: boolean;
@@ -83,19 +84,23 @@ export async function exportPlayable(opts: {
   outDir: string;
   title?: string;
   minify?: boolean;
+  onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(opts.root, opts.outDir);
+  const progress = opts.onProgress ?? (() => {});
   const warnings: string[] = [];
   const errors: string[] = [];
   await mkdir(absOut, { recursive: true });
   const cookDir = path.join(absOut, '.playable-cook');
 
   // 1. Cook reachable assets to a temp dir (everything ends up inlined → removed after).
+  progress({ phase: 'Cooking assets' });
   const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: cookDir });
   warnings.push(...cook.warnings);
 
   // 2. Assets → base64 data URLs, keyed by the scene's @uuid: refs.
+  progress({ phase: 'Encoding assets' });
   const assets: Record<string, string> = {};
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
@@ -118,6 +123,7 @@ export async function exportPlayable(opts: {
   }
 
   // 4. Host + esengine + project scripts → ONE IIFE (esengine INLINED; no import map).
+  progress({ phase: 'Bundling game' });
   const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
   const entrySrc =
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
@@ -148,6 +154,7 @@ export async function exportPlayable(opts: {
   else warnings.push(`single-file engine glue not found: ${opts.glueFile} — run \`node build-tools/cli.js build -t playable\``);
 
   // 6. Assemble the single HTML, then drop the temp cook dir.
+  progress({ phase: 'Assembling HTML' });
   const globals =
     `window.__GAME_ASSETS__=${JSON.stringify(assets)};` +
     `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +

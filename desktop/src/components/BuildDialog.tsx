@@ -93,6 +93,7 @@ export function BuildDialog() {
   const [sourceMaps, setSourceMaps] = useState(saved.sourceMaps ?? false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
+  const [log, setLog] = useState<string[]>([]);
 
   const def = PLATFORMS.find((p) => p.id === platform)!;
   const running = phase === 'running';
@@ -114,8 +115,13 @@ export function BuildDialog() {
   const build = async () => {
     setPhase('running');
     setResult(null);
+    setLog([]);
     // Persist the chosen settings to project.esproject (restored next time).
     void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, outDir: { [platform]: outDir } });
+    // Live build log (UE-style): each export phase streams over IPC.
+    const unsub = window.estella.project?.onExportProgress?.((p) =>
+      setLog((l) => [...l, p.detail ? `${p.phase} — ${p.detail}` : p.phase]),
+    );
     try {
       const res = (await ProjectStore.exportGame({
         platform,
@@ -134,6 +140,8 @@ export function BuildDialog() {
     } catch (err) {
       setResult({ ok: false, outDir, included: 0, warnings: [], errors: [err instanceof Error ? err.message : String(err)] });
       setPhase('error');
+    } finally {
+      unsub?.();
     }
   };
 
@@ -229,8 +237,13 @@ export function BuildDialog() {
           <div className={`build__status ${phase}`}>
             {phase === 'running' && (
               <span className="build__status-line">
-                <Loader2 size={14} className="spin" /> Cooking assets, bundling the {def.label} build…
+                <Loader2 size={14} className="spin" /> Packaging the {def.label} build…
               </span>
+            )}
+            {log.length > 0 && (
+              <ol className="build__log">
+                {log.map((line, i) => <li key={i}>{line}</li>)}
+              </ol>
             )}
             {phase === 'done' && result && (
               <>

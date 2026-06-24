@@ -27,6 +27,7 @@ import { cookAssets } from './cookAssets';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
 import { exportPlayable } from './exportPlayable';
+import type { OnExportProgress } from './exportProgress';
 
 export type ExportPlatform = 'web' | 'desktop' | 'wechat' | 'playable';
 
@@ -209,12 +210,15 @@ export async function exportGame(opts: {
   playableHostEntry?: string;
   /** SINGLE_FILE engine glue (esengine.single.js from `-t playable`) for playable ads. */
   glueFile?: string;
+  /** Per-phase progress (build log). */
+  onProgress?: OnExportProgress;
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
+  const progress = opts.onProgress ?? (() => {});
 
   // WeChat has no import maps + a different module/asset model → its own pipeline.
   if (platform === 'wechat') {
@@ -227,6 +231,7 @@ export async function exportGame(opts: {
       outDir: opts.outDir,
       title,
       minify: opts.minify,
+      onProgress: opts.onProgress,
     });
   }
 
@@ -241,6 +246,7 @@ export async function exportGame(opts: {
       outDir: opts.outDir,
       title,
       minify: opts.minify,
+      onProgress: opts.onProgress,
     });
   }
 
@@ -263,18 +269,22 @@ export async function exportGame(opts: {
   };
 
   // 1. Cook reachable assets + manifest (the entry scene file is staged too).
+  progress({ phase: 'Cooking assets' });
   const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: payloadDir });
   warnings.push(...cook.warnings);
+  progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 
   try {
     // 2. Game host — esengine EXTERNAL (resolved by the index.html import map),
     //    so the shipped game shares one SDK with the project bundle and runs
     //    custom systems (same shape as the play realm).
+    progress({ phase: 'Bundling game host' });
     const host = await build({ ...common, entryPoints: [opts.gameHostEntry], outfile: path.join(payloadDir, 'game.js') });
     errors.push(...host.errors.map((e) => e.text));
     // 3. Project bundle (defineComponent/defineSystem) → scripts.mjs, esengine external.
     const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
     if (scriptsAbs && existsSync(scriptsAbs)) {
+      progress({ phase: 'Bundling project scripts' });
       const proj = await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });
       errors.push(...proj.errors.map((e) => e.text));
     }
@@ -285,12 +295,14 @@ export async function exportGame(opts: {
   }
 
   // 4. SDK (import-map target) + wasm runtime.
+  progress({ phase: 'Copying SDK + runtime' });
   if (existsSync(opts.sdkDistDir)) await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true });
   else warnings.push(`sdk dist not found: ${opts.sdkDistDir}`);
   if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(payloadDir, 'wasm'), { recursive: true });
   else warnings.push(`wasm runtime dir not found: ${opts.wasmDir}`);
 
   // 5. Host page + entry-scene config.
+  progress({ phase: 'Writing host page' });
   await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title));
   await writeFile(
     path.join(payloadDir, 'game.config.json'),
@@ -298,7 +310,7 @@ export async function exportGame(opts: {
   );
 
   // 6. Desktop: wrap the payload in a runnable Electron app.
-  if (platform === 'desktop') await stageDesktopApp(absOut, title);
+  if (platform === 'desktop') { progress({ phase: 'Staging Electron app' }); await stageDesktopApp(absOut, title); }
 
   return { ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length, warnings, errors };
 }
