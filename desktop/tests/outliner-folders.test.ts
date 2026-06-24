@@ -87,6 +87,18 @@ describe('SceneCommands folders (undoable)', () => {
     expect(S.model.sceneFolders()).toContain('A/Empty');
   });
 
+  it('moving a folder under another = rename to the new parent path (the drag op)', () => {
+    S.commands.createFolder('Tools/Gizmos'); // explicit folder (a draggable row)
+    S.commands.moveToFolder([1], 'Tools/Gizmos');
+    S.commands.createFolder('Lib');
+    // Dragging "Tools/Gizmos" into "Lib" is renameFolder → "Lib/Gizmos"; contents follow.
+    S.commands.renameFolder('Tools/Gizmos', 'Lib/Gizmos');
+    expect(S.model.folderOf(1)).toBe('Lib/Gizmos');
+    expect(S.model.sceneFolders()).toContain('Lib/Gizmos');
+    S.history.undo();
+    expect(S.model.folderOf(1)).toBe('Tools/Gizmos');
+  });
+
   it('deleteFolder moves contents up to the parent (entities survive); undo reverts', () => {
     S.commands.moveToFolder([1], 'A/B');
     S.commands.createFolder('A/B/C');

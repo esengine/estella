@@ -15,7 +15,7 @@ import { VirtualTree } from '@/components/VirtualTree';
 import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem } from '@/outliner/OutlinerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
-import { joinFolder, folderParent } from '@/outliner/folders';
+import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
@@ -78,6 +78,7 @@ export function Outliner() {
   const setInspectWorld = useEditorStore((s) => s.setInspectWorld);
   const initRef = useRef(false);
   const dragIds = useRef<EntityId[] | null>(null);
+  const dragFolder = useRef<string | null>(null); // the folder path being dragged (vs entities)
 
   const [renaming, setRenaming] = useState<string | null>(null); // item key
   const [drop, setDrop] = useState<{ key: string; pos: 'before' | 'on' | 'after' } | null>(null);
@@ -292,18 +293,25 @@ export function Outliner() {
     return true;
   };
   const onDragStartRow = (item: OutlinerItem, e: React.DragEvent) => {
-    if (item.kind !== 'entity') return;
-    dragIds.current = selectionOrTarget(item.id);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(item.id));
+    if (item.kind === 'folder') {
+      dragFolder.current = item.path;
+      dragIds.current = null;
+      e.dataTransfer.setData('text/plain', item.path);
+    } else {
+      dragIds.current = selectionOrTarget(item.id);
+      dragFolder.current = null;
+      e.dataTransfer.setData('text/plain', String(item.id));
+    }
   };
   const onDragOverRow = (item: OutlinerItem, e: React.DragEvent) => {
-    if (dragIds.current) e.dataTransfer.dropEffect = 'move';
+    if (dragIds.current || dragFolder.current) e.dataTransfer.dropEffect = 'move';
     else if (isAssetDrag(e)) e.dataTransfer.dropEffect = 'copy';
     else return;
     e.preventDefault();
-    // Hovering the top/bottom quarter of an entity row (manual sort, entity drag)
-    // is a between-rows reorder; the middle is a reparent. Folders are always 'on'.
+    // Entity drag, manual sort: the top/bottom quarter of an entity row is a
+    // between-rows reorder, the middle a reparent. A folder drag is always 'on'
+    // (nest into the target; folders sort by name, so no manual reorder).
     let pos: 'before' | 'on' | 'after' = 'on';
     if (dragIds.current && item.kind === 'entity' && sortMode === 'manual') {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -311,6 +319,19 @@ export function Outliner() {
       pos = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'on';
     }
     if (drop?.key !== item.key || drop?.pos !== pos) setDrop({ key: item.key, pos });
+  };
+  /** Move the dragged folder into `destParent` (or root). Rejects self/descendant. */
+  const moveFolderInto = (destParent: string) => {
+    const src = dragFolder.current;
+    dragFolder.current = null;
+    setDrop(null);
+    if (src == null) return;
+    const dest = normalizeFolder(destParent);
+    if (dest === src || isFolderUnder(dest, src)) return; // into itself / its own subtree
+    const next = joinFolder(dest, folderName(src));
+    if (next === src) return;
+    SceneCommands.renameFolder(src, next);
+    useOutliner.getState().rebaseFolderKeys(src, next);
   };
   const reparent = (target: EntityId | null) => {
     const ids = dragIds.current;
@@ -330,6 +351,11 @@ export function Outliner() {
     e.stopPropagation();
     const pos = drop?.pos ?? 'on';
     setDrop(null);
+    // A folder being dragged → nest it under the target's folder.
+    if (dragFolder.current != null) {
+      moveFolderInto(item.kind === 'folder' ? item.path : SceneModel.folderOf(item.id));
+      return;
+    }
     if (item.kind === 'folder') {
       if (dropPrefabAsset(e, null)) return; // prefab onto a folder → instantiate at root
       moveToFolder(item.path);
@@ -350,12 +376,17 @@ export function Outliner() {
     }
   };
 
-  // Empty-space drop = move to the scene root (un-parent + clear folder).
+  // Empty-space drop = move to the scene root (un-parent + clear folder, or, for
+  // a dragged folder, re-root it).
   const onBodyDragOver = (e: React.DragEvent) => {
-    if (dragIds.current || isAssetDrag(e)) e.preventDefault();
+    if (dragIds.current || dragFolder.current || isAssetDrag(e)) e.preventDefault();
   };
   const onBodyDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    if (dragFolder.current != null) {
+      moveFolderInto('');
+      return;
+    }
     if (dropPrefabAsset(e, null)) return;
     moveToFolder(null);
   };
@@ -429,7 +460,7 @@ export function Outliner() {
       renaming={renaming === it.key}
       dropPos={drop?.key === it.key ? drop.pos : undefined}
       prefab={it.kind === 'entity' && SceneModel.prefabTag(it.id) != null}
-      draggable={it.kind === 'entity'}
+      draggable
       onToggle={toggleExpanded}
       onClick={onRowClick}
       onContextMenu={onContextMenu}
