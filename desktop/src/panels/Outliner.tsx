@@ -81,7 +81,7 @@ export function Outliner() {
 
   const [renaming, setRenaming] = useState<string | null>(null); // item key
   const [drop, setDrop] = useState<{ key: string; pos: 'before' | 'on' | 'after' } | null>(null);
-  const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem } | null>(null);
+  const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem | null } | null>(null); // item null = empty-space menu
   const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
   // Controlled scroll for reveal-on-select + keyboard nav (nonce re-fires same index).
   const [scrollTo, setScrollTo] = useState<{ index: number; nonce: number }>({ index: -1, nonce: 0 });
@@ -230,9 +230,19 @@ export function Outliner() {
 
   const onContextMenu = (e: React.MouseEvent, item: OutlinerItem) => {
     e.preventDefault();
+    e.stopPropagation(); // a row menu pre-empts the empty-space menu on the container
     if (item.kind === 'entity' && !useSelection.getState().selectedIds.has(item.id)) select(item.id);
     setCtx({ x: e.clientX, y: e.clientY, item });
   };
+  // Right-click on empty space (below the rows / no entities) → the scene menu.
+  const onBodyContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setCtx({ x: e.clientX, y: e.clientY, item: null });
+  };
+  const expandAll = () =>
+    useOutliner.getState().setExpanded(
+      collectExpandableKeys(SceneModel.current, { folderOf: (id) => SceneModel.folderOf(id), folders: SceneModel.sceneFolders() }),
+    );
 
   const onStartRename = (item: OutlinerItem) => setRenaming(item.key);
   const commitRename = (item: OutlinerItem, name: string) => {
@@ -352,6 +362,16 @@ export function Outliner() {
 
   const ctxItems: MenuItem[] = useMemo(() => {
     if (!ctx) return [];
+    if (!ctx.item) {
+      // Empty-space (scene) menu — UE5 right-click-in-the-void.
+      return [
+        { label: 'Add Entity', onClick: addEntity },
+        { label: 'New Folder', onClick: () => newFolder('', null) },
+        { sep: true },
+        { label: 'Expand All', onClick: expandAll },
+        { label: 'Collapse All', onClick: () => useOutliner.getState().setExpanded([]) },
+      ];
+    }
     if (ctx.item.kind === 'folder') {
       const path = ctx.item.path;
       const sel = [...useSelection.getState().selectedIds];
@@ -475,14 +495,14 @@ export function Outliner() {
             </div>
           )}
           {sceneCount === 0 ? (
-            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop}>
+            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
               <div className="empty">
                 <Search size={22} strokeWidth={1.4} />
                 <p>{engine.status === 'ready' ? 'No entities in scene.' : 'Waiting for engine…'}</p>
               </div>
             </div>
           ) : items.length === 0 ? (
-            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop}>
+            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
               <div className="empty">
                 <Search size={22} strokeWidth={1.4} />
                 <p>No entities match “{query}”.</p>
@@ -501,6 +521,7 @@ export function Outliner() {
               onKeyDown={onKeyDown}
               onDragOver={onBodyDragOver}
               onDrop={onBodyDrop}
+              onContextMenu={onBodyContextMenu}
             />
           )}
         </>
