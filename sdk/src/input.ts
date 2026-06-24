@@ -4,12 +4,54 @@ import { defineResource } from './resource';
 import { defineSystem, Schedule } from './system';
 import type { App, Plugin } from './app';
 import { getPlatform } from './platform';
+import type { GamepadSnapshot } from './platform/types';
 import { inputRouter } from './inputRouter';
 
 export interface TouchPoint {
     id: number;
     x: number;
     y: number;
+}
+
+/**
+ * Standard-mapping gamepad buttons (W3C "standard gamepad"). Positional names
+ * (SDL / Steam Input convention) avoid device assumptions; Xbox / PlayStation
+ * face labels are noted for reference.
+ */
+export enum GamepadButton {
+    South = 0,        // A (Xbox) · Cross (PS)
+    East = 1,         // B · Circle
+    West = 2,         // X · Square
+    North = 3,        // Y · Triangle
+    LeftBumper = 4,   // LB · L1
+    RightBumper = 5,  // RB · R1
+    LeftTrigger = 6,  // LT · L2 (analog)
+    RightTrigger = 7, // RT · R2 (analog)
+    Back = 8,         // View · Select / Share
+    Start = 9,        // Menu · Options
+    LeftStick = 10,   // L3 (stick click)
+    RightStick = 11,  // R3
+    DpadUp = 12,
+    DpadDown = 13,
+    DpadLeft = 14,
+    DpadRight = 15,
+    Guide = 16,       // Xbox · PS · Home
+}
+
+/** Standard-mapping gamepad axes (signed, [-1,1]). */
+export enum GamepadAxis {
+    LeftX = 0,
+    LeftY = 1,
+    RightX = 2,
+    RightY = 3,
+}
+
+/** @internal Per-gamepad runtime state — current + previous frame, for edges. */
+interface PadState {
+    connected: boolean;
+    buttons: number[];
+    prevButtons: number[];
+    axes: number[];
 }
 
 export class InputState {
@@ -74,6 +116,79 @@ export class InputState {
 
     isTouchActive(id: number): boolean {
         return this.touches.has(id);
+    }
+
+    // — Gamepad (polled each frame; edges via current/prev diff, not events) —
+    /** Per-index pad state; an index persists across disconnect so a reconnect resumes. */
+    gamepads = new Map<number, PadState>();
+    /** Analog buttons (e.g. triggers) count as "down" at/above this value. */
+    gamepadButtonThreshold = 0.5;
+    /** Axis magnitudes below this read as 0 (rest-position stick jitter). */
+    gamepadDeadzone = 0.15;
+
+    /** Indices of currently-connected gamepads. */
+    getGamepads(): number[] {
+        const out: number[] = [];
+        for (const [i, p] of this.gamepads) if (p.connected) out.push(i);
+        return out;
+    }
+
+    isGamepadConnected(pad = 0): boolean {
+        return this.gamepads.get(pad)?.connected ?? false;
+    }
+
+    isGamepadButtonDown(button: number, pad = 0): boolean {
+        const p = this.connectedPad_(pad);
+        return !!p && (p.buttons[button] ?? 0) >= this.gamepadButtonThreshold;
+    }
+
+    isGamepadButtonPressed(button: number, pad = 0): boolean {
+        const p = this.connectedPad_(pad);
+        if (!p) return false;
+        const t = this.gamepadButtonThreshold;
+        return (p.buttons[button] ?? 0) >= t && (p.prevButtons[button] ?? 0) < t;
+    }
+
+    isGamepadButtonReleased(button: number, pad = 0): boolean {
+        const p = this.connectedPad_(pad);
+        if (!p) return false;
+        const t = this.gamepadButtonThreshold;
+        return (p.buttons[button] ?? 0) < t && (p.prevButtons[button] ?? 0) >= t;
+    }
+
+    /** Raw analog value of a button in [0,1] (triggers; 0/1 for digital buttons). */
+    getGamepadButtonValue(button: number, pad = 0): number {
+        return this.connectedPad_(pad)?.buttons[button] ?? 0;
+    }
+
+    /** Signed axis value in [-1,1], with the deadzone applied. */
+    getGamepadAxis(axis: number, pad = 0): number {
+        const p = this.connectedPad_(pad);
+        if (!p) return 0;
+        const v = p.axes[axis] ?? 0;
+        return Math.abs(v) < this.gamepadDeadzone ? 0 : v;
+    }
+
+    private connectedPad_(pad: number): PadState | undefined {
+        const p = this.gamepads.get(pad);
+        return p?.connected ? p : undefined;
+    }
+
+    /** Ingest this frame's snapshots: shift current→prev (edge detection) then
+     *  store new values. Pads absent from `snapshots` are marked disconnected. */
+    updateGamepads(snapshots: GamepadSnapshot[]): void {
+        for (const p of this.gamepads.values()) p.connected = false;
+        for (const snap of snapshots) {
+            let p = this.gamepads.get(snap.index);
+            if (!p) {
+                p = { connected: true, buttons: [], prevButtons: [], axes: [] };
+                this.gamepads.set(snap.index, p);
+            }
+            p.prevButtons = p.buttons;
+            p.buttons = snap.buttons;
+            p.axes = snap.axes;
+            p.connected = snap.connected;
+        }
     }
 
     clearFrameState(): void {
@@ -169,6 +284,17 @@ export class InputPlugin implements Plugin {
                 state.touchesEnded.add(id);
             },
         }, this.target_ ?? undefined);
+
+        // Gamepads are polled (no DOM events). Web supplies pollGamepads; platforms
+        // without it (WeChat, headless) skip gamepad input. Runs in First so the
+        // freshest pad state is up before any gameplay / action-map system reads it.
+        const platform = getPlatform();
+        if (platform.pollGamepads) {
+            const poll = platform.pollGamepads.bind(platform);
+            app.addSystemToSchedule(Schedule.First, defineSystem([], () => {
+                state.updateGamepads(poll());
+            }, { name: 'GamepadPollSystem' }));
+        }
 
         app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
             state.clearFrameState();

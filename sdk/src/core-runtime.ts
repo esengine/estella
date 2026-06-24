@@ -164,8 +164,12 @@ export {
     InputState,
     InputPlugin,
     inputPlugin,
+    GamepadButton,
+    GamepadAxis,
     type TouchPoint,
 } from './input';
+
+export type { GamepadSnapshot } from './platform/types';
 
 export {
     InputRouter,
@@ -175,6 +179,28 @@ export {
 } from './inputRouter';
 
 export { GestureDetector, type SwipeDirection } from './gesture';
+
+// =============================================================================
+// Input Map (named actions — UE Enhanced Input / Unity Input System analog)
+// =============================================================================
+
+export {
+    defineInputMap,
+    InputMap,
+    Key,
+    MouseButton,
+    GpButton,
+    GpAxis,
+    Keys1D,
+    Keys2D,
+    Stick,
+    Button,
+    Axis1D,
+    Axis2D,
+    type Binding,
+    type ActionDef,
+    type ActionType,
+} from './inputMap';
 
 // =============================================================================
 // Query

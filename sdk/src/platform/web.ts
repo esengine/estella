@@ -11,6 +11,7 @@ import type {
     PlatformResponse,
     WasmInstantiateResult,
     InputEventCallbacks,
+    GamepadSnapshot,
     ImageLoadResult,
 } from './types';
 import { WebAudioBackend } from '../audio/WebAudioBackend';
@@ -249,6 +250,23 @@ class WebPlatformAdapter implements PlatformAdapter {
             this.inputCleanup_();
             this.inputCleanup_ = null;
         }
+    }
+
+    pollGamepads(): GamepadSnapshot[] {
+        const nav = typeof navigator !== 'undefined' ? navigator : undefined;
+        if (!nav || typeof nav.getGamepads !== 'function') return [];
+        const out: GamepadSnapshot[] = [];
+        for (const gp of nav.getGamepads()) {
+            if (!gp) continue; // navigator.getGamepads() is a sparse array (null slots)
+            out.push({
+                index: gp.index,
+                connected: gp.connected,
+                buttons: gp.buttons.map((b) => b.value),
+                axes: gp.axes.slice(),
+                mapping: gp.mapping,
+            });
+        }
+        return out;
     }
 
     createAudioBackend(): PlatformAudioBackend {

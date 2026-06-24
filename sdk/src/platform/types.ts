@@ -57,6 +57,21 @@ export interface InputEventCallbacks {
     onTouchCancel?(id: number): void;
 }
 
+/**
+ * A per-frame snapshot of one gamepad. With `mapping === 'standard'` the button
+ * and axis indices follow the W3C "standard gamepad" layout (see GamepadButton /
+ * GamepadAxis in input.ts). `buttons[i]` is analog in [0,1] (1 = fully pressed);
+ * `axes[i]` is signed in [-1,1]. Gamepads are POLLED (no DOM events), so the
+ * platform produces these each frame rather than via InputEventCallbacks.
+ */
+export interface GamepadSnapshot {
+    index: number;
+    connected: boolean;
+    buttons: number[];
+    axes: number[];
+    mapping: string;
+}
+
 // =============================================================================
 // Image Types
 // =============================================================================
@@ -96,6 +111,11 @@ export interface PlatformAdapter {
     createImage(): HTMLImageElement;
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
+
+    /** Poll connected gamepads for this frame. Optional — platforms without
+     *  gamepad support (WeChat, headless) omit it and the input plugin skips
+     *  gamepad polling entirely. */
+    pollGamepads?(): GamepadSnapshot[];
 
     createAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
 
