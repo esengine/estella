@@ -12,7 +12,6 @@ import {
   modelInspectableComponents,
   modelKindOf,
   modelNameOf,
-  modelIsVisible,
 } from './schema';
 
 type SceneEntity = SceneData['entities'][number];
@@ -40,7 +39,17 @@ export function buildSceneTree(data: SceneData | null): SceneNode[] {
   const build = (e: SceneEntity): SceneNode => {
     const kind = modelKindOf(e);
     const kids = childrenOf.get(e.id)?.map(build);
-    return { id: e.id, name: modelNameOf(e, kind), kind, visible: modelIsVisible(e), locked: false, children: kids && kids.length ? kids : undefined };
+    // `visible`/`locked` are editor-only per-entity flags (UE5 bHiddenInEditor /
+    // actor lock), distinct from any component's gameplay `enabled`.
+    const flags = e as { hidden?: boolean; locked?: boolean };
+    return {
+      id: e.id,
+      name: modelNameOf(e, kind),
+      kind,
+      visible: !flags.hidden,
+      locked: !!flags.locked,
+      children: kids && kids.length ? kids : undefined,
+    };
   };
   return roots.map(build);
 }

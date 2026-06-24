@@ -5,7 +5,7 @@ import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
-import { componentByName, componentDefaults, type AnyComp, type WorldT } from './schema';
+import { componentByName, componentDefaults, isRenderComponent, componentEnable, type AnyComp, type WorldT } from './schema';
 
 /**
  * Projects the model into the World.
@@ -38,11 +38,31 @@ const STRUCTURAL = new Set(['Name', 'Parent', 'Children']);
 function worldProjection(data: SceneData): SceneData {
   return {
     ...data,
-    entities: (data.entities ?? []).map((e) => ({
-      ...e,
-      components: (e.components ?? []).filter((c) => !!getComponent(c.type)),
-    })),
+    entities: (data.entities ?? []).map((e) => {
+      const hidden = !!(e as { hidden?: boolean }).hidden;
+      return {
+        ...e,
+        components: (e.components ?? [])
+          .filter((c) => !!getComponent(c.type))
+          .map((c) => (hidden ? foldHidden(c) : c)),
+      };
+    }),
   };
+}
+
+type SceneComp = SceneData['entities'][number]['components'][number];
+
+/**
+ * Fold editor-hidden into a render component for the World projection: force its
+ * enable flag off, WITHOUT mutating the model (a fresh component object), so the
+ * entity disappears from the viewport while its authored `enabled` (gameplay)
+ * stays intact. Non-render components pass through untouched.
+ */
+function foldHidden(c: SceneComp): SceneComp {
+  if (!isRenderComponent(c.type)) return c;
+  const en = componentEnable(c.type, c.data as Record<string, unknown>);
+  if (!en) return c;
+  return { ...c, data: { ...c.data, [en.key]: false } };
 }
 
 type AssetResolver = (uuid: string) => number;
@@ -122,6 +142,8 @@ export class ReconcilerImpl {
         return this.projectParent(ev.sourceId);
       case 'nameChanged':
         return this.projectName(ev.sourceId);
+      case 'hiddenChanged':
+        return this.projectHidden(ev.sourceId);
     }
   }
 
@@ -133,8 +155,10 @@ export class ReconcilerImpl {
     const rt = world.spawn();
     this.model.bindRuntime(sourceId, rt);
     if (entity.name) world.insert(rt, Name, { value: entity.name } as never);
+    const hidden = this.model.isHidden(sourceId);
     for (const comp of entity.components) {
-      this.insertComponent(world, rt, comp.type, comp.data as Record<string, unknown>);
+      const c = hidden ? foldHidden(comp) : comp;
+      this.insertComponent(world, rt, c.type, c.data as Record<string, unknown>);
     }
     // Link to a parent that is already spawned…
     if (entity.parent != null) {
@@ -166,9 +190,19 @@ export class ReconcilerImpl {
     if (!def) return; // unknown component — lives in the model only
     const comp = entity.components.find((c) => c.type === type);
     if (!comp) return;
-    const data = this.projectData(def, comp.data as Record<string, unknown>);
+    // Re-fold editor-hidden each time we project a render component, so a field
+    // edit on a hidden entity doesn't quietly un-hide it in the viewport.
+    const src = this.model.isHidden(sourceId) ? foldHidden(comp) : comp;
+    const data = this.projectData(def, src.data as Record<string, unknown>);
     if (world.has(rt, def)) world.set(rt, def, data as Parameters<WorldT['set']>[2]);
     else world.insert(rt, def, data as never);
+  }
+
+  /** Re-project an entity's render components when its editor visibility flips. */
+  private projectHidden(sourceId: number): void {
+    const entity = this.model.entityBySource(sourceId);
+    if (!entity) return;
+    for (const c of entity.components) if (isRenderComponent(c.type)) this.projectComponent(sourceId, c.type);
   }
 
   private removeComponent(sourceId: number, type: string): void {

@@ -24,7 +24,12 @@ export type ModelEvent =
   // An entity's outliner folder path changed (organizational; not a World/ECS change).
   | { kind: 'folderChanged'; sourceId: number }
   // The scene's explicit-folder set changed (create/rename/delete of a folder).
-  | { kind: 'foldersChanged' };
+  | { kind: 'foldersChanged' }
+  // An entity's editor visibility (`bHiddenInEditor`) changed — the reconciler
+  // folds it into the render projection; it never touches component data.
+  | { kind: 'hiddenChanged'; sourceId: number }
+  // An entity's editor lock changed — pure editor state (picking/selection only).
+  | { kind: 'lockChanged'; sourceId: number };
 
 type Listener = (ev: ModelEvent) => void;
 
@@ -293,6 +298,41 @@ export class SceneModelImpl {
     if (paths.length) d.folders = [...paths];
     else delete d.folders;
     this.emit({ kind: 'foldersChanged' });
+  }
+
+  // ── Editor visibility / lock (per-entity, editor-only — UE5 bHiddenInEditor) ──
+  // Like `folder`: an editor-only per-entity field, lossless, never a World
+  // component. `hidden` the reconciler folds into the render projection (without
+  // touching the component's gameplay `enabled`, so play — which loads the raw
+  // model — ignores it). `locked` is pure editor state (blocks viewport picking).
+  // Storing the default (false) removes the field (cleaner JSON).
+
+  /** Whether an entity is hidden in the editor viewport (independent of gameplay). */
+  isHidden(sourceId: number): boolean {
+    return !!(this.entityBySource(sourceId) as { hidden?: boolean } | undefined)?.hidden;
+  }
+
+  /** Set an entity's editor visibility (`hidden` = not shown in the viewport). */
+  setHidden(sourceId: number, hidden: boolean): void {
+    const e = this.entityBySource(sourceId) as (SceneEntity & { hidden?: boolean }) | undefined;
+    if (!e) return;
+    if (hidden) e.hidden = true;
+    else delete e.hidden;
+    this.emit({ kind: 'hiddenChanged', sourceId });
+  }
+
+  /** Whether an entity is locked (not selectable/movable in the viewport). */
+  isLocked(sourceId: number): boolean {
+    return !!(this.entityBySource(sourceId) as { locked?: boolean } | undefined)?.locked;
+  }
+
+  /** Set an entity's editor lock. */
+  setLocked(sourceId: number, locked: boolean): void {
+    const e = this.entityBySource(sourceId) as (SceneEntity & { locked?: boolean }) | undefined;
+    if (!e) return;
+    if (locked) e.locked = true;
+    else delete e.locked;
+    this.emit({ kind: 'lockChanged', sourceId });
   }
 
   // ── Source↔runtime map (Reconciler-only writers) ─────────────────────────

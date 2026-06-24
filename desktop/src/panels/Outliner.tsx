@@ -250,6 +250,7 @@ export function Outliner() {
       ];
     }
     const id = ctx.item.id;
+    const { visible, locked } = ctx.item.node;
     return [
       { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(entityKey(id)) },
       {
@@ -269,6 +270,9 @@ export function Outliner() {
           select(null);
         },
       },
+      { sep: true },
+      { label: visible ? 'Hide' : 'Show', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setEntityVisible(i, !visible)) },
+      { label: locked ? 'Unlock' : 'Lock', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setEntityLocked(i, !locked)) },
       { sep: true },
       { label: 'New Folder from Selection', onClick: () => newFolder('', selectionOrTarget(id)) },
       { label: 'Move to Root', onClick: () => SceneCommands.moveToFolder(selectionOrTarget(id), null) },
@@ -296,6 +300,7 @@ export function Outliner() {
       onStartRename={onStartRename}
       onCommitRename={commitRename}
       onToggleVisible={(id, visible) => SceneCommands.setEntityVisible(id, visible)}
+      onToggleLock={(id, locked) => SceneCommands.setEntityLocked(id, locked)}
       onDragStart={onDragStartRow}
       onDragOver={onDragOverRow}
       onDrop={onDropRow}

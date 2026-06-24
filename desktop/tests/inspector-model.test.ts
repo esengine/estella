@@ -517,31 +517,63 @@ describe('Advanced fields (D5)', () => {
   });
 });
 
-describe('Polish: render-scoped visibility + batch undo', () => {
+describe('Editor visibility / lock (UE5 bHiddenInEditor + actor lock) + batch undo', () => {
   const TF = { position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
 
-  it('a disabled non-render component leaves the entity visible; a disabled renderer hides it', () => {
+  it('outliner visibility/lock = editor flags, decoupled from component enabled', () => {
     const S = EditorSession.create();
     S.model.adopt(
       {
         version: '1.0',
         name: 'v',
         entities: [
-          {
-            id: 1,
-            name: 'A',
-            parent: null,
-            children: [],
-            components: [{ type: 'Sprite', data: { enabled: true } }, { type: 'RigidBody', data: { enabled: false } }],
-          },
+          { id: 1, name: 'A', parent: null, children: [], components: [{ type: 'Sprite', data: { enabled: true } }] },
+          // A component disabled for gameplay is NOT editor-hidden — still shown.
           { id: 2, name: 'B', parent: null, children: [], components: [{ type: 'Sprite', data: { enabled: false } }] },
+          // The editor `hidden`/`locked` flags drive the row, regardless of components.
+          { id: 3, name: 'C', parent: null, children: [], hidden: true, locked: true, components: [{ type: 'Sprite', data: { enabled: true } }] },
         ],
       } as unknown as SceneData,
-      new Map([[1, 1], [2, 2]]),
+      new Map([[1, 1], [2, 2], [3, 3]]),
     );
     const tree = S.query.readSceneTree();
-    expect(tree.find((n) => n.id === 1)!.visible).toBe(true); // physics off, still rendered
-    expect(tree.find((n) => n.id === 2)!.visible).toBe(false); // sprite off → hidden
+    expect(tree.find((n) => n.id === 2)!.visible).toBe(true); // disabled component ≠ editor-hidden
+    expect(tree.find((n) => n.id === 3)!.visible).toBe(false); // editor-hidden
+    expect(tree.find((n) => n.id === 3)!.locked).toBe(true);
+  });
+
+  it('setEntityVisible toggles the editor hidden flag — never the component enabled; undoable', () => {
+    const S = EditorSession.create();
+    S.model.adopt(
+      { version: '1.0', name: 'v', entities: [{ id: 1, name: 'A', parent: null, children: [], components: [{ type: 'Sprite', data: { enabled: true } }] }] } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    S.commands.setEntityVisible(1, false);
+    expect(S.query.readSceneTree()[0].visible).toBe(false);
+    expect(S.model.isHidden(1)).toBe(true);
+    // The Sprite's gameplay enable is untouched (play, loading the raw model, ignores hidden).
+    expect((S.model.entityBySource(1)!.components[0].data as { enabled: boolean }).enabled).toBe(true);
+    S.history.undo();
+    expect(S.query.readSceneTree()[0].visible).toBe(true);
+    expect(S.model.isHidden(1)).toBe(false);
+  });
+
+  it('setEntityLocked toggles the lock flag (undoable); flags round-trip through serialize', () => {
+    const S = EditorSession.create();
+    S.model.adopt(
+      { version: '1.0', name: 'v', entities: [{ id: 1, name: 'A', parent: null, children: [], components: [] }] } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    S.commands.setEntityLocked(1, true);
+    expect(S.query.readSceneTree()[0].locked).toBe(true);
+    S.commands.setEntityVisible(1, false);
+    const out = S.model.serialize() as SceneData;
+    const e1 = out.entities[0] as { hidden?: boolean; locked?: boolean };
+    expect(e1.hidden).toBe(true);
+    expect(e1.locked).toBe(true);
+    S.history.undo(); // un-hide
+    S.history.undo(); // un-lock
+    expect(S.model.isLocked(1)).toBe(false);
   });
 
   it('multi-select add then remove component is one undo step each', () => {

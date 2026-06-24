@@ -484,13 +484,3 @@ export function modelNameOf(entity: SceneEntityLike, kind: NodeKind): string {
   return entity.name || `${cap(kind)} ${entity.id}`;
 }
 
-/** Hidden iff a RENDER component is disabled — a disabled physics/audio/script
- *  component leaves the entity visible (only its behaviour is off). */
-export function modelIsVisible(entity: SceneEntityLike): boolean {
-  for (const c of entity.components) {
-    if (!RENDER_COMPONENTS.has(c.type)) continue;
-    const en = componentEnable(c.type, c.data as Record<string, unknown>);
-    if (en && !en.value) return false;
-  }
-  return true;
-}

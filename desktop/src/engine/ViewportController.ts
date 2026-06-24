@@ -3,6 +3,7 @@
 import { Camera, CameraView, EditorView, Sprite, Transform } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
+import { SceneModel } from './SceneModel';
 
 // Structural shape of the engine's CameraView resource (screen<->world).
 interface CameraViewLike {
@@ -67,6 +68,9 @@ export const ViewportController = {
     let bestLayer = -Infinity;
     for (const e of world.getAllEntities()) {
       if (!world.has(e, Sprite) || !world.has(e, Transform)) continue;
+      // Locked / editor-hidden entities aren't click-selectable in the viewport.
+      const src = SceneModel.sourceFor(e);
+      if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) continue;
       const t = world.get(e, Transform);
       const sp = world.get(e, Sprite);
       const w = sp.size.x * t.scale.x;

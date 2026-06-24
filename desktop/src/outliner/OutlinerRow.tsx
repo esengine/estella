@@ -10,7 +10,7 @@
  * handlers — the PIE tree passes none and gets a click-to-select read-only row.
  */
 import type React from 'react';
-import { ChevronRight, Eye, EyeOff, Lock, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, Lock, LockOpen, Folder, FolderOpen } from 'lucide-react';
 import { NodeIcon } from '@/components/icons';
 import type { EntityId, NodeKind } from '@/types';
 import type { OutlinerItem } from './OutlinerModel';
@@ -44,6 +44,7 @@ export interface OutlinerRowProps {
   onStartRename?: (item: OutlinerItem) => void;
   onCommitRename?: (item: OutlinerItem, name: string) => void;
   onToggleVisible?: (id: EntityId, visible: boolean) => void;
+  onToggleLock?: (id: EntityId, locked: boolean) => void;
   draggable?: boolean;
   onDragStart?: (item: OutlinerItem, e: React.DragEvent) => void;
   onDragOver?: (item: OutlinerItem, e: React.DragEvent) => void;
@@ -70,7 +71,10 @@ export function OutlinerRow(props: OutlinerRowProps) {
   }
 
   const canRename = !!props.onCommitRename;
-  const showVis = !!props.onToggleVisible && item.kind === 'entity';
+  const isEntity = item.kind === 'entity';
+  const entityId = item.kind === 'entity' ? item.id : -1;
+  const showVis = !!props.onToggleVisible && isEntity;
+  const showLock = !!props.onToggleLock && isEntity;
   const collapsible = props.collapsible !== false;
   const showTwist = hasChildren && collapsible;
 
@@ -80,6 +84,7 @@ export function OutlinerRow(props: OutlinerRowProps) {
         `row${selected ? ' sel' : ''}` +
         `${expanded ? ' open' : ''}` +
         `${visible ? '' : ' hidden'}` +
+        `${locked ? ' locked' : ''}` +
         `${prefab ? ' prefab' : ''}` +
         `${isFolder ? ' folder' : ''}` +
         `${isDrop ? ' drop' : ''}`
@@ -138,22 +143,29 @@ export function OutlinerRow(props: OutlinerRowProps) {
 
       <span className="rtype">{typeLabel}</span>
 
+      {showLock && (
+        <span
+          className="rlock"
+          title={locked ? 'Unlock' : 'Lock'}
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onToggleLock!(entityId, !locked);
+          }}
+        >
+          {locked ? <Lock size={12} strokeWidth={1.85} /> : <LockOpen size={12} strokeWidth={1.85} />}
+        </span>
+      )}
+
       {showVis && (
         <span
           className="rvis"
           title="Toggle visibility"
           onClick={(e) => {
             e.stopPropagation();
-            props.onToggleVisible!((item as { id: EntityId }).id, !visible);
+            props.onToggleVisible!(entityId, !visible);
           }}
         >
-          {locked ? (
-            <Lock size={12} strokeWidth={1.85} />
-          ) : visible ? (
-            <Eye size={13} strokeWidth={1.85} />
-          ) : (
-            <EyeOff size={13} strokeWidth={1.85} />
-          )}
+          {visible ? <Eye size={13} strokeWidth={1.85} /> : <EyeOff size={13} strokeWidth={1.85} />}
         </span>
       )}
     </div>

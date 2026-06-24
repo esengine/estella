@@ -44,7 +44,7 @@
 }
 .outliner-cols .c-name { flex: 1; }
 .outliner-cols .c-type { width: 78px; flex-shrink: 0; }
-.outliner-cols .c-vis { width: 24px; text-align: center; flex-shrink: 0; }
+.outliner-cols .c-vis { width: 48px; text-align: center; flex-shrink: 0; } /* lock + eye */
 
 /* Rows */
 .row {
@@ -85,12 +85,17 @@
 }
 .row .rtype { width: 78px; font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); flex-shrink: 0; }
 .row.sel .rtype { color: rgba(255, 255, 255, 0.72); }
-.row .rvis { width: 24px; display: grid; place-items: center; color: var(--text-mute); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast); flex-shrink: 0; }
+.row .rvis, .row .rlock { width: 24px; display: grid; place-items: center; color: var(--text-mute); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast); flex-shrink: 0; }
 .row:hover .rvis, .row.sel .rvis, .row.hidden .rvis { opacity: 1; }
-.row.sel .rvis { color: rgba(255, 255, 255, 0.8); }
-.row .rvis:hover { color: var(--text); }
-.row.sel .rvis:hover { color: #fff; }
+.row:hover .rlock, .row.sel .rlock, .row.locked .rlock { opacity: 1; }
+.row.sel .rvis, .row.sel .rlock { color: rgba(255, 255, 255, 0.8); }
+.row .rvis:hover, .row .rlock:hover { color: var(--text); }
+.row.sel .rvis:hover, .row.sel .rlock:hover { color: #fff; }
 .row.hidden .rname { color: var(--text-mute); }
+/* Locked rows: a dimmed name + a lit lock glyph (UE5 actor lock). */
+.row.locked .rname { color: var(--text-mute); }
+.row.locked .rlock { color: var(--info-warm); }
+.row.sel.locked .rlock { color: #fff; }
 
 /* Folder rows (organizational path-folders) — read a touch stronger than entities. */
 .row.folder .ricon { color: var(--info-warm); }

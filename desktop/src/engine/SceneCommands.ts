@@ -9,8 +9,6 @@ import { expandInstance } from './PrefabInstance';
 import {
   componentByName,
   componentDefaults,
-  componentEnable,
-  isRenderComponent,
   userSchema,
   angleZToQuat,
   hexToRgba,
@@ -611,22 +609,36 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Toggle an entity's editor visibility by flipping the `enabled` field of each
-   * of its components that has one (coalesced into one undo step). Lossless +
-   * persisted; SceneQuery reflects it as the row's visibility.
+   * Toggle an entity's editor visibility (UE5 `bHiddenInEditor`) — a dedicated
+   * editor-only flag the reconciler folds into the render projection. Distinct
+   * from a component's gameplay `enabled`: hiding never edits component data, so
+   * the running game (which loads the raw model) is unaffected. Undoable.
    */
   setEntityVisible(sourceId: EntityId, visible: boolean): void {
-    const entity = this.model.entityBySource(sourceId);
-    if (!entity) return;
-    this.beginGesture(visible ? 'Show' : 'Hide');
-    // Toggle only RENDER components' enable flag (each via its own key — Sprite
-    // uses `enabled`, TilemapLayer `visible`), so hiding never disables physics.
-    for (const comp of entity.components) {
-      if (!isRenderComponent(comp.type)) continue;
-      const en = componentEnable(comp.type, comp.data as Record<string, unknown>);
-      if (en) this.setField(sourceId, comp.type, en.key, 'bool', visible);
-    }
-    this.endGesture();
+    if (!this.model.entityBySource(sourceId)) return;
+    const before = this.model.isHidden(sourceId);
+    const after = !visible;
+    if (before === after) return;
+    this.model.setHidden(sourceId, after);
+    this.history.record(
+      visible ? 'Show' : 'Hide',
+      () => this.model.setHidden(sourceId, after),
+      () => this.model.setHidden(sourceId, before),
+    );
+  }
+
+  /** Lock/unlock an entity (UE5 actor lock) — editor-only; blocks viewport
+   *  picking/transform. Undoable. */
+  setEntityLocked(sourceId: EntityId, locked: boolean): void {
+    if (!this.model.entityBySource(sourceId)) return;
+    const before = this.model.isLocked(sourceId);
+    if (before === locked) return;
+    this.model.setLocked(sourceId, locked);
+    this.history.record(
+      locked ? 'Lock' : 'Unlock',
+      () => this.model.setLocked(sourceId, locked),
+      () => this.model.setLocked(sourceId, before),
+    );
   }
 
   /**
