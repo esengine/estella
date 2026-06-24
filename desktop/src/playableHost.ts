@@ -12,9 +12,9 @@
 import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime } from 'esengine';
 import type { ESEngineModule as EngineModule, SceneData } from 'esengine';
 
-// The SINGLE_FILE glue exposes this global (MODULARIZE + EXPORT_ES6=0 → IIFE),
-// wasm embedded, so no locateFile / instantiateWasm wiring is needed here.
-declare const ESEngineModule: (opts?: Record<string, unknown>) => Promise<EngineModule>;
+// The SINGLE_FILE glue exposes ESEngineModule as a global (MODULARIZE +
+// EXPORT_ES6=0), wasm embedded, so no locateFile / instantiateWasm wiring here.
+type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
 // large base64 asset blob isn't re-parsed as code).
 declare const __GAME_ASSETS__: Record<string, string>;
@@ -31,7 +31,11 @@ async function boot(): Promise<void> {
   window.addEventListener('resize', resize);
   resize();
 
-  const module = await ESEngineModule({ canvas });
+  const factory = (globalThis as unknown as { ESEngineModule?: EngineFactory }).ESEngineModule;
+  if (typeof factory !== 'function') {
+    throw new Error('Engine runtime (esengine.single.js) not loaded — rebuild the playable: `node build-tools/cli.js build -t playable`.');
+  }
+  const module = await factory({ canvas });
 
   const gl = canvas.getContext('webgl2', {
     alpha: false,

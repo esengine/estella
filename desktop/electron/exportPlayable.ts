@@ -155,10 +155,11 @@ export async function exportPlayable(opts: {
     errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
   }
 
-  // 5. The SINGLE_FILE glue (global ESEngineModule, wasm embedded).
+  // 5. The SINGLE_FILE glue (global ESEngineModule, wasm embedded). Required — a
+  //    playable can't run without it, so a miss is an ERROR (not a broken bundle).
   let glue = '';
   if (existsSync(opts.glueFile)) glue = await readFile(opts.glueFile, 'utf8');
-  else warnings.push(`single-file engine glue not found: ${opts.glueFile} — run \`node build-tools/cli.js build -t playable\``);
+  else errors.push(`single-file engine runtime missing — run \`node build-tools/cli.js build -t playable\` (expected ${opts.glueFile})`);
 
   // 6. Assemble the single HTML, then drop the temp cook dir.
   progress({ phase: 'Assembling HTML' });
