@@ -10,8 +10,10 @@
  *          base64/embedded asset packing.
  *
  *          Builtin components/systems run as-is. Project-defined components/systems
- *          (a bundle loaded with esengine external + an import map) are a layered
- *          follow-up — this entry only owns the runtime + snapshot + asset fetch.
+ *          are already registered by the time this runs: the host imports the project
+ *          bundle (esengine external + import map → the shared instance) BEFORE booting,
+ *          so its defineComponent/defineSystem populate the registry this drains. This
+ *          entry only owns the runtime + snapshot + asset fetch.
  */
 import type { App } from './app';
 import type { ESEngineModule } from './wasm';
