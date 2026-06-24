@@ -15,6 +15,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
     if (!destroyConn_.isConnected()) {
         destroyConn_ = registry.onDestroyScoped([this](Entity entity) {
             states_.erase(entity);
+            colorLuts_.erase(entity);
         });
     }
 
@@ -73,7 +74,8 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
             }
         }
 
-        updateParticles(emitter, state, dt);
+        auto lutIt = colorLuts_.find(entity);
+        updateParticles(emitter, state, dt, lutIt != colorLuts_.end() ? &lutIt->second : nullptr);
     }
 }
 
@@ -100,6 +102,17 @@ void ParticleSystem::reset(Entity entity) {
         it->second.elapsed_time = 0.0f;
         it->second.burst_timer = 0.0f;
         it->second.playing = false;
+    }
+}
+
+void ParticleSystem::setColorLut(Entity entity, const f32* rgba, i32 count) {
+    if (count != kColorLutSize || rgba == nullptr) {
+        colorLuts_.erase(entity); // 0 (or a mismatched bake) clears → fall back to start/end
+        return;
+    }
+    ColorLut& lut = colorLuts_[entity];
+    for (std::size_t i = 0; i < kColorLutSize; ++i) {
+        lut[i] = glm::vec4(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]);
     }
 }
 
@@ -216,8 +229,18 @@ void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
     }
 }
 
+// Sample a baked color-over-life LUT at t∈[0,1] with linear interpolation between
+// the two nearest entries — the editor authors a gradient, TS bakes it to this.
+static glm::vec4 sampleColorLut(const ColorLut& lut, f32 t) {
+    f32 f = std::clamp(t, 0.0f, 1.0f) * static_cast<f32>(kColorLutSize - 1);
+    auto i = static_cast<std::size_t>(f);
+    std::size_t j = std::min(i + 1, static_cast<std::size_t>(kColorLutSize - 1));
+    return math::lerp(lut[i], lut[j], f - static_cast<f32>(i));
+}
+
 void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
-                                      EmitterState& state, f32 dt) {
+                                      EmitterState& state, f32 dt,
+                                      const ColorLut* colorLut) {
     auto sizeEasing = static_cast<EasingType>(emitter.sizeEasing);
     auto colorEasing = static_cast<EasingType>(emitter.colorEasing);
     i32 totalFrames = emitter.spriteColumns * emitter.spriteRows;
@@ -246,8 +269,12 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         f32 sizeT = applyEasing(sizeEasing, t);
         p.size = math::lerp(p.start_size, p.end_size, sizeT);
 
-        f32 colorT = applyEasing(colorEasing, t);
-        p.color = math::lerp(p.start_color, p.end_color, colorT);
+        if (colorLut) {
+            p.color = sampleColorLut(*colorLut, t);
+        } else {
+            f32 colorT = applyEasing(colorEasing, t);
+            p.color = math::lerp(p.start_color, p.end_color, colorT);
+        }
 
         if (totalFrames > 1 && emitter.spriteFPS > 0.0f) {
             f32 frameDuration = 1.0f / emitter.spriteFPS;

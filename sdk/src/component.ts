@@ -42,6 +42,8 @@ export interface FieldMeta {
     enumSource?: string;
     /** Render as a bitmask multi-select; each option is a single bit. */
     flags?: ReadonlyArray<{ label: string; value: number }>;
+    /** Render as a color-gradient editor (the field value is `{ stops: [...] }`). */
+    gradient?: boolean;
     /**
      * Render as a bitmask whose bit LABELS are resolved by the editor (e.g. named
      * collision layers from project settings) rather than fixed here. `bits` is the
@@ -749,10 +751,16 @@ export interface ParticleEmitterData {
     material: number;
     simulationSpace: number;
     enabled: boolean;
+    /**
+     * Color-over-life gradient (authored stops). When it has stops it overrides
+     * startColor/endColor + colorEasing. Not a C++ field — baked to a LUT the sim
+     * samples (see particlePlugin's scene codec). Empty ⇒ start/end fallback.
+     */
+    colorGradient: { stops: { t: number; color: Color }[] };
 }
 
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
-    metaDefaults<ParticleEmitterData>('ParticleEmitter'),
+    metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] } }),
     {
         // A large component — organized into UE-style property categories.
         fields: {
@@ -780,6 +788,7 @@ export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitt
             endSizeMin: { min: 0, category: 'Size' },
             endSizeMax: { min: 0, category: 'Size' },
             sizeEasing: { enum: enumOptions(ParticleEasing), category: 'Size' },
+            colorGradient: { gradient: true, category: 'Color' },
             startColor: { category: 'Color' },
             endColor: { category: 'Color' },
             colorEasing: { enum: enumOptions(ParticleEasing), category: 'Color' },

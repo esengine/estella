@@ -330,6 +330,11 @@ u32 particle_getAliveCount(Entity entity) {
     if (!g_particleSystem) return 0;
     return g_particleSystem->aliveCount(entity);
 }
+
+void particle_set_color_lut(Entity entity, uintptr_t ptr, i32 count) {
+    if (!g_particleSystem) return;
+    g_particleSystem->setColorLut(entity, reinterpret_cast<const f32*>(ptr), count);
+}
 #endif
 
 void renderer_setStage(i32 stage) {

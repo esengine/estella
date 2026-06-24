@@ -65,6 +65,7 @@ export interface SerializedFieldMeta {
   enumSource?: string;
   flags?: Array<{ label: string; value: number }>;
   bitmask?: { bits?: number; source?: string };
+  gradient?: boolean;
   min?: number;
   max?: number;
   step?: number;
@@ -212,6 +213,7 @@ function pickFieldMeta(
     if (meta.enumSource) m.enumSource = meta.enumSource;
     if (meta.flags && meta.flags.length) m.flags = meta.flags.map((o) => ({ ...o }));
     if (meta.bitmask) m.bitmask = { ...meta.bitmask };
+    if (meta.gradient) m.gradient = true;
     if (meta.min != null) m.min = meta.min;
     if (meta.max != null) m.max = meta.max;
     if (meta.step != null) m.step = meta.step;

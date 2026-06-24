@@ -40,6 +40,28 @@ export class ParticleAPI {
     getAliveCount(entity: Entity): number {
         return this.module_.particle_getAliveCount?.(entity as number) ?? 0;
     }
+
+    /**
+     * Upload an entity's baked color-over-life LUT (an N×4 RGBA Float32Array) so
+     * the sim samples it instead of start/end + easing; pass null to clear. The
+     * data is copied into the wasm heap for the call, then freed.
+     */
+    setColorLut(entity: Entity, lut: Float32Array | null): void {
+        const m = this.module_;
+        if (!m.particle_set_color_lut) return;
+        if (!lut || lut.length === 0) {
+            m.particle_set_color_lut(entity as number, 0, 0);
+            return;
+        }
+        const bytes = lut.length * 4;
+        const ptr = m._malloc(bytes);
+        try {
+            m.HEAPF32.set(lut, ptr / 4);
+            m.particle_set_color_lut(entity as number, ptr, lut.length / 4);
+        } finally {
+            m._free(ptr);
+        }
+    }
 }
 
 /** Resource handle for the per-app particle API. */

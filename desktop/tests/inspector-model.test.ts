@@ -292,6 +292,48 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
   });
 });
 
+describe('Color gradient field (particle color-over-life)', () => {
+  it("renders ParticleEmitter.colorGradient as a 'gradient' field that round-trips", () => {
+    const grad = { stops: [{ t: 0, color: { r: 1, g: 0, b: 0, a: 1 } }, { t: 1, color: { r: 0, g: 0, b: 1, a: 0 } }] };
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'p',
+        entities: [{ id: 1, name: 'P', parent: null, children: [], components: [{ type: 'ParticleEmitter', data: { colorGradient: grad } }] }],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const field = () =>
+      S.query.readInspector(1).find((c) => c.name === 'ParticleEmitter')!.fields.find((f) => f.key === 'colorGradient')!;
+    const g = field();
+    expect(g.type).toBe('gradient');
+    expect((g.value as { stops: unknown[] }).stops.length).toBe(2);
+
+    S.commands.setField(1, 'ParticleEmitter', 'colorGradient', 'gradient', {
+      stops: [{ t: 0.5, color: { r: 0, g: 1, b: 0, a: 1 } }],
+    } as never);
+    const after = field().value as { stops: { t: number }[] };
+    expect(after.stops.length).toBe(1);
+    expect(after.stops[0].t).toBe(0.5);
+  });
+
+  it('an empty gradient field reads as empty stops (sim falls back to start/end)', () => {
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'p',
+        entities: [{ id: 1, name: 'P', parent: null, children: [], components: [{ type: 'ParticleEmitter', data: {} }] }],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const g = S.query.readInspector(1).find((c) => c.name === 'ParticleEmitter')!.fields.find((f) => f.key === 'colorGradient')!;
+    expect(g.type).toBe('gradient');
+    expect((g.value as { stops: unknown[] }).stops).toEqual([]);
+  });
+});
+
 describe('Sorting-layer enum source (render layer)', () => {
   afterEach(() => setEnumSource('sortingLayers', null));
   function spriteScene(layer: number): SceneData {

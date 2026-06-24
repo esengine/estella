@@ -37,6 +37,7 @@ export type InspectorFieldType =
   | 'color'
   | 'enum' // an int field with named options, shown as a dropdown
   | 'flags' // an int bitmask, shown as a multi-select of its bits
+  | 'gradient' // a color-over-life gradient ({ stops: [...] })
   | 'asset'; // a texture/material/font/... ref (@uuid: string, or 0 for none)
 
 /** A dropdown option for an `enum` field: the label shown, the int stored. */
@@ -45,12 +46,23 @@ export interface EnumOption {
   value: number;
 }
 
+/** One stop of a `gradient` field: a 0..1 position + an RGBA color (0..1 channels). */
+export interface GradientStop {
+  t: number;
+  color: { r: number; g: number; b: number; a: number };
+}
+/** A `gradient` field's value — color stops over [0,1]. */
+export interface GradientValue {
+  stops: GradientStop[];
+}
+
 export type InspectorFieldValue =
   | number
   | boolean
   | string
   | [number, number]
-  | [number, number, number];
+  | [number, number, number]
+  | GradientValue;
 
 export interface InspectorField {
   /** key in the component data object */

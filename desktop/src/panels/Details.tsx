@@ -42,7 +42,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
 import { Popover, usePopover } from '@/components/Popover';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
@@ -666,6 +666,128 @@ function ColorControl({
   );
 }
 
+const rgbaCss = (c: { r: number; g: number; b: number; a: number }) =>
+  `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${c.a})`;
+
+// Interpolate a gradient's color at t (matches the runtime bake), for new stops.
+function sampleStops(stops: GradientStop[], t: number): GradientStop['color'] {
+  if (stops.length === 0) return { r: 1, g: 1, b: 1, a: 1 };
+  const sorted = [...stops].sort((a, b) => a.t - b.t);
+  if (t <= sorted[0].t) return { ...sorted[0].color };
+  const last = sorted[sorted.length - 1];
+  if (t >= last.t) return { ...last.color };
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    if (t >= a.t && t <= b.t) {
+      const f = b.t - a.t > 1e-6 ? (t - a.t) / (b.t - a.t) : 0;
+      return {
+        r: a.color.r + (b.color.r - a.color.r) * f,
+        g: a.color.g + (b.color.g - a.color.g) * f,
+        b: a.color.b + (b.color.b - a.color.b) * f,
+        a: a.color.a + (b.color.a - a.color.a) * f,
+      };
+    }
+  }
+  return { ...last.color };
+}
+
+// A color-over-life gradient editor: a preview bar with draggable stops; click the
+// bar to add a stop, select one to edit its color (the themed picker) or delete it.
+// Empty ⇒ the particle falls back to start/end + easing (the runtime bake skips it).
+function GradientControl({
+  value,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & { value: GradientValue; onChange: (v: GradientValue) => void }) {
+  const bar = useRef<HTMLDivElement>(null);
+  const drag = useRef<number | null>(null);
+  const [sel, setSel] = useState(0);
+  const stops = value.stops ?? [];
+  const ordered = [...stops].sort((a, b) => a.t - b.t);
+  const css = stops.length
+    ? `linear-gradient(90deg, ${ordered.map((s) => `${rgbaCss(s.color)} ${Math.round(s.t * 100)}%`).join(', ')})`
+    : 'var(--inset)';
+
+  const commit = (next: GradientStop[]) => onChange({ stops: next });
+  const tFromX = (clientX: number) => {
+    const r = bar.current?.getBoundingClientRect();
+    return r && r.width ? Math.max(0, Math.min(1, (clientX - r.left) / r.width)) : 0;
+  };
+  const selColor = stops[sel]?.color;
+
+  return (
+    <div className="grad">
+      <div
+        ref={bar}
+        className="grad-bar"
+        onPointerDown={(e) => {
+          if (e.target !== bar.current && !(e.target as HTMLElement).classList.contains('grad-fill')) return;
+          const t = tFromX(e.clientX);
+          onBegin?.();
+          const next = [...stops, { t, color: sampleStops(stops, t) }];
+          commit(next);
+          setSel(next.length - 1);
+          onEnd?.();
+        }}
+      >
+        <span className="grad-fill" style={{ background: css }} />
+        {stops.map((s, i) => (
+          <span
+            key={i}
+            className={`grad-stop${i === sel ? ' on' : ''}`}
+            style={{ left: `${s.t * 100}%`, background: rgbaCss(s.color) }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              setSel(i);
+              drag.current = i;
+              onBegin?.();
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (drag.current !== i) return;
+              commit(stops.map((st, j) => (j === i ? { ...st, t: tFromX(e.clientX) } : st)));
+            }}
+            onPointerUp={(e) => {
+              if (drag.current !== i) return;
+              drag.current = null;
+              e.currentTarget.releasePointerCapture?.(e.pointerId);
+              onEnd?.();
+            }}
+          />
+        ))}
+      </div>
+      {selColor && (
+        <div className="grad-edit">
+          <ColorControl
+            value={rgbaToHex8(selColor.r, selColor.g, selColor.b, selColor.a)}
+            onBegin={onBegin}
+            onEnd={onEnd}
+            onChange={(hex) => {
+              const c = hexToRgba(hex);
+              commit(stops.map((st, j) => (j === sel ? { ...st, color: c } : st)));
+            }}
+          />
+          <button
+            type="button"
+            className="grad-del"
+            title="Remove stop"
+            onClick={() => {
+              onBegin?.();
+              commit(stops.filter((_, j) => j !== sel));
+              setSel(0);
+              onEnd?.();
+            }}
+          >
+            <X size={11} strokeWidth={2} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const isImageAsset = (t: AssetType): boolean => t === 'texture' || t === 'sprite';
 
 // An asset-ref field: a drop target showing the bound asset, PLUS a pick popover
@@ -792,7 +914,7 @@ function AssetControl({
 
 // A field write override (the live "Game" inspector routes edits to the realm
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
-type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[]) => void;
+type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue) => void;
 
 function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
   const ranged = field.min != null || field.max != null;
@@ -805,7 +927,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   };
   // An edit fans out to every selected entity (the open gesture coalesces them
   // into one undo step); the live "Game" inspector routes to the realm instead.
-  const apply = (value: number | boolean | string | number[]) => {
+  const apply = (value: number | boolean | string | number[] | GradientValue) => {
     const v = ranged && typeof value === 'number' ? clamp(value) : value;
     if (write) return write(field.key, field.type, v);
     for (const e of entities) SceneCommands.setField(e, comp, field.key, field.type, v as never);
@@ -879,6 +1001,9 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       break;
     case 'color':
       control = <ColorControl value={field.value as string} onBegin={begin} onEnd={end} onChange={apply} />;
+      break;
+    case 'gradient':
+      control = <GradientControl value={field.value as GradientValue} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'asset':
       control = (

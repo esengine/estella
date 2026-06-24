@@ -99,6 +99,8 @@ export function toModelValue(
     case 'color':
       // The hex carries alpha (#rrggbbaa), so it fully describes RGBA.
       return { ...(cur[key] as object), ...hexToRgba(String(value)) };
+    case 'gradient':
+      return value; // a structural { stops: [...] } object — stored as-is
     default:
       return value;
   }

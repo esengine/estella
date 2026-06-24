@@ -43,7 +43,7 @@ function scalarFor(value: InspectorFieldValue, property: string, key: string): n
   if (i == null) return null;
   if (Array.isArray(value)) return typeof value[i] === 'number' ? (value[i] as number) : null;
   if (value && typeof value === 'object') {
-    const v = (value as Record<string, unknown>)[suffix];
+    const v = (value as unknown as Record<string, unknown>)[suffix];
     return typeof v === 'number' ? v : null;
   }
   return null;
