@@ -49,7 +49,7 @@ function indexHtml(title: string): string {
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-eval' '${IMPORT_MAP_CSP_HASH}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:;"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob: '${IMPORT_MAP_CSP_HASH}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>${title}</title>
