@@ -137,3 +137,7 @@
 .build__status.done .build__status-line { color: var(--run-hi); }
 .build__status.error .build__status-line { color: var(--error); }
 .build__status .build__warn { color: var(--warn); }
+.build__blurb { font-size: var(--fs-xs); color: var(--text-mute); margin-top: -6px; }
+.build__prereq { display: flex; align-items: flex-start; gap: 7px; padding: 8px 10px; border-radius: var(--r-sm); font-size: var(--fs-xs); color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); }
+.build__prereq svg { flex-shrink: 0; margin-top: 1px; color: var(--text-mute); }
+.build__next { font-size: var(--fs-xs); color: var(--text-mute); font-family: var(--mono); }

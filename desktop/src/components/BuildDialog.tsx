@@ -2,35 +2,80 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  BuildDialog.tsx — the UE5-style "Package Project" modal.
- *        Pick a platform + configuration + output, hit Build, watch the
- *        cook → bundle → copy run, then reveal the output. Web is the live target;
- *        WeChat/Playable/Native are shown disabled (the engine has those wasm
- *        targets, but the project export only wires Web today).
+ *        Pick a target platform + configuration + output, hit Build, watch the
+ *        cook → bundle → copy run, then reveal the output. The dialog is driven by
+ *        a per-platform descriptor table ({@link PLATFORMS}): each platform supplies
+ *        its blurb, default output, which options apply, any build prerequisite, and
+ *        the post-build next-steps — so the UI is contextual per target (UE-style)
+ *        rather than one fixed option set. All four targets (Web / Desktop / WeChat
+ *        / Playable) are live.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes } from 'lucide-react';
+import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
 
 type Phase = 'idle' | 'running' | 'done' | 'error';
 type Config = 'development' | 'shipping';
+type Platform = 'web' | 'desktop' | 'wechat' | 'playable';
+
 interface Result {
   ok: boolean;
   outDir: string;
   included: number;
+  /** Final size in bytes (playable single-file export). */
+  bytes?: number;
   warnings: string[];
   errors: string[];
 }
 
-const PLATFORMS = [
-  { id: 'web', label: 'Web', ready: true },
-  { id: 'desktop', label: 'Desktop', ready: true },
-  { id: 'wechat', label: 'WeChat', ready: true },
-  { id: 'playable', label: 'Playable', ready: true },
-] as const;
+/** Per-platform packaging descriptor — drives the contextual UI + guidance. */
+interface PlatformDef {
+  id: Platform;
+  label: string;
+  ready: boolean;
+  /** One-line description of the target (shown under the platform row). */
+  blurb: string;
+  defaultOut: string;
+  /** Whether the source-maps option applies to this target. */
+  sourceMaps: boolean;
+  /** A build prerequisite to surface BEFORE packaging (missing toolchain/runtime). */
+  prereq?: string;
+  /** Post-build guidance (where the package is / how to run it). */
+  next: (outDir: string) => string;
+}
 
-type Platform = 'web' | 'desktop' | 'wechat' | 'playable';
+const PLATFORMS: PlatformDef[] = [
+  {
+    id: 'web', label: 'Web', ready: true,
+    blurb: 'Static, self-contained web build — host it anywhere.',
+    defaultOut: 'dist-web', sourceMaps: true,
+    next: (o) => `Open ${o}/index.html, or upload ${o}/ to any static host.`,
+  },
+  {
+    id: 'desktop', label: 'Desktop', ready: true,
+    blurb: 'Electron app — package to .dmg / .exe / AppImage.',
+    defaultOut: 'dist-desktop', sourceMaps: true,
+    next: (o) => `cd ${o} && npm install && npm start — or npm run dist for a native installer.`,
+  },
+  {
+    id: 'wechat', label: 'WeChat', ready: true,
+    blurb: 'WeChat MiniGame package.',
+    defaultOut: 'dist-wechat', sourceMaps: false,
+    prereq: 'Requires the WeChat runtime — run: node build-tools/cli.js build -t wechat',
+    next: (o) => `Open ${o}/ in WeChat DevTools, then set your appid in project.config.json.`,
+  },
+  {
+    id: 'playable', label: 'Playable', ready: true,
+    blurb: 'Single-file HTML playable ad — everything inlined, no requests.',
+    defaultOut: 'dist-playable', sourceMaps: false,
+    prereq: 'Requires the single-file runtime — run: node build-tools/cli.js build -t playable',
+    next: (o) => `Open ${o}/index.html. Note: a full engine usually exceeds ad-network size limits.`,
+  },
+];
+
+const mb = (bytes: number): string => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 export function BuildDialog() {
   const close = () => useEditorStore.getState().setBuildOpen(false);
@@ -38,17 +83,28 @@ export function BuildDialog() {
 
   const [platform, setPlatform] = useState<Platform>('web');
   const [config, setConfig] = useState<Config>('shipping');
-  const [outDir, setOutDir] = useState('dist-game');
+  const [outDir, setOutDir] = useState(PLATFORMS[0].defaultOut);
+  const [outDirEdited, setOutDirEdited] = useState(false);
   const [openFolder, setOpenFolder] = useState(true);
   const [sourceMaps, setSourceMaps] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
 
+  const def = PLATFORMS.find((p) => p.id === platform)!;
   const running = phase === 'running';
+
+  const pickPlatform = (p: PlatformDef) => {
+    if (!p.ready) return;
+    setPlatform(p.id);
+    setPhase('idle');
+    setResult(null);
+    // Follow the platform's suggested output until the user customizes it.
+    if (!outDirEdited) setOutDir(p.defaultOut);
+  };
 
   const browse = async () => {
     const dir = await window.estella.project?.chooseDirectory?.();
-    if (dir) setOutDir(dir);
+    if (dir) { setOutDir(dir); setOutDirEdited(true); }
   };
 
   const build = async () => {
@@ -59,7 +115,7 @@ export function BuildDialog() {
         platform,
         outDir,
         minify: config === 'shipping',
-        sourcemap: sourceMaps,
+        sourcemap: def.sourceMaps && sourceMaps,
       })) as Result | null;
       if (!res) {
         setResult({ ok: false, outDir, included: 0, warnings: [], errors: ['no project open'] });
@@ -83,11 +139,11 @@ export function BuildDialog() {
       <button type="button" className="btn-soft is-primary" onClick={() => void build()} disabled={running || !project}>
         {running ? (
           <>
-            <Loader2 size={14} className="spin" /> Building…
+            <Loader2 size={14} className="spin" /> Packaging…
           </>
         ) : (
           <>
-            <Boxes size={14} /> Build
+            <Boxes size={14} /> Package
           </>
         )}
       </button>
@@ -107,13 +163,14 @@ export function BuildDialog() {
               disabled={!p.ready}
               aria-pressed={platform === p.id}
               title={p.ready ? p.label : 'Coming soon'}
-              onClick={() => p.ready && setPlatform(p.id as Platform)}
+              onClick={() => pickPlatform(p)}
             >
               {p.label}
               {!p.ready && <span className="soon">soon</span>}
             </button>
           ))}
         </div>
+        <div className="build__blurb">{def.blurb}</div>
 
         <div className="build__row">
           <span className="build__label">Configuration</span>
@@ -130,7 +187,11 @@ export function BuildDialog() {
         <div className="build__row">
           <span className="build__label">Output</span>
           <div className="build__out">
-            <input value={outDir} spellCheck={false} onChange={(e) => setOutDir(e.target.value)} />
+            <input
+              value={outDir}
+              spellCheck={false}
+              onChange={(e) => { setOutDir(e.target.value); setOutDirEdited(true); }}
+            />
             <button type="button" className="btn-soft" onClick={() => void browse()}>
               <FolderOpen size={13} /> Browse
             </button>
@@ -141,10 +202,18 @@ export function BuildDialog() {
           <input type="checkbox" checked={openFolder} onChange={(e) => setOpenFolder(e.target.checked)} />
           Open output folder when done
         </label>
-        <label className="build__opt">
-          <input type="checkbox" checked={sourceMaps} onChange={(e) => setSourceMaps(e.target.checked)} />
-          Include source maps
-        </label>
+        {def.sourceMaps && (
+          <label className="build__opt">
+            <input type="checkbox" checked={sourceMaps} onChange={(e) => setSourceMaps(e.target.checked)} />
+            Include source maps
+          </label>
+        )}
+
+        {def.prereq && (
+          <div className="build__prereq">
+            <Info size={13} /> <span>{def.prereq}</span>
+          </div>
+        )}
 
         <div className="build__summary">
           Entry: <strong>{project?.defaultScene ?? '—'}</strong>
@@ -154,17 +223,20 @@ export function BuildDialog() {
           <div className={`build__status ${phase}`}>
             {phase === 'running' && (
               <span className="build__status-line">
-                <Loader2 size={14} className="spin" /> Cooking assets, bundling the game host…
+                <Loader2 size={14} className="spin" /> Cooking assets, bundling the {def.label} build…
               </span>
             )}
             {phase === 'done' && result && (
-              <span className="build__status-line">
-                <CheckCircle2 size={14} /> Built {result.included} assets → {result.outDir}
-              </span>
+              <>
+                <span className="build__status-line">
+                  <CheckCircle2 size={14} /> Packaged {result.included} assets{result.bytes ? ` · ${mb(result.bytes)}` : ''} → {result.outDir}
+                </span>
+                <div className="build__next">{def.next(result.outDir)}</div>
+              </>
             )}
             {phase === 'error' && result && (
               <span className="build__status-line">
-                <AlertCircle size={14} /> {result.errors[0] ?? 'Build failed'}
+                <AlertCircle size={14} /> {result.errors[0] ?? 'Package failed'}
               </span>
             )}
             {result && result.warnings.length > 0 && (
