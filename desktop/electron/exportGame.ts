@@ -25,8 +25,9 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
+import { exportWeChat } from './exportWeChat';
 
-export type ExportPlatform = 'web' | 'desktop';
+export type ExportPlatform = 'web' | 'desktop' | 'wechat';
 
 export interface ExportGameResult {
   ok: boolean;
@@ -201,12 +202,29 @@ export async function exportGame(opts: {
   outDir: string;
   title?: string;
   platform?: ExportPlatform;
+  /** Built wechat SDK (dist/index.wechat.js) the WeChat bundle aliases `esengine` to. */
+  wechatSdkEntry?: string;
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
+
+  // WeChat has no import maps + a different module/asset model → its own pipeline.
+  if (platform === 'wechat') {
+    return exportWeChat({
+      root: opts.root,
+      entryScene: opts.entryScene,
+      scriptsEntry: opts.scriptsEntry,
+      wechatSdkEntry: opts.wechatSdkEntry ?? path.join(opts.sdkDistDir, 'index.wechat.js'),
+      wasmDir: opts.wasmDir,
+      outDir: opts.outDir,
+      title,
+      minify: opts.minify,
+    });
+  }
+
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(opts.root, opts.outDir);
   // Desktop nests the web build under app/; the Electron shell sits beside it.
   const payloadDir = platform === 'desktop' ? path.join(absOut, 'app') : absOut;

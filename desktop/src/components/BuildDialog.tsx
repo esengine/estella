@@ -26,11 +26,11 @@ interface Result {
 const PLATFORMS = [
   { id: 'web', label: 'Web', ready: true },
   { id: 'desktop', label: 'Desktop', ready: true },
-  { id: 'wechat', label: 'WeChat', ready: false },
+  { id: 'wechat', label: 'WeChat', ready: true },
   { id: 'playable', label: 'Playable', ready: false },
 ] as const;
 
-type Platform = 'web' | 'desktop';
+type Platform = 'web' | 'desktop' | 'wechat';
 
 export function BuildDialog() {
   const close = () => useEditorStore.getState().setBuildOpen(false);

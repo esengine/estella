@@ -275,19 +275,26 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
 ipcMain.handle(
   'project:exportGame',
-  async (_e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' }) => {
+  async (_e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' }) => {
     const root = requireRoot();
     const manifest = await readManifest(root);
     const entryScene = manifest.defaultScene;
     if (!entryScene) throw new Error('project has no defaultScene to export');
+    const sdkDistDir = path.join(process.env.APP_ROOT!, 'node_modules', 'esengine', 'dist');
     const publicWasm = path.join(VITE_PUBLIC, 'wasm');
+    const webWasm = existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm');
+    // WeChat needs the -t wechat runtime (WXWebAssembly glue); build it with
+    // `node build-tools/cli.js build -t wechat`. Absent → exportWeChat warns.
+    const wechatWasm = [path.join(VITE_PUBLIC, 'wasm-wechat'), path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'wechat')]
+      .find(existsSync) ?? path.join(VITE_PUBLIC, 'wasm-wechat');
     return exportGame({
       root,
       entryScene,
       gameHostEntry: path.join(process.env.APP_ROOT!, 'src', 'gameHost.ts'),
       scriptsEntry: resolveScripts(manifest).main,
-      sdkDistDir: path.join(process.env.APP_ROOT!, 'node_modules', 'esengine', 'dist'),
-      wasmDir: existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm'),
+      sdkDistDir,
+      wasmDir: opts?.platform === 'wechat' ? wechatWasm : webWasm,
+      wechatSdkEntry: path.join(sdkDistDir, 'index.wechat.js'),
       outDir: opts?.outDir || 'dist-game',
       title: manifest.name,
       platform: opts?.platform,
