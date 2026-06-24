@@ -25,15 +25,18 @@ interface Result {
 
 const PLATFORMS = [
   { id: 'web', label: 'Web', ready: true },
+  { id: 'desktop', label: 'Desktop', ready: true },
   { id: 'wechat', label: 'WeChat', ready: false },
   { id: 'playable', label: 'Playable', ready: false },
-  { id: 'native', label: 'Native', ready: false },
 ] as const;
+
+type Platform = 'web' | 'desktop';
 
 export function BuildDialog() {
   const close = () => useEditorStore.getState().setBuildOpen(false);
   const project = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
 
+  const [platform, setPlatform] = useState<Platform>('web');
   const [config, setConfig] = useState<Config>('shipping');
   const [outDir, setOutDir] = useState('dist-game');
   const [openFolder, setOpenFolder] = useState(true);
@@ -53,6 +56,7 @@ export function BuildDialog() {
     setResult(null);
     try {
       const res = (await ProjectStore.exportGame({
+        platform,
         outDir,
         minify: config === 'shipping',
         sourcemap: sourceMaps,
@@ -99,9 +103,11 @@ export function BuildDialog() {
             <button
               key={p.id}
               type="button"
-              className={`build__plat${p.ready ? ' on' : ''}`}
+              className={`build__plat${platform === p.id ? ' on' : ''}`}
               disabled={!p.ready}
+              aria-pressed={platform === p.id}
               title={p.ready ? p.label : 'Coming soon'}
+              onClick={() => p.ready && setPlatform(p.id as Platform)}
             >
               {p.label}
               {!p.ready && <span className="soon">soon</span>}

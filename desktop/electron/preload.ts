@@ -41,7 +41,7 @@ const api = {
     /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
     cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
-    exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean }): Promise<ExportGameResult> =>
+    exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' }): Promise<ExportGameResult> =>
       ipcRenderer.invoke('project:exportGame', opts),
     /** Stage the isolated play realm (host + SDK + wasm + project bundle) under
      *  `.esengine/play/`; returns the project-relative host page path. */

@@ -275,7 +275,7 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
 ipcMain.handle(
   'project:exportGame',
-  async (_e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean }) => {
+  async (_e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' }) => {
     const root = requireRoot();
     const manifest = await readManifest(root);
     const entryScene = manifest.defaultScene;
@@ -290,6 +290,7 @@ ipcMain.handle(
       wasmDir: existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm'),
       outDir: opts?.outDir || 'dist-game',
       title: manifest.name,
+      platform: opts?.platform,
       minify: opts?.minify,
       sourcemap: opts?.sourcemap,
     });
