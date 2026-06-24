@@ -12,8 +12,23 @@
 import type React from 'react';
 import { ChevronRight, Eye, EyeOff, Lock, LockOpen, Folder, FolderOpen } from 'lucide-react';
 import { NodeIcon } from '@/components/icons';
+import type { ReactNode } from 'react';
 import type { EntityId, NodeKind } from '@/types';
 import type { OutlinerItem } from './OutlinerModel';
+
+/** Wrap the first case-insensitive match of `hl` in the name with a highlight. */
+function highlightName(name: string, hl?: string): ReactNode {
+  if (!hl) return name;
+  const i = name.toLowerCase().indexOf(hl);
+  if (i < 0) return name;
+  return (
+    <>
+      {name.slice(0, i)}
+      <mark>{name.slice(i, i + hl.length)}</mark>
+      {name.slice(i + hl.length)}
+    </>
+  );
+}
 
 /** Entity kind → the label shown in the outliner's right-hand "Type" column. */
 const KIND_TYPE: Record<NodeKind, string> = {
@@ -32,6 +47,10 @@ export interface OutlinerRowProps {
   item: OutlinerItem;
   /** Entity selection highlight (folders never carry entity selection). */
   selected: boolean;
+  /** Keyboard-focus row (shows a focus ring; distinct from selection). */
+  cursored?: boolean;
+  /** Lowercased substring to highlight in the name (the search bare text). */
+  highlight?: string;
   renaming?: boolean;
   isDrop?: boolean;
   /** Prefab-instance member — warm icon tint (entity rows only). */
@@ -82,6 +101,7 @@ export function OutlinerRow(props: OutlinerRowProps) {
     <div
       className={
         `row${selected ? ' sel' : ''}` +
+        `${props.cursored ? ' cursor' : ''}` +
         `${expanded ? ' open' : ''}` +
         `${visible ? '' : ' hidden'}` +
         `${locked ? ' locked' : ''}` +
@@ -137,7 +157,7 @@ export function OutlinerRow(props: OutlinerRowProps) {
           className="rname"
           onDoubleClick={canRename && props.onStartRename ? () => props.onStartRename!(item) : undefined}
         >
-          {name}
+          {highlightName(name, props.highlight)}
         </span>
       )}
 

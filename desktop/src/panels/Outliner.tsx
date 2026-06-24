@@ -12,7 +12,7 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { VirtualTree } from '@/components/VirtualTree';
-import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, type OutlinerItem } from '@/outliner/OutlinerModel';
+import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem } from '@/outliner/OutlinerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { joinFolder, folderParent } from '@/outliner/folders';
@@ -69,7 +69,9 @@ export function Outliner() {
   const query = useOutliner((s) => s.query);
   const setQuery = useOutliner((s) => s.setQuery);
   const toggleExpanded = useOutliner((s) => s.toggleExpanded);
+  const cursor = useOutliner((s) => s.cursor);
   const selectedIds = useSelection((s) => s.selectedIds);
+  const selectedId = useSelection((s) => s.selectedId);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const inspectWorld = useEditorStore((s) => s.inspectWorld);
   const setInspectWorld = useEditorStore((s) => s.setInspectWorld);
@@ -79,6 +81,10 @@ export function Outliner() {
   const [renaming, setRenaming] = useState<string | null>(null); // item key
   const [dropId, setDropId] = useState<string | null>(null); // item key
   const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem } | null>(null);
+  // Controlled scroll for reveal-on-select + keyboard nav (nonce re-fires same index).
+  const [scrollTo, setScrollTo] = useState<{ index: number; nonce: number }>({ index: -1, nonce: 0 });
+  const scrollNonce = useRef(0);
+  const scrollToIndex = (index: number) => setScrollTo({ index, nonce: ++scrollNonce.current });
 
   const sceneCount = useMemo(
     () => (engine.status === 'ready' ? (SceneModel.current?.entities.length ?? 0) : 0),
@@ -97,6 +103,7 @@ export function Outliner() {
     [engine.status, structRev, expanded, query],
   );
   const flatIds = useMemo(() => entityIds(items), [items]);
+  const highlight = useMemo(() => parseQuery(query).text, [query]);
 
   // First time entities appear: expand groups + folders, select the first entity.
   useEffect(() => {
@@ -113,7 +120,91 @@ export function Outliner() {
 
   const select = (id: EntityId | null) => useSelection.getState().select(id);
 
+  // Reveal-on-select: when the primary selection changes (e.g. a viewport pick),
+  // expand its ancestors + folder and scroll it into view. If it isn't in the flat
+  // list yet (ancestors collapsed), expand once — items rebuild and this re-runs.
+  const handledSel = useRef<EntityId | null>(null);
+  const expandedSel = useRef<EntityId | null>(null);
+  useEffect(() => {
+    if (selectedId == null) {
+      handledSel.current = expandedSel.current = null;
+      return;
+    }
+    if (handledSel.current === selectedId) return;
+    const idx = items.findIndex((i) => i.kind === 'entity' && i.id === selectedId);
+    if (idx >= 0) {
+      handledSel.current = selectedId;
+      expandedSel.current = null;
+      useOutliner.getState().setCursor(entityKey(selectedId));
+      scrollToIndex(idx);
+    } else if (expandedSel.current !== selectedId) {
+      expandedSel.current = selectedId; // attempt expansion once (avoids a loop when filtered out)
+      useOutliner.getState().revealEntity(selectedId);
+    }
+  }, [selectedId, items]);
+
+  // — Keyboard navigation (↑↓ move · ←→ collapse/expand/jump · Enter toggle · F2/Del) —
+  const cursorItem = (): OutlinerItem | null => items.find((i) => i.key === cursor) ?? null;
+  const focusIndex = (idx: number) => {
+    const it = items[idx];
+    if (!it) return;
+    useOutliner.getState().setCursor(it.key);
+    if (it.kind === 'entity') select(it.id);
+    scrollToIndex(idx);
+  };
+  const moveCursor = (delta: number) => {
+    if (items.length === 0) return;
+    const cur = items.findIndex((i) => i.key === cursor);
+    const next = cur < 0 ? (delta > 0 ? 0 : items.length - 1) : Math.max(0, Math.min(items.length - 1, cur + delta));
+    focusIndex(next);
+  };
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT' || renaming != null) return; // typing
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); moveCursor(1); break;
+      case 'ArrowUp': e.preventDefault(); moveCursor(-1); break;
+      case 'ArrowRight': {
+        e.preventDefault();
+        const it = cursorItem();
+        if (it?.hasChildren && !it.expanded) toggleExpanded(it.key);
+        else if (it?.hasChildren && it.expanded) moveCursor(1); // step into the first child
+        break;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        const it = cursorItem();
+        if (it?.hasChildren && it.expanded) toggleExpanded(it.key);
+        else if (it?.parentKey) {
+          const pidx = items.findIndex((i) => i.key === it.parentKey);
+          if (pidx >= 0) focusIndex(pidx);
+        }
+        break;
+      }
+      case 'Enter': {
+        const it = cursorItem();
+        if (it?.hasChildren) { e.preventDefault(); toggleExpanded(it.key); }
+        break;
+      }
+      case 'F2': {
+        e.preventDefault();
+        if (cursor) setRenaming(cursor);
+        break;
+      }
+      case 'Delete':
+      case 'Backspace': {
+        const sel = [...useSelection.getState().selectedIds];
+        if (sel.length) {
+          e.preventDefault();
+          sel.forEach((i) => SceneCommands.deleteEntity(i));
+          select(null);
+        }
+        break;
+      }
+    }
+  };
+
   const onRowClick = (item: OutlinerItem, e: React.MouseEvent) => {
+    useOutliner.getState().setCursor(item.key);
     if (item.kind === 'folder') {
       toggleExpanded(item.key);
       return;
@@ -290,6 +381,8 @@ export function Outliner() {
     <OutlinerRow
       item={it}
       selected={it.kind === 'entity' && selectedIds.has(it.id)}
+      cursored={cursor === it.key}
+      highlight={highlight}
       renaming={renaming === it.key}
       isDrop={dropId === it.key}
       prefab={it.kind === 'entity' && SceneModel.prefabTag(it.id) != null}
@@ -327,7 +420,7 @@ export function Outliner() {
             <div className="search">
               <Search size={13} strokeWidth={1.85} />
               <input
-                placeholder="Search entities"
+                placeholder="Search · type: comp:"
                 spellCheck={false}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -364,10 +457,14 @@ export function Outliner() {
           ) : (
             <VirtualTree
               className="pbody"
+              tabIndex={0}
               items={items}
               rowHeight={ROW_H}
               getKey={(it) => it.key}
               renderRow={renderRow}
+              scrollToIndex={scrollTo.index}
+              scrollNonce={scrollTo.nonce}
+              onKeyDown={onKeyDown}
               onDragOver={onBodyDragOver}
               onDrop={onBodyDrop}
             />

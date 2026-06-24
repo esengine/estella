@@ -25,6 +25,8 @@ interface OutlinerState {
   expanded: Set<string>;
   /** Live name filter (raw text; the builder trims/lowercases). */
   query: string;
+  /** Keyboard-focus row (item key) — drives ↑↓←→ navigation; null = none. */
+  cursor: string | null;
 
   /** Flip one row's expansion (pass an item key). */
   toggleExpanded: (key: string) => void;
@@ -37,6 +39,8 @@ interface OutlinerState {
   /** Rewrite expanded folder keys when a folder is renamed/moved (keep it open). */
   rebaseFolderKeys: (oldPath: string, newPath: string) => void;
   setQuery: (query: string) => void;
+  /** Move the keyboard-focus row. */
+  setCursor: (key: string | null) => void;
 
   /** Prune a removed entity's key (self-heal on the model's `entityRemoved`). */
   dropId: (id: EntityId) => void;
@@ -49,6 +53,7 @@ export function createOutlinerStore(model: SceneModelImpl) {
   const useStore = create<OutlinerState>((set) => ({
     expanded: new Set<string>(),
     query: '',
+    cursor: null,
 
     toggleExpanded: (key) =>
       set((s) => {
@@ -95,16 +100,18 @@ export function createOutlinerStore(model: SceneModelImpl) {
         return { expanded: next };
       }),
     setQuery: (query) => set({ query }),
+    setCursor: (cursor) => set({ cursor }),
 
     dropId: (id) =>
       set((s) => {
         const k = entityKey(id);
-        if (!s.expanded.has(k)) return s;
+        const cursor = s.cursor === k ? null : s.cursor;
+        if (!s.expanded.has(k)) return s.cursor === k ? { cursor } : s;
         const next = new Set(s.expanded);
         next.delete(k);
-        return { expanded: next };
+        return { expanded: next, cursor };
       }),
-    reset: () => set({ expanded: new Set(), query: '' }),
+    reset: () => set({ expanded: new Set(), query: '', cursor: null }),
   }));
 
   model.subscribe((ev) => {

@@ -14,6 +14,7 @@ import {
   collectExpandableKeys,
   entityKey,
   folderKey,
+  parseQuery,
   type OutlinerItem,
 } from '@/outliner/OutlinerModel';
 
@@ -120,5 +121,42 @@ describe('buildOutlinerItems — folders', () => {
     expect(ks).toContain(folderKey('Enemies/Bosses'));
     expect(ks).toContain(folderKey('Empty'));
     expect(ks.has(entityKey(10))).toBe(false); // leaf, not expandable
+  });
+});
+
+// Kinds come from components (modelKindOf): Sprite→sprite, Camera→camera.
+function compScene(): SceneData {
+  return {
+    version: '1.0',
+    name: 'c',
+    entities: [
+      { id: 1, name: 'Hero', parent: null, children: [], components: [{ type: 'Sprite', data: {} }] },
+      { id: 2, name: 'MainCam', parent: null, children: [], components: [{ type: 'Camera', data: {} }] },
+      { id: 3, name: 'Crate', parent: null, children: [], components: [{ type: 'Sprite', data: {} }, { type: 'RigidBody', data: {} }] },
+    ],
+  } as unknown as SceneData;
+}
+const queryIds = (data: SceneData, query: string) =>
+  buildOutlinerItems(data, { expanded: new Set(), query })
+    .filter((i): i is Extract<OutlinerItem, { kind: 'entity' }> => i.kind === 'entity')
+    .map((i) => i.id);
+
+describe('token search', () => {
+  it('parseQuery splits bare text from type:/comp: tokens', () => {
+    expect(parseQuery('type:sprite comp:RigidBody hero')).toEqual({ text: 'hero', types: ['sprite'], comps: ['rigidbody'] });
+    expect(parseQuery('t:camera c:Camera')).toEqual({ text: '', types: ['camera'], comps: ['camera'] });
+    expect(parseQuery('  big  boss ')).toEqual({ text: 'big boss', types: [], comps: [] });
+    expect(parseQuery('')).toEqual({ text: '', types: [], comps: [] });
+  });
+
+  it('type: filters by kind', () => {
+    expect(queryIds(compScene(), 'type:camera')).toEqual([2]);
+  });
+  it('comp: filters by component type (case-insensitive)', () => {
+    expect(queryIds(compScene(), 'comp:rigidbody')).toEqual([3]);
+  });
+  it('bare text AND a token', () => {
+    expect(queryIds(compScene(), 'type:sprite cra')).toEqual([3]); // sprite kind AND name~"cra"
+    expect(queryIds(compScene(), 'type:sprite zzz')).toEqual([]); // name fails → none
   });
 });

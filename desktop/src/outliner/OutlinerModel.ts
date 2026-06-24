@@ -65,11 +65,40 @@ export interface BuildOutlinerOpts {
   expandAll?: boolean;
 }
 
-/** Keep a node if its name matches, or any descendant does (matches + ancestors). */
-function filterNode(node: SceneNode, q: string): SceneNode | null {
-  if (node.name.toLowerCase().includes(q)) return node;
+/** A parsed search query: bare-word name text + `type:`/`comp:` token filters. */
+export interface ParsedQuery {
+  /** Bare words joined — the name substring + highlight target. */
+  text: string;
+  /** `type:`/`t:` values, matched against a node's kind (OR). */
+  types: string[];
+  /** `comp:`/`c:` values, matched against an entity's component types (OR). */
+  comps: string[];
+}
+
+/** Tokenize a query: `type:sprite comp:RigidBody name` → typed filters + bare text. */
+export function parseQuery(raw: string): ParsedQuery {
+  const text: string[] = [];
+  const types: string[] = [];
+  const comps: string[] = [];
+  for (const tok of (raw ?? '').trim().toLowerCase().split(/\s+/)) {
+    if (!tok) continue;
+    const colon = tok.indexOf(':');
+    const key = colon > 0 ? tok.slice(0, colon) : '';
+    const val = colon > 0 ? tok.slice(colon + 1) : '';
+    if (val && (key === 'type' || key === 't')) types.push(val);
+    else if (val && (key === 'comp' || key === 'c')) comps.push(val);
+    else text.push(tok);
+  }
+  return { text: text.join(' '), types, comps };
+}
+
+const queryActive = (q: ParsedQuery): boolean => q.text !== '' || q.types.length > 0 || q.comps.length > 0;
+
+/** Keep a node if it matches `keep`, or any descendant does (matches + ancestors). */
+function filterNode(node: SceneNode, keep: (n: SceneNode) => boolean): SceneNode | null {
+  if (keep(node)) return node; // self matches → keep the whole subtree
   const kids = (node.children ?? [])
-    .map((c) => filterNode(c, q))
+    .map((c) => filterNode(c, keep))
     .filter((n): n is SceneNode => n != null);
   return kids.length ? { ...node, children: kids } : null;
 }
@@ -77,9 +106,23 @@ function filterNode(node: SceneNode, q: string): SceneNode | null {
 /** Flatten a SceneData to render-ordered outliner rows (the single tree builder). */
 export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOpts): OutlinerItem[] {
   const roots = buildSceneTree(data);
-  const q = opts.query?.trim().toLowerCase() ?? '';
-  const shown = q ? roots.map((n) => filterNode(n, q)).filter((n): n is SceneNode => n != null) : roots;
-  const expandAll = !!opts.expandAll || !!q;
+  const q = parseQuery(opts.query ?? '');
+  const active = queryActive(q);
+  // Component lookup only when a `comp:` token is present (else skip the scan).
+  const compsOf = q.comps.length
+    ? new Map((data?.entities ?? []).map((e) => [e.id, e.components.map((c) => c.type.toLowerCase())]))
+    : null;
+  const keep = (n: SceneNode): boolean => {
+    if (q.text && !n.name.toLowerCase().includes(q.text)) return false;
+    if (q.types.length && !q.types.includes(n.kind)) return false;
+    if (q.comps.length) {
+      const cs = compsOf?.get(n.id) ?? [];
+      if (!q.comps.some((c) => cs.includes(c))) return false;
+    }
+    return true;
+  };
+  const shown = active ? roots.map((n) => filterNode(n, keep)).filter((n): n is SceneNode => n != null) : roots;
+  const expandAll = !!opts.expandAll || active;
   const folderOf = opts.folderOf ?? (() => ROOT_FOLDER);
 
   // Group the shown roots by their folder path, and gather every folder to show:
@@ -92,7 +135,7 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
     (rootsByFolder.get(path) ?? rootsByFolder.set(path, []).get(path)!).push(root);
     for (const pre of folderPrefixes(path)) allFolders.add(pre);
   }
-  if (!q) for (const f of opts.folders ?? []) for (const pre of folderPrefixes(normalizeFolder(f))) allFolders.add(pre);
+  if (!active) for (const f of opts.folders ?? []) for (const pre of folderPrefixes(normalizeFolder(f))) allFolders.add(pre);
 
   const childFolders = (path: string): string[] =>
     [...allFolders].filter((p) => folderParent(p) === path).sort((a, b) => folderName(a).localeCompare(folderName(b)));

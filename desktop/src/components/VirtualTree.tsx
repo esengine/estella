@@ -28,6 +28,10 @@ interface VirtualTreeProps<T> extends Omit<HTMLAttributes<HTMLDivElement>, 'chil
   overscan?: number;
   renderRow: (item: T, index: number) => ReactNode;
   getKey: (item: T, index: number) => Key;
+  /** Row index to scroll into view (only if off-screen); paired with `scrollNonce`. */
+  scrollToIndex?: number;
+  /** Bump to re-trigger a scroll to the SAME index (controlled imperative scroll). */
+  scrollNonce?: number;
 }
 
 export function VirtualTree<T>({
@@ -36,6 +40,8 @@ export function VirtualTree<T>({
   overscan = 8,
   renderRow,
   getKey,
+  scrollToIndex,
+  scrollNonce,
   onScroll,
   ...rest
 }: VirtualTreeProps<T>) {
@@ -52,6 +58,18 @@ export function VirtualTree<T>({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Controlled scroll-into-view (reveal-on-select / keyboard nav): only moves when
+  // the target row is outside the window, so an in-view selection never jumps.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || scrollToIndex == null || scrollToIndex < 0) return;
+    const top = scrollToIndex * rowHeight;
+    const bottom = top + rowHeight;
+    if (top < el.scrollTop) el.scrollTop = top;
+    else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollNonce]);
 
   const total = items.length;
   const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
