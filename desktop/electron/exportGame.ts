@@ -26,8 +26,9 @@ import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
+import { exportPlayable } from './exportPlayable';
 
-export type ExportPlatform = 'web' | 'desktop' | 'wechat';
+export type ExportPlatform = 'web' | 'desktop' | 'wechat' | 'playable';
 
 export interface ExportGameResult {
   ok: boolean;
@@ -204,6 +205,10 @@ export async function exportGame(opts: {
   platform?: ExportPlatform;
   /** Built wechat SDK (dist/index.wechat.js) the WeChat bundle aliases `esengine` to. */
   wechatSdkEntry?: string;
+  /** Playable host source (src/playableHost.ts). */
+  playableHostEntry?: string;
+  /** SINGLE_FILE engine glue (esengine.single.js from `-t playable`) for playable ads. */
+  glueFile?: string;
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
@@ -219,6 +224,20 @@ export async function exportGame(opts: {
       scriptsEntry: opts.scriptsEntry,
       wechatSdkEntry: opts.wechatSdkEntry ?? path.join(opts.sdkDistDir, 'index.wechat.js'),
       wasmDir: opts.wasmDir,
+      outDir: opts.outDir,
+      title,
+      minify: opts.minify,
+    });
+  }
+
+  // Playable ads are a single inlined HTML (SINGLE_FILE glue + base64 assets).
+  if (platform === 'playable') {
+    return exportPlayable({
+      root: opts.root,
+      entryScene: opts.entryScene,
+      scriptsEntry: opts.scriptsEntry,
+      playableHostEntry: opts.playableHostEntry ?? path.join(path.dirname(opts.gameHostEntry), 'playableHost.ts'),
+      glueFile: opts.glueFile ?? path.join(opts.wasmDir, 'esengine.single.js'),
       outDir: opts.outDir,
       title,
       minify: opts.minify,

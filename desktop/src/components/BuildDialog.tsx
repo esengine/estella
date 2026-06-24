@@ -27,10 +27,10 @@ const PLATFORMS = [
   { id: 'web', label: 'Web', ready: true },
   { id: 'desktop', label: 'Desktop', ready: true },
   { id: 'wechat', label: 'WeChat', ready: true },
-  { id: 'playable', label: 'Playable', ready: false },
+  { id: 'playable', label: 'Playable', ready: true },
 ] as const;
 
-type Platform = 'web' | 'desktop' | 'wechat';
+type Platform = 'web' | 'desktop' | 'wechat' | 'playable';
 
 export function BuildDialog() {
   const close = () => useEditorStore.getState().setBuildOpen(false);

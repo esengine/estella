@@ -238,7 +238,9 @@ set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
     "-sEXPORT_NAME='ESEngineModule'"
     -sFORCE_FILESYSTEM=1
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS']"
+    # 'GL' is required for the WebGL2 context binding (module.GL.registerContext),
+    # same as the web/wechat SDK builds — the playable host registers its canvas GL.
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS']"
     -Oz
     -flto
     -Wl,--gc-sections
