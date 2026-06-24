@@ -464,6 +464,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("particle_reset", &esengine::particle_reset);
     emscripten::function("particle_getAliveCount", &esengine::particle_getAliveCount);
     emscripten::function("particle_set_color_lut", &esengine::particle_set_color_lut);
+    emscripten::function("particle_set_size_lut", &esengine::particle_set_size_lut);
 #endif
     emscripten::function("renderer_setStage", &esengine::renderer_setStage);
     emscripten::function("renderer_createTarget", &esengine::renderer_createTarget);

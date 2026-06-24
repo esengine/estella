@@ -44,6 +44,8 @@ export interface FieldMeta {
     flags?: ReadonlyArray<{ label: string; value: number }>;
     /** Render as a color-gradient editor (the field value is `{ stops: [...] }`). */
     gradient?: boolean;
+    /** Render as a scalar over-life curve editor (the field value is `{ keys: [...] }`). */
+    curve?: boolean;
     /**
      * Render as a bitmask whose bit LABELS are resolved by the editor (e.g. named
      * collision layers from project settings) rather than fixed here. `bits` is the
@@ -757,10 +759,16 @@ export interface ParticleEmitterData {
      * samples (see particlePlugin's scene codec). Empty ⇒ start/end fallback.
      */
     colorGradient: { stops: { t: number; color: Color }[] };
+    /**
+     * Size-over-life curve (a multiplier × start size, keys over [0,1]). When it
+     * has keys it overrides startSize/endSize + sizeEasing. Out-of-band like
+     * colorGradient. Empty ⇒ start/end fallback.
+     */
+    sizeCurve: { keys: { t: number; v: number }[] };
 }
 
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
-    metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] } }),
+    metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] }, sizeCurve: { keys: [] } }),
     {
         // A large component — organized into UE-style property categories.
         fields: {
@@ -783,6 +791,7 @@ export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitt
             angleSpreadMax: { unit: '°', category: 'Velocity' },
             gravity: { category: 'Velocity' },
             damping: { min: 0, category: 'Velocity' },
+            sizeCurve: { curve: true, category: 'Size' },
             startSizeMin: { min: 0, category: 'Size' },
             startSizeMax: { min: 0, category: 'Size' },
             endSizeMin: { min: 0, category: 'Size' },

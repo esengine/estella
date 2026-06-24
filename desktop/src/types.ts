@@ -38,6 +38,7 @@ export type InspectorFieldType =
   | 'enum' // an int field with named options, shown as a dropdown
   | 'flags' // an int bitmask, shown as a multi-select of its bits
   | 'gradient' // a color-over-life gradient ({ stops: [...] })
+  | 'curve' // a scalar over-life curve ({ keys: [...] })
   | 'asset'; // a texture/material/font/... ref (@uuid: string, or 0 for none)
 
 /** A dropdown option for an `enum` field: the label shown, the int stored. */
@@ -56,13 +57,24 @@ export interface GradientValue {
   stops: GradientStop[];
 }
 
+/** One key of a `curve` field: a 0..1 position + a scalar value. */
+export interface CurveKey {
+  t: number;
+  v: number;
+}
+/** A `curve` field's value — scalar keys over [0,1] (piecewise-linear). */
+export interface CurveValue {
+  keys: CurveKey[];
+}
+
 export type InspectorFieldValue =
   | number
   | boolean
   | string
   | [number, number]
   | [number, number, number]
-  | GradientValue;
+  | GradientValue
+  | CurveValue;
 
 export interface InspectorField {
   /** key in the component data object */

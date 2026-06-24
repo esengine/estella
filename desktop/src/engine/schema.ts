@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentFieldMeta } from 'esengine';
 import type { App, SceneData } from 'esengine';
-import type { NodeKind, InspectorField, EnumOption, GradientValue } from '@/types';
+import type { NodeKind, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
 
 type SceneEntityLike = SceneData['entities'][number];
 
@@ -192,6 +192,7 @@ export interface UserFieldMeta {
   flags?: EnumOption[];
   bitmask?: { bits?: number; source?: string };
   gradient?: boolean;
+  curve?: boolean;
   min?: number;
   max?: number;
   step?: number;
@@ -270,6 +271,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
       flags: fromDef.flags?.map((o) => ({ label: o.label, value: o.value })),
       bitmask: fromDef.bitmask,
       gradient: fromDef.gradient,
+      curve: fromDef.curve,
       min: fromDef.min,
       max: fromDef.max,
       step: fromDef.step,
@@ -336,6 +338,9 @@ function fieldFor(
   } else if (meta?.gradient) {
     const g = value && typeof value === 'object' && Array.isArray((value as GradientValue).stops) ? (value as GradientValue) : { stops: [] };
     field = { key, label: prettyLabel(key), type: 'gradient', value: g };
+  } else if (meta?.curve) {
+    const c = value && typeof value === 'object' && Array.isArray((value as CurveValue).keys) ? (value as CurveValue) : { keys: [] };
+    field = { key, label: prettyLabel(key), type: 'curve', value: c };
   } else if (meta?.bitmask) {
     field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: bitmaskOptions(meta.bitmask) };
   } else if (meta?.flags && meta.flags.length) {

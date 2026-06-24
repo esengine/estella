@@ -42,7 +42,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu } from '@/components/Menu';
 import { Popover, usePopover } from '@/components/Popover';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
@@ -788,6 +788,95 @@ function GradientControl({
   );
 }
 
+// A scalar over-life curve editor (size-over-life = a multiplier × start size):
+// draggable keys on a [0,1]×[0,1] graph, click to add, select to delete. Piecewise
+// linear (matches the runtime bake). Empty ⇒ the particle falls back to start/end.
+function CurveControl({
+  value,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & { value: CurveValue; onChange: (v: CurveValue) => void }) {
+  const graph = useRef<HTMLDivElement>(null);
+  const drag = useRef<number | null>(null);
+  const [sel, setSel] = useState(0);
+  const keys = value.keys ?? [];
+  const ordered = [...keys].sort((a, b) => a.t - b.t);
+  const line = ordered.map((k) => `${k.t * 100},${(1 - Math.max(0, Math.min(1, k.v))) * 100}`).join(' ');
+  const posFromEvent = (e: React.PointerEvent) => {
+    const r = graph.current?.getBoundingClientRect();
+    if (!r) return { t: 0, v: 0 };
+    return { t: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), v: Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height)) };
+  };
+  const commit = (next: CurveKey[]) => onChange({ keys: next });
+
+  return (
+    <div className="curve">
+      <div
+        ref={graph}
+        className="curve-graph"
+        onPointerDown={(e) => {
+          if ((e.target as HTMLElement).classList.contains('curve-pt')) return;
+          const p = posFromEvent(e);
+          onBegin?.();
+          const next = [...keys, { t: p.t, v: p.v }];
+          commit(next);
+          setSel(next.length - 1);
+          onEnd?.();
+        }}
+      >
+        <svg className="curve-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {keys.length > 0 && <polyline className="curve-line" points={line} vectorEffect="non-scaling-stroke" />}
+        </svg>
+        {keys.map((k, i) => (
+          <span
+            key={i}
+            className={`curve-pt${i === sel ? ' on' : ''}`}
+            style={{ left: `${k.t * 100}%`, top: `${(1 - Math.max(0, Math.min(1, k.v))) * 100}%` }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              setSel(i);
+              drag.current = i;
+              onBegin?.();
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (drag.current !== i) return;
+              const p = posFromEvent(e);
+              commit(keys.map((kk, j) => (j === i ? { t: p.t, v: p.v } : kk)));
+            }}
+            onPointerUp={(e) => {
+              if (drag.current !== i) return;
+              drag.current = null;
+              e.currentTarget.releasePointerCapture?.(e.pointerId);
+              onEnd?.();
+            }}
+          />
+        ))}
+      </div>
+      {keys[sel] && (
+        <div className="curve-edit">
+          <span className="curve-kv">t {fmt(keys[sel].t)}</span>
+          <span className="curve-kv">× {fmt(keys[sel].v)}</span>
+          <button
+            type="button"
+            className="grad-del"
+            title="Remove key"
+            onClick={() => {
+              onBegin?.();
+              commit(keys.filter((_, j) => j !== sel));
+              setSel(0);
+              onEnd?.();
+            }}
+          >
+            <X size={11} strokeWidth={2} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const isImageAsset = (t: AssetType): boolean => t === 'texture' || t === 'sprite';
 
 // An asset-ref field: a drop target showing the bound asset, PLUS a pick popover
@@ -914,7 +1003,7 @@ function AssetControl({
 
 // A field write override (the live "Game" inspector routes edits to the realm
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
-type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue) => void;
+type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue | CurveValue) => void;
 
 function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
   const ranged = field.min != null || field.max != null;
@@ -927,7 +1016,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   };
   // An edit fans out to every selected entity (the open gesture coalesces them
   // into one undo step); the live "Game" inspector routes to the realm instead.
-  const apply = (value: number | boolean | string | number[] | GradientValue) => {
+  const apply = (value: number | boolean | string | number[] | GradientValue | CurveValue) => {
     const v = ranged && typeof value === 'number' ? clamp(value) : value;
     if (write) return write(field.key, field.type, v);
     for (const e of entities) SceneCommands.setField(e, comp, field.key, field.type, v as never);
@@ -1004,6 +1093,9 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       break;
     case 'gradient':
       control = <GradientControl value={field.value as GradientValue} onBegin={begin} onEnd={end} onChange={apply} />;
+      break;
+    case 'curve':
+      control = <CurveControl value={field.value as CurveValue} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'asset':
       control = (

@@ -335,6 +335,11 @@ void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count) {
     if (!g_particleSystem) return;
     g_particleSystem->setColorLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
+
+void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count) {
+    if (!g_particleSystem) return;
+    g_particleSystem->setSizeLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+}
 #endif
 
 void renderer_setStage(i32 stage) {

@@ -250,6 +250,8 @@ export interface ESEngineModule {
     particle_getAliveCount?(entity: number): number;
     /** Upload (count = LUT size) or clear (count = 0) an entity's baked color-over-life LUT. */
     particle_set_color_lut?(entity: number, ptr: number, count: number): void;
+    /** Upload/clear an entity's baked size-over-life multiplier LUT. */
+    particle_set_size_lut?(entity: number, ptr: number, count: number): void;
 
     // Tilemap API
     tilemap_initLayer?(entity: number, width: number, height: number,

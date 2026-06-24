@@ -16,6 +16,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
         destroyConn_ = registry.onDestroyScoped([this](Entity entity) {
             states_.erase(entity);
             colorLuts_.erase(entity);
+            sizeLuts_.erase(entity);
         });
     }
 
@@ -75,7 +76,10 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
         }
 
         auto lutIt = colorLuts_.find(entity);
-        updateParticles(emitter, state, dt, lutIt != colorLuts_.end() ? &lutIt->second : nullptr);
+        auto sizeIt = sizeLuts_.find(entity);
+        updateParticles(emitter, state, dt,
+                        lutIt != colorLuts_.end() ? &lutIt->second : nullptr,
+                        sizeIt != sizeLuts_.end() ? &sizeIt->second : nullptr);
     }
 }
 
@@ -114,6 +118,15 @@ void ParticleSystem::setColorLut(Entity entity, const f32* rgba, i32 count) {
     for (std::size_t i = 0; i < kColorLutSize; ++i) {
         lut[i] = glm::vec4(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]);
     }
+}
+
+void ParticleSystem::setSizeLut(Entity entity, const f32* values, i32 count) {
+    if (count != kColorLutSize || values == nullptr) {
+        sizeLuts_.erase(entity);
+        return;
+    }
+    SizeLut& lut = sizeLuts_[entity];
+    for (std::size_t i = 0; i < kColorLutSize; ++i) lut[i] = values[i];
 }
 
 u32 ParticleSystem::aliveCount(Entity entity) const {
@@ -238,9 +251,16 @@ static glm::vec4 sampleColorLut(const ColorLut& lut, f32 t) {
     return math::lerp(lut[i], lut[j], f - static_cast<f32>(i));
 }
 
+static f32 sampleSizeLut(const SizeLut& lut, f32 t) {
+    f32 f = std::clamp(t, 0.0f, 1.0f) * static_cast<f32>(kColorLutSize - 1);
+    auto i = static_cast<std::size_t>(f);
+    std::size_t j = std::min(i + 1, static_cast<std::size_t>(kColorLutSize - 1));
+    return math::lerp(lut[i], lut[j], f - static_cast<f32>(i));
+}
+
 void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
                                       EmitterState& state, f32 dt,
-                                      const ColorLut* colorLut) {
+                                      const ColorLut* colorLut, const SizeLut* sizeLut) {
     auto sizeEasing = static_cast<EasingType>(emitter.sizeEasing);
     auto colorEasing = static_cast<EasingType>(emitter.colorEasing);
     i32 totalFrames = emitter.spriteColumns * emitter.spriteRows;
@@ -266,8 +286,12 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
 
         p.rotation += p.angular_velocity * dt;
 
-        f32 sizeT = applyEasing(sizeEasing, t);
-        p.size = math::lerp(p.start_size, p.end_size, sizeT);
+        if (sizeLut) {
+            p.size = p.start_size * sampleSizeLut(*sizeLut, t);
+        } else {
+            f32 sizeT = applyEasing(sizeEasing, t);
+            p.size = math::lerp(p.start_size, p.end_size, sizeT);
+        }
 
         if (colorLut) {
             p.color = sampleColorLut(*colorLut, t);

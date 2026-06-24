@@ -47,19 +47,34 @@ export class ParticleAPI {
      * data is copied into the wasm heap for the call, then freed.
      */
     setColorLut(entity: Entity, lut: Float32Array | null): void {
-        const m = this.module_;
-        if (!m.particle_set_color_lut) return;
+        this.uploadLut(this.module_.particle_set_color_lut, entity, lut, 4);
+    }
+
+    /** Upload an entity's baked size-over-life multiplier LUT (an N-scalar
+     *  Float32Array), or null to clear. */
+    setSizeLut(entity: Entity, lut: Float32Array | null): void {
+        this.uploadLut(this.module_.particle_set_size_lut, entity, lut, 1);
+    }
+
+    // Copy a Float32Array into the wasm heap and hand its pointer + element count
+    // (length / `stride`) to the C++ setter, then free; null/empty clears.
+    private uploadLut(
+        fn: ((entity: number, ptr: number, count: number) => void) | undefined,
+        entity: Entity,
+        lut: Float32Array | null,
+        stride: number,
+    ): void {
+        if (!fn) return;
         if (!lut || lut.length === 0) {
-            m.particle_set_color_lut(entity as number, 0, 0);
+            fn(entity as number, 0, 0);
             return;
         }
-        const bytes = lut.length * 4;
-        const ptr = m._malloc(bytes);
+        const ptr = this.module_._malloc(lut.length * 4);
         try {
-            m.HEAPF32.set(lut, ptr / 4);
-            m.particle_set_color_lut(entity as number, ptr, lut.length / 4);
+            this.module_.HEAPF32.set(lut, ptr / 4);
+            fn(entity as number, ptr, lut.length / stride);
         } finally {
-            m._free(ptr);
+            this.module_._free(ptr);
         }
     }
 }

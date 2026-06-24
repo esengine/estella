@@ -318,6 +318,28 @@ describe('Color gradient field (particle color-over-life)', () => {
     expect(after.stops[0].t).toBe(0.5);
   });
 
+  it("renders ParticleEmitter.sizeCurve as a 'curve' field that round-trips", () => {
+    const curve = { keys: [{ t: 0, v: 1 }, { t: 1, v: 0 }] };
+    const S = EditorSession.create();
+    S.model.adopt(
+      {
+        version: '1.0',
+        name: 'p',
+        entities: [{ id: 1, name: 'P', parent: null, children: [], components: [{ type: 'ParticleEmitter', data: { sizeCurve: curve } }] }],
+      } as unknown as SceneData,
+      new Map([[1, 1]]),
+    );
+    const field = () =>
+      S.query.readInspector(1).find((c) => c.name === 'ParticleEmitter')!.fields.find((f) => f.key === 'sizeCurve')!;
+    const c = field();
+    expect(c.type).toBe('curve');
+    expect((c.value as { keys: unknown[] }).keys.length).toBe(2);
+
+    S.commands.setField(1, 'ParticleEmitter', 'sizeCurve', 'curve', { keys: [{ t: 0.5, v: 0.25 }] } as never);
+    const after = field().value as { keys: { t: number; v: number }[] };
+    expect(after.keys).toEqual([{ t: 0.5, v: 0.25 }]);
+  });
+
   it('an empty gradient field reads as empty stops (sim falls back to start/end)', () => {
     const S = EditorSession.create();
     S.model.adopt(

@@ -90,6 +90,7 @@ void particle_stop(ecs::Registry& registry, Entity entity);
 void particle_reset(ecs::Registry& registry, Entity entity);
 u32 particle_getAliveCount(Entity entity);
 void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count);
+void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count);
 #endif
 void renderer_setStage(i32 stage);
 u32 renderer_createTarget(u32 width, u32 height, i32 flags);
