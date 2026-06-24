@@ -30,6 +30,8 @@ import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, TYPE_CODE, IMAGE_RE } from '@/project/assetMeta';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
+import { useOutliner } from '@/outliner/OutlinerController';
+import { isFolderUnder, folderName } from '@/outliner/folders';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery';
@@ -1376,6 +1378,40 @@ function AssetInspector({ path }: { path: string }) {
   );
 }
 
+// A selected outliner folder (folders aren't entities — no components): just its
+// name, path, and how many entities it organizes (recursive).
+function FolderInspector({ path }: { path: string }) {
+  useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
+  const entities = SceneModel.current?.entities ?? [];
+  const count = entities.reduce((n, e) => (isFolderUnder(SceneModel.folderOf(e.id), path) ? n + 1 : n), 0);
+  return (
+    <div className="insp">
+      <div className="ent-head">
+        <div className="ent-row1">
+          <div className="ent-name">{folderName(path)}</div>
+        </div>
+        <div className="ent-meta">
+          <span className="pill">
+            <span className="pk">Folder</span>
+            {path}
+          </span>
+          <span className="pill">
+            <span className="pk">Items</span>
+            {count}
+          </span>
+        </div>
+      </div>
+      <div className="insp-empty" style={{ flex: 1 }}>
+        <div className="ei">
+          <FolderOpen size={22} strokeWidth={1.4} />
+        </div>
+        <div className="et">{count === 1 ? '1 entity' : `${count} entities`} in this folder</div>
+        <div className="es">Folders organize the outliner; they aren't part of the scene.</div>
+      </div>
+    </div>
+  );
+}
+
 // Dispatcher: the live game inspector during PIE, the edit inspector otherwise.
 export function Details() {
   const inspectWorld = useEditorStore((s) => s.inspectWorld);
@@ -1390,6 +1426,7 @@ function EditorDetails() {
   const selectedId = useSelection((s) => s.selectedId);
   const selectedIds = useSelection((s) => s.selectedIds);
   const selectedAsset = useSelection((s) => s.selectedAsset);
+  const selectedFolder = useOutliner((s) => s.selectedFolder);
   const ready = engine.status === 'ready' && selectedId != null;
 
   // Selection targets, primary (the active id) first. Edits fan out across all.
@@ -1441,6 +1478,10 @@ function EditorDetails() {
   // renders the asset view in this same panel.
   if (selectedAsset) {
     return <AssetInspector path={selectedAsset} />;
+  }
+  // A selected outliner folder (no entity/asset selected) shows the folder view.
+  if (selectedFolder != null && selectedId == null) {
+    return <FolderInspector path={selectedFolder} />;
   }
 
   if (!entity || selectedId == null) {

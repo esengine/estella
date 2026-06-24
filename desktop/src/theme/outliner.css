@@ -114,6 +114,7 @@
 .row.folder .ricon { color: var(--info-warm); }
 .row.sel.folder .ricon { color: #fff; }
 .row.folder .rname { color: var(--text); }
+.row.sel.folder .rname { color: #fff; } /* selected folder reads white on the blue fill */
 
 /* World picker (UE5): switch the Outliner/Details between edit + live game. */
 .world-pick { display: flex; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }

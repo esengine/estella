@@ -68,13 +68,22 @@ describe('OutlinerController', () => {
     expect(store.getState().expanded.has(entityKey(2))).toBe(false);
   });
 
-  it('reset clears expansion + query + cursor', () => {
+  it('selectFolder sets/clears the selected folder', () => {
+    store.getState().selectFolder('A/B');
+    expect(store.getState().selectedFolder).toBe('A/B');
+    store.getState().selectFolder(null);
+    expect(store.getState().selectedFolder).toBeNull();
+  });
+
+  it('reset clears expansion + query + cursor + selected folder', () => {
     store.getState().setExpanded([entityKey(1)]);
     store.getState().setQuery('x');
     store.getState().setCursor(entityKey(1));
+    store.getState().selectFolder('A/B');
     store.getState().reset();
     expect(store.getState().expanded.size).toBe(0);
     expect(store.getState().query).toBe('');
     expect(store.getState().cursor).toBeNull();
+    expect(store.getState().selectedFolder).toBeNull();
   });
 });

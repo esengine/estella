@@ -27,6 +27,9 @@ interface OutlinerState {
   query: string;
   /** Keyboard-focus row (item key) — drives ↑↓←→ navigation; null = none. */
   cursor: string | null;
+  /** The selected folder path (folders aren't entities; mutually exclusive with the
+   *  entity selection — the panel clears one when setting the other). */
+  selectedFolder: string | null;
   /** Sibling sort: `manual` (scene order) / `name` / `type`. View-only. */
   sortMode: SortMode;
 
@@ -43,6 +46,8 @@ interface OutlinerState {
   setQuery: (query: string) => void;
   /** Move the keyboard-focus row. */
   setCursor: (key: string | null) => void;
+  /** Select a folder (or clear with null). */
+  selectFolder: (path: string | null) => void;
   setSortMode: (mode: SortMode) => void;
 
   /** Prune a removed entity's key (self-heal on the model's `entityRemoved`). */
@@ -57,6 +62,7 @@ export function createOutlinerStore(model: SceneModelImpl) {
     expanded: new Set<string>(),
     query: '',
     cursor: null,
+    selectedFolder: null,
     sortMode: 'manual',
 
     toggleExpanded: (key) =>
@@ -105,6 +111,7 @@ export function createOutlinerStore(model: SceneModelImpl) {
       }),
     setQuery: (query) => set({ query }),
     setCursor: (cursor) => set({ cursor }),
+    selectFolder: (selectedFolder) => set({ selectedFolder }),
     setSortMode: (sortMode) => set({ sortMode }),
 
     dropId: (id) =>
@@ -116,7 +123,7 @@ export function createOutlinerStore(model: SceneModelImpl) {
         next.delete(k);
         return { expanded: next, cursor };
       }),
-    reset: () => set({ expanded: new Set(), query: '', cursor: null }),
+    reset: () => set({ expanded: new Set(), query: '', cursor: null, selectedFolder: null }),
   }));
 
   model.subscribe((ev) => {

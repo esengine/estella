@@ -70,9 +70,11 @@ export function Outliner() {
   const setQuery = useOutliner((s) => s.setQuery);
   const toggleExpanded = useOutliner((s) => s.toggleExpanded);
   const cursor = useOutliner((s) => s.cursor);
+  const selectedFolder = useOutliner((s) => s.selectedFolder);
   const sortMode = useOutliner((s) => s.sortMode);
   const selectedIds = useSelection((s) => s.selectedIds);
   const selectedId = useSelection((s) => s.selectedId);
+  const selectedAsset = useSelection((s) => s.selectedAsset);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const inspectWorld = useEditorStore((s) => s.inspectWorld);
   const setInspectWorld = useEditorStore((s) => s.setInspectWorld);
@@ -125,6 +127,12 @@ export function Outliner() {
 
   const select = (id: EntityId | null) => useSelection.getState().select(id);
 
+  // An entity / asset selection from anywhere (viewport pick, content browser)
+  // clears the folder selection — they're mutually exclusive.
+  useEffect(() => {
+    if (selectedId != null || selectedAsset != null) useOutliner.getState().selectFolder(null);
+  }, [selectedId, selectedAsset]);
+
   // Reveal-on-select: when the primary selection changes (e.g. a viewport pick),
   // expand its ancestors + folder and scroll it into view. If it isn't in the flat
   // list yet (ancestors collapsed), expand once — items rebuild and this re-runs.
@@ -154,7 +162,13 @@ export function Outliner() {
     const it = items[idx];
     if (!it) return;
     useOutliner.getState().setCursor(it.key);
-    if (it.kind === 'entity') select(it.id);
+    if (it.kind === 'entity') {
+      useOutliner.getState().selectFolder(null);
+      select(it.id);
+    } else {
+      useOutliner.getState().selectFolder(it.path);
+      useSelection.getState().select(null);
+    }
     scrollToIndex(idx);
   };
   const moveCursor = (delta: number) => {
@@ -211,13 +225,14 @@ export function Outliner() {
   const onRowClick = (item: OutlinerItem, e: React.MouseEvent) => {
     useOutliner.getState().setCursor(item.key);
     if (item.kind === 'folder') {
-      // Selecting a folder clears the entity selection (single-selection model), so
-      // the previously-selected entity stops looking selected; the folder's cursor
-      // highlight is now the only one. The twist still toggles expansion.
+      // Selecting a folder is mutually exclusive with the entity selection: the
+      // folder gets the blue selection, entities clear, Details shows the folder.
+      useOutliner.getState().selectFolder(item.path);
       useSelection.getState().select(null);
       toggleExpanded(item.key);
       return;
     }
+    useOutliner.getState().selectFolder(null); // an entity selection clears the folder one
     const id = item.id;
     const store = useSelection.getState();
     if (e.metaKey || e.ctrlKey) {
@@ -260,6 +275,7 @@ export function Outliner() {
       if (next !== item.path) {
         SceneCommands.renameFolder(item.path, next);
         useOutliner.getState().rebaseFolderKeys(item.path, next);
+        if (useOutliner.getState().selectedFolder === item.path) useOutliner.getState().selectFolder(next);
       }
     } else {
       SceneCommands.renameEntity(item.id, trimmed);
@@ -330,11 +346,12 @@ export function Outliner() {
       const rel = (e.clientY - rect.top) / rect.height;
       pos = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'on';
     } else if (dragFolder.current && sortMode === 'manual' && folderDropLevel(item) === folderParent(dragFolder.current)) {
-      // Folder over a same-level sibling (folder OR root entity) → top/bottom third
-      // places the folder before/after it (interleaved); the middle nests/absorbs.
+      // Folder over a same-level sibling → place it before/after (interleave). Over a
+      // FOLDER the middle nests; over an ENTITY there's no middle (a folder never
+      // absorbs an entity — that's confusing; drag entities INTO a folder instead).
       const rect = e.currentTarget.getBoundingClientRect();
       const rel = (e.clientY - rect.top) / rect.height;
-      pos = rel < 0.33 ? 'before' : rel > 0.66 ? 'after' : 'on';
+      pos = item.kind === 'folder' ? (rel < 0.33 ? 'before' : rel > 0.66 ? 'after' : 'on') : rel < 0.5 ? 'before' : 'after';
     }
     if (drop?.key !== item.key || drop?.pos !== pos) setDrop({ key: item.key, pos });
   };
@@ -374,9 +391,8 @@ export function Outliner() {
         SceneCommands.placeFolder(src, item.sortKey + (pos === 'before' ? -0.5 : 0.5));
       } else if (item.kind === 'folder') {
         moveFolderInto(src, item.path); // middle of a folder → nest
-      } else {
-        SceneCommands.moveToFolder(selectionOrTarget(item.id), src); // middle of an entity → absorb it
       }
+      // middle of an entity → nothing (folders don't absorb entities)
       return;
     }
     if (item.kind === 'folder') {
@@ -437,7 +453,13 @@ export function Outliner() {
         { label: 'New Subfolder', onClick: () => newFolder(path, null) },
         ...(sel.length ? [{ label: 'Move Selection Here', onClick: () => SceneCommands.moveToFolder(sel, path) } as MenuItem] : []),
         { sep: true },
-        { label: 'Delete Folder', onClick: () => SceneCommands.deleteFolder(path) },
+        {
+          label: 'Delete Folder',
+          onClick: () => {
+            SceneCommands.deleteFolder(path);
+            if (useOutliner.getState().selectedFolder === path) useOutliner.getState().selectFolder(null);
+          },
+        },
       ];
     }
     const id = ctx.item.id;
@@ -480,7 +502,7 @@ export function Outliner() {
   const renderRow = (it: OutlinerItem) => (
     <OutlinerRow
       item={it}
-      selected={it.kind === 'entity' && selectedIds.has(it.id)}
+      selected={it.kind === 'folder' ? selectedFolder === it.path : selectedIds.has(it.id)}
       cursored={cursor === it.key}
       highlight={highlight}
       renaming={renaming === it.key}
