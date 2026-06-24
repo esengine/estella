@@ -555,29 +555,22 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Reorder a folder among its siblings (drag-between, manual sort). Promotes both
-   * folders to explicit (so the order persists) and places `srcPath` immediately
-   * before/after `targetPath` in the scene folder list. One undo step; only valid
-   * for same-parent siblings (a cross-parent move is a nest via {@link renameFolder}).
+   * Place a folder at a manual sort position among its siblings (drag-between).
+   * `key` is a number on the sibling-order scale — entities use their scene index,
+   * so dragging a folder before/after a row passes that row's `sortKey` ∓ 0.5,
+   * interleaving the folder among the entities. One undo step.
    */
-  reorderFolder(srcPath: string, targetPath: string, before: boolean): void {
-    const src = normalizeFolder(srcPath);
-    const tgt = normalizeFolder(targetPath);
-    if (!src || !tgt || src === tgt) return;
-    if (folderParent(src) !== folderParent(tgt)) return; // not siblings → not a reorder
-
-    const beforeList = this.model.sceneFolders();
-    const list = [...beforeList];
-    if (!list.includes(src)) list.push(src);
-    if (!list.includes(tgt)) list.push(tgt);
-    const without = list.filter((f) => f !== src);
-    const ti = without.indexOf(tgt);
-    without.splice(before ? ti : ti + 1, 0, src);
-
-    const same = beforeList.length === without.length && beforeList.every((f, i) => f === without[i]);
-    if (same) return;
-    this.model.setSceneFolders(without);
-    this.history.record('Reorder Folder', () => this.model.setSceneFolders(without), () => this.model.setSceneFolders(beforeList));
+  placeFolder(path: string, key: number): void {
+    const norm = normalizeFolder(path);
+    if (!norm) return;
+    const before = this.model.folderOrderOf(norm);
+    if (before === key) return;
+    this.model.setFolderOrder(norm, key);
+    this.history.record(
+      'Move Folder',
+      () => this.model.setFolderOrder(norm, key),
+      () => this.model.setFolderOrder(norm, before),
+    );
   }
 
   /**

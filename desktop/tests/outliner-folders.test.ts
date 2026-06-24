@@ -111,21 +111,13 @@ describe('SceneCommands folders (undoable)', () => {
     expect(S.model.sceneFolders()).toContain('A/B/C');
   });
 
-  it('reorderFolder moves a sibling folder in the manual order; undo restores', () => {
-    S.commands.createFolder('Zebra');
-    S.commands.createFolder('Apple');
-    expect(S.model.sceneFolders()).toEqual(['Zebra', 'Apple']);
-    S.commands.reorderFolder('Apple', 'Zebra', true); // Apple before Zebra
-    expect(S.model.sceneFolders()).toEqual(['Apple', 'Zebra']);
-    S.history.undo();
-    expect(S.model.sceneFolders()).toEqual(['Zebra', 'Apple']);
-  });
-
-  it('reorderFolder only touches same-parent siblings (cross-parent is a no-op)', () => {
+  it('placeFolder sets a folder manual sort position; undo clears it', () => {
     S.commands.createFolder('A');
-    S.commands.createFolder('B/C');
-    S.commands.reorderFolder('B/C', 'A', true); // different parents → rejected
-    expect(S.model.sceneFolders()).toEqual(['A', 'B/C']);
+    expect(S.model.folderOrderOf('A')).toBeUndefined();
+    S.commands.placeFolder('A', 2.5); // drag-placed between scene entities #2 and #3
+    expect(S.model.folderOrderOf('A')).toBe(2.5);
+    S.history.undo();
+    expect(S.model.folderOrderOf('A')).toBeUndefined();
   });
 
   it('folders round-trip through serialize (lossless, editor-only)', () => {

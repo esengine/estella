@@ -302,6 +302,24 @@ export class SceneModelImpl {
     this.emit({ kind: 'foldersChanged' });
   }
 
+  /** A folder's manual sort position (drag-placed), or undefined for the default. */
+  folderOrderOf(path: string): number | undefined {
+    const d = this.data as (SceneData & { folderOrder?: Record<string, number> }) | null;
+    return d?.folderOrder?.[path];
+  }
+
+  /** Set (or, with undefined, clear) a folder's manual sort position. */
+  setFolderOrder(path: string, value: number | undefined): void {
+    if (!this.data) return;
+    const d = this.data as SceneData & { folderOrder?: Record<string, number> };
+    if (value === undefined) {
+      if (d.folderOrder) delete d.folderOrder[path];
+    } else {
+      (d.folderOrder ??= {})[path] = value;
+    }
+    this.emit({ kind: 'foldersChanged' });
+  }
+
   // ── Editor visibility / lock (per-entity, editor-only — UE5 bHiddenInEditor) ──
   // Like `folder`: an editor-only per-entity field, lossless, never a World
   // component. `hidden` the reconciler folds into the render projection (without

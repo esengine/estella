@@ -30,6 +30,8 @@ interface OutlinerItemBase {
   /** Whether this node's children are shown (drives the twist + the walk). */
   expanded: boolean;
   parentKey: string | null;
+  /** Manual-order position among its siblings (drag-between reads ±0.5 of this). */
+  sortKey: number;
 }
 export interface OutlinerEntityItem extends OutlinerItemBase {
   kind: 'entity';
@@ -62,6 +64,8 @@ export interface BuildOutlinerOpts {
   sort?: SortMode;
   /** A root entity's folder path (`""` = scene root). Absent ⇒ no folders (PIE). */
   folderOf?: (id: EntityId) => string;
+  /** A folder's manual sort position (drag-placed); absent ⇒ default (top of level). */
+  folderOrderOf?: (path: string) => number | undefined;
   /** The scene's explicit (incl. empty) folders, so empties still show. */
   folders?: readonly string[];
   /** Free-text name filter; matches + their ancestors survive (case-insensitive). */
@@ -152,46 +156,71 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
   }
   if (!active) for (const f of opts.folders ?? []) for (const pre of folderPrefixes(normalizeFolder(f))) allFolders.add(pre);
 
-  // Manual sort orders sibling folders by their position in the scene's explicit
-  // folder list (drag-reorderable, like entities); derived/list-absent folders
-  // fall to the end alphabetically. name/type sort is plain alphabetical.
-  const folderRank = sort === 'manual' ? new Map((opts.folders ?? []).map((f, i) => [normalizeFolder(f), i])) : null;
-  const childFolders = (path: string): string[] => {
-    const kids = [...allFolders].filter((p) => folderParent(p) === path);
-    if (folderRank) {
-      return kids.sort(
-        (a, b) => (folderRank.get(a) ?? Infinity) - (folderRank.get(b) ?? Infinity) || folderName(a).localeCompare(folderName(b)),
-      );
-    }
-    return kids.sort((a, b) => folderName(a).localeCompare(folderName(b)));
-  };
+  const childFolders = (path: string): string[] => [...allFolders].filter((p) => folderParent(p) === path);
   const countUnder = (path: string): number => {
     let n = 0;
     for (const [fp, arr] of rootsByFolder) if (isFolderUnder(fp, path)) n += arr.length;
     return n;
   };
 
+  // Unified sibling ordering: folders and root entities INTERLEAVE at each level.
+  // Manual key: entity → its scene (data) index; folder → its drag-placed order,
+  // else the top of the level (a fresh folder isn't lost among the entities).
+  // name/type sort orders folders + entities together by name / kind.
+  const FOLDER_DEFAULT_TOP = -1e6;
+  const entityIndex = new Map((data?.entities ?? []).map((e, i) => [e.id, i] as const));
+  const folderOrderOf = opts.folderOrderOf ?? (() => undefined);
+  const manualFolderKey = (p: string): number => {
+    const o = folderOrderOf(p);
+    if (o !== undefined) return o;
+    const i = (opts.folders ?? []).indexOf(p);
+    return FOLDER_DEFAULT_TOP + (i < 0 ? 0 : i);
+  };
+
+  type Sib = { folder: string } | { entity: SceneNode };
+  const nameOf = (s: Sib): string => ('folder' in s ? folderName(s.folder) : s.entity.name);
+  const kindOf = (s: Sib): string => ('folder' in s ? 'folder' : s.entity.kind);
+  const manualKey = (s: Sib): number => ('folder' in s ? manualFolderKey(s.folder) : (entityIndex.get(s.entity.id) ?? 0));
+  const sortSibs = (sibs: Sib[]): Sib[] => {
+    if (sort === 'name') return sibs.sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+    if (sort === 'type') return sibs.sort((a, b) => kindOf(a).localeCompare(kindOf(b)) || nameOf(a).localeCompare(nameOf(b)));
+    return sibs.sort((a, b) => manualKey(a) - manualKey(b) || nameOf(a).localeCompare(nameOf(b)));
+  };
+
   const out: OutlinerItem[] = [];
 
-  const emitEntity = (node: SceneNode, depth: number, parentKey: string | null): void => {
+  const emitEntity = (node: SceneNode, depth: number, parentKey: string | null, sortKey: number): void => {
     const hasChildren = !!node.children?.length;
     const expanded = expandAll || opts.expanded.has(entityKey(node.id));
-    out.push({ kind: 'entity', key: entityKey(node.id), id: node.id, node, depth, hasChildren, expanded, parentKey });
-    if (hasChildren && expanded) for (const c of sortNodes(node.children!, sort)) emitEntity(c, depth + 1, entityKey(node.id));
-  };
-
-  // Emit the child folders of `path` (nested) then the entity roots directly in it.
-  const emitFolderContents = (path: string, depth: number, parentKey: string | null): void => {
-    for (const fp of childFolders(path)) {
-      const hasKids = childFolders(fp).length > 0 || (rootsByFolder.get(fp)?.length ?? 0) > 0;
-      const expanded = expandAll || opts.expanded.has(folderKey(fp));
-      out.push({ kind: 'folder', key: folderKey(fp), path: fp, name: folderName(fp), count: countUnder(fp), depth, hasChildren: hasKids, expanded, parentKey });
-      if (expanded) emitFolderContents(fp, depth + 1, folderKey(fp));
+    out.push({ kind: 'entity', key: entityKey(node.id), id: node.id, node, depth, hasChildren, expanded, parentKey, sortKey });
+    if (hasChildren && expanded) {
+      sortNodes(node.children!, sort).forEach((c, i) =>
+        emitEntity(c, depth + 1, entityKey(node.id), sort === 'manual' ? (entityIndex.get(c.id) ?? i) : i),
+      );
     }
-    for (const root of sortNodes(rootsByFolder.get(path) ?? [], sort)) emitEntity(root, depth, parentKey);
   };
 
-  emitFolderContents(ROOT_FOLDER, 0, null);
+  const emitLevel = (path: string, depth: number, parentKey: string | null): void => {
+    const sibs: Sib[] = [
+      ...childFolders(path).map((p): Sib => ({ folder: p })),
+      ...(rootsByFolder.get(path) ?? []).map((n): Sib => ({ entity: n })),
+    ];
+    sortSibs(sibs);
+    sibs.forEach((s, i) => {
+      const sortKey = sort === 'manual' ? manualKey(s) : i;
+      if ('folder' in s) {
+        const fp = s.folder;
+        const hasKids = childFolders(fp).length > 0 || (rootsByFolder.get(fp)?.length ?? 0) > 0;
+        const expanded = expandAll || opts.expanded.has(folderKey(fp));
+        out.push({ kind: 'folder', key: folderKey(fp), path: fp, name: folderName(fp), count: countUnder(fp), depth, hasChildren: hasKids, expanded, parentKey, sortKey });
+        if (expanded) emitLevel(fp, depth + 1, folderKey(fp));
+      } else {
+        emitEntity(s.entity, depth, parentKey, sortKey);
+      }
+    });
+  };
+
+  emitLevel(ROOT_FOLDER, 0, null);
   return out;
 }
 

@@ -193,4 +193,21 @@ describe('sort mode', () => {
     expect(keys(buildOutlinerItems(data, { expanded: new Set(), folders }))).toEqual([folderKey('Zebra'), folderKey('Apple')]);
     expect(keys(buildOutlinerItems(data, { expanded: new Set(), folders, sort: 'name' }))).toEqual([folderKey('Apple'), folderKey('Zebra')]);
   });
+
+  it('a drag-placed folder interleaves among root entities (manual sort key)', () => {
+    const data = {
+      version: '1.0',
+      name: 'i',
+      entities: [
+        { id: 1, name: 'A', parent: null, children: [], components: [] },
+        { id: 2, name: 'B', parent: null, children: [], components: [] },
+        { id: 3, name: 'C', parent: null, children: [], components: [] },
+      ],
+    } as unknown as SceneData;
+    // Folder F placed at 1.5 → between entity index 1 (e2) and index 2 (e3).
+    const items = buildOutlinerItems(data, { expanded: new Set(), folders: ['F'], folderOrderOf: (p) => (p === 'F' ? 1.5 : undefined) });
+    expect(keys(items)).toEqual(['e1', 'e2', folderKey('F'), 'e3']);
+    // Its sortKey is the placed order, so a drag-after reads 1.5 + 0.5 = 2.
+    expect(items.find((i) => i.key === folderKey('F'))!.sortKey).toBe(1.5);
+  });
 });

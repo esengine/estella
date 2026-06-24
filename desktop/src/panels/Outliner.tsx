@@ -101,6 +101,7 @@ export function Outliner() {
             query,
             sort: sortMode,
             folderOf: (id) => SceneModel.folderOf(id),
+            folderOrderOf: (p) => SceneModel.folderOrderOf(p),
             folders: SceneModel.sceneFolders(),
           })
         : [],
@@ -292,6 +293,13 @@ export function Outliner() {
     void ProjectStore.instantiatePrefabFromPath(path, parent);
     return true;
   };
+  // The folder level a row sits at (for placing a dragged folder as its sibling):
+  // a folder's parent path, or a ROOT entity's folder; null = not a level sibling.
+  const folderDropLevel = (item: OutlinerItem): string | null => {
+    if (item.kind === 'folder') return folderParent(item.path);
+    const e = SceneModel.entityBySource(item.id);
+    return e && e.parent == null ? SceneModel.folderOf(item.id) : null;
+  };
   const onDragStartRow = (item: OutlinerItem, e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move';
     if (item.kind === 'folder') {
@@ -317,13 +325,9 @@ export function Outliner() {
       const rect = e.currentTarget.getBoundingClientRect();
       const rel = (e.clientY - rect.top) / rect.height;
       pos = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'on';
-    } else if (
-      dragFolder.current &&
-      item.kind === 'folder' &&
-      sortMode === 'manual' &&
-      folderParent(dragFolder.current) === folderParent(item.path)
-    ) {
-      // Sibling folders → top/bottom third reorders, middle nests.
+    } else if (dragFolder.current && sortMode === 'manual' && folderDropLevel(item) === folderParent(dragFolder.current)) {
+      // Folder over a same-level sibling (folder OR root entity) → top/bottom third
+      // places the folder before/after it (interleaved); the middle nests/absorbs.
       const rect = e.currentTarget.getBoundingClientRect();
       const rel = (e.clientY - rect.top) / rect.height;
       pos = rel < 0.33 ? 'before' : rel > 0.66 ? 'after' : 'on';
@@ -361,13 +365,13 @@ export function Outliner() {
     if (dragFolder.current != null) {
       const src = dragFolder.current;
       dragFolder.current = null;
-      if (item.kind === 'folder') {
-        // sibling between-rows → reorder; else → nest under the target folder
-        if (pos !== 'on' && folderParent(src) === folderParent(item.path)) SceneCommands.reorderFolder(src, item.path, pos === 'before');
-        else moveFolderInto(src, item.path);
+      if (pos !== 'on') {
+        // between-rows → place the folder at that position (interleaved with entities)
+        SceneCommands.placeFolder(src, item.sortKey + (pos === 'before' ? -0.5 : 0.5));
+      } else if (item.kind === 'folder') {
+        moveFolderInto(src, item.path); // middle of a folder → nest
       } else {
-        // dropped onto an entity → that entity (+ any selection) joins the folder
-        SceneCommands.moveToFolder(selectionOrTarget(item.id), src);
+        SceneCommands.moveToFolder(selectionOrTarget(item.id), src); // middle of an entity → absorb it
       }
       return;
     }

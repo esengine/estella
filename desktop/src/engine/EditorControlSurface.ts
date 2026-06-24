@@ -172,9 +172,9 @@ export class EditorControlSurfaceImpl {
   deleteFolder(path: string): void {
     this.s.commands.deleteFolder(path);
   }
-  /** Reorder a folder before/after a sibling (manual sort). */
-  reorderFolder(srcPath: string, targetPath: string, before: boolean): void {
-    this.s.commands.reorderFolder(srcPath, targetPath, before);
+  /** Place a folder at a manual sort position among its siblings (drag-between). */
+  placeFolder(path: string, key: number): void {
+    this.s.commands.placeFolder(path, key);
   }
   /** Move entities into a folder (`null` = scene root); un-parents them. */
   moveToFolder(ids: readonly EntityId[], path: string | null): void {
