@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Outliner path-folders (REARCH_OUTLINER.md P2). Folders are organizational
+ * @file  Outliner path-folders. Folders are organizational
  *        PATHS — a per-entity `folder` field + a scene-level explicit-folder list,
  *        orthogonal to the transform `parent`, lossless through save. Covers the
  *        pure path grammar, the undoable folder commands, and the serialize

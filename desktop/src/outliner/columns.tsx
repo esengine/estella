@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  columns.tsx — the outliner's pluggable column registry (UE5
- *        ISceneOutlinerColumn). The Name/tree column is fixed (twist + icon +
- *        name, owned by OutlinerRow); every TRAILING column — Type, Lock,
- *        Visibility — is a descriptor here, so the row + header strip render from
- *        data and columns can be shown/hidden (and new ones added) without
- *        touching the row. A column renders a cell per item, or an aligned spacer
- *        where it doesn't apply (so the columns line up across entity/folder rows).
+ * @file  columns.tsx — the outliner's pluggable column registry.
+ *
+ * The Name/tree column is fixed (twist + icon + name, owned by OutlinerRow); every
+ * TRAILING column — Type, Lock, Visibility — is a descriptor here, so the row +
+ * header strip render from data and columns can be shown/hidden (and new ones
+ * added) without touching the row. A column renders a cell per item, or an aligned
+ * spacer where it doesn't apply, so the columns line up across entity/folder rows.
  */
 import type { ReactNode } from 'react';
 import { Eye, EyeOff, Lock, LockOpen } from 'lucide-react';

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Outliner column registry (REARCH_OUTLINER P5 — UE5 ISceneOutlinerColumn).
- *        The trailing columns are descriptors; `applies` gates per-item cells so
+ * @file  Outliner column registry. The trailing columns are descriptors;
+ *        `applies` gates per-item cells so
  *        entity-only columns (lock/vis) render an aligned spacer on folder rows.
  */
 import { describe, it, expect } from 'vitest';

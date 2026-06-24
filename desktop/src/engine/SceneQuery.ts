@@ -39,8 +39,8 @@ export function buildSceneTree(data: SceneData | null): SceneNode[] {
   const build = (e: SceneEntity): SceneNode => {
     const kind = modelKindOf(e);
     const kids = childrenOf.get(e.id)?.map(build);
-    // `visible`/`locked` are editor-only per-entity flags (UE5 bHiddenInEditor /
-    // actor lock), distinct from any component's gameplay `enabled`.
+    // `visible`/`locked` are editor-only per-entity flags, distinct from any
+    // component's gameplay `enabled`.
     const flags = e as { hidden?: boolean; locked?: boolean };
     return {
       id: e.id,

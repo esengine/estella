@@ -7,7 +7,7 @@
  * to the full list, so a tree of thousands of entities stays a handful of DOM
  * nodes. The list MUST already be flattened to render order (see
  * {@link buildOutlinerItems}); this owns no hierarchy — just the scroll window.
- * Shared by the editor + PIE outliner trees (one virtualization path).
+ * Shared by the editor + live-game outliner trees (one virtualization path).
  *
  * Extra props (className / onDragOver / onDrop / …) spread onto the scroll
  * container, so the outliner can attach empty-space drag-drop to it.

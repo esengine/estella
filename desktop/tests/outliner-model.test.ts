@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  buildOutlinerItems — the ONE outliner tree builder (REARCH_OUTLINER.md).
+ * @file  buildOutlinerItems — the ONE outliner tree builder.
  *        Flattens a SceneData to render-ordered rows (entity | folder) honoring a
  *        string-keyed expansion set + a name filter; folders group ROOT entities
  *        by path (orthogonal to the transform `parent`). Pure projection.
@@ -48,7 +48,7 @@ describe('buildOutlinerItems — entities', () => {
     expect(byKey.get('e5')).toMatchObject({ depth: 1, parentKey: 'e1' });
   });
 
-  it('expandAll renders the whole tree regardless of expansion (PIE)', () => {
+  it('expandAll renders the whole tree regardless of expansion (the live game tree)', () => {
     expect(keys(buildOutlinerItems(scene(), { expanded: new Set(), expandAll: true }))).toEqual(['e1', 'e2', 'e3', 'e5']);
   });
 

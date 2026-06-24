@@ -189,7 +189,7 @@ export class EditorControlSurfaceImpl {
     return this.s.model.sceneFolders();
   }
 
-  /** Set an entity's editor visibility (UE5 bHiddenInEditor; not gameplay enabled). */
+  /** Set an entity's editor visibility (an editor-only flag, not gameplay enable). */
   setEntityHidden(id: EntityId, hidden: boolean): void {
     this.s.commands.setEntityVisible(id, !hidden);
   }

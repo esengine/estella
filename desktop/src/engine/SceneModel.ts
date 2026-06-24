@@ -25,8 +25,8 @@ export type ModelEvent =
   | { kind: 'folderChanged'; sourceId: number }
   // The scene's explicit-folder set changed (create/rename/delete of a folder).
   | { kind: 'foldersChanged' }
-  // An entity's editor visibility (`bHiddenInEditor`) changed — the reconciler
-  // folds it into the render projection; it never touches component data.
+  // An entity's editor visibility changed — the reconciler folds it into the
+  // render projection; it never touches component data.
   | { kind: 'hiddenChanged'; sourceId: number }
   // An entity's editor lock changed — pure editor state (picking/selection only).
   | { kind: 'lockChanged'; sourceId: number }
@@ -320,7 +320,7 @@ export class SceneModelImpl {
     this.emit({ kind: 'foldersChanged' });
   }
 
-  // ── Editor visibility / lock (per-entity, editor-only — UE5 bHiddenInEditor) ──
+  // ── Editor visibility / lock (per-entity, editor-only) ───────────────────────
   // Like `folder`: an editor-only per-entity field, lossless, never a World
   // component. `hidden` the reconciler folds into the render projection (without
   // touching the component's gameplay `enabled`, so play — which loads the raw

@@ -495,7 +495,7 @@ export class SceneCommandsImpl {
 
   /**
    * Delete a folder, moving its contents (entities + descendant folders) up to its
-   * parent (UE5 semantics — entities are never destroyed). One undo step.
+   * parent — entities are never destroyed. One undo step.
    */
   deleteFolder(path: string): void {
     const p = normalizeFolder(path);
@@ -666,10 +666,10 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Toggle an entity's editor visibility (UE5 `bHiddenInEditor`) — a dedicated
-   * editor-only flag the reconciler folds into the render projection. Distinct
-   * from a component's gameplay `enabled`: hiding never edits component data, so
-   * the running game (which loads the raw model) is unaffected. Undoable.
+   * Toggle an entity's editor visibility — a dedicated editor-only flag the
+   * reconciler folds into the render projection. Distinct from a component's
+   * gameplay `enabled`: hiding never edits component data, so the running game
+   * (which loads the raw model) is unaffected. Undoable.
    */
   setEntityVisible(sourceId: EntityId, visible: boolean): void {
     if (!this.model.entityBySource(sourceId)) return;
@@ -684,8 +684,7 @@ export class SceneCommandsImpl {
     );
   }
 
-  /** Lock/unlock an entity (UE5 actor lock) — editor-only; blocks viewport
-   *  picking/transform. Undoable. */
+  /** Lock/unlock an entity — editor-only; blocks viewport picking/transform. Undoable. */
   setEntityLocked(sourceId: EntityId, locked: boolean): void {
     if (!this.model.entityBySource(sourceId)) return;
     const before = this.model.isLocked(sourceId);

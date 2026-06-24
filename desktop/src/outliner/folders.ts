@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  folders.ts — outliner folder-path helpers (UE5 path-folders).
+ * @file  folders.ts — outliner folder-path helpers.
  *
  * A folder is a slash-delimited PATH ("Enemies/Bosses"), not an entity — it
  * organizes the outliner without touching the ECS/transform/gameplay (orthogonal

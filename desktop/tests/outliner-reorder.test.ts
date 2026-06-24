@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Outliner sibling drag-reorder (REARCH_OUTLINER P4). Render order derives
+ * @file  Outliner sibling drag-reorder. Render order derives
  *        from `data.entities` order; reorderEntity aligns parent+folder to the
  *        target then moves the entity adjacent, undoable. Model+command only.
  */

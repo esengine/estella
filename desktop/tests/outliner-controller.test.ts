@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  OutlinerController — the outliner's headless view-state (REARCH_OUTLINER
- *        P1/P2/P4). String-keyed expansion + cursor + reveal, model-anchored. Pure
+ * @file  OutlinerController — the outliner's headless view-state.
+ *        String-keyed expansion + cursor + reveal, model-anchored. Pure
  *        store over a model (no World), so it's unit-testable headless.
  */
 import { describe, it, expect, beforeEach } from 'vitest';

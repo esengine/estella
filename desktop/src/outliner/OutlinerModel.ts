@@ -4,9 +4,9 @@
  * @file  OutlinerModel.ts — the ONE outliner tree builder.
  *
  * Flattens a SceneData into a render-ordered list of {@link OutlinerItem}s — a
- * tagged union of `entity` and `folder` rows (UE5 path-folders) — honoring the
- * expansion set (keyed by stable string item keys) + a name filter. The same
- * builder feeds the editor tree and the always-expanded PIE "Game" tree.
+ * tagged union of `entity` and `folder` rows — honoring the expansion set (keyed
+ * by stable string item keys) + a name filter. The same builder feeds the editor
+ * tree and the always-expanded live "Game" tree.
  *
  * Folders are organizational PATHS (orthogonal to the transform `parent`): they
  * group **root** entities only; a parented entity always nests under its parent.
@@ -62,7 +62,7 @@ export interface BuildOutlinerOpts {
   expanded: ReadonlySet<string>;
   /** Sibling sort mode (default `manual` = scene order). */
   sort?: SortMode;
-  /** A root entity's folder path (`""` = scene root). Absent ⇒ no folders (PIE). */
+  /** A root entity's folder path (`""` = scene root). Absent ⇒ no folders (live game). */
   folderOf?: (id: EntityId) => string;
   /** A folder's manual sort position (drag-placed); absent ⇒ default (top of level). */
   folderOrderOf?: (path: string) => number | undefined;
@@ -70,7 +70,7 @@ export interface BuildOutlinerOpts {
   folders?: readonly string[];
   /** Free-text name filter; matches + their ancestors survive (case-insensitive). */
   query?: string;
-  /** Render every node expanded — the PIE tree, and implicitly while filtering. */
+  /** Render every node expanded — the live-game tree, and implicitly while filtering. */
   expandAll?: boolean;
 }
 

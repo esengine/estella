@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  OutlinerRow.tsx — the ONE outliner row, shared by the editor + PIE trees.
+ * @file  OutlinerRow.tsx — the ONE outliner row, shared by the editor + live-game trees.
  *
  * Purely presentational: selection / rename / drop / prefab state arrive as props
  * (it does NOT subscribe to any store), so with virtualization only the ~window of
  * visible rows ever renders or re-renders. The Name/tree part (twist + icon +
  * name) is fixed; the trailing cells come from the {@link OutlinerColumn} registry
  * — a column renders its cell, or an aligned spacer where it doesn't apply, so
- * columns line up across entity + folder rows. The PIE tree passes a read-only
- * column set and no edit handlers.
+ * columns line up across entity + folder rows. The live-game tree passes a
+ * read-only column set and no edit handlers.
  */
 import type React from 'react';
 import { Fragment } from 'react';
@@ -46,7 +46,7 @@ export interface OutlinerRowProps {
   dropPos?: 'before' | 'on' | 'after';
   /** Prefab-instance member — warm icon tint (entity rows only). */
   prefab?: boolean;
-  /** When false, the twist is hidden + non-interactive (the always-expanded PIE tree). */
+  /** When false, the twist is hidden + non-interactive (the always-expanded live-game tree). */
   collapsible?: boolean;
   /** Trailing columns to render after the name (the column registry). */
   columns: OutlinerColumn[];

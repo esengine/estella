@@ -26,7 +26,7 @@ const NO_EXPANSION: ReadonlySet<string> = new Set();
 const entityIds = (items: OutlinerItem[]): EntityId[] =>
   items.filter((i): i is Extract<OutlinerItem, { kind: 'entity' }> => i.kind === 'entity').map((i) => i.id);
 
-// One row of the live "Game" tree (UE5 PIE world): a read-only, always-expanded
+// One row of the live "Game" tree: a read-only, always-expanded
 // view of the running realm, sharing the editor's virtualization. No folders.
 function GameTree() {
   const { snapshot, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
@@ -306,7 +306,7 @@ export function Outliner() {
   };
 
   // Create a uniquely-named folder (optionally moving a selection into it), reveal
-  // it, and drop straight into rename — the UE5 "New Folder" gesture.
+  // it, and drop straight into rename.
   const newFolder = (parent: string, into: EntityId[] | null) => {
     const existing = new Set(SceneModel.sceneFolders());
     let path = joinFolder(parent, 'New Folder');
@@ -450,7 +450,7 @@ export function Outliner() {
   const ctxItems: MenuItem[] = useMemo(() => {
     if (!ctx) return [];
     if (!ctx.item) {
-      // Empty-space (scene) menu — UE5 right-click-in-the-void.
+      // Empty-space (scene) menu.
       return [
         { label: 'Add Entity', onClick: addEntity },
         { label: 'New Folder', onClick: () => newFolder('', null) },
@@ -509,7 +509,7 @@ export function Outliner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
 
-  // While playing, a UE5-style world picker switches the outliner (+ Details)
+  // While playing, a world picker switches the outliner (+ Details)
   // between the edit scene and the live running game.
   const gameMode = inspectWorld === 'game';
 

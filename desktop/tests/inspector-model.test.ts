@@ -517,7 +517,7 @@ describe('Advanced fields (D5)', () => {
   });
 });
 
-describe('Editor visibility / lock (UE5 bHiddenInEditor + actor lock) + batch undo', () => {
+describe('Editor visibility / lock (editor-only flags) + batch undo', () => {
   const TF = { position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
 
   it('outliner visibility/lock = editor flags, decoupled from component enabled', () => {
