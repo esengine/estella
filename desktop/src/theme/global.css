@@ -26,6 +26,11 @@ body {
   cursor: default;
 }
 
+/* Opt a region back into text selection / copy — the shell is user-select:none,
+   so logs, errors, file paths, and shell commands must mark themselves copyable.
+   The canonical way to do it (vs ad-hoc per-element user-select rules). */
+.selectable, .selectable * { user-select: text; cursor: text; }
+
 #root {
   display: flex;
   flex-direction: column;

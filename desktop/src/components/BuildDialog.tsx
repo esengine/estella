@@ -11,7 +11,7 @@
  *        / Playable) are live.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info } from 'lucide-react';
+import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
@@ -145,6 +145,13 @@ export function BuildDialog() {
     }
   };
 
+  const copyLog = () => {
+    const lines = [...log];
+    if (result?.errors?.length) lines.push(...result.errors.map((e) => `ERROR: ${e}`));
+    if (result?.warnings?.length) lines.push(...result.warnings.map((w) => `warning: ${w}`));
+    void navigator.clipboard?.writeText(lines.join('\n'));
+  };
+
   const footer = (
     <>
       <button type="button" className="btn-soft" onClick={close} disabled={running}>
@@ -225,7 +232,7 @@ export function BuildDialog() {
 
         {def.prereq && (
           <div className="build__prereq">
-            <Info size={13} /> <span>{def.prereq}</span>
+            <Info size={13} /> <span className="selectable">{def.prereq}</span>
           </div>
         )}
 
@@ -241,25 +248,30 @@ export function BuildDialog() {
               </span>
             )}
             {log.length > 0 && (
-              <ol className="build__log">
-                {log.map((line, i) => <li key={i}>{line}</li>)}
-              </ol>
+              <div className="build__logwrap">
+                <button type="button" className="build__copy" title="Copy log" onClick={copyLog}>
+                  <Copy size={11} /> Copy
+                </button>
+                <ol className="build__log selectable">
+                  {log.map((line, i) => <li key={i}>{line}</li>)}
+                </ol>
+              </div>
             )}
             {phase === 'done' && result && (
               <>
-                <span className="build__status-line">
+                <span className="build__status-line selectable">
                   <CheckCircle2 size={14} /> Packaged {result.included} assets{result.bytes ? ` · ${mb(result.bytes)}` : ''} → {result.outDir}
                 </span>
-                <div className="build__next">{def.next(result.outDir)}</div>
+                <div className="build__next selectable">{def.next(result.outDir)}</div>
               </>
             )}
             {phase === 'error' && result && (
-              <span className="build__status-line">
+              <span className="build__status-line selectable">
                 <AlertCircle size={14} /> {result.errors[0] ?? 'Package failed'}
               </span>
             )}
             {result && result.warnings.length > 0 && (
-              <div className="build__warn">{result.warnings.length} warning(s): {result.warnings[0]}</div>
+              <div className="build__warn selectable">{result.warnings.length} warning(s): {result.warnings[0]}</div>
             )}
           </div>
         )}

@@ -144,3 +144,6 @@
 .build__log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 116px; overflow-y: auto; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); }
 .build__log li::before { content: '\203A  '; color: var(--text-dim); }
 .build__log li:last-child { color: var(--text-dim); }
+.build__logwrap { position: relative; }
+.build__copy { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; font-size: var(--fs-2xs); color: var(--text-mute); background: var(--srf-4); border: 1px solid var(--border-line); border-radius: var(--r-xs); cursor: pointer; transition: color var(--t-fast); }
+.build__copy:hover { color: var(--text); }
