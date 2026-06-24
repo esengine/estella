@@ -76,6 +76,17 @@ export interface ProjectFeatures {
   };
 }
 
+/** Persisted Package Project settings (UE's ProjectPackagingSettings analog) —
+ *  committed with the project so the build dialog restores the last target/config. */
+export interface ProjectPackaging {
+  platform?: 'web' | 'desktop' | 'wechat' | 'playable';
+  config?: 'development' | 'shipping';
+  sourceMaps?: boolean;
+  openFolder?: boolean;
+  /** Per-platform output-dir overrides (else the per-platform default). */
+  outDir?: Partial<Record<'web' | 'desktop' | 'wechat' | 'playable', string>>;
+}
+
 /** Committed project identity + config (`project.esproject`). */
 export interface ProjectManifest {
   /** Manifest schema version (migration-aware; rejects newer than supported). */
@@ -101,6 +112,8 @@ export interface ProjectManifest {
   tag?: string;
   /** Engine features (subsystems) the project enables; see {@link ProjectFeatures}. */
   features?: ProjectFeatures;
+  /** Persisted Package Project settings; see {@link ProjectPackaging}. */
+  packaging?: ProjectPackaging;
 }
 
 /** A New-project template (a project directory used as a starting point). */
@@ -206,6 +219,23 @@ export function parseManifest(raw: unknown): ProjectManifest {
       }
     }
     if (Object.keys(features).length > 0) manifest.features = features;
+  }
+  if (o.packaging && typeof o.packaging === 'object') {
+    const p = o.packaging as Record<string, unknown>;
+    const pkg: ProjectPackaging = {};
+    if (p.platform === 'web' || p.platform === 'desktop' || p.platform === 'wechat' || p.platform === 'playable') pkg.platform = p.platform;
+    if (p.config === 'development' || p.config === 'shipping') pkg.config = p.config;
+    if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
+    if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
+    if (p.outDir && typeof p.outDir === 'object') {
+      const od = p.outDir as Record<string, unknown>;
+      const out: NonNullable<ProjectPackaging['outDir']> = {};
+      for (const k of ['web', 'desktop', 'wechat', 'playable'] as const) {
+        if (typeof od[k] === 'string') out[k] = od[k] as string;
+      }
+      if (Object.keys(out).length > 0) pkg.outDir = out;
+    }
+    if (Object.keys(pkg).length > 0) manifest.packaging = pkg;
   }
   return manifest;
 }

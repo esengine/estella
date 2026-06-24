@@ -81,12 +81,16 @@ export function BuildDialog() {
   const close = () => useEditorStore.getState().setBuildOpen(false);
   const project = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
 
-  const [platform, setPlatform] = useState<Platform>('web');
-  const [config, setConfig] = useState<Config>('shipping');
-  const [outDir, setOutDir] = useState(PLATFORMS[0].defaultOut);
-  const [outDirEdited, setOutDirEdited] = useState(false);
-  const [openFolder, setOpenFolder] = useState(true);
-  const [sourceMaps, setSourceMaps] = useState(false);
+  // Restore the project's persisted Package Project settings (project.esproject).
+  const [saved] = useState(() => ProjectStore.packagingSettings());
+  const initialPlatform: Platform = saved.platform ?? 'web';
+  const initialDef = PLATFORMS.find((p) => p.id === initialPlatform) ?? PLATFORMS[0];
+
+  const [platform, setPlatform] = useState<Platform>(initialPlatform);
+  const [config, setConfig] = useState<Config>(saved.config ?? 'shipping');
+  const [outDir, setOutDir] = useState(saved.outDir?.[initialPlatform] ?? initialDef.defaultOut);
+  const [openFolder, setOpenFolder] = useState(saved.openFolder ?? true);
+  const [sourceMaps, setSourceMaps] = useState(saved.sourceMaps ?? false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
 
@@ -98,18 +102,20 @@ export function BuildDialog() {
     setPlatform(p.id);
     setPhase('idle');
     setResult(null);
-    // Follow the platform's suggested output until the user customizes it.
-    if (!outDirEdited) setOutDir(p.defaultOut);
+    // Restore this platform's saved output, else its suggested default.
+    setOutDir(saved.outDir?.[p.id] ?? p.defaultOut);
   };
 
   const browse = async () => {
     const dir = await window.estella.project?.chooseDirectory?.();
-    if (dir) { setOutDir(dir); setOutDirEdited(true); }
+    if (dir) setOutDir(dir);
   };
 
   const build = async () => {
     setPhase('running');
     setResult(null);
+    // Persist the chosen settings to project.esproject (restored next time).
+    void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, outDir: { [platform]: outDir } });
     try {
       const res = (await ProjectStore.exportGame({
         platform,
@@ -190,7 +196,7 @@ export function BuildDialog() {
             <input
               value={outDir}
               spellCheck={false}
-              onChange={(e) => { setOutDir(e.target.value); setOutDirEdited(true); }}
+              onChange={(e) => setOutDir(e.target.value)}
             />
             <button type="button" className="btn-soft" onClick={() => void browse()}>
               <FolderOpen size={13} /> Browse

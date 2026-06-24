@@ -15,7 +15,7 @@ import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
-import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type WorkspaceState } from './format';
+import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState } from './format';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
 function normalizeLayers(layers?: string[]): string[] {
@@ -70,6 +70,8 @@ interface ProjectState {
   defaultScene?: string;
   /** Engine features (subsystems) the project enables; drives the play realm. */
   features?: ProjectFeatures;
+  /** Persisted Package Project settings (last target/config/output). */
+  packaging?: ProjectPackaging;
   /** The scene currently loaded into the world (project-relative path). */
   currentScene: string | null;
 }
@@ -211,6 +213,7 @@ class ProjectStoreImpl {
         workspace: opened.workspace,
         defaultScene: opened.manifest.defaultScene,
         features: opened.manifest.features,
+        packaging: opened.manifest.packaging,
         currentScene: null,
       },
     });
@@ -556,6 +559,32 @@ class ProjectStoreImpl {
     } catch (e) {
       Toasts.push('Failed to save sorting layers', 'error');
       console.error('[project] setRendering write failed', e);
+    }
+  }
+
+  /** Persisted Package Project settings (last target/config/output), or {}. */
+  packagingSettings(): ProjectPackaging {
+    return this.state?.packaging ?? {};
+  }
+
+  /** Persist Package Project settings to `project.esproject`, merging per-platform
+   *  outDir so each target keeps its own. Mirrors {@link setRendering}. */
+  async setPackaging(patch: ProjectPackaging): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const packaging: ProjectPackaging = {
+      ...st.packaging,
+      ...patch,
+      outDir: { ...st.packaging?.outDir, ...patch.outDir },
+    };
+    this.store.setState({ project: { ...st, packaging } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      raw.packaging = packaging;
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push('Failed to save packaging settings', 'error');
+      console.error('[project] setPackaging write failed', e);
     }
   }
 
