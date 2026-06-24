@@ -15,6 +15,7 @@ import { VirtualTree } from '@/components/VirtualTree';
 import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem } from '@/outliner/OutlinerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
+import { OUTLINER_COLUMNS, TYPE_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
 import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
 
@@ -52,6 +53,8 @@ function GameTree() {
           item={it}
           selected={it.kind === 'entity' && selection === it.id}
           collapsible={false}
+          columns={[TYPE_COLUMN]}
+          columnCtx={{}}
           onToggle={() => {}}
           onClick={(item) => {
             if (item.kind === 'entity') PlayInspect.select(item.id);
@@ -72,6 +75,7 @@ export function Outliner() {
   const cursor = useOutliner((s) => s.cursor);
   const selectedFolder = useOutliner((s) => s.selectedFolder);
   const sortMode = useOutliner((s) => s.sortMode);
+  const hiddenColumns = useOutliner((s) => s.hiddenColumns);
   const selectedIds = useSelection((s) => s.selectedIds);
   const selectedId = useSelection((s) => s.selectedId);
   const selectedAsset = useSelection((s) => s.selectedAsset);
@@ -86,6 +90,7 @@ export function Outliner() {
   const [drop, setDrop] = useState<{ key: string; pos: 'before' | 'on' | 'after' } | null>(null);
   const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem | null } | null>(null); // item null = empty-space menu
   const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
+  const [colsMenu, setColsMenu] = useState<{ x: number; y: number } | null>(null);
   // Controlled scroll for reveal-on-select + keyboard nav (nonce re-fires same index).
   const [scrollTo, setScrollTo] = useState<{ index: number; nonce: number }>({ index: -1, nonce: 0 });
   const scrollNonce = useRef(0);
@@ -111,6 +116,15 @@ export function Outliner() {
   );
   const flatIds = useMemo(() => entityIds(items), [items]);
   const highlight = useMemo(() => parseQuery(query).text, [query]);
+  const activeColumns = useMemo(() => OUTLINER_COLUMNS.filter((c) => !hiddenColumns.has(c.id)), [hiddenColumns]);
+  const columnCtx = useMemo<OutlinerColumnContext>(
+    () => ({
+      onToggleVisible: (id, visible) => SceneCommands.setEntityVisible(id, visible),
+      onToggleLock: (id, locked) => SceneCommands.setEntityLocked(id, locked),
+      isPrefab: (id) => SceneModel.prefabTag(id) != null,
+    }),
+    [],
+  );
 
   // First time entities appear: expand groups + folders, select the first entity.
   useEffect(() => {
@@ -508,14 +522,14 @@ export function Outliner() {
       renaming={renaming === it.key}
       dropPos={drop?.key === it.key ? drop.pos : undefined}
       prefab={it.kind === 'entity' && SceneModel.prefabTag(it.id) != null}
+      columns={activeColumns}
+      columnCtx={columnCtx}
       draggable
       onToggle={toggleExpanded}
       onClick={onRowClick}
       onContextMenu={onContextMenu}
       onStartRename={onStartRename}
       onCommitRename={commitRename}
-      onToggleVisible={(id, visible) => SceneCommands.setEntityVisible(id, visible)}
-      onToggleLock={(id, locked) => SceneCommands.setEntityLocked(id, locked)}
       onDragStart={onDragStartRow}
       onDragOver={onDragOverRow}
       onDrop={onDropRow}
@@ -572,10 +586,20 @@ export function Outliner() {
             </button>
           </div>
           {sceneCount > 0 && (
-            <div className="outliner-cols">
+            <div
+              className="outliner-cols"
+              title="Right-click to show/hide columns"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setColsMenu({ x: e.clientX, y: e.clientY });
+              }}
+            >
               <span className="c-name">Name</span>
-              <span className="c-type">Type</span>
-              <span className="c-vis" />
+              {activeColumns.map((col) => (
+                <span key={col.id} className="c-col" style={{ width: col.width }}>
+                  {col.header}
+                </span>
+              ))}
             </div>
           )}
           {sceneCount === 0 ? (
@@ -620,6 +644,17 @@ export function Outliner() {
           items={(['manual', 'name', 'type'] as const).map((m) => ({
             label: `Sort: ${m[0].toUpperCase()}${m.slice(1)}`,
             onClick: () => useOutliner.getState().setSortMode(m),
+          }))}
+        />
+      )}
+      {colsMenu && !gameMode && (
+        <ContextMenu
+          x={colsMenu.x}
+          y={colsMenu.y}
+          onClose={() => setColsMenu(null)}
+          items={OUTLINER_COLUMNS.map((col) => ({
+            label: `${hiddenColumns.has(col.id) ? '   ' : '✓ '}${col.header || col.id}`,
+            onClick: () => useOutliner.getState().toggleColumn(col.id),
           }))}
         />
       )}

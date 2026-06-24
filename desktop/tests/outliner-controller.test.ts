@@ -68,6 +68,14 @@ describe('OutlinerController', () => {
     expect(store.getState().expanded.has(entityKey(2))).toBe(false);
   });
 
+  it('toggleColumn hides/shows a column id', () => {
+    expect(store.getState().hiddenColumns.has('vis')).toBe(false);
+    store.getState().toggleColumn('vis');
+    expect(store.getState().hiddenColumns.has('vis')).toBe(true);
+    store.getState().toggleColumn('vis');
+    expect(store.getState().hiddenColumns.has('vis')).toBe(false);
+  });
+
   it('selectFolder sets/clears the selected folder', () => {
     store.getState().selectFolder('A/B');
     expect(store.getState().selectedFolder).toBe('A/B');

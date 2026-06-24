@@ -43,9 +43,9 @@
   background: var(--srf-2);
   flex-shrink: 0;
 }
+.outliner-cols { cursor: default; }
 .outliner-cols .c-name { flex: 1; }
-.outliner-cols .c-type { width: 78px; flex-shrink: 0; }
-.outliner-cols .c-vis { width: 48px; text-align: center; flex-shrink: 0; } /* lock + eye */
+.outliner-cols .c-col { flex-shrink: 0; } /* registry columns; width set inline per column */
 
 /* Rows */
 .row {
@@ -96,6 +96,7 @@
   font-size: var(--fs-sm);
   outline: none;
 }
+.row .rcol-spacer { flex-shrink: 0; } /* aligns columns where a row has no cell (e.g. folder lock/vis) */
 .row .rtype { width: 78px; font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); flex-shrink: 0; }
 .row.sel .rtype { color: rgba(255, 255, 255, 0.72); }
 .row .rvis, .row .rlock { width: 24px; display: grid; place-items: center; color: var(--text-mute); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast); flex-shrink: 0; }

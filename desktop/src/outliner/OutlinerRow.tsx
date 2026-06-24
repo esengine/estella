@@ -5,16 +5,19 @@
  *
  * Purely presentational: selection / rename / drop / prefab state arrive as props
  * (it does NOT subscribe to any store), so with virtualization only the ~window of
- * visible rows ever renders or re-renders. Renders both row kinds (entity / folder);
- * editor-only affordances (visibility toggle, rename, drag-drop) are gated on their
- * handlers — the PIE tree passes none and gets a click-to-select read-only row.
+ * visible rows ever renders or re-renders. The Name/tree part (twist + icon +
+ * name) is fixed; the trailing cells come from the {@link OutlinerColumn} registry
+ * — a column renders its cell, or an aligned spacer where it doesn't apply, so
+ * columns line up across entity + folder rows. The PIE tree passes a read-only
+ * column set and no edit handlers.
  */
 import type React from 'react';
-import { ChevronRight, Eye, EyeOff, Lock, LockOpen, Folder, FolderOpen } from 'lucide-react';
+import { Fragment } from 'react';
+import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { NodeIcon } from '@/components/icons';
 import type { ReactNode } from 'react';
-import type { EntityId, NodeKind } from '@/types';
 import type { OutlinerItem } from './OutlinerModel';
+import type { OutlinerColumn, OutlinerColumnContext } from './columns';
 
 /** Wrap the first case-insensitive match of `hl` in the name with a highlight. */
 function highlightName(name: string, hl?: string): ReactNode {
@@ -30,22 +33,9 @@ function highlightName(name: string, hl?: string): ReactNode {
   );
 }
 
-/** Entity kind → the label shown in the outliner's right-hand "Type" column. */
-const KIND_TYPE: Record<NodeKind, string> = {
-  camera: 'Camera',
-  sprite: 'Sprite',
-  spine: 'Spine',
-  physics: 'Physics',
-  ui: 'UI',
-  audio: 'Audio',
-  group: 'Group',
-  light: 'Light',
-  empty: 'Entity',
-};
-
 export interface OutlinerRowProps {
   item: OutlinerItem;
-  /** Entity selection highlight (folders never carry entity selection). */
+  /** Entity selection highlight (folders highlight via the folder selection). */
   selected: boolean;
   /** Keyboard-focus row (shows a focus ring; distinct from selection). */
   cursored?: boolean;
@@ -58,13 +48,15 @@ export interface OutlinerRowProps {
   prefab?: boolean;
   /** When false, the twist is hidden + non-interactive (the always-expanded PIE tree). */
   collapsible?: boolean;
+  /** Trailing columns to render after the name (the column registry). */
+  columns: OutlinerColumn[];
+  /** Per-cell callbacks/queries for the columns. */
+  columnCtx: OutlinerColumnContext;
   onToggle: (key: string) => void;
   onClick: (item: OutlinerItem, e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent, item: OutlinerItem) => void;
   onStartRename?: (item: OutlinerItem) => void;
   onCommitRename?: (item: OutlinerItem, name: string) => void;
-  onToggleVisible?: (id: EntityId, visible: boolean) => void;
-  onToggleLock?: (id: EntityId, locked: boolean) => void;
   draggable?: boolean;
   onDragStart?: (item: OutlinerItem, e: React.DragEvent) => void;
   onDragOver?: (item: OutlinerItem, e: React.DragEvent) => void;
@@ -73,7 +65,7 @@ export interface OutlinerRowProps {
 }
 
 export function OutlinerRow(props: OutlinerRowProps) {
-  const { item, selected, renaming, dropPos, prefab } = props;
+  const { item, selected, renaming, dropPos, prefab, columns, columnCtx } = props;
   const isFolder = item.kind === 'folder';
   const { depth, hasChildren, expanded } = item;
 
@@ -81,21 +73,7 @@ export function OutlinerRow(props: OutlinerRowProps) {
   const visible = item.kind === 'entity' ? item.node.visible : true;
   const locked = item.kind === 'entity' ? item.node.locked : false;
 
-  // Right column: entity type (prefab/kind + child count), or a folder's item count.
-  let typeLabel: string;
-  if (item.kind === 'folder') {
-    typeLabel = item.count > 0 ? String(item.count) : '';
-  } else {
-    const childCount = item.node.children?.length ?? 0;
-    const baseType = prefab ? 'Prefab' : (KIND_TYPE[item.node.kind] ?? 'Entity');
-    typeLabel = childCount > 0 ? `${baseType} · ${childCount}` : baseType;
-  }
-
   const canRename = !!props.onCommitRename;
-  const isEntity = item.kind === 'entity';
-  const entityId = item.kind === 'entity' ? item.id : -1;
-  const showVis = !!props.onToggleVisible && isEntity;
-  const showLock = !!props.onToggleLock && isEntity;
   const collapsible = props.collapsible !== false;
   const showTwist = hasChildren && collapsible;
 
@@ -166,32 +144,12 @@ export function OutlinerRow(props: OutlinerRowProps) {
         </span>
       )}
 
-      <span className="rtype">{typeLabel}</span>
-
-      {showLock && (
-        <span
-          className="rlock"
-          title={locked ? 'Unlock' : 'Lock'}
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onToggleLock!(entityId, !locked);
-          }}
-        >
-          {locked ? <Lock size={12} strokeWidth={1.85} /> : <LockOpen size={12} strokeWidth={1.85} />}
-        </span>
-      )}
-
-      {showVis && (
-        <span
-          className="rvis"
-          title="Toggle visibility"
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onToggleVisible!(entityId, !visible);
-          }}
-        >
-          {visible ? <Eye size={13} strokeWidth={1.85} /> : <EyeOff size={13} strokeWidth={1.85} />}
-        </span>
+      {columns.map((col) =>
+        col.applies(item) ? (
+          <Fragment key={col.id}>{col.render(item, columnCtx)}</Fragment>
+        ) : (
+          <span key={col.id} className="rcol-spacer" style={{ width: col.width }} />
+        ),
       )}
     </div>
   );

@@ -32,6 +32,8 @@ interface OutlinerState {
   selectedFolder: string | null;
   /** Sibling sort: `manual` (scene order) / `name` / `type`. View-only. */
   sortMode: SortMode;
+  /** Hidden trailing-column ids (the column registry; a user preference). */
+  hiddenColumns: Set<string>;
 
   /** Flip one row's expansion (pass an item key). */
   toggleExpanded: (key: string) => void;
@@ -49,6 +51,8 @@ interface OutlinerState {
   /** Select a folder (or clear with null). */
   selectFolder: (path: string | null) => void;
   setSortMode: (mode: SortMode) => void;
+  /** Show/hide a trailing column by id. */
+  toggleColumn: (id: string) => void;
 
   /** Prune a removed entity's key (self-heal on the model's `entityRemoved`). */
   dropId: (id: EntityId) => void;
@@ -64,6 +68,7 @@ export function createOutlinerStore(model: SceneModelImpl) {
     cursor: null,
     selectedFolder: null,
     sortMode: 'manual',
+    hiddenColumns: new Set<string>(),
 
     toggleExpanded: (key) =>
       set((s) => {
@@ -113,6 +118,12 @@ export function createOutlinerStore(model: SceneModelImpl) {
     setCursor: (cursor) => set({ cursor }),
     selectFolder: (selectedFolder) => set({ selectedFolder }),
     setSortMode: (sortMode) => set({ sortMode }),
+    toggleColumn: (id) =>
+      set((s) => {
+        const next = new Set(s.hiddenColumns);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return { hiddenColumns: next };
+      }),
 
     dropId: (id) =>
       set((s) => {
