@@ -92,6 +92,11 @@
 .row.sel .rvis:hover { color: #fff; }
 .row.hidden .rname { color: var(--text-mute); }
 
+/* Folder rows (organizational path-folders) — read a touch stronger than entities. */
+.row.folder .ricon { color: var(--info-warm); }
+.row.sel.folder .ricon { color: #fff; }
+.row.folder .rname { color: var(--text); }
+
 /* World picker (UE5): switch the Outliner/Details between edit + live game. */
 .world-pick { display: flex; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .world-pick button { flex: 1; height: 24px; font-size: var(--fs-xs); color: var(--text-mute); background: var(--srf-3); border-radius: var(--r-sm); transition: color var(--t-fast), background var(--t-fast); }

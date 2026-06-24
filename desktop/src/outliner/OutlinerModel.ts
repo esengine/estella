@@ -3,43 +3,62 @@
 /**
  * @file  OutlinerModel.ts — the ONE outliner tree builder.
  *
- * Flattens a SceneData into a render-ordered list of {@link OutlinerItem}s,
- * honoring the expansion set + a name filter. The same builder feeds the editor
- * tree (the model SceneData) and the live PIE "Game" tree (a PlayInspect
- * snapshot) — one path, virtualization-ready (the list IS the render order, so a
- * windowed list renders only the visible slice). This replaces the panel's old
- * recursive `<Row>` walk + its separate PIE flatten.
+ * Flattens a SceneData into a render-ordered list of {@link OutlinerItem}s — a
+ * tagged union of `entity` and `folder` rows (UE5 path-folders) — honoring the
+ * expansion set (keyed by stable string item keys) + a name filter. The same
+ * builder feeds the editor tree and the always-expanded PIE "Game" tree.
  *
- * Hierarchy comes from {@link buildSceneTree} (derived from each entity's
- * `parent`, robust to a drifted `children[]`), so this stays a pure projection.
- * The item shape is folder-aware (`kind`) for the path-folder phase; P1 emits
- * only `entity` items.
+ * Folders are organizational PATHS (orthogonal to the transform `parent`): they
+ * group **root** entities only; a parented entity always nests under its parent.
+ * The folder tree is the union of every root's folder-path prefixes and the
+ * scene's explicit (incl. empty) folder list. Hierarchy among entities comes from
+ * {@link buildSceneTree} (derived from `parent`, robust to a drifted `children[]`),
+ * so this stays a pure projection.
  */
 import type { SceneData } from 'esengine';
 import type { SceneNode, EntityId } from '@/types';
 import { buildSceneTree } from '@/engine/SceneQuery';
+import { ROOT_FOLDER, normalizeFolder, folderName, folderParent, folderPrefixes, isFolderUnder } from './folders';
 
 export type OutlinerItemKind = 'entity' | 'folder';
 
-/** One row of the flattened outliner — a tree node placed at render order/depth. */
-export interface OutlinerItem {
-  /** Entity source id (editor) or realm runtime id (PIE). */
-  id: EntityId;
-  /** Stable React key (`e<id>`; folders later carry a path-derived key). */
+interface OutlinerItemBase {
+  /** Stable identity for React keys + the expansion set (`e<id>` / `f:<path>`). */
   key: string;
-  kind: OutlinerItemKind;
-  /** The view-model node (name / kind / visible / locked / children). */
-  node: SceneNode;
   depth: number;
   hasChildren: boolean;
   /** Whether this node's children are shown (drives the twist + the walk). */
   expanded: boolean;
-  parentId: EntityId | null;
+  parentKey: string | null;
 }
+export interface OutlinerEntityItem extends OutlinerItemBase {
+  kind: 'entity';
+  id: EntityId;
+  node: SceneNode;
+}
+export interface OutlinerFolderItem extends OutlinerItemBase {
+  kind: 'folder';
+  /** Full folder path. */
+  path: string;
+  /** Display name (last path segment). */
+  name: string;
+  /** Entity roots under this folder (recursive) — the row's count badge. */
+  count: number;
+}
+export type OutlinerItem = OutlinerEntityItem | OutlinerFolderItem;
+
+/** Expansion/identity key for an entity row. */
+export const entityKey = (id: EntityId): string => `e${id}`;
+/** Expansion/identity key for a folder row. */
+export const folderKey = (path: string): string => `f:${path}`;
 
 export interface BuildOutlinerOpts {
-  /** Currently-expanded node ids. Ignored when `expandAll` (or a filter) is on. */
-  expanded: ReadonlySet<EntityId>;
+  /** Expanded item keys. Ignored when `expandAll` (or a filter) is on. */
+  expanded: ReadonlySet<string>;
+  /** A root entity's folder path (`""` = scene root). Absent ⇒ no folders (PIE). */
+  folderOf?: (id: EntityId) => string;
+  /** The scene's explicit (incl. empty) folders, so empties still show. */
+  folders?: readonly string[];
   /** Free-text name filter; matches + their ancestors survive (case-insensitive). */
   query?: string;
   /** Render every node expanded — the PIE tree, and implicitly while filtering. */
@@ -60,33 +79,70 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
   const roots = buildSceneTree(data);
   const q = opts.query?.trim().toLowerCase() ?? '';
   const shown = q ? roots.map((n) => filterNode(n, q)).filter((n): n is SceneNode => n != null) : roots;
-  // A live filter force-expands so every surviving match is visible.
   const expandAll = !!opts.expandAll || !!q;
+  const folderOf = opts.folderOf ?? (() => ROOT_FOLDER);
+
+  // Group the shown roots by their folder path, and gather every folder to show:
+  // each root path's prefixes, plus the scene's explicit folders (only when not
+  // filtering — an explicit empty folder has no match to surface under a query).
+  const rootsByFolder = new Map<string, SceneNode[]>();
+  const allFolders = new Set<string>();
+  for (const root of shown) {
+    const path = normalizeFolder(folderOf(root.id));
+    (rootsByFolder.get(path) ?? rootsByFolder.set(path, []).get(path)!).push(root);
+    for (const pre of folderPrefixes(path)) allFolders.add(pre);
+  }
+  if (!q) for (const f of opts.folders ?? []) for (const pre of folderPrefixes(normalizeFolder(f))) allFolders.add(pre);
+
+  const childFolders = (path: string): string[] =>
+    [...allFolders].filter((p) => folderParent(p) === path).sort((a, b) => folderName(a).localeCompare(folderName(b)));
+  const countUnder = (path: string): number => {
+    let n = 0;
+    for (const [fp, arr] of rootsByFolder) if (isFolderUnder(fp, path)) n += arr.length;
+    return n;
+  };
 
   const out: OutlinerItem[] = [];
-  const walk = (nodes: SceneNode[], depth: number, parentId: EntityId | null): void => {
-    for (const node of nodes) {
-      const hasChildren = !!node.children?.length;
-      const expanded = expandAll || opts.expanded.has(node.id);
-      out.push({ id: node.id, key: `e${node.id}`, kind: 'entity', node, depth, hasChildren, expanded, parentId });
-      if (hasChildren && expanded) walk(node.children!, depth + 1, node.id);
-    }
+
+  const emitEntity = (node: SceneNode, depth: number, parentKey: string | null): void => {
+    const hasChildren = !!node.children?.length;
+    const expanded = expandAll || opts.expanded.has(entityKey(node.id));
+    out.push({ kind: 'entity', key: entityKey(node.id), id: node.id, node, depth, hasChildren, expanded, parentKey });
+    if (hasChildren && expanded) for (const c of node.children!) emitEntity(c, depth + 1, entityKey(node.id));
   };
-  walk(shown, 0, null);
+
+  // Emit the child folders of `path` (nested) then the entity roots directly in it.
+  const emitFolderContents = (path: string, depth: number, parentKey: string | null): void => {
+    for (const fp of childFolders(path)) {
+      const hasKids = childFolders(fp).length > 0 || (rootsByFolder.get(fp)?.length ?? 0) > 0;
+      const expanded = expandAll || opts.expanded.has(folderKey(fp));
+      out.push({ kind: 'folder', key: folderKey(fp), path: fp, name: folderName(fp), count: countUnder(fp), depth, hasChildren: hasKids, expanded, parentKey });
+      if (expanded) emitFolderContents(fp, depth + 1, folderKey(fp));
+    }
+    for (const root of rootsByFolder.get(path) ?? []) emitEntity(root, depth, parentKey);
+  };
+
+  emitFolderContents(ROOT_FOLDER, 0, null);
   return out;
 }
 
-/** All node ids that have children — the auto-expand set for a freshly-loaded scene. */
-export function collectExpandableIds(data: SceneData | null): EntityId[] {
-  const out: EntityId[] = [];
+/** Every expandable key (folders + entity parents) — the auto-expand set for a fresh scene. */
+export function collectExpandableKeys(data: SceneData | null, opts?: Pick<BuildOutlinerOpts, 'folderOf' | 'folders'>): string[] {
+  const folderOf = opts?.folderOf ?? (() => ROOT_FOLDER);
+  const out: string[] = [];
+  const folders = new Set<string>();
   const walk = (nodes: SceneNode[]): void => {
     for (const n of nodes) {
       if (n.children?.length) {
-        out.push(n.id);
+        out.push(entityKey(n.id));
         walk(n.children);
       }
     }
   };
-  walk(buildSceneTree(data));
+  const roots = buildSceneTree(data);
+  walk(roots);
+  for (const r of roots) for (const pre of folderPrefixes(normalizeFolder(folderOf(r.id)))) folders.add(pre);
+  for (const f of opts?.folders ?? []) for (const pre of folderPrefixes(normalizeFolder(f))) folders.add(pre);
+  for (const f of folders) out.push(folderKey(f));
   return out;
 }

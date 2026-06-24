@@ -88,7 +88,14 @@ export async function expandScenePrefabs(
     if (!prefab) continue; // unresolved prefab — skip (caller warns)
     const { entities, rootId } = expandEntry(prefab, raw, allocateId);
     for (const pe of entities) {
-      out.push(toSceneEntity(pe));
+      const se = toSceneEntity(pe);
+      // The instance entry carries the outliner folder of its root (editor-only,
+      // dropped by the prefab core) — re-attach it so folders survive load.
+      if (pe.id === rootId) {
+        const folder = (raw as { folder?: string }).folder;
+        if (folder) (se as { folder?: string }).folder = folder;
+      }
+      out.push(se);
       tags.push({
         id: pe.id,
         tag: { instanceRoot: rootId, prefabId: pe.prefabEntityId, prefab: pe.id === rootId ? raw.prefab : undefined },
@@ -129,7 +136,11 @@ export async function collapseScenePrefabs(
       continue;
     }
     const processed = group.map((e) => toProcessed(e, tagOf(e.id)!.prefabId));
-    out.push(collapseEntry(prefab, rootTag.prefab, processed, rootId, root.parent ?? null) as unknown as SceneEntity);
+    const entry = collapseEntry(prefab, rootTag.prefab, processed, rootId, root.parent ?? null) as unknown as SceneEntity;
+    // Carry the instance root's outliner folder onto the collapsed entry (lossless).
+    const folder = (root as { folder?: string }).folder;
+    if (folder) (entry as { folder?: string }).folder = folder;
+    out.push(entry);
   }
   return out;
 }

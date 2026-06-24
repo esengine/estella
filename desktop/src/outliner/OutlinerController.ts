@@ -3,37 +3,42 @@
 /**
  * @file  OutlinerController.ts — the outliner's headless view-state.
  *
- * Owns the editor-tree state the SceneModel doesn't: which nodes are expanded and
+ * Owns the editor-tree state the SceneModel doesn't: which rows are expanded and
  * the search query. Kept OUT of the React panel so the tree is testable headless
  * and (later) drivable by EditorControlSurface / the editor MCP — the panel is a
  * thin renderer over this + {@link buildOutlinerItems}.
  *
- * Model-anchored self-healing (mirrors selectionStore): expansion is pruned when
- * an entity is removed (`entityRemoved`) and the whole view resets on a scene swap
- * (`reset`), so the expansion set can never accumulate dead ids. One per
+ * Expansion is keyed by stable string ITEM KEYS (`e<id>` for entities, `f:<path>`
+ * for folders), so one set covers both row kinds. Model-anchored self-healing
+ * (mirrors selectionStore): expansion is pruned when an entity is removed
+ * (`entityRemoved`) and the whole view resets on a scene swap (`reset`). One per
  * EditorSession; the default instance binds the app's SceneModel.
  */
 import { create } from 'zustand';
 import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
 import type { EntityId } from '@/types';
+import { entityKey, folderKey } from './OutlinerModel';
+import { folderPrefixes, normalizeFolder, rebaseFolder } from './folders';
 
 interface OutlinerState {
-  /** Expanded node ids (entity source ids). */
-  expanded: Set<EntityId>;
+  /** Expanded item keys (`e<id>` / `f:<path>`). */
+  expanded: Set<string>;
   /** Live name filter (raw text; the builder trims/lowercases). */
   query: string;
 
-  /** Flip one node's expansion. */
-  toggleExpanded: (id: EntityId) => void;
+  /** Flip one row's expansion (pass an item key). */
+  toggleExpanded: (key: string) => void;
   /** Replace the whole expansion set (e.g. first-load auto-expand). */
-  setExpanded: (ids: EntityId[]) => void;
-  /** Additively expand ids (reveal — keeps existing expansion). */
-  expand: (ids: EntityId[]) => void;
-  /** Expand every ancestor of an entity so it becomes visible (reveal-on-select). */
+  setExpanded: (keys: string[]) => void;
+  /** Additively expand keys (reveal — keeps existing expansion). */
+  expand: (keys: string[]) => void;
+  /** Expand an entity's transform ancestors + folder path so it shows (reveal-on-select). */
   revealEntity: (id: EntityId) => void;
+  /** Rewrite expanded folder keys when a folder is renamed/moved (keep it open). */
+  rebaseFolderKeys: (oldPath: string, newPath: string) => void;
   setQuery: (query: string) => void;
 
-  /** Prune a removed id (self-heal on the model's `entityRemoved`). */
+  /** Prune a removed entity's key (self-heal on the model's `entityRemoved`). */
   dropId: (id: EntityId) => void;
   /** Reset the view on a scene swap (the model's `reset`). */
   reset: () => void;
@@ -42,32 +47,50 @@ interface OutlinerState {
 /** Build an outliner controller bound to a model. One per EditorSession. */
 export function createOutlinerStore(model: SceneModelImpl) {
   const useStore = create<OutlinerState>((set) => ({
-    expanded: new Set<EntityId>(),
+    expanded: new Set<string>(),
     query: '',
 
-    toggleExpanded: (id) =>
+    toggleExpanded: (key) =>
       set((s) => {
         const next = new Set(s.expanded);
-        next.has(id) ? next.delete(id) : next.add(id);
+        next.has(key) ? next.delete(key) : next.add(key);
         return { expanded: next };
       }),
-    setExpanded: (ids) => set({ expanded: new Set(ids) }),
-    expand: (ids) =>
+    setExpanded: (keys) => set({ expanded: new Set(keys) }),
+    expand: (keys) =>
       set((s) => {
         const next = new Set(s.expanded);
-        for (const id of ids) next.add(id);
+        for (const k of keys) next.add(k);
         return { expanded: next };
       }),
     revealEntity: (id) =>
       set((s) => {
         const next = new Set(s.expanded);
-        // Walk parents (not the node itself — revealing means its ancestors open).
-        let cur = model.entityBySource(id)?.parent ?? null;
+        // Climb the transform ancestors (expanding each so `id` becomes visible)
+        // up to the root, then expand that root's folder-path prefixes.
+        let cur: number | null = id;
+        let root = id;
         const seen = new Set<number>();
         while (cur != null && !seen.has(cur)) {
           seen.add(cur);
-          next.add(cur);
-          cur = model.entityBySource(cur)?.parent ?? null;
+          const parent: number | null = model.entityBySource(cur)?.parent ?? null;
+          if (parent != null) next.add(entityKey(parent));
+          else root = cur;
+          cur = parent;
+        }
+        for (const pre of folderPrefixes(normalizeFolder(model.folderOf(root)))) next.add(folderKey(pre));
+        return { expanded: next };
+      }),
+    rebaseFolderKeys: (oldPath, newPath) =>
+      set((s) => {
+        const next = new Set<string>();
+        for (const k of s.expanded) {
+          if (!k.startsWith('f:')) {
+            next.add(k);
+            continue;
+          }
+          const rebased = rebaseFolder(k.slice(2), oldPath, newPath);
+          next.add(rebased != null ? folderKey(rebased) : k);
         }
         return { expanded: next };
       }),
@@ -75,9 +98,10 @@ export function createOutlinerStore(model: SceneModelImpl) {
 
     dropId: (id) =>
       set((s) => {
-        if (!s.expanded.has(id)) return s;
+        const k = entityKey(id);
+        if (!s.expanded.has(k)) return s;
         const next = new Set(s.expanded);
-        next.delete(id);
+        next.delete(k);
         return { expanded: next };
       }),
     reset: () => set({ expanded: new Set(), query: '' }),

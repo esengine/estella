@@ -16,6 +16,7 @@ import {
   hexToRgba,
   prettyLabel,
 } from './schema';
+import { normalizeFolder, folderParent, isFolderUnder, rebaseFolder } from '@/outliner/folders';
 
 type SceneEntity = SceneData['entities'][number];
 type SceneComponent = SceneEntity['components'][number];
@@ -449,6 +450,110 @@ export class SceneCommandsImpl {
       () => this.model.setParent(sourceId, parent),
       () => this.model.setParent(sourceId, before),
     );
+  }
+
+  // — Outliner folders (organizational paths; orthogonal to the transform parent) —
+  // Folders group ROOT entities. They live as an editor-only per-entity `folder`
+  // path + a scene-level explicit-folder list (so empties persist); all undoable.
+
+  /** Create an explicit (initially empty) folder. Undoable; no-op if it exists. */
+  createFolder(path: string): void {
+    const norm = normalizeFolder(path);
+    if (!norm) return;
+    const before = this.model.sceneFolders();
+    if (before.includes(norm)) return;
+    const after = [...before, norm];
+    this.model.setSceneFolders(after);
+    this.history.record('New Folder', () => this.model.setSceneFolders(after), () => this.model.setSceneFolders(before));
+  }
+
+  /**
+   * Rename/move a folder: re-root the folder (and its descendants) + every entity
+   * under it from `oldPath` to `newPath`, as one undo step. No-op if unchanged.
+   */
+  renameFolder(oldPath: string, newPath: string): void {
+    const o = normalizeFolder(oldPath);
+    const n = normalizeFolder(newPath);
+    if (!o || !n || o === n) return;
+
+    const beforeFolders = this.model.sceneFolders();
+    const afterFolders = [...new Set(beforeFolders.map((f) => rebaseFolder(f, o, n) ?? f))];
+    const edits = (this.model.current?.entities ?? [])
+      .map((e) => ({ id: e.id, before: this.model.folderOf(e.id) }))
+      .map((e) => ({ ...e, after: rebaseFolder(e.before, o, n) }))
+      .filter((e): e is { id: number; before: string; after: string } => e.after != null && e.after !== e.before);
+
+    const apply = (): void => {
+      this.model.setSceneFolders(afterFolders);
+      for (const e of edits) this.model.setFolder(e.id, e.after);
+    };
+    const revert = (): void => {
+      this.model.setSceneFolders(beforeFolders);
+      for (const e of edits) this.model.setFolder(e.id, e.before);
+    };
+    apply();
+    this.history.record('Rename Folder', apply, revert);
+  }
+
+  /**
+   * Delete a folder, moving its contents (entities + descendant folders) up to its
+   * parent (UE5 semantics — entities are never destroyed). One undo step.
+   */
+  deleteFolder(path: string): void {
+    const p = normalizeFolder(path);
+    if (!p) return;
+    const parent = folderParent(p);
+    const beforeFolders = this.model.sceneFolders();
+    const afterFolders = [
+      ...new Set(beforeFolders.filter((f) => f !== p).map((f) => (isFolderUnder(f, p) ? (rebaseFolder(f, p, parent) ?? parent) : f))),
+    ];
+    const edits = (this.model.current?.entities ?? [])
+      .map((e) => ({ id: e.id, before: this.model.folderOf(e.id) }))
+      .filter((e) => isFolderUnder(e.before, p))
+      .map((e) => ({ ...e, after: rebaseFolder(e.before, p, parent) ?? parent }));
+
+    const apply = (): void => {
+      this.model.setSceneFolders(afterFolders);
+      for (const e of edits) this.model.setFolder(e.id, e.after);
+    };
+    const revert = (): void => {
+      this.model.setSceneFolders(beforeFolders);
+      for (const e of edits) this.model.setFolder(e.id, e.before);
+    };
+    apply();
+    this.history.record('Delete Folder', apply, revert);
+  }
+
+  /**
+   * Move entities into a folder (`path: null` = scene root). Folders organize
+   * roots, so this also un-parents each entity (it becomes a root in the folder).
+   * One undo step; no-op for entities already there.
+   */
+  moveToFolder(sourceIds: readonly EntityId[], path: string | null): void {
+    const norm = path ? normalizeFolder(path) : '';
+    const records = sourceIds
+      .map((id) => {
+        const e = this.model.entityBySource(id);
+        return e ? { id, beforeParent: e.parent ?? null, beforeFolder: this.model.folderOf(id) } : null;
+      })
+      .filter((r): r is { id: number; beforeParent: number | null; beforeFolder: string } => !!r)
+      .filter((r) => r.beforeParent !== null || r.beforeFolder !== norm);
+    if (records.length === 0) return;
+
+    const apply = (): void => {
+      for (const r of records) {
+        this.model.setParent(r.id, null);
+        this.model.setFolder(r.id, norm);
+      }
+    };
+    const revert = (): void => {
+      for (const r of records) {
+        this.model.setFolder(r.id, r.beforeFolder);
+        this.model.setParent(r.id, r.beforeParent);
+      }
+    };
+    apply();
+    this.history.record(records.length > 1 ? `Move ${records.length} to Folder` : 'Move to Folder', apply, revert);
   }
 
   /** Add a component (with its registered/schema defaults) to an entity. Undoable. */

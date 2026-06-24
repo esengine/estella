@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, FolderPlus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
@@ -12,18 +12,21 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { VirtualTree } from '@/components/VirtualTree';
-import { buildOutlinerItems, collectExpandableIds } from '@/outliner/OutlinerModel';
+import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, type OutlinerItem } from '@/outliner/OutlinerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
+import { joinFolder, folderParent } from '@/outliner/folders';
 import type { EntityId } from '@/types';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
-const NO_EXPANSION: ReadonlySet<EntityId> = new Set();
+const NO_EXPANSION: ReadonlySet<string> = new Set();
+
+const entityIds = (items: OutlinerItem[]): EntityId[] =>
+  items.filter((i): i is Extract<OutlinerItem, { kind: 'entity' }> => i.kind === 'entity').map((i) => i.id);
 
 // One row of the live "Game" tree (UE5 PIE world): a read-only, always-expanded
-// view of the running realm. A stress scene can hold thousands of live entities
-// refreshed a few times a second, so it shares the editor's virtualization.
+// view of the running realm, sharing the editor's virtualization. No folders.
 function GameTree() {
   const { snapshot, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
   const items = useMemo(() => buildOutlinerItems(snapshot, { expanded: NO_EXPANSION, expandAll: true }), [snapshot]);
@@ -47,10 +50,12 @@ function GameTree() {
       renderRow={(it) => (
         <OutlinerRow
           item={it}
-          selected={selection === it.id}
+          selected={it.kind === 'entity' && selection === it.id}
           collapsible={false}
           onToggle={() => {}}
-          onClick={(id) => PlayInspect.select(id)}
+          onClick={(item) => {
+            if (item.kind === 'entity') PlayInspect.select(item.id);
+          }}
         />
       )}
     />
@@ -71,34 +76,49 @@ export function Outliner() {
   const initRef = useRef(false);
   const dragIds = useRef<EntityId[] | null>(null);
 
-  const [renaming, setRenaming] = useState<EntityId | null>(null);
-  const [dropId, setDropId] = useState<EntityId | null>(null);
-  const [ctx, setCtx] = useState<{ x: number; y: number; id: EntityId } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null); // item key
+  const [dropId, setDropId] = useState<string | null>(null); // item key
+  const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem } | null>(null);
 
   const sceneCount = useMemo(
     () => (engine.status === 'ready' ? (SceneModel.current?.entities.length ?? 0) : 0),
     [engine.status, structRev],
   );
   const items = useMemo(
-    () => (engine.status === 'ready' ? buildOutlinerItems(SceneModel.current, { expanded, query }) : []),
+    () =>
+      engine.status === 'ready'
+        ? buildOutlinerItems(SceneModel.current, {
+            expanded,
+            query,
+            folderOf: (id) => SceneModel.folderOf(id),
+            folders: SceneModel.sceneFolders(),
+          })
+        : [],
     [engine.status, structRev, expanded, query],
   );
-  const flatIds = useMemo(() => items.map((i) => i.id), [items]);
+  const flatIds = useMemo(() => entityIds(items), [items]);
 
-  // First time entities appear: expand groups, select the first root.
+  // First time entities appear: expand groups + folders, select the first entity.
   useEffect(() => {
     if (initRef.current || sceneCount === 0) return;
     initRef.current = true;
-    useOutliner.getState().setExpanded(collectExpandableIds(SceneModel.current));
+    useOutliner.getState().setExpanded(
+      collectExpandableKeys(SceneModel.current, { folderOf: (id) => SceneModel.folderOf(id), folders: SceneModel.sceneFolders() }),
+    );
     if (useSelection.getState().selectedId == null) {
-      const firstRoot = buildOutlinerItems(SceneModel.current, { expanded: NO_EXPANSION })[0]?.id;
-      if (firstRoot != null) useSelection.getState().select(firstRoot);
+      const first = entityIds(buildOutlinerItems(SceneModel.current, { expanded: NO_EXPANSION, expandAll: true }))[0];
+      if (first != null) useSelection.getState().select(first);
     }
   }, [sceneCount]);
 
   const select = (id: EntityId | null) => useSelection.getState().select(id);
 
-  const onRowClick = (id: EntityId, e: React.MouseEvent) => {
+  const onRowClick = (item: OutlinerItem, e: React.MouseEvent) => {
+    if (item.kind === 'folder') {
+      toggleExpanded(item.key);
+      return;
+    }
+    const id = item.id;
     const store = useSelection.getState();
     if (e.metaKey || e.ctrlKey) {
       store.toggleSelect(id);
@@ -114,18 +134,28 @@ export function Outliner() {
     }
   };
 
-  const onContextMenu = (e: React.MouseEvent, id: EntityId) => {
+  const onContextMenu = (e: React.MouseEvent, item: OutlinerItem) => {
     e.preventDefault();
-    // Right-clicking outside the current selection selects just that entity;
-    // right-clicking within it keeps the multi-selection.
-    if (!useSelection.getState().selectedIds.has(id)) select(id);
-    setCtx({ x: e.clientX, y: e.clientY, id });
+    if (item.kind === 'entity' && !useSelection.getState().selectedIds.has(item.id)) select(item.id);
+    setCtx({ x: e.clientX, y: e.clientY, item });
   };
-  const commitRename = (id: EntityId, name: string) => {
+
+  const onStartRename = (item: OutlinerItem) => setRenaming(item.key);
+  const commitRename = (item: OutlinerItem, name: string) => {
     setRenaming(null);
     const trimmed = name.trim();
-    if (trimmed) SceneCommands.renameEntity(id, trimmed);
+    if (!trimmed) return;
+    if (item.kind === 'folder') {
+      const next = joinFolder(folderParent(item.path), trimmed);
+      if (next !== item.path) {
+        SceneCommands.renameFolder(item.path, next);
+        useOutliner.getState().rebaseFolderKeys(item.path, next);
+      }
+    } else {
+      SceneCommands.renameEntity(item.id, trimmed);
+    }
   };
+
   const addEntity = () => {
     const id = SceneCommands.addEntity();
     if (id != null) select(id);
@@ -135,7 +165,19 @@ export function Outliner() {
     return ids.has(id) ? [...ids] : [id];
   };
 
-  // — Drag-to-reparent (entity rows) + drag-a-prefab-in (Content Browser) —
+  // Create a uniquely-named folder (optionally moving a selection into it), reveal
+  // it, and drop straight into rename — the UE5 "New Folder" gesture.
+  const newFolder = (parent: string, into: EntityId[] | null) => {
+    const existing = new Set(SceneModel.sceneFolders());
+    let path = joinFolder(parent, 'New Folder');
+    for (let i = 2; existing.has(path); i++) path = joinFolder(parent, `New Folder ${i}`);
+    SceneCommands.createFolder(path);
+    if (into?.length) SceneCommands.moveToFolder(into, path);
+    useOutliner.getState().expand([folderKey(path)]);
+    setRenaming(folderKey(path));
+  };
+
+  // — Drag-to-reparent / move-to-folder + drag-a-prefab-in (Content Browser) —
   const ASSET_MIME = 'application/x-estella-asset';
   const isAssetDrag = (e: React.DragEvent) => e.dataTransfer.types.includes(ASSET_MIME);
   /** Instantiate a dropped `.esprefab` under `parent`. Returns true if handled. */
@@ -145,19 +187,18 @@ export function Outliner() {
     void ProjectStore.instantiatePrefabFromPath(path, parent);
     return true;
   };
-  const onDragStartRow = (id: EntityId, e: React.DragEvent) => {
-    dragIds.current = selectionOrTarget(id);
+  const onDragStartRow = (item: OutlinerItem, e: React.DragEvent) => {
+    if (item.kind !== 'entity') return;
+    dragIds.current = selectionOrTarget(item.id);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(id));
+    e.dataTransfer.setData('text/plain', String(item.id));
   };
-  const onDragOverRow = (id: EntityId, e: React.DragEvent) => {
-    // Either an in-progress entity reparent (move) or a Content-Browser asset
-    // (copy) — both highlight the hovered row as the drop target.
+  const onDragOverRow = (item: OutlinerItem, e: React.DragEvent) => {
     if (dragIds.current) e.dataTransfer.dropEffect = 'move';
     else if (isAssetDrag(e)) e.dataTransfer.dropEffect = 'copy';
     else return;
     e.preventDefault();
-    if (dropId !== id) setDropId(id);
+    if (dropId !== item.key) setDropId(item.key);
   };
   const reparent = (target: EntityId | null) => {
     const ids = dragIds.current;
@@ -166,66 +207,93 @@ export function Outliner() {
     if (!ids) return;
     for (const child of ids) if (child !== target) SceneCommands.setParent(child, target);
   };
-  const onDropRow = (id: EntityId, e: React.DragEvent) => {
+  const moveToFolder = (path: string | null) => {
+    const ids = dragIds.current;
+    dragIds.current = null;
+    setDropId(null);
+    if (ids) SceneCommands.moveToFolder(ids, path);
+  };
+  const onDropRow = (item: OutlinerItem, e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDropId(null);
-    if (dropPrefabAsset(e, id)) return; // drop a prefab onto an entity = under it
-    reparent(id);
+    if (item.kind === 'folder') {
+      if (dropPrefabAsset(e, null)) return; // prefab onto a folder → instantiate at root
+      moveToFolder(item.path);
+      return;
+    }
+    if (dropPrefabAsset(e, item.id)) return; // prefab onto an entity = under it
+    reparent(item.id);
   };
 
-  // Empty-space drag-drop (un-parent to root / instantiate a prefab at the root).
+  // Empty-space drop = move to the scene root (un-parent + clear folder).
   const onBodyDragOver = (e: React.DragEvent) => {
     if (dragIds.current || isAssetDrag(e)) e.preventDefault();
   };
   const onBodyDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (dropPrefabAsset(e, null)) return;
-    reparent(null);
+    moveToFolder(null);
   };
 
-  const ctxItems: MenuItem[] = ctx
-    ? [
-        { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(ctx.id) },
-        {
-          label: 'Duplicate',
-          shortcut: '⌘D',
-          onClick: () => {
-            const d = SceneCommands.duplicateEntity(ctx.id);
-            if (d != null) select(d);
-          },
-        },
-        { label: 'Create Prefab', onClick: () => void ProjectStore.createPrefabFromEntity(ctx.id) },
-        {
-          label: 'Delete',
-          shortcut: '⌫',
-          onClick: () => {
-            selectionOrTarget(ctx.id).forEach((i) => SceneCommands.deleteEntity(i));
-            select(null);
-          },
-        },
+  const ctxItems: MenuItem[] = useMemo(() => {
+    if (!ctx) return [];
+    if (ctx.item.kind === 'folder') {
+      const path = ctx.item.path;
+      const sel = [...useSelection.getState().selectedIds];
+      return [
+        { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(folderKey(path)) },
+        { label: 'New Subfolder', onClick: () => newFolder(path, null) },
+        ...(sel.length ? [{ label: 'Move Selection Here', onClick: () => SceneCommands.moveToFolder(sel, path) } as MenuItem] : []),
         { sep: true },
-        { label: 'Unparent', onClick: () => selectionOrTarget(ctx.id).forEach((i) => SceneCommands.setParent(i, null)) },
-        { label: 'Add Entity', onClick: addEntity },
-      ]
-    : [];
+        { label: 'Delete Folder', onClick: () => SceneCommands.deleteFolder(path) },
+      ];
+    }
+    const id = ctx.item.id;
+    return [
+      { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(entityKey(id)) },
+      {
+        label: 'Duplicate',
+        shortcut: '⌘D',
+        onClick: () => {
+          const d = SceneCommands.duplicateEntity(id);
+          if (d != null) select(d);
+        },
+      },
+      { label: 'Create Prefab', onClick: () => void ProjectStore.createPrefabFromEntity(id) },
+      {
+        label: 'Delete',
+        shortcut: '⌫',
+        onClick: () => {
+          selectionOrTarget(id).forEach((i) => SceneCommands.deleteEntity(i));
+          select(null);
+        },
+      },
+      { sep: true },
+      { label: 'New Folder from Selection', onClick: () => newFolder('', selectionOrTarget(id)) },
+      { label: 'Move to Root', onClick: () => SceneCommands.moveToFolder(selectionOrTarget(id), null) },
+      { label: 'Unparent', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setParent(i, null)) },
+      { label: 'Add Entity', onClick: addEntity },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx]);
 
   // While playing, a UE5-style world picker switches the outliner (+ Details)
   // between the edit scene and the live running game.
   const gameMode = inspectWorld === 'game';
 
-  const renderRow = (it: (typeof items)[number]) => (
+  const renderRow = (it: OutlinerItem) => (
     <OutlinerRow
       item={it}
-      selected={selectedIds.has(it.id)}
-      renaming={renaming === it.id}
-      isDrop={dropId === it.id}
-      prefab={SceneModel.prefabTag(it.id) != null}
-      draggable
+      selected={it.kind === 'entity' && selectedIds.has(it.id)}
+      renaming={renaming === it.key}
+      isDrop={dropId === it.key}
+      prefab={it.kind === 'entity' && SceneModel.prefabTag(it.id) != null}
+      draggable={it.kind === 'entity'}
       onToggle={toggleExpanded}
       onClick={onRowClick}
       onContextMenu={onContextMenu}
-      onStartRename={setRenaming}
+      onStartRename={onStartRename}
       onCommitRename={commitRename}
       onToggleVisible={(id, visible) => SceneCommands.setEntityVisible(id, visible)}
       onDragStart={onDragStartRow}
@@ -260,6 +328,9 @@ export function Outliner() {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
+            <button type="button" className="pbtn" title="New folder" onClick={() => newFolder('', null)}>
+              <FolderPlus size={15} strokeWidth={2} />
+            </button>
             <button type="button" className="pbtn" title="Add entity" onClick={addEntity}>
               <Plus size={15} strokeWidth={2} />
             </button>

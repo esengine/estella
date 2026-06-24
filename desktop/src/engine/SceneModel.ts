@@ -20,7 +20,11 @@ export type ModelEvent =
   | { kind: 'componentChanged'; sourceId: number; type: string }
   | { kind: 'componentRemoved'; sourceId: number; type: string }
   | { kind: 'parentChanged'; sourceId: number }
-  | { kind: 'nameChanged'; sourceId: number };
+  | { kind: 'nameChanged'; sourceId: number }
+  // An entity's outliner folder path changed (organizational; not a World/ECS change).
+  | { kind: 'folderChanged'; sourceId: number }
+  // The scene's explicit-folder set changed (create/rename/delete of a folder).
+  | { kind: 'foldersChanged' };
 
 type Listener = (ev: ModelEvent) => void;
 
@@ -251,6 +255,44 @@ export class SceneModelImpl {
       if (np && !np.children.includes(sourceId)) np.children.push(sourceId);
     }
     this.emit({ kind: 'parentChanged', sourceId });
+  }
+
+  // ── Outliner folders (organizational; orthogonal to the transform `parent`) ──
+  // A folder is a slash-delimited PATH stored as an editor-only per-entity field
+  // (`folder`) plus a scene-level list of explicit/empty folders (`folders`).
+  // Neither reaches the World (the Reconciler reads only components/parent/name)
+  // and both round-trip through save verbatim, so this stays lossless + ECS-free.
+  // Path semantics (prefixes, rename) live in the command/builder layer; the model
+  // only stores raw values. Storing `""` removes the field (cleaner JSON).
+
+  /** An entity's folder path, or `""` (scene root) when it has none. */
+  folderOf(sourceId: number): string {
+    const e = this.entityBySource(sourceId) as { folder?: string } | undefined;
+    return e?.folder ?? '';
+  }
+
+  /** Set an entity's folder path (`""` clears it). */
+  setFolder(sourceId: number, path: string): void {
+    const e = this.entityBySource(sourceId) as (SceneEntity & { folder?: string }) | undefined;
+    if (!e) return;
+    if (path) e.folder = path;
+    else delete e.folder;
+    this.emit({ kind: 'folderChanged', sourceId });
+  }
+
+  /** The scene's explicit folder list (so empty folders persist). */
+  sceneFolders(): string[] {
+    const d = this.data as (SceneData & { folders?: string[] }) | null;
+    return d?.folders ? [...d.folders] : [];
+  }
+
+  /** Replace the scene's explicit folder list (empty clears the field). */
+  setSceneFolders(paths: string[]): void {
+    if (!this.data) return;
+    const d = this.data as SceneData & { folders?: string[] };
+    if (paths.length) d.folders = [...paths];
+    else delete d.folders;
+    this.emit({ kind: 'foldersChanged' });
   }
 
   // ── Source↔runtime map (Reconciler-only writers) ─────────────────────────
