@@ -6,9 +6,9 @@ import { defineResource, Time } from '../resource';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import type { Entity } from '../types';
-import { SpineManager } from './SpineManager';
-import type { SpineWasmProvider } from './SpineModuleLoader';
-import { createSpineFactories } from './SpineModuleLoader';
+import { SpineManager, type SpineVersion } from './SpineManager';
+import type { SpineModuleFactory, SpineWasmModule } from './SpineModuleLoader';
+import { SPINE_VERSIONS, spineModuleId } from '../sideModules';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'event';
 
@@ -41,18 +41,14 @@ const SPINE_TYPE_MAP: Record<number, SpineEventType | null> = {
 export class SpinePlugin implements Plugin {
     name = 'spine';
     private spineManager_: SpineManager | null;
-    private provider_: SpineWasmProvider | null;
     private app_: App | null = null;
     private despawnUnsub_: (() => void) | null = null;
 
-    constructor(managerOrProvider?: SpineManager | SpineWasmProvider) {
-        if (managerOrProvider instanceof SpineManager) {
-            this.spineManager_ = managerOrProvider;
-            this.provider_ = null;
-        } else {
-            this.spineManager_ = null;
-            this.provider_ = managerOrProvider ?? null;
-        }
+    /** Pass an explicit manager for headless/tests; otherwise the plugin builds
+     *  one in {@link build} from the app's {@link App.sideModules} host (the realm
+     *  decides the transport — fetch / inlined / WeChat). */
+    constructor(manager?: SpineManager) {
+        this.spineManager_ = manager ?? null;
     }
 
     get spineManager(): SpineManager | null {
@@ -74,8 +70,16 @@ export class SpinePlugin implements Plugin {
         this.app_ = app;
         const coreModule = app.wasmModule!;
 
-        if (!this.spineManager_ && this.provider_) {
-            const factories = createSpineFactories(this.provider_);
+        if (!this.spineManager_ && app.sideModules) {
+            const host = app.sideModules;
+            const factories = new Map<SpineVersion, SpineModuleFactory>();
+            for (const version of SPINE_VERSIONS) {
+                factories.set(version, async () => {
+                    const m = await host.acquire(spineModuleId(version));
+                    if (!m) throw new Error(`spine ${version} module unavailable in this realm`);
+                    return m as unknown as SpineWasmModule;
+                });
+            }
             this.spineManager_ = new SpineManager(coreModule, factories);
         }
 

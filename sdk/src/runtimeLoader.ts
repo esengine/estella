@@ -14,6 +14,7 @@ import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import { SpineManager } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
+import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
 import type { Vec2 } from './types';
 import type { AddressableManifest } from './asset/AddressableManifest';
@@ -324,9 +325,6 @@ export interface LoadRuntimeSceneOptions {
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
     physicsEnabled?: boolean;
-    /** Lazy, realm-specific side-module acquirer (play realm fetches physics.wasm);
-     *  called only when gated in and no `physicsModule` was pre-supplied. */
-    acquirePhysics?: () => Promise<PhysicsWasmModule | null>;
     manifest?: AddressableManifest | null;
     sceneName?: string;
 }
@@ -353,7 +351,13 @@ function sceneUsesPhysics(sceneData: SceneData): boolean {
 }
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, provider, spineManager, physicsConfig, physicsEnabled, acquirePhysics, manifest, sceneName } = options;
+    const { app, module, sceneData, provider, physicsConfig, physicsEnabled, manifest, sceneName } = options;
+
+    // The SpineManager is owned by SpinePlugin (built from the realm's
+    // app.sideModules host); read it from there so every realm — play / playable /
+    // wechat — loads spine assets through one manager. An explicit option still
+    // wins for headless/tests.
+    const spineManager = options.spineManager ?? app.getPlugin(SpinePlugin)?.spineManager ?? null;
 
     const discovered = discoverSceneAssets(sceneData);
 
@@ -363,17 +367,20 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const spineAssetInfo = await loadSpineAssets(module, provider, spineManager, discovered.spines);
 
     // Self-gating: install physics when the project declares it OR the scene uses
-    // it, so no runtime entry can forget to wire it. Module is pre-supplied
-    // (playable/wechat embed) or lazily acquired (play realm fetches side-module).
-    // Install once via addPlugin (also registers it in the observability surface).
+    // it, so no runtime entry can forget to wire it. The module comes from the
+    // realm's side-module host (app.sideModules) — fetch / inlined / WeChat — or
+    // an explicit override for tests. Install once via addPlugin (also registers
+    // it in the observability surface).
     let physicsModule = options.physicsModule ?? null;
     const wantsPhysics = !!physicsEnabled || sceneUsesPhysics(sceneData);
     if (!wantsPhysics) {
         log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
     } else {
-        if (!physicsModule && acquirePhysics) physicsModule = await acquirePhysics();
+        if (!physicsModule && app.sideModules) {
+            physicsModule = (await app.sideModules.acquire('physics')) as PhysicsWasmModule | null;
+        }
         if (!physicsModule) {
-            log.warn('physics', `wanted (declared=${!!physicsEnabled}) but no module loaded — side-module fetch/link failed or no provider for this realm`);
+            log.warn('physics', `wanted (declared=${!!physicsEnabled}) but no module loaded — this realm has no side-module host or physics.wasm failed to load`);
         } else if (!app.getPlugin(PhysicsPlugin)) {
             const gravity = physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY };
             const config: PhysicsPluginConfig = {
@@ -445,8 +452,6 @@ export interface RuntimeInitConfig {
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
     /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
     physicsEnabled?: boolean;
-    /** Lazy physics module acquirer; see {@link LoadRuntimeSceneOptions.acquirePhysics}. */
-    acquirePhysics?: () => Promise<PhysicsWasmModule | null>;
     manifest?: AddressableManifest | null;
     aspectRatio?: number;
 }
@@ -465,7 +470,6 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         physicsModule: config.physicsModule,
         physicsConfig: config.physicsConfig,
         physicsEnabled: config.physicsEnabled,
-        acquirePhysics: config.acquirePhysics,
         manifest: config.manifest,
     };
 

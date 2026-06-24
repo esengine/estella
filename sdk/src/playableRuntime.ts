@@ -3,29 +3,21 @@
 /**
  * @file    playableRuntime.ts
  * @brief   Playable ad runtime initialization (single-HTML builds)
+ *
+ * @details Side modules (physics, spine) are NOT wired here: the host page builds
+ *          an {@link createEmbeddedSideModuleHost} from the exporter-inlined
+ *          base64 registry and hands it to `createWebApp`, so physics and spine
+ *          self-gate off `app.sideModules` exactly as in every other realm. This
+ *          entry only owns the embedded asset provider + the runtime boot.
  */
-
 import type { App } from './app';
 import type { ESEngineModule } from './wasm';
 import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetProvider } from './runtimeLoader';
-import { Assets } from './asset/AssetPlugin';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { Vec2 } from './types';
-import type { SpineWasmModule } from './spine/SpineModuleLoader';
-import { SpineManager, type SpineVersion } from './spine/SpineManager';
-import { SpinePlugin } from './spine/SpinePlugin';
-import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { SceneData } from './scene';
 import { Audio } from './audio/Audio';
-import { log } from './logger';
-
-declare const ESPhysicsModule: ((opts: unknown) => Promise<PhysicsWasmModule>) | undefined;
-
-export interface SpineModuleEntry {
-    factory: (opts: unknown) => Promise<SpineWasmModule>;
-    wasmBase64: string;
-}
 
 export interface PlayableRuntimeConfig {
     app: App;
@@ -34,8 +26,6 @@ export interface PlayableRuntimeConfig {
     assets: Record<string, string>;
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
-    spineModules?: Record<string, SpineModuleEntry>;
-    physicsWasmBase64?: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
     manifest?: AddressableManifest | null;
 }
@@ -48,18 +38,15 @@ class EmbeddedAssetProvider implements RuntimeAssetProvider {
     }
 
     async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
-        const dataUrl = this.getAsset(ref);
-        return loadImagePixels(dataUrl);
+        return loadImagePixels(this.getAsset(ref));
     }
 
     readText(ref: string): string {
-        const dataUrl = this.getAsset(ref);
-        return decodeDataUrlText(dataUrl);
+        return decodeDataUrlText(this.getAsset(ref));
     }
 
     readBinary(ref: string): Uint8Array {
-        const dataUrl = this.getAsset(ref);
-        return decodeDataUrlBinary(dataUrl);
+        return decodeDataUrlBinary(this.getAsset(ref));
     }
 
     resolvePath(ref: string): string {
@@ -103,114 +90,8 @@ function loadImagePixels(dataUrl: string): Promise<{ width: number; height: numb
     });
 }
 
-function decodeBase64ToWasm(base64: string): Uint8Array {
-    const raw = atob(base64);
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) {
-        bytes[i] = raw.charCodeAt(i);
-    }
-    return bytes;
-}
-
-async function instantiateWasmModule(
-    factory: (opts: unknown) => Promise<unknown>,
-    wasmBase64: string,
-): Promise<unknown | null> {
-    try {
-        const wasmBytes = decodeBase64ToWasm(wasmBase64);
-        let rejectOnError: (e: unknown) => void = () => {};
-        const errorGate = new Promise<never>((_, reject) => { rejectOnError = reject; });
-        const opts: Record<string, unknown> = {
-            instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
-                const response = new Response(wasmBytes.buffer as ArrayBuffer, {
-                    headers: { 'Content-Type': 'application/wasm' },
-                });
-                WebAssembly.instantiateStreaming(response, imports).then(
-                    r => cb(r.instance, r.module),
-                    () => {
-                        WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
-                            r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
-                                    (r as WebAssembly.WebAssemblyInstantiatedSource).module),
-                        ).catch(e => {
-                            // No failure channel in instantiateWasm: surface the error so
-                            // the factory promise rejects instead of hanging forever.
-                            log.error('playable', 'WASM instantiation fallback failed', e);
-                            rejectOnError(e);
-                        });
-                    },
-                );
-                return {};
-            },
-        };
-        return await Promise.race([factory(opts), errorGate]);
-    } catch (e) {
-        log.error('playable', 'WASM module init failed', e);
-        return null;
-    }
-}
-
-async function initPhysicsModule(wasmBase64: string): Promise<PhysicsWasmModule | null> {
-    if (typeof ESPhysicsModule === 'undefined') return null;
-    const mod = await instantiateWasmModule(ESPhysicsModule, wasmBase64);
-    if (!mod) log.warn('playable', 'Physics module not available');
-    return mod as PhysicsWasmModule | null;
-}
-
-function buildSpineManager(
-    module: ESEngineModule,
-    spineModules: Record<string, SpineModuleEntry>,
-): SpineManager {
-    const factories = new Map<SpineVersion, () => Promise<SpineWasmModule>>();
-    for (const [version, entry] of Object.entries(spineModules)) {
-        const ver = version as SpineVersion;
-        factories.set(ver, async () => {
-            const wasmBytes = decodeBase64ToWasm(entry.wasmBase64);
-            let rejectOnError: (e: unknown) => void = () => {};
-            const errorGate = new Promise<never>((_, reject) => { rejectOnError = reject; });
-            const modulePromise = entry.factory({
-                instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
-                    const response = new Response(wasmBytes.buffer as ArrayBuffer, {
-                        headers: { 'Content-Type': 'application/wasm' },
-                    });
-                    WebAssembly.instantiateStreaming(response, imports).then(
-                        r => cb(r.instance, r.module),
-                        () => {
-                            WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
-                                r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
-                                        (r as WebAssembly.WebAssemblyInstantiatedSource).module),
-                            ).catch(e => {
-                                log.error('playable', 'Spine WASM instantiation fallback failed', e);
-                                rejectOnError(e);
-                            });
-                        },
-                    );
-                    return {};
-                },
-            }) as Promise<SpineWasmModule>;
-            return Promise.race([modulePromise, errorGate]);
-        });
-    }
-    return new SpineManager(module, factories);
-}
-
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
     const { app, module, assets, scenes, firstScene } = config;
-
-    // Embedded assets are handled by EmbeddedBackend in the new Assets architecture
-    // The old registerEmbeddedAssets/setEmbeddedOnly calls are no longer needed
-
-    let spineManager: SpineManager | null = null;
-    if (config.spineModules && Object.keys(config.spineModules).length > 0) {
-        spineManager = buildSpineManager(module, config.spineModules);
-        const spinePlugin = app.getPlugin(SpinePlugin);
-        if (spinePlugin) {
-            spinePlugin.setSpineManager(spineManager);
-        }
-    }
-
-    const physicsModule = config.physicsWasmBase64
-        ? await initPhysicsModule(config.physicsWasmBase64)
-        : null;
 
     const provider = new EmbeddedAssetProvider(assets);
 
@@ -228,8 +109,6 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         provider,
         scenes,
         firstScene,
-        spineManager,
-        physicsModule,
         physicsConfig: config.physicsConfig,
         manifest: config.manifest,
         aspectRatio: config.canvas.width / config.canvas.height,

@@ -21,7 +21,6 @@ import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetProvider } from './runtimeLoader';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
-import { fetchPhysicsModule } from './physics';
 import type { Vec2 } from './types';
 import { decodeImagePixels } from './asset/imageDecode';
 
@@ -88,7 +87,7 @@ class FetchAssetProvider implements RuntimeAssetProvider {
  * register the snapshot as the sole scene, wire a fetch-backed provider, and run.
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
-    const { app, module, canvas, sceneData, assetManifest, manifest, wasmBaseUrl } = config;
+    const { app, module, canvas, sceneData, assetManifest, manifest } = config;
     const provider = new FetchAssetProvider(assetManifest);
     await initRuntime({
         app,
@@ -100,8 +99,8 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsGravity ? { gravity: config.physicsGravity } : undefined,
-        // Load the standalone physics module (physics.js+wasm) on demand when gated in.
-        acquirePhysics: wasmBaseUrl ? () => fetchPhysicsModule(wasmBaseUrl) : undefined,
+        // Physics (and spine) are acquired from app.sideModules — the fetch host
+        // createWebApp built from this realm's wasmBaseUrl.
     });
     // Per-phase / per-system frame timing for the editor profiler (enabled before
     // the loop starts so the runner instruments from frame zero).

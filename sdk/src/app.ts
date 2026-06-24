@@ -26,6 +26,7 @@ import { getDefaultContext } from './context';
 import { cameraPlugin } from './camera/CameraPlugin';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
 import { SubsystemRegistry } from './subsystems';
+import type { SideModuleHost } from './sideModules/host';
 import { log } from './logger';
 
 // =============================================================================
@@ -92,6 +93,9 @@ export class App {
     private readonly installedPluginNames_ = new Set<string>();
     // Per-App (per-realm) so isolated realms never alias; not a shared resource default.
     private readonly subsystems_ = new SubsystemRegistry();
+    // The realm's acquirer for optional native modules (physics, spine). Set once
+    // at app creation; physics/spine self-gate off it. Null in headless/test apps.
+    private sideModules_: SideModuleHost | null = null;
     private pluginsFinished_ = false;
     private readonly eventRegistry_ = new EventRegistry();
     private readonly sortedSystemsCache_ = new Map<Schedule, SystemEntry[]>();
@@ -132,6 +136,17 @@ export class App {
      *  drive their own initializing→ready/error transitions. */
     get subsystems(): SubsystemRegistry {
         return this.subsystems_;
+    }
+
+    /** The realm's optional-native-module acquirer (physics, spine). Physics and
+     *  spine pull their wasm from here, so a realm wires its transport once
+     *  (fetch / inlined / WeChat) and every subsystem follows. */
+    get sideModules(): SideModuleHost | null {
+        return this.sideModules_;
+    }
+
+    setSideModules(host: SideModuleHost): void {
+        this.sideModules_ = host;
     }
 
     addPlugins(plugins: Plugin[]): this {
@@ -907,10 +922,14 @@ export interface WebAppOptions {
     getViewportSize?: () => { width: number; height: number };
     glContextHandle?: number;
     plugins?: Plugin[];
+    /** The realm's optional-native-module acquirer; set before plugins build so
+     *  SpinePlugin (and later physics) can pull from it. See {@link App.sideModules}. */
+    sideModules?: SideModuleHost;
 }
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
     const app = App.new();
+    if (options?.sideModules) app.setSideModules(options.sideModules);
     const cppRegistry = new module.Registry() as unknown as CppRegistry;
 
     app.connectCpp(cppRegistry, module, { strict: true });

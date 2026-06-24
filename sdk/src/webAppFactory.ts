@@ -12,8 +12,8 @@ import { postProcessPlugin } from './postprocess';
 import { timelinePlugin } from './timeline';
 import { timerPlugin } from './timer';
 import { lifecyclePlugin } from './lifecycle';
-import { SpinePlugin, WebSpineWasmProvider } from './spine';
-import type { SpineWasmProvider } from './spine';
+import { SpinePlugin } from './spine';
+import { createFetchSideModuleHost, type SideModuleHost } from './sideModules';
 
 export { uiPlugins };
 // The single composed UI pipeline; the concept plugins below are
@@ -47,12 +47,12 @@ export {
 } from './timeline';
 
 export interface CreateWebAppOptions extends WebAppOptions {
-    spineProvider?: SpineWasmProvider;
     /**
-     * Base URL the per-version spine side modules (spine38.js/.wasm, …) are served
-     * from — usually the same directory as esengine.wasm. When set (and no explicit
-     * spineProvider is given) a WebSpineWasmProvider is wired so 3.8/4.1 assets load
-     * in the browser. Without either, only the engine-linked 4.2 runs.
+     * Convenience for the fetch realms (editor / web / desktop): the base URL the
+     * side-module artifacts (physics.wasm, spine38.js/.wasm, …) are served from —
+     * usually the same directory as esengine.wasm. Builds a fetch {@link SideModuleHost}
+     * when no explicit `sideModules` is given. Realms that inline their modules
+     * (playable / WeChat) pass `sideModules` directly instead.
      */
     wasmBaseUrl?: string;
 }
@@ -60,9 +60,10 @@ export interface CreateWebAppOptions extends WebAppOptions {
 const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
-    const spineProvider = options?.spineProvider
-        ?? (options?.wasmBaseUrl ? new WebSpineWasmProvider(options.wasmBaseUrl) : undefined);
-    const spinePlugin = new SpinePlugin(spineProvider);
+    const sideModules: SideModuleHost | undefined = options?.sideModules
+        ?? (options?.wasmBaseUrl ? createFetchSideModuleHost(options.wasmBaseUrl) : undefined);
+    // SpinePlugin builds its per-version SpineManager from app.sideModules in build().
+    const spinePlugin = new SpinePlugin();
     const plugins = [...uiPlugins, ...basePlugins, spinePlugin, ...(options?.plugins ?? [])];
-    return _createWebApp(module, { ...options, plugins });
+    return _createWebApp(module, { ...options, sideModules, plugins });
 }

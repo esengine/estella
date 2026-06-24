@@ -138,6 +138,24 @@ export {
 } from './lifecycle';
 
 // =============================================================================
+// Side Modules (physics / spine acquisition)
+// =============================================================================
+
+export {
+    createFetchSideModuleHost,
+    createEmbeddedSideModuleHost,
+    createWeChatSideModuleHost,
+    SIDE_MODULES,
+    SPINE_VERSIONS,
+    spineModuleId,
+    type SideModuleHost,
+    type SideModuleId,
+    type EmbeddedSideModuleEntry,
+    type EmbeddedSideModuleRegistry,
+    type WeChatSideModuleFactories,
+} from './sideModules';
+
+// =============================================================================
 // Playable Runtime
 // =============================================================================
 

@@ -15,9 +15,7 @@ import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformReadFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
 import type { AddressableManifest } from './asset/AddressableManifest';
-import type { SpineWasmModule } from './spine/SpineModuleLoader';
-import { SpineManager, type SpineVersion } from './spine/SpineManager';
-import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
+import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
 import { log } from './logger';
@@ -119,18 +117,6 @@ function instantiateModule<T>(
     return Promise.race([modulePromise, errorGate]);
 }
 
-async function initWasmModule<T>(
-    factory: (opts: unknown) => Promise<T>,
-    wasmPath: string,
-): Promise<T | null> {
-    try {
-        return await instantiateModule(factory, wasmPath);
-    } catch (e) {
-        log.warn('wechat', `Failed to load WASM module: ${wasmPath}`, e);
-        return null;
-    }
-}
-
 // =============================================================================
 // Public API
 // =============================================================================
@@ -141,8 +127,10 @@ export interface WeChatRuntimeConfig {
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
-    spineFactories?: Record<string, (opts: unknown) => Promise<SpineWasmModule>>;
-    physicsFactory?: (opts: unknown) => Promise<PhysicsWasmModule>;
+    /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
+     *  game.js supplies exactly the modules the scene needs. Physics + spine
+     *  self-gate off these via {@link createWeChatSideModuleHost}. */
+    sideModuleFactories?: WeChatSideModuleFactories;
 }
 
 export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<void> {
@@ -176,27 +164,14 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
             width: canvas.width,
             height: canvas.height,
         }),
+        // Physics + spine self-gate off these factories (require()'d in game.js).
+        sideModules: config.sideModuleFactories
+            ? createWeChatSideModuleHost(config.sideModuleFactories)
+            : undefined,
     });
 
     if (config.runtimeConfig) {
         applyBuildRuntimeConfig(app, config.runtimeConfig);
-    }
-
-    let spineManager: SpineManager | null = null;
-    if (config.spineFactories && Object.keys(config.spineFactories).length > 0) {
-        const factories = new Map<SpineVersion, () => Promise<SpineWasmModule>>();
-        for (const [version, factory] of Object.entries(config.spineFactories)) {
-            const ver = version as SpineVersion;
-            const tag = version.replace('.', '');
-            const wasmPath = `spine_${tag}.wasm`;
-            factories.set(ver, () => initWasmModule(factory, wasmPath) as Promise<SpineWasmModule>);
-        }
-        spineManager = new SpineManager(module, factories);
-    }
-
-    let physicsModule: PhysicsWasmModule | null = null;
-    if (config.physicsFactory) {
-        physicsModule = await initWasmModule(config.physicsFactory, 'physics.wasm');
     }
 
     const provider = new WeChatAssetProvider(resolvePath);
@@ -213,8 +188,6 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         provider,
         scenes,
         firstScene: config.firstScene,
-        spineManager,
-        physicsModule,
         physicsConfig: config.physicsConfig,
         manifest,
         aspectRatio: canvas.width / canvas.height,
