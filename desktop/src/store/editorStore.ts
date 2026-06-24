@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { create } from 'zustand';
-import type { EntityId, ToolMode } from '@/types';
+import type { ToolMode } from '@/types';
 
 // Global editor UI state (tools, viewport toggles, play state, launcher gate).
-// Entity selection lives in its own engine-anchored store — see selectionStore.ts.
+// Entity selection lives in its own engine-anchored store — see selectionStore.ts;
+// outliner tree state (expansion / search) lives in the OutlinerController.
 interface EditorState {
   // Active manipulation tool (select / move / rotate / scale).
   tool: ToolMode;
   setTool: (tool: ToolMode) => void;
-
-  // Expanded nodes in the outliner tree.
-  expanded: Set<EntityId>;
-  toggleExpanded: (id: EntityId) => void;
-  setExpanded: (ids: EntityId[]) => void;
 
   // Play-in-editor state.
   isPlaying: boolean;
@@ -67,15 +63,6 @@ interface EditorState {
 export const useEditorStore = create<EditorState>((set) => ({
   tool: 'move',
   setTool: (tool) => set({ tool }),
-
-  expanded: new Set<EntityId>(),
-  toggleExpanded: (id) =>
-    set((s) => {
-      const next = new Set(s.expanded);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return { expanded: next };
-    }),
-  setExpanded: (ids) => set({ expanded: new Set(ids) }),
 
   isPlaying: false,
   isPaused: false,

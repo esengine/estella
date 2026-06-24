@@ -1,227 +1,34 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ChevronRight, Eye, EyeOff, Lock, Search, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
-import { SceneQuery, buildSceneTree } from '@/engine/SceneQuery';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
-import { NodeIcon } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
-import type { SceneNode, EntityId, NodeKind } from '@/types';
+import { VirtualTree } from '@/components/VirtualTree';
+import { buildOutlinerItems, collectExpandableIds } from '@/outliner/OutlinerModel';
+import { useOutliner } from '@/outliner/OutlinerController';
+import { OutlinerRow } from '@/outliner/OutlinerRow';
+import type { EntityId } from '@/types';
 
-// Entity kind → the label shown in the outliner's right-hand "Type" column.
-const KIND_TYPE: Record<NodeKind, string> = {
-  camera: 'Camera',
-  sprite: 'Sprite',
-  spine: 'Spine',
-  physics: 'Physics',
-  ui: 'UI',
-  audio: 'Audio',
-  group: 'Group',
-  light: 'Light',
-  empty: 'Entity',
-};
+// Must match .row height in outliner.css — the fixed row size the virtual list windows by.
+const ROW_H = 24;
+const NO_EXPANSION: ReadonlySet<EntityId> = new Set();
 
-interface RowProps {
-  node: SceneNode;
-  depth: number;
-  forceExpand: boolean;
-  renaming: EntityId | null;
-  dropId: EntityId | null;
-  onStartRename: (id: EntityId) => void;
-  onCommitRename: (id: EntityId, name: string) => void;
-  onContextMenu: (e: React.MouseEvent, id: EntityId) => void;
-  onRowClick: (id: EntityId, e: React.MouseEvent) => void;
-  onDragStartRow: (id: EntityId, e: React.DragEvent) => void;
-  onDragOverRow: (id: EntityId, e: React.DragEvent) => void;
-  onDropRow: (id: EntityId, e: React.DragEvent) => void;
-}
-
-function Row(props: RowProps) {
-  const { node, depth, forceExpand, renaming, dropId } = props;
-  const selectedIds = useSelection((s) => s.selectedIds);
-  const expanded = useEditorStore((s) => s.expanded);
-  const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
-
-  const hasChildren = !!node.children?.length;
-  const isOpen = forceExpand || expanded.has(node.id);
-  const isSelected = selectedIds.has(node.id);
-  const isRenaming = renaming === node.id;
-  // Prefab-instance members read with a warm icon tint (mirrors the inspector's
-  // prefab ribbon) so instances are distinguishable in the tree (real tag data).
-  const isPrefab = SceneModel.prefabTag(node.id) != null;
-
-  // Right-column type label: prefab instances read "Prefab", others by kind,
-  // each suffixed with the child count when it has any (real data).
-  const childCount = node.children?.length ?? 0;
-  const baseType = isPrefab ? 'Prefab' : (KIND_TYPE[node.kind] ?? 'Entity');
-  const typeLabel = childCount > 0 ? `${baseType} · ${childCount}` : baseType;
-
-  return (
-    <>
-      <div
-        className={
-          `row${isSelected ? ' sel' : ''}` +
-          `${isOpen ? ' open' : ''}` +
-          `${node.visible ? '' : ' hidden'}` +
-          `${isPrefab ? ' prefab' : ''}` +
-          `${dropId === node.id ? ' drop' : ''}`
-        }
-        style={{ paddingLeft: depth * 14 }}
-        draggable={!isRenaming}
-        onClick={(e) => props.onRowClick(node.id, e)}
-        onContextMenu={(e) => props.onContextMenu(e, node.id)}
-        onDragStart={(e) => props.onDragStartRow(node.id, e)}
-        onDragOver={(e) => props.onDragOverRow(node.id, e)}
-        onDrop={(e) => props.onDropRow(node.id, e)}
-      >
-        <span
-          className={`twist${hasChildren ? '' : ' leaf'}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (hasChildren) toggleExpanded(node.id);
-          }}
-        >
-          <ChevronRight size={9} strokeWidth={3} />
-        </span>
-
-        <span className="ricon">
-          <NodeIcon kind={node.kind} />
-        </span>
-
-        {isRenaming ? (
-          <input
-            className="rname-edit"
-            defaultValue={node.name}
-            autoFocus
-            spellCheck={false}
-            onClick={(e) => e.stopPropagation()}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-              else if (e.key === 'Escape') {
-                e.currentTarget.value = node.name;
-                e.currentTarget.blur();
-              }
-            }}
-            onBlur={(e) => props.onCommitRename(node.id, e.target.value)}
-          />
-        ) : (
-          <span className="rname" onDoubleClick={() => props.onStartRename(node.id)}>
-            {node.name}
-          </span>
-        )}
-
-        <span className="rtype">{typeLabel}</span>
-
-        <span
-          className="rvis"
-          title="Toggle visibility"
-          onClick={(e) => {
-            e.stopPropagation();
-            SceneCommands.setEntityVisible(node.id, !node.visible);
-          }}
-        >
-          {node.locked ? (
-            <Lock size={12} strokeWidth={1.85} />
-          ) : node.visible ? (
-            <Eye size={13} strokeWidth={1.85} />
-          ) : (
-            <EyeOff size={13} strokeWidth={1.85} />
-          )}
-        </span>
-      </div>
-
-      {hasChildren &&
-        isOpen &&
-        node.children!.map((child) => (
-          <Row key={child.id} {...props} node={child} depth={depth + 1} />
-        ))}
-    </>
-  );
-}
-
-// Keep a node if its name matches, or any descendant does (matches + ancestors).
-function filterNode(node: SceneNode, q: string): SceneNode | null {
-  if (node.name.toLowerCase().includes(q)) return node;
-  const kids = (node.children ?? [])
-    .map((c) => filterNode(c, q))
-    .filter((n): n is SceneNode => n != null);
-  return kids.length ? { ...node, children: kids } : null;
-}
-
-// Flatten the visible tree (respecting expansion) into render order — for shift-range select.
-function flatVisible(nodes: SceneNode[], expanded: Set<EntityId>, forceExpand: boolean, out: EntityId[]) {
-  for (const n of nodes) {
-    out.push(n.id);
-    if ((forceExpand || expanded.has(n.id)) && n.children?.length) {
-      flatVisible(n.children, expanded, forceExpand, out);
-    }
-  }
-}
-
-// One row of the live "Game" tree (UE5 PIE world): a read-only view of a running
-// realm entity; click selects into PlayInspect, which Details inspects/edits live.
-const GAME_ROW_H = 24; // must match .row height in outliner.css
-
-function GameRowFlat({ node, depth, selection }: { node: SceneNode; depth: number; selection: EntityId | null }) {
-  return (
-    <div
-      className={`row${selection === node.id ? ' sel' : ''}`}
-      style={{ paddingLeft: depth * 14, height: GAME_ROW_H }}
-      onClick={() => PlayInspect.select(node.id)}
-    >
-      <span className="twist leaf">
-        <ChevronRight size={9} strokeWidth={3} />
-      </span>
-      <span className="ricon">
-        <NodeIcon kind={node.kind} />
-      </span>
-      <span className="rname">{node.name}</span>
-      <span className="rtype">{KIND_TYPE[node.kind] ?? 'Entity'}</span>
-    </div>
-  );
-}
-
-// Virtualized: a stress scene can hold thousands of live entities, and the
-// snapshot refreshes a few times a second — rendering every row as a DOM node
-// would peg the editor's main thread. Flatten to render order (the game view is
-// always-expanded) and render only the rows in the scroll window.
+// One row of the live "Game" tree (UE5 PIE world): a read-only, always-expanded
+// view of the running realm. A stress scene can hold thousands of live entities
+// refreshed a few times a second, so it shares the editor's virtualization.
 function GameTree() {
   const { snapshot, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
-  const tree = useMemo(() => buildSceneTree(snapshot), [snapshot]);
-  const flat = useMemo(() => {
-    const out: { node: SceneNode; depth: number }[] = [];
-    const walk = (nodes: SceneNode[], depth: number): void => {
-      for (const n of nodes) {
-        out.push({ node: n, depth });
-        if (n.children?.length) walk(n.children, depth + 1);
-      }
-    };
-    walk(tree, 0);
-    return out;
-  }, [tree]);
+  const items = useMemo(() => buildOutlinerItems(snapshot, { expanded: NO_EXPANSION, expandAll: true }), [snapshot]);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewH, setViewH] = useState(600);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const update = () => setViewH(el.clientHeight);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  if (flat.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="pbody">
         <div className="empty">
@@ -231,74 +38,63 @@ function GameTree() {
       </div>
     );
   }
-
-  const OVERSCAN = 8;
-  const total = flat.length;
-  const start = Math.max(0, Math.floor(scrollTop / GAME_ROW_H) - OVERSCAN);
-  const end = Math.min(total, Math.ceil((scrollTop + viewH) / GAME_ROW_H) + OVERSCAN);
-
   return (
-    <div ref={scrollRef} className="pbody" onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
-      <div style={{ height: total * GAME_ROW_H, position: 'relative' }}>
-        {flat.slice(start, end).map(({ node, depth }, i) => (
-          <div key={node.id} style={{ position: 'absolute', top: (start + i) * GAME_ROW_H, left: 0, right: 0 }}>
-            <GameRowFlat node={node} depth={depth} selection={selection} />
-          </div>
-        ))}
-      </div>
-    </div>
+    <VirtualTree
+      className="pbody"
+      items={items}
+      rowHeight={ROW_H}
+      getKey={(it) => it.key}
+      renderRow={(it) => (
+        <OutlinerRow
+          item={it}
+          selected={selection === it.id}
+          collapsible={false}
+          onToggle={() => {}}
+          onClick={(id) => PlayInspect.select(id)}
+        />
+      )}
+    />
   );
 }
 
 export function Outliner() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const structRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
-  const expanded = useEditorStore((s) => s.expanded);
+  const expanded = useOutliner((s) => s.expanded);
+  const query = useOutliner((s) => s.query);
+  const setQuery = useOutliner((s) => s.setQuery);
+  const toggleExpanded = useOutliner((s) => s.toggleExpanded);
+  const selectedIds = useSelection((s) => s.selectedIds);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const inspectWorld = useEditorStore((s) => s.inspectWorld);
   const setInspectWorld = useEditorStore((s) => s.setInspectWorld);
   const initRef = useRef(false);
   const dragIds = useRef<EntityId[] | null>(null);
 
-  const [query, setQuery] = useState('');
   const [renaming, setRenaming] = useState<EntityId | null>(null);
   const [dropId, setDropId] = useState<EntityId | null>(null);
   const [ctx, setCtx] = useState<{ x: number; y: number; id: EntityId } | null>(null);
 
-  const tree = useMemo(
-    () => (engine.status === 'ready' ? SceneQuery.readSceneTree() : []),
+  const sceneCount = useMemo(
+    () => (engine.status === 'ready' ? (SceneModel.current?.entities.length ?? 0) : 0),
     [engine.status, structRev],
   );
-
-  const q = query.trim().toLowerCase();
-  const shown = useMemo(
-    () => (q ? tree.map((n) => filterNode(n, q)).filter((n): n is SceneNode => n != null) : tree),
-    [tree, q],
+  const items = useMemo(
+    () => (engine.status === 'ready' ? buildOutlinerItems(SceneModel.current, { expanded, query }) : []),
+    [engine.status, structRev, expanded, query],
   );
-  const flatIds = useMemo(() => {
-    const out: EntityId[] = [];
-    flatVisible(shown, expanded, !!q, out);
-    return out;
-  }, [shown, expanded, q]);
+  const flatIds = useMemo(() => items.map((i) => i.id), [items]);
 
   // First time entities appear: expand groups, select the first root.
   useEffect(() => {
-    if (initRef.current || tree.length === 0) return;
+    if (initRef.current || sceneCount === 0) return;
     initRef.current = true;
-    const parents: EntityId[] = [];
-    const walk = (nodes: SceneNode[]) =>
-      nodes.forEach((n) => {
-        if (n.children?.length) {
-          parents.push(n.id);
-          walk(n.children);
-        }
-      });
-    walk(tree);
-    useEditorStore.getState().setExpanded(parents);
+    useOutliner.getState().setExpanded(collectExpandableIds(SceneModel.current));
     if (useSelection.getState().selectedId == null) {
-      useSelection.getState().select(tree[0].id);
+      const firstRoot = buildOutlinerItems(SceneModel.current, { expanded: NO_EXPANSION })[0]?.id;
+      if (firstRoot != null) useSelection.getState().select(firstRoot);
     }
-  }, [tree]);
+  }, [sceneCount]);
 
   const select = (id: EntityId | null) => useSelection.getState().select(id);
 
@@ -378,6 +174,16 @@ export function Outliner() {
     reparent(id);
   };
 
+  // Empty-space drag-drop (un-parent to root / instantiate a prefab at the root).
+  const onBodyDragOver = (e: React.DragEvent) => {
+    if (dragIds.current || isAssetDrag(e)) e.preventDefault();
+  };
+  const onBodyDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (dropPrefabAsset(e, null)) return;
+    reparent(null);
+  };
+
   const ctxItems: MenuItem[] = ctx
     ? [
         { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(ctx.id) },
@@ -408,6 +214,26 @@ export function Outliner() {
   // between the edit scene and the live running game.
   const gameMode = inspectWorld === 'game';
 
+  const renderRow = (it: (typeof items)[number]) => (
+    <OutlinerRow
+      item={it}
+      selected={selectedIds.has(it.id)}
+      renaming={renaming === it.id}
+      isDrop={dropId === it.id}
+      prefab={SceneModel.prefabTag(it.id) != null}
+      draggable
+      onToggle={toggleExpanded}
+      onClick={onRowClick}
+      onContextMenu={onContextMenu}
+      onStartRename={setRenaming}
+      onCommitRename={commitRename}
+      onToggleVisible={(id, visible) => SceneCommands.setEntityVisible(id, visible)}
+      onDragStart={onDragStartRow}
+      onDragOver={onDragOverRow}
+      onDrop={onDropRow}
+    />
+  );
+
   return (
     <div className="panel">
       {isPlaying && (
@@ -424,68 +250,52 @@ export function Outliner() {
         <GameTree />
       ) : (
         <>
-      <div className="phead">
-        <div className="search">
-          <Search size={13} strokeWidth={1.85} />
-          <input
-            placeholder="Search entities"
-            spellCheck={false}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-        <button type="button" className="pbtn" title="Add entity" onClick={addEntity}>
-          <Plus size={15} strokeWidth={2} />
-        </button>
-      </div>
-      {tree.length > 0 && (
-        <div className="outliner-cols">
-          <span className="c-name">Name</span>
-          <span className="c-type">Type</span>
-          <span className="c-vis" />
-        </div>
-      )}
-      <div
-        className="pbody"
-        onDragOver={(e) => {
-          if (dragIds.current || isAssetDrag(e)) e.preventDefault();
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          if (dropPrefabAsset(e, null)) return; // drop a prefab into empty space = scene root
-          reparent(null); // drop an entity into empty space = un-parent to the scene root
-        }}
-      >
-        {tree.length === 0 ? (
-          <div className="empty">
-            <Search size={22} strokeWidth={1.4} />
-            <p>{engine.status === 'ready' ? 'No entities in scene.' : 'Waiting for engine…'}</p>
+          <div className="phead">
+            <div className="search">
+              <Search size={13} strokeWidth={1.85} />
+              <input
+                placeholder="Search entities"
+                spellCheck={false}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <button type="button" className="pbtn" title="Add entity" onClick={addEntity}>
+              <Plus size={15} strokeWidth={2} />
+            </button>
           </div>
-        ) : shown.length === 0 ? (
-          <div className="empty">
-            <Search size={22} strokeWidth={1.4} />
-            <p>No entities match “{query}”.</p>
-          </div>
-        ) : (
-          shown.map((node) => (
-            <Row
-              key={node.id}
-              node={node}
-              depth={0}
-              forceExpand={!!q}
-              renaming={renaming}
-              dropId={dropId}
-              onStartRename={setRenaming}
-              onCommitRename={commitRename}
-              onContextMenu={onContextMenu}
-              onRowClick={onRowClick}
-              onDragStartRow={onDragStartRow}
-              onDragOverRow={onDragOverRow}
-              onDropRow={onDropRow}
+          {sceneCount > 0 && (
+            <div className="outliner-cols">
+              <span className="c-name">Name</span>
+              <span className="c-type">Type</span>
+              <span className="c-vis" />
+            </div>
+          )}
+          {sceneCount === 0 ? (
+            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop}>
+              <div className="empty">
+                <Search size={22} strokeWidth={1.4} />
+                <p>{engine.status === 'ready' ? 'No entities in scene.' : 'Waiting for engine…'}</p>
+              </div>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop}>
+              <div className="empty">
+                <Search size={22} strokeWidth={1.4} />
+                <p>No entities match “{query}”.</p>
+              </div>
+            </div>
+          ) : (
+            <VirtualTree
+              className="pbody"
+              items={items}
+              rowHeight={ROW_H}
+              getKey={(it) => it.key}
+              renderRow={renderRow}
+              onDragOver={onBodyDragOver}
+              onDrop={onBodyDrop}
             />
-          ))
-        )}
-      </div>
+          )}
         </>
       )}
 
