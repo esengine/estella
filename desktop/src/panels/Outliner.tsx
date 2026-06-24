@@ -211,6 +211,10 @@ export function Outliner() {
   const onRowClick = (item: OutlinerItem, e: React.MouseEvent) => {
     useOutliner.getState().setCursor(item.key);
     if (item.kind === 'folder') {
+      // Selecting a folder clears the entity selection (single-selection model), so
+      // the previously-selected entity stops looking selected; the folder's cursor
+      // highlight is now the only one. The twist still toggles expansion.
+      useSelection.getState().select(null);
       toggleExpanded(item.key);
       return;
     }
