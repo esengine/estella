@@ -15,6 +15,7 @@
     "verify:render": "vite build && electron scripts/headless-verify.mjs",
     "verify:render:spine": "vite build && ESTELLA_VERIFY_SCENE=/scenes/spine-test.esscene ESTELLA_VERIFY_MANIFEST=/scenes/spine-test.textures.json electron scripts/headless-verify.mjs",
     "verify:render:particles": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/particle-demo.esscene ESTELLA_VERIFY_MANIFEST=/scenes/particle-demo.textures.json ESTELLA_VERIFY_STEPS=90 electron scripts/headless-verify.mjs",
+    "verify:render:particles:gradient": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/particle-gradient.esscene ESTELLA_VERIFY_MANIFEST=/scenes/particle-gradient.textures.json ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=20 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.5,\\\"y\\\":0.5,\\\"rgb\\\":[0,255,0],\\\"tol\\\":90}]\" electron scripts/headless-verify.mjs",
     "verify:render:postprocess": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/postprocess-effects.esscene ESTELLA_VERIFY_MANIFEST=/scenes/postprocess-effects.textures.json ESTELLA_VERIFY_STEPS=30 electron scripts/headless-verify.mjs",
     "verify:render:text": "vite build && ESTELLA_VERIFY_SCENE=/scenes/ui-text-sdf.esscene ESTELLA_VERIFY_MANIFEST=/scenes/ui-text-sdf.textures.json electron scripts/headless-verify.mjs",
     "verify:render:text:rect": "vite build && ESTELLA_VERIFY_SCENE=/scenes/ui-text-rect.esscene ESTELLA_VERIFY_MANIFEST=/scenes/ui-text-sdf.textures.json electron scripts/headless-verify.mjs",

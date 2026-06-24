@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "name": "ParticleGradient",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 100, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Grad",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 0,
+          "burstCount": 1,
+          "burstInterval": 1000,
+          "maxParticles": 1,
+          "lifetimeMin": 10,
+          "lifetimeMax": 10,
+          "shape": 0,
+          "speedMin": 0,
+          "speedMax": 0,
+          "startSizeMin": 120,
+          "startSizeMax": 120,
+          "endSizeMin": 120,
+          "endSizeMax": 120,
+          "gravity": { "x": 0, "y": 0 },
+          "damping": 0,
+          "simulationSpace": 0,
+          "looping": false,
+          "playOnStart": true,
+          "startColor": { "r": 1, "g": 0, "b": 0, "a": 1 },
+          "endColor": { "r": 1, "g": 0, "b": 0, "a": 1 },
+          "colorEasing": 1,
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0",
+          "colorGradient": { "stops": [
+            { "t": 0, "color": { "r": 0, "g": 1, "b": 0, "a": 1 } },
+            { "t": 1, "color": { "r": 0, "g": 1, "b": 0, "a": 1 } }
+          ] }
+        }}
+      ],
+      "visible": true
+    }
+  ]
+}

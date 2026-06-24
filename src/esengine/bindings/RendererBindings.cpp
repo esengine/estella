@@ -331,9 +331,9 @@ u32 particle_getAliveCount(Entity entity) {
     return g_particleSystem->aliveCount(entity);
 }
 
-void particle_set_color_lut(Entity entity, uintptr_t ptr, i32 count) {
+void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count) {
     if (!g_particleSystem) return;
-    g_particleSystem->setColorLut(entity, reinterpret_cast<const f32*>(ptr), count);
+    g_particleSystem->setColorLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
 #endif
 
