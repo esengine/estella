@@ -294,6 +294,7 @@ ipcMain.handle(
       path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'playable', 'esengine.single.js'),
       path.join(process.env.APP_ROOT!, '..', 'build-playable', 'sdk', 'esengine.single.js'),
     ].find(existsSync) ?? path.join(VITE_PUBLIC, 'esengine.single.js');
+    const plat = manifest.packaging?.platforms;
     return exportGame({
       root,
       entryScene,
@@ -307,6 +308,10 @@ ipcMain.handle(
       outDir: opts?.outDir || 'dist-game',
       title: manifest.name,
       platform: opts?.platform,
+      desktopAppId: plat?.desktop?.appId,
+      desktopProductName: plat?.desktop?.productName,
+      wechatAppid: plat?.wechat?.appid,
+      wechatOrientation: plat?.wechat?.orientation,
       minify: opts?.minify,
       sourcemap: opts?.sourcemap,
       onProgress: (p) => e.sender.send('project:exportProgress', p),

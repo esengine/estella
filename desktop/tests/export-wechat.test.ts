@@ -58,6 +58,8 @@ describe('exportGame (wechat)', () => {
       outDir: out,
       title: 'My Game',
       platform: 'wechat',
+      wechatAppid: 'wxTEST0123456789',
+      wechatOrientation: 'landscape',
     });
 
     expect(res.ok).toBe(true);
@@ -86,7 +88,9 @@ describe('exportGame (wechat)', () => {
     const pcfg = JSON.parse(readFileSync(path.join(out, 'project.config.json'), 'utf8'));
     expect(pcfg.compileType).toBe('game');
     expect(pcfg.projectname).toBe('My Game');
-    expect(existsSync(path.join(out, 'game.json'))).toBe(true);
+    expect(pcfg.appid).toBe('wxTEST0123456789'); // from Project Settings → Packaging
+    const gjson = JSON.parse(readFileSync(path.join(out, 'game.json'), 'utf8'));
+    expect(gjson.deviceOrientation).toBe('landscape');
     expect(existsSync(path.join(out, 'wasm', 'esengine.js'))).toBe(true);
     expect(existsSync(path.join(out, 'wasm', 'esengine.wasm'))).toBe(true);
   }, 60_000);

@@ -76,8 +76,15 @@ export interface ProjectFeatures {
   };
 }
 
+export type ScreenOrientation = 'portrait' | 'landscape';
+/** Per-platform packaging config (the platform-specific Project Settings pages). */
+export interface WeChatPackaging { appid?: string; orientation?: ScreenOrientation; }
+export interface DesktopPackaging { appId?: string; productName?: string; }
+export interface PlayablePackaging { orientation?: ScreenOrientation; }
+
 /** Persisted Package Project settings (UE's ProjectPackagingSettings analog) —
- *  committed with the project so the build dialog restores the last target/config. */
+ *  committed with the project so the build dialog restores the last target/config
+ *  and the export reads per-platform config. */
 export interface ProjectPackaging {
   platform?: 'web' | 'desktop' | 'wechat' | 'playable';
   config?: 'development' | 'shipping';
@@ -85,6 +92,8 @@ export interface ProjectPackaging {
   openFolder?: boolean;
   /** Per-platform output-dir overrides (else the per-platform default). */
   outDir?: Partial<Record<'web' | 'desktop' | 'wechat' | 'playable', string>>;
+  /** Per-platform packaging config (appid, app id, orientation, …). */
+  platforms?: { wechat?: WeChatPackaging; desktop?: DesktopPackaging; playable?: PlayablePackaging };
 }
 
 /** Committed project identity + config (`project.esproject`). */
@@ -234,6 +243,31 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof od[k] === 'string') out[k] = od[k] as string;
       }
       if (Object.keys(out).length > 0) pkg.outDir = out;
+    }
+    if (p.platforms && typeof p.platforms === 'object') {
+      const pl = p.platforms as Record<string, unknown>;
+      const platforms: NonNullable<ProjectPackaging['platforms']> = {};
+      const wx = pl.wechat as Record<string, unknown> | undefined;
+      if (wx && typeof wx === 'object') {
+        const w: WeChatPackaging = {};
+        if (typeof wx.appid === 'string') w.appid = wx.appid;
+        if (wx.orientation === 'portrait' || wx.orientation === 'landscape') w.orientation = wx.orientation;
+        if (Object.keys(w).length > 0) platforms.wechat = w;
+      }
+      const dt = pl.desktop as Record<string, unknown> | undefined;
+      if (dt && typeof dt === 'object') {
+        const d: DesktopPackaging = {};
+        if (typeof dt.appId === 'string') d.appId = dt.appId;
+        if (typeof dt.productName === 'string') d.productName = dt.productName;
+        if (Object.keys(d).length > 0) platforms.desktop = d;
+      }
+      const pa = pl.playable as Record<string, unknown> | undefined;
+      if (pa && typeof pa === 'object') {
+        const a: PlayablePackaging = {};
+        if (pa.orientation === 'portrait' || pa.orientation === 'landscape') a.orientation = pa.orientation;
+        if (Object.keys(a).length > 0) platforms.playable = a;
+      }
+      if (Object.keys(platforms).length > 0) pkg.platforms = platforms;
     }
     if (Object.keys(pkg).length > 0) manifest.packaging = pkg;
   }

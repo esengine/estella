@@ -197,6 +197,16 @@ function Control({ setting }: { setting: Setting }) {
       );
     case 'keybinding':
       return <KeybindCapture setting={setting} />;
+    case 'string':
+      return (
+        <input
+          className="set-str"
+          value={String(value ?? '')}
+          placeholder={setting.placeholder ?? ''}
+          spellCheck={false}
+          onChange={(e) => setValue(setting.id, e.target.value)}
+        />
+      );
     case 'stringList':
       return <StringListControl setting={setting} />;
   }

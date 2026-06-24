@@ -80,6 +80,67 @@ settingsRegistry.register({
   },
 });
 
+// ── Packaging (per-platform Project Settings; read by the export, persisted to project.esproject) ──
+settingsRegistry.registerSection({ id: 'packaging', label: 'Packaging', category: 'project', order: 3 });
+
+const ORIENTATION = [{ value: 'portrait', label: 'Portrait' }, { value: 'landscape', label: 'Landscape' }];
+
+settingsRegistry.register({
+  id: 'project.packaging.wechat.appid',
+  type: 'string', scope: 'project', section: 'packaging', group: 'WeChat',
+  label: 'AppID',
+  description: 'Your WeChat MiniGame appid — written into project.config.json on export.',
+  placeholder: 'wx0123456789abcdef', default: '',
+  bind: {
+    get: () => ProjectStore.platformPackaging().wechat?.appid ?? '',
+    set: (v) => void ProjectStore.setPlatformPackaging('wechat', { appid: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.wechat.orientation',
+  type: 'enum', scope: 'project', section: 'packaging', group: 'WeChat',
+  label: 'Orientation', options: ORIENTATION, segmented: true, default: 'portrait',
+  bind: {
+    get: () => ProjectStore.platformPackaging().wechat?.orientation ?? 'portrait',
+    set: (v) => void ProjectStore.setPlatformPackaging('wechat', { orientation: v as 'portrait' | 'landscape' }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.appId',
+  type: 'string', scope: 'project', section: 'packaging', group: 'Desktop',
+  label: 'App ID',
+  description: 'Reverse-DNS id for the installer (electron-builder appId), e.g. com.studio.game.',
+  placeholder: 'com.studio.game', default: '',
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.appId ?? '',
+    set: (v) => void ProjectStore.setPlatformPackaging('desktop', { appId: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.productName',
+  type: 'string', scope: 'project', section: 'packaging', group: 'Desktop',
+  label: 'Product name',
+  description: 'Display name for the desktop app + installer (defaults to the project name).',
+  placeholder: '(project name)', default: '',
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.productName ?? '',
+    set: (v) => void ProjectStore.setPlatformPackaging('desktop', { productName: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.playable.orientation',
+  type: 'enum', scope: 'project', section: 'packaging', group: 'Playable',
+  label: 'Orientation', options: ORIENTATION, segmented: true, default: 'portrait',
+  bind: {
+    get: () => ProjectStore.platformPackaging().playable?.orientation ?? 'portrait',
+    set: (v) => void ProjectStore.setPlatformPackaging('playable', { orientation: v as 'portrait' | 'landscape' }),
+  },
+});
+
 settingsRegistry.register({
   id: 'project.physics.gravityY',
   type: 'number',

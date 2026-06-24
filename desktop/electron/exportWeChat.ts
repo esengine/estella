@@ -66,15 +66,15 @@ function stripUuidRefs(v: unknown): unknown {
   return v;
 }
 
-function gameJson(): string {
-  return JSON.stringify({ deviceOrientation: 'portrait', showStatusBar: false }, null, 2) + '\n';
+function gameJson(orientation: 'portrait' | 'landscape'): string {
+  return JSON.stringify({ deviceOrientation: orientation, showStatusBar: false }, null, 2) + '\n';
 }
 
-function projectConfigJson(title: string): string {
+function projectConfigJson(title: string, appid: string): string {
   return JSON.stringify({
     miniprogramRoot: './',
     projectname: title,
-    appid: '', // fill in your WeChat MiniGame appid in devtools
+    appid, // set in Project Settings → Packaging → WeChat (else fill in devtools)
     setting: { es6: false, minified: false },
     compileType: 'game',
   }, null, 2) + '\n';
@@ -115,6 +115,10 @@ export async function exportWeChat(opts: {
   wasmDir: string;
   outDir: string;
   title?: string;
+  /** WeChat MiniGame appid (Project Settings) → project.config.json. */
+  appid?: string;
+  /** Screen orientation (Project Settings) → game.json. */
+  orientation?: 'portrait' | 'landscape';
   minify?: boolean;
   onProgress?: OnExportProgress;
 }): Promise<ExportWeChatResult> {
@@ -182,8 +186,8 @@ export async function exportWeChat(opts: {
 
   // 5. Entry + config.
   await writeFile(path.join(absOut, 'game.js'), gameEntryJs());
-  await writeFile(path.join(absOut, 'game.json'), gameJson());
-  await writeFile(path.join(absOut, 'project.config.json'), projectConfigJson(title));
+  await writeFile(path.join(absOut, 'game.json'), gameJson(opts.orientation ?? 'portrait'));
+  await writeFile(path.join(absOut, 'project.config.json'), projectConfigJson(title, opts.appid ?? ''));
 
   // 6. The -t wechat engine runtime (WXWebAssembly glue + binary + side modules).
   progress({ phase: 'Copying runtime' });

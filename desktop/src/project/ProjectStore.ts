@@ -588,6 +588,32 @@ class ProjectStoreImpl {
     }
   }
 
+  /** Per-platform packaging config (appid / app id / orientation), or {}. */
+  platformPackaging(): NonNullable<ProjectPackaging['platforms']> {
+    return this.state?.packaging?.platforms ?? {};
+  }
+
+  /** Persist one platform's packaging config (merged) to `project.esproject`. */
+  async setPlatformPackaging<K extends keyof NonNullable<ProjectPackaging['platforms']>>(
+    platform: K,
+    patch: Partial<NonNullable<NonNullable<ProjectPackaging['platforms']>[K]>>,
+  ): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const prev = st.packaging?.platforms ?? {};
+    const platforms = { ...prev, [platform]: { ...prev[platform], ...patch } } as NonNullable<ProjectPackaging['platforms']>;
+    const packaging: ProjectPackaging = { ...st.packaging, platforms };
+    this.store.setState({ project: { ...st, packaging } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      raw.packaging = packaging;
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push('Failed to save platform settings', 'error');
+      console.error('[project] setPlatformPackaging write failed', e);
+    }
+  }
+
   /**
    * Enable/configure the project's physics feature and persist to
    * `project.esproject` (so the play realm installs physics even for

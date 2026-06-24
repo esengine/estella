@@ -29,4 +29,27 @@ describe('parseManifest — packaging', () => {
   it('omits packaging when absent', () => {
     expect(parseManifest({ name: 'X' }).packaging).toBeUndefined();
   });
+
+  it('parses per-platform packaging config, dropping unknown fields', () => {
+    const m = parseManifest({
+      name: 'X',
+      packaging: {
+        platforms: {
+          wechat: { appid: 'wx123', orientation: 'landscape', junk: 1 },
+          desktop: { appId: 'com.x.y', productName: 'Y', extra: 'z' },
+          playable: { orientation: 'portrait' },
+        },
+      },
+    });
+    expect(m.packaging?.platforms).toEqual({
+      wechat: { appid: 'wx123', orientation: 'landscape' },
+      desktop: { appId: 'com.x.y', productName: 'Y' },
+      playable: { orientation: 'portrait' },
+    });
+  });
+
+  it('drops invalid orientation + empty platform objects', () => {
+    const m = parseManifest({ name: 'X', packaging: { platforms: { wechat: { orientation: 'diagonal' }, desktop: {} } } });
+    expect(m.packaging).toBeUndefined(); // nothing valid survives
+  });
 });

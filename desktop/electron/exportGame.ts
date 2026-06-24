@@ -139,8 +139,8 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 `;
 }
 
-function desktopPackageJson(title: string): string {
-  const slug = slugify(title);
+function desktopPackageJson(title: string, appId?: string, productName?: string): string {
+  const slug = slugify(productName || title);
   return JSON.stringify({
     name: slug,
     version: '1.0.0',
@@ -149,8 +149,8 @@ function desktopPackageJson(title: string): string {
     scripts: { start: 'electron .', dist: 'electron-builder' },
     devDependencies: { electron: '^42.0.0', 'electron-builder': '^25.0.0' },
     build: {
-      appId: `com.estella.${slug}`,
-      productName: title,
+      appId: appId || `com.estella.${slug}`,
+      productName: productName || title,
       files: ['main.cjs', 'app/**/*'],
       directories: { output: 'installer' },
       mac: { target: 'dmg' },
@@ -182,10 +182,11 @@ The installer is written to \`installer/\`. Build each OS's installer on that OS
 }
 
 /** Stage the Electron shell around the web payload already built under `<absOut>/app`. */
-async function stageDesktopApp(absOut: string, title: string): Promise<void> {
-  await writeFile(path.join(absOut, 'main.cjs'), desktopMain(title));
-  await writeFile(path.join(absOut, 'package.json'), desktopPackageJson(title));
-  await writeFile(path.join(absOut, 'README.md'), desktopReadme(title));
+async function stageDesktopApp(absOut: string, title: string, appId?: string, productName?: string): Promise<void> {
+  const display = productName || title;
+  await writeFile(path.join(absOut, 'main.cjs'), desktopMain(display));
+  await writeFile(path.join(absOut, 'package.json'), desktopPackageJson(title, appId, productName));
+  await writeFile(path.join(absOut, 'README.md'), desktopReadme(display));
 }
 
 /**
@@ -210,6 +211,13 @@ export async function exportGame(opts: {
   playableHostEntry?: string;
   /** SINGLE_FILE engine glue (esengine.single.js from `-t playable`) for playable ads. */
   glueFile?: string;
+  /** Desktop installer id (Project Settings → Packaging → Desktop); default com.estella.<slug>. */
+  desktopAppId?: string;
+  /** Desktop product/display name (Project Settings); default the project title. */
+  desktopProductName?: string;
+  /** WeChat appid / orientation (Project Settings → Packaging → WeChat). */
+  wechatAppid?: string;
+  wechatOrientation?: 'portrait' | 'landscape';
   /** Per-phase progress (build log). */
   onProgress?: OnExportProgress;
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
@@ -230,6 +238,8 @@ export async function exportGame(opts: {
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
       title,
+      appid: opts.wechatAppid,
+      orientation: opts.wechatOrientation,
       minify: opts.minify,
       onProgress: opts.onProgress,
     });
@@ -310,7 +320,7 @@ export async function exportGame(opts: {
   );
 
   // 6. Desktop: wrap the payload in a runnable Electron app.
-  if (platform === 'desktop') { progress({ phase: 'Staging Electron app' }); await stageDesktopApp(absOut, title); }
+  if (platform === 'desktop') { progress({ phase: 'Staging Electron app' }); await stageDesktopApp(absOut, title, opts.desktopAppId, opts.desktopProductName); }
 
   return { ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length, warnings, errors };
 }

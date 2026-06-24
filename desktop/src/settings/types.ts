@@ -64,6 +64,12 @@ export interface EnumSetting extends BaseSetting<string> {
   segmented?: boolean;
 }
 
+/** A single-line free-text setting (e.g. a WeChat appid, a desktop product name). */
+export interface StringSetting extends BaseSetting<string> {
+  type: 'string';
+  placeholder?: string;
+}
+
 export interface ColorSetting extends BaseSetting<string> {
   type: 'color';
   /** Preset swatches (hex). */
@@ -89,6 +95,7 @@ export type Setting =
   | BooleanSetting
   | NumberSetting
   | EnumSetting
+  | StringSetting
   | ColorSetting
   | KeybindingSetting
   | StringListSetting;

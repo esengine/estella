@@ -57,6 +57,8 @@ describe('exportGame (desktop)', () => {
       outDir: out,
       title: 'My Cool Game',
       platform: 'desktop',
+      desktopAppId: 'com.studio.cool',
+      desktopProductName: 'Cool Override',
     });
 
     expect(res.ok).toBe(true);
@@ -81,8 +83,9 @@ describe('exportGame (desktop)', () => {
     expect(pkg.main).toBe('main.cjs');
     expect(pkg.scripts.start).toBe('electron .');
     expect(pkg.scripts.dist).toBe('electron-builder');
-    expect(pkg.build.productName).toBe('My Cool Game');
-    expect(pkg.name).toBe('my-cool-game'); // slugified
+    expect(pkg.build.appId).toBe('com.studio.cool');           // from Project Settings
+    expect(pkg.build.productName).toBe('Cool Override');
+    expect(pkg.name).toBe('cool-override');                     // slugified from product name
     expect(pkg.build.files).toContain('app/**/*');
 
     expect(existsSync(path.join(out, 'README.md'))).toBe(true);
