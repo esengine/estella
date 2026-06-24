@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, serializeScene, getComponent } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, serializeScene, getComponent, clearUserComponents } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 
 interface InitMessage {
@@ -38,12 +38,76 @@ window.addEventListener('resize', resize);
 resize();
 
 let app: App | null = null;
+let engineModule: ESEngineModule | null = null;
+let glHandle = 0;
+/** The init snapshot of the current play session, replayed on hot-reload: a code
+ *  edit restarts the level from where Play began (CODE reloads; the scene is the
+ *  play-start snapshot, not a fresh editor scene). */
+let lastInit: InitMessage | null = null;
 let booted = false;
+let reloadSeq = 0;
 const post = (m: Record<string, unknown>) => parent.postMessage(m, '*');
+
+/** Create the wasm module + GL context ONCE; both persist across hot-reloads —
+ *  re-instantiating wasm and re-creating GL is the expensive part a reload skips. */
+async function ensureEngine(): Promise<void> {
+  if (engineModule) return;
+  const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
+    default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
+  };
+  const module = await createModule({
+    canvas,
+    locateFile: (p: string) => `${wasmBase}${p}`,
+    print: (t: string) => console.log('[wasm]', t),
+    printErr: (t: string) => console.warn('[wasm]', t),
+  });
+
+  const gl = canvas.getContext('webgl2', {
+    alpha: false,
+    antialias: true,
+    depth: true,
+    stencil: true,
+    premultipliedAlpha: false,
+  }) as WebGL2RenderingContext | null;
+  if (!gl) throw new Error('WebGL2 is not available in this realm.');
+  glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
+  engineModule = module;
+}
+
+/** Build a fresh App on the (preserved) module + GL and run `msg`'s scene. The
+ *  caller imports the project bundle BEFORE this, so its components/systems are
+ *  already in the registry initPlayRealmRuntime drains. createWebApp's
+ *  initRendererWithContext early-returns once the renderer is live, so the GL +
+ *  EstellaContext are reused, not rebuilt — only the App + a fresh ECS Registry
+ *  are new. */
+async function buildAppAndRun(msg: InitMessage): Promise<void> {
+  const module = engineModule!;
+  app = createWebApp(module, {
+    glContextHandle: glHandle,
+    getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
+    wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
+  });
+  setEditorMode(false);
+  setPlayMode(true);
+
+  await initPlayRealmRuntime({
+    app,
+    module,
+    canvas,
+    sceneData: msg.sceneData,
+    assetManifest: msg.assetManifest,
+    // physics.wasm is served next to esengine.wasm; load it on demand.
+    wasmBaseUrl: wasmBase.replace(/\/$/, ''),
+    physicsEnabled: msg.physicsEnabled,
+    physicsGravity: msg.physicsGravity,
+    enableStats: true, // editor profiler: per-phase / per-system frame timing
+  });
+}
 
 async function boot(msg: InitMessage): Promise<void> {
   if (booted) return;
   booted = true;
+  lastInit = msg;
   try {
     // Register the project's own components/systems FIRST (side-effect import; its
     // `import 'esengine'` resolves through the import map to the shared instance).
@@ -53,47 +117,8 @@ async function boot(msg: InitMessage): Promise<void> {
     } catch {
       /* no project bundle — builtin components/systems only */
     }
-
-    const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
-      default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
-    };
-    const module = await createModule({
-      canvas,
-      locateFile: (p: string) => `${wasmBase}${p}`,
-      print: (t: string) => console.log('[wasm]', t),
-      printErr: (t: string) => console.warn('[wasm]', t),
-    });
-
-    const gl = canvas.getContext('webgl2', {
-      alpha: false,
-      antialias: true,
-      depth: true,
-      stencil: true,
-      premultipliedAlpha: false,
-    }) as WebGL2RenderingContext | null;
-    if (!gl) throw new Error('WebGL2 is not available in this realm.');
-    const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
-
-    app = createWebApp(module, {
-      glContextHandle: glHandle,
-      getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
-      wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
-    });
-    setEditorMode(false);
-    setPlayMode(true);
-
-    await initPlayRealmRuntime({
-      app,
-      module,
-      canvas,
-      sceneData: msg.sceneData,
-      assetManifest: msg.assetManifest,
-      // physics.wasm is served next to esengine.wasm; load it on demand.
-      wasmBaseUrl: wasmBase.replace(/\/$/, ''),
-      physicsEnabled: msg.physicsEnabled,
-      physicsGravity: msg.physicsGravity,
-      enableStats: true, // editor profiler: per-phase / per-system frame timing
-    });
+    await ensureEngine();
+    await buildAppAndRun(msg);
     post({ type: 'estella:play:ready' });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -102,6 +127,40 @@ async function boot(msg: InitMessage): Promise<void> {
       return;
     }
     console.error('[play] boot failed', err);
+    post({ type: 'estella:play:error', message });
+  }
+}
+
+/**
+ * Hot-reload the project's code in place — no wasm re-instantiation, no GL rebuild.
+ * Tears the App down keeping the renderer alive (`quit({keepRenderer})` — a full
+ * quit destroys the WebGL context), frees the old C++ Registry (disconnect only
+ * drops the JS ref), clears the per-context user components so a component-schema
+ * edit re-registers fresh (builtins are global and untouched), re-imports the
+ * rebuilt bundle (cache-busted), then rebuilds the App from the play-start
+ * snapshot. ~100ms vs a full realm reboot.
+ */
+async function reload(): Promise<void> {
+  if (!booted || !engineModule || !lastInit) return;
+  try {
+    if (app) {
+      const oldRegistry = app.world.getCppRegistry();
+      app.quit({ keepRenderer: true });
+      // Free the wasm Registry so each reload doesn't leak one onto the heap.
+      try { (oldRegistry as { delete?: () => void } | null)?.delete?.(); } catch { /* already freed */ }
+      app = null;
+    }
+    clearUserComponents();
+    try {
+      await import(/* @vite-ignore */ `${bundleUrl}?v=${++reloadSeq}`);
+    } catch {
+      /* no project bundle — builtin-only */
+    }
+    await buildAppAndRun(lastInit);
+    post({ type: 'estella:play:ready' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[play] reload failed', err);
     post({ type: 'estella:play:error', message });
   }
 }
@@ -138,6 +197,9 @@ window.addEventListener('message', (e: MessageEvent) => {
       break;
     case 'estella:play:setPaused':
       app?.setPaused(!!data.paused);
+      break;
+    case 'estella:play:reload':
+      void reload();
       break;
     case 'estella:play:query':
       // Live introspection for the editor's "Game" inspect mode (UE5 PIE Details).

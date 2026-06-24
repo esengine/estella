@@ -559,7 +559,7 @@ export class App {
         requestAnimationFrame(this.mainLoop);
     };
 
-    quit(): void {
+    quit(options?: { keepRenderer?: boolean }): void {
         this.running_ = false;
 
         for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
@@ -586,13 +586,17 @@ export class App {
         this.pipeline_ = null;
         this.runner_ = null;
         // Tear down the C++ engine context too: previously quit() only cleared
-        // JS state and dropped the
-        // module reference, so the EstellaContext was never shut down — it
-        // leaked its GPU subsystems + WebGL context, and a later init silently
-        // reused the stale (still-"initialized") singleton. shutdownRenderer is
-        // null-safe (no-op if no renderer was initialized, e.g. headless).
-        this.module_?.shutdownRenderer?.();
-        this.module_ = null;
+        // JS state and dropped the module reference, so the EstellaContext was
+        // never shut down — it leaked its GPU subsystems + WebGL context, and a
+        // later init silently reused the stale (still-"initialized") singleton.
+        // shutdownRenderer is null-safe (no-op if no renderer was initialized).
+        // `keepRenderer` skips it: hot-reload rebuilds the App but reuses the live
+        // module + GL + renderer (EstellaContext::shutdown destroys the WebGL
+        // context), so only a full quit tears the renderer down.
+        if (!options?.keepRenderer) {
+            this.module_?.shutdownRenderer?.();
+            this.module_ = null;
+        }
     }
 
     // =========================================================================

@@ -9,6 +9,7 @@
  * refresh the asset registry + Content Browser, not just the editor's own ops.
  */
 import { ProjectStore } from './ProjectStore';
+import { PlayRealm } from '../engine/PlayRealm';
 
 const listeners = new Set<() => void>();
 let version = 0;
@@ -31,10 +32,29 @@ export const fsRefresh = {
 let inited = false;
 let debounce: ReturnType<typeof setTimeout> | null = null;
 let schemaDebounce: ReturnType<typeof setTimeout> | null = null;
+let scriptsDebounce: ReturnType<typeof setTimeout> | null = null;
 
 // A project source module under src/ — a change here can alter a project
 // component's field schema, so the inspector must re-extract (esbuild, ~100ms).
 const isSourceModule = (p: string): boolean => /(^|[\\/])src[\\/].*\.(t|j)sx?$/.test(p);
+
+// A gameplay-logic edit while Play is live → rebuild the project bundle and
+// hot-reload the running realm in place (keeps wasm/GL/assets; ~100ms). A build
+// error keeps the realm on the last-good bundle rather than reloading a broken one.
+async function rebuildScriptsAndReloadPlay(): Promise<void> {
+  const buildScripts = window.estella?.project?.buildScripts;
+  if (!buildScripts) return;
+  try {
+    const res = await buildScripts();
+    if (!res.ok) {
+      console.warn('[fsWatch] project script rebuild failed; keeping running realm', res.errors);
+      return;
+    }
+    PlayRealm.reload();
+  } catch (e) {
+    console.warn('[fsWatch] project script rebuild threw', e);
+  }
+}
 
 /** Subscribe to the main-process project watcher (call once at startup). */
 export function initFsWatch(): void {
@@ -53,6 +73,13 @@ export function initFsWatch(): void {
     if (paths.some(isSourceModule)) {
       if (schemaDebounce) clearTimeout(schemaDebounce);
       schemaDebounce = setTimeout(() => void ProjectStore.refreshUserSchemas(), 250);
+
+      // Live gameplay-logic hot-reload — only while playing, so editing without
+      // Play is unaffected. Separate window: a bundle rebuild + in-place reload.
+      if (PlayRealm.getSnapshot().playing) {
+        if (scriptsDebounce) clearTimeout(scriptsDebounce);
+        scriptsDebounce = setTimeout(() => void rebuildScriptsAndReloadPlay(), 250);
+      }
     }
   });
 }

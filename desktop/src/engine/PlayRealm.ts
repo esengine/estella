@@ -100,6 +100,16 @@ class PlayRealmImpl {
     this.post({ type: 'estella:play:setPaused', paused });
   }
 
+  /** Hot-reload the running realm's project code in place: the realm re-imports
+   *  the rebuilt bundle and rebuilds its World on the live wasm + GL + assets
+   *  (fast restart from the play-start snapshot), no iframe reboot. No-op unless a
+   *  session is live and ready; `ready` flips back on the realm's `ready` reply. */
+  reload(): void {
+    if (!this.iframe?.contentWindow || !this.store.getState().ready) return;
+    this.set({ ready: false });
+    this.post({ type: 'estella:play:reload' });
+  }
+
   // — Live introspection bridge (UE5-PIE Details): query/mutate the running World —
   private reqSeq = 0;
   private readonly pending = new Map<number, (data: unknown) => void>();
