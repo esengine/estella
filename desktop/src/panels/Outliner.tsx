@@ -330,16 +330,12 @@ export function Outliner() {
     }
     if (drop?.key !== item.key || drop?.pos !== pos) setDrop({ key: item.key, pos });
   };
-  /** Move the dragged folder into `destParent` (or root). Rejects self/descendant. */
-  const moveFolderInto = (destParent: string) => {
-    const src = dragFolder.current;
-    dragFolder.current = null;
-    setDrop(null);
-    if (src == null) return;
+  /** Nest folder `src` under `destParent` (or root). Rejects self/descendant/no-op. */
+  const moveFolderInto = (src: string, destParent: string) => {
     const dest = normalizeFolder(destParent);
     if (dest === src || isFolderUnder(dest, src)) return; // into itself / its own subtree
     const next = joinFolder(dest, folderName(src));
-    if (next === src) return;
+    if (next === src) return; // already there
     SceneCommands.renameFolder(src, next);
     useOutliner.getState().rebaseFolderKeys(src, next);
   };
@@ -361,14 +357,17 @@ export function Outliner() {
     e.stopPropagation();
     const pos = drop?.pos ?? 'on';
     setDrop(null);
-    // A folder being dragged → reorder among siblings (between-rows) or nest (on).
+    // A folder is being dragged.
     if (dragFolder.current != null) {
       const src = dragFolder.current;
-      if (item.kind === 'folder' && pos !== 'on' && folderParent(src) === folderParent(item.path)) {
-        dragFolder.current = null;
-        SceneCommands.reorderFolder(src, item.path, pos === 'before');
+      dragFolder.current = null;
+      if (item.kind === 'folder') {
+        // sibling between-rows → reorder; else → nest under the target folder
+        if (pos !== 'on' && folderParent(src) === folderParent(item.path)) SceneCommands.reorderFolder(src, item.path, pos === 'before');
+        else moveFolderInto(src, item.path);
       } else {
-        moveFolderInto(item.kind === 'folder' ? item.path : SceneModel.folderOf(item.id));
+        // dropped onto an entity → that entity (+ any selection) joins the folder
+        SceneCommands.moveToFolder(selectionOrTarget(item.id), src);
       }
       return;
     }
@@ -400,7 +399,10 @@ export function Outliner() {
   const onBodyDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (dragFolder.current != null) {
-      moveFolderInto('');
+      const src = dragFolder.current;
+      dragFolder.current = null;
+      setDrop(null);
+      moveFolderInto(src, ''); // re-root the folder
       return;
     }
     if (dropPrefabAsset(e, null)) return;
