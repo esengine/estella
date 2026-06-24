@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Search, Plus, FolderPlus } from 'lucide-react';
+import { Search, Plus, FolderPlus, ArrowDownUp } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
@@ -70,6 +70,7 @@ export function Outliner() {
   const setQuery = useOutliner((s) => s.setQuery);
   const toggleExpanded = useOutliner((s) => s.toggleExpanded);
   const cursor = useOutliner((s) => s.cursor);
+  const sortMode = useOutliner((s) => s.sortMode);
   const selectedIds = useSelection((s) => s.selectedIds);
   const selectedId = useSelection((s) => s.selectedId);
   const isPlaying = useEditorStore((s) => s.isPlaying);
@@ -79,8 +80,9 @@ export function Outliner() {
   const dragIds = useRef<EntityId[] | null>(null);
 
   const [renaming, setRenaming] = useState<string | null>(null); // item key
-  const [dropId, setDropId] = useState<string | null>(null); // item key
+  const [drop, setDrop] = useState<{ key: string; pos: 'before' | 'on' | 'after' } | null>(null);
   const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem } | null>(null);
+  const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
   // Controlled scroll for reveal-on-select + keyboard nav (nonce re-fires same index).
   const [scrollTo, setScrollTo] = useState<{ index: number; nonce: number }>({ index: -1, nonce: 0 });
   const scrollNonce = useRef(0);
@@ -96,11 +98,12 @@ export function Outliner() {
         ? buildOutlinerItems(SceneModel.current, {
             expanded,
             query,
+            sort: sortMode,
             folderOf: (id) => SceneModel.folderOf(id),
             folders: SceneModel.sceneFolders(),
           })
         : [],
-    [engine.status, structRev, expanded, query],
+    [engine.status, structRev, expanded, query, sortMode],
   );
   const flatIds = useMemo(() => entityIds(items), [items]);
   const highlight = useMemo(() => parseQuery(query).text, [query]);
@@ -289,32 +292,52 @@ export function Outliner() {
     else if (isAssetDrag(e)) e.dataTransfer.dropEffect = 'copy';
     else return;
     e.preventDefault();
-    if (dropId !== item.key) setDropId(item.key);
+    // Hovering the top/bottom quarter of an entity row (manual sort, entity drag)
+    // is a between-rows reorder; the middle is a reparent. Folders are always 'on'.
+    let pos: 'before' | 'on' | 'after' = 'on';
+    if (dragIds.current && item.kind === 'entity' && sortMode === 'manual') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const rel = (e.clientY - rect.top) / rect.height;
+      pos = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'on';
+    }
+    if (drop?.key !== item.key || drop?.pos !== pos) setDrop({ key: item.key, pos });
   };
   const reparent = (target: EntityId | null) => {
     const ids = dragIds.current;
     dragIds.current = null;
-    setDropId(null);
+    setDrop(null);
     if (!ids) return;
     for (const child of ids) if (child !== target) SceneCommands.setParent(child, target);
   };
   const moveToFolder = (path: string | null) => {
     const ids = dragIds.current;
     dragIds.current = null;
-    setDropId(null);
+    setDrop(null);
     if (ids) SceneCommands.moveToFolder(ids, path);
   };
   const onDropRow = (item: OutlinerItem, e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDropId(null);
+    const pos = drop?.pos ?? 'on';
+    setDrop(null);
     if (item.kind === 'folder') {
       if (dropPrefabAsset(e, null)) return; // prefab onto a folder → instantiate at root
       moveToFolder(item.path);
       return;
     }
     if (dropPrefabAsset(e, item.id)) return; // prefab onto an entity = under it
-    reparent(item.id);
+    if (pos === 'on') {
+      reparent(item.id);
+      return;
+    }
+    // Drop-between → reorder as a sibling of the target ('after' reversed so a
+    // multi-drag keeps its relative order).
+    const ids = dragIds.current;
+    dragIds.current = null;
+    if (ids) {
+      const ordered = pos === 'before' ? ids : [...ids].reverse();
+      for (const id of ordered) if (id !== item.id) SceneCommands.reorderEntity(id, item.id, pos === 'before');
+    }
   };
 
   // Empty-space drop = move to the scene root (un-parent + clear folder).
@@ -384,7 +407,7 @@ export function Outliner() {
       cursored={cursor === it.key}
       highlight={highlight}
       renaming={renaming === it.key}
-      isDrop={dropId === it.key}
+      dropPos={drop?.key === it.key ? drop.pos : undefined}
       prefab={it.kind === 'entity' && SceneModel.prefabTag(it.id) != null}
       draggable={it.kind === 'entity'}
       onToggle={toggleExpanded}
@@ -426,6 +449,17 @@ export function Outliner() {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
+            <button
+              type="button"
+              className={`pbtn${sortMode !== 'manual' ? ' on' : ''}`}
+              title={`Sort: ${sortMode}`}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setSortMenu({ x: r.left, y: r.bottom + 2 });
+              }}
+            >
+              <ArrowDownUp size={14} strokeWidth={2} />
+            </button>
             <button type="button" className="pbtn" title="New folder" onClick={() => newFolder('', null)}>
               <FolderPlus size={15} strokeWidth={2} />
             </button>
@@ -473,6 +507,17 @@ export function Outliner() {
       )}
 
       {ctx && !gameMode && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
+      {sortMenu && !gameMode && (
+        <ContextMenu
+          x={sortMenu.x}
+          y={sortMenu.y}
+          onClose={() => setSortMenu(null)}
+          items={(['manual', 'name', 'type'] as const).map((m) => ({
+            label: `Sort: ${m[0].toUpperCase()}${m.slice(1)}`,
+            onClick: () => useOutliner.getState().setSortMode(m),
+          }))}
+        />
+      )}
     </div>
   );
 }

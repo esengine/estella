@@ -554,6 +554,44 @@ export class SceneCommandsImpl {
     this.history.record(records.length > 1 ? `Move ${records.length} to Folder` : 'Move to Folder', apply, revert);
   }
 
+  /**
+   * Drag-reorder: move an entity to sit immediately before/after a sibling target.
+   * Aligns the dragged entity's parent + folder to the target's first (so it
+   * becomes a true sibling), then reorders scene order. One undo step; rejects
+   * dropping onto its own descendant (cycle) and no-op drops.
+   */
+  reorderEntity(sourceId: EntityId, targetId: EntityId, before: boolean): void {
+    if (sourceId === targetId) return;
+    const src = this.model.entityBySource(sourceId);
+    const tgt = this.model.entityBySource(targetId);
+    if (!src || !tgt) return;
+    if (this.isModelAncestor(targetId, sourceId)) return; // target is under source → cycle
+
+    const targetParent = tgt.parent ?? null;
+    const targetFolder = targetParent === null ? this.model.folderOf(targetId) : '';
+    const beforeOrder = this.model.entityOrder();
+    const beforeParent = src.parent ?? null;
+    const beforeFolder = this.model.folderOf(sourceId);
+
+    const apply = (): void => {
+      if ((this.model.entityBySource(sourceId)?.parent ?? null) !== targetParent) this.model.setParent(sourceId, targetParent);
+      if (targetParent === null) this.model.setFolder(sourceId, targetFolder);
+      this.model.moveEntityAdjacent(sourceId, targetId, before);
+    };
+    apply();
+
+    const afterOrder = this.model.entityOrder();
+    const orderSame = beforeOrder.length === afterOrder.length && beforeOrder.every((id, i) => id === afterOrder[i]);
+    const folderSame = targetParent !== null || beforeFolder === targetFolder;
+    if (orderSame && beforeParent === targetParent && folderSame) return; // dropped in place
+
+    this.history.record('Reorder', apply, () => {
+      this.model.setEntityOrder(beforeOrder);
+      this.model.setFolder(sourceId, beforeFolder);
+      this.model.setParent(sourceId, beforeParent);
+    });
+  }
+
   /** Add a component (with its registered/schema defaults) to an entity. Undoable. */
   // Apply an add to the model and return its undo op, or null if it's a no-op
   // (entity gone / component already present). Shared by the single + batch paths.

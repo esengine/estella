@@ -29,7 +29,9 @@ export type ModelEvent =
   // folds it into the render projection; it never touches component data.
   | { kind: 'hiddenChanged'; sourceId: number }
   // An entity's editor lock changed — pure editor state (picking/selection only).
-  | { kind: 'lockChanged'; sourceId: number };
+  | { kind: 'lockChanged'; sourceId: number }
+  // Scene entity order changed (sibling drag-reorder) — affects render order only.
+  | { kind: 'orderChanged' };
 
 type Listener = (ev: ModelEvent) => void;
 
@@ -333,6 +335,42 @@ export class SceneModelImpl {
     if (locked) e.locked = true;
     else delete e.locked;
     this.emit({ kind: 'lockChanged', sourceId });
+  }
+
+  // ── Sibling order (outliner drag-reorder; render order = `data.entities` order) ──
+  // The outliner derives sibling order from each entity's position in
+  // `data.entities` (buildSceneTree's parent index preserves it), so reordering is
+  // reordering this array. The World is order-agnostic (ECS), so these never reach
+  // the Reconciler.
+
+  /** The scene's entity ids in current (render) order. */
+  entityOrder(): number[] {
+    return this.data ? this.data.entities.map((e) => e.id) : [];
+  }
+
+  /** Reorder `data.entities` to match `ids` (ids absent from the list keep their tail order). */
+  setEntityOrder(ids: number[]): void {
+    if (!this.data) return;
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    this.data.entities.sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+    this.emit({ kind: 'orderChanged' });
+  }
+
+  /** Move an entity immediately before/after a target in scene order (drag-reorder). */
+  moveEntityAdjacent(sourceId: number, targetId: number, before: boolean): void {
+    if (!this.data || sourceId === targetId) return;
+    const arr = this.data.entities;
+    const si = arr.findIndex((e) => e.id === sourceId);
+    if (si < 0) return;
+    const [moved] = arr.splice(si, 1);
+    let ti = arr.findIndex((e) => e.id === targetId);
+    if (ti < 0) {
+      arr.splice(si, 0, moved); // target vanished — put it back
+      return;
+    }
+    if (!before) ti += 1;
+    arr.splice(ti, 0, moved);
+    this.emit({ kind: 'orderChanged' });
   }
 
   // ── Source↔runtime map (Reconciler-only writers) ─────────────────────────

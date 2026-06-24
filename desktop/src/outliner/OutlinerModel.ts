@@ -52,9 +52,14 @@ export const entityKey = (id: EntityId): string => `e${id}`;
 /** Expansion/identity key for a folder row. */
 export const folderKey = (path: string): string => `f:${path}`;
 
+/** Sibling sort: `manual` keeps scene (data) order; `name`/`type` are view-only. */
+export type SortMode = 'manual' | 'name' | 'type';
+
 export interface BuildOutlinerOpts {
   /** Expanded item keys. Ignored when `expandAll` (or a filter) is on. */
   expanded: ReadonlySet<string>;
+  /** Sibling sort mode (default `manual` = scene order). */
+  sort?: SortMode;
   /** A root entity's folder path (`""` = scene root). Absent ⇒ no folders (PIE). */
   folderOf?: (id: EntityId) => string;
   /** The scene's explicit (incl. empty) folders, so empties still show. */
@@ -94,6 +99,15 @@ export function parseQuery(raw: string): ParsedQuery {
 
 const queryActive = (q: ParsedQuery): boolean => q.text !== '' || q.types.length > 0 || q.comps.length > 0;
 
+/** Sort a sibling list by mode (manual = unchanged scene order). */
+function sortNodes(nodes: SceneNode[], mode: SortMode): SceneNode[] {
+  if (mode === 'manual') return nodes;
+  const by = mode === 'name'
+    ? (a: SceneNode, b: SceneNode) => a.name.localeCompare(b.name)
+    : (a: SceneNode, b: SceneNode) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name);
+  return [...nodes].sort(by);
+}
+
 /** Keep a node if it matches `keep`, or any descendant does (matches + ancestors). */
 function filterNode(node: SceneNode, keep: (n: SceneNode) => boolean): SceneNode | null {
   if (keep(node)) return node; // self matches → keep the whole subtree
@@ -124,6 +138,7 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
   const shown = active ? roots.map((n) => filterNode(n, keep)).filter((n): n is SceneNode => n != null) : roots;
   const expandAll = !!opts.expandAll || active;
   const folderOf = opts.folderOf ?? (() => ROOT_FOLDER);
+  const sort = opts.sort ?? 'manual';
 
   // Group the shown roots by their folder path, and gather every folder to show:
   // each root path's prefixes, plus the scene's explicit folders (only when not
@@ -151,7 +166,7 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
     const hasChildren = !!node.children?.length;
     const expanded = expandAll || opts.expanded.has(entityKey(node.id));
     out.push({ kind: 'entity', key: entityKey(node.id), id: node.id, node, depth, hasChildren, expanded, parentKey });
-    if (hasChildren && expanded) for (const c of node.children!) emitEntity(c, depth + 1, entityKey(node.id));
+    if (hasChildren && expanded) for (const c of sortNodes(node.children!, sort)) emitEntity(c, depth + 1, entityKey(node.id));
   };
 
   // Emit the child folders of `path` (nested) then the entity roots directly in it.
@@ -162,7 +177,7 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
       out.push({ kind: 'folder', key: folderKey(fp), path: fp, name: folderName(fp), count: countUnder(fp), depth, hasChildren: hasKids, expanded, parentKey });
       if (expanded) emitFolderContents(fp, depth + 1, folderKey(fp));
     }
-    for (const root of rootsByFolder.get(path) ?? []) emitEntity(root, depth, parentKey);
+    for (const root of sortNodes(rootsByFolder.get(path) ?? [], sort)) emitEntity(root, depth, parentKey);
   };
 
   emitFolderContents(ROOT_FOLDER, 0, null);

@@ -160,3 +160,30 @@ describe('token search', () => {
     expect(queryIds(compScene(), 'type:sprite zzz')).toEqual([]); // name fails → none
   });
 });
+
+// kinds: 2=camera, 1/3/4=sprite. names chosen so name-sort ≠ type-sort.
+function sortScene(): SceneData {
+  return {
+    version: '1.0',
+    name: 's',
+    entities: [
+      { id: 1, name: 'Zed', parent: null, children: [], components: [{ type: 'Sprite', data: {} }] },
+      { id: 2, name: 'Apple', parent: null, children: [], components: [{ type: 'Camera', data: {} }] },
+      { id: 3, name: 'Mid', parent: null, children: [], components: [{ type: 'Sprite', data: {} }] },
+      { id: 4, name: 'Aaa', parent: null, children: [], components: [{ type: 'Sprite', data: {} }] },
+    ],
+  } as unknown as SceneData;
+}
+
+describe('sort mode', () => {
+  const sortedKeys = (sort: 'manual' | 'name' | 'type') => keys(buildOutlinerItems(sortScene(), { expanded: new Set(), sort }));
+  it('manual keeps scene (data) order', () => {
+    expect(sortedKeys('manual')).toEqual(['e1', 'e2', 'e3', 'e4']);
+  });
+  it('name sorts alphabetically', () => {
+    expect(sortedKeys('name')).toEqual(['e4', 'e2', 'e3', 'e1']); // Aaa, Apple, Mid, Zed
+  });
+  it('type sorts by kind then name', () => {
+    expect(sortedKeys('type')).toEqual(['e2', 'e4', 'e3', 'e1']); // camera(Apple), then sprites Aaa, Mid, Zed
+  });
+});

@@ -17,7 +17,7 @@
 import { create } from 'zustand';
 import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
 import type { EntityId } from '@/types';
-import { entityKey, folderKey } from './OutlinerModel';
+import { entityKey, folderKey, type SortMode } from './OutlinerModel';
 import { folderPrefixes, normalizeFolder, rebaseFolder } from './folders';
 
 interface OutlinerState {
@@ -27,6 +27,8 @@ interface OutlinerState {
   query: string;
   /** Keyboard-focus row (item key) — drives ↑↓←→ navigation; null = none. */
   cursor: string | null;
+  /** Sibling sort: `manual` (scene order) / `name` / `type`. View-only. */
+  sortMode: SortMode;
 
   /** Flip one row's expansion (pass an item key). */
   toggleExpanded: (key: string) => void;
@@ -41,6 +43,7 @@ interface OutlinerState {
   setQuery: (query: string) => void;
   /** Move the keyboard-focus row. */
   setCursor: (key: string | null) => void;
+  setSortMode: (mode: SortMode) => void;
 
   /** Prune a removed entity's key (self-heal on the model's `entityRemoved`). */
   dropId: (id: EntityId) => void;
@@ -54,6 +57,7 @@ export function createOutlinerStore(model: SceneModelImpl) {
     expanded: new Set<string>(),
     query: '',
     cursor: null,
+    sortMode: 'manual',
 
     toggleExpanded: (key) =>
       set((s) => {
@@ -101,6 +105,7 @@ export function createOutlinerStore(model: SceneModelImpl) {
       }),
     setQuery: (query) => set({ query }),
     setCursor: (cursor) => set({ cursor }),
+    setSortMode: (sortMode) => set({ sortMode }),
 
     dropId: (id) =>
       set((s) => {

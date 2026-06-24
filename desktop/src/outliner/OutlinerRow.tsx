@@ -52,7 +52,8 @@ export interface OutlinerRowProps {
   /** Lowercased substring to highlight in the name (the search bare text). */
   highlight?: string;
   renaming?: boolean;
-  isDrop?: boolean;
+  /** Active drop indicator: `on` (full row) or a between-rows insertion line. */
+  dropPos?: 'before' | 'on' | 'after';
   /** Prefab-instance member — warm icon tint (entity rows only). */
   prefab?: boolean;
   /** When false, the twist is hidden + non-interactive (the always-expanded PIE tree). */
@@ -71,7 +72,7 @@ export interface OutlinerRowProps {
 }
 
 export function OutlinerRow(props: OutlinerRowProps) {
-  const { item, selected, renaming, isDrop, prefab } = props;
+  const { item, selected, renaming, dropPos, prefab } = props;
   const isFolder = item.kind === 'folder';
   const { depth, hasChildren, expanded } = item;
 
@@ -107,7 +108,9 @@ export function OutlinerRow(props: OutlinerRowProps) {
         `${locked ? ' locked' : ''}` +
         `${prefab ? ' prefab' : ''}` +
         `${isFolder ? ' folder' : ''}` +
-        `${isDrop ? ' drop' : ''}`
+        `${dropPos === 'on' ? ' drop' : ''}` +
+        `${dropPos === 'before' ? ' drop-before' : ''}` +
+        `${dropPos === 'after' ? ' drop-after' : ''}`
       }
       style={{ paddingLeft: depth * 14 }}
       draggable={props.draggable && !renaming}

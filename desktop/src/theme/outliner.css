@@ -26,6 +26,7 @@
   transition: color var(--t-fast), background var(--t-fast);
 }
 .pbtn:hover { color: var(--text); background: var(--srf-4); }
+.pbtn.on { color: var(--acc); }
 .pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
 /* Column header strip */
@@ -62,6 +63,9 @@
 .row.sel { background: var(--acc); color: #fff; }
 .row.sel:hover { background: var(--acc); }
 .row.drop { background: var(--acc-soft); box-shadow: inset 0 0 0 1px var(--acc); }
+/* Between-rows reorder insertion line (top = before, bottom = after). */
+.row.drop-before { box-shadow: inset 0 2px 0 0 var(--acc); }
+.row.drop-after { box-shadow: inset 0 -2px 0 0 var(--acc); }
 /* Keyboard-focus ring (distinct from selection; mainly visible on folder rows). */
 .row.cursor:not(.sel) { box-shadow: inset 0 0 0 1px var(--acc-soft); }
 .pbody:focus, .pbody:focus-visible { outline: none; }
