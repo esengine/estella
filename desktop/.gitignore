@@ -8,3 +8,4 @@ release
 # Synced from the engine/SDK build (build-tools/tasks/sync.js) — generated, not source.
 public/sdk/
 public/wasm/
+public/wasm-wechat/

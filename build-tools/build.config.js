@@ -96,6 +96,33 @@ export default {
                 'sdk/spine41.wasm': 'wasm/web/spine41.wasm',
             },
         },
+        // WeChat-targeted side modules: the SAME standalone modules built under
+        // ES_BUILD_WXGAME, which forces ENVIRONMENT=web + the wxgame-pre.js shim so
+        // they evaluate inside the MiniGame runtime. Web-aligned filenames in a
+        // separate wechat dir (synced to desktop/public/wasm-wechat) → exportWeChat
+        // require()s `./wasm/physics.js` / `./wasm/spine42.js` exactly as the host expects.
+        'physics-wechat': {
+            buildDir: 'build-physics-wechat',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
+            targets: ['physics_module'],
+            outputs: {
+                'sdk/physics.js': 'wasm/wechat/physics.js',
+                'sdk/physics.wasm': 'wasm/wechat/physics.wasm',
+            },
+        },
+        'spine-wechat': {
+            buildDir: 'build-spine-wechat',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
+            targets: ['spine_module', 'spine_module_41', 'spine_module_38'],
+            outputs: {
+                'sdk/spine42.js': 'wasm/wechat/spine42.js',
+                'sdk/spine42.wasm': 'wasm/wechat/spine42.wasm',
+                'sdk/spine41.js': 'wasm/wechat/spine41.js',
+                'sdk/spine41.wasm': 'wasm/wechat/spine41.wasm',
+                'sdk/spine38.js': 'wasm/wechat/spine38.js',
+                'sdk/spine38.wasm': 'wasm/wechat/spine38.wasm',
+            },
+        },
     },
 
     sdk: {
@@ -127,7 +154,10 @@ export default {
     sync: {
         wasm: {
             'build/wasm/web': 'desktop/public/wasm',
-            'build/wasm/wechat': 'desktop/public/wasm',
+            // WeChat artifacts go to their OWN dir (main.ts resolves wechatWasm from
+            // wasm-wechat first) — web-aligned filenames (physics.js, spine42.js, …)
+            // would otherwise overwrite the web modules in desktop/public/wasm.
+            'build/wasm/wechat': 'desktop/public/wasm-wechat',
             'build/wasm/playable': 'desktop/public/wasm',
         },
         sdk: {

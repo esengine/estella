@@ -148,6 +148,17 @@ set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     --closure=0
 )
 
+# Extra link flags that make a standalone module (physics/spine) load inside the
+# WeChat MiniGame runtime: force ENVIRONMENT=web (no node/worker branches WeChat
+# can't take) and inject the same window/document shim the engine wxgame build uses
+# (ENVIRONMENT=web's module-level code touches them). Appended to the module flag
+# sets only when ES_BUILD_WXGAME — the web variant keeps the multi-env default.
+set(ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA
+    -sENVIRONMENT=web
+    "--extern-pre-js=${CMAKE_SOURCE_DIR}/src/esengine/platform/web/wxgame-pre.js"
+    --closure=0
+)
+
 # Helper function to apply Emscripten settings to a target (monolithic build)
 function(es_apply_emscripten_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
@@ -307,7 +318,11 @@ function(es_apply_spine_module_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions -fno-rtti)
 
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SPINE_MODULE_FLAGS}")
+        set(_SPINE_LINK_FLAGS ${ES_EMSCRIPTEN_SPINE_MODULE_FLAGS})
+        if(ES_BUILD_WXGAME)
+            list(APPEND _SPINE_LINK_FLAGS ${ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA})
+        endif()
+        string(REPLACE ";" " " LINK_FLAGS_STR "${_SPINE_LINK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
             SUFFIX ".js"
             LINK_FLAGS "${LINK_FLAGS_STR}"
@@ -393,7 +408,11 @@ function(es_apply_physics_module_settings TARGET_NAME)
         endif()
         target_compile_options(${TARGET_NAME} PRIVATE ${_PHYSICS_COMPILE_FLAGS})
 
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS}")
+        set(_PHYSICS_LINK_FLAGS ${ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS})
+        if(ES_BUILD_WXGAME)
+            list(APPEND _PHYSICS_LINK_FLAGS ${ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA})
+        endif()
+        string(REPLACE ";" " " LINK_FLAGS_STR "${_PHYSICS_LINK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
             SUFFIX ".js"
             LINK_FLAGS "${LINK_FLAGS_STR}"
