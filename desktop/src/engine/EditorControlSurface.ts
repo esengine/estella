@@ -146,6 +146,61 @@ export class EditorControlSurfaceImpl {
   }
 
   // =========================================================================
+  // Hierarchy & organization — the World Outliner's model operations, exposed
+  // so the headless host + editor MCP drive the same undoable commands the UI
+  // does. View state (expansion / sort / search) stays in the OutlinerController.
+  // =========================================================================
+
+  /** Re-parent an entity (transform hierarchy); `null` un-parents to the root. */
+  setParent(id: EntityId, parent: EntityId | null): void {
+    this.s.commands.setParent(id, parent);
+  }
+  /** Drag-reorder an entity before/after a sibling target (one undo step). */
+  reorderEntity(id: EntityId, target: EntityId, before: boolean): void {
+    this.s.commands.reorderEntity(id, target, before);
+  }
+
+  /** Create an explicit (initially empty) outliner folder. */
+  createFolder(path: string): void {
+    this.s.commands.createFolder(path);
+  }
+  /** Rename/move a folder (re-roots its descendants + entities). */
+  renameFolder(oldPath: string, newPath: string): void {
+    this.s.commands.renameFolder(oldPath, newPath);
+  }
+  /** Delete a folder, moving its contents up to the parent. */
+  deleteFolder(path: string): void {
+    this.s.commands.deleteFolder(path);
+  }
+  /** Move entities into a folder (`null` = scene root); un-parents them. */
+  moveToFolder(ids: readonly EntityId[], path: string | null): void {
+    this.s.commands.moveToFolder(ids, path);
+  }
+  /** An entity's folder path (`""` = scene root). */
+  getEntityFolder(id: EntityId): string {
+    return this.s.model.folderOf(id);
+  }
+  /** The scene's explicit folder list (incl. empties). */
+  getSceneFolders(): string[] {
+    return this.s.model.sceneFolders();
+  }
+
+  /** Set an entity's editor visibility (UE5 bHiddenInEditor; not gameplay enabled). */
+  setEntityHidden(id: EntityId, hidden: boolean): void {
+    this.s.commands.setEntityVisible(id, !hidden);
+  }
+  isEntityHidden(id: EntityId): boolean {
+    return this.s.model.isHidden(id);
+  }
+  /** Lock/unlock an entity (blocks viewport picking/transform). */
+  setEntityLocked(id: EntityId, locked: boolean): void {
+    this.s.commands.setEntityLocked(id, locked);
+  }
+  isEntityLocked(id: EntityId): boolean {
+    return this.s.model.isLocked(id);
+  }
+
+  // =========================================================================
   // Queries — read-only reflection of the session's scene model (the truth)
   // =========================================================================
 

@@ -104,4 +104,25 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
   it('captureViewport fails clearly without a render host', () => {
     expect(() => S.surface.captureViewport()).toThrow(/render host/);
   });
+
+  it('outliner ops — folders / visibility / lock / reorder — round-trip + undo', () => {
+    const a = S.surface.addEntity()!;
+    const b = S.surface.addEntity()!;
+
+    S.surface.createFolder('Enemies');
+    expect(S.surface.getSceneFolders()).toContain('Enemies');
+    S.surface.moveToFolder([a], 'Enemies');
+    expect(S.surface.getEntityFolder(a)).toBe('Enemies');
+
+    S.surface.setEntityHidden(a, true);
+    expect(S.surface.isEntityHidden(a)).toBe(true);
+    S.surface.setEntityLocked(b, true);
+    expect(S.surface.isEntityLocked(b)).toBe(true);
+
+    expect(S.model.entityOrder()).toEqual([a, b]);
+    S.surface.reorderEntity(b, a, true); // b before a (one undo step)
+    expect(S.model.entityOrder()).toEqual([b, a]);
+    S.surface.undo();
+    expect(S.model.entityOrder()).toEqual([a, b]);
+  });
 });
