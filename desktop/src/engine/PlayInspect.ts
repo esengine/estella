@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  PlayInspect.ts — the editor's "Game" inspection source (UE5-PIE Details).
- *        While playing, it polls the running realm for a live SceneData snapshot
+ * @file  PlayInspect.ts — the editor's "Game" inspection source.
+ *        While playing, it samples the running realm for a live SceneData snapshot
  *        (via PlayRealm.snapshot → serializeScene of the realm's World) and holds
  *        the user's live selection. The Outliner/Details build their view-models
  *        from this snapshot (reusing buildSceneTree/buildInspector) when in Game
  *        mode; field edits route to PlayRealm.setField (live, reverts on Stop).
+ *
+ *        Sampling is a COALESCED loop, not a fixed-interval poll: one request is in
+ *        flight at a time and the next is armed only after the reply, with a small
+ *        floor between starts. So the Details tracks live values smoothly on a
+ *        small scene (request returns fast → ~floor rate) and a large one self-
+ *        throttles to its serialize cost instead of backing up requests.
  *
  *        Selection here is a REALM runtime id — distinct from the editor's
  *        source-id selection (selectionStore), never mixed.
@@ -24,11 +30,20 @@ interface PlayInspectState {
   selection: EntityId | null;
 }
 
-const POLL_MS = 300;
+/** Minimum gap between sample starts (ms) — caps the rate so a large scene's full
+ *  serialize never floods the realm; small scenes sample at roughly this rate. */
+const MIN_GAP_MS = 50;
+
+/** A cheap structural signature of the shallow tree (ids / parent / name / component
+ *  types) — drives keeping the tree reference stable when only values changed. */
+function treeSig(t: SceneData): string {
+  return t.entities.map((e) => `${e.id},${e.parent ?? ''},${e.name},${e.components.map((c) => c.type).join('+')}`).join('|');
+}
 
 class PlayInspectImpl {
   private readonly store = createStore<PlayInspectState>(() => ({ snapshot: null, selectedEntity: null, selection: null }));
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private active = false;
+  private timer: ReturnType<typeof setTimeout> | null = null;
 
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getSnapshot = (): PlayInspectState => this.store.getState();
@@ -38,19 +53,18 @@ class PlayInspectImpl {
     void this.poll(); // fetch the newly-selected entity's full data immediately
   }
 
-  /** Begin polling the running realm (call on Play). */
+  /** Begin the coalesced sampling loop (call on Play). Idempotent. */
   start(): void {
-    this.stop();
-    void this.poll();
-    this.timer = setInterval(() => void this.poll(), POLL_MS);
+    if (this.active) return;
+    this.active = true;
+    void this.tick();
   }
 
-  /** Stop polling + clear (call on Stop) — live state is discarded with the realm. */
+  /** Stop sampling + clear (call on Stop) — live state is discarded with the realm. */
   stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+    this.active = false;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
     this.store.setState({ snapshot: null, selectedEntity: null, selection: null });
   }
 
@@ -60,9 +74,26 @@ class PlayInspectImpl {
     void this.poll();
   }
 
+  // Sample, then re-arm after the reply with at least MIN_GAP_MS between starts.
+  private async tick(): Promise<void> {
+    if (!this.active) return;
+    const t0 = performance.now();
+    await this.poll();
+    if (!this.active) return;
+    const wait = Math.max(0, MIN_GAP_MS - (performance.now() - t0));
+    this.timer = setTimeout(() => void this.tick(), wait);
+  }
+
   private async poll(): Promise<void> {
-    const res = await PlayRealm.snapshot(this.store.getState().selection);
-    if (res) this.store.setState({ ...this.store.getState(), snapshot: res.tree, selectedEntity: res.selected });
+    const sel = this.store.getState().selection;
+    const res = await PlayRealm.snapshot(sel);
+    if (!res) return;
+    const cur = this.store.getState();
+    // Keep the tree reference stable unless the structure changed, so the Outliner's
+    // memoized tree build is skipped between samples; only the selected entity (the
+    // Details payload) refreshes each tick.
+    const sameTree = cur.snapshot != null && treeSig(cur.snapshot) === treeSig(res.tree);
+    this.store.setState({ snapshot: sameTree ? cur.snapshot : res.tree, selectedEntity: res.selected, selection: cur.selection });
   }
 }
 

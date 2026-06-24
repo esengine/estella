@@ -110,7 +110,7 @@ class PlayRealmImpl {
     this.post({ type: 'estella:play:reload' });
   }
 
-  // — Live introspection bridge (UE5-PIE Details): query/mutate the running World —
+  // — Live introspection bridge (the "Game" Details): query/mutate the running World —
   private reqSeq = 0;
   private readonly pending = new Map<number, (data: unknown) => void>();
 

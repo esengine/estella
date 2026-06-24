@@ -202,7 +202,7 @@ window.addEventListener('message', (e: MessageEvent) => {
       void reload();
       break;
     case 'estella:play:query':
-      // Live introspection for the editor's "Game" inspect mode (UE5 PIE Details).
+      // Live introspection for the editor's "Game" inspect mode (the Details panel).
       if (data.kind === 'snapshot') {
         // Live inspect: send a SHALLOW tree (the Outliner only needs component
         // TYPES + name + each component's `enabled` flag — see modelKindOf/NameOf/
