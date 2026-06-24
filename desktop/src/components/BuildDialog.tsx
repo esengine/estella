@@ -249,9 +249,12 @@ export function BuildDialog() {
             )}
             {log.length > 0 && (
               <div className="build__logwrap">
-                <button type="button" className="build__copy" title="Copy log" onClick={copyLog}>
-                  <Copy size={11} /> Copy
-                </button>
+                <div className="build__loghead">
+                  <span className="build__loglabel">Output Log</span>
+                  <button type="button" className="build__copy" title="Copy log" aria-label="Copy log" onClick={copyLog}>
+                    <Copy size={13} />
+                  </button>
+                </div>
                 <ol className="build__log selectable">
                   {log.map((line, i) => <li key={i}>{line}</li>)}
                 </ol>
