@@ -14,7 +14,8 @@
  */
 import { Schedule, defineSystem, addSystemToSchedule } from './system';
 import { Res } from './resource';
-import { Input, InputState, GamepadAxis } from './input';
+import { Input, InputState, GamepadAxis, GamepadButton } from './input';
+import { Storage } from './storage';
 
 // =============================================================================
 // Binding model (plain, serializable — also the rebind / persistence format)
@@ -105,9 +106,23 @@ const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > 
 // InputMap
 // =============================================================================
 
+/** Which device families an interactive rebind listens to. Mouse is OFF by
+ *  default (so the click that started the rebind isn't captured). */
+export interface ListenOptions {
+    keyboard?: boolean;
+    mouse?: boolean;
+    gamepad?: boolean;
+}
+
+interface PendingListen {
+    resolve: (binding: Binding | null) => void;
+    opts: ListenOptions;
+}
+
 export class InputMap {
     private readonly defs_ = new Map<string, ActionDef>();
     private readonly state_ = new Map<string, ActionState>();
+    private pendingListen_: PendingListen | null = null;
 
     constructor(actions: Record<string, ActionDef>) {
         for (const [name, def] of Object.entries(actions)) {
@@ -119,6 +134,7 @@ export class InputMap {
     /** Recompute every action from the current raw input. Called once per frame by
      *  the registered evaluation system; edges (pressed/released) diff vs last frame. */
     evaluate(input: InputState): void {
+        if (this.pendingListen_) this.scanForRebind_(input);
         for (const [name, def] of this.defs_) {
             const st = this.state_.get(name)!;
             const prevDown = st.down;
@@ -178,6 +194,67 @@ export class InputMap {
         for (const [name, bindings] of Object.entries(data)) {
             if (this.defs_.has(name) && Array.isArray(bindings)) this.setBindings(name, bindings);
         }
+    }
+
+    // — Persistence (platform Storage) —
+    /** Save current bindings under `key`. */
+    save(key: string): void { Storage.setJSON(key, this.toJSON()); }
+    /** Apply bindings previously {@link save}d under `key`; returns true if found. */
+    load(key: string): boolean {
+        const data = Storage.getJSON<Record<string, Binding[]>>(key);
+        if (!data) return false;
+        this.loadJSON(data);
+        return true;
+    }
+
+    // — Interactive rebinding ("press any input") —
+    /** Resolve with the next physical input the user presses (or null if cancelled /
+     *  superseded by another listen). Drives a rebind UI — the evaluation system
+     *  feeds it each frame, so the map must be installed and the app running. */
+    listenForBinding(opts?: ListenOptions): Promise<Binding | null> {
+        this.cancelListen();
+        return new Promise((resolve) => { this.pendingListen_ = { resolve, opts: opts ?? {} }; });
+    }
+    /** Capture the next input and (re)bind it to `name` (replaces, or appends when `append`). */
+    async rebind(name: string, opts?: ListenOptions & { append?: boolean }): Promise<Binding | null> {
+        const b = await this.listenForBinding(opts);
+        if (b) this.setBindings(name, opts?.append ? [...this.getBindings(name), b] : [b]);
+        return b;
+    }
+    /** Cancel a pending {@link listenForBinding} (resolves it with null). */
+    cancelListen(): void {
+        const p = this.pendingListen_;
+        if (p) { this.pendingListen_ = null; p.resolve(null); }
+    }
+    isListening(): boolean { return this.pendingListen_ !== null; }
+
+    private scanForRebind_(input: InputState): void {
+        const found = this.scanBinding_(input, this.pendingListen_!.opts);
+        if (found) {
+            const p = this.pendingListen_!;
+            this.pendingListen_ = null;
+            p.resolve(found);
+        }
+    }
+
+    /** First newly-pressed input this frame, as a Binding (keyboard + gamepad by
+     *  default; mouse opt-in). Axis sources aren't captured — rebinding targets
+     *  discrete inputs. */
+    private scanBinding_(input: InputState, opts: ListenOptions): Binding | null {
+        if (opts.keyboard !== false) {
+            for (const code of input.keysPressed) return Key(code);
+        }
+        if (opts.mouse) {
+            for (const button of input.mouseButtonsPressed) return MouseButton(button);
+        }
+        if (opts.gamepad !== false) {
+            for (const pad of input.getGamepads()) {
+                for (let b = 0; b <= GamepadButton.Guide; b++) {
+                    if (input.isGamepadButtonPressed(b, pad)) return GpButton(b, pad);
+                }
+            }
+        }
+        return null;
     }
 }
 

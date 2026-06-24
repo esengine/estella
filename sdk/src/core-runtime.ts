@@ -200,6 +200,7 @@ export {
     type Binding,
     type ActionDef,
     type ActionType,
+    type ListenOptions,
 } from './inputMap';
 
 // =============================================================================
