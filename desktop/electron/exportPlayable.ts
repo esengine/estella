@@ -20,6 +20,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import type { OnExportProgress } from './exportProgress';
+import { esengineAlias } from './esengineResolve';
 
 export interface ExportPlayableResult {
   ok: boolean;
@@ -80,6 +81,9 @@ export async function exportPlayable(opts: {
   entryScene: string;
   scriptsEntry?: string;
   playableHostEntry: string;
+  /** Web SDK dist dir — `esengine` is INLINED for playable (no import map), so the
+   *  bundle aliases it here (the project root has no esengine to resolve). */
+  sdkDir: string;
   glueFile: string;
   outDir: string;
   title?: string;
@@ -136,6 +140,9 @@ export async function exportPlayable(opts: {
       format: 'iife',
       platform: 'browser',
       target: 'es2020',
+      // esengine is INLINED (single-file, no import map) → resolve it from the SDK
+      // dist; the project root has no esengine installed.
+      alias: esengineAlias(opts.sdkDir),
       minify: opts.minify ?? false,
       write: false,
       outfile: 'game-bundle.js',

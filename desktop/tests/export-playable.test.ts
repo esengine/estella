@@ -30,11 +30,14 @@ beforeAll(() => {
     JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }),
   );
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
-  // Stub project script + stub host that DON'T import esengine (keeps the test
-  // bundle trivial; real bundling is the same esbuild path the web/wechat tests use).
+  // Host + project script BOTH import 'esengine' (aliased to the stub SDK below) —
+  // exercises the real esengine resolution, so a missing alias fails the build.
   mkdirSync(path.join(root, 'src'), { recursive: true });
-  writeFileSync(path.join(root, 'src', 'main.ts'), `globalThis.__PROJ__ = 'SpawnMarker';\n`);
-  writeFileSync(path.join(root, '_host.ts'), `globalThis.__HOST__ = 'playable-host-boot';\n`);
+  writeFileSync(path.join(root, 'src', 'main.ts'), `import { defineComponent } from 'esengine';\ndefineComponent('SpawnMarker', {});\n`);
+  writeFileSync(path.join(root, '_host.ts'), `import { createWebApp } from 'esengine';\nvoid createWebApp;\nglobalThis.__HOST__ = 'playable-host-boot';\n`);
+  // Stub SDK dist (the bundle aliases `esengine` → <sdkDir>/index.js).
+  mkdirSync(path.join(root, '_sdk'), { recursive: true });
+  writeFileSync(path.join(root, '_sdk', 'index.js'), `export function createWebApp(){return{};}\nexport function defineComponent(){}\n`);
   // Stub SINGLE_FILE glue (real one comes from `-t playable`).
   writeFileSync(path.join(root, '_glue.js'), `globalThis.ESEngineModule = function(){};/*SINGLE_FILE_GLUE*/\n`);
 

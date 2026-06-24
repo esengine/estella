@@ -303,7 +303,6 @@ ipcMain.handle(
       scriptsEntry: resolveScripts(manifest).main,
       sdkDistDir,
       wasmDir: opts?.platform === 'wechat' ? wechatWasm : webWasm,
-      wechatSdkEntry: path.join(sdkDistDir, 'index.wechat.js'),
       glueFile,
       outDir: opts?.outDir || 'dist-game',
       title: manifest.name,

@@ -34,8 +34,9 @@ beforeAll(() => {
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), `import { defineComponent } from 'esengine';\ndefineComponent('SpawnMarker', { rate: 1 });\n`);
-  // Stub wechat SDK (the bundle aliases `esengine` to this) + stub -t wechat runtime.
-  writeFileSync(path.join(root, '_wechat-sdk.js'), `export function initWeChatRuntime(){return Promise.resolve();}\nexport function defineComponent(){}\n`);
+  // Stub SDK dist (the bundle aliases `esengine` → <sdkDir>/index.wechat.js) + stub -t wechat runtime.
+  mkdirSync(path.join(root, '_sdk'), { recursive: true });
+  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'), `export function initWeChatRuntime(){return Promise.resolve();}\nexport function defineComponent(){}\n`);
   mkdirSync(path.join(root, '_wxwasm'), { recursive: true });
   writeFileSync(path.join(root, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
   writeFileSync(path.join(root, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
@@ -53,7 +54,6 @@ describe('exportGame (wechat)', () => {
       gameHostEntry: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
-      wechatSdkEntry: path.join(root, '_wechat-sdk.js'),
       wasmDir: path.join(root, '_wxwasm'),
       outDir: out,
       title: 'My Game',

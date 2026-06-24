@@ -28,6 +28,7 @@ import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
 import { exportPlayable } from './exportPlayable';
 import type { OnExportProgress } from './exportProgress';
+import { ESENGINE_EXTERNAL } from './esengineResolve';
 
 export type ExportPlatform = 'web' | 'desktop' | 'wechat' | 'playable';
 
@@ -205,8 +206,6 @@ export async function exportGame(opts: {
   outDir: string;
   title?: string;
   platform?: ExportPlatform;
-  /** Built wechat SDK (dist/index.wechat.js) the WeChat bundle aliases `esengine` to. */
-  wechatSdkEntry?: string;
   /** Playable host source (src/playableHost.ts). */
   playableHostEntry?: string;
   /** SINGLE_FILE engine glue (esengine.single.js from `-t playable`) for playable ads. */
@@ -234,7 +233,7 @@ export async function exportGame(opts: {
       root: opts.root,
       entryScene: opts.entryScene,
       scriptsEntry: opts.scriptsEntry,
-      wechatSdkEntry: opts.wechatSdkEntry ?? path.join(opts.sdkDistDir, 'index.wechat.js'),
+      sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
       title,
@@ -252,6 +251,7 @@ export async function exportGame(opts: {
       entryScene: opts.entryScene,
       scriptsEntry: opts.scriptsEntry,
       playableHostEntry: opts.playableHostEntry ?? path.join(path.dirname(opts.gameHostEntry), 'playableHost.ts'),
+      sdkDir: opts.sdkDistDir,
       glueFile: opts.glueFile ?? path.join(opts.wasmDir, 'esengine.single.js'),
       outDir: opts.outDir,
       title,
@@ -271,7 +271,7 @@ export async function exportGame(opts: {
     format: 'esm',
     platform: 'browser',
     target: 'es2020',
-    external: ['esengine', 'esengine/*'],
+    external: ESENGINE_EXTERNAL,
     minify: opts.minify ?? false,
     sourcemap: opts.sourcemap ?? false,
     write: true,

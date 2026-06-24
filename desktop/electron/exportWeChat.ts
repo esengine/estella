@@ -27,6 +27,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import type { OnExportProgress } from './exportProgress';
+import { esengineAlias } from './esengineResolve';
 
 export interface ExportWeChatResult {
   ok: boolean;
@@ -103,15 +104,15 @@ async function buildAddressableManifest(absOut: string): Promise<string> {
 }
 
 /**
- * Export the open project as a WeChat MiniGame into `outDir`. `wechatSdkEntry` is
- * the built wechat SDK (dist/index.wechat.js) the bundle aliases `esengine` to;
+ * Export the open project as a WeChat MiniGame into `outDir`. `sdkDir` is the SDK
+ * dist dir the bundle aliases `esengine` to (the wechat build, index.wechat.js);
  * `wasmDir` the -t wechat engine runtime to copy.
  */
 export async function exportWeChat(opts: {
   root: string;
   entryScene: string;
   scriptsEntry?: string;
-  wechatSdkEntry: string;
+  sdkDir: string;
   wasmDir: string;
   outDir: string;
   title?: string;
@@ -171,7 +172,7 @@ export async function exportWeChat(opts: {
       format: 'cjs',
       platform: 'browser',
       target: 'es2020',
-      alias: { esengine: opts.wechatSdkEntry },
+      alias: esengineAlias(opts.sdkDir, 'index.wechat.js'),
       minify: opts.minify ?? false,
       sourcemap: false,
       outfile: path.join(absOut, 'game-bundle.js'),
