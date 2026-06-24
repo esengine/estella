@@ -555,6 +555,32 @@ export class SceneCommandsImpl {
   }
 
   /**
+   * Reorder a folder among its siblings (drag-between, manual sort). Promotes both
+   * folders to explicit (so the order persists) and places `srcPath` immediately
+   * before/after `targetPath` in the scene folder list. One undo step; only valid
+   * for same-parent siblings (a cross-parent move is a nest via {@link renameFolder}).
+   */
+  reorderFolder(srcPath: string, targetPath: string, before: boolean): void {
+    const src = normalizeFolder(srcPath);
+    const tgt = normalizeFolder(targetPath);
+    if (!src || !tgt || src === tgt) return;
+    if (folderParent(src) !== folderParent(tgt)) return; // not siblings → not a reorder
+
+    const beforeList = this.model.sceneFolders();
+    const list = [...beforeList];
+    if (!list.includes(src)) list.push(src);
+    if (!list.includes(tgt)) list.push(tgt);
+    const without = list.filter((f) => f !== src);
+    const ti = without.indexOf(tgt);
+    without.splice(before ? ti : ti + 1, 0, src);
+
+    const same = beforeList.length === without.length && beforeList.every((f, i) => f === without[i]);
+    if (same) return;
+    this.model.setSceneFolders(without);
+    this.history.record('Reorder Folder', () => this.model.setSceneFolders(without), () => this.model.setSceneFolders(beforeList));
+  }
+
+  /**
    * Drag-reorder: move an entity to sit immediately before/after a sibling target.
    * Aligns the dragged entity's parent + folder to the target's first (so it
    * becomes a true sibling), then reorders scene order. One undo step; rejects

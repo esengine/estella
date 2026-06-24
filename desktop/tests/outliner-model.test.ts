@@ -186,4 +186,11 @@ describe('sort mode', () => {
   it('type sorts by kind then name', () => {
     expect(sortedKeys('type')).toEqual(['e2', 'e4', 'e3', 'e1']); // camera(Apple), then sprites Aaa, Mid, Zed
   });
+
+  it('manual sort orders sibling folders by the scene folder list, not alphabetically', () => {
+    const data = { version: '1.0', name: 'f', entities: [] } as unknown as SceneData;
+    const folders = ['Zebra', 'Apple']; // created Z then A
+    expect(keys(buildOutlinerItems(data, { expanded: new Set(), folders }))).toEqual([folderKey('Zebra'), folderKey('Apple')]);
+    expect(keys(buildOutlinerItems(data, { expanded: new Set(), folders, sort: 'name' }))).toEqual([folderKey('Apple'), folderKey('Zebra')]);
+  });
 });

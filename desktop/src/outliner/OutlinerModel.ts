@@ -152,8 +152,19 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
   }
   if (!active) for (const f of opts.folders ?? []) for (const pre of folderPrefixes(normalizeFolder(f))) allFolders.add(pre);
 
-  const childFolders = (path: string): string[] =>
-    [...allFolders].filter((p) => folderParent(p) === path).sort((a, b) => folderName(a).localeCompare(folderName(b)));
+  // Manual sort orders sibling folders by their position in the scene's explicit
+  // folder list (drag-reorderable, like entities); derived/list-absent folders
+  // fall to the end alphabetically. name/type sort is plain alphabetical.
+  const folderRank = sort === 'manual' ? new Map((opts.folders ?? []).map((f, i) => [normalizeFolder(f), i])) : null;
+  const childFolders = (path: string): string[] => {
+    const kids = [...allFolders].filter((p) => folderParent(p) === path);
+    if (folderRank) {
+      return kids.sort(
+        (a, b) => (folderRank.get(a) ?? Infinity) - (folderRank.get(b) ?? Infinity) || folderName(a).localeCompare(folderName(b)),
+      );
+    }
+    return kids.sort((a, b) => folderName(a).localeCompare(folderName(b)));
+  };
   const countUnder = (path: string): number => {
     let n = 0;
     for (const [fp, arr] of rootsByFolder) if (isFolderUnder(fp, path)) n += arr.length;

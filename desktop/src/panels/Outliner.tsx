@@ -317,6 +317,16 @@ export function Outliner() {
       const rect = e.currentTarget.getBoundingClientRect();
       const rel = (e.clientY - rect.top) / rect.height;
       pos = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'on';
+    } else if (
+      dragFolder.current &&
+      item.kind === 'folder' &&
+      sortMode === 'manual' &&
+      folderParent(dragFolder.current) === folderParent(item.path)
+    ) {
+      // Sibling folders → top/bottom third reorders, middle nests.
+      const rect = e.currentTarget.getBoundingClientRect();
+      const rel = (e.clientY - rect.top) / rect.height;
+      pos = rel < 0.33 ? 'before' : rel > 0.66 ? 'after' : 'on';
     }
     if (drop?.key !== item.key || drop?.pos !== pos) setDrop({ key: item.key, pos });
   };
@@ -351,9 +361,15 @@ export function Outliner() {
     e.stopPropagation();
     const pos = drop?.pos ?? 'on';
     setDrop(null);
-    // A folder being dragged → nest it under the target's folder.
+    // A folder being dragged → reorder among siblings (between-rows) or nest (on).
     if (dragFolder.current != null) {
-      moveFolderInto(item.kind === 'folder' ? item.path : SceneModel.folderOf(item.id));
+      const src = dragFolder.current;
+      if (item.kind === 'folder' && pos !== 'on' && folderParent(src) === folderParent(item.path)) {
+        dragFolder.current = null;
+        SceneCommands.reorderFolder(src, item.path, pos === 'before');
+      } else {
+        moveFolderInto(item.kind === 'folder' ? item.path : SceneModel.folderOf(item.id));
+      }
       return;
     }
     if (item.kind === 'folder') {
