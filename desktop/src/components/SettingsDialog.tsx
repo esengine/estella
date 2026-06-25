@@ -10,12 +10,18 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { Settings as SettingsIcon, Search, X, RotateCcw } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
 import type { Setting, NumberSetting, KeybindingSetting, StringListSetting } from '@/settings/types';
+
+// A bound list setting's getter returns a fresh array each call; useShallow below
+// keeps the read referentially stable (else useSyncExternalStore loops). A shared
+// empty fallback avoids a fresh `[]` when a value is unset.
+const EMPTY_LIST: readonly string[] = [];
 
 const CATEGORY_LABEL: Record<string, string> = {
   editor: 'Editor',
@@ -120,7 +126,7 @@ function KeybindCapture({ setting }: { setting: KeybindingSetting }) {
 
 function StringListControl({ setting }: { setting: StringListSetting }) {
   const setValue = useSettings((s) => s.setValue);
-  const value = useSettings((s) => s.getValue<string[]>(setting.id)) ?? [];
+  const value = useSettings(useShallow((s) => s.getValue<string[]>(setting.id) ?? (EMPTY_LIST as string[])));
   return (
     <div className="set-list">
       {Array.from({ length: setting.count }, (_, i) => (
@@ -143,7 +149,9 @@ function StringListControl({ setting }: { setting: StringListSetting }) {
 
 function Control({ setting }: { setting: Setting }) {
   const setValue = useSettings((s) => s.setValue);
-  const value = useSettings((s) => s.getValue(setting.id));
+  // useShallow: a bound list setting returns a fresh array each read, which would
+  // otherwise make this snapshot change every render and loop.
+  const value = useSettings(useShallow((s) => s.getValue(setting.id)));
   switch (setting.type) {
     case 'boolean':
       return (
