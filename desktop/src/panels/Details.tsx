@@ -1302,18 +1302,20 @@ function GameDetails() {
               <span className="pill">#{selection}</span>
             </span>
           </div>
-          {inspector.map((comp) => (
-            <ComponentSection
-              key={comp.name}
-              entities={[selection]}
-              comp={comp}
-              collapsed={collapsed.has(comp.name)}
-              onToggle={() => toggle(comp.name)}
-              write={(key, type, value) =>
-                PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
-              }
-            />
-          ))}
+          <div className="insp-body">
+            {inspector.map((comp) => (
+              <ComponentSection
+                key={comp.name}
+                entities={[selection]}
+                comp={comp}
+                collapsed={collapsed.has(comp.name)}
+                onToggle={() => toggle(comp.name)}
+                write={(key, type, value) =>
+                  PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
+                }
+              />
+            ))}
+          </div>
         </>
       )}
     </div>
