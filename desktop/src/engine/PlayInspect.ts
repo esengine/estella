@@ -30,9 +30,10 @@ interface PlayInspectState {
   selection: EntityId | null;
 }
 
-/** Minimum gap between sample starts (ms) — caps the rate so a large scene's full
- *  serialize never floods the realm; small scenes sample at roughly this rate. */
-const MIN_GAP_MS = 50;
+/** Minimum gap between sample starts (ms) — a ~60fps cap (no point sampling faster
+ *  than the realm renders). The realm sample is cheap (it decodes data only for the
+ *  selected entity), and coalescing still self-throttles if a sample ever runs long. */
+const MIN_GAP_MS = 16;
 
 /** A cheap structural signature of the shallow tree (ids / parent / name / component
  *  types) — drives keeping the tree reference stable when only values changed. */

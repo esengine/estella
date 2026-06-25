@@ -14,8 +14,66 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, serializeScene, getComponent, clearUserComponents } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
+
+type LiveEntity = SceneData['entities'][number];
+
+// — Live inspect sampling (cheap): the Outliner only needs component TYPES (the
+// kind icon), so the tree is built by reflection without decoding any component
+// data; only the selected entity's data is decoded (the Details payload). This
+// avoids serializing every entity's component data on every sample.
+const LIVE_STRUCTURAL = new Set(['Name', 'Parent', 'Children', 'WorldTransform']);
+
+function inspectableTypes(world: App['world'], entity: number): string[] {
+  return world.getComponentTypes(entity as never).filter((t) => {
+    if (LIVE_STRUCTURAL.has(t)) return false;
+    const def = getComponent(t);
+    return !!def && !def.transient; // transient = per-frame state, never inspected
+  });
+}
+
+function liveSnapshot(world: App['world'], selectedId: number | null): { tree: SceneData; selected: LiveEntity | null } {
+  const nameDef = getComponent('Name');
+  const parentDef = getComponent('Parent');
+  const all = world.getAllEntities();
+
+  const parentOf = new Map<number, number>();
+  if (parentDef) {
+    for (const e of all) {
+      const p = world.tryGet(e, parentDef) as { entity?: number } | null;
+      if (p && p.entity !== undefined) parentOf.set(e as never as number, p.entity);
+    }
+  }
+  const childrenOf = new Map<number, number[]>();
+  for (const [child, parent] of parentOf) (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(child);
+
+  const nameOf = (e: number): string =>
+    (nameDef ? (world.tryGet(e as never, nameDef) as { value?: string } | null)?.value : undefined) ?? `Entity_${e}`;
+
+  const tree = {
+    version: '1.0',
+    name: 'live',
+    entities: all.map((e): LiveEntity => {
+      const id = e as never as number;
+      // Component TYPES only — no data decode (the Outliner reads kind from types).
+      return { id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [], components: inspectableTypes(world, id).map((type) => ({ type, data: {} })) } as LiveEntity;
+    }),
+  } as unknown as SceneData;
+
+  let selected: LiveEntity | null = null;
+  if (selectedId != null) {
+    const components = inspectableTypes(world, selectedId)
+      .map((type) => {
+        const def = getComponent(type);
+        const data = def ? world.tryGet(selectedId as never, def) : null;
+        return data ? { type, data: data as Record<string, unknown> } : null;
+      })
+      .filter((c): c is { type: string; data: Record<string, unknown> } => !!c);
+    selected = { id: selectedId, name: nameOf(selectedId), parent: parentOf.get(selectedId) ?? null, children: childrenOf.get(selectedId) ?? [], components } as unknown as LiveEntity;
+  }
+  return { tree, selected };
+}
 
 interface InitMessage {
   type: 'estella:play:init';
@@ -204,27 +262,7 @@ window.addEventListener('message', (e: MessageEvent) => {
     case 'estella:play:query':
       // Live introspection for the editor's "Game" inspect mode (the Details panel).
       if (data.kind === 'snapshot') {
-        // Live inspect: send a SHALLOW tree (the Outliner only needs component
-        // TYPES + name + each component's `enabled` flag — see modelKindOf/NameOf/
-        // IsVisible), not every component's data for thousands of entities. The
-        // selected entity's FULL data is sent alongside for the Details panel.
-        const full = app ? serializeScene(app.world) : null;
-        let reply: unknown = null;
-        if (full) {
-          const selId = data.selectedId;
-          const selected = selId != null ? (full.entities.find((en) => en.id === selId) ?? null) : null;
-          const tree = {
-            ...full,
-            entities: full.entities.map((en) => ({
-              ...en,
-              components: en.components.map((c) => {
-                const d = c.data as Record<string, unknown> | undefined;
-                return { type: c.type, data: d && 'enabled' in d ? { enabled: d.enabled } : {} };
-              }),
-            })),
-          };
-          reply = { tree, selected };
-        }
+        const reply = app ? liveSnapshot(app.world, data.selectedId ?? null) : null;
         post({ type: 'estella:play:reply', reqId: data.reqId, data: reply });
       } else if (data.kind === 'stats') {
         // Per-phase + per-system frame timing for the editor profiler panel.
