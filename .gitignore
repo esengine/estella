@@ -57,6 +57,9 @@ compile_commands.json
 *.js.mem
 *.data
 
+# emsdk discovery cache (per-machine path written by build-tools auto-discovery)
+.emsdk-path
+
 # Astro
 .astro/
 

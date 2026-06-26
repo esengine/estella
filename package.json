@@ -16,6 +16,7 @@
     "clean": "node build-tools/cli.js clean -a",
     "eht": "node build-tools/cli.js eht",
     "sync": "node build-tools/cli.js sync",
+    "emsdk:setup": "node build-tools/toolchain/setup-emsdk.js",
     "asset-meta": "node tools/asset-meta.js",
     "migrate-asset-refs": "node tools/migrate-asset-refs.js"
   },

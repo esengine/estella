@@ -14,6 +14,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // Bind IPv4 loopback explicitly. On Windows `localhost` resolves to ::1 first,
+    // so a default bind leaves Vite on [::1] only — but Electron's loadURL hits
+    // 127.0.0.1 and gets ERR_CONNECTION_REFUSED. Pinning 127.0.0.1 keeps the dev
+    // renderer origin reachable from the Electron window.
+    host: '127.0.0.1',
+  },
   build: {
     rollupOptions: {
       // Renderer entries: the editor shell (index) + the headless render host
