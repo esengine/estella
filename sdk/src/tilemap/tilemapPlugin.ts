@@ -8,9 +8,11 @@ import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
-import { getTilemapSource } from './tilesetCache';
+import { getTilemapSource, getResolvedTileset } from './tilesetCache';
+import { resolveTilesetModel } from './tilesetResolve';
 import { generateLayerCollision, generateChunkCollision } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
+import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import { Time } from '../resource';
 import { playModeOnly } from '../env';
 import type { Entity } from '../types';
@@ -24,6 +26,13 @@ const GRID_TYPE_MAP: Record<string, number> = {
     staggered: 2,
 };
 
+/** A `.estileset` ref → the resolved-tileset cache key (its project path). A `@uuid:`
+ *  ref needs the Assets registry; an already-resolved path is used as-is. */
+function resolveTilesetPath(assets: AssetsData | undefined, ref: string): string | null {
+    if (ref.startsWith('@uuid:')) return assets ? assets.resolveRef(ref) : null;
+    return ref;
+}
+
 export class TilemapPlugin implements Plugin {
     name = 'tilemap';
 
@@ -34,6 +43,10 @@ export class TilemapPlugin implements Plugin {
     private collisionEntities_ = new Map<number, Entity[]>();
     /** TilemapLayer entity → its baked collidable tile ids (out-of-band scene data; drives native collision). */
     private nativeCollisionIds_ = new Map<number, number[]>();
+    /** TilemapLayer entity → its `.estileset` ref (out-of-band; resolved live → table/collision/anim). */
+    private tilesetRefs_ = new Map<number, string>();
+    /** Entities whose `.estileset` has been resolved+applied (so we do it once per load). */
+    private liveResolved_ = new Set<number>();
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -43,6 +56,8 @@ export class TilemapPlugin implements Plugin {
         // teach the scene (de)serializer to carry them out-of-band instead of
         // hardcoding TilemapLayer knowledge in scene.ts.
         const nativeCollisionIds = this.nativeCollisionIds_;
+        const tilesetRefs = this.tilesetRefs_;
+        const liveResolved = this.liveResolved_;
         registerSceneComponentCodec('TilemapLayer', {
             exportData: (entity, data) => {
                 const blob = TilemapAPI.exportChunks(entity);
@@ -51,8 +66,10 @@ export class TilemapPlugin implements Plugin {
                 // runtime can derive collision; it isn't a C++ component field.
                 const ids = nativeCollisionIds.get(entity);
                 if (ids && ids.length > 0) data.collidableTileIds = ids.slice();
+                const ref = tilesetRefs.get(entity);
+                if (ref) data.tilesetAsset = ref;
             },
-            outOfBandFields: ['chunks', 'collidableTileIds'],
+            outOfBandFields: ['chunks', 'collidableTileIds', 'tilesetAsset'],
             importData: (entity, outOfBand) => {
                 const blob = outOfBand.chunks;
                 if (typeof blob === 'string' && blob !== '') {
@@ -64,6 +81,15 @@ export class TilemapPlugin implements Plugin {
                 } else {
                     nativeCollisionIds.delete(entity);
                 }
+                // The `.estileset` reference: resolved live in the sync (table + collision
+                // + animations) instead of trusting the baked collidableTileIds snapshot.
+                const ref = outOfBand.tilesetAsset;
+                if (typeof ref === 'string' && ref !== '') {
+                    tilesetRefs.set(entity, ref);
+                } else {
+                    tilesetRefs.delete(entity);
+                }
+                liveResolved.delete(entity);
             },
         });
 
@@ -82,6 +108,7 @@ export class TilemapPlugin implements Plugin {
                 // never serialized): generate them in play mode, drop them on stop so the
                 // next Play regenerates from the current tiles.
                 const playMode = playModeOnly();
+                const assets = app.getResource(Assets);
                 if (!playMode && collisionEntities.size > 0) {
                     for (const [, ents] of collisionEntities) {
                         for (const e of ents) world.despawn(e);
@@ -100,6 +127,8 @@ export class TilemapPlugin implements Plugin {
                         TilemapAPI.destroyLayer(entity);
                         initializedLayers.delete(entity);
                         nativeCollisionIds.delete(entity);
+                        tilesetRefs.delete(entity);
+                        liveResolved.delete(entity);
                         const colliders = collisionEntities.get(entity);
                         if (colliders) {
                             for (const e of colliders) world.despawn(e);
@@ -112,8 +141,9 @@ export class TilemapPlugin implements Plugin {
                     const layerData = world.tryGet(entity, TilemapLayer) as TilemapLayerData | null;
                     if (!layerData) continue;
 
-                    const textureHandle = layerData.tileset;
-                    if (!textureHandle) continue;
+                    const tilesetRef = tilesetRefs.get(entity);
+                    // A layer needs either a copied texture (legacy) or a .estileset ref.
+                    if (!layerData.tileset && !tilesetRef) continue;
 
                     // RC2a: the TilemapLayer component is the single source of visual
                     // metadata; the C++ renderer reads tint/opacity/tileset/columns/
@@ -128,8 +158,28 @@ export class TilemapPlugin implements Plugin {
                         initializedLayers.add(entity);
                     }
 
-                    // Native path: a painted TilemapLayer with collidable tiles (baked from
-                    // its .estileset) spawns merged static colliders once in play mode.
+                    // Live tileset: when the layer references a `.estileset` that has loaded,
+                    // derive its render table + animations + collision LIVE (once per load) —
+                    // replacing the copied columns and the baked collidableTileIds snapshot.
+                    if (tilesetRef && !liveResolved.has(entity)) {
+                        const path = resolveTilesetPath(assets, tilesetRef);
+                        const resolved = path ? getResolvedTileset(path) : undefined;
+                        if (resolved) {
+                            const model = resolveTilesetModel([resolved]);
+                            TilemapAPI.setTilesets(entity, model.slots);
+                            for (const [tileId, frames] of model.animations) {
+                                TilemapAPI.setTileAnimation(entity, tileId, frames);
+                                animatedLayers.add(entity);
+                            }
+                            if (model.collidableTileIds.length > 0) {
+                                nativeCollisionIds.set(entity, model.collidableTileIds);
+                            }
+                            liveResolved.add(entity);
+                        }
+                    }
+
+                    // Native path: collidable tiles spawn merged static colliders once in play
+                    // mode — using the live `.estileset` ids when resolved, else the baked set.
                     const collIds = nativeCollisionIds.get(entity);
                     if (playMode && collIds && collIds.length > 0 && !collisionEntities.has(entity)) {
                         const chunks = decodeTilemapChunks(TilemapAPI.exportChunks(entity));
@@ -290,6 +340,8 @@ export class TilemapPlugin implements Plugin {
         // Collider entities die with the world on reset/teardown; just drop our bookkeeping.
         this.collisionEntities_.clear();
         this.nativeCollisionIds_.clear();
+        this.tilesetRefs_.clear();
+        this.liveResolved_.clear();
     }
 
     cleanup(): void {

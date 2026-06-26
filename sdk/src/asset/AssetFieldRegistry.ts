@@ -96,6 +96,9 @@ export function initBuiltinAssetFields(): void {
 
     registerAssetFields('TilemapLayer', [
         { field: 'tileset', type: 'texture' },
+        // The `.estileset` palette (out-of-band model field); preloaded so the sync can
+        // resolve the render table + collision + animations live.
+        { field: 'tilesetAsset', type: 'tileset' },
     ]);
 
     registerAssetFields('TimelinePlayer', [
