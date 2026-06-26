@@ -91,6 +91,18 @@ export interface StringListSetting extends BaseSetting<string[]> {
   placeholder?: (i: number) => string;
 }
 
+/**
+ * A symmetric NxN boolean matrix stored as `count` row bitmasks — the collision
+ * matrix (which layer collides with which). value[i] bit j set ⇒ row i ↔ col j on.
+ * Only rows whose {@link labels} entry is non-empty (plus row 0) are shown.
+ */
+export interface MatrixSetting extends BaseSetting<number[]> {
+  type: 'matrix';
+  count: number;
+  /** Row/column labels (e.g. the named collision layers), read at render time. */
+  labels: () => string[];
+}
+
 export type Setting =
   | BooleanSetting
   | NumberSetting
@@ -98,6 +110,7 @@ export type Setting =
   | StringSetting
   | ColorSetting
   | KeybindingSetting
-  | StringListSetting;
+  | StringListSetting
+  | MatrixSetting;
 
-export type SettingValue = boolean | number | string | string[];
+export type SettingValue = boolean | number | string | string[] | number[];

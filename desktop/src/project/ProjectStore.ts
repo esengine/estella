@@ -526,7 +526,6 @@ class ProjectStoreImpl {
     // Project Settings. The collision matrix is sent ONLY when configured — otherwise
     // a layer's mask would override each collider's own maskBits (the two are exclusive).
     const f = this.physicsFeature();
-    const raw = this.state?.features?.physics;
     const physicsConfig: PhysicsPluginConfig = {
       gravity: f.gravity,
       fixedTimestep: f.fixedTimestep,
@@ -537,7 +536,11 @@ class ProjectStoreImpl {
       enableSleep: f.enableSleep,
       enableContinuous: f.enableContinuous,
     };
-    if (raw?.collisionLayerMasks) physicsConfig.collisionLayerMasks = f.collisionLayerMasks;
+    // Send the collision matrix ONLY when it actually restricts a pair — an all-collide
+    // matrix would otherwise override each single-layer collider's own maskBits for nothing.
+    if (f.collisionLayerMasks.some((m) => (m & 0xffff) !== 0xffff)) {
+      physicsConfig.collisionLayerMasks = f.collisionLayerMasks;
+    }
     return { sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig };
   }
 

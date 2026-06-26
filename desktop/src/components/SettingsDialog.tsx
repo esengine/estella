@@ -16,7 +16,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
-import type { Setting, NumberSetting, KeybindingSetting, StringListSetting } from '@/settings/types';
+import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting } from '@/settings/types';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
 // keeps the read referentially stable (else useSyncExternalStore loops). A shared
@@ -147,6 +147,48 @@ function StringListControl({ setting }: { setting: StringListSetting }) {
   );
 }
 
+const EMPTY_MASKS: readonly number[] = [];
+
+function MatrixControl({ setting }: { setting: MatrixSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const value = useSettings(useShallow((s) => s.getValue<number[]>(setting.id) ?? (EMPTY_MASKS as number[])));
+  const labels = setting.labels();
+  const masks = Array.from({ length: setting.count }, (_, i) => value[i] ?? 0xffff);
+  // Show layer 0 (Default) + any named layer — the matrix stays readable.
+  const shown = Array.from({ length: setting.count }, (_, i) => i).filter((i) => i === 0 || (labels[i] ?? '') !== '');
+  const collides = (i: number, j: number) => ((masks[i] >> j) & 1) === 1;
+  const toggle = (i: number, j: number) => {
+    const on = !collides(i, j);
+    const setBit = (m: number, b: number) => (on ? m | (1 << b) : m & ~(1 << b)) & 0xffff;
+    const next = masks.slice();
+    next[i] = setBit(next[i], j);
+    next[j] = setBit(next[j], i); // keep the matrix symmetric
+    setValue(setting.id, next);
+  };
+  return (
+    <table className="set-matrix">
+      <thead>
+        <tr>
+          <th />
+          {shown.map((j) => <th key={j} className="set-matrix-col"><span>{labels[j] || `Layer ${j}`}</span></th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {shown.map((i) => (
+          <tr key={i}>
+            <th className="set-matrix-row">{labels[i] || `Layer ${i}`}</th>
+            {shown.map((j) => (
+              <td key={j}>
+                <input type="checkbox" checked={collides(i, j)} onChange={() => toggle(i, j)} />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function Control({ setting }: { setting: Setting }) {
   const setValue = useSettings((s) => s.setValue);
   // useShallow: a bound list setting returns a fresh array each read, which would
@@ -217,6 +259,8 @@ function Control({ setting }: { setting: Setting }) {
       );
     case 'stringList':
       return <StringListControl setting={setting} />;
+    case 'matrix':
+      return <MatrixControl setting={setting} />;
   }
 }
 

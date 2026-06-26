@@ -80,6 +80,23 @@ settingsRegistry.register({
   },
 });
 
+settingsRegistry.register({
+  id: 'project.physics.collisionMatrix',
+  type: 'matrix',
+  scope: 'project',
+  section: 'physics',
+  group: 'Collision Layers',
+  label: 'Collision matrix',
+  description: 'Which layers collide. A collider on a single named layer derives its mask from this row (so it overrides the collider’s own Mask). All-on = no restriction.',
+  count: 16,
+  labels: () => ProjectStore.physicsFeature().collisionLayers,
+  default: Array.from({ length: 16 }, () => 0xffff),
+  bind: {
+    get: () => ProjectStore.physicsFeature().collisionLayerMasks,
+    set: (v) => void ProjectStore.setPhysics({ collisionLayerMasks: v }),
+  },
+});
+
 // ── Packaging (per-platform Project Settings; read by the export, persisted to project.esproject) ──
 settingsRegistry.registerSection({ id: 'packaging', label: 'Packaging', category: 'project', order: 3 });
 
