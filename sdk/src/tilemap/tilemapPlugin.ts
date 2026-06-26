@@ -10,7 +10,7 @@ import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource, getResolvedTileset } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
-import { generateLayerCollision, generateChunkCollision } from './tiledLoader';
+import { generateLayerCollision, generateChunkCollision, generateChunkPolygonCollision } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import { Time } from '../resource';
@@ -43,6 +43,8 @@ export class TilemapPlugin implements Plugin {
     private collisionEntities_ = new Map<number, Entity[]>();
     /** TilemapLayer entity → its baked collidable tile ids (out-of-band scene data; drives native collision). */
     private nativeCollisionIds_ = new Map<number, number[]>();
+    /** TilemapLayer entity → per-tile polygon collision outlines (global id → normalized points). */
+    private nativePolygonShapes_ = new Map<number, Map<number, [number, number][]>>();
     /** TilemapLayer entity → its `.estileset` ref (out-of-band; resolved live → table/collision/anim). */
     private tilesetRefs_ = new Map<number, string>();
     /** Entities whose `.estileset` has been resolved+applied (so we do it once per load). */
@@ -56,6 +58,7 @@ export class TilemapPlugin implements Plugin {
         // teach the scene (de)serializer to carry them out-of-band instead of
         // hardcoding TilemapLayer knowledge in scene.ts.
         const nativeCollisionIds = this.nativeCollisionIds_;
+        const nativePolygonShapes = this.nativePolygonShapes_;
         const tilesetRefs = this.tilesetRefs_;
         const liveResolved = this.liveResolved_;
         registerSceneComponentCodec('TilemapLayer', {
@@ -127,6 +130,7 @@ export class TilemapPlugin implements Plugin {
                         TilemapAPI.destroyLayer(entity);
                         initializedLayers.delete(entity);
                         nativeCollisionIds.delete(entity);
+                        nativePolygonShapes.delete(entity);
                         tilesetRefs.delete(entity);
                         liveResolved.delete(entity);
                         const colliders = collisionEntities.get(entity);
@@ -174,21 +178,38 @@ export class TilemapPlugin implements Plugin {
                             if (model.collidableTileIds.length > 0) {
                                 nativeCollisionIds.set(entity, model.collidableTileIds);
                             }
+                            if (model.polygonShapes.size > 0) {
+                                nativePolygonShapes.set(entity, model.polygonShapes);
+                            }
                             liveResolved.add(entity);
                         }
                     }
 
-                    // Native path: collidable tiles spawn merged static colliders once in play
-                    // mode — using the live `.estileset` ids when resolved, else the baked set.
+                    // Native path: collidable tiles spawn static colliders once in play mode
+                    // — box tiles greedy-merged, polygon tiles one collider each — using the
+                    // live `.estileset` shapes when resolved, else the baked id set.
                     const collIds = nativeCollisionIds.get(entity);
-                    if (playMode && collIds && collIds.length > 0 && !collisionEntities.has(entity)) {
+                    const polyShapes = nativePolygonShapes.get(entity);
+                    const hasBox = collIds != null && collIds.length > 0;
+                    const hasPoly = polyShapes != null && polyShapes.size > 0;
+                    if (playMode && (hasBox || hasPoly) && !collisionEntities.has(entity)) {
                         const chunks = decodeTilemapChunks(TilemapAPI.exportChunks(entity));
                         const tf = world.tryGet(entity, Transform) as { position: { x: number; y: number } } | null;
-                        const spawned = generateChunkCollision(
-                            world, chunks, new Set(collIds),
-                            layerData.cellSize.x, layerData.cellSize.y,
-                            tf?.position.x ?? 0, tf?.position.y ?? 0,
-                        );
+                        const ox = tf?.position.x ?? 0;
+                        const oy = tf?.position.y ?? 0;
+                        const spawned: Entity[] = [];
+                        if (hasBox) {
+                            spawned.push(...generateChunkCollision(
+                                world, chunks, new Set(collIds),
+                                layerData.cellSize.x, layerData.cellSize.y, ox, oy,
+                            ));
+                        }
+                        if (hasPoly) {
+                            spawned.push(...generateChunkPolygonCollision(
+                                world, chunks, polyShapes,
+                                layerData.cellSize.x, layerData.cellSize.y, ox, oy,
+                            ));
+                        }
                         collisionEntities.set(entity, spawned);
                     }
                 }
@@ -340,6 +361,7 @@ export class TilemapPlugin implements Plugin {
         // Collider entities die with the world on reset/teardown; just drop our bookkeeping.
         this.collisionEntities_.clear();
         this.nativeCollisionIds_.clear();
+        this.nativePolygonShapes_.clear();
         this.tilesetRefs_.clear();
         this.liveResolved_.clear();
     }

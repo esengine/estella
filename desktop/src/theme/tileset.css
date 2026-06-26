@@ -6,6 +6,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
   background: var(--srf-1, #16181c);
   color: var(--text, #d6d9de);
   font-size: 12px;
@@ -176,6 +177,51 @@
 .ts-zone.is-corner.is-on { background: rgba(214, 196, 76, 0.6); }
 .ts-zone-c { left: 33.34%; top: 33.34%; }
 .ts-zone-c:hover { background: rgba(255, 255, 255, 0.1); }
+
+/* Polygon-collision cell marker + the focused polygon editor overlay */
+.ts-pcell.is-poly { background: rgba(90, 200, 250, 0.22); border-color: rgba(90, 200, 250, 0.85); }
+.ts-pcell:hover { border-color: var(--star, #4c8fd6); background: rgba(76, 143, 214, 0.12); }
+
+.ts-pe-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 20;
+}
+.ts-pe {
+  background: var(--srf-2, #1b1e23);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ts-pe-head { display: flex; align-items: center; gap: 8px; color: var(--text, #d6d9de); }
+.ts-pe-head button {
+  background: var(--control, #24272d);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  padding: 3px 9px;
+  cursor: pointer;
+  font: inherit;
+}
+.ts-pe-head button:hover { color: var(--text, #d6d9de); }
+.ts-pe-stage {
+  position: relative;
+  image-rendering: pixelated;
+  border: 1px solid var(--line, #2a2d33);
+  cursor: crosshair;
+}
+.ts-pe-svg { position: absolute; left: 0; top: 0; pointer-events: none; }
+.ts-pe-poly { fill: rgba(90, 200, 250, 0.3); stroke: #5ac8fa; stroke-width: 0.5; }
+.ts-pe-pt { fill: #fff; stroke: #5ac8fa; stroke-width: 0.5; pointer-events: auto; cursor: pointer; }
+.ts-pe-pt:hover { fill: #f0645a; }
+.ts-pe-hint { color: var(--text-faint, #6b717c); font-size: 11px; text-align: center; }
 
 .ts-empty,
 .ts-warn {

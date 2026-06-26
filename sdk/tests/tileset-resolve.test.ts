@@ -22,7 +22,9 @@ describe('resolveTilesetModel', () => {
         };
         const m = resolveTilesetModel([rt]);
         expect(m.slots).toEqual([{ firstId: 1, textureHandle: 100, columns: 4 }]);
-        expect(m.collidableTileIds).toEqual([2, 7]);
+        // box tiles greedy-merge (collidableTileIds); polygon tiles carry their own shape.
+        expect(m.collidableTileIds).toEqual([2]);
+        expect(m.polygonShapes.get(7)).toEqual([[0, 1], [1, 1], [0, 0]]); // normalized to the tile
         expect(m.animations.size).toBe(0);
     });
 

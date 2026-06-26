@@ -50,6 +50,22 @@ export const TilesetCommands = {
     });
   },
 
+  /**
+   * Set a tile's polygon collision outline (tile-local pixels) as ONE undo step. Fewer
+   * than 3 points clears any polygon collision on the tile (parseTileset would drop it).
+   */
+  setTilePolygon(id: number, points: [number, number][]): void {
+    if (id <= 0) return;
+    TilesetDocument.edit('Edit Tile Collision Shape', (a) => {
+      if (points.length >= 3) {
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'polygon', points } };
+      } else if (a.tiles[id]?.collision?.type === 'polygon') {
+        delete a.tiles[id].collision;
+        pruneEmpty(a, id);
+      }
+    });
+  },
+
   /** Add a terrain (autotile) set; returns the new set's index. */
   addTerrain(name: string, mode: TerrainMode): void {
     TilesetDocument.edit('Add Terrain', (a) => {

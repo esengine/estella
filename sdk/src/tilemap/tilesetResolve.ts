@@ -37,8 +37,13 @@ export interface TilesetModel {
     slots: TilesetModelSlot[];
     /** Animations keyed by GLOBAL tile id → frames (frame tile ids are global too). */
     animations: Map<number, { tileId: number; duration: number }[]>;
-    /** Global tile ids flagged collidable (sorted). */
+    /** Global tile ids with a BOX collision shape (greedy-merged at runtime; sorted). */
     collidableTileIds: number[];
+    /**
+     * Global tile id → polygon collision outline, points NORMALIZED to the tile
+     * ([0,1], x right / y down). Emitted as one collider per placed tile (not merged).
+     */
+    polygonShapes: Map<number, [number, number][]>;
 }
 
 /** Tiles in a tileset: explicit `tileCount`, else the highest authored tile id. */
@@ -58,10 +63,13 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
     const slots: TilesetModelSlot[] = [];
     const animations = new Map<number, { tileId: number; duration: number }[]>();
     const collidable: number[] = [];
+    const polygonShapes = new Map<number, [number, number][]>();
 
     let firstId = 1;
     for (const { asset, textureHandle } of tilesets) {
         slots.push({ firstId, textureHandle, columns: asset.columns });
+        const tw = asset.tileWidth || 1;
+        const th = asset.tileHeight || 1;
 
         // Local tile ids are 1-based; global id = firstId + (localId - 1).
         for (const key of Object.keys(asset.tiles)) {
@@ -69,7 +77,11 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
             if (!Number.isInteger(localId) || localId <= 0) continue;
             const globalId = firstId + localId - 1;
             const tile = asset.tiles[localId];
-            if (tile.collision) collidable.push(globalId);
+            if (tile.collision?.type === 'polygon') {
+                polygonShapes.set(globalId, tile.collision.points.map(([px, py]) => [px / tw, py / th]));
+            } else if (tile.collision) {
+                collidable.push(globalId);
+            }
             if (tile.animation && tile.animation.length > 0) {
                 animations.set(
                     globalId,
@@ -85,5 +97,5 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
     }
 
     collidable.sort((a, b) => a - b);
-    return { slots, animations, collidableTileIds: collidable };
+    return { slots, animations, collidableTileIds: collidable, polygonShapes };
 }

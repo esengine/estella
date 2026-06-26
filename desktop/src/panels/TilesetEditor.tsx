@@ -13,7 +13,10 @@
  * animation slot onto the same asset later (the schema already carries them).
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import {
+  useEffect, useRef, useState, useSyncExternalStore,
+  type CSSProperties, type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import {
   TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW,
@@ -68,6 +71,72 @@ const ZONES: { gx: number; gy: number; bit: number; corner: boolean }[] = [
   { gx: 0, gy: 0, bit: TB_NW, corner: true },
 ];
 
+/** A focused per-tile collision-polygon editor: a magnified tile + click-to-add /
+ *  click-a-point-to-remove vertices, committed live (≥3 points) as undo steps. */
+function PolygonEditor(props: {
+  asset: TilesetAsset; texUrl: string; natural: { w: number; h: number };
+  tileId: number; cols: number; onClose: () => void;
+}) {
+  const { asset, texUrl, natural, tileId, cols, onClose } = props;
+  const { tileWidth: tw, tileHeight: th, margin: mg, spacing: sp } = asset;
+  const col = (tileId - 1) % cols;
+  const row = Math.floor((tileId - 1) / cols);
+  const tileX = mg + col * (tw + sp);
+  const tileY = mg + row * (th + sp);
+  const SIZE = 260;
+  const sx = SIZE / tw;
+  const sy = SIZE / th;
+  const existing = asset.tiles[tileId]?.collision;
+  const [pts, setPts] = useState<[number, number][]>(
+    existing?.type === 'polygon' ? existing.points.map((p) => [p[0], p[1]] as [number, number]) : [],
+  );
+
+  const commit = (next: [number, number][]) => { setPts(next); TilesetCommands.setTilePolygon(tileId, next); };
+
+  const addPoint = (e: ReactMouseEvent) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const px = Math.round(((e.clientX - r.left) / r.width) * tw);
+    const py = Math.round(((e.clientY - r.top) / r.height) * th);
+    commit([...pts, [Math.max(0, Math.min(tw, px)), Math.max(0, Math.min(th, py))]]);
+  };
+
+  return (
+    <div className="ts-pe-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ts-pe">
+        <div className="ts-pe-head">
+          <span>碰撞多边形 · #{tileId}</span>
+          <span className="ts-grow" />
+          <button type="button" onClick={() => commit([])}>清除</button>
+          <button type="button" onClick={onClose}>完成</button>
+        </div>
+        <div
+          className="ts-pe-stage"
+          style={{
+            width: SIZE, height: SIZE,
+            backgroundImage: `url(${texUrl})`,
+            backgroundPosition: `-${tileX * sx}px -${tileY * sy}px`,
+            backgroundSize: `${natural.w * sx}px ${natural.h * sy}px`,
+          }}
+          onClick={addPoint}
+        >
+          <svg className="ts-pe-svg" viewBox={`0 0 ${tw} ${th}`} width={SIZE} height={SIZE}>
+            {pts.length >= 2 && (
+              <polygon className="ts-pe-poly" points={pts.map((p) => `${p[0]},${p[1]}`).join(' ')} />
+            )}
+            {pts.map((p, i) => (
+              <circle
+                key={i} cx={p[0]} cy={p[1]} r={Math.max(1.2, tw * 0.06)} className="ts-pe-pt"
+                onClick={(e) => { e.stopPropagation(); commit(pts.filter((_, j) => j !== i)); }}
+              />
+            ))}
+          </svg>
+        </div>
+        <div className="ts-pe-hint">点击添加顶点 · 点顶点删除 · ≥3 点生效</div>
+      </div>
+    </div>
+  );
+}
+
 export function TilesetEditor() {
   useSyncExternalStore(TilesetDocument.subscribe, TilesetDocument.getRevision);
   const asset = TilesetDocument.asset;
@@ -79,6 +148,8 @@ export function TilesetEditor() {
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(2);
   const [mode, setMode] = useState<'collision' | 'terrain'>('collision');
+  const [shape, setShape] = useState<'box' | 'polygon'>('box');
+  const [polyTile, setPolyTile] = useState<number | null>(null);
   const [activeSet, setActiveSet] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
   // Live collision paint stroke: which tiles + the target on/off state, one undo step.
@@ -105,7 +176,8 @@ export function TilesetEditor() {
   const terrainColor = TERRAIN_COLORS[activeSet % TERRAIN_COLORS.length];
 
   const isSolid = (id: number): boolean =>
-    drag?.ids.has(id) ? drag.on : asset.tiles[id]?.collision !== undefined;
+    drag?.ids.has(id) ? drag.on : asset.tiles[id]?.collision?.type === 'box';
+  const hasPolygon = (id: number): boolean => asset.tiles[id]?.collision?.type === 'polygon';
 
   const commitDrag = () => {
     const d = dragRef.current;
@@ -142,7 +214,17 @@ export function TilesetEditor() {
         const top = (mg + row * (th + sp)) * zoom;
         const w = tw * zoom;
         const h = th * zoom;
-        if (mode === 'collision') {
+        if (mode === 'collision' && shape === 'polygon') {
+          cells.push(
+            <div
+              key={id}
+              className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '')}
+              style={{ left, top, width: w, height: h }}
+              title={`#${id} — 点击编辑碰撞多边形`}
+              onPointerDown={(e) => { e.preventDefault(); setPolyTile(id); }}
+            />,
+          );
+        } else if (mode === 'collision') {
           cells.push(
             <div
               key={id}
@@ -211,6 +293,12 @@ export function TilesetEditor() {
           <button type="button" className={mode === 'collision' ? 'is-active' : ''} onClick={() => setMode('collision')}>碰撞</button>
           <button type="button" className={mode === 'terrain' ? 'is-active' : ''} onClick={() => setMode('terrain')}>地形</button>
         </div>
+        {mode === 'collision' && (
+          <div className="ts-modes">
+            <button type="button" className={shape === 'box' ? 'is-active' : ''} onClick={() => setShape('box')}>盒</button>
+            <button type="button" className={shape === 'polygon' ? 'is-active' : ''} onClick={() => setShape('polygon')}>多边形</button>
+          </div>
+        )}
         <span className="ts-sep" />
         <label className="ts-field">
           <span>Zoom</span>
@@ -280,6 +368,13 @@ export function TilesetEditor() {
           </div>
         )}
       </div>
+
+      {mode === 'collision' && shape === 'polygon' && polyTile != null && texUrl && natural && (
+        <PolygonEditor
+          asset={asset} texUrl={texUrl} natural={natural} tileId={polyTile} cols={cols}
+          onClose={() => setPolyTile(null)}
+        />
+      )}
     </div>
   );
 }

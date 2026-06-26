@@ -37,9 +37,10 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
         }
     }
 }
-import { RigidBody, BoxCollider, CircleCollider, BodyType } from '../physics/PhysicsComponents';
+import { RigidBody, BoxCollider, CircleCollider, PolygonCollider, BodyType } from '../physics/PhysicsComponents';
 import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
+import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../logger';
 import { withMalloc } from '../wasmScratch';
 
@@ -650,6 +651,71 @@ export function generateChunkCollision(
             world.insert(entity, RigidBody, { bodyType: BodyType.Static });
             world.insert(entity, BoxCollider, {
                 halfExtents: { x: rect.width * tileW * 0.5, y: rect.height * tileH * 0.5 },
+            });
+            entities.push(entity);
+        }
+    }
+    return entities;
+}
+
+/**
+ * Convert a tile's normalized polygon outline ([0,1], x right / y down) to entity-local
+ * vertices (origin = cell center, y up), applying the cell's flip flags so the collider
+ * matches the rendered tile. The flip is the inverse of the renderer's `applyTileFlip`
+ * (texture→quad): undo V, then H, then the diagonal swap.
+ */
+export function polygonLocalVerts(
+    norm: ReadonlyArray<readonly [number, number]>,
+    tileW: number,
+    tileH: number,
+    flipH: boolean,
+    flipV: boolean,
+    flipD: boolean,
+): { x: number; y: number }[] {
+    return norm.map(([sx, syDown]) => {
+        let s = sx;
+        let t = 1 - syDown; // to texture-up normalized
+        if (flipV) t = 1 - t;
+        if (flipH) s = 1 - s;
+        if (flipD) { const tmp = s; s = t; t = tmp; }
+        return { x: (s - 0.5) * tileW, y: (t - 0.5) * tileH };
+    });
+}
+
+/**
+ * Spawn one static PolygonCollider per placed tile whose global id has a polygon shape
+ * (slopes / partial tiles). Box-shaped tiles are handled by {@link generateChunkCollision};
+ * the two run together. Flip flags on a cell flip its polygon to match the render.
+ */
+export function generateChunkPolygonCollision(
+    world: World,
+    chunks: { x: number; y: number; tiles: Uint16Array }[],
+    polygonShapes: Map<number, readonly [number, number][]>,
+    tileW: number,
+    tileH: number,
+    originX: number,
+    originY: number,
+): Entity[] {
+    const entities: Entity[] = [];
+    if (polygonShapes.size === 0) return entities;
+    for (const chunk of chunks) {
+        const baseX = chunk.x * CHUNK_SIZE;
+        const baseY = chunk.y * CHUNK_SIZE;
+        for (let i = 0; i < chunk.tiles.length; i++) {
+            const raw = chunk.tiles[i];
+            const id = tileIdOf(raw);
+            const shape = polygonShapes.get(id);
+            if (!shape) continue;
+            const gx = baseX + (i % CHUNK_SIZE);
+            const gy = baseY + Math.floor(i / CHUNK_SIZE);
+            const f = tileFlagsOf(raw);
+            const entity = world.spawn();
+            world.insert(entity, Transform, {
+                position: { x: originX + (gx + 0.5) * tileW, y: originY - (gy + 0.5) * tileH, z: 0 },
+            });
+            world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+            world.insert(entity, PolygonCollider, {
+                vertices: polygonLocalVerts(shape, tileW, tileH, f.flipH, f.flipV, f.flipD),
             });
             entities.push(entity);
         }
