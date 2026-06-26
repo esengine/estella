@@ -658,9 +658,8 @@ export function registerPhysicsSystem(
         defineSystem(
             [],
             () => {
-                // Watchdog beat: gated by playModeOnly, so a fresh beat means
-                // "physics is actually stepping" (vs loaded-but-frozen in edit mode).
-                app.subsystems.markStepped('physics');
+                // Liveness is now auto-reported by the scheduler (this system is tagged
+                // 'physics' and gated by playModeOnly, so it only beats while stepping).
                 // Read pixelsPerUnit live each tick so a Canvas property
                 // change at runtime (editor: user edits Canvas.pixelsPerUnit)
                 // propagates to physics transforms instead of staying at the

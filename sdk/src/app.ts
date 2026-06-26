@@ -56,6 +56,9 @@ interface SystemEntry {
     runBefore?: string[];
     runAfter?: string[];
     runIf?: RunCondition;
+    /** The subsystem (owning plugin name) this system belongs to — pets that
+     *  subsystem's liveness watchdog when it runs (observability). */
+    subsystem?: string;
 }
 
 // =============================================================================
@@ -93,6 +96,9 @@ export class App {
     private readonly installedPluginNames_ = new Set<string>();
     // Per-App (per-realm) so isolated realms never alias; not a shared resource default.
     private readonly subsystems_ = new SubsystemRegistry();
+    /** The plugin currently in build(), so systems it adds inherit its name for
+     *  liveness reporting. Null outside a build. */
+    private buildingPlugin_: string | null = null;
     // The realm's acquirer for optional native modules (physics, spine). Set once
     // at app creation; physics/spine self-gate off it. Null in headless/test apps.
     private sideModules_: SideModuleHost | null = null;
@@ -187,6 +193,8 @@ export class App {
                 ),
             });
         }
+        const prevBuilding = this.buildingPlugin_;
+        this.buildingPlugin_ = plugin.name ?? null;
         try {
             plugin.build(this);
             // Sync plugin: live once build() returns → promote. An async plugin
@@ -203,6 +211,8 @@ export class App {
                 this.subsystems_.markError(plugin.name, e instanceof Error ? e.message : String(e));
             }
             throw e;
+        } finally {
+            this.buildingPlugin_ = prevBuilding;
         }
         return this;
     }
@@ -235,6 +245,7 @@ export class App {
             runBefore: options?.runBefore,
             runAfter: options?.runAfter,
             runIf: options?.runIf,
+            subsystem: this.buildingPlugin_ ?? undefined,
         });
         this.sortedSystemsCache_.delete(schedule);
         return this;
@@ -281,6 +292,7 @@ export class App {
                 runBefore: mergedRunBefore,
                 runAfter: mergedRunAfter,
                 runIf,
+                subsystem: this.buildingPlugin_ ?? undefined,
             });
         }
         this.sortedSystemsCache_.delete(schedule);
@@ -883,6 +895,8 @@ export class App {
                 if (result instanceof Promise) {
                     await result;
                 }
+                // Liveness: a system ran, so its owning subsystem stepped this frame.
+                if (entry.subsystem) this.subsystems_.markStepped(entry.subsystem);
             } catch (e) {
                 const name = entry.system._name;
                 log.error('app', `System "${name}" threw an error`, e);

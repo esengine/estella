@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SubsystemRegistry } from '../src/subsystems';
 import { App, type Plugin } from '../src/app';
+import { Schedule, defineSystem } from '../src/system';
 
 describe('SubsystemRegistry', () => {
     it('registers in the registered phase, in install order, inactive', () => {
@@ -117,5 +118,43 @@ describe('App auto-registers plugin lifecycle into the subsystem registry', () =
         app.addPlugin({ name: 'b', dependencies: ['a'], build() {} });
         const b = app.subsystems.getStatuses().find((x) => x.id === 'b');
         expect(b?.dependsOn).toEqual(['a']);
+    });
+});
+
+describe('App reports subsystem liveness from its systems (auto-watchdog)', () => {
+    const activityOf = (app: App, id: string) =>
+        app.subsystems.getStatuses().find((s) => s.id === id)?.activity;
+
+    it('marks a plugin stepping once one of its systems runs in a frame', async () => {
+        const app = App.new();
+        app.addPlugin({
+            name: 'ticker',
+            build(a) { a.addSystemToSchedule(Schedule.Update, defineSystem([], () => {}, { name: 'TickSys' })); },
+        });
+        expect(activityOf(app, 'ticker')).toBe('inactive'); // ready, never beat
+        await app.tick(1 / 60);
+        expect(activityOf(app, 'ticker')).toBe('stepping');
+    });
+
+    it('leaves a gated-off subsystem inactive (load≠run)', async () => {
+        const app = App.new();
+        app.addPlugin({
+            name: 'gated',
+            build(a) {
+                a.addSystemToSchedule(
+                    Schedule.Update, defineSystem([], () => {}, { name: 'GatedSys' }), { runIf: () => false },
+                );
+            },
+        });
+        await app.tick(1 / 60);
+        expect(activityOf(app, 'gated')).toBe('inactive'); // system never ran → no beat
+    });
+
+    it('does not attribute systems added outside a plugin build to any subsystem', async () => {
+        const app = App.new();
+        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {}, { name: 'LooseSys' }));
+        await app.tick(1 / 60);
+        // No subsystem was registered for a loose system, so nothing to assert beyond no throw.
+        expect(app.subsystems.getStatuses()).toEqual([]);
     });
 });
