@@ -17,6 +17,10 @@ export {
     type TilesetAsset, type TilesetTile, type TilesetCollision, type TilesetAnimFrame,
 } from './tilesetAsset';
 export {
+    resolveTilesetModel,
+    type ResolvedTileset, type TilesetModel, type TilesetModelSlot,
+} from './tilesetResolve';
+export {
     registerTilemapSource, getTilemapSource, clearTilemapSourceCache,
     type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,
 } from './tilesetCache';
