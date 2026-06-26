@@ -4,6 +4,23 @@ import { Camera, CameraView, EditorView, Light2D, Sprite, Transform } from 'esen
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { SceneModel } from './SceneModel';
+import {
+  type OBB,
+  type ClientRect,
+  quatAngleZ,
+  obbCorners,
+  pointInOBB,
+  rectsIntersect,
+  screenAABB,
+  clamp,
+} from './viewportMath';
+
+// World half-size of the pick/outline box for entities without renderable bounds
+// (cameras, lights, empties) — so they're click-selectable like any sprite.
+const ICON_WORLD_HALF = 24;
+// Pick priority for icon-only entities: above any real sprite layer, so a small
+// foreground gizmo (camera/light) wins a tie against a big sprite beneath it.
+const ICON_PICK_LAYER = 1e6;
 
 // Structural shape of the engine's CameraView resource (screen<->world).
 interface CameraViewLike {
@@ -58,7 +75,44 @@ export const ViewportController = {
     return { x: s.x / dpr, y: (canvas.height - s.y) / dpr }; // un-flip, to CSS px
   },
 
-  /** Topmost sprite under a pointer (AABB test in world space), or null. */
+  /**
+   * World-space oriented bounding box of any entity (rotation-aware). Sprites use
+   * `size × scale` about their pivot; entities without renderable bounds (cameras,
+   * lights, empties) get a fixed icon box so they're still selectable. The center is
+   * the geometric center, which for an off-center pivot orbits the rotation pivot
+   * (= transform position).
+   */
+  entityBounds(id: EntityId): OBB | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
+    const t = world.get(id, Transform);
+    const rot = quatAngleZ(t.rotation as { w: number; x: number; y: number; z: number });
+
+    let w = ICON_WORLD_HALF * 2;
+    let h = ICON_WORLD_HALF * 2;
+    let px = 0.5;
+    let py = 0.5;
+    if (world.has(id, Sprite)) {
+      const sp = world.get(id, Sprite);
+      w = sp.size.x * t.scale.x;
+      h = sp.size.y * t.scale.y;
+      px = sp.pivot?.x ?? 0.5;
+      py = sp.pivot?.y ?? 0.5;
+    }
+    const ox = w * (0.5 - px);
+    const oy = h * (0.5 - py);
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    return {
+      cx: t.position.x + ox * c - oy * s,
+      cy: t.position.y + ox * s + oy * c,
+      hw: Math.abs(w) / 2,
+      hh: Math.abs(h) / 2,
+      rot,
+    };
+  },
+
+  /** Topmost entity whose oriented bounds contain the pointer, or null. */
   pickEntity(clientX: number, clientY: number): EntityId | null {
     const world = EngineHost.world;
     const wp = this.canvasToWorld(clientX, clientY);
@@ -67,28 +121,34 @@ export const ViewportController = {
     let best: EntityId | null = null;
     let bestLayer = -Infinity;
     for (const e of world.getAllEntities()) {
-      if (!world.has(e, Sprite) || !world.has(e, Transform)) continue;
+      if (!world.has(e, Transform)) continue;
       // Locked / editor-hidden entities aren't click-selectable in the viewport.
       const src = SceneModel.sourceFor(e);
       if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) continue;
-      const t = world.get(e, Transform);
-      const sp = world.get(e, Sprite);
-      const w = sp.size.x * t.scale.x;
-      const h = sp.size.y * t.scale.y;
-      const px = sp.pivot?.x ?? 0.5;
-      const py = sp.pivot?.y ?? 0.5;
-      const left = t.position.x - w * px;
-      const right = t.position.x + w * (1 - px);
-      const bottom = t.position.y - h * py;
-      const top = t.position.y + h * (1 - py);
-      if (wp.x >= left && wp.x <= right && wp.y >= bottom && wp.y <= top) {
-        if (sp.layer >= bestLayer) {
-          bestLayer = sp.layer;
-          best = e;
-        }
+      const b = this.entityBounds(e);
+      if (!b || !pointInOBB(wp.x, wp.y, b)) continue;
+      const layer = world.has(e, Sprite) ? world.get(e, Sprite).layer : ICON_PICK_LAYER;
+      if (layer >= bestLayer) {
+        bestLayer = layer;
+        best = e;
       }
     }
     return best;
+  },
+
+  /** Entities whose screen bounds intersect a client-space rect (marquee box-select). */
+  pickInRect(rect: ClientRect): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (!world.has(e, Transform)) continue;
+      const src = SceneModel.sourceFor(e);
+      if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) continue;
+      const r = this.getEntityScreenRect(e);
+      if (r && rectsIntersect(rect, r)) out.push(e);
+    }
+    return out;
   },
 
   getEntityXY(id: EntityId): { x: number; y: number } | null {
@@ -99,41 +159,10 @@ export const ViewportController = {
   },
 
   /** Screen-space bounding rect (CSS px rel. canvas) of an entity, for the selection outline. */
-  getEntityScreenRect(id: EntityId): { x: number; y: number; w: number; h: number } | null {
-    const world = EngineHost.world;
-    if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
-    const t = world.get(id, Transform);
-
-    let w = 40;
-    let h = 40;
-    let px = 0.5;
-    let py = 0.5;
-    if (world.has(id, Sprite)) {
-      const sp = world.get(id, Sprite);
-      w = sp.size.x * t.scale.x;
-      h = sp.size.y * t.scale.y;
-      px = sp.pivot?.x ?? 0.5;
-      py = sp.pivot?.y ?? 0.5;
-    }
-
-    const cx = t.position.x;
-    const cy = t.position.y;
-    const worldCorners: Array<[number, number]> = [
-      [cx - w * px, cy - h * py],
-      [cx + w * (1 - px), cy - h * py],
-      [cx + w * (1 - px), cy + h * (1 - py)],
-      [cx - w * px, cy + h * (1 - py)],
-    ];
-
-    const screen = worldCorners.map(([wx, wy]) => this.worldToClient(wx, wy));
-    if (screen.some((p) => !p)) return null;
-    const xs = screen.map((p) => p!.x);
-    const ys = screen.map((p) => p!.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  getEntityScreenRect(id: EntityId): ClientRect | null {
+    const b = this.entityBounds(id);
+    if (!b) return null;
+    return screenAABB(obbCorners(b).map(([wx, wy]) => this.worldToClient(wx, wy)));
   },
 
   /** Pan the editor view by a CSS-pixel drag (prev→cur). Moves only the editor camera. */
@@ -154,13 +183,40 @@ export const ViewportController = {
     view.orthoSize = Math.max(8, Math.min(40000, view.orthoSize * factor));
   },
 
-  /** Center the editor view on an entity (frame-selected). */
-  frameEntity(id: EntityId): void {
+  /**
+   * Frame a set of entities: center the editor view on their union bounds and zoom
+   * to fit (with padding). Empty / single-point selections keep the current zoom and
+   * just re-center, so a one-entity Frame doesn't jarringly snap the zoom.
+   */
+  frameSelection(ids: readonly EntityId[]): void {
     const view = editorView();
-    const pos = this.getEntityXY(id);
-    if (!view || !pos) return;
-    view.x = pos.x;
-    view.y = pos.y;
+    const canvas = EngineHost.canvas;
+    if (!view || ids.length === 0) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const id of ids) {
+      const b = this.entityBounds(id);
+      if (!b) continue;
+      for (const [wx, wy] of obbCorners(b)) {
+        minX = Math.min(minX, wx);
+        minY = Math.min(minY, wy);
+        maxX = Math.max(maxX, wx);
+        maxY = Math.max(maxY, wy);
+      }
+    }
+    if (!Number.isFinite(minX)) return;
+    view.x = (minX + maxX) / 2;
+    view.y = (minY + maxY) / 2;
+
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const aspect = canvas && canvas.height > 0 ? canvas.width / canvas.height : 1;
+    // orthoSize is the view half-height; fit whichever axis is the binding constraint.
+    const halfH = Math.max(spanY / 2, aspect > 0 ? spanX / 2 / aspect : spanX / 2) * 1.2;
+    if (halfH > 1) view.orthoSize = clamp(halfH, 8, 40000);
   },
 
   /** Ids of the scene's camera entities — the camera-gizmo set (structural). */

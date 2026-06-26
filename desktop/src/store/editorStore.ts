@@ -39,10 +39,17 @@ interface EditorState {
   // viewport snap dropdown picks from a fixed set (16 / 32 / 64); "off" flips
   // `snapping` rather than changing the step, so the last step survives a re-enable.
   snapStep: number;
+  // Rotate / scale snap increments, gated by the same `snapping` master toggle as
+  // grid move-snap (degrees, and a uniform scale step). Replaces the old hardcoded
+  // 15° / 0.1 constants so they're user-tunable from the viewport snap menu.
+  snapAngle: number;
+  snapScale: number;
   toggleGrid: () => void;
   toggleGizmos: () => void;
   toggleSnapping: () => void;
   setSnapStep: (step: number) => void;
+  setSnapAngle: (deg: number) => void;
+  setSnapScale: (step: number) => void;
 
   // Content Drawer — a quick-access overlay: the Content Browser slides up over
   // the workspace (Ctrl+Space), dismissing on outside click / Esc. It sits ON
@@ -90,10 +97,14 @@ export const useEditorStore = create<EditorState>((set) => ({
   showGizmos: true,
   snapping: false,
   snapStep: 32,
+  snapAngle: 15,
+  snapScale: 0.1,
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleGizmos: () => set((s) => ({ showGizmos: !s.showGizmos })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
   setSnapStep: (snapStep) => set({ snapStep, snapping: true }),
+  setSnapAngle: (snapAngle) => set({ snapAngle }),
+  setSnapScale: (snapScale) => set({ snapScale }),
 
   contentDrawer: false,
   toggleContentDrawer: () => set((s) => ({ contentDrawer: !s.contentDrawer })),

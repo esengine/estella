@@ -193,6 +193,9 @@ export function Outliner() {
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if ((e.target as HTMLElement).tagName === 'INPUT' || renaming != null) return; // typing
+    // When the Outliner is focused it owns the arrow keys (tree nav) — stop them
+    // reaching the global keymap, where they'd also nudge the viewport selection.
+    if (e.key.startsWith('Arrow')) e.stopPropagation();
     switch (e.key) {
       case 'ArrowDown': e.preventDefault(); moveCursor(1); break;
       case 'ArrowUp': e.preventDefault(); moveCursor(-1); break;

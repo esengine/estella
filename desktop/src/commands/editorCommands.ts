@@ -12,6 +12,7 @@ import { commands } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { SceneModel } from '@/engine/SceneModel';
 import { ViewportController } from '@/engine/ViewportController';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
@@ -137,6 +138,42 @@ commands.register({ id: 'tool.move', label: 'Move Tool', category: 'Tools', keyb
 commands.register({ id: 'tool.rotate', label: 'Rotate Tool', category: 'Tools', keybinding: 'e', run: tool('rotate') });
 commands.register({ id: 'tool.scale', label: 'Scale Tool', category: 'Tools', keybinding: 'r', run: tool('scale') });
 
+// — Keyboard nudge — arrow keys move the selection by one grid step (Shift = ×10),
+// world +Y is up so ArrowUp adds to Y. One undo step; the Outliner stops arrows from
+// reaching here while it's focused (tree nav owns them there).
+function nudgeSelection(ux: number, uy: number, big: boolean): void {
+  const ids = [...sel().selectedIds];
+  if (!ids.length) return;
+  const step = editor().snapStep * (big ? 10 : 1);
+  SceneCommands.transact('Nudge', () => {
+    for (const sid of ids) {
+      const rt = SceneModel.runtimeFor(sid);
+      const pos = rt != null ? ViewportController.getEntityXY(rt) : null;
+      if (pos) SceneCommands.setEntityXY(sid, pos.x + ux * step, pos.y + uy * step);
+    }
+  });
+}
+const NUDGES: Array<{ id: string; key: string; ux: number; uy: number; big: boolean }> = [
+  { id: 'entity.nudgeLeft', key: 'left', ux: -1, uy: 0, big: false },
+  { id: 'entity.nudgeRight', key: 'right', ux: 1, uy: 0, big: false },
+  { id: 'entity.nudgeUp', key: 'up', ux: 0, uy: 1, big: false },
+  { id: 'entity.nudgeDown', key: 'down', ux: 0, uy: -1, big: false },
+  { id: 'entity.nudgeLeftBig', key: 'shift+left', ux: -1, uy: 0, big: true },
+  { id: 'entity.nudgeRightBig', key: 'shift+right', ux: 1, uy: 0, big: true },
+  { id: 'entity.nudgeUpBig', key: 'shift+up', ux: 0, uy: 1, big: true },
+  { id: 'entity.nudgeDownBig', key: 'shift+down', ux: 0, uy: -1, big: true },
+];
+for (const n of NUDGES) {
+  commands.register({
+    id: n.id,
+    label: 'Nudge Selection',
+    category: 'Entity',
+    keybinding: n.key,
+    isEnabled: () => sel().selectedIds.size > 0,
+    run: () => nudgeSelection(n.ux, n.uy, n.big),
+  });
+}
+
 // — Viewport / view —
 commands.register({
   id: 'view.frameSelected',
@@ -145,8 +182,8 @@ commands.register({
   keybinding: 'f',
   isEnabled: () => sel().selectedId != null,
   run: () => {
-    const id = sel().selectedId;
-    if (id != null) ViewportController.frameEntity(id);
+    const ids = [...sel().selectedIds];
+    if (ids.length > 0) ViewportController.frameSelection(ids);
   },
 });
 commands.register({

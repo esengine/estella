@@ -561,9 +561,11 @@
   will-change: transform, opacity;
   transition: opacity 0.1s ease;
 }
+/* The interactive gizmo draws from its origin (= the pivot the wrapper is
+   translated to), so no centering transform — just the contrast shadow. */
 .viewport__gizmo svg {
   display: block;
-  transform: translate(-50%, -50%);
+  overflow: visible;
   filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.55));
 }
 
@@ -581,6 +583,22 @@
   box-shadow:
     0 0 0 1px rgba(14, 15, 18, 0.7),
     inset 0 0 0 1px rgba(14, 15, 18, 0.4);
+  will-change: transform, width, height, opacity;
+}
+/* The primary (active) entity in a multi-selection reads slightly stronger. */
+.viewport__selection.primary {
+  border-width: 1.5px;
+}
+/* Box-select marquee (rAF-driven by the transform tool's empty-space drag). */
+.viewport__marquee {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  border: 1px dashed var(--sel);
+  background: var(--sel-soft);
   will-change: transform, width, height, opacity;
 }
 .viewport__tilesel {

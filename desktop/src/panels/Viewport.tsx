@@ -20,6 +20,8 @@ import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
+import { GIZMO } from '@/tools/gizmo';
+import { Marquee } from '@/tools/marquee';
 
 // A React pointer event → the tool-facing PointerInput (no DOM coupling in tools).
 const toInput = (e: ReactPointerEvent): PointerInput => ({
@@ -27,45 +29,42 @@ const toInput = (e: ReactPointerEvent): PointerInput => ({
   button: e.button, shift: e.shiftKey, alt: e.altKey,
 });
 
-// Visual manipulation glyph, centered on the selected entity, reflecting the
-// active tool. The drag itself (below) now applies move / rotate / scale.
-function GizmoGlyph({ tool }: { tool: ToolMode }) {
+// The interactive transform gizmo, drawn from the origin (= the selection pivot, the
+// wrapper is translated there each frame). Its geometry mirrors the hit zones in
+// gizmo.ts (GIZMO constants) so the handles a user aims at are the handles the tool
+// hit-tests. Screen y is down, so the world +Y handle points up (negative y). Only
+// move/rotate/scale render a gizmo; the select tool shows just the selection outline.
+function GizmoOverlay({ tool }: { tool: ToolMode }) {
+  const L = GIZMO.axisLen;
+  const B = GIZMO.boxSize;
+  const P = GIZMO.planeSize;
   if (tool === 'rotate') {
     return (
-      <svg width="92" height="92" viewBox="0 0 92 92">
-        <circle cx="46" cy="46" r="34" fill="none" stroke="var(--run)" strokeWidth="2" />
-        <circle cx="46" cy="12" r="4" fill="var(--run)" />
+      <svg className="gizmo-svg" width="0" height="0" overflow="visible">
+        <circle cx="0" cy="0" r={GIZMO.ringRadius} fill="none" stroke="var(--run)" strokeWidth="2" />
+        <circle cx="0" cy="0" r="2.5" fill="var(--star)" />
       </svg>
     );
   }
   if (tool === 'scale') {
     return (
-      <svg width="92" height="92" viewBox="0 0 92 92">
-        <line x1="46" y1="46" x2="80" y2="46" stroke="var(--error)" strokeWidth="2.5" />
-        <rect x="77" y="42" width="8" height="8" fill="var(--error)" />
-        <line x1="46" y1="46" x2="46" y2="12" stroke="var(--run)" strokeWidth="2.5" />
-        <rect x="42" y="9" width="8" height="8" fill="var(--run)" />
-        <rect x="41" y="41" width="10" height="10" fill="var(--star)" />
+      <svg className="gizmo-svg" width="0" height="0" overflow="visible">
+        <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth="2.5" />
+        <rect x={L - B / 2} y={-B / 2} width={B} height={B} fill="var(--error)" />
+        <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth="2.5" />
+        <rect x={-B / 2} y={-L - B / 2} width={B} height={B} fill="var(--run)" />
+        <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity="0.85" />
       </svg>
     );
   }
-  if (tool === 'select') {
-    return (
-      <svg width="92" height="92" viewBox="0 0 92 92">
-        <rect x="16" y="16" width="60" height="60" fill="none" stroke="var(--star)" strokeWidth="1.5" strokeDasharray="4 3" />
-        {[[16, 16], [76, 16], [16, 76], [76, 76]].map(([x, y]) => (
-          <rect key={`${x}-${y}`} x={x - 3} y={y - 3} width="6" height="6" fill="var(--star)" />
-        ))}
-      </svg>
-    );
-  }
+  // move (and any other) → axis arrows + a center plane square
   return (
-    <svg width="92" height="92" viewBox="0 0 92 92">
-      <line x1="46" y1="46" x2="82" y2="46" stroke="var(--error)" strokeWidth="2.5" />
-      <path d="M82 46 L74 42 L74 50 Z" fill="var(--error)" />
-      <line x1="46" y1="46" x2="46" y2="10" stroke="var(--run)" strokeWidth="2.5" />
-      <path d="M46 10 L42 18 L50 18 Z" fill="var(--run)" />
-      <rect x="41" y="41" width="10" height="10" fill="var(--star)" opacity="0.9" />
+    <svg className="gizmo-svg" width="0" height="0" overflow="visible">
+      <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth="2.5" />
+      <path d={`M${L} 0 L${L - 9} -4 L${L - 9} 4 Z`} fill="var(--error)" />
+      <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth="2.5" />
+      <path d={`M0 ${-L} L-4 ${-L + 9} L4 ${-L + 9} Z`} fill="var(--run)" />
+      <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity="0.85" />
     </svg>
   );
 }
@@ -77,15 +76,18 @@ const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] 
   { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' },
 ];
 
-// World units offered by the viewport Snap dropdown (move snap step).
+// Increments offered by the viewport Snap dropdown: move (world units), rotate
+// (degrees), scale (factor). All gated by the single `snapping` master toggle.
 const SNAP_STEPS = [16, 32, 64];
+const SNAP_ANGLES = [5, 15, 45, 90];
+const SNAP_SCALES = [0.1, 0.25, 0.5];
 
 // One-line hint shown under the coord readout, reflecting the active tool.
 const TOOL_HINT: Record<ToolMode, string> = {
-  select: 'Click to select · drag empty to box-select',
-  move: 'Drag the entity to move · Shift to multi-select',
-  rotate: 'Drag around the entity to rotate',
-  scale: 'Drag out from the entity to scale',
+  select: 'Click to select · Shift adds · drag empty to box-select',
+  move: 'Drag a gizmo axis or the body · Alt-drag duplicates · arrows nudge',
+  rotate: 'Drag the ring to rotate the selection',
+  scale: 'Drag a handle for per-axis scale · center for uniform',
 };
 
 function OvTool({
@@ -192,12 +194,21 @@ export function Viewport() {
   const showGizmos = useEditorStore((s) => s.showGizmos);
   const snapping = useEditorStore((s) => s.snapping);
   const snapStep = useEditorStore((s) => s.snapStep);
+  const snapAngle = useEditorStore((s) => s.snapAngle);
+  const snapScale = useEditorStore((s) => s.snapScale);
   const selCount = useSelection((s) => s.selectedIds.size);
+  // The set of selected source ids — drives one selection outline per entity. The
+  // Set is replaced (not mutated) on every selection change, so this re-renders.
+  const selectedIds = useSelection((s) => s.selectedIds);
+  const primaryId = useSelection((s) => s.selectedId);
+  const selList = useMemo(() => [...selectedIds], [selectedIds]);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const playHostRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
-  const selectionRef = useRef<HTMLDivElement>(null);
+  // One outline div per selected entity, keyed by source id and positioned by the rAF.
+  const selRefs = useRef(new Map<number, HTMLDivElement | null>());
+  const marqueeRef = useRef<HTMLDivElement>(null);
   const tileSelRef = useRef<HTMLDivElement>(null);
   const tilePreviewRef = useRef<HTMLDivElement>(null);
   const hoverTileRef = useRef<{ x: number; y: number } | null>(null);
@@ -274,44 +285,73 @@ export function Viewport() {
     return () => stage.removeEventListener('wheel', onWheel);
   }, []);
 
-  // Glue the gizmo + selection outline to the selected entity, every frame.
+  // Glue the gizmo (at the selection pivot), the per-entity outlines, and the
+  // marquee box to the World, every frame.
   useEffect(() => {
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
       const g = gizmoRef.current;
-      const sel = selectionRef.current;
-      if (!g || !sel) return;
-      // Selection is a source id; the gizmo/outline reads World geometry, so
-      // resolve it to the runtime entity (absent if not currently spawned).
-      const sid = useSelection.getState().selectedId;
-      const rt = sid != null ? SceneModel.runtimeFor(sid) : undefined;
+      if (!g) return;
       const ready = EngineHost.getSnapshot().status === 'ready';
       const showG = useEditorStore.getState().showGizmos;
+      const toolMode = useEditorStore.getState().tool;
 
-      const pos = ready && rt != null ? ViewportController.getEntityXY(rt) : null;
-      const sc = pos ? ViewportController.worldToClient(pos.x, pos.y) : null;
-      if (sc && showG) {
-        g.style.transform = `translate(${sc.x}px, ${sc.y}px)`;
+      // Per-entity selection outlines (one div per selected source id).
+      let sumX = 0;
+      let sumY = 0;
+      let nPos = 0;
+      for (const [sid, el] of selRefs.current) {
+        if (!el) continue;
+        const rt = ready ? SceneModel.runtimeFor(sid) : undefined;
+        const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
+        if (rect) {
+          el.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
+          el.style.width = `${rect.w}px`;
+          el.style.height = `${rect.h}px`;
+          el.style.opacity = '1';
+          const pos = ViewportController.getEntityXY(rt!);
+          if (pos) {
+            sumX += pos.x;
+            sumY += pos.y;
+            nPos += 1;
+          }
+        } else {
+          el.style.opacity = '0';
+        }
+      }
+
+      // The transform gizmo sits at the selection pivot (centroid), and only for the
+      // move/rotate/scale tools — the select tool shows just the outline.
+      const pivot = nPos > 0 ? ViewportController.worldToClient(sumX / nPos, sumY / nPos) : null;
+      if (pivot && showG && toolMode !== 'select') {
+        g.style.transform = `translate(${pivot.x}px, ${pivot.y}px)`;
         g.style.opacity = '1';
       } else {
         g.style.opacity = '0';
       }
 
-      const rect = ready && rt != null ? ViewportController.getEntityScreenRect(rt) : null;
-      if (rect) {
-        sel.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
-        sel.style.width = `${rect.w}px`;
-        sel.style.height = `${rect.h}px`;
-        sel.style.opacity = '1';
-      } else {
-        sel.style.opacity = '0';
+      // Marquee box (set by the transform tool's box-select drag).
+      const mq = marqueeRef.current;
+      if (mq) {
+        const r = Marquee.get();
+        if (r) {
+          mq.style.transform = `translate(${r.x}px, ${r.y}px)`;
+          mq.style.width = `${r.w}px`;
+          mq.style.height = `${r.h}px`;
+          mq.style.opacity = '1';
+        } else {
+          mq.style.opacity = '0';
+        }
       }
 
       // Tile-select marquee: an axis-aligned rect over the selected TilemapLayer's
       // chosen tile range, in screen space (its world corners projected each frame).
+      // Tilemap paint targets the primary entity, so resolve just that one here.
       const ts = tileSelRef.current;
       if (ts) {
+        const sid = useSelection.getState().selectedId;
+        const rt = ready && sid != null ? SceneModel.runtimeFor(sid) : undefined;
         const paint = useTilemapPaint.getState();
         const tsel = paint.tool === 'select' ? paint.selection : null;
         const layer = ready && sid != null
@@ -565,14 +605,32 @@ export function Viewport() {
             align="r"
             title="Grid Snap"
           >
-            <div className="dd-lbl">Snap (units)</div>
             <DdRadio on={!snapping} label="Off" onClick={() => useEditorStore.setState({ snapping: false })} />
+            <div className="dd-lbl">Move (units)</div>
             {SNAP_STEPS.map((s) => (
               <DdRadio
                 key={s}
                 on={snapping && snapStep === s}
                 label={String(s)}
                 onClick={() => useEditorStore.getState().setSnapStep(s)}
+              />
+            ))}
+            <div className="dd-lbl">Rotate (°)</div>
+            {SNAP_ANGLES.map((a) => (
+              <DdRadio
+                key={a}
+                on={snapping && snapAngle === a}
+                label={String(a)}
+                onClick={() => useEditorStore.setState({ snapping: true, snapAngle: a })}
+              />
+            ))}
+            <div className="dd-lbl">Scale (×)</div>
+            {SNAP_SCALES.map((s) => (
+              <DdRadio
+                key={s}
+                on={snapping && snapScale === s}
+                label={String(s)}
+                onClick={() => useEditorStore.setState({ snapping: true, snapScale: s })}
               />
             ))}
           </OvDropdown>
@@ -651,12 +709,24 @@ export function Viewport() {
         </div>
       )}
 
-      <div ref={selectionRef} className="viewport__selection" aria-hidden="true" />
+      {/* One outline per selected entity (rAF-positioned); primary gets the accent. */}
+      {selList.map((id) => (
+        <div
+          key={id}
+          ref={(el) => {
+            if (el) selRefs.current.set(id, el);
+            else selRefs.current.delete(id);
+          }}
+          className={`viewport__selection${id === primaryId ? ' primary' : ''}`}
+          aria-hidden="true"
+        />
+      ))}
+      <div ref={marqueeRef} className="viewport__marquee" aria-hidden="true" />
       <div ref={tileSelRef} className="viewport__tilesel" aria-hidden="true" />
       <div ref={tilePreviewRef} className="viewport__tilepreview" aria-hidden="true" />
 
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
-        <GizmoGlyph tool={tool} />
+        <GizmoOverlay tool={tool} />
       </div>
 
       {engine.status !== 'ready' && (
