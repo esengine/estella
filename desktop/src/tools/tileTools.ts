@@ -24,7 +24,7 @@ import type { EditorTool, PointerInput } from './EditorTool';
 
 // Cursor (client px) → tile grid coords on a TilemapLayer entity: client→world via
 // the editor camera, then world→tile around the layer's world origin (its Transform).
-function cursorTile(clientX: number, clientY: number, sourceId: number): { x: number; y: number } | null {
+export function cursorTile(clientX: number, clientY: number, sourceId: number): { x: number; y: number } | null {
   const rt = SceneModel.runtimeFor(sourceId);
   const wp = ViewportController.canvasToWorld(clientX, clientY);
   const ep = rt != null ? ViewportController.getEntityXY(rt) : null;

@@ -594,6 +594,18 @@
   background: rgba(90, 200, 250, 0.12);
   will-change: transform, width, height, opacity;
 }
+.viewport__tilepreview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(14, 15, 18, 0.5);
+  will-change: transform, width, height, opacity;
+}
 .viewport__stage.has-grid {
   background-image:
     linear-gradient(var(--line-soft) 1px, transparent 1px),

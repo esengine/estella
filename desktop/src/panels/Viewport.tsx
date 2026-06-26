@@ -19,6 +19,7 @@ import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
+import { cursorTile } from '@/tools/tileTools';
 
 // A React pointer event → the tool-facing PointerInput (no DOM coupling in tools).
 const toInput = (e: ReactPointerEvent): PointerInput => ({
@@ -198,6 +199,8 @@ export function Viewport() {
   const gizmoRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
   const tileSelRef = useRef<HTMLDivElement>(null);
+  const tilePreviewRef = useRef<HTMLDivElement>(null);
+  const hoverTileRef = useRef<{ x: number; y: number } | null>(null);
   // Camera pan (middle/right drag) is built-in navigation, separate from tools.
   const panRef = useRef<{ px: number; py: number } | null>(null);
   // The tool that owns the in-progress left-button stroke (move/up route to it).
@@ -334,6 +337,31 @@ export function Viewport() {
         } else {
           ts.style.opacity = '0';
         }
+
+        // Brush footprint preview: a ghost rect at the hovered tile sized to the active
+        // stamp (1×1 for erase/bucket/terrain), so painting isn't blind.
+        const pv = tilePreviewRef.current;
+        if (pv) {
+          const FOOT: Record<string, boolean> = { brush: true, erase: true, bucket: true, terrain: true };
+          const hov = hoverTileRef.current;
+          const showFoot = paint.tool != null && FOOT[paint.tool] && hov && cs?.cellSize && origin;
+          if (showFoot && hov && cs?.cellSize && origin) {
+            const fw = paint.tool === 'brush' ? paint.stamp.w : 1;
+            const fh = paint.tool === 'brush' ? paint.stamp.h : 1;
+            const tl = ViewportController.worldToClient(origin.x + hov.x * cs.cellSize.x, origin.y - hov.y * cs.cellSize.y);
+            const br = ViewportController.worldToClient(origin.x + (hov.x + fw) * cs.cellSize.x, origin.y - (hov.y + fh) * cs.cellSize.y);
+            if (tl && br) {
+              pv.style.transform = `translate(${tl.x}px, ${tl.y}px)`;
+              pv.style.width = `${br.x - tl.x}px`;
+              pv.style.height = `${br.y - tl.y}px`;
+              pv.style.opacity = '1';
+            } else {
+              pv.style.opacity = '0';
+            }
+          } else {
+            pv.style.opacity = '0';
+          }
+        }
       }
 
       // Scene-camera gizmos — only in edit mode (in play the viewport IS the
@@ -459,6 +487,13 @@ export function Viewport() {
       panRef.current.py = e.clientY;
       return;
     }
+    // Track the hovered tile for the brush preview (only over the selected TilemapLayer
+    // with a paint tool active; the rAF draws the footprint).
+    const sid = useTilemapPaint.getState().tool ? useSelection.getState().selectedId : null;
+    const isTm = sid != null
+      && !!SceneModel.entityBySource(sid)?.components.some((c) => c.type === 'TilemapLayer');
+    hoverTileRef.current = sid != null && isTm ? cursorTile(e.clientX, e.clientY, sid) : null;
+
     activeToolRef.current?.onPointerMove(toInput(e), toolCtx);
   };
 
@@ -553,7 +588,7 @@ export function Viewport() {
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onPointerLeave={() => StatsStore.clearCursor()}
+        onPointerLeave={() => { StatsStore.clearCursor(); hoverTileRef.current = null; }}
         onContextMenu={(e) => e.preventDefault()}
         onDragOver={onDragOver}
         onDrop={onDrop}
@@ -618,6 +653,7 @@ export function Viewport() {
 
       <div ref={selectionRef} className="viewport__selection" aria-hidden="true" />
       <div ref={tileSelRef} className="viewport__tilesel" aria-hidden="true" />
+      <div ref={tilePreviewRef} className="viewport__tilepreview" aria-hidden="true" />
 
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
         <GizmoGlyph tool={tool} />
