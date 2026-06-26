@@ -10,7 +10,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Brush, Eraser, Square, Pipette, FlipHorizontal, FlipVertical, RotateCw, Mountain } from 'lucide-react';
+import {
+  Brush, Eraser, Square, Slash, PaintBucket, Pipette,
+  FlipHorizontal, FlipVertical, RotateCw, Mountain,
+} from 'lucide-react';
 import { parseTileset, encodeTile, type TilesetAsset } from 'esengine';
 import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
@@ -30,6 +33,8 @@ const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
   { id: 'brush', icon: Brush, label: '画笔' },
   { id: 'erase', icon: Eraser, label: '擦除' },
   { id: 'rect', icon: Square, label: '矩形' },
+  { id: 'line', icon: Slash, label: '直线' },
+  { id: 'bucket', icon: PaintBucket, label: '油漆桶' },
   { id: 'eyedropper', icon: Pipette, label: '吸管' },
   { id: 'terrain', icon: Mountain, label: '地形' },
 ];

@@ -14,7 +14,7 @@ import {
     singleStamp, flipStampH, flipStampV, rotateStampCW, encodeTile,
 } from 'esengine';
 
-export type PaintTool = 'brush' | 'erase' | 'rect' | 'eyedropper' | 'terrain';
+export type PaintTool = 'brush' | 'erase' | 'rect' | 'line' | 'bucket' | 'eyedropper' | 'terrain';
 
 interface TilemapPaintState {
     /** Active `.estileset` palette (project-relative path), or null. */
