@@ -647,22 +647,39 @@ export class SceneCommandsImpl {
     });
   }
 
+  // The default data for a component: builtins from the engine registry; user/script
+  // components from the schemas.json shape; an unknown-but-named component is empty.
+  private defaultDataFor(compName: string): Record<string, unknown> {
+    const def = componentByName(compName);
+    return def
+      ? structuredClone(componentDefaults(def))
+      : structuredClone(userSchema(compName)?.default ?? {});
+  }
+
   /** Add a component (with its registered/schema defaults) to an entity. Undoable. */
   // Apply an add to the model and return its undo op, or null if it's a no-op
   // (entity gone / component already present). Shared by the single + batch paths.
   private addComponentOp(sourceId: EntityId, compName: string): UndoOp | null {
     const entity = this.model.entityBySource(sourceId);
     if (!entity || entity.components.some((c) => c.type === compName)) return null;
-    const def = componentByName(compName);
-    // Builtins default from the engine registry; user/script components from the
-    // schemas.json shape; an unknown-but-named component starts empty.
-    const data = def
-      ? structuredClone(componentDefaults(def))
-      : structuredClone(userSchema(compName)?.default ?? {});
+    const data = this.defaultDataFor(compName);
     this.model.setComponent(sourceId, compName, data);
     return {
       forward: () => this.model.setComponent(sourceId, compName, structuredClone(data)),
       reverse: () => this.model.removeComponent(sourceId, compName),
+    };
+  }
+
+  // Replace an existing component's data wholesale (paste-values / reset). Null if
+  // the entity doesn't have the component (paste/reset only touch what's present).
+  private replaceComponentOp(sourceId: EntityId, compName: string, newData: Record<string, unknown>): UndoOp | null {
+    const cur = this.model.entityBySource(sourceId)?.components.find((c) => c.type === compName);
+    if (!cur) return null;
+    const before = structuredClone(cur.data);
+    this.model.setComponent(sourceId, compName, structuredClone(newData));
+    return {
+      forward: () => this.model.setComponent(sourceId, compName, structuredClone(newData)),
+      reverse: () => this.model.setComponent(sourceId, compName, structuredClone(before)),
     };
   }
 
@@ -699,6 +716,26 @@ export class SceneCommandsImpl {
   removeComponentMany(sourceIds: readonly EntityId[], compName: string): void {
     const ops = sourceIds.map((id) => this.removeComponentOp(id, compName)).filter((o): o is UndoOp => !!o);
     this.history.batch(`Remove ${prettyLabel(compName)}`, ops);
+  }
+
+  /**
+   * Paste a copied component's values onto every selected entity that has that
+   * component (the Details "Paste Values"). Wholesale data replacement, one undo
+   * step; entities without the component are skipped.
+   */
+  pasteComponentValuesMany(sourceIds: readonly EntityId[], compName: string, data: Record<string, unknown>): void {
+    const ops = sourceIds.map((id) => this.replaceComponentOp(id, compName, data)).filter((o): o is UndoOp => !!o);
+    this.history.batch(`Paste ${prettyLabel(compName)} Values`, ops);
+  }
+
+  /**
+   * Reset a component to its registered defaults on every selected entity that has
+   * it (the Details "Reset to Defaults"). One undo step.
+   */
+  resetComponentMany(sourceIds: readonly EntityId[], compName: string): void {
+    const defaults = this.defaultDataFor(compName);
+    const ops = sourceIds.map((id) => this.replaceComponentOp(id, compName, defaults)).filter((o): o is UndoOp => !!o);
+    this.history.batch(`Reset ${prettyLabel(compName)}`, ops);
   }
 
   /**

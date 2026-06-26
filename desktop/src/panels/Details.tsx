@@ -10,6 +10,7 @@ import {
   Code2,
   Component as ComponentIcon,
   Copy,
+  ClipboardPaste,
   Filter,
   FolderOpen,
   Image as ImageIcon,
@@ -37,6 +38,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery';
 import { SceneModel } from '@/engine/SceneModel';
+import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { PlayInspect } from '@/engine/PlayInspect';
 import type { SceneData } from 'esengine';
@@ -1134,8 +1136,30 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     end();
   };
 
+  // Right-click a property → Copy / Paste its value (the live "Game" inspector has no
+  // undoable write door, so it's disabled there).
+  const [fctx, setFctx] = useState<{ x: number; y: number } | null>(null);
+  const pasteValue = InspectorClipboard.fieldValue(field.type);
+  const doPaste = () => {
+    if (pasteValue == null) return;
+    begin();
+    apply(pasteValue as never);
+    end();
+  };
+
   return (
-    <div className={`prop${modified ? ' modified' : ''}${mixed ? ' mixed' : ''}`}>
+    <div
+      className={`prop${modified ? ' modified' : ''}${mixed ? ' mixed' : ''}`}
+      onContextMenu={
+        write
+          ? undefined
+          : (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setFctx({ x: e.clientX, y: e.clientY });
+            }
+      }
+    >
       <span className={`prop-label${isScalar ? ' scrub' : ''}`} {...(isScalar ? labelScrub : {})}>
         {field.label}
       </span>
@@ -1149,6 +1173,27 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       >
         <RotateCcw size={11} strokeWidth={2} />
       </button>
+      {fctx && (
+        <ContextMenu
+          x={fctx.x}
+          y={fctx.y}
+          onClose={() => setFctx(null)}
+          items={[
+            {
+              label: 'Copy',
+              icon: <Copy size={13} strokeWidth={1.9} />,
+              disabled: mixed,
+              onClick: () => InspectorClipboard.copyField(comp, field.key, field.type, field.value),
+            },
+            {
+              label: 'Paste',
+              icon: <ClipboardPaste size={13} strokeWidth={1.9} />,
+              disabled: pasteValue == null,
+              onClick: doPaste,
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -1757,14 +1802,43 @@ function EditorDetails() {
         <ContextMenu
           x={compMenu.x}
           y={compMenu.y}
-          items={[
-            {
-              label: ids.length > 1 ? `Remove Component (${ids.length})` : 'Remove Component',
-              danger: true,
-              icon: <Trash2 size={13} strokeWidth={1.9} />,
-              onClick: () => SceneCommands.removeComponentMany(ids, compMenu.comp),
-            },
-          ]}
+          items={(() => {
+            const comp = compMenu.comp;
+            const data = SceneModel.entityBySource(ids[0])?.components.find((c) => c.type === comp)?.data as
+              | Record<string, unknown>
+              | undefined;
+            const pasteData = InspectorClipboard.componentData(comp);
+            return [
+              {
+                label: 'Copy Values',
+                icon: <Copy size={13} strokeWidth={1.9} />,
+                disabled: !data,
+                onClick: () => {
+                  if (data) InspectorClipboard.copyComponent(comp, data);
+                },
+              },
+              {
+                label: 'Paste Values',
+                icon: <ClipboardPaste size={13} strokeWidth={1.9} />,
+                disabled: !pasteData,
+                onClick: () => {
+                  if (pasteData) SceneCommands.pasteComponentValuesMany(ids, comp, pasteData);
+                },
+              },
+              {
+                label: 'Reset to Defaults',
+                icon: <RotateCcw size={13} strokeWidth={1.9} />,
+                onClick: () => SceneCommands.resetComponentMany(ids, comp),
+              },
+              { sep: true },
+              {
+                label: ids.length > 1 ? `Remove Component (${ids.length})` : 'Remove Component',
+                danger: true,
+                icon: <Trash2 size={13} strokeWidth={1.9} />,
+                onClick: () => SceneCommands.removeComponentMany(ids, comp),
+              },
+            ];
+          })()}
           onClose={() => setCompMenu(null)}
         />
       )}
