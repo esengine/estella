@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ChevronRight, Search, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react';
+import { ChevronRight, Search, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { useTooltip } from '@/components/Tooltip';
@@ -11,6 +11,7 @@ import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMeta';
 import { ASSET_OPEN } from '@/project/assetOpen';
 import { referencingPaths } from '@/project/assetRefs';
+import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
@@ -238,6 +239,7 @@ export function ContentBrowser() {
   const [ctx, setCtx] = useState<{ x: number; y: number; target: { path: string; entry: DirEntry } | null } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [filters, setFilters] = useState<Set<AssetType>>(new Set());
+  const [sort, setSort] = useState<AssetSort>('name');
   const tip = useTooltip<{ path: string; entry: DirEntry }>((p) => <AssetTipCard path={p.path} entry={p.entry} />);
 
   // Asset selection lives in the shared store (unified inspector): selecting an
@@ -260,17 +262,14 @@ export function ContentBrowser() {
   useEffect(() => selectAsset(null), [cwd, selectAsset]);
 
   const entries = useDir(project ? cwd : null);
-  const q = query.trim().toLowerCase();
-  const items = useMemo(() => {
-    const list = entries.filter((e) => {
-      if (q && !e.name.toLowerCase().includes(q)) return false;
-      // Folders always show (they're navigation); a type filter narrows files.
-      if (filters.size > 0 && !e.isDir && !filters.has(assetType(e.name))) return false;
-      return true;
-    });
-    // Folders first, then files; both alphabetical.
-    return [...list].sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
-  }, [entries, q, filters]);
+  const q = query.trim();
+  // Search supports `type:`/`t:` tokens + free text; the type chips add to the
+  // token constraint; sort is folders-first, then by name or type.
+  const parsed = useMemo(() => parseAssetQuery(query), [query]);
+  const items = useMemo(
+    () => filterAndSortAssets(entries, parsed, filters as ReadonlySet<string>, sort, assetType),
+    [entries, parsed, filters, sort],
+  );
 
   // Double-click: enter folders; otherwise dispatch through the per-type open
   // table (scene/clip/tileset editors).
@@ -549,12 +548,20 @@ export function ContentBrowser() {
             <div className="search cb-search">
               <Search size={13} strokeWidth={1.9} />
               <input
-                placeholder="Search assets"
+                placeholder="Search  (type:texture …)"
                 spellCheck={false}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
+            <button
+              type="button"
+              className="cb-ghost"
+              title={`Sort by ${sort === 'name' ? 'name' : 'type'} — click to sort by ${sort === 'name' ? 'type' : 'name'}`}
+              onClick={() => setSort((s) => (s === 'name' ? 'type' : 'name'))}
+            >
+              <ArrowDownUp size={14} strokeWidth={2} />
+            </button>
             <div className="cb-seg">
               <button type="button" className={view === 'grid' ? 'on' : ''} title="Grid view" onClick={() => setView('grid')}>
                 <LayoutGrid size={13} strokeWidth={1.9} />
