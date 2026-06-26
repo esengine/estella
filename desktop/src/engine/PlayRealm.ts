@@ -13,6 +13,7 @@
  */
 import { createStore } from 'zustand/vanilla';
 import type { SceneData, PhysicsPluginConfig, SubsystemStatus } from 'esengine';
+import { LogStore, type LogLevel } from '@/store/LogStore';
 
 export interface PlayPayload {
   sceneData: SceneData;
@@ -154,12 +155,20 @@ class PlayRealmImpl {
 
   private onMessage = (e: MessageEvent): void => {
     if (!this.iframe || e.source !== this.iframe.contentWindow) return;
-    const data = e.data as { type?: string; message?: string; reqId?: number; data?: unknown } | null;
+    const data = e.data as
+      | { type?: string; message?: string; reqId?: number; data?: unknown; level?: LogLevel; line?: string }
+      | null;
     if (!data?.type) return;
     switch (data.type) {
       case 'estella:play:hello':
         // Realm mounted + listening — hand it the scene snapshot.
         if (this.payload) this.post({ type: 'estella:play:init', ...this.payload });
+        break;
+      case 'estella:play:log':
+        // The running game's console/wasm output, forwarded from the realm iframe so
+        // it lands in the editor's Output Log (it runs in a separate JS realm, so the
+        // parent's console patch never sees it).
+        LogStore.push(data.level ?? 'info', 'Play', data.line ?? '');
         break;
       case 'estella:play:ready':
         this.set({ ready: true });

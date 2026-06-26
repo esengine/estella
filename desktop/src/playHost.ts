@@ -106,6 +106,35 @@ let booted = false;
 let reloadSeq = 0;
 const post = (m: Record<string, unknown>) => parent.postMessage(m, '*');
 
+// Forward the running game's console output to the editor's Output Log. The realm is
+// a separate JS realm, so the editor's console patch never sees these — mirror each
+// call to the parent (keeping the original for the realm's own devtools). wasm
+// print/printErr and the SDK logger both route through console, so this captures the
+// whole game stream.
+const fmtArg = (a: unknown): string => {
+  if (typeof a === 'string') return a;
+  if (a instanceof Error) return a.stack ?? a.message;
+  try {
+    return typeof a === 'object' ? JSON.stringify(a) : String(a);
+  } catch {
+    return String(a);
+  }
+};
+(() => {
+  const levels = { log: 'info', info: 'info', debug: 'info', warn: 'warn', error: 'error' } as const;
+  for (const m of ['log', 'info', 'debug', 'warn', 'error'] as const) {
+    const orig = console[m].bind(console);
+    console[m] = (...args: unknown[]) => {
+      orig(...args);
+      try {
+        post({ type: 'estella:play:log', level: levels[m], line: args.map(fmtArg).join(' ') });
+      } catch {
+        // Parent unavailable (realm tearing down) — the original console still ran.
+      }
+    };
+  }
+})();
+
 /** Create the wasm module + GL context ONCE; both persist across hot-reloads —
  *  re-instantiating wasm and re-creating GL is the expensive part a reload skips. */
 async function ensureEngine(): Promise<void> {
