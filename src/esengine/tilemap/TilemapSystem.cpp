@@ -61,7 +61,7 @@ inline void writeTile(TilemapSystem::LayerData& layer, i32 x, i32 y, u16 value) 
     const i32 lx = x - cx * static_cast<i32>(CHUNK_SIZE);
     const i32 ly = y - cy * static_cast<i32>(CHUNK_SIZE);
     chunk.tiles[static_cast<usize>(ly) * CHUNK_SIZE + static_cast<usize>(lx)] = value;
-    chunk.dirty = true;
+    chunk.revision = ++layer.edit_revision;
 }
 
 // Tiled finite-layer load: chunk a flat row-major array, storing only non-empty chunks.
@@ -86,7 +86,10 @@ void buildChunksFromFlat(TilemapSystem::LayerData& layer,
                     if (v != EMPTY_TILE) any = true;
                 }
             }
-            if (any) layer.chunks[{static_cast<i32>(cx), static_cast<i32>(cy)}] = chunk;
+            if (any) {
+                chunk.revision = ++layer.edit_revision;
+                layer.chunks[{static_cast<i32>(cx), static_cast<i32>(cy)}] = chunk;
+            }
         }
     }
 }
@@ -97,7 +100,7 @@ void TilemapSystem::markAllChunksDirty(Entity entity) {
     auto* layer = getLayerDataMut(entity);
     if (!layer) return;
     for (auto& [coord, chunk] : layer->chunks) {
-        chunk.dirty = true;
+        chunk.revision = ++layer->edit_revision;
     }
 }
 
@@ -128,7 +131,7 @@ void TilemapSystem::setChunkTiles(Entity entity, i32 chunkX, i32 chunkY,
 
     ChunkCoord coord{chunkX, chunkY};
     auto& chunk = layer->chunks[coord];
-    chunk.dirty = true;
+    chunk.revision = ++layer->edit_revision;
     std::memset(chunk.tiles, 0, sizeof(chunk.tiles));
 
     for (u32 ly = 0; ly < height && ly < CHUNK_SIZE; ++ly) {

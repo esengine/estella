@@ -28,6 +28,10 @@ private:
         std::vector<BatchVertex> vertices;
         std::vector<u32> indices;
         bool has_animated_tiles = false;
+        // Revision of the content chunk this cache was last built from. Compared
+        // against ChunkData::revision so we rebuild only on real edits — the
+        // renderer reads this snapshot stamp and never writes to content.
+        u32 built_revision = 0;
     };
 
     using ChunkMap = std::unordered_map<tilemap::ChunkCoord, ChunkCache, tilemap::ChunkCoordHash>;

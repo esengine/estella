@@ -171,11 +171,11 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                 const auto& chunkData = chunkIt->second;
                 auto& cache = chunkCaches[coord];
 
-                if (chunkData.dirty || cache.has_animated_tiles) {
+                if (chunkData.revision != cache.built_revision || cache.has_animated_tiles) {
                     rebuildChunk(layer, chunkData, coord,
                                 adjOriginX, adjOriginY, packedColor,
                                 entity, cache);
-                    chunkData.dirty = false;
+                    cache.built_revision = chunkData.revision;
                 }
 
                 if (cache.indices.empty()) continue;

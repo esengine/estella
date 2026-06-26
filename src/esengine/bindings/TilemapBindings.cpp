@@ -256,7 +256,7 @@ bool tilemap_importChunks(u32 entity, const std::string& encoded) {
         tilemap::ChunkData chunk;
         if (!read(cursor, chunk.tiles, sizeof(chunk.tiles))) return false;
         cursor += sizeof(chunk.tiles);
-        chunk.dirty = true;
+        chunk.revision = ++layer->edit_revision;
         layer->chunks[tilemap::ChunkCoord{cx, cy}] = chunk;
     }
 

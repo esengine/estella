@@ -63,7 +63,11 @@ struct ChunkCoordHash {
 
 struct ChunkData {
     u16 tiles[CHUNK_SIZE * CHUNK_SIZE]{};
-    mutable bool dirty = true;
+    // Edit stamp copied from the owning LayerData::edit_revision on each change.
+    // The renderer compares this against the revision it last built per chunk and
+    // NEVER writes it back — rendering reads a read-only snapshot instead of
+    // flipping a content-side `dirty` flag (RC5: abstractions are one-way).
+    u32 revision = 0;
 };
 
 class TilemapSystem {
@@ -117,6 +121,11 @@ public:
 
         std::unordered_map<ChunkCoord, ChunkData, ChunkCoordHash> chunks;
         bool infinite = false;
+
+        // Monotonic counter bumped on every chunk edit; stamped into
+        // ChunkData::revision so the renderer detects changes without the content
+        // system exposing a mutable dirty flag.
+        u32 edit_revision = 0;
 
         std::unordered_map<u16, TileAnimation> tile_animations;
         f32 elapsed_ms = 0;
