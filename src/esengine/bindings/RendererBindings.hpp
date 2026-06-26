@@ -139,6 +139,12 @@ u32 renderer_getSnapshotSize();
 u32 renderer_getSnapshotWidth();
 u32 renderer_getSnapshotHeight();
 
+void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h);
+uintptr_t renderer_getPreviewPtr();
+u32 renderer_getPreviewSize();
+u32 renderer_getPreviewWidth();
+u32 renderer_getPreviewHeight();
+
 void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 wrapS, i32 wrapT);
 
 i32 registry_getCanvasEntity(ecs::Registry& registry);

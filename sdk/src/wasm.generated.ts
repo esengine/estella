@@ -235,6 +235,17 @@ export interface Interactable {
     raycastTarget: boolean;
 }
 
+export interface Light2D {
+    type: number;
+    color: Vec4;
+    intensity: number;
+    radius: number;
+    direction: Vec2;
+    innerAngle: number;
+    outerAngle: number;
+    enabled: boolean;
+}
+
 export interface Parent {
     entity: number;
 }
@@ -478,6 +489,10 @@ export interface Registry {
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
     removeInteractable(entity: Entity): void;
+    hasLight2D(entity: Entity): boolean;
+    getLight2D(entity: Entity): Light2D;
+    addLight2D(entity: Entity, component: Light2D): void;
+    removeLight2D(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -565,6 +580,7 @@ export interface ESEngineModule {
     CircleCollider: new () => CircleCollider;
     FlexContainer: new () => FlexContainer;
     Interactable: new () => Interactable;
+    Light2D: new () => Light2D;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
     RigidBody: new () => RigidBody;

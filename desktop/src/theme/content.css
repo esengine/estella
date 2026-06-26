@@ -57,8 +57,7 @@
 .cb-rename { width: 100%; min-width: 0; font: inherit; color: var(--text); background: var(--inset); border: 1px solid var(--acc); border-radius: var(--r-xs); padding: 1px 4px; outline: none; text-align: center; }
 .lr .cb-rename { text-align: left; }
 
-/* Hover metadata card (UE5-style quick-glance; non-interactive). */
-.cb-tip { position: fixed; z-index: 135; min-width: 180px; max-width: 340px; padding: 8px 10px; background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); box-shadow: var(--shadow-3); pointer-events: none; font-size: var(--fs-xs); }
+/* Asset hover-card body — rendered inside the shared `.tooltip` container. */
 .cb-tip-name { font-weight: 600; color: var(--text); margin-bottom: 6px; word-break: break-word; }
 .cb-tip-row { display: flex; gap: 10px; line-height: 1.7; }
 .cb-tip-row .k { width: 70px; flex-shrink: 0; color: var(--text-mute); }

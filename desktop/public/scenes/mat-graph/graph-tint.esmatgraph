@@ -1,0 +1,42 @@
+{
+  "name": "GraphTint",
+  "output": "out",
+  "nodes": [
+    {
+      "id": "tex",
+      "type": "textureSample",
+      "params": {
+        "name": "u_albedo",
+        "default": "white"
+      }
+    },
+    {
+      "id": "tint",
+      "type": "constColor",
+      "params": {
+        "name": "u_tint",
+        "value": [
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "mul",
+      "type": "multiply",
+      "inputs": {
+        "a": "tex",
+        "b": "tint"
+      }
+    },
+    {
+      "id": "out",
+      "type": "output",
+      "inputs": {
+        "color": "mul"
+      }
+    }
+  ]
+}

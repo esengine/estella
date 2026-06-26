@@ -13,7 +13,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Component, Blend, FileCode2, Clapperboard, Grid3x3, File,
+  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import type { AssetType } from '@/types';
@@ -41,6 +41,7 @@ export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
   // .esmaterial is the real extension (the SDK MaterialAssetLoader only loads it);
   // .esmat is tolerated as a legacy alias (cf. electron/importAssets.ts).
   material: { extensions: ['esmaterial', 'esmat'], badge: 'MAT', icon: Blend, tint: '#c0917a' },
+  materialgraph: { extensions: ['esmatgraph'], badge: 'MGR', icon: Workflow, tint: '#c0917a' },
   script: { extensions: ['ts', 'js'], badge: 'TS', icon: FileCode2, tint: '#93a3bf' },
   // Unified animation clip (.esanim) + legacy multi-track timeline (.estimeline).
   animation: { extensions: ['esanim', 'estimeline'], badge: 'ANM', icon: Clapperboard, tint: '#9bb39a' },

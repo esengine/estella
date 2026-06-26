@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Lit",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 400, "y": 400 },
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "material": "/scenes/mat-lit/lit.esmaterial"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "GreenSpot",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 200, "z": 0 } } },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 3,
+            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "intensity": 1,
+            "radius": 2000,
+            "direction": { "x": 0, "y": -1 },
+            "innerAngle": 30,
+            "outerAngle": 45
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

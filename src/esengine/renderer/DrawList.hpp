@@ -12,6 +12,8 @@
 
 namespace esengine {
 
+class MaterialStore;
+
 class DrawList {
 public:
     void clear();
@@ -25,9 +27,10 @@ public:
     // Each merged command resolves to an immutable pipeline (program + layout + blend +
     // depth + stencil + cull) bound via GfxDevice::setPipeline; per-draw dynamic state
     // (scissor, stencil ref, textures) is applied directly. Per-frame constants come from
-    // the FrameConstants UBO bound by RenderContext.
+    // the FrameConstants UBO bound by RenderContext; per-material constants from each
+    // command's material UBO, bound here via MaterialStore::bindForDraw.
     void execute(GfxDevice& device, TransientBufferPool& buffers,
-                 FrameCapture* capture = nullptr);
+                 MaterialStore& materials, FrameCapture* capture = nullptr);
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }

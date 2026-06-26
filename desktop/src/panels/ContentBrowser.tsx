@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronRight, Search, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { useTooltip } from '@/components/Tooltip';
 import { ProjectStore } from '@/project/ProjectStore';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
@@ -12,6 +12,8 @@ import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMe
 import { ASSET_OPEN } from '@/project/assetOpen';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
+import { createMaterialGraph } from '@/material/openMaterialGraph';
 import { fsRefresh } from '@/project/fsWatch';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';
@@ -105,12 +107,11 @@ function TipRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   );
 }
 
-// UE5-style hover card: the metadata you can't see at a glance (type / path /
-// reference / image dimensions / disk size / modified). Anchored beside the tile,
-// clamped on-screen, non-interactive. Fetches stat + dimensions lazily on show.
-function AssetTooltip({ path, entry, rect }: { path: string; entry: DirEntry; rect: DOMRect }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: rect.right + 10, top: rect.top });
+// UE5-style hover-card body: the metadata you can't see at a glance (type / path /
+// reference / image dimensions / disk size / modified). Positioning, portaling and
+// dismissal are the shared <Tooltip> primitive's job; this is just the contents,
+// fetched lazily on show.
+function AssetTipCard({ path, entry }: { path: string; entry: DirEntry }) {
   const [stat, setStat] = useState<{ size: number; mtimeMs: number } | null>(null);
   const [dims, setDims] = useState<string | null>(null);
 
@@ -139,21 +140,8 @@ function AssetTooltip({ path, entry, rect }: { path: string; entry: DirEntry; re
     };
   }, [isImg, path]);
 
-  // Clamp beside the tile (flip to the left / lift up near an edge).
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const pad = 8;
-    let left = rect.right + 10;
-    if (left + r.width > window.innerWidth - pad) left = Math.max(pad, rect.left - r.width - 10);
-    let top = rect.top;
-    if (top + r.height > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - r.height - pad);
-    setPos({ left, top });
-  }, [rect, stat, dims]);
-
-  return createPortal(
-    <div ref={ref} className="cb-tip" style={{ left: pos.left, top: pos.top }}>
+  return (
+    <>
       <div className="cb-tip-name">{entry.name}</div>
       <TipRow k="Type" v={entry.isDir ? 'Folder' : TYPE_CODE[type] || type} />
       {dims && <TipRow k="Dimensions" v={dims} />}
@@ -161,8 +149,7 @@ function AssetTooltip({ path, entry, rect }: { path: string; entry: DirEntry; re
       {stat && <TipRow k="Modified" v={new Date(stat.mtimeMs).toLocaleString()} />}
       <TipRow k="Path" v={path} mono />
       {assetReference && <TipRow k="Reference" v={assetReference} mono />}
-    </div>,
-    document.body,
+    </>
   );
 }
 
@@ -249,18 +236,9 @@ export function ContentBrowser() {
   // A right-click menu: on an item (target set) or on empty space (target null).
   const [ctx, setCtx] = useState<{ x: number; y: number; target: { path: string; entry: DirEntry } | null } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [hover, setHover] = useState<{ path: string; entry: DirEntry; rect: DOMRect } | null>(null);
-  const hoverTimer = useRef<number | null>(null);
   const [filters, setFilters] = useState<Set<AssetType>>(new Set());
+  const tip = useTooltip<{ path: string; entry: DirEntry }>((p) => <AssetTipCard path={p.path} entry={p.entry} />);
 
-  const clearHover = useCallback(() => {
-    if (hoverTimer.current) {
-      clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-    setHover(null);
-  }, []);
-  useEffect(() => () => clearHover(), [clearHover]);
   // Asset selection lives in the shared store (unified inspector): selecting an
   // asset drives the Details panel + clears any entity selection.
   const selected = useSelection((s) => s.selectedAsset);
@@ -411,24 +389,19 @@ export function ContentBrowser() {
   const bindItem = (path: string, e: DirEntry) => ({
     draggable: !e.isDir && renaming !== path,
     onDragStart: (ev: React.DragEvent) => {
-      clearHover();
+      tip.close();
       ev.dataTransfer.effectAllowed = 'copy';
       ev.dataTransfer.setData('application/x-estella-asset', path);
       ev.dataTransfer.setData('text/plain', path);
     },
     onClick: () => selectAsset(path),
     onDoubleClick: () => onOpen(path, e.isDir, e.name),
-    onMouseEnter: (ev: React.MouseEvent) => {
-      if (renaming) return;
-      const rect = ev.currentTarget.getBoundingClientRect();
-      if (hoverTimer.current) clearTimeout(hoverTimer.current);
-      hoverTimer.current = window.setTimeout(() => setHover({ path, entry: e, rect }), 450);
-    },
-    onMouseLeave: clearHover,
+    // Suppress the hover card while any inline rename is active.
+    ...(renaming ? null : tip.bind({ path, entry: e })),
     onContextMenu: (ev: React.MouseEvent) => {
       ev.preventDefault();
       ev.stopPropagation(); // don't fall through to the empty-space menu
-      clearHover();
+      tip.close();
       selectAsset(path);
       setCtx({ x: ev.clientX, y: ev.clientY, target: { path, entry: e } });
     },
@@ -441,6 +414,8 @@ export function ContentBrowser() {
       return [
         { label: 'Import…', icon: <Import size={14} />, onClick: () => void importAssets() },
         { label: 'New Folder', icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
+        { label: 'New Material', onClick: () => void createMaterial(cwd) },
+        { label: 'New Material Graph', onClick: () => void createMaterialGraph(cwd) },
         { sep: true },
         { label: 'Show in Explorer', onClick: () => void showInExplorer(cwd) },
       ];
@@ -449,9 +424,10 @@ export function ContentBrowser() {
     const isScene = !entry.isDir && assetType(entry.name) === 'scene';
     const isTexture = !entry.isDir && (assetType(entry.name) === 'texture' || assetType(entry.name) === 'sprite');
     const isTileset = !entry.isDir && assetType(entry.name) === 'tileset';
+    const isMaterial = !entry.isDir && assetType(entry.name) === 'material';
     const ref = entry.isDir ? null : ProjectStore.assetRef(path);
     return [
-      ...(entry.isDir || isScene
+      ...(entry.isDir || isScene || isMaterial
         ? [{ label: 'Open', onClick: () => onOpen(path, entry.isDir, entry.name) }]
         : []),
       ...(isTexture
@@ -459,6 +435,9 @@ export function ContentBrowser() {
         : []),
       ...(isTileset
         ? [{ label: 'Create Tilemap', onClick: () => void createTilemapFromTileset(path) }]
+        : []),
+      ...(isMaterial
+        ? [{ label: 'Create Material Instance', onClick: () => void createMaterialInstance(path) }]
         : []),
       { label: 'Rename', onClick: () => setRenaming(path) },
       { label: 'Duplicate', onClick: () => void duplicate(path) },
@@ -581,14 +560,13 @@ export function ContentBrowser() {
 
           <div
             className={`cb-scroll${view === 'list' ? ' list' : ''}`}
-            onScroll={clearHover}
             onClick={(e) => {
               if (e.target === e.currentTarget) selectAsset(null);
             }}
             onContextMenu={(e) => {
               // Items stopPropagation, so reaching here = a right-click on empty space.
               e.preventDefault();
-              clearHover();
+              tip.close();
               setCtx({ x: e.clientX, y: e.clientY, target: null });
             }}
           >
@@ -688,7 +666,7 @@ export function ContentBrowser() {
         </div>
       </div>
 
-      {hover && !ctx && <AssetTooltip path={hover.path} entry={hover.entry} rect={hover.rect} />}
+      {!ctx && tip.card}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
     </div>
   );

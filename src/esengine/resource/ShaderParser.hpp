@@ -83,8 +83,36 @@ enum class ShaderPropertyType : u8 {
 struct ShaderProperty {
     std::string name;                     ///< Uniform name
     ShaderPropertyType type;              ///< Property type
-    std::string defaultValue;             ///< Default value as string
+    std::string defaultValue;             ///< Default value as string (comma-separated for vectors)
     std::string displayName;              ///< Display name for editor
+
+    /// True when declared via `#pragma param` (the modern path: ShaderParser owns the GLSL
+    /// codegen + std140 layout). False for the legacy `#pragma properties` block, which is
+    /// reflection-only — the shader declares those uniforms itself, so they are not codegen'd.
+    bool fromParam = false;
+
+    /// Byte offset of this param inside the std140 MaterialConstants block, or -1 for
+    /// texture params (which are samplers, not block members).
+    i32 std140Offset = -1;
+    /// Sampler unit for a texture param (>= MATERIAL_TEXTURE_UNIT_BASE), or -1 otherwise.
+    i32 textureUnit = -1;
+
+    /// Optional editor metadata (range slider bounds, UI hint). Drives the inspector panel;
+    /// not used in codegen. hasRange == false leaves the field a plain numeric input.
+    bool hasRange = false;
+    f32 rangeMin = 0.0f;
+    f32 rangeMax = 1.0f;
+    std::string ui;                       ///< UI hint, e.g. "slider", "color" (free-form).
+};
+
+/**
+ * @brief A material-controlled static switch (#pragma switch): a boolean the material sets,
+ *        selecting a compile-time shader permutation via a #define. Distinct from #pragma
+ *        feature (an engine-chosen variant keyword) only in being material-facing + defaulted.
+ */
+struct ShaderSwitch {
+    std::string name;
+    bool defaultOn = false;
 };
 
 // =============================================================================
@@ -104,7 +132,12 @@ struct ParsedShader {
     std::unordered_map<ShaderStage, std::string> stages;      ///< Stage source code
     std::unordered_map<std::string, std::string> variants;    ///< Platform variants
     std::vector<std::string> features;                        ///< Declared #pragma feature keywords (compile-time variants)
-    std::vector<ShaderProperty> properties;                   ///< Exposed properties
+    std::vector<ShaderSwitch> switches;                       ///< Material-controlled #pragma switch toggles (name + default)
+    std::vector<ShaderProperty> properties;                   ///< Exposed material params (#pragma param / properties block)
+    std::string domain = "Unlit2D";                           ///< #pragma domain (Unlit2D/Lit2D/PostProcess/UI)
+    /// std140 byte size of the generated MaterialConstants block (16-aligned), 0 if no
+    /// non-texture params. The render path sizes the per-material UBO to this.
+    u32 materialBlockSize = 0;
     std::string errorMessage;                                 ///< Parse error if any
     bool valid = false;                                       ///< True if parsing succeeded
 
@@ -235,6 +268,13 @@ private:
     static void parseDirective(const std::string& line,
                               std::string& directive,
                               std::string& argument);
+
+    /// Parses a `#pragma param <name> <type> [default(..)] [range(min,max)] [ui(..)]` line.
+    static ShaderProperty parseParamDirective(const std::string& argument);
+
+    /// Assigns std140 offsets to non-texture params and sampler units to texture params,
+    /// and sets ParsedShader::materialBlockSize. Run once after all params are collected.
+    static void computeMaterialLayout(ParsedShader& shader);
 
     static ShaderProperty parsePropertyAnnotation(const std::string& line);
 

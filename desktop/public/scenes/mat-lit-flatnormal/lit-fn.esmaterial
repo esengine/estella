@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "lit-fn.esshader",
+  "blendMode": 0,
+  "depthTest": false,
+  "depthWrite": true,
+  "cull": 0,
+  "properties": {}
+}

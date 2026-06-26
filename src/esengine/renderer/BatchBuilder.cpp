@@ -50,7 +50,7 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(key.stage, key.layer, key.shaderId,
-                                             key.blend, 0, key.depth);
+                                             key.blend, 0, key.depth, key.materialId);
     cmd.index_offset = indexOffset;
     cmd.index_count = indexCount;
     cmd.vertex_byte_offset = vertexByteOffset;
@@ -58,6 +58,10 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     cmd.shader_id = key.shaderId;
     cmd.blend_mode = key.blend;
     cmd.layout_id = LayoutId::Batch;
+    cmd.material_id = key.materialId;
+    cmd.depth_test = key.depthTest;
+    cmd.depth_write = key.depthWrite;
+    cmd.cull = key.cull;
     cmd.texture_count = 1;
     cmd.texture_ids[0] = key.textureId;
     cmd.entity = key.entity;

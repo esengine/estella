@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Camera, CameraView, EditorView, Sprite, Transform } from 'esengine';
+import { Camera, CameraView, EditorView, Light2D, Sprite, Transform } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { SceneModel } from './SceneModel';
@@ -208,5 +208,59 @@ export const ViewportController = {
     const minX = Math.min(...xs);
     const minY = Math.min(...ys);
     return { cx: center.x, cy: center.y, rect: { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY } };
+  },
+
+  /** Ids of the scene's Light2D entities — the light-gizmo set (structural). */
+  light2DIds(): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (world.has(e, Light2D) && world.has(e, Transform)) out.push(e);
+    }
+    return out;
+  },
+
+  /**
+   * Screen-space gizmo geometry for a Light2D: its icon position, reach radius (Point/Spot,
+   * CSS px), and screen-space direction unit vector (Directional/Spot). `kind` mirrors
+   * Light2DType (0 Point / 1 Directional / 2 Ambient / 3 Spot); `color` is the light tint.
+   */
+  getLightGizmo(
+    id: EntityId,
+  ): { cx: number; cy: number; kind: number; color: string; radiusPx: number; sdx: number; sdy: number; coneHalf: number } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Light2D) || !world.has(id, Transform)) return null;
+    const t = world.get(id, Transform);
+    const l = world.get(id, Light2D) as {
+      type: number; color: { r: number; g: number; b: number }; radius: number;
+      direction: { x: number; y: number }; outerAngle: number;
+    };
+    const center = this.worldToClient(t.position.x, t.position.y);
+    if (!center) return null;
+
+    // Point (0) / Spot (3) have a falloff radius; project a world-radius offset to CSS px.
+    let radiusPx = 0;
+    if (l.type === 0 || l.type === 3) {
+      const edge = this.worldToClient(t.position.x + l.radius, t.position.y);
+      if (edge) radiusPx = Math.hypot(edge.x - center.x, edge.y - center.y);
+    }
+    // Directional (1) / Spot (3) point along `direction`; flip world-Y to screen space. A Spot
+    // with no direction defaults to aiming down (matching the engine's collectLights fallback).
+    let sdx = 0;
+    let sdy = 0;
+    if (l.type === 1 || l.type === 3) {
+      const len = Math.hypot(l.direction.x, l.direction.y);
+      if (len > 1e-4) {
+        sdx = l.direction.x / len;
+        sdy = -l.direction.y / len;
+      } else if (l.type === 3) {
+        sdy = 1; // world (0,-1) → screen down
+      }
+    }
+    const coneHalf = l.type === 3 ? ((l.outerAngle ?? 45) * 0.5 * Math.PI) / 180 : 0;
+    const hex = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
+    const color = `#${hex(l.color.r)}${hex(l.color.g)}${hex(l.color.b)}`;
+    return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf };
   },
 };

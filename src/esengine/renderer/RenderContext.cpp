@@ -37,8 +37,10 @@ void RenderContext::init() {
     }
 
     device_.init();
-    initWhiteTexture();
+    initDefaultTextures();
     initFrameUbo();
+    materials_.setDevice(&device_);
+    lights_.setDevice(&device_);
 
     initialized_ = true;
 }
@@ -48,9 +50,11 @@ void RenderContext::shutdown() {
         return;
     }
 
-    if (whiteTextureId_ != 0) {
-        device_.deleteTexture(whiteTextureId_);
-        whiteTextureId_ = 0;
+    for (u32* tex : {&whiteTextureId_, &blackTextureId_, &flatNormalTextureId_}) {
+        if (*tex != 0) {
+            device_.deleteTexture(*tex);
+            *tex = 0;
+        }
     }
 
     if (frameUbo_ != 0) {
@@ -58,20 +62,35 @@ void RenderContext::shutdown() {
         frameUbo_ = 0;
     }
 
+    materials_.clear();  // free per-material UBOs while the device is still valid
+    lights_.free();      // free the lighting UBO while the device is still valid
+
     device_.shutdown();
     initialized_ = false;
     ES_LOG_INFO("RenderContext shutdown");
 }
 
-void RenderContext::initWhiteTexture() {
-    whiteTextureId_ = device_.createTexture();
-
-    u32 whiteData = 0xFFFFFFFF;
-    device_.texImage2D(whiteTextureId_, 1, 1, GfxPixelFormat::RGBA8, &whiteData);
-    device_.setTextureParams(whiteTextureId_, TextureFilter::Nearest, TextureFilter::Nearest,
+u32 RenderContext::make1x1Texture(u32 rgba) {
+    u32 id = device_.createTexture();
+    device_.texImage2D(id, 1, 1, GfxPixelFormat::RGBA8, &rgba);
+    device_.setTextureParams(id, TextureFilter::Nearest, TextureFilter::Nearest,
                              TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
+    return id;
+}
 
-    ES_LOG_DEBUG("White texture created (ID: {})", whiteTextureId_);
+void RenderContext::initDefaultTextures() {
+    // Byte order in memory is R,G,B,A; these u32s are little-endian (so 0xAABBGGRR).
+    whiteTextureId_ = make1x1Texture(0xFFFFFFFF);       // RGBA(255,255,255,255)
+    blackTextureId_ = make1x1Texture(0xFF000000);       // RGBA(0,0,0,255)
+    flatNormalTextureId_ = make1x1Texture(0xFFFF8080);  // RGB(128,128,255) → normal (0,0,1)
+    ES_LOG_DEBUG("Default textures created (white {}, black {}, flatNormal {})",
+                 whiteTextureId_, blackTextureId_, flatNormalTextureId_);
+}
+
+u32 RenderContext::defaultTextureByName(const std::string& name) const {
+    if (name == "black") return blackTextureId_;
+    if (name == "flatnormal" || name == "normal") return flatNormalTextureId_;
+    return whiteTextureId_;  // "white" / empty / unknown
 }
 
 void RenderContext::initFrameUbo() {

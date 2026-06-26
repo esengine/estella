@@ -18,6 +18,7 @@
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
+#include "../ecs/components/Light2D.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
@@ -890,6 +891,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
         .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
 
+    value_object<esengine::ecs::Light2D>("Light2D")
+        .field("type", &esengine::ecs::Light2D::type)
+        .field("color", &esengine::ecs::Light2D::color)
+        .field("intensity", &esengine::ecs::Light2D::intensity)
+        .field("radius", &esengine::ecs::Light2D::radius)
+        .field("direction", &esengine::ecs::Light2D::direction)
+        .field("innerAngle", &esengine::ecs::Light2D::innerAngle)
+        .field("outerAngle", &esengine::ecs::Light2D::outerAngle)
+        .field("enabled", &esengine::ecs::Light2D::enabled);
+
     value_object<ParentJS>("Parent")
         .field("entity", &ParentJS::entity);
 
@@ -1278,6 +1289,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Interactable>(entity);
         }))
 
+        // Light2D
+        .function("hasLight2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Light2D>(static_cast<Entity>(e));
+        }))
+        .function("getLight2D", optional_override([](Registry& r, u32 e) -> esengine::ecs::Light2D& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Light2D s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Light2D>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Light2D>(entity);
+        }), allow_raw_pointers())
+        .function("addLight2D", optional_override([](Registry& r, u32 e, const esengine::ecs::Light2D& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Light2D>(entity, c);
+        }))
+        .function("removeLight2D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Light2D>(entity)) return;
+            r.remove<esengine::ecs::Light2D>(entity);
+        }))
+
         // Parent
         .function("hasParent", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
@@ -1632,6 +1664,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("CircleCollider")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("Interactable")));
+    arr.set(i++, val(std::string("Light2D")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("RigidBody")));
@@ -1721,6 +1754,14 @@ static_assert(offsetof(esengine::ecs::FlexContainer, gap) == 8, "ABI offset drif
 static_assert(offsetof(esengine::ecs::Interactable, enabled) == 0, "ABI offset drift: esengine::ecs::Interactable.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Interactable, blockRaycast) == 1, "ABI offset drift: esengine::ecs::Interactable.blockRaycast (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::Interactable, raycastTarget) == 2, "ABI offset drift: esengine::ecs::Interactable.raycastTarget (EHT expected 2)");
+static_assert(offsetof(esengine::ecs::Light2D, type) == 0, "ABI offset drift: esengine::ecs::Light2D.type (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::Light2D, color) == 4, "ABI offset drift: esengine::ecs::Light2D.color (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::Light2D, intensity) == 20, "ABI offset drift: esengine::ecs::Light2D.intensity (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::Light2D, radius) == 24, "ABI offset drift: esengine::ecs::Light2D.radius (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::Light2D, direction) == 28, "ABI offset drift: esengine::ecs::Light2D.direction (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::Light2D, innerAngle) == 36, "ABI offset drift: esengine::ecs::Light2D.innerAngle (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::Light2D, outerAngle) == 40, "ABI offset drift: esengine::ecs::Light2D.outerAngle (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::Light2D, enabled) == 44, "ABI offset drift: esengine::ecs::Light2D.enabled (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -1853,7 +1894,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "ffbf3c8be66d1354";
+static const char* kEsAbiLayoutHash = "2896a68ab5ef40b7";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

@@ -63,7 +63,7 @@ function serveDist() {
 }
 
 function finish(result, server) {
-  const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true);
+  const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true) && (result.preview?.ok ?? true);
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE}`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   process.exitCode = ok ? 0 : 1;
@@ -147,7 +147,24 @@ app.whenReady().then(async () => {
       })()`);
       await writeFile(process.env.ESTELLA_VERIFY_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect }, server);
+    // Optional offscreen material-preview assertion (ESTELLA_VERIFY_PREVIEW =
+    // {w,h,rgb:[r,g,b],tol?}): renders a scene material to an offscreen target and checks the
+    // center pixel — proves the render-to-texture preview primitive, not just the viewport.
+    let preview = null;
+    if (process.env.ESTELLA_VERIFY_PREVIEW) {
+      const cfg = JSON.parse(process.env.ESTELLA_VERIFY_PREVIEW);
+      preview = await exec(`(() => {
+        const cfg = ${JSON.stringify(cfg)};
+        const cap = window.__estellaHeadless.api.renderSceneMaterialPreview(cfg.w, cfg.h);
+        if (!cap) return { ok: false, reason: 'no scene material' };
+        const { width: w, height: h, rgba } = cap;
+        const i = (Math.floor(h / 2) * w + Math.floor(w / 2)) * 4;
+        const got = [rgba[i], rgba[i + 1], rgba[i + 2]];
+        const tol = cfg.tol ?? 40;
+        return { ok: got.every((g, k) => Math.abs(g - cfg.rgb[k]) <= tol), want: cfg.rgb, got, w, h };
+      })()`);
+    }
+    finish({ ok: true, entityCount, drawCalls, capture, expect, preview }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

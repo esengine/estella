@@ -127,6 +127,18 @@ public:
     u32 getSnapshotWidth() const { return width_; }
     u32 getSnapshotHeight() const { return height_; }
 
+    /**
+     * Render @p registry once to an offscreen @p w×@p h target with @p viewProjection and read
+     * the RGBA pixels back (queried via getPreview*). A self-contained mini-frame (no
+     * post-process) reusing the real collect+execute path, so a material preview matches the
+     * viewport exactly. Clobbers the transient draw list/pool, which the next real frame rebuilds.
+     */
+    void renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h);
+    const u8* getPreviewPixels() const { return preview_pixels_.data(); }
+    u32 getPreviewSize() const { return static_cast<u32>(preview_pixels_.size()); }
+    u32 getPreviewWidth() const { return preview_w_; }
+    u32 getPreviewHeight() const { return preview_h_; }
+
     void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
     void collectAll(ecs::Registry& registry, u32 skipFlags = 0);
 
@@ -159,6 +171,10 @@ private:
     FrameCapture frame_capture_;
     std::vector<u8> snapshot_pixels_;
     RenderTargetManager::Handle replay_rt_ = 0;
+    std::vector<u8> preview_pixels_;
+    RenderTargetManager::Handle preview_rt_ = 0;
+    u32 preview_w_ = 0;
+    u32 preview_h_ = 0;
     bool in_frame_ = false;
     bool flushed_ = false;
     u32 width_ = 0;
@@ -183,6 +199,10 @@ private:
 
     RenderFrameContext makeContext();
     void buildClipState();
+    /// Gathers the scene's enabled Light2D components into the per-frame LightConstants UBO
+    /// (point/directional into the light array, ambient summed). Run each frame in collectAll;
+    /// flush() uploads + binds the result so Lit2D material shaders read it.
+    void collectLights(ecs::Registry& registry);
     u32 initBatchShader();
     u32 compileBatchVariant(const std::vector<std::string>& features);
 };

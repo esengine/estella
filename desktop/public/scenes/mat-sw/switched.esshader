@@ -1,0 +1,39 @@
+#pragma shader "Switched"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma switch USE_GREEN default(off)
+
+#pragma vertex
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_texCoord;
+layout(location = 3) in float a_texIndex;
+
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
+
+out vec4 v_color;
+
+void main() {
+    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+    v_color = a_color;
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+
+out vec4 fragColor;
+
+// USE_GREEN is a #pragma switch — a material's static switch selects this permutation.
+void main() {
+#ifdef USE_GREEN
+    fragColor = vec4(0.0, 1.0, 0.0, 1.0) * v_color;
+#else
+    fragColor = vec4(1.0, 0.0, 0.0, 1.0) * v_color;
+#endif
+}
+#pragma end

@@ -1,0 +1,56 @@
+/* =============================================================================
+   @file material.css
+   @brief Material editing in the unified Details inspector. A `.esmaterial` is
+   edited inline by the shared .insp/.comp/.prop machinery (inspector.css) — there
+   is no bespoke panel; only these two material-specific notes have their own style.
+   ========================================================================== */
+
+.mat-preview { display: flex; justify-content: center; padding: 10px; }
+/* The "material ball" thumbnail (engine offscreen render-to-texture). A checker backdrop
+   reveals alpha; the canvas is drawn into via putImageData each edit. */
+.mat-thumb {
+  width: 96px;
+  height: 96px;
+  border-radius: 6px;
+  border: 1px solid var(--border-line);
+  background-image:
+    linear-gradient(45deg, var(--srf-3) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--srf-3) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--srf-3) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--srf-3) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  background-color: var(--srf-2);
+}
+.mat-sync { padding: 4px 10px; font-size: var(--fs-2xs); color: var(--text-mute); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.mat-hint { padding: 8px 10px; font-size: var(--fs-xs); color: var(--text-mute); }
+
+/* ── Material Graph node editor (P5b) ─────────────────────────────────────── */
+.panel.mg { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.mg-bar { position: relative; display: flex; align-items: center; gap: 8px; height: 34px; flex-shrink: 0; padding: 0 10px; border-bottom: 1px solid var(--border); background: var(--srf-2); }
+.mg-bar .mg-add, .mg-bar .mg-del { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); color: var(--text); cursor: pointer; }
+.mg-bar .mg-add:hover, .mg-bar .mg-del:hover { background: var(--srf-4); }
+.mg-title { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--text); }
+.mg-dot { color: var(--acc-hi); font-size: 10px; }
+.mg-palette { position: absolute; top: 32px; left: 10px; z-index: 10; display: flex; flex-direction: column; min-width: 130px; padding: 4px; background: var(--srf-2); border: 1px solid var(--border-line); border-radius: var(--r-sm); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); }
+.mg-palette button { text-align: left; padding: 5px 8px; background: none; border: none; border-radius: var(--r-sm); color: var(--text); cursor: pointer; font-size: var(--fs-xs); }
+.mg-palette button:hover { background: var(--srf-4); }
+
+.mg-canvas { position: relative; flex: 1; min-height: 0; overflow: auto; background-color: var(--srf-1); background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 20px 20px; }
+.mg-wires { position: absolute; top: 0; left: 0; width: 3000px; height: 3000px; pointer-events: none; overflow: visible; }
+.mg-wires path { fill: none; stroke: var(--text-mute); stroke-width: 2; }
+.mg-wires path.mg-wire-live { stroke: var(--acc); stroke-dasharray: 5 4; opacity: 0.8; }
+
+.mg-node { position: absolute; background: var(--srf-2); border: 1px solid var(--border-line); border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); user-select: none; }
+.mg-node.sel { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc), 0 2px 8px rgba(0, 0, 0, 0.4); }
+.mg-node-head { height: 28px; display: flex; align-items: center; padding: 0 10px; font-size: var(--fs-xs); font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); border-radius: 6px 6px 0 0; cursor: grab; background: var(--srf-3); }
+.mg-node .mg-row, .mg-node .mg-param { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+.mg-row-label { font-size: var(--fs-2xs); color: var(--text-dim); }
+.mg-param { gap: 6px; }
+.mg-param .mg-row-label { min-width: 38px; }
+.mg-texname { font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--font-mono, monospace); }
+
+.mg-port { position: absolute; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--srf-1); cursor: crosshair; }
+.mg-port.out { right: -6px; transform: translateY(-50%); }
+.mg-port.in { left: -6px; transform: translateY(-50%); }
+.mg-port:hover { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15); }

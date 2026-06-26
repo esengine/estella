@@ -17,6 +17,8 @@
 #include "Shader.hpp"
 #include "GfxDevice.hpp"
 #include "FrameConstants.hpp"
+#include "MaterialConstants.hpp"
+#include "LightConstants.hpp"
 #include "../core/Log.hpp"
 
 #include <fstream>
@@ -161,6 +163,20 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     u32 frameBlock = device_->getUniformBlockIndex(programId_, FRAME_CONSTANTS_BLOCK);
     if (frameBlock != GFX_INVALID_UNIFORM_BLOCK) {
         device_->uniformBlockBinding(programId_, frameBlock, FRAME_CONSTANTS_BINDING);
+    }
+
+    // Same for the per-material constants block (ShaderParser auto-generates it for shaders
+    // authored with #pragma param); the render path binds each material's UBO here per draw.
+    u32 materialBlock = device_->getUniformBlockIndex(programId_, MATERIAL_CONSTANTS_BLOCK);
+    if (materialBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(programId_, materialBlock, MATERIAL_CONSTANTS_BINDING);
+    }
+
+    // Same for the per-frame 2D light block (ShaderParser injects it for Lit2D-domain shaders);
+    // the render path uploads + binds the shared LightConstants UBO here once per frame.
+    u32 lightBlock = device_->getUniformBlockIndex(programId_, LIGHT_CONSTANTS_BLOCK);
+    if (lightBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(programId_, lightBlock, LIGHT_CONSTANTS_BINDING);
     }
 
     ES_LOG_DEBUG("Shader compiled successfully (program ID: {}, active uniforms: {})",

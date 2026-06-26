@@ -645,6 +645,49 @@
   background: rgba(76, 143, 214, 0.04);
 }
 
+/* Light2D gizmo: the wrap is translated to the light (rAF); icon + SVG draw at its origin,
+   tinted by the wrap's `color` (set to the light color) via currentColor. */
+.viewport__light-gizmo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.1s;
+}
+.viewport__light-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -7px 0 0 -7px;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+}
+.viewport__light-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+.viewport__light-svg .lg-radius {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+.viewport__light-svg .lg-dir {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.viewport__light-svg .lg-cone1,
+.viewport__light-svg .lg-cone2 {
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+  stroke-linecap: round;
+}
+
 .viewport__overlay {
   position: absolute;
   display: flex;

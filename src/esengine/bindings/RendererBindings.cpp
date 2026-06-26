@@ -16,6 +16,8 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Transform.hpp"
+#include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/Light2D.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../core/Log.hpp"
 #ifdef ES_ENABLE_PARTICLES
@@ -647,6 +649,47 @@ u32 renderer_getSnapshotWidth() {
 u32 renderer_getSnapshotHeight() {
     if (!g_renderFrame) return 0;
     return g_renderFrame->getSnapshotHeight();
+}
+
+void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {
+    if (!g_renderFrame || w <= 0 || h <= 0) return;
+
+    // A throwaway one-sprite scene: a 2×2 quad filling the ortho [-1,1] with the material, lit by
+    // one white directional light so Lit2D materials preview lit (Unlit2D ignores it).
+    ecs::Registry reg;
+    auto quad = reg.create();
+    reg.emplace<ecs::Transform>(quad);
+    auto& sprite = reg.emplace<ecs::Sprite>(quad);
+    sprite.material = materialId;
+    sprite.size = glm::vec2(2.0f, 2.0f);
+
+    auto light = reg.create();
+    reg.emplace<ecs::Transform>(light);
+    reg.emplace<ecs::Light2D>(light).type = static_cast<i32>(ecs::Light2DType::Directional);
+
+    if (g_transformSystem) {
+        esengine::World world{reg, ctx().services(), 0.0f};
+        g_transformSystem->update(world);
+    }
+
+    const glm::mat4 vp = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+    g_renderFrame->renderToTarget(reg, vp, static_cast<u32>(w), static_cast<u32>(h));
+}
+
+uintptr_t renderer_getPreviewPtr() {
+    return g_renderFrame ? reinterpret_cast<uintptr_t>(g_renderFrame->getPreviewPixels()) : 0;
+}
+
+u32 renderer_getPreviewSize() {
+    return g_renderFrame ? g_renderFrame->getPreviewSize() : 0;
+}
+
+u32 renderer_getPreviewWidth() {
+    return g_renderFrame ? g_renderFrame->getPreviewWidth() : 0;
+}
+
+u32 renderer_getPreviewHeight() {
+    return g_renderFrame ? g_renderFrame->getPreviewHeight() : 0;
 }
 
 void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 wrapS, i32 wrapT) {

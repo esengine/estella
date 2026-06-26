@@ -91,8 +91,6 @@ export interface ESEngineModule {
 
     FS: EmscriptenFS;
 
-    materialDataProvider?: (materialId: number, outShaderIdPtr: number, outBlendModePtr: number, outUniformBufferPtr: number, outUniformCountPtr: number) => void;
-
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;
     initRendererWithContext(contextHandle: number): boolean;
@@ -160,9 +158,19 @@ export interface ESEngineModule {
         entity: number, layer: number, depth: number
     ): void;
 
-    // Material cache
-    invalidateMaterialCache(materialId: number): void;
-    clearMaterialCache(): void;
+    // Material store (engine-side resolved render state, keyed by material handle).
+    // flags packs depthTest (bit 0), depthWrite (bit 1), CullMode (bits 2-3).
+    // Compiles a .esshader through ShaderParser (auto-generating the MaterialConstants block +
+    // the enabled #pragma switch / feature permutation from featuresCsv) and registers its param
+    // layout; returns the shader resource handle (0 on failure).
+    compileEsshader(source: string, featuresCsv: string): number;
+    defineMaterial(materialId: number, shader: number, blendMode: number, flags: number): void;
+    // Packs a named param's components into the material's std140 UBO by reflected offset.
+    setMaterialUniform(materialId: number, name: string, arity: number,
+                       v0: number, v1: number, v2: number, v3: number): void;
+    // Binds a texture param to its sampler unit; textureHandle is a texture resource handle.
+    setMaterialTexture(materialId: number, name: string, textureHandle: number): void;
+    undefineMaterial(materialId: number): void;
 
     // ImmediateDraw API
     draw_begin(matrixPtr: number): void;
@@ -322,6 +330,11 @@ export interface ESEngineModule {
     renderer_getSnapshotSize(): number;
     renderer_getSnapshotWidth(): number;
     renderer_getSnapshotHeight(): number;
+    renderer_renderMaterialPreview(materialId: number, w: number, h: number): void;
+    renderer_getPreviewPtr(): number;
+    renderer_getPreviewSize(): number;
+    renderer_getPreviewWidth(): number;
+    renderer_getPreviewHeight(): number;
 
     // UI Systems
     uiLayout_update(registry: CppRegistry, camLeft: number, camBottom: number, camRight: number, camTop: number): void;

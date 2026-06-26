@@ -455,6 +455,26 @@ export const ShapeType = {
 
 export type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
 
+export const Light2DType = {
+    Point: 0,
+    Directional: 1,
+    Ambient: 2,
+    Spot: 3,
+} as const;
+
+export type Light2DType = (typeof Light2DType)[keyof typeof Light2DType];
+
+export interface Light2DData {
+    type: number;
+    color: Color;
+    intensity: number;
+    radius: number;
+    direction: Vec2;
+    innerAngle: number;
+    outerAngle: number;
+    enabled: boolean;
+}
+
 export interface ShapeRendererData {
     shapeType: number;
     color: Color;
@@ -592,6 +612,20 @@ export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
             shapeType: { enum: enumOptions(ShapeType) },
             cornerRadius: { min: 0 },
             layer: { step: 1, enumSource: 'sortingLayers' },
+        },
+    }
+);
+
+export const Light2D = defineBuiltin<Light2DData>('Light2D',
+    metaDefaults<Light2DData>('Light2D'),
+    {
+        fields: {
+            type: { enum: enumOptions(Light2DType) },
+            intensity: { min: 0 },
+            radius: { min: 0 },
+            direction: { advanced: true },
+            innerAngle: { min: 0, max: 180, unit: '°', advanced: true },
+            outerAngle: { min: 0, max: 180, unit: '°', advanced: true },
         },
     }
 );

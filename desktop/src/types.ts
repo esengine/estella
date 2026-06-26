@@ -136,6 +136,7 @@ export type AssetType =
   | 'audio'
   | 'prefab'
   | 'material'
+  | 'materialgraph'
   | 'script'
   | 'animation'
   | 'tileset'

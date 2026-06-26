@@ -72,8 +72,8 @@ export {
     ShaderSources,
     initMaterialAPI,
     shutdownMaterialAPI,
-    registerMaterialCallback,
     isTextureRef,
+    CullMode,
     type ShaderHandle,
     type MaterialHandle,
     type MaterialOptions,
@@ -81,6 +81,24 @@ export {
     type UniformValue,
     type TextureRef,
 } from './material';
+
+export {
+    compileMaterialGraph,
+    newMaterialGraph,
+    addNode,
+    moveNode,
+    connect,
+    disconnect,
+    removeNode,
+    NODE_SPECS,
+    type MaterialGraph,
+    type MaterialGraphNode,
+    type GraphNodeType,
+    type GraphType,
+    type NodeSpec,
+    type NodePort,
+    type NodeParamSpec,
+} from './materialGraph';
 
 // =============================================================================
 // Geometry API

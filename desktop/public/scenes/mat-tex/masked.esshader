@@ -1,0 +1,39 @@
+#pragma shader "Masked"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_mask texture default(white)
+
+#pragma vertex
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_texCoord;
+layout(location = 3) in float a_texIndex;
+
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
+
+out vec4 v_color;
+out vec2 v_texCoord;
+
+void main() {
+    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+    v_color = a_color;
+    v_texCoord = a_texCoord;
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+out vec4 fragColor;
+
+// u_mask is the material texture param — ShaderParser auto-declares `uniform sampler2D u_mask;`
+// and the engine binds it to sampler unit 8 (above the batch path's 0..7).
+void main() {
+    fragColor = texture(u_mask, v_texCoord) * v_color;
+}
+#pragma end

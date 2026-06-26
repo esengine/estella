@@ -389,6 +389,13 @@ class ProjectStoreImpl {
     return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
   }
 
+  /** The live material handle a scene's sprites use for @p path (from the last scene
+   *  preload), or 0 if the material isn't loaded in the current scene. The Material Editor
+   *  uses it to push live edits onto the running material so the viewport reflects them. */
+  materialHandle(path: string): number {
+    return this.lastAssetResult?.materialHandles.get(path) ?? 0;
+  }
+
   /** Load a `.esprefab` asset (PrefabData) by ref, cached. The scene load-expand
    *  / save-collapse path resolves prefab instances through this. */
   private async loadPrefabAsset(ref: string): Promise<PrefabData | null> {

@@ -1,0 +1,40 @@
+#pragma shader "GraphTint"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_albedo texture default(white)
+#pragma param u_tint color default(1,1,1,1)
+
+#pragma vertex
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_texCoord;
+layout(location = 3) in float a_texIndex;
+
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
+
+out vec4 v_color;
+out vec2 v_texCoord;
+
+void main() {
+    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+    v_color = a_color;
+    v_texCoord = a_texCoord;
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+out vec4 fragColor;
+
+void main() {
+    vec4 n0 = texture(u_albedo, v_texCoord);
+    vec4 n1 = n0 * u_tint;
+    fragColor = n1;
+}
+#pragma end

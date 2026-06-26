@@ -12,6 +12,8 @@ import { ProjectStore } from './ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { openAnimationClip } from '@/timeline/openClip';
 import { openTileset } from '@/tileset/openTileset';
+import { openMaterial } from '@/material/openMaterial';
+import { openMaterialGraph } from '@/material/openMaterialGraph';
 
 /** Open action per asset type; types absent here aren't double-click-openable. */
 export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void>> = {
@@ -22,4 +24,6 @@ export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) 
   },
   animation: (path) => void openAnimationClip(path),
   tileset: (path) => void openTileset(path),
+  material: (path) => void openMaterial(path),
+  materialgraph: (path) => void openMaterialGraph(path),
 };

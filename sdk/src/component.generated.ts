@@ -12,7 +12,7 @@ import type { AssetFieldType } from './scene';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'ffbf3c8be66d1354';
+export const ABI_LAYOUT_HASH = '2896a68ab5ef40b7';
 
 export interface AssetFieldMeta {
     field: string;
@@ -167,6 +167,22 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+    },
+    Light2D: {
+        defaults: {
+            type: 0,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            intensity: 1,
+            radius: 200,
+            direction: { x: 0, y: 0 },
+            innerAngle: 30,
+            outerAngle: 45,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: ['color'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle'],
     },
     Parent: {
         defaults: {

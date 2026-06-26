@@ -9,7 +9,6 @@ export {
 export { AsyncCache } from './AsyncCache';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
 export { decodeImageBitmap, decodeImagePixels, imageBitmapOptions, type DecodedPixels } from './imageDecode';
-export { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
 export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
 
 export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult, type MissingAsset } from './Assets';

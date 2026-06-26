@@ -17,6 +17,7 @@ import { GamePanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
 import { TilemapPainter } from '@/panels/TilemapPainter';
+import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
 import { dockApi } from '@/layout/dockApi';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
@@ -29,6 +30,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   sequencer: () => <Sequencer />,
   tileset: () => <TilesetEditor />,
   tilemap: () => <TilemapPainter />,
+  materialgraph: () => <MaterialGraphEditor />,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => <GamePanel />,
 };
@@ -83,6 +85,7 @@ const BOTTOM_TABS: { id: string; component: string; title: string; refs: string[
   { id: 'sequencer', component: 'sequencer', title: 'Sequencer', refs: ['content', 'log'] },
   { id: 'tileset', component: 'tileset', title: 'Tileset', refs: ['content', 'sequencer'] },
   { id: 'tilemap', component: 'tilemap', title: 'Tilemap', refs: ['content', 'tileset'] },
+  { id: 'materialgraph', component: 'materialgraph', title: 'Material Graph', refs: ['content', 'tilemap'] },
 ];
 
 function ensureBottomTabs(api: DockviewReadyEvent['api']) {

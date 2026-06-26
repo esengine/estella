@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "lit.esshader",
+  "blendMode": 0,
+  "depthTest": false,
+  "properties": {}
+}

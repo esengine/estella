@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "",
+  "instanceOf": "tint.esmaterial",
+  "properties": {
+    "u_tint": { "r": 0, "g": 1, "b": 0, "a": 1 }
+  }
+}

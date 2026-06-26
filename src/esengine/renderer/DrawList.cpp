@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "DrawList.hpp"
 #include "BatchVertex.hpp"
+#include "MaterialStore.hpp"
 
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -98,7 +99,7 @@ void DrawList::finalize(TransientBufferPool& pool) {
 }
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
-                       FrameCapture* capture) {
+                       MaterialStore& materials, FrameCapture* capture) {
     PipelineDesc lastDesc{};
     PipelineHandle lastHandle = PipelineHandle::Invalid;
 
@@ -109,24 +110,31 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         if (cmd.state_flags & CMD_STATE_STENCIL_WRITE) stencil = GfxStencilMode::Write;
         else if (cmd.state_flags & CMD_STATE_STENCIL_TEST) stencil = GfxStencilMode::Test;
 
-        // Resolve the immutable pipeline. depthWrite stays on with the test off, matching
-        // the engine's 2D state. createPipeline caches; a one-entry memo skips the lookup
-        // for the common run of identical consecutive (sorted) commands.
+        // Resolve the immutable pipeline. Depth/cull come from the command (resolved from
+        // its material, or the 2D defaults: depth_write on with the test off). createPipeline
+        // caches; a one-entry memo skips the lookup for identical consecutive (sorted) commands.
         PipelineDesc desc{};
         desc.program = cmd.shader_id;
         desc.vertexLayout = cmd.layout_id;
         desc.blend = cmd.blend_mode;
         desc.blendEnabled = true;
-        desc.depthTest = false;
-        desc.depthWrite = true;
+        desc.depthTest = cmd.depth_test;
+        desc.depthWrite = cmd.depth_write;
         desc.stencil = stencil;
-        desc.cullEnabled = false;
+        desc.cullEnabled = cmd.cull != 0;
+        desc.cullFront = cmd.cull == 2;
 
         if (lastHandle == PipelineHandle::Invalid || !(desc == lastDesc)) {
             lastHandle = device.createPipeline(desc);
             lastDesc = desc;
         }
         device.setPipeline(lastHandle);
+
+        // Per-material constants (binding 1): upload-if-dirty + bind this draw's material UBO.
+        // A no-op for material 0 and for materials whose shader declares no params.
+        if (cmd.material_id != 0) {
+            materials.bindForDraw(cmd.material_id);
+        }
 
         // Dynamic per-draw state (sorted+merged draws already group these coarsely).
         if (cmd.state_flags & CMD_STATE_SCISSOR) {

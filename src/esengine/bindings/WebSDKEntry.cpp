@@ -38,6 +38,7 @@
 #include "../renderer/ImmediateDraw.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../text/SdfGenerator.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../core/World.hpp"
@@ -75,109 +76,141 @@ static EstellaContext& ctx() { return activeCtx(); }
 #define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
 #endif
 
-EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBlendModePtr, int outUniformBufPtr, int outUniformCountPtr), {
-    var fn = Module['materialDataProvider'];
-    if (fn) {
-        fn(materialId, outShaderIdPtr, outBlendModePtr, outUniformBufPtr, outUniformCountPtr);
-    } else {
-        HEAPU32[outShaderIdPtr >> 2] = 0;
-        HEAPU32[outBlendModePtr >> 2] = 0;
-        HEAPU32[outUniformBufPtr >> 2] = 0;
-        HEAPU32[outUniformCountPtr >> 2] = 0;
+// Float component count for a std140 param type (textures have no block slot).
+static u32 materialParamArity(resource::ShaderPropertyType t) {
+    using PT = resource::ShaderPropertyType;
+    switch (t) {
+        case PT::Float: case PT::Int: return 1;
+        case PT::Vec2: return 2;
+        case PT::Vec3: return 3;
+        case PT::Vec4: case PT::Color: return 4;
+        default: return 0;
     }
-});
-
-void clearMaterialCache() { ctx().state().material_cache.clear(); }
-
-void invalidateMaterialCache(u32 materialId) {
-    ctx().state().material_cache.invalidate(materialId);
 }
 
-bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
-    if (materialId == 0) {
-        return false;
-    }
-    u32 uniformBufferPtr = 0;
-    u32 uniformCount = 0;
-    auto toPtr = [](auto* p) { return static_cast<int>(reinterpret_cast<uintptr_t>(p)); };
-    callMaterialProvider(materialId,
-        toPtr(&shaderId),
-        toPtr(&blendMode),
-        toPtr(&uniformBufferPtr),
-        toPtr(&uniformCount));
-    return shaderId != 0;
-}
-
-bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
-                                  std::vector<MaterialUniformData>& uniforms) {
-    if (materialId == 0) {
-        return false;
-    }
-
-    auto& cache = ctx().state().material_cache;
-    const auto* cached = cache.find(materialId);
-    if (cached) {
-        shaderId = cached->shaderId;
-        blendMode = cached->blendMode;
-        uniforms = cached->uniforms;
-        return shaderId != 0;
-    }
-
-    u32 uniformBufferPtr = 0;
-    u32 uniformCount = 0;
-    auto toPtr = [](auto* p) { return static_cast<int>(reinterpret_cast<uintptr_t>(p)); };
-    callMaterialProvider(materialId,
-        toPtr(&shaderId),
-        toPtr(&blendMode),
-        toPtr(&uniformBufferPtr),
-        toPtr(&uniformCount));
-
-    if (shaderId == 0) {
-        cache.store(materialId, {});
-        return false;
-    }
-
-    constexpr u32 MAX_UNIFORMS = 64;
-    if (uniformCount > MAX_UNIFORMS) {
-        ES_LOG_ERROR("Material {} has {} uniforms (max {}), clamping",
-                     materialId, uniformCount, MAX_UNIFORMS);
-        uniformCount = MAX_UNIFORMS;
-    }
-
-    if (uniformCount > 0 && uniformBufferPtr != 0) {
-        const u8* ptr = reinterpret_cast<const u8*>(uniformBufferPtr);
-        constexpr usize MAX_BUFFER_SIZE = MAX_UNIFORMS * (4 + 256 + 4 + 16);
-        const u8* bufferEnd = ptr + MAX_BUFFER_SIZE;
-
-        for (u32 i = 0; i < uniformCount; ++i) {
-            if (ptr + 4 > bufferEnd) break;
-            u32 nameLen = *reinterpret_cast<const u32*>(ptr);
-            ptr += 4;
-
-            if (nameLen > 256) break;
-            usize alignedNameLen = ((nameLen + 3) / 4) * 4;
-            if (ptr + alignedNameLen > bufferEnd) break;
-
-            MaterialUniformData ud;
-            usize copyLen = std::min<usize>(nameLen, 31);
-            std::memcpy(ud.name, reinterpret_cast<const char*>(ptr), copyLen);
-            ud.name[copyLen] = '\0';
-            ptr += alignedNameLen;
-
-            if (ptr + 4 > bufferEnd) break;
-            ud.type = *reinterpret_cast<const u32*>(ptr);
-            ptr += 4;
-
-            if (ptr + 16 > bufferEnd) break;
-            std::memcpy(ud.values, ptr, 16);
-            ptr += 16;
-
-            uniforms.push_back(ud);
+// Build the engine-side layout from a parsed shader's #pragma param reflection: non-texture
+// params into the std140 block (declared order == offset order), texture params into sampler
+// slots (their reflected units, >= MATERIAL_TEXTURE_UNIT_BASE).
+static MaterialUniformLayout buildMaterialLayout(const resource::ParsedShader& parsed,
+                                                 const RenderContext& rc) {
+    MaterialUniformLayout layout;
+    layout.blockSize = parsed.materialBlockSize;
+    for (const auto& p : parsed.properties) {
+        if (!p.fromParam) continue;
+        if (p.type == resource::ShaderPropertyType::Texture) {
+            if (p.textureUnit >= 0) {
+                // Resolve the param's `default(<name>)` to a built-in default texture, bound when
+                // a material leaves the param unset.
+                layout.textures.push_back({ p.name, static_cast<u32>(p.textureUnit),
+                                            rc.defaultTextureByName(p.defaultValue) });
+            }
+        } else if (p.std140Offset >= 0) {
+            layout.params.push_back({ p.name, static_cast<u32>(p.std140Offset), materialParamArity(p.type) });
         }
     }
+    return layout;
+}
 
-    cache.store(materialId, { shaderId, blendMode, uniforms });
-    return true;
+// Compiles a .esshader (material shader) through the full ShaderParser path — assembling the
+// auto-generated MaterialConstants block + the requested feature/switch permutation (each
+// feature -> `#define NAME 1`) — and registers its param layout. @p featuresCsv is the enabled
+// `#pragma switch` set (comma-separated), so a material's static switches select a permutation;
+// the SDK loader caches one compiled program per (shader, switch-set). Returns the shader
+// resource handle (0 on failure). Reflection-aware replacement for the loader's old regex.
+u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
+    auto* rm = g_resourceManager;
+    if (!rm) return 0;
+    resource::ParsedShader parsed = resource::ShaderParser::parse(source);
+    if (!parsed.valid) {
+        ES_LOG_ERROR("compileEsshader: parse failed: {}", parsed.errorMessage);
+        return 0;
+    }
+    std::vector<std::string> features;
+    for (usize start = 0; start <= featuresCsv.size();) {
+        const usize comma = featuresCsv.find(',', start);
+        const usize end = comma == std::string::npos ? featuresCsv.size() : comma;
+        std::string f = featuresCsv.substr(start, end - start);
+        // trim
+        const usize a = f.find_first_not_of(" \t");
+        const usize b = f.find_last_not_of(" \t");
+        if (a != std::string::npos) features.push_back(f.substr(a, b - a + 1));
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+    }
+    const std::string vert = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features);
+    const std::string frag = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features);
+    resource::ShaderHandle handle = rm->createShader(vert, frag);
+    if (!handle.isValid()) return 0;
+    if (auto* rc = g_renderContext) {
+        if (Shader* s = rm->getShader(handle)) {
+            rc->materials().registerLayout(s->getProgramId(), buildMaterialLayout(parsed, *rc));
+            // Point each texture param's sampler at its unit, once per program (GLSL ES 300 has
+            // no layout(binding=); mirrors the batch path's u_textures setup in RenderFrame).
+            s->bind();
+            for (const auto& p : parsed.properties) {
+                if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
+                    s->setUniform(p.name, static_cast<i32>(p.textureUnit));
+                }
+            }
+            s->unbind();
+        }
+    }
+    return handle.id();
+}
+
+// Materials are engine-side data: the SDK pushes a material's resolved render state here when
+// it is created or edited, and the render path reads it by the handle a component carries
+// (Sprite::material, etc.). `shaderHandle` is the SDK shader resource handle, translated here
+// to the GL program id the render path binds. flags packs depthTest (bit 0), depthWrite
+// (bit 1) and CullMode (bits 2-3). Per-material uniform values arrive via setMaterialUniform.
+void defineMaterial(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags) {
+    auto* rc = g_renderContext;
+    if (!rc) return;
+    u32 programId = 0;
+    if (shaderHandle != 0) {
+        if (auto* rm = g_resourceManager) {
+            if (Shader* s = rm->getShader(resource::ShaderHandle(shaderHandle))) {
+                programId = s->getProgramId();
+            }
+        }
+    }
+    MaterialRecord rec;
+    rec.shader = programId;
+    rec.blend = static_cast<BlendMode>(blendMode);
+    rec.depthTest = (flags & 0x1u) != 0;
+    rec.depthWrite = (flags & 0x2u) != 0;
+    rec.cull = static_cast<CullMode>((flags >> 2) & 0x3u);
+    rc->materials().define(materialId, rec);
+}
+
+// Packs a named param's float components into the material's std140 buffer (by reflected
+// offset). A no-op for materials whose shader declares no matching #pragma param.
+void setMaterialUniform(u32 materialId, const std::string& name, u32 arity,
+                        f32 v0, f32 v1, f32 v2, f32 v3) {
+    auto* rc = g_renderContext;
+    if (!rc) return;
+    const f32 vals[4] = { v0, v1, v2, v3 };
+    rc->materials().setUniform(materialId, name, vals, arity);
+}
+
+// Binds a texture param to its sampler unit. `textureHandle` is the SDK texture resource
+// handle, resolved here to the GL texture id the render path binds. No-op for an unknown param.
+void setMaterialTexture(u32 materialId, const std::string& name, u32 textureHandle) {
+    auto* rc = g_renderContext;
+    if (!rc) return;
+    u32 glTex = 0;
+    if (textureHandle != 0) {
+        if (auto* rm = g_resourceManager) {
+            if (Texture* t = rm->getTexture(resource::TextureHandle(textureHandle))) {
+                glTex = t->getId();
+            }
+        }
+    }
+    rc->materials().setTexture(materialId, name, glTex);
+}
+
+void undefineMaterial(u32 materialId) {
+    if (auto* rc = g_renderContext) rc->materials().undefine(materialId);
 }
 
 bool initRendererInternal(const char* canvasSelector) {
@@ -380,8 +413,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 #endif
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
 
-    emscripten::function("invalidateMaterialCache", &esengine::invalidateMaterialCache);
-    emscripten::function("clearMaterialCache", &esengine::clearMaterialCache);
+    emscripten::function("compileEsshader", &esengine::compileEsshader);
+    emscripten::function("defineMaterial", &esengine::defineMaterial);
+    emscripten::function("setMaterialUniform", &esengine::setMaterialUniform);
+    emscripten::function("setMaterialTexture", &esengine::setMaterialTexture);
+    emscripten::function("undefineMaterial", &esengine::undefineMaterial);
 
     emscripten::function("draw_begin", &esengine::draw_begin);
     emscripten::function("draw_end", &esengine::draw_end);
@@ -517,6 +553,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getSnapshotSize", &esengine::renderer_getSnapshotSize);
     emscripten::function("renderer_getSnapshotWidth", &esengine::renderer_getSnapshotWidth);
     emscripten::function("renderer_getSnapshotHeight", &esengine::renderer_getSnapshotHeight);
+    emscripten::function("renderer_renderMaterialPreview", &esengine::renderer_renderMaterialPreview);
+    emscripten::function("renderer_getPreviewPtr", &esengine::renderer_getPreviewPtr);
+    emscripten::function("renderer_getPreviewSize", &esengine::renderer_getPreviewSize);
+    emscripten::function("renderer_getPreviewWidth", &esengine::renderer_getPreviewWidth);
+    emscripten::function("renderer_getPreviewHeight", &esengine::renderer_getPreviewHeight);
     emscripten::function("renderer_setTextureParams", &esengine::renderer_setTextureParams);
 }
 

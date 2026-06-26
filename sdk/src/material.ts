@@ -11,7 +11,6 @@ import { CoreApiBridge } from './CoreApiBridge';
 import { requireResourceManager } from './resourceManager';
 import type { Vec2, Vec3, Vec4 } from './types';
 import { BlendMode } from './blend';
-import { log } from './logger';
 
 export type { Vec2, Vec3, Vec4 } from './types';
 
@@ -68,19 +67,43 @@ export function classifyUniformArity(value: Exclude<UniformValue, TextureRef>): 
     return { arity: 2, values: [value.x, value.y, 0, 0] };
 }
 
+/** Triangle culling mode; mirrors the engine's CullMode. */
+export enum CullMode {
+    None = 0,
+    Back = 1,
+    Front = 2,
+}
+
 export interface MaterialOptions {
     shader: ShaderHandle;
     uniforms?: Record<string, UniformValue>;
     blendMode?: BlendMode;
     depthTest?: boolean;
+    depthWrite?: boolean;
+    cull?: CullMode;
+    /** Enabled static switches (#pragma switch) for the record; the shader permutation is
+     *  chosen at compile time (see Material.compileShader). Stored for inspection/serialization. */
+    switches?: Record<string, boolean>;
 }
 
 export interface MaterialAssetData {
     version: string;
     type: 'material';
     shader: string;
-    blendMode: number;
-    depthTest: boolean;
+    // Render state is optional so an instance can serialize only its overrides; a base
+    // material writes all of them. Absent fields fall back to the engine defaults on load.
+    blendMode?: number;
+    depthTest?: boolean;
+    depthWrite?: boolean;
+    cull?: number;
+    /**
+     * Parent material asset ref — present on a material instance (UE MaterialInstanceConstant).
+     * The shader and any non-overridden render state are inherited from the parent; `shader`
+     * is then ignored and `properties` carries only the overridden parameters (the diff).
+     */
+    instanceOf?: string;
+    /** Enabled static switches (#pragma switch) — selects the shader permutation at load. */
+    switches?: Record<string, boolean>;
     properties: Record<string, unknown>;
 }
 
@@ -89,6 +112,20 @@ export interface MaterialData {
     uniforms: Map<string, UniformValue>;
     blendMode: BlendMode;
     depthTest: boolean;
+    depthWrite: boolean;
+    cull: CullMode;
+    /** Enabled static switches (the shader permutation was chosen for these at compile time). */
+    switches: Record<string, boolean>;
+    /**
+     * Instance parenting (UE MaterialInstanceConstant): when set, this material inherits the
+     * parent's shader + render state + params, and only its own diffs are stored — `uniforms`
+     * holds just the overridden params, and `overrides` names the overridden render-state
+     * fields ('blendMode' | 'depthTest' | 'depthWrite' | 'cull'). Undefined on a base material.
+     */
+    parent?: MaterialHandle;
+    overrides: Set<string>;
+    // Immediate-mode mesh uniform cache (draw.ts): the encoded uniform buffer is rebuilt
+    // only when dirty_ (a uniform changed). Distinct from the batch render path's material UBO.
     dirty_: boolean;
     cachedBuffer_: Float32Array | null;
     cachedIdx_: number;
@@ -102,6 +139,8 @@ const bridge = new CoreApiBridge('material');
 let module: ESEngineModule | null = null;
 let nextMaterialId = 1;
 const materials = new Map<MaterialHandle, MaterialData>();
+// Reverse index parent -> instances, so editing a base material re-flushes its instances.
+const childrenOf = new Map<MaterialHandle, Set<MaterialHandle>>();
 
 // =============================================================================
 // Initialization
@@ -110,21 +149,108 @@ const materials = new Map<MaterialHandle, MaterialData>();
 export function initMaterialAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;
-    registerMaterialCallback();
 }
 
 export function shutdownMaterialAPI(): void {
-    if (uniformBuffer !== 0 && module) {
-        module._free(uniformBuffer);
-        uniformBuffer = 0;
-    }
     materials.clear();
+    childrenOf.clear();
     nextMaterialId = 1;
-    materialCallbackRegistered = false;
-    encodedNameCache.clear();
-    encoder = null;
     bridge.disconnect();
     module = null;
+}
+
+// Pack the render-state flags the engine store expects: depthTest (bit 0), depthWrite
+// (bit 1), CullMode (bits 2-3).
+function materialFlags(depthTest: boolean, depthWrite: boolean, cull: CullMode): number {
+    return (depthTest ? 0x1 : 0) | (depthWrite ? 0x2 : 0) | ((cull & 0x3) << 2);
+}
+
+function registerChild(parent: MaterialHandle, child: MaterialHandle): void {
+    let set = childrenOf.get(parent);
+    if (!set) { set = new Set(); childrenOf.set(parent, set); }
+    set.add(child);
+}
+
+function unregisterChild(parent: MaterialHandle, child: MaterialHandle): void {
+    childrenOf.get(parent)?.delete(child);
+}
+
+// Push one param value into the engine material store: texture refs bind to a sampler unit,
+// scalar/vector values pack into the std140 MaterialConstants UBO (both by the offset/unit the
+// shader's #pragma param reflection assigns). A no-op engine-side for unknown params.
+function pushUniform(handle: MaterialHandle, name: string, value: UniformValue): void {
+    if (!module) return;
+    if (isTextureRef(value)) {
+        module.setMaterialTexture(handle, name, value.textureId);
+        return;
+    }
+    const { arity, values } = classifyUniformArity(value);
+    module.setMaterialUniform(handle, name, arity, values[0], values[1], values[2], values[3]);
+}
+
+interface ResolvedMaterial {
+    shader: ShaderHandle;
+    blendMode: BlendMode;
+    depthTest: boolean;
+    depthWrite: boolean;
+    cull: CullMode;
+    uniforms: Map<string, UniformValue>;
+}
+
+// Flatten an instance chain to its effective material: the parent's values with this
+// material's overrides applied (uniforms by key, render state by `overrides`). Defensive
+// against a missing parent (e.g. a released base) — falls back to the material's own values.
+function resolveMaterial(handle: MaterialHandle): ResolvedMaterial | null {
+    const data = materials.get(handle);
+    if (!data) return null;
+    const parent = data.parent !== undefined ? resolveMaterial(data.parent) : null;
+    if (!parent) {
+        return {
+            shader: data.shader, blendMode: data.blendMode, depthTest: data.depthTest,
+            depthWrite: data.depthWrite, cull: data.cull, uniforms: new Map(data.uniforms),
+        };
+    }
+    const uniforms = parent.uniforms;  // fresh map from the recursive call
+    for (const [k, v] of data.uniforms) uniforms.set(k, v);  // instance overrides win
+    return {
+        shader: parent.shader,  // instances inherit the shader
+        blendMode: data.overrides.has('blendMode') ? data.blendMode : parent.blendMode,
+        depthTest: data.overrides.has('depthTest') ? data.depthTest : parent.depthTest,
+        depthWrite: data.overrides.has('depthWrite') ? data.depthWrite : parent.depthWrite,
+        cull: data.overrides.has('cull') ? data.cull : parent.cull,
+        uniforms,
+    };
+}
+
+// Push a material's flattened state to the engine, then re-flush every instance of it — so a
+// base edit propagates to non-overriding children. The single push point for create + edits.
+function flushMaterial(handle: MaterialHandle): void {
+    const resolved = resolveMaterial(handle);
+    if (resolved && module) {
+        module.defineMaterial(handle, resolved.shader, resolved.blendMode,
+            materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull));
+        for (const [name, value] of resolved.uniforms) pushUniform(handle, name, value);
+    }
+    const kids = childrenOf.get(handle);
+    if (kids) for (const child of kids) flushMaterial(child);
+}
+
+// Convert a .esmaterial `properties` map (JSON numbers / colors / vectors) into typed
+// UniformValues. Keyed by the value's shape: {r,g,b,a} -> color vec4, {x,y,z,w}/{x,y,z}/{x,y}.
+function parseAssetProperties(properties: Record<string, unknown>): Record<string, UniformValue> {
+    const uniforms: Record<string, UniformValue> = {};
+    for (const [key, value] of Object.entries(properties)) {
+        if (typeof value === 'number') {
+            uniforms[key] = value;
+        } else if (typeof value === 'object' && value !== null) {
+            const obj = value as Record<string, number>;
+            if ('a' in obj) uniforms[key] = { x: obj.r ?? 0, y: obj.g ?? 0, z: obj.b ?? 0, w: obj.a ?? 0 };
+            else if ('w' in obj) uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0, w: obj.w ?? 0 };
+            else if ('z' in obj) uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0 };
+            else if ('y' in obj) uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0 };
+        }
+    }
+    return uniforms;
 }
 
 // =============================================================================
@@ -164,6 +290,10 @@ export const Material = {
             uniforms: new Map(),
             blendMode: options.blendMode ?? BlendMode.Normal,
             depthTest: options.depthTest ?? false,
+            depthWrite: options.depthWrite ?? true,
+            cull: options.cull ?? CullMode.None,
+            switches: options.switches ? { ...options.switches } : {},
+            overrides: new Set(),
             dirty_: true,
             cachedBuffer_: null,
             cachedIdx_: 0,
@@ -176,7 +306,31 @@ export const Material = {
         }
 
         materials.set(handle, data);
+        flushMaterial(handle);
         return handle;
+    },
+
+    /**
+     * Compiles a `.esshader` material shader through the engine's ShaderParser, which
+     * generates the std140 MaterialConstants block from its `#pragma param` declarations and
+     * registers the param layout. Use this (not createShader) for materials whose parameters
+     * should reach the GPU. Returns a shader handle, or 0 on failure.
+     */
+    compileShader(esshaderSource: string, features: string[] = []): ShaderHandle {
+        return module?.compileEsshader(esshaderSource, features.join(',')) ?? 0;
+    },
+
+    /** Gets an enabled static switch (false when unset). */
+    getSwitch(material: MaterialHandle, name: string): boolean {
+        return materials.get(material)?.switches[name] ?? false;
+    },
+
+    /** Sets a static switch on the record. The shader permutation is chosen at compile time,
+     *  so a change takes effect when the material's shader is next (re)compiled — callers that
+     *  need it live recompile the shader with the new switch set. */
+    setSwitch(material: MaterialHandle, name: string, on: boolean): void {
+        const data = materials.get(material);
+        if (data) data.switches[name] = on;
     },
 
     /**
@@ -197,9 +351,10 @@ export const Material = {
     setUniform(material: MaterialHandle, name: string, value: UniformValue): void {
         const data = materials.get(material);
         if (data) {
+            // On an instance, the local uniforms map *is* the override set (presence = override).
             data.uniforms.set(name, value);
-            data.dirty_ = true;
-            module?.invalidateMaterialCache(material);
+            data.dirty_ = true;  // immediate-mode mesh path re-encodes its uniform cache.
+            flushMaterial(material);  // batch path: re-flatten + push (+ propagate to instances).
         }
     },
 
@@ -210,8 +365,7 @@ export const Material = {
      * @returns Uniform value or undefined
      */
     getUniform(material: MaterialHandle, name: string): UniformValue | undefined {
-        const data = materials.get(material);
-        return data?.uniforms.get(name);
+        return resolveMaterial(material)?.uniforms.get(name);
     },
 
     /**
@@ -223,7 +377,8 @@ export const Material = {
         const data = materials.get(material);
         if (data) {
             data.blendMode = mode;
-            module?.invalidateMaterialCache(material);
+            if (data.parent !== undefined) data.overrides.add('blendMode');
+            flushMaterial(material);
         }
     },
 
@@ -233,8 +388,7 @@ export const Material = {
      * @returns Blend mode
      */
     getBlendMode(material: MaterialHandle): BlendMode {
-        const data = materials.get(material);
-        return data?.blendMode ?? BlendMode.Normal;
+        return resolveMaterial(material)?.blendMode ?? BlendMode.Normal;
     },
 
     /**
@@ -246,7 +400,28 @@ export const Material = {
         const data = materials.get(material);
         if (data) {
             data.depthTest = enabled;
-            module?.invalidateMaterialCache(material);
+            if (data.parent !== undefined) data.overrides.add('depthTest');
+            flushMaterial(material);
+        }
+    },
+
+    /** Enables/disables depth writes (default on, matching the engine's 2D state). */
+    setDepthWrite(material: MaterialHandle, enabled: boolean): void {
+        const data = materials.get(material);
+        if (data) {
+            data.depthWrite = enabled;
+            if (data.parent !== undefined) data.overrides.add('depthWrite');
+            flushMaterial(material);
+        }
+    },
+
+    /** Sets the triangle culling mode. */
+    setCull(material: MaterialHandle, cull: CullMode): void {
+        const data = materials.get(material);
+        if (data) {
+            data.cull = cull;
+            if (data.parent !== undefined) data.overrides.add('cull');
+            flushMaterial(material);
         }
     },
 
@@ -256,8 +431,7 @@ export const Material = {
      * @returns Shader handle
      */
     getShader(material: MaterialHandle): ShaderHandle {
-        const data = materials.get(material);
-        return data?.shader ?? 0;
+        return resolveMaterial(material)?.shader ?? 0;
     },
 
     /**
@@ -265,8 +439,11 @@ export const Material = {
      * @param material Material handle
      */
     release(material: MaterialHandle): void {
+        const data = materials.get(material);
+        if (data?.parent !== undefined) unregisterChild(data.parent, material);
+        childrenOf.delete(material);  // orphaned instances fall back to their own values (resolve is defensive)
         materials.delete(material);
-        module?.invalidateMaterialCache(material);
+        module?.undefineMaterial(material);
     },
 
     /**
@@ -278,49 +455,74 @@ export const Material = {
         return materials.has(material);
     },
 
+    /**
+     * Render a material to an offscreen @p w×@p h target and return its pixels (a "material ball"
+     * thumbnail). Reuses the real viewport render path — a unit quad lit by one directional light
+     * — so the preview matches how the material looks in-scene. Null if the engine isn't ready.
+     */
+    renderPreview(material: MaterialHandle, w: number, h: number): ImageData | null {
+        if (!module) return null;
+        module.renderer_renderMaterialPreview(material, w, h);
+        const size = module.renderer_getPreviewSize();
+        const pw = module.renderer_getPreviewWidth();
+        const ph = module.renderer_getPreviewHeight();
+        if (size === 0 || pw === 0 || ph === 0) return null;
+        const pixels = new Uint8ClampedArray(module.HEAPU8.buffer, module.renderer_getPreviewPtr(), size);
+        // GL reads bottom-up; flip rows so the thumbnail is upright.
+        const flipped = new Uint8ClampedArray(size);
+        const rowBytes = pw * 4;
+        for (let y = 0; y < ph; y++) {
+            flipped.set(pixels.subarray(y * rowBytes, (y + 1) * rowBytes), (ph - 1 - y) * rowBytes);
+        }
+        return new ImageData(flipped, pw, ph);
+    },
+
     releaseAll(): void {
+        if (module) {
+            for (const handle of materials.keys()) module.undefineMaterial(handle);
+        }
         materials.clear();
-        module?.clearMaterialCache();
+        childrenOf.clear();
     },
 
     /**
-     * Creates a material from asset data.
-     * @param data Material asset data (properties object)
-     * @param shaderHandle Pre-loaded shader handle
-     * @returns Material handle
+     * Creates a material from asset data. When @p parentHandle is given (the asset's
+     * `instanceOf` resolved to a loaded parent), builds a Material Instance carrying only the
+     * asset's overrides — `properties` and any present render-state fields. Otherwise builds a
+     * base material on @p shaderHandle.
      */
-    createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle): MaterialHandle {
-        const uniforms: Record<string, UniformValue> = {};
+    createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle, parentHandle?: MaterialHandle): MaterialHandle {
+        const uniforms = parseAssetProperties(data.properties);
 
-        for (const [key, value] of Object.entries(data.properties)) {
-            if (typeof value === 'number') {
-                uniforms[key] = value;
-            } else if (typeof value === 'object' && value !== null) {
-                const obj = value as Record<string, number>;
-                if ('a' in obj) {
-                    uniforms[key] = { x: obj.r ?? 0, y: obj.g ?? 0, z: obj.b ?? 0, w: obj.a ?? 0 };
-                } else if ('w' in obj) {
-                    uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0, w: obj.w ?? 0 };
-                } else if ('z' in obj) {
-                    uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0 };
-                } else if ('y' in obj) {
-                    uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0 };
-                }
-            }
+        if (parentHandle !== undefined && parentHandle !== 0) {
+            const handle = this.createInstance(parentHandle);
+            for (const [key, value] of Object.entries(uniforms)) this.setUniform(handle, key, value);
+            // Present render-state fields are the instance's overrides (absent = inherited).
+            if (data.blendMode !== undefined) this.setBlendMode(handle, data.blendMode as BlendMode);
+            if (data.depthTest !== undefined) this.setDepthTest(handle, data.depthTest);
+            if (data.depthWrite !== undefined) this.setDepthWrite(handle, data.depthWrite);
+            if (data.cull !== undefined) this.setCull(handle, data.cull as CullMode);
+            return handle;
         }
 
         return this.create({
             shader: shaderHandle,
             uniforms,
-            blendMode: data.blendMode as BlendMode ?? BlendMode.Normal,
+            blendMode: (data.blendMode as BlendMode) ?? BlendMode.Normal,
             depthTest: data.depthTest ?? false,
+            depthWrite: data.depthWrite ?? true,
+            cull: (data.cull as CullMode) ?? CullMode.None,
+            switches: data.switches,
         });
     },
 
     /**
-     * Creates a material instance that shares the shader with source.
-     * @param source Source material handle
-     * @returns New material handle with copied settings
+     * Creates a material instance (UE MaterialInstanceConstant): it inherits @p source's
+     * shader, render state and parameters, and stores only the diffs you later set on it.
+     * Editing the parent propagates to every non-overriding instance. Use this for cheap
+     * variants ("the same material, but red") instead of duplicating the whole material.
+     * @param source Parent material (a base material or another instance)
+     * @returns New instance handle
      */
     createInstance(source: MaterialHandle): MaterialHandle {
         const sourceData = materials.get(source);
@@ -330,16 +532,25 @@ export const Material = {
 
         const handle = nextMaterialId++;
         const data: MaterialData = {
+            // Render-state fields are placeholders (resolve inherits from the parent unless an
+            // override is set); `uniforms` holds only this instance's overrides, empty at first.
             shader: sourceData.shader,
-            uniforms: new Map(sourceData.uniforms),
+            uniforms: new Map(),
             blendMode: sourceData.blendMode,
             depthTest: sourceData.depthTest,
+            depthWrite: sourceData.depthWrite,
+            cull: sourceData.cull,
+            switches: {},  // instance inherits the parent's shader permutation (switch override = follow-up)
+            parent: source,
+            overrides: new Set(),
             dirty_: true,
             cachedBuffer_: null,
             cachedIdx_: 0,
         };
 
         materials.set(handle, data);
+        registerChild(source, handle);
+        flushMaterial(handle);
         return handle;
     },
 
@@ -349,23 +560,41 @@ export const Material = {
      * @param shaderPath Shader file path for asset reference
      * @returns Material asset data
      */
-    toAssetData(material: MaterialHandle, shaderPath: string): MaterialAssetData | null {
+    toAssetData(material: MaterialHandle, shaderPath: string, parentPath?: string): MaterialAssetData | null {
         const data = materials.get(material);
         if (!data) return null;
 
+        // An instance serializes as a diff: instanceOf + only its overridden params (the local
+        // uniforms map) and overridden render-state. A base writes its full state.
+        const isInstance = data.parent !== undefined && parentPath !== undefined;
+
         const properties: Record<string, unknown> = {};
-        for (const [key, value] of data.uniforms) {
-            properties[key] = value;
+        const localUniforms = isInstance ? data.uniforms : resolveMaterial(material)?.uniforms ?? data.uniforms;
+        for (const [key, value] of localUniforms) properties[key] = value;
+
+        if (isInstance) {
+            const asset: MaterialAssetData = {
+                version: '1.0', type: 'material', shader: shaderPath, instanceOf: parentPath, properties,
+            };
+            if (data.overrides.has('blendMode')) asset.blendMode = data.blendMode;
+            if (data.overrides.has('depthTest')) asset.depthTest = data.depthTest;
+            if (data.overrides.has('depthWrite')) asset.depthWrite = data.depthWrite;
+            if (data.overrides.has('cull')) asset.cull = data.cull;
+            return asset;
         }
 
-        return {
+        const asset: MaterialAssetData = {
             version: '1.0',
             type: 'material',
             shader: shaderPath,
             blendMode: data.blendMode,
             depthTest: data.depthTest,
+            depthWrite: data.depthWrite,
+            cull: data.cull,
             properties,
         };
+        if (Object.keys(data.switches).length > 0) asset.switches = { ...data.switches };
+        return asset;
     },
 
     /**
@@ -374,122 +603,14 @@ export const Material = {
      * @returns Map of uniform names to values
      */
     getUniforms(material: MaterialHandle): Map<string, UniformValue> {
-        const data = materials.get(material);
-        return data ? new Map(data.uniforms) : new Map();
+        // Resolved (flattened) uniforms — an instance reports inherited + overridden params.
+        return resolveMaterial(material)?.uniforms ?? new Map();
     },
 
     tex(textureId: number, slot?: number): TextureRef {
         return { __textureRef: true, textureId, slot };
     },
 };
-
-// =============================================================================
-// Material Callback Registration
-// =============================================================================
-
-let materialCallbackRegistered = false;
-let uniformBuffer: number = 0;
-const UNIFORM_BUFFER_SIZE = 16384;
-// Cap the cache so apps that generate many unique uniform names (e.g. per-
-// instance shader variants) don't leak Uint8Arrays for the whole session.
-const ENCODED_NAME_CACHE_LIMIT = 256;
-const encodedNameCache = new Map<string, Uint8Array>();
-let encoder: TextEncoder | null = null;
-
-function ensureUniformBuffer(): number {
-    if (uniformBuffer === 0 && module) {
-        uniformBuffer = module._malloc(UNIFORM_BUFFER_SIZE);
-    }
-    return uniformBuffer;
-}
-
-function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; count: number } {
-    const bufferPtr = ensureUniformBuffer();
-    if (bufferPtr === 0 || !module) return { ptr: 0, count: 0 };
-
-    let offset = 0;
-    let count = 0;
-    const heap8 = module.HEAPU8;
-    const heap32 = module.HEAPU32;
-    const heapF32 = module.HEAPF32;
-
-    for (const [name, value] of uniforms) {
-        if (isTextureRef(value)) continue;
-
-        let nameBytes = encodedNameCache.get(name);
-        if (!nameBytes) {
-            if (!encoder) encoder = new TextEncoder();
-            nameBytes = encoder.encode(name);
-            if (encodedNameCache.size >= ENCODED_NAME_CACHE_LIMIT) {
-                // Evict the oldest entry (Map preserves insertion order).
-                const oldest = encodedNameCache.keys().next().value;
-                if (oldest !== undefined) encodedNameCache.delete(oldest);
-            }
-            encodedNameCache.set(name, nameBytes);
-        }
-        const nameLen = nameBytes.length;
-        const namePadded = Math.ceil(nameLen / 4) * 4;
-        const requiredBytes = 4 + namePadded + 4 + 16;
-
-        if (offset + requiredBytes > UNIFORM_BUFFER_SIZE) {
-            log.warn('material', `uniform buffer full (${offset}/${UNIFORM_BUFFER_SIZE} bytes), skipping remaining uniforms`);
-            break;
-        }
-
-        heap32[(bufferPtr + offset) >> 2] = nameLen;
-        offset += 4;
-
-        heap8.set(nameBytes, bufferPtr + offset);
-        offset += namePadded;
-
-        // Type codes in this layout are zero-indexed (0=float, 1=vec2,
-        // 2=vec3, 3=vec4); classifyUniformArity returns arity 1..4 so we
-        // subtract one to match.
-        const { arity, values } = classifyUniformArity(value as Exclude<UniformValue, TextureRef>);
-        heap32[(bufferPtr + offset) >> 2] = arity - 1;
-        offset += 4;
-
-        for (let i = 0; i < 4; i++) {
-            heapF32[(bufferPtr + offset) >> 2] = values[i];
-            offset += 4;
-        }
-
-        count++;
-    }
-
-    return { ptr: bufferPtr, count };
-}
-
-export function registerMaterialCallback(): void {
-    if (!module || materialCallbackRegistered) return;
-
-    const callback = (
-        materialId: number,
-        outShaderIdPtr: number,
-        outBlendModePtr: number,
-        outUniformBufferPtr: number,
-        outUniformCountPtr: number
-    ) => {
-        const data = materials.get(materialId);
-        if (!data) {
-            module!.HEAPU32[outShaderIdPtr >> 2] = 0;
-            module!.HEAPU32[outBlendModePtr >> 2] = 0;
-            module!.HEAPU32[outUniformBufferPtr >> 2] = 0;
-            module!.HEAPU32[outUniformCountPtr >> 2] = 0;
-            return;
-        }
-
-        module!.HEAPU32[outShaderIdPtr >> 2] = data.shader;
-        module!.HEAPU32[outBlendModePtr >> 2] = data.blendMode;
-
-        const { ptr, count } = serializeUniforms(data.uniforms);
-        module!.HEAPU32[outUniformBufferPtr >> 2] = ptr;
-        module!.HEAPU32[outUniformCountPtr >> 2] = count;
-    };
-
-    module.materialDataProvider = callback;
-    materialCallbackRegistered = true;
-}
 
 // =============================================================================
 // Built-in Shader Sources

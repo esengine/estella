@@ -81,6 +81,11 @@ struct BatchDrawKey {
     f32 depth = 0.0f;
     Entity entity = INVALID_ENTITY;
     RenderType type = RenderType::Sprite;
+    // Material handle + the render state resolved from it (defaults when materialId == 0).
+    u32 materialId = 0;
+    bool depthTest = false;
+    bool depthWrite = true;
+    u8 cull = 0;  ///< CullMode: 0 = none, 1 = back, 2 = front.
 };
 
 /**

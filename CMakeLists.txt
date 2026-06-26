@@ -54,6 +54,8 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/TransientBufferPool.cpp
     src/esengine/renderer/DrawList.cpp
     src/esengine/renderer/BatchBuilder.cpp
+    src/esengine/renderer/MaterialStore.cpp
+    src/esengine/renderer/LightStore.cpp
     src/esengine/renderer/plugins/BatchPlugin.cpp
     src/esengine/renderer/plugins/SpritePlugin.cpp
     src/esengine/renderer/plugins/UIElementPlugin.cpp

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "SpritePlugin.hpp"
+#include "../MaterialStore.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Texture.hpp"
@@ -77,18 +78,30 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
 
         bool hasTiling = sprite.tileSize.x > 0.0f && sprite.tileSize.y > 0.0f;
 
-        u32 shaderId = (sprite.material != 0) ? sprite.material : batch_shader_id_;
-
         BatchDrawKey key{
             .stage = ctx.current_stage,
             .layer = sprite.layer,
-            .shaderId = shaderId,
+            .shaderId = batch_shader_id_,
             .blend = BlendMode::Normal,
             .textureId = textureId,
             .depth = position.z,
             .entity = entity,
             .type = RenderType::Sprite,
         };
+
+        // Resolve the material handle to its engine-side render state. An unregistered
+        // handle falls back to the default batch shader (treated as no material), so a
+        // dangling reference renders plainly instead of binding a bogus program.
+        if (sprite.material != 0) {
+            if (const MaterialRecord* m = ctx.materials ? ctx.materials->find(sprite.material) : nullptr) {
+                key.shaderId = (m->shader != 0) ? m->shader : batch_shader_id_;
+                key.blend = m->blend;
+                key.materialId = sprite.material;
+                key.depthTest = m->depthTest;
+                key.depthWrite = m->depthWrite;
+                key.cull = static_cast<u8>(m->cull);
+            }
+        }
 
         if (hasTiling) {
             emitTiledQuads(buffers, draw_list, clips,

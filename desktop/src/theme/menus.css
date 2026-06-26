@@ -41,6 +41,23 @@
 .ctx-item.danger:hover .ci { color: var(--error); }
 .ctx-sep { height: 1px; background: var(--border-line); margin: 4px 6px; }
 
+/* ════════════════════════ Hover tooltip ════════════════════════ */
+/* The floating container for the shared <Tooltip> primitive (asset hover card,
+   etc.). Non-interactive and below the context menu so a menu always wins. */
+.tooltip {
+  position: fixed;
+  z-index: 135;
+  min-width: 180px;
+  max-width: 340px;
+  padding: 8px 10px;
+  background: var(--srf-3);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+  pointer-events: none;
+  font-size: var(--fs-xs);
+}
+
 /* ════════════════════════ Add Component picker ════════════════════════ */
 .ac-scrim {
   position: fixed;

@@ -117,6 +117,19 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'raycastTarget', type: 'bool', offset: 2 },
         ],
     },
+    Light2D: {
+        ptrFn: 'getLight2DPtr',
+        fields: [
+            { name: 'type', type: 'i32', offset: 0 },
+            { name: 'color', type: 'color', offset: 4 },
+            { name: 'intensity', type: 'f32', offset: 20 },
+            { name: 'radius', type: 'f32', offset: 24 },
+            { name: 'direction', type: 'vec2', offset: 28 },
+            { name: 'innerAngle', type: 'f32', offset: 36 },
+            { name: 'outerAngle', type: 'f32', offset: 40 },
+            { name: 'enabled', type: 'bool', offset: 44 },
+        ],
+    },
     ParticleEmitter: {
         ptrFn: 'getParticleEmitterPtr',
         fields: [

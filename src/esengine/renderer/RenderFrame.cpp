@@ -3,12 +3,17 @@
 #include "RenderFrame.hpp"
 #include "Shader.hpp"
 #include "ShaderEmbeds.generated.hpp"
+#include "LightStore.hpp"
+#include "../ecs/components/Transform.hpp"
+#include "../ecs/components/Light2D.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace esengine {
 
@@ -183,7 +188,8 @@ void RenderFrame::flush() {
     pool_.upload();
 
     context_.updateFrameConstants(view_projection_);
-    draw_list_.execute(device_, pool_, &frame_capture_);
+    context_.lights().uploadAndBind();
+    draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
@@ -264,7 +270,8 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     frame_capture_.setReplayMode(stopAtDrawCall + 1);
 
     context_.updateFrameConstants(view_projection_);
-    draw_list_.execute(device_, pool_, &frame_capture_);
+    context_.lights().uploadAndBind();
+    draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
 
     // Leave scissor/stencil disabled for whatever renders next; invalidate so the next
     // setPipeline re-applies (we changed stencil/scissor outside the pipeline here).
@@ -280,6 +287,53 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     device_.readPixels(0, 0, width_, height_, GfxPixelFormat::RGBA8, snapshot_pixels_.data());
 
     rt->unbind();
+}
+
+void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h) {
+    if (w == 0 || h == 0) return;
+
+    if (preview_rt_ == 0) {
+        preview_rt_ = target_manager_.create(w, h, /*depth=*/false, /*linearFilter=*/false);
+    } else if (auto* existing = target_manager_.get(preview_rt_);
+               existing && (existing->getWidth() != w || existing->getHeight() != h)) {
+        existing->resize(w, h);
+    }
+    auto* rt = target_manager_.get(preview_rt_);
+    if (!rt) return;
+
+    rt->bind();
+    device_.setViewport(0, 0, w, h);
+    device_.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    device_.clear(true, false, false);
+    device_.invalidatePipelineCache();
+
+    // A self-contained collect (begin()'s setup minus post-process) + execute (flush()'s body),
+    // drawn to the bound preview target. Reuses the real collect+material+execute path so a
+    // preview is pixel-identical to the viewport.
+    view_projection_ = viewProjection;
+    frustum_.extractFromMatrix(viewProjection);
+    current_stage_ = RenderStage::Transparent;
+    pool_.beginFrame();
+    draw_list_.clear();
+    clip_state_.clear();
+    frame_capture_.beginCapture();
+
+    collectAll(registry);
+
+    draw_list_.finalize(pool_);
+    pool_.upload();
+    context_.updateFrameConstants(viewProjection);
+    context_.lights().uploadAndBind();
+    draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
+    frame_capture_.endCapture();
+
+    preview_w_ = w;
+    preview_h_ = h;
+    preview_pixels_.resize(static_cast<usize>(w) * h * 4);
+    device_.readPixels(0, 0, w, h, GfxPixelFormat::RGBA8, preview_pixels_.data());
+
+    rt->unbind();
+    device_.invalidatePipelineCache();
 }
 
 void RenderFrame::setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {
@@ -345,12 +399,67 @@ RenderFrameContext RenderFrame::makeContext() {
         context_.getWhiteTextureId(),
         batch_shader_id_,
         current_stage_,
-        view_projection_
+        view_projection_,
+        &context_.materials()
     };
+}
+
+void RenderFrame::collectLights(ecs::Registry& registry) {
+    LightStore& lights = context_.lights();
+    lights.clear();
+
+    // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
+    // brightest contribute most, and an explicit importance cull beats silently dropping
+    // whichever happened to come last in iteration order. Ambient lights sum without a cap.
+    std::vector<GpuLight2D> collected;
+
+    auto view = registry.view<ecs::Transform, ecs::Light2D>();
+    for (auto entity : view) {
+        const auto& light = view.get<ecs::Light2D>(entity);
+        if (!light.enabled || light.intensity <= 0.0f) continue;
+
+        const auto type = static_cast<ecs::Light2DType>(light.type);
+        const glm::vec3 rgb{light.color};  // color.a is unused; intensity carries the strength
+        if (type == ecs::Light2DType::Ambient) {
+            lights.addAmbient(rgb * light.intensity);
+            continue;
+        }
+
+        GpuLight2D gpu;
+        gpu.color = glm::vec4(rgb, light.intensity);
+        if (type == ecs::Light2DType::Directional) {
+            // Direction in the 2D plane; z=1 flags directional (no attenuation) in the shader.
+            gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, 0.0f);
+        } else {  // Point / Spot — world position from the Transform, w=falloff radius.
+            auto& transform = view.get<ecs::Transform>(entity);
+            transform.ensureDecomposed();
+            const glm::vec3 p = transform.worldPosition;
+            const f32 typeId = (type == ecs::Light2DType::Spot) ? 2.0f : 0.0f;
+            gpu.posDir = glm::vec4(p.x, p.y, typeId, light.radius);
+            if (type == ecs::Light2DType::Spot) {
+                glm::vec2 aim = light.direction;
+                aim = (glm::dot(aim, aim) > 1e-8f) ? glm::normalize(aim) : glm::vec2(0.0f, -1.0f);
+                gpu.spot = glm::vec4(aim.x, aim.y,
+                                     std::cos(glm::radians(light.innerAngle * 0.5f)),
+                                     std::cos(glm::radians(light.outerAngle * 0.5f)));
+            }
+        }
+        collected.push_back(gpu);
+    }
+
+    if (collected.size() > MAX_LIGHTS_2D) {
+        std::partial_sort(collected.begin(), collected.begin() + MAX_LIGHTS_2D, collected.end(),
+                          [](const GpuLight2D& a, const GpuLight2D& b) { return a.color.a > b.color.a; });
+        ES_LOG_WARN("collectLights: {} lights exceed the {}-light cap; keeping the brightest",
+                    collected.size(), MAX_LIGHTS_2D);
+        collected.resize(MAX_LIGHTS_2D);
+    }
+    for (const auto& gpu : collected) lights.addLight(gpu);
 }
 
 void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
     buildClipState();
+    collectLights(registry);
 
     auto ctx = makeContext();
 

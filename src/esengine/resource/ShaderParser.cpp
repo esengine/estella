@@ -17,6 +17,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <unordered_set>
 
 namespace esengine::resource {
@@ -167,6 +168,39 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             continue;
         }
 
+        if (directive == "param") {
+            // Declarative material parameter: ShaderParser owns its std140 slot in the
+            // generated MaterialConstants block (or a sampler unit for textures).
+            ShaderProperty prop = parseParamDirective(argument);
+            if (!prop.name.empty()) result.properties.push_back(prop);
+            continue;
+        }
+
+        if (directive == "domain") {
+            if (!argument.empty()) result.domain = argument;
+            continue;
+        }
+
+        if (directive == "switch") {
+            // Material-controlled compile-time toggle: `#pragma switch NAME [default(on|off)]`.
+            std::istringstream sw(argument);
+            ShaderSwitch decl;
+            sw >> decl.name;
+            if (!decl.name.empty()) {
+                const usize p = argument.find("default(");
+                if (p != std::string::npos) {
+                    const usize open = p + 8;
+                    const usize close = argument.find(')', open);
+                    if (close != std::string::npos) {
+                        const std::string v = trim(argument.substr(open, close - open));
+                        decl.defaultOn = (v == "on" || v == "true" || v == "1");
+                    }
+                }
+                result.switches.push_back(decl);
+            }
+            continue;
+        }
+
         if (directive == "properties") {
             if (state != ParseState::Global) {
                 result.errorMessage = "Unexpected #pragma properties at line " + std::to_string(lineNumber);
@@ -285,6 +319,8 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
         return result;
     }
 
+    computeMaterialLayout(result);
+
     result.valid = true;
     return result;
 }
@@ -317,6 +353,18 @@ u32 countNewlines(const std::string& s) {
     return n;
 }
 
+const char* glslTypeName(ShaderPropertyType t) {
+    switch (t) {
+        case ShaderPropertyType::Float: return "float";
+        case ShaderPropertyType::Vec2:  return "vec2";
+        case ShaderPropertyType::Vec3:  return "vec3";
+        case ShaderPropertyType::Vec4:
+        case ShaderPropertyType::Color: return "vec4";
+        case ShaderPropertyType::Int:   return "int";
+        default:                        return "float";
+    }
+}
+
 }  // namespace
 
 ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& parsed,
@@ -344,6 +392,85 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     for (const auto& f : features) {
         assembled << "#define " << f << " 1\n";
         ++headerLines;
+    }
+
+    // Auto-generated material params (#pragma param): the std140 MaterialConstants block
+    // (non-texture params in declared order == std140 offset order) plus sampler uniforms.
+    // Injected after the #defines so both stages share one block and the body can use the
+    // params by name. A stage that doesn't reference them just carries an unused block.
+    // Members carry an explicit `highp` so the block is self-contained: a fragment shader
+    // has no default float precision until its own `precision` line, which follows this
+    // injected header — qualifying each member avoids a "no precision specified" error.
+    if (parsed.materialBlockSize > 0) {
+        assembled << "layout(std140) uniform MaterialConstants {\n";
+        ++headerLines;
+        for (const auto& p : parsed.properties) {
+            if (!p.fromParam || p.std140Offset < 0) continue;
+            assembled << "    highp " << glslTypeName(p.type) << " " << p.name << ";\n";
+            ++headerLines;
+        }
+        assembled << "};\n";
+        ++headerLines;
+    }
+    for (const auto& p : parsed.properties) {
+        if (p.fromParam && p.type == ShaderPropertyType::Texture) {
+            assembled << "uniform highp sampler2D " << p.name << ";\n";
+            ++headerLines;
+        }
+    }
+
+    // Lit2D domain: inject the shared LightConstants block (std140) + the es_applyLighting2D()
+    // helper into the fragment stage. Authors write the surface (albedo) and a world-position
+    // varying, then call the helper — the engine owns the std140 layout so a hand-written struct
+    // can't silently mismatch renderer/LightConstants.hpp and corrupt lighting. Members + locals
+    // carry explicit highp for the same reason MaterialConstants does: a fragment shader has no
+    // default float precision until its `precision` line, which follows this injected header.
+    // The light-array size and packing here MUST match renderer/LightConstants.hpp (MAX_LIGHTS_2D,
+    // GpuLight2D = two vec4s).
+    if (stage == ShaderStage::Fragment && parsed.domain == "Lit2D") {
+        static const char* kLit2DHeader =
+            "struct es_Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; };\n"
+            "layout(std140) uniform LightConstants {\n"
+            "    highp vec4 u_ambient;\n"
+            "    es_Light2D u_lights[16];\n"
+            "};\n"
+            // Engine-owned normal-map convention (RGB[0,1] -> normal[-1,1], normalized), so every
+            // Lit2D shader unpacks tangent-space normals the same way. 2D applies it screen-space
+            // (no per-sprite tangent frame); a flat surface uses vec3(0,0,1).
+            "highp vec3 es_sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
+            "    return normalize(texture(map, uv).xyz * 2.0 - 1.0);\n"
+            "}\n"
+            "highp vec3 es_applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
+            "    highp vec3 lit = u_ambient.rgb;\n"
+            "    for (int i = 0; i < 16; ++i) {\n"
+            "        highp vec4 pd = u_lights[i].posDir;\n"
+            "        highp vec4 col = u_lights[i].color;\n"
+            "        highp vec3 L;\n"
+            "        highp float atten;\n"
+            "        if (pd.z < 0.5) {\n"
+            "            highp vec2 d = pd.xy - worldPos;\n"
+            "            highp float dist = length(d);\n"
+            "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
+            "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
+            "        } else if (pd.z < 1.5) {\n"
+            "            atten = 1.0;\n"
+            "            L = normalize(vec3(-pd.xy, 1.0));\n"
+            "        } else {\n"
+            "            highp vec4 sp = u_lights[i].spot;\n"
+            "            highp vec2 d = pd.xy - worldPos;\n"
+            "            highp float dist = length(d);\n"
+            "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
+            "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
+            "            highp vec2 toFrag = (dist > 0.0001) ? (-d / dist) : sp.xy;\n"
+            "            atten *= smoothstep(sp.w, sp.z, dot(sp.xy, toFrag));\n"
+            "        }\n"
+            "        highp float ndotl = max(dot(N, L), 0.0);\n"
+            "        lit += col.rgb * (col.a * ndotl * atten);\n"
+            "    }\n"
+            "    return albedo * lit;\n"
+            "}\n";
+        assembled << kLit2DHeader;
+        headerLines += countNewlines(kLit2DHeader);
     }
 
     if (!platform.empty()) {
@@ -474,6 +601,90 @@ void ShaderParser::parseDirective(const std::string& line,
         directive = rest.substr(0, spacePos);
         argument = trim(rest.substr(spacePos + 1));
     }
+}
+
+ShaderProperty ShaderParser::parseParamDirective(const std::string& argument) {
+    ShaderProperty prop;
+    prop.fromParam = true;
+
+    std::istringstream ss(argument);
+    std::string typeStr;
+    ss >> prop.name >> typeStr;
+    if (prop.name.empty() || typeStr.empty()) {
+        prop.name.clear();  // signal invalid → caller drops it
+        return prop;
+    }
+    prop.type = stringToPropertyType(typeStr);
+
+    // Extract the contents of a `key(...)` clause from the directive argument.
+    auto clause = [&](const char* key) -> std::optional<std::string> {
+        const std::string token = std::string(key) + "(";
+        usize p = argument.find(token);
+        if (p == std::string::npos) return std::nullopt;
+        usize open = p + token.size();
+        usize close = argument.find(')', open);
+        if (close == std::string::npos) return std::nullopt;
+        return trim(argument.substr(open, close - open));
+    };
+
+    if (auto d = clause("default")) prop.defaultValue = *d;
+    if (auto u = clause("ui")) prop.ui = *u;
+    if (auto r = clause("range")) {
+        usize comma = r->find(',');
+        if (comma != std::string::npos) {
+            prop.rangeMin = static_cast<f32>(std::atof(trim(r->substr(0, comma)).c_str()));
+            prop.rangeMax = static_cast<f32>(std::atof(trim(r->substr(comma + 1)).c_str()));
+            prop.hasRange = true;
+        }
+    }
+
+    // Default display name: strip a leading u_ and capitalize.
+    prop.displayName = prop.name;
+    if (prop.displayName.size() > 2 && prop.displayName.substr(0, 2) == "u_") {
+        prop.displayName = prop.displayName.substr(2);
+    }
+    if (!prop.displayName.empty()) {
+        prop.displayName[0] = static_cast<char>(std::toupper(prop.displayName[0]));
+    }
+    return prop;
+}
+
+void ShaderParser::computeMaterialLayout(ParsedShader& shader) {
+    // std140 size/alignment for the supported scalar/vector param types.
+    auto sizeAlign = [](ShaderPropertyType t, u32& size, u32& align) {
+        switch (t) {
+            case ShaderPropertyType::Float:
+            case ShaderPropertyType::Int:   size = 4;  align = 4;  break;
+            case ShaderPropertyType::Vec2:  size = 8;  align = 8;  break;
+            case ShaderPropertyType::Vec3:  size = 12; align = 16; break;
+            case ShaderPropertyType::Vec4:
+            case ShaderPropertyType::Color: size = 16; align = 16; break;
+            default:                        size = 0;  align = 0;  break;
+        }
+    };
+    auto alignUp = [](u32 v, u32 a) -> u32 { return a == 0 ? v : (v + a - 1) & ~(a - 1); };
+
+    // Material texture units start above the batch path's 0..7 slots
+    // (must match renderer/MaterialConstants.hpp MATERIAL_TEXTURE_UNIT_BASE).
+    u32 textureUnit = 8;
+    u32 offset = 0;
+
+    for (auto& p : shader.properties) {
+        if (!p.fromParam) continue;  // legacy properties-block entries are reflection-only
+        if (p.type == ShaderPropertyType::Texture) {
+            p.textureUnit = static_cast<i32>(textureUnit++);
+            p.std140Offset = -1;
+            continue;
+        }
+        u32 size = 0, align = 0;
+        sizeAlign(p.type, size, align);
+        if (size == 0) { p.std140Offset = -1; continue; }  // Unknown — not packed
+        offset = alignUp(offset, align);
+        p.std140Offset = static_cast<i32>(offset);
+        offset += size;
+    }
+
+    shader.materialBlockSize = (offset == 0) ? 0 : alignUp(offset, 16);
 }
 
 ShaderProperty ShaderParser::parsePropertyAnnotation(const std::string& line) {

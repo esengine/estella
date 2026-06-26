@@ -405,6 +405,58 @@ export function createInteractableData(): InteractablePtrData {
     };
 }
 
+export interface Light2DPtrData {
+    type: number;
+    color: Color;
+    intensity: number;
+    radius: number;
+    direction: Vec2;
+    innerAngle: number;
+    outerAngle: number;
+    enabled: boolean;
+}
+
+export function fillLight2D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: Light2DPtrData,
+): void {
+    out.type = u32[ptr >> 2] | 0;
+    const color_ = out.color; color_.r = f32[(ptr + 4) >> 2]; color_.g = f32[((ptr + 4) >> 2) + 1]; color_.b = f32[((ptr + 4) >> 2) + 2]; color_.a = f32[((ptr + 4) >> 2) + 3];
+    out.intensity = f32[(ptr + 20) >> 2];
+    out.radius = f32[(ptr + 24) >> 2];
+    const direction_ = out.direction; direction_.x = f32[(ptr + 28) >> 2]; direction_.y = f32[((ptr + 28) >> 2) + 1];
+    out.innerAngle = f32[(ptr + 36) >> 2];
+    out.outerAngle = f32[(ptr + 40) >> 2];
+    out.enabled = u8[ptr + 44] !== 0;
+}
+
+export function writeLight2D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: Light2DPtrData,
+): void {
+    u32[ptr >> 2] = data.type | 0;
+    f32[(ptr + 4) >> 2] = data.color.r; f32[((ptr + 4) >> 2) + 1] = data.color.g; f32[((ptr + 4) >> 2) + 2] = data.color.b; f32[((ptr + 4) >> 2) + 3] = data.color.a;
+    f32[(ptr + 20) >> 2] = data.intensity;
+    f32[(ptr + 24) >> 2] = data.radius;
+    f32[(ptr + 28) >> 2] = data.direction.x; f32[((ptr + 28) >> 2) + 1] = data.direction.y;
+    f32[(ptr + 36) >> 2] = data.innerAngle;
+    f32[(ptr + 40) >> 2] = data.outerAngle;
+    u8[ptr + 44] = data.enabled ? 1 : 0;
+}
+
+export function createLight2DData(): Light2DPtrData {
+    return {
+        type: 0,
+        color: { r: 0, g: 0, b: 0, a: 0 },
+        intensity: 0,
+        radius: 0,
+        direction: { x: 0, y: 0 },
+        innerAngle: 0,
+        outerAngle: 0,
+        enabled: false,
+    };
+}
+
 export interface ParticleEmitterPtrData {
     rate: number;
     burstCount: number;
@@ -1184,6 +1236,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
+    Light2D: { fill: fillLight2D, write: writeLight2D, create: createLight2DData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
     SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },

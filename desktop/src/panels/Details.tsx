@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Box,
   Camera,
@@ -18,6 +18,7 @@ import {
   Package,
   Plus,
   RotateCcw,
+  Save,
   Search,
   Square,
   Trash2,
@@ -41,6 +42,16 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import type { SceneData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
+import { MaterialDocument } from '@/material/MaterialDocument';
+import {
+  isMaterialAsset,
+  resolveMaterialContext,
+  buildMaterialComponents,
+  makeMaterialWrite,
+  projectMaterialToHandle,
+  renderMaterialThumbnail,
+  type MaterialContext,
+} from '@/material/materialInspectorModel';
 import { ContextMenu } from '@/components/Menu';
 import { Popover, usePopover } from '@/components/Popover';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
@@ -91,7 +102,7 @@ const KIND_LABEL: Record<NodeKind, string> = {
 
 // Each control reports gesture boundaries (onBegin/onEnd) so one focus→blur, one
 // click, or one drag-scrub becomes a single undo step; onCommit applies live.
-interface ControlGesture {
+export interface ControlGesture {
   onBegin?: () => void;
   onEnd?: () => void;
 }
@@ -144,7 +155,7 @@ function useScrub(value: number, onCommit: (n: number) => void, opts: ScrubOpts 
 
 // Plain click-to-type numeric input. `suffix` (e.g. °) shows in the resting value;
 // `mixed` (multi-select disagreement) shows a "—" placeholder until typed over.
-function NumField({
+export function NumField({
   value,
   suffix,
   mixed,
@@ -219,7 +230,7 @@ function VecField({
   );
 }
 
-function VecControl({
+export function VecControl({
   value,
   mixed,
   onBegin,
@@ -250,7 +261,7 @@ function VecControl({
 // A named-int dropdown (e.g. Camera projection, body type) — a themed popover, not
 // a native <select>, so the list matches the editor and searches when long. The
 // stored value is the option's int; an unknown value shows a "(n)" placeholder.
-function EnumControl({
+export function EnumControl({
   value,
   options,
   mixed,
@@ -382,7 +393,7 @@ function FlagsControl({
 
 // A bounded number: a draggable track (the .slider widget) paired with a compact
 // exact-entry box. Both snap to `step` and clamp to [min,max].
-function SliderControl({
+export function SliderControl({
   value,
   min,
   max,
@@ -445,7 +456,7 @@ function SliderControl({
   );
 }
 
-function BoolControl({
+export function BoolControl({
   value,
   mixed,
   onBegin,
@@ -562,7 +573,7 @@ function useDragTrack(onMove: (x: number, y: number) => void) {
 // editable (the native <input type=color> can't). Local HSV state preserves hue
 // while dragging at zero saturation/value; the whole picker session is one undo
 // step (begin on open, end on close). The hex box accepts 6- or 8-digit input.
-function ColorControl({
+export function ColorControl({
   value,
   onBegin,
   onEnd,
@@ -884,7 +895,7 @@ const isImageAsset = (t: AssetType): boolean => t === 'texture' || t === 'sprite
 // An asset-ref field: a drop target showing the bound asset, PLUS a pick popover
 // (search + thumbnail grid of the project's matching assets) on the lens button —
 // so a ref can be set without dragging from the Content Browser. Clear with ×.
-function AssetControl({
+export function AssetControl({
   value,
   assetType,
   onBegin,
@@ -1322,13 +1333,150 @@ function GameDetails() {
   );
 }
 
+// Material view of the unified inspector — a `.esmaterial` selected in the content browser is
+// edited right here, by the same ComponentSection/FieldRow machinery as an entity's components
+// (Parameters + Render State), driven by the shader's reflection. There is no bespoke material
+// panel: edits flow through the live MaterialDocument (one undo step each, viewport preview) and
+// Save writes the JSON back. An instance edits only its overrides; Reset reverts to inherited.
+function MaterialAssetInspector({ path }: { path: string }) {
+  const revision = useSyncExternalStore(MaterialDocument.subscribe, MaterialDocument.getRevision);
+  const [ctx, setCtx] = useState<MaterialContext | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = (name: string) =>
+    setCollapsed((s) => {
+      const n = new Set(s);
+      n.has(name) ? n.delete(name) : n.add(name);
+      return n;
+    });
+
+  // Load the selected material into the singleton document when the selection changes, and bind
+  // the running handle the scene's sprites use (0 when it's not in the current scene).
+  useEffect(() => {
+    let alive = true;
+    void window.estella.fs
+      .read(path)
+      .then((text) => {
+        if (!alive) return;
+        MaterialDocument.openJson(JSON.parse(text), path);
+        MaterialDocument.setLiveHandle(ProjectStore.materialHandle(path));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+      MaterialDocument.close();
+    };
+  }, [path]);
+
+  const asset = MaterialDocument.asset;
+  const filePath = MaterialDocument.filePath;
+  const loaded = !!asset && filePath === path;
+
+  // Reflect the (root) shader + collect inherited params only when the shader binding changes.
+  useEffect(() => {
+    if (!loaded || !asset || !filePath) {
+      setCtx(null);
+      return;
+    }
+    let alive = true;
+    void resolveMaterialContext(asset, filePath).then((c) => {
+      if (alive) setCtx(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [loaded, asset?.shader, asset?.instanceOf, filePath]);
+
+  const thumbRef = useRef<HTMLCanvasElement>(null);
+  // Live preview: re-project the document onto the running handle on every edit/undo/redo, then
+  // refresh the offscreen "material ball" thumbnail from that same handle (WYSIWYG).
+  useEffect(() => {
+    if (loaded && asset && ctx) {
+      projectMaterialToHandle(asset, ctx, MaterialDocument.liveHandle);
+      renderMaterialThumbnail(MaterialDocument.liveHandle, thumbRef.current);
+    }
+  }, [revision, ctx, loaded]);
+
+  if (!loaded || !asset) {
+    return (
+      <div className="insp">
+        <div className="insp-empty" style={{ flex: 1 }}>
+          <div className="et">Loading material…</div>
+        </div>
+      </div>
+    );
+  }
+
+  const isInstance = asset.instanceOf != null;
+  const dirty = MaterialDocument.dirty;
+  const components = ctx ? buildMaterialComponents(asset, ctx) : [];
+  const write = ctx ? makeMaterialWrite(ctx) : undefined;
+
+  const save = async () => {
+    try {
+      await window.estella.fs.write(path, JSON.stringify(asset, null, 2) + '\n');
+      MaterialDocument.markSaved();
+      Toasts.push('Material saved', 'info', 1400);
+    } catch (e) {
+      Toasts.push(`保存材质失败：${String(e)}`, 'error');
+    }
+  };
+
+  return (
+    <div className="insp">
+      <div className="ent-head">
+        <div className="ent-row1">
+          <div className="ent-name">{baseName(path)}</div>
+          <button type="button" className="primary" disabled={!dirty} onClick={() => void save()} title="Save material">
+            <Save size={13} strokeWidth={1.9} /> Save
+          </button>
+        </div>
+        <div className="ent-meta">
+          <span className="pill">
+            <span className="pk">Material</span>
+            {isInstance ? 'Instance' : ctx?.reflection.domain ?? 'Unlit2D'}
+          </span>
+          {dirty && <span className="pill">Unsaved</span>}
+        </div>
+      </div>
+      {MaterialDocument.liveHandle > 0 && (
+        <div className="mat-preview">
+          <canvas ref={thumbRef} className="mat-thumb" width={96} height={96} />
+        </div>
+      )}
+      <div className="mat-sync">
+        {MaterialDocument.liveHandle
+          ? 'Edits preview live in the viewport.'
+          : 'Not in the current scene — edits apply on Save.'}
+      </div>
+      <div className="insp-body">
+        {components.map((comp) => (
+          <ComponentSection
+            key={comp.name}
+            entities={[]}
+            comp={comp}
+            collapsed={collapsed.has(comp.name)}
+            onToggle={() => toggle(comp.name)}
+            write={write}
+          />
+        ))}
+        {ctx && components.length === 1 && (
+          <div className="mat-hint">This material's shader declares no parameters.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Asset view of the unified inspector — shown when an asset (not an entity) is
-// selected (in the content browser). Only fields the fs layer provides; the
-// preview is the image itself or the type glyph.
+// selected (in the content browser). A material is edited inline (reflection-driven
+// rows); other assets show their fs metadata + the image/type glyph preview.
 function AssetInspector({ path }: { path: string }) {
   const name = baseName(path);
   const type = assetTypeOf(name);
   const isImage = IMAGE_RE.test(name);
+  if (isMaterialAsset(path)) {
+    return <MaterialAssetInspector path={path} />;
+  }
   return (
     <div className="insp">
       <div className="cb-detail-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>

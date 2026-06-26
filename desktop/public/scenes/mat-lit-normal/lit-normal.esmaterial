@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "lit-normal.esshader",
+  "blendMode": 0,
+  "depthTest": false,
+  "depthWrite": true,
+  "cull": 0,
+  "properties": {
+    "u_normal": "normal.png"
+  }
+}

@@ -4,7 +4,6 @@
 
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
-#include "MaterialCache.hpp"
 
 namespace esengine {
 
@@ -19,7 +18,6 @@ struct EngineState {
     glm::mat4 current_view_projection{1.0f};
     f32 delta_time = 0.016f;
     bool transforms_updated = false;
-    MaterialCache material_cache;
 };
 
 }  // namespace esengine

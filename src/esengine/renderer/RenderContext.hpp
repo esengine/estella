@@ -21,6 +21,8 @@
 // Project includes
 #include "../core/Types.hpp"
 #include "Buffer.hpp"
+#include "LightStore.hpp"
+#include "MaterialStore.hpp"
 #include "Shader.hpp"
 
 // Third-party
@@ -141,21 +143,52 @@ public:
     u32 getWhiteTextureId() const { return whiteTextureId_; }
 
     /**
+     * @brief GL texture id for a named built-in default texture, used to resolve a material
+     *        texture param's `#pragma param ... texture default(<name>)`.
+     * @details "black" → opaque black, "flatnormal"/"normal" → a flat tangent-space normal
+     *          (RGB 128,128,255 → (0,0,1)); anything else (incl. "white" / empty) → white.
+     */
+    u32 defaultTextureByName(const std::string& name) const;
+
+    /**
      * @brief Uploads the per-frame view-projection into the shared FrameConstants UBO.
      * @details Called once per render pass before its draws; every engine shader reads
      *          u_projection from this single UBO (bound at FRAME_CONSTANTS_BINDING).
      */
     void updateFrameConstants(const glm::mat4& viewProjection);
 
+    /**
+     * @brief The engine-side material registry (handle -> resolved render state).
+     * @details Written by the SDK material binding (defineMaterial) and read by the render
+     *          collect path to resolve a component's material handle into shader + pipeline
+     *          state. Lives here so both sides reach it without a global lookup.
+     */
+    MaterialStore& materials() { return materials_; }
+    const MaterialStore& materials() const { return materials_; }
+
+    /**
+     * @brief The engine-side per-frame 2D light registry (binding 2 LightConstants UBO).
+     * @details Filled by the render collect path from the scene's Light2D components and uploaded
+     *          once per frame; Lit2D material shaders read it. Lives here next to materials() so
+     *          the render path reaches one store / one UBO without a global lookup.
+     */
+    LightStore& lights() { return lights_; }
+    const LightStore& lights() const { return lights_; }
+
 private:
-    void initWhiteTexture();
+    void initDefaultTextures();
+    u32 make1x1Texture(u32 rgba);
     void initFrameUbo();
 
     glm::mat4 viewProjection_{1.0f};
     RenderContextStats stats_;
 
     u32 whiteTextureId_ = 0;
+    u32 blackTextureId_ = 0;
+    u32 flatNormalTextureId_ = 0;
     u32 frameUbo_ = 0;
+    MaterialStore materials_;
+    LightStore lights_;
 
     GfxDevice& device_;
     bool initialized_ = false;

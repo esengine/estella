@@ -48,7 +48,6 @@ export {
     Assets,
     AssetPlugin,
     assetPlugin,
-    MaterialLoader,
     AssetRefCounter,
     decodeImageBitmap,
     decodeImagePixels,
@@ -60,8 +59,6 @@ export {
     type AssetsData,
     type TextureInfo,
     type SpineLoadResult,
-    type LoadedMaterial,
-    type ShaderLoader,
     type AssetRefInfo,
 } from './asset';
 
