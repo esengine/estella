@@ -40,6 +40,7 @@ private:
     void rebuildChunk(const tilemap::TilemapSystem::LayerData& layer,
                       const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
                       f32 originX, f32 originY, u32 packedColor,
+                      u32 tilesetColumns, f32 uvTileW, f32 uvTileH,
                       Entity entity, ChunkCache& cache);
 
     tilemap::TilemapSystem* tilemap_system_ = nullptr;

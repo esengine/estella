@@ -31,15 +31,6 @@ export class TilemapPlugin implements Plugin {
     private initializedLayers_ = new Set<number>();
     private animatedLayers_ = new Set<number>();
     private sourceEntityKeys_ = new Map<number, number[]>();
-    private layerState_ = new Map<number, {
-        texture: number;
-        tilesetColumns: number;
-        renderLayer: number;
-        tintR: number; tintG: number; tintB: number; tintA: number;
-        opacity: number;
-        parallaxX: number; parallaxY: number;
-        visible: boolean;
-    }>();
     /** tilemap entity → the static collider entities derived from its collidable tiles (play-mode only). */
     private collisionEntities_ = new Map<number, Entity[]>();
     /** TilemapLayer entity → its baked collidable tile ids (out-of-band scene data; drives native collision). */
@@ -81,7 +72,6 @@ export class TilemapPlugin implements Plugin {
         const initializedLayers = this.initializedLayers_;
         const animatedLayers = this.animatedLayers_;
         const sourceEntityKeys = this.sourceEntityKeys_;
-        const layerState = this.layerState_;
         const collisionEntities = this.collisionEntities_;
 
         const tilemapSyncSystem: SystemDef = {
@@ -110,7 +100,6 @@ export class TilemapPlugin implements Plugin {
                     if (!currentLayerSet.has(entity)) {
                         TilemapAPI.destroyLayer(entity);
                         initializedLayers.delete(entity);
-                        layerState.delete(entity);
                         nativeCollisionIds.delete(entity);
                         const colliders = collisionEntities.get(entity);
                         if (colliders) {
@@ -127,52 +116,17 @@ export class TilemapPlugin implements Plugin {
                     const textureHandle = layerData.tileset;
                     if (!textureHandle) continue;
 
-                    const dims = getTextureDimensions(textureHandle);
-                    if (!dims) continue;
-
+                    // RC2a: the TilemapLayer component is the single source of visual
+                    // metadata; the C++ renderer reads tint/opacity/tileset/columns/
+                    // renderLayer/parallax/visible straight off the component each frame.
+                    // No per-frame push into LayerData anymore — we only init the layer's
+                    // chunk store (the heavy data) and let the renderer pull the rest.
                     if (!initializedLayers.has(entity)) {
                         TilemapAPI.initInfiniteLayer(
                             entity, layerData.cellSize.x, layerData.cellSize.y,
                         );
                         TilemapAPI.setOriginEntity(entity, entity);
                         initializedLayers.add(entity);
-                    }
-
-                    const uvTileWidth = layerData.cellSize.x / dims.width;
-                    const uvTileHeight = layerData.cellSize.y / dims.height;
-                    const tint = layerData.tintColor;
-                    const pf = layerData.parallaxFactor;
-
-                    const prev = layerState.get(entity);
-                    const needsUpdate = !prev
-                        || prev.texture !== textureHandle
-                        || prev.tilesetColumns !== layerData.tilesetColumns
-                        || prev.renderLayer !== layerData.renderLayer
-                        || prev.parallaxX !== pf.x || prev.parallaxY !== pf.y
-                        || prev.tintR !== tint.r || prev.tintG !== tint.g
-                        || prev.tintB !== tint.b || prev.tintA !== tint.a
-                        || prev.opacity !== layerData.opacity
-                        || prev.visible !== layerData.visible;
-
-                    if (needsUpdate) {
-                        TilemapAPI.setRenderProps(
-                            entity, textureHandle, layerData.tilesetColumns,
-                            uvTileWidth, uvTileHeight,
-                            layerData.renderLayer, 0,
-                            pf.x, pf.y,
-                        );
-                        TilemapAPI.setTint(entity, tint.r, tint.g, tint.b, tint.a, layerData.opacity ?? 1);
-                        TilemapAPI.setVisible(entity, layerData.visible ?? true);
-
-                        layerState.set(entity, {
-                            texture: textureHandle,
-                            tilesetColumns: layerData.tilesetColumns,
-                            renderLayer: layerData.renderLayer,
-                            tintR: tint.r, tintG: tint.g, tintB: tint.b, tintA: tint.a,
-                            opacity: layerData.opacity,
-                            parallaxX: pf.x, parallaxY: pf.y,
-                            visible: layerData.visible,
-                        });
                     }
 
                     // Native path: a painted TilemapLayer with collidable tiles (baked from
@@ -302,7 +256,6 @@ export class TilemapPlugin implements Plugin {
                             TilemapAPI.destroyLayer(key);
                             initializedLayers.delete(key);
                             animatedLayers.delete(key);
-                            layerState.delete(key);
                         }
                         sourceEntityKeys.delete(entity);
 
@@ -333,7 +286,6 @@ export class TilemapPlugin implements Plugin {
         this.initializedLayers_.clear();
         this.animatedLayers_.clear();
         this.sourceEntityKeys_.clear();
-        this.layerState_.clear();
         // Collider entities die with the world on reset/teardown; just drop our bookkeeping.
         this.collisionEntities_.clear();
         this.nativeCollisionIds_.clear();

@@ -5,6 +5,7 @@
 
 #include "../../tilemap/TilemapSystem.hpp"
 #include "../../ecs/components/Transform.hpp"
+#include "../../ecs/components/TilemapLayer.hpp"
 #include "../RenderFrame.hpp"
 
 #include <cmath>
@@ -19,6 +20,7 @@ void TilemapRenderPlugin::rebuildChunk(
     const tilemap::TilemapSystem::LayerData& layer,
     const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
     f32 originX, f32 originY, u32 packedColor,
+    u32 tilesetColumns, f32 uvTileW, f32 uvTileH,
     Entity entity, ChunkCache& cache
 ) {
     cache.vertices.clear();
@@ -54,8 +56,8 @@ void TilemapRenderPlugin::rebuildChunk(
             bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
 
             u32 tileIndex = tileId - 1;
-            u32 tileCol = tileIndex % layer.tileset_columns;
-            u32 tileRow = tileIndex / layer.tileset_columns;
+            u32 tileCol = tileIndex % tilesetColumns;
+            u32 tileRow = tileIndex / tilesetColumns;
 
             f32 worldX, worldY;
             if (layer.grid_type == tilemap::GridType::Isometric) {
@@ -70,13 +72,13 @@ void TilemapRenderPlugin::rebuildChunk(
                 worldY = originY - static_cast<f32>(ty) * layer.tile_height - hh;
             }
 
-            f32 u0 = static_cast<f32>(tileCol) * layer.uv_tile_width;
-            f32 v0 = 1.0f - static_cast<f32>(tileRow + 1) * layer.uv_tile_height;
-            f32 su = layer.uv_tile_width;
-            f32 sv = layer.uv_tile_height;
+            f32 u0 = static_cast<f32>(tileCol) * uvTileW;
+            f32 v0 = 1.0f - static_cast<f32>(tileRow + 1) * uvTileH;
+            f32 su = uvTileW;
+            f32 sv = uvTileH;
 
-            if (flipH) { u0 += layer.uv_tile_width; su = -su; }
-            if (flipV) { v0 += layer.uv_tile_height; sv = -sv; }
+            if (flipH) { u0 += uvTileW; su = -su; }
+            if (flipV) { v0 += uvTileH; sv = -sv; }
 
             u32 baseVertex = static_cast<u32>(cache.vertices.size());
             cache.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {u0, v0} });
@@ -111,11 +113,53 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     f32 camTop    = tr.y / tr.w;
 
     for (const auto& [entity, layer] : layers) {
-        if (!layer.visible || layer.texture_handle == 0 || layer.tileset_columns == 0) continue;
+        // RC2a: the TilemapLayer component is the single source of a painted
+        // layer's visual metadata — the renderer reads it live each frame (so
+        // animated tint/opacity need no sync). Tiled-imported synthetic layers
+        // have no component and still carry their metadata in LayerData.
+        const ecs::TilemapLayer* comp = registry.tryGet<ecs::TilemapLayer>(entity);
 
-        auto* texRes = ctx.resources.getTexture(resource::TextureHandle(layer.texture_handle));
+        bool visible;
+        resource::TextureHandle tilesetHandle;
+        u32 tilesetColumns;
+        i32 sortLayer;
+        f32 depth;
+        glm::vec4 tint;
+        f32 opacity;
+        glm::vec2 parallax;
+        if (comp) {
+            visible = comp->visible;
+            tilesetHandle = comp->tileset;
+            tilesetColumns = static_cast<u32>(comp->tilesetColumns);
+            sortLayer = comp->renderLayer;
+            depth = 0.0f;
+            tint = comp->tintColor;
+            opacity = comp->opacity;
+            parallax = comp->parallaxFactor;
+        } else {
+            visible = layer.visible;
+            tilesetHandle = resource::TextureHandle(layer.texture_handle);
+            tilesetColumns = layer.tileset_columns;
+            sortLayer = layer.sort_layer;
+            depth = layer.depth;
+            tint = layer.tint;
+            opacity = layer.opacity;
+            parallax = layer.parallax_factor;
+        }
+
+        if (!visible || !tilesetHandle.isValid() || tilesetColumns == 0) continue;
+
+        auto* texRes = ctx.resources.getTexture(tilesetHandle);
         if (!texRes) continue;
         u32 glTextureId = texRes->getId();
+
+        // UVs derive from tile size / texture size — the single source is the
+        // tile dimensions + the texture, so there is no synced uv copy to drift.
+        f32 texW = static_cast<f32>(texRes->getWidth());
+        f32 texH = static_cast<f32>(texRes->getHeight());
+        if (texW <= 0.0f || texH <= 0.0f) continue;
+        f32 uvTileW = layer.tile_width / texW;
+        f32 uvTileH = layer.tile_height / texH;
 
         f32 originX = 0, originY = 0;
         Entity transformEntity = (layer.origin_entity != INVALID_ENTITY)
@@ -125,15 +169,13 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             originY = transform->worldPosition.y;
         }
 
-        glm::vec4 finalColor(
-            layer.tint.r, layer.tint.g, layer.tint.b,
-            layer.tint.a * layer.opacity);
+        glm::vec4 finalColor(tint.r, tint.g, tint.b, tint.a * opacity);
         u32 packedColor = packColor(finalColor);
 
         f32 camCenterX = (camLeft + camRight) * 0.5f;
         f32 camCenterY = (camBottom + camTop) * 0.5f;
-        f32 parallaxOffsetX = camCenterX * (1.0f - layer.parallax_factor.x);
-        f32 parallaxOffsetY = camCenterY * (1.0f - layer.parallax_factor.y);
+        f32 parallaxOffsetX = camCenterX * (1.0f - parallax.x);
+        f32 parallaxOffsetY = camCenterY * (1.0f - parallax.y);
         f32 adjOriginX = originX + parallaxOffsetX;
         f32 adjOriginY = originY + parallaxOffsetY;
 
@@ -174,6 +216,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (chunkData.revision != cache.built_revision || cache.has_animated_tiles) {
                     rebuildChunk(layer, chunkData, coord,
                                 adjOriginX, adjOriginY, packedColor,
+                                tilesetColumns, uvTileW, uvTileH,
                                 entity, cache);
                     cache.built_revision = chunkData.revision;
                 }
@@ -197,11 +240,11 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             indices_.data(), static_cast<u32>(indices_.size()),
             BatchDrawKey{
                 .stage = ctx.current_stage,
-                .layer = layer.sort_layer,
+                .layer = sortLayer,
                 .shaderId = batch_shader_id_,
                 .blend = BlendMode::Normal,
                 .textureId = glTextureId,
-                .depth = layer.depth,
+                .depth = depth,
                 .entity = entity,
                 .type = RenderType::Sprite,
             });
