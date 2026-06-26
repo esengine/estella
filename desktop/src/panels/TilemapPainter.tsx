@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Brush, Eraser, Square, Slash, PaintBucket, Pipette,
+  Brush, Eraser, Square, Slash, PaintBucket, BoxSelect, Pipette,
   FlipHorizontal, FlipVertical, RotateCw, Mountain,
 } from 'lucide-react';
 import { parseTileset, encodeTile, type TilesetAsset } from 'esengine';
@@ -19,6 +19,7 @@ import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ProjectStore } from '@/project/ProjectStore';
+import { copySelection, cutSelection, deleteSelection, pasteClipboard } from '@/tools/tileClipboard';
 
 function colsFor(width: number, tileW: number, margin: number, spacing: number): number {
   const stride = tileW + spacing;
@@ -35,6 +36,7 @@ const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
   { id: 'rect', icon: Square, label: '矩形' },
   { id: 'line', icon: Slash, label: '直线' },
   { id: 'bucket', icon: PaintBucket, label: '油漆桶' },
+  { id: 'select', icon: BoxSelect, label: '选区 (复制/剪切/粘贴 ⌘C/X/V)' },
   { id: 'eyedropper', icon: Pipette, label: '吸管' },
   { id: 'terrain', icon: Mountain, label: '地形' },
 ];
@@ -92,15 +94,24 @@ export function TilemapPainter() {
   const [sel, setSel] = useState<SelRect | null>(null);
   const dragAnchor = useRef<{ c: number; r: number } | null>(null);
 
-  // H/V/R transform the active stamp — only while a paint tool is active, so they don't
-  // shadow the transform-tool shortcuts when not painting.
+  // Paint-mode keys (only while a paint tool is active, so they don't shadow the
+  // transform-tool shortcuts): select-tool clipboard (⌘/Ctrl C/X/V, Delete) and the
+  // stamp transforms H/V/R.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const st = useTilemapPaint.getState();
-      if (!st.tool || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!st.tool) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const mod = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
+      if (st.tool === 'select') {
+        if (mod && k === 'c') { copySelection(); e.preventDefault(); return; }
+        if (mod && k === 'x') { cutSelection(); e.preventDefault(); return; }
+        if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelection(); e.preventDefault(); return; }
+      }
+      if (mod && k === 'v') { pasteClipboard(); e.preventDefault(); return; }
+      if (mod || e.altKey) return;
       if (k === 'h') { st.flipH(); e.preventDefault(); }
       else if (k === 'v') { st.flipV(); e.preventDefault(); }
       else if (k === 'r') { st.rotateCW(); e.preventDefault(); }

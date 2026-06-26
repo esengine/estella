@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
+import { useTilemapPaint } from '@/store/tilemapPaintStore';
 import { commands } from '@/commands';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
@@ -196,6 +197,7 @@ export function Viewport() {
   const playHostRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
+  const tileSelRef = useRef<HTMLDivElement>(null);
   // Camera pan (middle/right drag) is built-in navigation, separate from tools.
   const panRef = useRef<{ px: number; py: number } | null>(null);
   // The tool that owns the in-progress left-button stroke (move/up route to it).
@@ -301,6 +303,37 @@ export function Viewport() {
         sel.style.opacity = '1';
       } else {
         sel.style.opacity = '0';
+      }
+
+      // Tile-select marquee: an axis-aligned rect over the selected TilemapLayer's
+      // chosen tile range, in screen space (its world corners projected each frame).
+      const ts = tileSelRef.current;
+      if (ts) {
+        const paint = useTilemapPaint.getState();
+        const tsel = paint.tool === 'select' ? paint.selection : null;
+        const layer = ready && sid != null
+          ? SceneModel.entityBySource(sid)?.components.find((c) => c.type === 'TilemapLayer')
+          : undefined;
+        const cs = layer?.data as { cellSize?: { x: number; y: number } } | undefined;
+        const origin = ready && rt != null ? ViewportController.getEntityXY(rt) : null;
+        if (tsel && cs?.cellSize && origin) {
+          const x0 = Math.min(tsel.x0, tsel.x1);
+          const y0 = Math.min(tsel.y0, tsel.y1);
+          const x1 = Math.max(tsel.x0, tsel.x1);
+          const y1 = Math.max(tsel.y0, tsel.y1);
+          const tl = ViewportController.worldToClient(origin.x + x0 * cs.cellSize.x, origin.y - y0 * cs.cellSize.y);
+          const br = ViewportController.worldToClient(origin.x + (x1 + 1) * cs.cellSize.x, origin.y - (y1 + 1) * cs.cellSize.y);
+          if (tl && br) {
+            ts.style.transform = `translate(${tl.x}px, ${tl.y}px)`;
+            ts.style.width = `${br.x - tl.x}px`;
+            ts.style.height = `${br.y - tl.y}px`;
+            ts.style.opacity = '1';
+          } else {
+            ts.style.opacity = '0';
+          }
+        } else {
+          ts.style.opacity = '0';
+        }
       }
 
       // Scene-camera gizmos — only in edit mode (in play the viewport IS the
@@ -584,6 +617,7 @@ export function Viewport() {
       )}
 
       <div ref={selectionRef} className="viewport__selection" aria-hidden="true" />
+      <div ref={tileSelRef} className="viewport__tilesel" aria-hidden="true" />
 
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
         <GizmoGlyph tool={tool} />

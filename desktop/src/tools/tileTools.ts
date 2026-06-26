@@ -304,6 +304,41 @@ const bucketTool: EditorTool = {
   onPointerUp() {},
 };
 
+/** Select: drag a marquee over the layer to define a tile-rect selection (copy/cut/paste). */
+function makeSelectTool(): EditorTool {
+  let anchor: { x: number; y: number } | null = null;
+  let sourceId: number | null = null;
+  return {
+    id: 'tilemap.select',
+    onPointerDown(p, ctx) {
+      const selId = selectedTilemap();
+      if (selId == null) return false;
+      const tile = cursorTile(p.clientX, p.clientY, selId);
+      if (!tile) return false;
+      anchor = tile;
+      sourceId = selId;
+      useTilemapPaint.getState().setSelection({ x0: tile.x, y0: tile.y, x1: tile.x, y1: tile.y });
+      ctx.capture(p.pointerId);
+      return true;
+    },
+    onPointerMove(p) {
+      if (!anchor || sourceId == null) return;
+      const tile = cursorTile(p.clientX, p.clientY, sourceId);
+      if (!tile) return;
+      useTilemapPaint.getState().setSelection({ x0: anchor.x, y0: anchor.y, x1: tile.x, y1: tile.y });
+    },
+    onPointerUp(p, ctx) {
+      ctx.release(p.pointerId);
+      anchor = null;
+      sourceId = null;
+    },
+    cancel() {
+      anchor = null;
+      sourceId = null;
+    },
+  };
+}
+
 /** Eyedropper: one-shot — read the raw cell (id + flip flags) under the cursor into the brush. */
 const eyedropperTool: EditorTool = {
   id: 'tilemap.eyedropper',
@@ -328,6 +363,7 @@ export const TILE_TOOLS: Record<PaintTool, EditorTool> = {
   rect: makeRectTool(),
   line: makeLineTool(),
   bucket: bucketTool,
+  select: makeSelectTool(),
   eyedropper: eyedropperTool,
   terrain: terrainTool,
 };

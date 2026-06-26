@@ -14,7 +14,15 @@ import {
     singleStamp, flipStampH, flipStampV, rotateStampCW, encodeTile,
 } from 'esengine';
 
-export type PaintTool = 'brush' | 'erase' | 'rect' | 'line' | 'bucket' | 'eyedropper' | 'terrain';
+export type PaintTool = 'brush' | 'erase' | 'rect' | 'line' | 'bucket' | 'select' | 'eyedropper' | 'terrain';
+
+/** A rectangular tile-grid selection (inclusive corners, unordered). */
+export interface TileRect {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+}
 
 interface TilemapPaintState {
     /** Active `.estileset` palette (project-relative path), or null. */
@@ -25,11 +33,17 @@ interface TilemapPaintState {
     stamp: TileStamp;
     /** The active terrain set index (for the terrain tool). */
     terrainSet: number;
+    /** The select tool's current marquee (tile coords), or null. */
+    selection: TileRect | null;
+    /** The copy/cut buffer — a stamp lifted from a selection; pasted via the brush. */
+    clipboard: TileStamp | null;
     /** The active tool; null = not painting (the Viewport selects normally). */
     tool: PaintTool | null;
     setTileset(path: string | null): void;
     setTilesetAsset(asset: TilesetAsset | null): void;
     setStamp(stamp: TileStamp): void;
+    setSelection(selection: TileRect | null): void;
+    setClipboard(clipboard: TileStamp | null): void;
     /** Set a 1×1 brush of one tile id (palette single-click; loses any flip flags). */
     setBrushTile(tileId: number): void;
     setTerrainSet(set: number): void;
@@ -44,10 +58,14 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     tilesetAsset: null,
     stamp: singleStamp(encodeTile(1)),
     terrainSet: 0,
+    selection: null,
+    clipboard: null,
     tool: null,
     setTileset: (tilesetPath) => set({ tilesetPath }),
     setTilesetAsset: (tilesetAsset) => set({ tilesetAsset }),
     setStamp: (stamp) => set({ stamp }),
+    setSelection: (selection) => set({ selection }),
+    setClipboard: (clipboard) => set({ clipboard }),
     setBrushTile: (tileId) => set({ stamp: singleStamp(encodeTile(tileId)) }),
     setTerrainSet: (terrainSet) => set({ terrainSet }),
     flipH: () => set((s) => ({ stamp: flipStampH(s.stamp) })),

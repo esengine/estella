@@ -583,6 +583,17 @@
     inset 0 0 0 1px rgba(14, 15, 18, 0.4);
   will-change: transform, width, height, opacity;
 }
+.viewport__tilesel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  border: 1px dashed #5ac8fa;
+  background: rgba(90, 200, 250, 0.12);
+  will-change: transform, width, height, opacity;
+}
 .viewport__stage.has-grid {
   background-image:
     linear-gradient(var(--line-soft) 1px, transparent 1px),

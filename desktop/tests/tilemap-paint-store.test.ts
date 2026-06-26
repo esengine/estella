@@ -8,10 +8,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { tileIdOf, tileFlagsOf } from 'esengine';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
+import { pasteClipboard } from '@/tools/tileClipboard';
 
 describe('tilemap paint store', () => {
   beforeEach(() => {
     useTilemapPaint.getState().setBrushTile(1);
+    useTilemapPaint.getState().setSelection(null);
+    useTilemapPaint.getState().setClipboard(null);
+    useTilemapPaint.getState().setTool(null);
   });
 
   it('setBrushTile makes a 1×1 stamp of that id with no flags', () => {
@@ -45,5 +49,26 @@ describe('tilemap paint store', () => {
     useTilemapPaint.getState().rotateCW();
     useTilemapPaint.getState().rotateCW();
     expect(useTilemapPaint.getState().stamp).toEqual({ w: 2, h: 1, cells: [1, 2] });
+  });
+
+  it('selection + clipboard set/clear', () => {
+    useTilemapPaint.getState().setSelection({ x0: 1, y0: 2, x1: 4, y1: 5 });
+    expect(useTilemapPaint.getState().selection).toEqual({ x0: 1, y0: 2, x1: 4, y1: 5 });
+    useTilemapPaint.getState().setSelection(null);
+    expect(useTilemapPaint.getState().selection).toBeNull();
+  });
+
+  it('paste makes the clipboard the active brush and switches to the brush tool', () => {
+    useTilemapPaint.getState().setTool('select');
+    useTilemapPaint.getState().setClipboard({ w: 2, h: 2, cells: [1, 2, 3, 4] });
+    pasteClipboard();
+    expect(useTilemapPaint.getState().stamp).toEqual({ w: 2, h: 2, cells: [1, 2, 3, 4] });
+    expect(useTilemapPaint.getState().tool).toBe('brush');
+  });
+
+  it('paste with an empty clipboard is a no-op', () => {
+    useTilemapPaint.getState().setTool('select');
+    pasteClipboard();
+    expect(useTilemapPaint.getState().tool).toBe('select'); // unchanged
   });
 });
