@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry } from '../src/project/format';
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
@@ -23,6 +23,8 @@ const api = {
   // main asks the renderer to save, which confirms back when done. —
   app: {
     setDirty: (dirty: boolean): void => ipcRenderer.send('app:dirty', dirty),
+    /** Absolute path of a dropped OS File (Electron 32+ removed File.path). */
+    getPathForFile: (file: File): string => webUtils.getPathForFile(file),
     /** Run `cb` (save the scene) when main requests a save-before-quit, then signal done. */
     onSaveBeforeQuit: (cb: () => Promise<void> | void): void => {
       ipcRenderer.removeAllListeners('app:saveBeforeQuit');
@@ -70,6 +72,9 @@ const api = {
      *  null if cancelled. */
     importAssets: (destDir: string): Promise<{ imported: string[]; skipped: string[] } | null> =>
       ipcRenderer.invoke('project:importAssets', destDir),
+    /** Import already-resolved absolute paths (OS drag-drop) into `destDir`. */
+    importFiles: (destDir: string, sources: string[]): Promise<{ imported: string[]; skipped: string[] } | null> =>
+      ipcRenderer.invoke('project:importFiles', destDir, sources),
   },
   // New-project templates (launcher New tab).
   templates: {

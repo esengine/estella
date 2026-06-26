@@ -446,6 +446,33 @@ class ProjectStoreImpl {
   }
 
   /**
+   * Spawn a Sprite entity from an image asset dropped into the viewport: resolve its
+   * texture ref (preloading it so it renders), read the image's natural pixel size,
+   * and add a Transform + Sprite at the drop point. Returns the source id, or null if
+   * the path isn't a tracked texture. One undoable step; the new entity is selected.
+   */
+  async instantiateSpriteFromPath(path: string, position: { x: number; y: number }): Promise<number | null> {
+    const ref = await this.assetRefForPath(path, 'texture');
+    if (!ref) return null;
+    const size = await this.imageNaturalSize(path);
+    const name = (path.split('/').pop() ?? 'Sprite').replace(/\.[^.]+$/, '') || 'Sprite';
+    const id = SceneCommands.addSpriteEntity(name, ref, size, position);
+    if (id != null) useSelection.getState().select(id);
+    return id;
+  }
+
+  /** Natural pixel size of a project image via the `estella://` transport; a sane
+   *  fallback if it can't decode (so a dropped sprite is never zero-sized). */
+  private imageNaturalSize(path: string): Promise<{ x: number; y: number }> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ x: img.naturalWidth || 100, y: img.naturalHeight || 100 });
+      img.onerror = () => resolve({ x: 100, y: 100 });
+      img.src = `estella://project/${path}`;
+    });
+  }
+
+  /**
    * Create a `.esprefab` asset from a live entity subtree (the "Create Prefab"
    * authoring path — the inverse of {@link instantiatePrefabFromPath}). Extracts
    * the subtree rooted at `rootSourceId` into PrefabData, writes the asset +

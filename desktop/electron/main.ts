@@ -235,6 +235,11 @@ ipcMain.handle('project:importAssets', async (_e, destDir: string) => {
   return importAssets(requireRoot(), destDir, res.filePaths);
 });
 
+// Import already-resolved absolute paths (OS drag-drop onto the Content Browser).
+ipcMain.handle('project:importFiles', (_e, destDir: string, sources: string[]) =>
+  importAssets(requireRoot(), destDir, sources),
+);
+
 ipcMain.handle('fs:read', (_e, relPath: string) => readInRoot(requireRoot(), relPath));
 ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
   writeInRoot(requireRoot(), relPath, contents),

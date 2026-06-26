@@ -14,6 +14,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController } from '@/engine/ViewportController';
 import { ProjectStore } from '@/project/ProjectStore';
+import { IMAGE_RE } from '@/project/assetMeta';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
@@ -549,25 +550,31 @@ export function Viewport() {
     t.onPointerUp(toInput(e), toolCtx);
   };
 
-  // Drag a `.esprefab` from the Content Browser into the scene → instantiate it
-  // at the drop point (one undoable step; placement becomes a position override).
-  const isPrefabDrag = (e: ReactDragEvent) =>
+  // Drag an asset from the Content Browser into the scene → place it at the drop
+  // point (one undoable step): a `.esprefab` instantiates the prefab; an image
+  // spawns a Sprite entity sized to the texture.
+  const isAssetDrag = (e: ReactDragEvent) =>
     e.dataTransfer.types.includes('application/x-estella-asset');
 
   const onDragOver = (e: ReactDragEvent) => {
-    if (!isPrefabDrag(e)) return;
+    if (!isAssetDrag(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   };
 
   const onDrop = (e: ReactDragEvent) => {
     const path = e.dataTransfer.getData('application/x-estella-asset');
-    if (!path || !path.toLowerCase().endsWith('.esprefab')) return;
-    e.preventDefault();
-    // Place at the drop point; if it can't be resolved, fall back to the
-    // prefab's authored origin (position omitted).
+    if (!path) return;
     const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
-    void ProjectStore.instantiatePrefabFromPath(path, null, wp ?? undefined);
+    if (path.toLowerCase().endsWith('.esprefab')) {
+      e.preventDefault();
+      // Place at the drop point; fall back to the prefab's authored origin if it
+      // can't be resolved (position omitted).
+      void ProjectStore.instantiatePrefabFromPath(path, null, wp ?? undefined);
+    } else if (IMAGE_RE.test(path)) {
+      e.preventDefault();
+      void ProjectStore.instantiateSpriteFromPath(path, wp ?? { x: 0, y: 0 });
+    }
   };
 
   return (

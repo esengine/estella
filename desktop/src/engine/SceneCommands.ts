@@ -301,6 +301,42 @@ export class SceneCommandsImpl {
   }
 
   /**
+   * Spawn a Transform + Sprite entity at a world position, referencing `textureRef`
+   * (a `@uuid:` asset ref the Reconciler resolves to a handle) and sized to the
+   * texture's natural pixels. Drives the "drag an image into the viewport" flow.
+   * Undoable like {@link addEntity}.
+   */
+  addSpriteEntity(
+    name: string,
+    textureRef: string,
+    size: { x: number; y: number },
+    position: { x: number; y: number },
+  ): EntityId | null {
+    if (!this.model.current) return null;
+    const transform = structuredClone(DEFAULT_TRANSFORM);
+    transform.position = { x: position.x, y: position.y, z: 0 };
+    const spriteDef = componentByName('Sprite');
+    const sprite: Record<string, unknown> = spriteDef ? structuredClone(componentDefaults(spriteDef)) : {};
+    sprite.texture = textureRef;
+    sprite.size = { ...(sprite.size as object), x: size.x, y: size.y };
+    const sourceId = this.model.addEntity(name, [
+      { type: 'Transform', data: transform } as SceneComponent,
+      { type: 'Sprite', data: sprite } as SceneComponent,
+    ]);
+    let record: SceneEntity | undefined;
+    this.history.record(
+      `Add ${name}`,
+      () => {
+        if (record) this.model.restoreEntity(record);
+      },
+      () => {
+        record = this.model.removeEntityBySource(sourceId);
+      },
+    );
+    return sourceId;
+  }
+
+  /**
    * Delete an entity AND its descendants (the World despawns children with their
    * parent, so the model removes the whole subtree to stay consistent). Undo
    * re-creates the subtree losslessly, parent-before-child. Records are kept

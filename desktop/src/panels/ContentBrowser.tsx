@@ -10,6 +10,7 @@ import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMeta';
 import { ASSET_OPEN } from '@/project/assetOpen';
+import { referencingPaths } from '@/project/assetRefs';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
@@ -323,7 +324,19 @@ export function ContentBrowser() {
   };
 
   const remove = async (path: string, name: string) => {
-    if (!window.confirm(`Delete “${name}”? It will be moved to the trash.`)) return;
+    // Warn if scenes/prefabs reference this asset — deleting breaks those refs.
+    let warn = '';
+    try {
+      const scan = await window.estella.project.scanAssets();
+      const refs = referencingPaths(scan.index, path);
+      if (refs.length) {
+        const names = refs.slice(0, 3).map((p) => p.split('/').pop()).join(', ');
+        warn = `\n\nIt is referenced by ${refs.length} asset${refs.length > 1 ? 's' : ''} (${names}${refs.length > 3 ? ', …' : ''}); those references will break.`;
+      }
+    } catch {
+      // Best-effort: if the scan fails, fall through to the plain confirm.
+    }
+    if (!window.confirm(`Delete “${name}”? It will be moved to the trash.${warn}`)) return;
     try {
       await window.estella.fs.trash(path);
       refreshFs();
@@ -356,21 +369,52 @@ export function ContentBrowser() {
     }
   };
 
+  // Shared post-import handling (dialog import + OS drag-drop): refresh, select the
+  // last new asset, and report imported / skipped counts.
+  const applyImportResult = (res: { imported: string[]; skipped: string[] } | null) => {
+    if (!res) return;
+    refreshFs();
+    if (res.imported.length) {
+      selectAsset(res.imported[res.imported.length - 1]);
+      Toasts.push(`Imported ${res.imported.length} asset${res.imported.length > 1 ? 's' : ''}`, 'success');
+    }
+    if (res.skipped.length) {
+      Toasts.push(`Skipped ${res.skipped.length} unsupported file${res.skipped.length > 1 ? 's' : ''}`, 'warn');
+    }
+  };
+
   const importAssets = async () => {
     try {
-      const res = await window.estella.project.importAssets(cwd);
-      if (!res) return; // cancelled
-      refreshFs();
-      if (res.imported.length) {
-        selectAsset(res.imported[res.imported.length - 1]);
-        Toasts.push(`Imported ${res.imported.length} asset${res.imported.length > 1 ? 's' : ''}`, 'success');
-      }
-      if (res.skipped.length) {
-        Toasts.push(`Skipped ${res.skipped.length} unsupported file${res.skipped.length > 1 ? 's' : ''}`, 'warn');
-      }
+      applyImportResult(await window.estella.project.importAssets(cwd));
     } catch (e) {
       Toasts.push(`Import failed: ${errMsg(e)}`, 'error');
     }
+  };
+
+  // OS drag-drop import: files dragged from Finder/Explorer onto the browser body.
+  // Internal asset drags carry our custom type and are ignored here (they re-assign,
+  // not import). Electron 32+ removed File.path, so resolve via the preload bridge.
+  const isOsFileDrag = (e: React.DragEvent) =>
+    !e.dataTransfer.types.includes('application/x-estella-asset') &&
+    Array.from(e.dataTransfer.types).includes('Files');
+
+  const onBodyDragOver = (e: React.DragEvent) => {
+    if (!isOsFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const onBodyDrop = (e: React.DragEvent) => {
+    if (!isOsFileDrag(e)) return;
+    e.preventDefault();
+    const sources = Array.from(e.dataTransfer.files)
+      .map((f) => window.estella.app.getPathForFile(f))
+      .filter(Boolean);
+    if (!sources.length) return;
+    void window.estella.project
+      .importFiles(cwd, sources)
+      .then(applyImportResult)
+      .catch((err) => Toasts.push(`Import failed: ${errMsg(err)}`, 'error'));
   };
 
   // Breadcrumb segments: Project › folder › subfolder, each a jump target.
@@ -563,6 +607,8 @@ export function ContentBrowser() {
             onClick={(e) => {
               if (e.target === e.currentTarget) selectAsset(null);
             }}
+            onDragOver={onBodyDragOver}
+            onDrop={onBodyDrop}
             onContextMenu={(e) => {
               // Items stopPropagation, so reaching here = a right-click on empty space.
               e.preventDefault();
