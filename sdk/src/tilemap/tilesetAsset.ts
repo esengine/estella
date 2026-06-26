@@ -33,11 +33,33 @@ export interface TilesetAnimFrame {
     durationMs: number;
 }
 
+/**
+ * How a terrain's tiles peer with their neighbours. `edge` = 4-bit N/E/S/W matching
+ * (16-tile sets, good for ground/walls); `corner` = the 8-bit "corners and sides" blob
+ * (up to 47 tiles, smooth blobby terrain). See `autotile.ts` for the resolver.
+ */
+export type TerrainMode = 'edge' | 'corner';
+
+/** A named terrain (autotile rule set) in a tileset; tiles join it via {@link TilesetTileTerrain}. */
+export interface TilesetTerrain {
+    name: string;
+    mode: TerrainMode;
+    /** Authoring tint for the terrain (CSS color); cosmetic. */
+    color?: string;
+}
+
+/** A tile's membership in a terrain: which set, and its peering bitmask (see `autotile.ts`). */
+export interface TilesetTileTerrain {
+    set: number;
+    mask: number;
+}
+
 /** Per-tile metadata. Sparse — only tiles that carry any of these appear in the map. */
 export interface TilesetTile {
     collision?: TilesetCollision;
     properties?: Record<string, string>;
     animation?: TilesetAnimFrame[];
+    terrain?: TilesetTileTerrain;
 }
 
 /** A reusable tileset palette asset (`.estileset`). */
@@ -57,6 +79,8 @@ export interface TilesetAsset {
     tileCount?: number;
     /** Per-tile metadata keyed by tile id (1-based; id 0 = empty). */
     tiles: Record<number, TilesetTile>;
+    /** Terrain (autotile) rule sets; a tile joins one via its `terrain.set` index. */
+    terrains?: TilesetTerrain[];
 }
 
 function posInt(v: unknown, fallback: number): number {
@@ -102,8 +126,22 @@ export function parseTileset(raw: any): TilesetAsset {
                 .map((f: any) => ({ tile: f.tile, durationMs: nonNeg(f.durationMs, 100) }));
             if (frames.length > 0) tile.animation = frames;
         }
-        if (tile.collision || tile.properties || tile.animation) tiles[id] = tile;
+        if (t.terrain && typeof t.terrain === 'object'
+            && Number.isInteger(t.terrain.set) && t.terrain.set >= 0
+            && Number.isInteger(t.terrain.mask) && t.terrain.mask >= 0) {
+            tile.terrain = { set: t.terrain.set, mask: t.terrain.mask };
+        }
+        if (tile.collision || tile.properties || tile.animation || tile.terrain) tiles[id] = tile;
     }
+    const terrains: TilesetTerrain[] = Array.isArray(raw?.terrains)
+        ? raw.terrains
+            .filter((t: any) => t && typeof t.name === 'string')
+            .map((t: any): TilesetTerrain => ({
+                name: t.name,
+                mode: t.mode === 'corner' ? 'corner' : 'edge',
+                ...(typeof t.color === 'string' ? { color: t.color } : {}),
+            }))
+        : [];
     return {
         version: typeof raw?.version === 'string' ? raw.version : TILESET_FORMAT_VERSION,
         texture: typeof raw?.texture === 'string' ? raw.texture : '',
@@ -114,6 +152,7 @@ export function parseTileset(raw: any): TilesetAsset {
         spacing: nonNeg(raw?.spacing, 0),
         tileCount: Number.isInteger(raw?.tileCount) ? raw.tileCount : undefined,
         tiles,
+        ...(terrains.length > 0 ? { terrains } : {}),
     };
 }
 
@@ -132,6 +171,7 @@ export function serializeTileset(asset: TilesetAsset): Record<string, unknown> {
         tiles,
     };
     if (asset.tileCount !== undefined) out.tileCount = asset.tileCount;
+    if (asset.terrains && asset.terrains.length > 0) out.terrains = asset.terrains;
     return out;
 }
 

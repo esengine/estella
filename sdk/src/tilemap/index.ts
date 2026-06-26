@@ -13,13 +13,27 @@ export {
 export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
 export { decodeTilemapChunks, CHUNK_SIZE, type DecodedChunk } from './chunkCodec';
 export {
+    TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D, TILE_FLAGS_MASK,
+    encodeTile, tileIdOf, tileFlagsOf, orientationPerm,
+    flipFlagsH, flipFlagsV, rotateFlagsCW, type TileFlags,
+} from './tileBits';
+export {
+    singleStamp, isEmptyStamp, flipStampH, flipStampV, rotateStampCW, type TileStamp,
+} from './tileStamp';
+export {
     TILESET_FORMAT_VERSION, parseTileset, serializeTileset, createTileset, collidableTileIds,
     type TilesetAsset, type TilesetTile, type TilesetCollision, type TilesetAnimFrame,
+    type TerrainMode, type TilesetTerrain, type TilesetTileTerrain,
 } from './tilesetAsset';
 export {
     resolveTilesetModel,
     type ResolvedTileset, type TilesetModel, type TilesetModelSlot,
 } from './tilesetResolve';
+export {
+    TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW, TERRAIN_NEIGHBORS,
+    normalizeCornerMask, canonicalMask, buildTerrainIndices, resolveAutotile,
+    type TerrainIndex, type TerrainIndices,
+} from './autotile';
 export {
     registerTilemapSource, getTilemapSource, clearTilemapSourceCache,
     registerResolvedTileset, getResolvedTileset, clearResolvedTilesetCache,

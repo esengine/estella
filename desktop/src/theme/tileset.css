@@ -92,6 +92,91 @@
 }
 .ts-cell.is-solid:hover { background: rgba(240, 100, 90, 0.5); }
 
+/* Mode switch (collision / terrain) */
+.ts-modes { display: inline-flex; border: 1px solid var(--line, #2a2d33); border-radius: 3px; overflow: hidden; }
+.ts-modes button {
+  background: var(--control, #24272d);
+  color: var(--text-dim, #9aa0aa);
+  border: none;
+  padding: 3px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+.ts-modes button.is-active { background: var(--star, #4c8fd6); color: var(--on-accent, #fff); }
+
+/* Terrain set bar */
+.ts-terrains {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line, #2a2d33);
+  background: var(--srf-2, #1b1e23);
+  flex: 0 0 auto;
+}
+.ts-terrain {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--control, #24272d);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  padding: 3px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+.ts-terrain.is-active { border-color: var(--star, #4c8fd6); color: var(--text, #d6d9de); }
+.ts-tswatch { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+.ts-tmode { color: var(--text-faint, #6b717c); font-size: 10px; }
+.ts-add { padding: 3px 6px; }
+.ts-tedit { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.ts-tname {
+  width: 110px;
+  background: var(--inset, #0f1115);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text, #d6d9de);
+  padding: 2px 6px;
+  font: inherit;
+}
+.ts-tedit select {
+  background: var(--inset, #0f1115);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text, #d6d9de);
+  padding: 2px 4px;
+  font: inherit;
+}
+.ts-trm {
+  background: none;
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  padding: 3px 5px;
+  cursor: pointer;
+}
+.ts-trm:hover { color: #f0645a; border-color: #f0645a; }
+
+/* Terrain peering cell: member highlight + clickable 3×3 zones */
+.ts-tcell.is-member { background: color-mix(in srgb, var(--tcolor) 26%, transparent); border-color: var(--tcolor); }
+.ts-zone {
+  position: absolute;
+  width: 33.34%;
+  height: 33.34%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.ts-zone:hover { background: rgba(255, 255, 255, 0.18); }
+.ts-zone.is-on { background: rgba(76, 143, 214, 0.55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
+.ts-zone.is-corner.is-on { background: rgba(214, 196, 76, 0.6); }
+.ts-zone-c { left: 33.34%; top: 33.34%; }
+.ts-zone-c:hover { background: rgba(255, 255, 255, 0.1); }
+
 .ts-empty,
 .ts-warn {
   display: flex;

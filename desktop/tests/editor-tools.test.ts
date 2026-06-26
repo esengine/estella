@@ -24,7 +24,7 @@ describe('editor tool registry', () => {
   });
 
   it('has the tile tools keyed by PaintTool', () => {
-    for (const k of ['brush', 'erase', 'rect', 'eyedropper'] as const) {
+    for (const k of ['brush', 'erase', 'rect', 'eyedropper', 'terrain'] as const) {
       expect(TILE_TOOLS[k]).toBeDefined();
       expect(implementsContract(TILE_TOOLS[k])).toBe(true);
     }

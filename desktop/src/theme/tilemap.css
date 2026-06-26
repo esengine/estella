@@ -21,6 +21,7 @@
   flex: 0 0 auto;
 }
 .tp-grow { flex: 1 1 auto; }
+.tp-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--line, #2a2d33); }
 .tp-brush { color: var(--text-faint, #6b717c); font-variant-numeric: tabular-nums; }
 
 .tp-tool {
@@ -50,6 +51,32 @@
 }
 .tp-atlas { position: relative; }
 .tp-img { display: block; image-rendering: pixelated; user-select: none; }
+
+.tp-terrains {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--srf-0, #101216);
+}
+.tp-terrain {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--control, #24272d);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  padding: 5px 9px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.tp-terrain.is-active { border-color: var(--star, #4c8fd6); color: var(--text, #d6d9de); }
+.tp-tswatch { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.tp-warn { color: var(--text-faint, #6b717c); padding: 12px; font-size: 11px; }
 
 .tp-cell {
   position: absolute;
