@@ -406,6 +406,12 @@ u32 tiled_getTilesetColumns(u32 handle, u32 index) {
     return map->tilesets[index].columns;
 }
 
+u32 tiled_getTilesetFirstGid(u32 handle, u32 index) {
+    const auto* map = getTiledLoader().getMap(handle);
+    if (!map || index >= map->tilesets.size()) return 0;
+    return map->tilesets[index].first_gid;
+}
+
 u32 tiled_getTilesetTileCount(u32 handle, u32 index) {
     const auto* map = getTiledLoader().getMap(handle);
     if (!map || index >= map->tilesets.size()) return 0;
@@ -723,6 +729,7 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tiled_getTilesetTileWidth", &esengine::tiled_getTilesetTileWidth);
     emscripten::function("tiled_getTilesetTileHeight", &esengine::tiled_getTilesetTileHeight);
     emscripten::function("tiled_getTilesetColumns", &esengine::tiled_getTilesetColumns);
+    emscripten::function("tiled_getTilesetFirstGid", &esengine::tiled_getTilesetFirstGid);
     emscripten::function("tiled_getTilesetTileCount", &esengine::tiled_getTilesetTileCount);
     emscripten::function("tiled_getObjectGroupCount", &esengine::tiled_getObjectGroupCount);
     emscripten::function("tiled_getObjectGroupName", &esengine::tiled_getObjectGroupName);

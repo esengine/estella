@@ -13,6 +13,7 @@ interface TilemapModule {
     tilemap_fillRect(entity: number, x: number, y: number,
                      w: number, h: number, tileId: number): void;
     tilemap_setTiles(entity: number, tilesPtr: number, count: number): void;
+    tilemap_setTilesets(entity: number, dataPtr: number, count: number): void;
     tilemap_hasLayer(entity: number): boolean;
     tilemap_setRenderProps(entity: number, textureHandle: number, tilesetColumns: number,
                            uvTileW: number, uvTileH: number,
@@ -72,6 +73,7 @@ interface TilemapModule {
     tiled_getTilesetTileHeight(handle: number, index: number): number;
     tiled_getTilesetColumns(handle: number, index: number): number;
     tiled_getTilesetTileCount(handle: number, index: number): number;
+    tiled_getTilesetFirstGid?(handle: number, index: number): number;
 
     tiled_getLayerOpacity(handle: number, index: number): number;
     tiled_getLayerTintColor(handle: number, index: number): number;
@@ -140,6 +142,22 @@ export const TilemapAPI = {
         withMalloc(m, bytes, ptr => {
             new Uint16Array(m.HEAPU8.buffer, ptr, tiles.length).set(tiles);
             m.tilemap_setTiles(entity, ptr, tiles.length);
+        });
+    },
+
+    /** Replace the layer's multi-tileset table. Empty array reverts to single-tileset. */
+    setTilesets(entity: number, slots: { firstId: number; textureHandle: number; columns: number }[]): void {
+        const m = module_;
+        if (!m) return;
+        const packed = new Uint32Array(slots.length * 3);
+        for (let i = 0; i < slots.length; i++) {
+            packed[i * 3] = slots[i].firstId;
+            packed[i * 3 + 1] = slots[i].textureHandle;
+            packed[i * 3 + 2] = slots[i].columns;
+        }
+        withMalloc(m, packed.byteLength, ptr => {
+            new Uint32Array(m.HEAPU8.buffer, ptr, packed.length).set(packed);
+            m.tilemap_setTilesets(entity, ptr, slots.length);
         });
     },
 

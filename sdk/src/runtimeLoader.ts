@@ -286,7 +286,7 @@ async function loadTilemaps(
                 } catch (e) {
                     log.warn('runtime', `Failed to load tileset texture: ${imagePath}`, e);
                 }
-                tilesets.push({ textureHandle, columns: ts.columns });
+                tilesets.push({ textureHandle, columns: ts.columns, firstId: ts.firstGid });
             }
 
             registerTilemapSource(tmjPath, {

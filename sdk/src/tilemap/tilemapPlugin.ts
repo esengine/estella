@@ -11,7 +11,6 @@ import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource } from './tilesetCache';
 import { generateLayerCollision, generateChunkCollision } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
-import { getTextureDimensions } from '../resourceManager';
 import { Time } from '../resource';
 import { playModeOnly } from '../env';
 import type { Entity } from '../types';
@@ -204,19 +203,21 @@ export class TilemapPlugin implements Plugin {
                                 }
                             }
 
-                            const tileset = cached.tilesets[0];
-                            if (tileset) {
-                                const dims = getTextureDimensions(tileset.textureHandle);
-                                if (dims) {
-                                    TilemapAPI.setRenderProps(
-                                        key, tileset.textureHandle, tileset.columns,
-                                        cached.tileWidth / dims.width,
-                                        cached.tileHeight / dims.height,
-                                        i, 0, 1, 1,
-                                    );
-                                    TilemapAPI.setTint(key, 1, 1, 1, 1, 1);
-                                    TilemapAPI.setVisible(key, true);
-                                }
+                            // Multi-tileset: push the full tileset table (firstId +
+                            // texture + columns). The renderer batches per texture and
+                            // derives UVs from texture size; setRenderProps still carries
+                            // the non-tileset metadata (render layer, parallax).
+                            const slots = cached.tilesets
+                                .filter(t => t.textureHandle)
+                                .map(t => ({ firstId: t.firstId, textureHandle: t.textureHandle, columns: t.columns }));
+                            if (slots.length > 0) {
+                                TilemapAPI.setTilesets(key, slots);
+                                TilemapAPI.setRenderProps(
+                                    key, slots[0].textureHandle, slots[0].columns,
+                                    0, 0, i, 0, 1, 1,
+                                );
+                                TilemapAPI.setTint(key, 1, 1, 1, 1, 1);
+                                TilemapAPI.setVisible(key, true);
                             }
 
                             keys.push(key);

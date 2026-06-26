@@ -91,7 +91,7 @@ describe('TilemapSource cache', () => {
             tileWidth: 16,
             tileHeight: 16,
             layers: [{ name: 'Ground', width: 10, height: 10, tiles: new Uint16Array([1, 2, 3]) }],
-            tilesets: [{ textureHandle: 42, columns: 8 }],
+            tilesets: [{ textureHandle: 42, columns: 8, firstId: 1 }],
         };
         registerTilemapSource('maps/level1.tmj', source);
         expect(getTilemapSource('maps/level1.tmj')).toBe(source);
@@ -166,6 +166,24 @@ describe('parseTmjJson', () => {
         const result = parseTmjJson(json);
         expect(result!.layers[0].tiles[0]).toBe(0);
         expect(result!.layers[0].tiles[1]).toBe(3);
+    });
+
+    it('should keep global GIDs across multiple tilesets and expose firstGid', () => {
+        const json = {
+            width: 3, height: 1, tilewidth: 16, tileheight: 16,
+            tilesets: [
+                { firstgid: 1, name: 'a', image: 'a.png', tilewidth: 16, tileheight: 16, columns: 4, tilecount: 4 },
+                { firstgid: 5, name: 'b', image: 'b.png', tilewidth: 16, tileheight: 16, columns: 4, tilecount: 4 },
+            ],
+            layers: [{ type: 'tilelayer', name: 'L', width: 3, height: 1, visible: true, data: [1, 5, 8] }],
+        };
+        const result = parseTmjJson(json)!;
+        // Tiles keep the global GID (not collapsed to a per-tileset local id), so the
+        // runtime tileset table can resolve which tileset each tile belongs to.
+        expect(Array.from(result.layers[0].tiles)).toEqual([1, 5, 8]);
+        expect(result.tilesets).toHaveLength(2);
+        expect(result.tilesets[0].firstGid).toBe(1);
+        expect(result.tilesets[1].firstGid).toBe(5);
     });
 
     it('should skip non-tilelayer layers', () => {

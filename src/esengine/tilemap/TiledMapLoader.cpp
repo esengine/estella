@@ -121,20 +121,15 @@ u16 TiledMapLoader::convertGid(int gid, const std::vector<TiledTilesetInfo>& til
     int flipH = 0, flipV = 0, flipD = 0;
     cute_tiled_get_flags(gid, &flipH, &flipV, &flipD);
     int rawGid = cute_tiled_unset_flags(gid);
-
-    u16 localId = 0;
-    for (auto it = tilesets.rbegin(); it != tilesets.rend(); ++it) {
-        if (static_cast<u32>(rawGid) >= it->first_gid) {
-            localId = static_cast<u16>(rawGid - static_cast<int>(it->first_gid) + 1);
-            break;
-        }
-    }
-
-    if (localId == 0) {
+    if (rawGid <= 0) {
         return EMPTY_TILE;
     }
 
-    u16 result = localId & TILE_ID_MASK;
+    // Keep the global GID as the engine tile-id (Tiled GIDs are contiguous across
+    // tilesets); the runtime tileset table resolves it back to (tileset, local).
+    // For a single-tileset map (first_gid == 1) this equals the old local id + 1.
+    (void)tilesets;
+    u16 result = static_cast<u16>(rawGid) & TILE_ID_MASK;
     if (flipH) { result |= TILE_FLIP_H; }
     if (flipV) { result |= TILE_FLIP_V; }
     if (flipD) { result |= TILE_FLIP_D; }

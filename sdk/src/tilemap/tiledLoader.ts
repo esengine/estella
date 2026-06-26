@@ -68,6 +68,7 @@ export interface TiledLayerData {
 export interface TiledTilesetData {
     name: string;
     image: string;
+    firstGid: number;   // global tile-id at which this tileset begins
     tileWidth: number;
     tileHeight: number;
     columns: number;
@@ -147,14 +148,17 @@ function parseTintColor(hex: string | undefined): { r: number; g: number; b: num
     return { r: 1, g: 1, b: 1, a: 1 };
 }
 
-function convertGid(gid: number, firstGid: number): number {
+// Keep the global GID as the engine tile-id (Tiled GIDs are contiguous across
+// tilesets); the runtime tileset table resolves it to (tileset, local). For a
+// single-tileset map (firstgid 1) this equals the old local id + 1.
+function convertGid(gid: number): number {
     if (gid === 0) return 0;
     let flags = 0;
     if (gid & TILED_FLIP_H) flags |= ENGINE_FLIP_H;
     if (gid & TILED_FLIP_V) flags |= ENGINE_FLIP_V;
     if (gid & TILED_FLIP_D) flags |= ENGINE_FLIP_D;
-    const localId = (gid & TILED_GID_MASK) - firstGid;
-    return (localId + 1) | flags;
+    const globalId = (gid & TILED_GID_MASK) & 0x1FFF;
+    return globalId | flags;
 }
 
 export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null {
@@ -166,15 +170,13 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
 
     const rawTilesets = json.tilesets as Array<Record<string, unknown>> | undefined;
     const tilesets: TiledTilesetData[] = [];
-    const firstGids: number[] = [];
 
     if (rawTilesets) {
         for (const ts of rawTilesets) {
-            const firstGid = (ts.firstgid as number) ?? 1;
-            firstGids.push(firstGid);
             tilesets.push({
                 name: (ts.name as string) ?? '',
                 image: (ts.image as string) ?? '',
+                firstGid: (ts.firstgid as number) ?? 1,
                 tileWidth: (ts.tilewidth as number) ?? tileWidth,
                 tileHeight: (ts.tileheight as number) ?? tileHeight,
                 columns: (ts.columns as number) ?? 1,
@@ -196,9 +198,8 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
 
             const tiles = new Uint16Array(lw * lh);
             if (rawData) {
-                const firstGid = firstGids[0] ?? 1;
                 for (let i = 0; i < rawData.length && i < tiles.length; i++) {
-                    tiles[i] = convertGid(rawData[i], firstGid);
+                    tiles[i] = convertGid(rawData[i]);
                 }
             }
 
@@ -290,12 +291,14 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
             if (rawTiles) {
                 for (const tile of rawTiles) {
                     const localId = (tile.id as number);
-                    const engineId = localId + 1;
+                    // Global engine id = tileset-local id + firstGid (matches the
+                    // global GIDs stored in the layer). firstgid 1 -> localId + 1.
+                    const engineId = localId + firstGid;
 
                     const rawAnim = tile.animation as Array<Record<string, unknown>> | undefined;
                     if (rawAnim && rawAnim.length > 0) {
                         const frames: TiledAnimFrame[] = rawAnim.map(f => ({
-                            tileId: ((f.tileid as number) ?? 0) + 1,
+                            tileId: ((f.tileid as number) ?? 0) + firstGid,
                             duration: (f.duration as number) ?? 100,
                         }));
                         tileAnimations.set(engineId, frames);
@@ -455,6 +458,7 @@ export async function parseTiledMap(
             result.tilesets.push({
                 name: api.tiled_getTilesetName(handle, i),
                 image: api.tiled_getTilesetImage(handle, i),
+                firstGid: api.tiled_getTilesetFirstGid ? api.tiled_getTilesetFirstGid(handle, i) : 1,
                 tileWidth: api.tiled_getTilesetTileWidth(handle, i),
                 tileHeight: api.tiled_getTilesetTileHeight(handle, i),
                 columns: api.tiled_getTilesetColumns(handle, i),

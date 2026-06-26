@@ -27,7 +27,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             } catch (e) {
                 log.warn('asset', `Failed to load tileset texture: ${imagePath}`, e);
             }
-            tilesets.push({ textureHandle, columns: ts.columns });
+            tilesets.push({ textureHandle, columns: ts.columns, firstId: ts.firstGid });
         }
 
         registerTilemapSource(path, {

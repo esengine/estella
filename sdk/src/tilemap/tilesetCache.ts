@@ -20,6 +20,7 @@ export interface LoadedTilemapLayer {
 export interface LoadedTilemapTileset {
     textureHandle: number;
     columns: number;
+    firstId: number;   // global tile-id at which this tileset begins (Tiled firstgid)
 }
 
 export interface LoadedTilemapSource {
