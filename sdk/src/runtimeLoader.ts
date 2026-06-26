@@ -16,7 +16,6 @@ import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
-import type { Vec2 } from './types';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import { Assets } from './asset/AssetPlugin';
 import { getAssetTypeEntry } from './assetTypes';
@@ -320,7 +319,9 @@ export interface LoadRuntimeSceneOptions {
     spineModule?: SpineWasmModule | null;
     spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
-    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
+    /** Project-declared physics world config (gravity, solver tuning, collision-layer
+     *  masks, sleep/continuous toggles) — threaded from the editor's Project Settings. */
+    physicsConfig?: PhysicsPluginConfig;
     /** Project-declared physics enable (`.uproject` features analog) — installs
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
@@ -391,6 +392,11 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
                 contactDampingRatio: physicsConfig?.contactDampingRatio ?? 10,
                 contactSpeed: physicsConfig?.contactSpeed ?? 10,
             };
+            // Pass through the remaining world config only when the project set it, so
+            // the plugin's own defaults still apply otherwise.
+            if (physicsConfig?.collisionLayerMasks) config.collisionLayerMasks = physicsConfig.collisionLayerMasks;
+            if (physicsConfig?.enableSleep !== undefined) config.enableSleep = physicsConfig.enableSleep;
+            if (physicsConfig?.enableContinuous !== undefined) config.enableContinuous = physicsConfig.enableContinuous;
             const mod = physicsModule;
             app.addPlugin(new PhysicsPlugin('', config, () => Promise.resolve(mod)));
             log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
@@ -449,7 +455,9 @@ export interface RuntimeInitConfig {
     spineModule?: SpineWasmModule | null;
     spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
-    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
+    /** Project-declared physics world config (gravity, solver tuning, collision-layer
+     *  masks, sleep/continuous toggles) — threaded from the editor's Project Settings. */
+    physicsConfig?: PhysicsPluginConfig;
     /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
     physicsEnabled?: boolean;
     manifest?: AddressableManifest | null;

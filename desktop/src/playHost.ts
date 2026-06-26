@@ -15,7 +15,7 @@
  *        sidestepping the custom-scheme cross-fetch ban.
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents } from 'esengine';
-import type { App, ESEngineModule, SceneData } from 'esengine';
+import type { App, ESEngineModule, SceneData, PhysicsPluginConfig } from 'esengine';
 
 type LiveEntity = SceneData['entities'][number];
 
@@ -80,7 +80,7 @@ interface InitMessage {
   sceneData: SceneData;
   assetManifest: Record<string, string>;
   physicsEnabled?: boolean;
-  physicsGravity?: { x: number; y: number };
+  physicsConfig?: PhysicsPluginConfig;
 }
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -157,7 +157,7 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     // physics.wasm is served next to esengine.wasm; load it on demand.
     wasmBaseUrl: wasmBase.replace(/\/$/, ''),
     physicsEnabled: msg.physicsEnabled,
-    physicsGravity: msg.physicsGravity,
+    physicsConfig: msg.physicsConfig,
     enableStats: true, // editor profiler: per-phase / per-system frame timing
   });
 }

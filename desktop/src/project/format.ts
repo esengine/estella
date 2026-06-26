@@ -69,6 +69,17 @@ export interface ProjectFeatures {
     gravity?: { x: number; y: number };
     /** Names for the 16 Box2D collision-filter layers (the inspector's layer masks). */
     collisionLayers?: string[];
+    /** Per-layer collision masks (the UE/Unity collision matrix): masks[i] bit j set ⇒
+     *  layer i collides with layer j. 16 entries; absent ⇒ all-collide. */
+    collisionLayerMasks?: number[];
+    /** World solver tuning (Project Settings → Physics); absent ⇒ engine defaults. */
+    fixedTimestep?: number;
+    subStepCount?: number;
+    contactHertz?: number;
+    contactDampingRatio?: number;
+    contactSpeed?: number;
+    enableSleep?: boolean;
+    enableContinuous?: boolean;
   };
   rendering?: {
     /** Named render sorting layers (the inspector's `layer` dropdown); index = z-order. */
@@ -219,6 +230,15 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (Array.isArray(p.collisionLayers)) {
         physics.collisionLayers = p.collisionLayers.slice(0, 16).map((n) => (typeof n === 'string' ? n : ''));
       }
+      if (Array.isArray(p.collisionLayerMasks)) {
+        physics.collisionLayerMasks = p.collisionLayerMasks.slice(0, 16)
+          .map((n) => (typeof n === 'number' && Number.isFinite(n) ? n & 0xffff : 0xffff));
+      }
+      for (const k of ['fixedTimestep', 'subStepCount', 'contactHertz', 'contactDampingRatio', 'contactSpeed'] as const) {
+        if (typeof p[k] === 'number' && Number.isFinite(p[k] as number)) physics[k] = p[k] as number;
+      }
+      if (typeof p.enableSleep === 'boolean') physics.enableSleep = p.enableSleep;
+      if (typeof p.enableContinuous === 'boolean') physics.enableContinuous = p.enableContinuous;
       features.physics = physics;
     }
     if (f.rendering && typeof f.rendering === 'object') {

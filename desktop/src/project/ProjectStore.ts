@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
 import { getComponent, Assets, migratePrefabData, extractPrefab } from 'esengine';
-import type { SceneData, PrefabData, ExtractEntity } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, PhysicsPluginConfig } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
@@ -20,6 +20,11 @@ import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
 function normalizeLayers(layers?: string[]): string[] {
   return Array.from({ length: 16 }, (_, i) => layers?.[i] ?? (i === 0 ? 'Default' : ''));
+}
+
+/** Pad/truncate the collision matrix to 16 rows; absent rows default to all-collide. */
+function normalizeLayerMasks(masks?: number[]): number[] {
+  return Array.from({ length: 16 }, (_, i) => (typeof masks?.[i] === 'number' ? masks[i] & 0xffff : 0xffff));
 }
 
 /** Whether an asset of the editor `type` is a valid pick for a `fieldType` slot. */
@@ -508,7 +513,7 @@ class ProjectStoreImpl {
     sceneData: SceneData;
     assetManifest: Record<string, string>;
     physicsEnabled?: boolean;
-    physicsGravity?: { x: number; y: number };
+    physicsConfig?: PhysicsPluginConfig;
   } | null {
     const sceneData = SceneModel.serialize();
     if (!sceneData) return null;
@@ -516,19 +521,48 @@ class ProjectStoreImpl {
     // same-origin estella:// — no cross-scheme dance needed.
     const assetManifest: Record<string, string> = {};
     for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = `estella://project/${path}`;
-    // Carry the project's declared physics enable so the realm installs physics
-    // even for runtime-spawned bodies the static scene doesn't show.
-    const physics = this.state?.features?.physics;
-    return { sceneData, assetManifest, physicsEnabled: physics?.enabled, physicsGravity: physics?.gravity };
+    // Carry the project's physics world config so the realm installs physics (even for
+    // runtime-spawned bodies the static scene doesn't show) and matches the editor's
+    // Project Settings. The collision matrix is sent ONLY when configured — otherwise
+    // a layer's mask would override each collider's own maskBits (the two are exclusive).
+    const f = this.physicsFeature();
+    const raw = this.state?.features?.physics;
+    const physicsConfig: PhysicsPluginConfig = {
+      gravity: f.gravity,
+      fixedTimestep: f.fixedTimestep,
+      subStepCount: f.subStepCount,
+      contactHertz: f.contactHertz,
+      contactDampingRatio: f.contactDampingRatio,
+      contactSpeed: f.contactSpeed,
+      enableSleep: f.enableSleep,
+      enableContinuous: f.enableContinuous,
+    };
+    if (raw?.collisionLayerMasks) physicsConfig.collisionLayerMasks = f.collisionLayerMasks;
+    return { sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig };
   }
 
-  /** The project's declared physics feature, with defaults (for Project Settings). */
-  physicsFeature(): { enabled: boolean; gravity: { x: number; y: number }; collisionLayers: string[] } {
+  /** The project's declared physics feature, with defaults (for Project Settings). The
+   *  solver defaults mirror the runtime fallbacks so the UI shows the effective values. */
+  physicsFeature(): {
+    enabled: boolean; gravity: { x: number; y: number }; collisionLayers: string[];
+    collisionLayerMasks: number[];
+    fixedTimestep: number; subStepCount: number; contactHertz: number;
+    contactDampingRatio: number; contactSpeed: number;
+    enableSleep: boolean; enableContinuous: boolean;
+  } {
     const p = this.state?.features?.physics;
     return {
       enabled: p?.enabled ?? false,
       gravity: p?.gravity ?? { x: 0, y: -9.81 },
       collisionLayers: normalizeLayers(p?.collisionLayers),
+      collisionLayerMasks: normalizeLayerMasks(p?.collisionLayerMasks),
+      fixedTimestep: p?.fixedTimestep ?? 1 / 60,
+      subStepCount: p?.subStepCount ?? 4,
+      contactHertz: p?.contactHertz ?? 120,
+      contactDampingRatio: p?.contactDampingRatio ?? 10,
+      contactSpeed: p?.contactSpeed ?? 10,
+      enableSleep: p?.enableSleep ?? true,
+      enableContinuous: p?.enableContinuous ?? true,
     };
   }
 
@@ -628,7 +662,7 @@ class ProjectStoreImpl {
    * parser doesn't model survive; in-memory state updates first so the toggle
    * reflects immediately.
    */
-  async setPhysics(patch: { enabled?: boolean; gravity?: { x: number; y: number }; collisionLayers?: string[] }): Promise<void> {
+  async setPhysics(patch: Partial<NonNullable<ProjectFeatures['physics']>>): Promise<void> {
     const st = this.state;
     if (!st) return;
     const physics: NonNullable<ProjectFeatures['physics']> = { ...st.features?.physics, ...patch };

@@ -21,7 +21,7 @@ import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetProvider } from './runtimeLoader';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
-import type { Vec2 } from './types';
+import type { PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import { decodeImagePixels } from './asset/imageDecode';
 
 const UUID_PREFIX = '@uuid:';
@@ -41,8 +41,9 @@ export interface PlayRealmRuntimeConfig {
     /** Project-declared physics enable (`.uproject` features analog) — installs
      *  physics even for runtime-spawned bodies the static scene doesn't show. */
     physicsEnabled?: boolean;
-    /** Optional physics world overrides (e.g. project-declared gravity). */
-    physicsGravity?: Vec2;
+    /** Project-declared physics world config (gravity, solver tuning, collision-layer
+     *  masks, sleep/continuous) from the editor's Project Settings. */
+    physicsConfig?: PhysicsPluginConfig;
     /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
     enableStats?: boolean;
 }
@@ -98,7 +99,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         manifest: manifest ?? null,
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,
-        physicsConfig: config.physicsGravity ? { gravity: config.physicsGravity } : undefined,
+        physicsConfig: config.physicsConfig,
         // Physics (and spine) are acquired from app.sideModules — the fetch host
         // createWebApp built from this realm's wasmBaseUrl.
     });

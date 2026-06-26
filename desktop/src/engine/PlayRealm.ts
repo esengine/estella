@@ -12,14 +12,15 @@
  *        touched, so there is nothing to restore.
  */
 import { createStore } from 'zustand/vanilla';
-import type { SceneData } from 'esengine';
+import type { SceneData, PhysicsPluginConfig } from 'esengine';
 
 export interface PlayPayload {
   sceneData: SceneData;
   assetManifest: Record<string, string>;
   /** Project-declared physics enable (features.physics) — forwarded to the realm. */
   physicsEnabled?: boolean;
-  physicsGravity?: { x: number; y: number };
+  /** Project physics world config (gravity, solver, collision matrix) — forwarded to the realm. */
+  physicsConfig?: PhysicsPluginConfig;
 }
 
 export interface PlayRealmSnapshot {

@@ -156,3 +156,82 @@ settingsRegistry.register({
     set: (v) => void ProjectStore.setPhysics({ gravity: { ...ProjectStore.physicsFeature().gravity, y: v } }),
   },
 });
+
+// ── Solver (world simulation tuning; absent ⇒ engine defaults) ──
+settingsRegistry.register({
+  id: 'project.physics.fixedTimestep',
+  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
+  label: 'Fixed timestep', suffix: 's',
+  description: 'Simulation step size; smaller is more accurate but costlier. Default 1/60.',
+  default: 1 / 60, min: 0.001, step: 0.001,
+  bind: {
+    get: () => ProjectStore.physicsFeature().fixedTimestep,
+    set: (v) => void ProjectStore.setPhysics({ fixedTimestep: v }),
+  },
+});
+settingsRegistry.register({
+  id: 'project.physics.subStepCount',
+  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
+  label: 'Sub-steps',
+  description: 'Solver sub-steps per step — higher firms up stacks/joints at more cost. Default 4.',
+  default: 4, min: 1, max: 8, step: 1,
+  bind: {
+    get: () => ProjectStore.physicsFeature().subStepCount,
+    set: (v) => void ProjectStore.setPhysics({ subStepCount: Math.round(v) }),
+  },
+});
+settingsRegistry.register({
+  id: 'project.physics.contactHertz',
+  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
+  label: 'Contact Hz',
+  description: 'Contact stiffness frequency. Default 120.',
+  default: 120, min: 1, step: 1,
+  bind: {
+    get: () => ProjectStore.physicsFeature().contactHertz,
+    set: (v) => void ProjectStore.setPhysics({ contactHertz: v }),
+  },
+});
+settingsRegistry.register({
+  id: 'project.physics.contactDampingRatio',
+  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
+  label: 'Contact damping',
+  description: 'Contact damping ratio. Default 10.',
+  default: 10, min: 0, step: 0.5,
+  bind: {
+    get: () => ProjectStore.physicsFeature().contactDampingRatio,
+    set: (v) => void ProjectStore.setPhysics({ contactDampingRatio: v }),
+  },
+});
+settingsRegistry.register({
+  id: 'project.physics.contactSpeed',
+  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
+  label: 'Contact push speed', suffix: 'm/s',
+  description: 'Max speed used to resolve overlap. Default 10.',
+  default: 10, min: 0, step: 0.5,
+  bind: {
+    get: () => ProjectStore.physicsFeature().contactSpeed,
+    set: (v) => void ProjectStore.setPhysics({ contactSpeed: v }),
+  },
+});
+settingsRegistry.register({
+  id: 'project.physics.enableSleep',
+  type: 'boolean', scope: 'project', section: 'physics', group: 'Solver',
+  label: 'Allow sleeping',
+  description: 'Let resting bodies sleep to save CPU (Box2D default on).',
+  default: true,
+  bind: {
+    get: () => ProjectStore.physicsFeature().enableSleep,
+    set: (v) => void ProjectStore.setPhysics({ enableSleep: v }),
+  },
+});
+settingsRegistry.register({
+  id: 'project.physics.enableContinuous',
+  type: 'boolean', scope: 'project', section: 'physics', group: 'Solver',
+  label: 'Continuous collision',
+  description: 'Anti-tunneling for fast bodies (Box2D default on).',
+  default: true,
+  bind: {
+    get: () => ProjectStore.physicsFeature().enableContinuous,
+    set: (v) => void ProjectStore.setPhysics({ enableContinuous: v }),
+  },
+});
