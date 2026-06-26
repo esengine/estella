@@ -583,7 +583,14 @@ function metaDefaults<T>(name: string, overrides?: Partial<T>): T {
 }
 
 export const Transform = defineBuiltin<TransformData>('Transform',
-    metaDefaults<TransformData>('Transform')
+    metaDefaults<TransformData>('Transform'),
+    {
+        fields: {
+            position: { tooltip: 'Local position in world units, relative to the parent.' },
+            rotation: { tooltip: 'Rotation about the Z axis, in degrees.' },
+            scale: { tooltip: 'Local scale per axis (1 = original size; negative flips).' },
+        },
+    }
 );
 export const LocalTransform = Transform;
 export const WorldTransform = Transform;
@@ -594,8 +601,9 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite',
     }),
     {
         fields: {
-            layer: { step: 1, enumSource: 'sortingLayers' },
-            pivot: { advanced: true },
+            layer: { step: 1, enumSource: 'sortingLayers', tooltip: 'Sorting layer — controls draw order across sprites.' },
+            color: { tooltip: 'Tint multiplied into the texture (white = unchanged).' },
+            pivot: { advanced: true, tooltip: 'Anchor point (0–1) the sprite rotates and scales about.' },
             uvOffset: { advanced: true },
             uvScale: { advanced: true },
             tileSize: { advanced: true },
@@ -620,10 +628,10 @@ export const Light2D = defineBuiltin<Light2DData>('Light2D',
     metaDefaults<Light2DData>('Light2D'),
     {
         fields: {
-            type: { enum: enumOptions(Light2DType) },
-            intensity: { min: 0 },
-            radius: { min: 0 },
-            direction: { advanced: true },
+            type: { enum: enumOptions(Light2DType), tooltip: 'Point, Directional, Ambient, or Spot.' },
+            intensity: { min: 0, tooltip: 'Brightness multiplier of the light.' },
+            radius: { min: 0, tooltip: 'Falloff reach in world units (Point / Spot).' },
+            direction: { advanced: true, tooltip: 'Aim direction (Directional / Spot).' },
             innerAngle: { min: 0, max: 180, unit: '°', advanced: true },
             outerAngle: { min: 0, max: 180, unit: '°', advanced: true },
         },
@@ -640,11 +648,11 @@ export const Camera = defineBuiltin<CameraData>('Camera',
     }),
     {
         fields: {
-            projectionType: { enum: enumOptions(ProjectionType) },
+            projectionType: { enum: enumOptions(ProjectionType), tooltip: 'Orthographic (2D) or Perspective projection.' },
             // A bitmask (ColorAndDepth = Color | Depth), so a multi-select, not a dropdown.
-            clearFlags: { flags: [{ label: 'Color', value: 1 }, { label: 'Depth', value: 2 }] },
+            clearFlags: { flags: [{ label: 'Color', value: 1 }, { label: 'Depth', value: 2 }], tooltip: 'Which buffers to clear before rendering this camera.' },
             fov: { min: 1, max: 179, unit: '°' },
-            orthoSize: { min: 0 },
+            orthoSize: { min: 0, tooltip: 'Half the visible height in world units (Orthographic).' },
             nearPlane: { min: 0, advanced: true },
             farPlane: { min: 0, advanced: true },
             aspectRatio: { advanced: true },
@@ -664,10 +672,11 @@ export const Canvas = defineBuiltin<CanvasData>('Canvas',
         fields: {
             scaleMode: {
                 enum: enumOptions(ScaleMode, ['FixedWidth', 'FixedHeight', 'Expand', 'Shrink', 'Match']),
+                tooltip: 'How the canvas adapts the design resolution to the screen.',
             },
             // 0 = match width, 1 = match height (only meaningful in the Match mode).
-            matchWidthOrHeight: { min: 0, max: 1, slider: true },
-            pixelsPerUnit: { min: 1 },
+            matchWidthOrHeight: { min: 0, max: 1, slider: true, tooltip: '0 matches width, 1 matches height (Match mode only).' },
+            pixelsPerUnit: { min: 1, tooltip: 'Texture pixels mapped to one world unit.' },
         },
     }
 );
@@ -704,7 +713,7 @@ export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
     metaDefaults<TilemapLayerData>('TilemapLayer'),
     {
         fields: {
-            opacity: { min: 0, max: 1, slider: true },
+            opacity: { min: 0, max: 1, slider: true, tooltip: 'Layer transparency (0 = invisible, 1 = opaque).' },
             tilesetColumns: { min: 1, step: 1 },
             tilesetRows: { min: 1, step: 1 },
             renderLayer: { step: 1, enumSource: 'sortingLayers' },

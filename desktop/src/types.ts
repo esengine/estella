@@ -106,6 +106,8 @@ export interface InspectorField {
   advanced?: boolean;
   /** Groups the field under a collapsible category header (UE's property categories). */
   category?: string;
+  /** Hover help for the property (UE's UPROPERTY ToolTip). */
+  tooltip?: string;
   /**
    * Multi-selection: the selected entities disagree on this field's value. `value`
    * holds the primary entity's value (shown muted); an edit fans out to all.

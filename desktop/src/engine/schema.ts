@@ -200,6 +200,10 @@ export interface UserFieldMeta {
   unit?: string;
   advanced?: boolean;
   category?: string;
+  /** Hover help (UE ToolTip). */
+  tooltip?: string;
+  /** A display name overriding the key-derived label (UE DisplayName). */
+  label?: string;
 }
 
 const userSchemas = new Map<string, UserComponentSchema>();
@@ -279,6 +283,8 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
       unit: fromDef.unit,
       advanced: fromDef.advanced,
       category: fromDef.category,
+      tooltip: fromDef.tooltip,
+      label: fromDef.label,
     };
   }
   return userSchema(compType)?.fields?.[key] ?? null;
@@ -359,9 +365,12 @@ function fieldFor(
       if (meta.slider && meta.min != null && meta.max != null) field.slider = true;
     }
   }
-  // Presentation policy that applies to any field type (folds + category grouping).
+  // Presentation policy that applies to any field type (folds, category, help text,
+  // and a DisplayName override of the key-derived label).
   if (field && meta?.advanced) field.advanced = true;
   if (field && meta?.category) field.category = meta.category;
+  if (field && meta?.tooltip) field.tooltip = meta.tooltip;
+  if (field && meta?.label) field.label = meta.label;
   return field;
 }
 

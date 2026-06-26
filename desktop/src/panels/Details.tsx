@@ -1160,7 +1160,11 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
             }
       }
     >
-      <span className={`prop-label${isScalar ? ' scrub' : ''}`} {...(isScalar ? labelScrub : {})}>
+      <span
+        className={`prop-label${isScalar ? ' scrub' : ''}`}
+        title={field.tooltip}
+        {...(isScalar ? labelScrub : {})}
+      >
         {field.label}
       </span>
       <div className="prop-value">{control}</div>
