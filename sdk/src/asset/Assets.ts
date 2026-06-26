@@ -5,7 +5,7 @@ import { Catalog, type AtlasFrameInfo } from './Catalog';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
-    TilemapResult, TimelineResult, PrefabResult,
+    TilemapResult, TilesetResult, TimelineResult, PrefabResult,
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
@@ -19,6 +19,7 @@ import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
 import { AnimClipAssetLoader } from './loaders/AnimClipAssetLoader';
 import { TilemapAssetLoader } from './loaders/TilemapAssetLoader';
+import { TilesetAssetLoader } from './loaders/TilesetAssetLoader';
 import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
@@ -255,6 +256,10 @@ export class Assets {
         return this.loadTyped('tilemap', ref);
     }
 
+    async loadTileset(ref: string): Promise<TilesetResult> {
+        return this.loadTyped('tileset', ref);
+    }
+
     async loadTimeline(ref: string): Promise<TimelineResult> {
         return this.loadTyped('timeline', ref);
     }
@@ -389,6 +394,7 @@ export class Assets {
         const animClipPaths = discovered.byType.get('anim-clip') ?? new Set<string>();
         const audioPaths = discovered.byType.get('audio') ?? new Set<string>();
         const tilemapPaths = discovered.byType.get('tilemap') ?? new Set<string>();
+        const tilesetPaths = discovered.byType.get('tileset') ?? new Set<string>();
         const timelinePaths = discovered.byType.get('timeline') ?? new Set<string>();
         const spinePairs = discovered.spines;
 
@@ -453,6 +459,7 @@ export class Assets {
         }
         pushFireAndForget(animClipPaths, p => this.loadAnimClip(p), 'anim-clip');
         pushFireAndForget(tilemapPaths, p => this.loadTilemap(p), 'tilemap');
+        pushFireAndForget(tilesetPaths, p => this.loadTileset(p), 'tileset');
         pushFireAndForget(timelinePaths, p => this.loadTimeline(p), 'timeline');
         pushFireAndForget(audioPaths, p => this.loadAudio(p), 'audio');
 
@@ -767,6 +774,7 @@ export class Assets {
         this.register(new AudioAssetLoader());
         this.register(new AnimClipAssetLoader());
         this.register(new TilemapAssetLoader());
+        this.register(new TilesetAssetLoader());
         this.register(new TimelineAssetLoader());
         this.register(new PrefabAssetLoader());
     }

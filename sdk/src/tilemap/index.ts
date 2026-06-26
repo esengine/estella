@@ -22,6 +22,7 @@ export {
 } from './tilesetResolve';
 export {
     registerTilemapSource, getTilemapSource, clearTilemapSourceCache,
+    registerResolvedTileset, getResolvedTileset, clearResolvedTilesetCache,
     type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,
 } from './tilesetCache';
 export { getTextureDimensions, type TextureDimensions } from '../resourceManager';

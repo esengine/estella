@@ -105,7 +105,7 @@ export class MissingAssetsError extends Error {
 // Asset Field Types
 // =============================================================================
 
-export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'timeline';
+export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'tileset' | 'timeline';
 
 // =============================================================================
 // Component Query Helpers (read from self-describing ComponentDef)

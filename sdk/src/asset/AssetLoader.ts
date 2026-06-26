@@ -41,6 +41,11 @@ export interface TilemapResult {
     sourceId: string;
 }
 
+export interface TilesetResult {
+    /** The `.estileset` path the resolved tileset is cached under. */
+    tilesetId: string;
+}
+
 export interface TimelineResult {
     timelineId: string;
 }
