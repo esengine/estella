@@ -2,6 +2,7 @@
 #include <doctest.h>
 
 #include <esengine/tilemap/TilemapSystem.hpp>
+#include <esengine/tilemap/TileFlip.hpp>
 
 using namespace esengine;
 using namespace esengine::tilemap;
@@ -190,5 +191,56 @@ TEST_CASE("tilemap_compute_visible_range") {
         CHECK_EQ(r.min_y, 0);
         CHECK_EQ(r.max_x, 3);
         CHECK_EQ(r.max_y, 3);
+    }
+}
+
+TEST_CASE("tilemap_tile_flip_uv") {
+    // Screen corners as normalized (s,t): BL(0,0) BR(1,0) TR(1,1) TL(0,1).
+    // applyTileFlip maps them to the texture coord to sample. Verify each of the
+    // 8 Tiled orientations — diagonal (transpose) applied before H and V.
+    auto uv = [](float s, float t, bool h, bool v, bool d) {
+        applyTileFlip(s, t, h, v, d);
+        return std::pair<float, float>{s, t};
+    };
+    using P = std::pair<float, float>;
+
+    SUBCASE("identity") {
+        CHECK(uv(0,0, false,false,false) == P{0,0});
+        CHECK(uv(1,0, false,false,false) == P{1,0});
+        CHECK(uv(1,1, false,false,false) == P{1,1});
+        CHECK(uv(0,1, false,false,false) == P{0,1});
+    }
+    SUBCASE("flipH mirrors horizontally") {
+        CHECK(uv(0,0, true,false,false) == P{1,0});
+        CHECK(uv(1,0, true,false,false) == P{0,0});
+        CHECK(uv(1,1, true,false,false) == P{0,1});
+        CHECK(uv(0,1, true,false,false) == P{1,1});
+    }
+    SUBCASE("flipV mirrors vertically") {
+        CHECK(uv(0,0, false,true,false) == P{0,1});
+        CHECK(uv(1,1, false,true,false) == P{1,0});
+    }
+    SUBCASE("flipD transposes (BR<->TL texels)") {
+        CHECK(uv(0,0, false,false,true) == P{0,0});
+        CHECK(uv(1,0, false,false,true) == P{0,1});
+        CHECK(uv(1,1, false,false,true) == P{1,1});
+        CHECK(uv(0,1, false,false,true) == P{1,0});
+    }
+    SUBCASE("90 CW = flipH|flipD") {
+        // top texture edge (texTL/texTR) must land on the screen's right edge.
+        CHECK(uv(0,0, true,false,true) == P{1,0});  // BL -> texBR
+        CHECK(uv(1,0, true,false,true) == P{1,1});  // BR -> texTR
+        CHECK(uv(1,1, true,false,true) == P{0,1});  // TR -> texTL
+        CHECK(uv(0,1, true,false,true) == P{0,0});  // TL -> texBL
+    }
+    SUBCASE("270 CW = flipV|flipD") {
+        CHECK(uv(0,0, false,true,true) == P{0,1});  // BL -> texTL
+        CHECK(uv(1,0, false,true,true) == P{0,0});  // BR -> texBL
+        CHECK(uv(1,1, false,true,true) == P{1,0});  // TR -> texBR
+        CHECK(uv(0,1, false,true,true) == P{1,1});  // TL -> texTR
+    }
+    SUBCASE("180 = flipH|flipV (point reflection)") {
+        CHECK(uv(0,0, true,true,false) == P{1,1});
+        CHECK(uv(1,1, true,true,false) == P{0,0});
     }
 }

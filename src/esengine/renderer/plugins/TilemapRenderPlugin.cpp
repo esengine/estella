@@ -4,6 +4,7 @@
 #include "../BatchBuilder.hpp"
 
 #include "../../tilemap/TilemapSystem.hpp"
+#include "../../tilemap/TileFlip.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/TilemapLayer.hpp"
 #include "../RenderFrame.hpp"
@@ -54,6 +55,7 @@ void TilemapRenderPlugin::rebuildChunk(
 
             bool flipH = (rawTile & tilemap::TILE_FLIP_H) != 0;
             bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
+            bool flipD = (rawTile & tilemap::TILE_FLIP_D) != 0;
 
             u32 tileIndex = tileId - 1;
             u32 tileCol = tileIndex % tilesetColumns;
@@ -72,19 +74,31 @@ void TilemapRenderPlugin::rebuildChunk(
                 worldY = originY - static_cast<f32>(ty) * layer.tile_height - hh;
             }
 
-            f32 u0 = static_cast<f32>(tileCol) * uvTileW;
-            f32 v0 = 1.0f - static_cast<f32>(tileRow + 1) * uvTileH;
-            f32 su = uvTileW;
-            f32 sv = uvTileH;
+            // Base tile UV rect (GL v increases upward, so vBottom < vTop).
+            f32 uMin = static_cast<f32>(tileCol) * uvTileW;
+            f32 uMax = uMin + uvTileW;
+            f32 vBottom = 1.0f - static_cast<f32>(tileRow + 1) * uvTileH;
+            f32 vTop = vBottom + uvTileH;
 
-            if (flipH) { u0 += uvTileW; su = -su; }
-            if (flipV) { v0 += uvTileH; sv = -sv; }
+            // Map a corner's normalized (s,t) in {0,1}^2 to its texture UV, applying
+            // the tile flip flags. Tiled order — diagonal (transpose) first, then H,
+            // then V — so the standard 90°/270° combos (H|D, V|D) come out as true
+            // rotations. H/V-only reduce to the previous behavior exactly.
+            auto cornerUV = [&](f32 s, f32 t) -> glm::vec2 {
+                tilemap::applyTileFlip(s, t, flipH, flipV, flipD);
+                return glm::vec2{ uMin + s * (uMax - uMin), vBottom + t * (vTop - vBottom) };
+            };
+
+            glm::vec2 bl = cornerUV(0.0f, 0.0f);
+            glm::vec2 br = cornerUV(1.0f, 0.0f);
+            glm::vec2 tr = cornerUV(1.0f, 1.0f);
+            glm::vec2 tl = cornerUV(0.0f, 1.0f);
 
             u32 baseVertex = static_cast<u32>(cache.vertices.size());
-            cache.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {u0, v0} });
-            cache.vertices.push_back({ {worldX + hw, worldY - hh}, packedColor, {u0 + su, v0} });
-            cache.vertices.push_back({ {worldX + hw, worldY + hh}, packedColor, {u0 + su, v0 + sv} });
-            cache.vertices.push_back({ {worldX - hw, worldY + hh}, packedColor, {u0, v0 + sv} });
+            cache.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {bl.x, bl.y} });
+            cache.vertices.push_back({ {worldX + hw, worldY - hh}, packedColor, {br.x, br.y} });
+            cache.vertices.push_back({ {worldX + hw, worldY + hh}, packedColor, {tr.x, tr.y} });
+            cache.vertices.push_back({ {worldX - hw, worldY + hh}, packedColor, {tl.x, tl.y} });
 
             for (u32 i = 0; i < 6; ++i) {
                 cache.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
