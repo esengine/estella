@@ -41,7 +41,15 @@ void tilemap_initLayer(u32 entity, u32 width, u32 height,
 void tilemap_initInfinite(u32 entity, f32 tileWidth, f32 tileHeight) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    if (getTilemapSystem().hasLayer(e)) return;
+    // Idempotent for the chunk store, but always reconcile the tile size: the scene
+    // loader's importChunks auto-creates the layer with a placeholder size before the
+    // sync knows the component's cellSize, and the renderer derives UVs from tile_width.
+    if (auto* layer = getTilemapSystem().getLayerDataMut(e)) {
+        layer->tile_width = tileWidth;
+        layer->tile_height = tileHeight;
+        layer->infinite = true;
+        return;
+    }
     getTilemapSystem().initInfiniteLayer(e, tileWidth, tileHeight);
 }
 
