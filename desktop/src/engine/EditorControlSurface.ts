@@ -31,6 +31,7 @@ import type { SceneQueryImpl } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
 import type { EditorHistoryImpl } from './EditorHistory';
 import type { ReconcilerImpl } from './Reconciler';
+import type { SelectionStore } from '@/store/selectionStore';
 
 /** A captured viewport frame: raw RGBA pixels (GL order: bottom-up rows). */
 export interface ViewportCapture {
@@ -46,6 +47,7 @@ export interface SurfaceSession {
   commands: SceneCommandsImpl;
   query: SceneQueryImpl;
   reconciler: ReconcilerImpl;
+  selection: SelectionStore;
 }
 
 export class EditorControlSurfaceImpl {
@@ -227,6 +229,33 @@ export class EditorControlSurfaceImpl {
   /** The lossless JSON-first scene truth (deep clone), or null if none loaded. */
   serializeScene(): SceneData | null {
     return this.s.model.serialize();
+  }
+
+  // =========================================================================
+  // Selection — the active entity(s). Stable source ids, self-healing on
+  // removal (the store drops a despawned id). The canonical select primitive
+  // for the headless host + MCP ("select, then inspect / modify").
+  // =========================================================================
+
+  /** The primary selected entity (drives Details + gizmo), or null. */
+  getSelection(): EntityId | null {
+    return this.s.selection.getState().selectedId;
+  }
+  /** The full multi-selection, primary last is not guaranteed; use getSelection() for the active one. */
+  getSelectionIds(): EntityId[] {
+    return [...this.s.selection.getState().selectedIds];
+  }
+  /** Replace the selection with one entity, or clear it with null. */
+  select(id: EntityId | null): void {
+    this.s.selection.getState().select(id);
+  }
+  /** Replace the selection with a set + a primary (box / shift-select). */
+  selectMany(ids: EntityId[], primary: EntityId): void {
+    this.s.selection.getState().selectMany(ids, primary);
+  }
+  /** Subscribe to selection changes. Returns an unsubscribe. */
+  subscribeSelection(fn: () => void): () => void {
+    return this.s.selection.subscribe(fn);
   }
 
   // =========================================================================

@@ -125,4 +125,30 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     S.surface.undo();
     expect(S.model.entityOrder()).toEqual([a, b]);
   });
+
+  it('selection — select / multi / clear, and self-heals when the selected entity is deleted', () => {
+    const a = S.surface.addEntity()!;
+    const b = S.surface.addEntity()!;
+    S.surface.select(a);
+    expect(S.surface.getSelection()).toBe(a);
+    S.surface.selectMany([a, b], b);
+    expect(S.surface.getSelection()).toBe(b);
+    expect([...S.surface.getSelectionIds()].sort((x, y) => x - y)).toEqual([a, b].sort((x, y) => x - y));
+    S.surface.deleteEntity(b); // the model drops b from the selection
+    expect(S.surface.getSelection()).not.toBe(b);
+    S.surface.select(null);
+    expect(S.surface.getSelection()).toBeNull();
+  });
+
+  it('subscribeSelection fires on change and stops after unsubscribe', () => {
+    const a = S.surface.addEntity()!;
+    let n = 0;
+    const off = S.surface.subscribeSelection(() => { n++; });
+    S.surface.select(a);
+    expect(n).toBeGreaterThan(0);
+    off();
+    const before = n;
+    S.surface.select(null);
+    expect(n).toBe(before);
+  });
 });
