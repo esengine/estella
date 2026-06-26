@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { StatsCollector, defaultFrameStats, Stats, StatsPlugin, statsPlugin, FrameHistory, type FrameStats } from '../src/stats';

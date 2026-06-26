@@ -1,12 +1,15 @@
 Estella / ESEngine
-Copyright (c) 2024-present ESEngine Team. All rights reserved.
+Copyright (c) 2024-present ESEngine Team
 
-This software is licensed under the PolyForm Noncommercial License 1.0.0.
-See the LICENSE file for the full terms.
+This product is licensed under the Apache License, Version 2.0 (the "License");
+you may not use this product except in compliance with the License. A copy of
+the License is provided in the LICENSE file, and the original is available at
+<http://www.apache.org/licenses/LICENSE-2.0>.
 
-Noncommercial use is permitted under that license. COMMERCIAL USE REQUIRES A
-SEPARATE COMMERCIAL LICENSE from the copyright holder. To obtain one, contact
-the ESEngine Team at 359807859@qq.com.
+Estella is free for any use, including commercial use. There is no separate
+commercial license and no noncommercial restriction. See BUSINESS_MODEL.md for
+how the project is funded and what (optional, separately licensed) hosted and
+"pro" add-ons exist alongside the open-source engine.
 
 ================================================================================
 Third-Party Components
@@ -14,8 +17,8 @@ Third-Party Components
 
 This product bundles third-party components under their own licenses. Those
 licenses apply only to the corresponding component, not to Estella as a whole,
-and Estella's PolyForm Noncommercial License does not extend to them. Each
-component's full license text is included in its directory under third_party/.
+and Estella's Apache-2.0 license does not extend to them. Each component's full
+license text is included in its directory under third_party/.
 
   Component            Location                          License
   -------------------  --------------------------------  ------------------------
@@ -31,10 +34,13 @@ component's full license text is included in its directory under third_party/.
   Yoga                 third_party/yoga                  MIT
   Spine Runtimes       third_party/spine-runtimes-*      Spine Runtimes License
 
-NOTE on the Spine Runtimes: they are NOT open source. Use of the Spine Runtimes
-requires a valid Spine license from Esoteric Software, governed by the Spine
-Runtimes License Agreement (see third_party/spine-runtimes-*/LICENSE). This
-obligation is independent of, and additional to, Estella's own license.
+IMPORTANT — Spine Runtimes are NOT open source. Relicensing Estella to Apache-2.0
+does NOT change this: the Spine Runtimes remain governed by the Spine Runtimes
+License Agreement from Esoteric Software (see third_party/spine-runtimes-*/LICENSE).
+Any use of the Spine integration — including in otherwise-free commercial games —
+requires a valid Spine license obtained directly from Esoteric Software. This
+obligation is independent of, and additional to, Estella's own Apache-2.0 license.
+If you ship without Spine, this obligation does not apply to you.
 
 Where a bundled component does not carry a top-level license file, its license
 header appears in the component's source files.

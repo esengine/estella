@@ -5,7 +5,7 @@
 **A fast 2D game engine powered by WebAssembly and ECS**
 
 [![CI](https://github.com/esengine/estella/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/estella/actions/workflows/build.yml)
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
@@ -98,8 +98,22 @@ We welcome contributions! Please read the [Contributing Guide](CONTRIBUTING.md) 
 
 ## License
 
-Estella is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Estella is licensed under the [Apache License, Version 2.0](LICENSE).
 
-You may use, modify, and share it **for any noncommercial purpose**. **Commercial use
-is not permitted** under this license — to use Estella commercially, obtain a separate
-commercial license from the copyright holder (see [LICENSE](LICENSE) for contact).
+You may use, modify, and distribute it **for any purpose, including commercial use**,
+free of charge. There is no separate commercial license and no noncommercial
+restriction. We follow [Semantic Versioning](VERSIONING.md) and keep a
+[CHANGELOG](CHANGELOG.md).
+
+Two things to keep in mind:
+
+- **Trademarks.** Apache-2.0 grants rights to the code, not to the "Estella" /
+  "ESEngine" names or logos. You may state that your project uses Estella, but
+  please don't imply endorsement or ship a fork under the Estella name.
+- **Spine is separate.** The bundled [Spine Runtimes](third_party) are **not** open
+  source. If you ship a game that uses Estella's Spine integration, you need a valid
+  Spine license from Esoteric Software — independent of Estella's Apache-2.0 license.
+  See [NOTICE](NOTICE).
+
+How the project sustains itself (sponsorship, optional hosted/pro add-ons,
+marketplace, and support) is described openly in [BUSINESS_MODEL.md](BUSINESS_MODEL.md).

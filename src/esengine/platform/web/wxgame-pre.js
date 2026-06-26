@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Emscripten extern-pre-js for WeChat MiniGame
 // Provides minimal browser globals that -sENVIRONMENT=web assumes exist.

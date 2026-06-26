@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Content Drawer — the Content Browser slides up over the workspace as a quick
 // overlay (Ctrl+Space), on top of the docked Content Browser tab. Dismisses on

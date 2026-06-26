@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Top menu bar — functional dropdowns wired to the real editor commands
 // (project open/save, history, entity ops, view toggles), in a classic menu idiom.

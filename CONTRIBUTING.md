@@ -150,15 +150,22 @@ For feature requests, describe the use case and the desired behavior.
 
 ## License
 
-Estella is distributed under the [PolyForm Noncommercial License 1.0.0](LICENSE),
-and the copyright holder also offers it under separate commercial licenses.
+Estella is distributed under the [Apache License, Version 2.0](LICENSE).
 
-By submitting a contribution, you agree that:
+Contributions follow the standard **inbound = outbound** model: unless you state
+otherwise in writing, any contribution you intentionally submit for inclusion in
+Estella is provided under the same Apache License, Version 2.0 that covers the
+project (see Apache-2.0 §5). You retain copyright in your contribution.
 
-1. You own, or otherwise have the right to submit, your contribution.
-2. Your contribution is licensed to the project and its users under the same
-   [PolyForm Noncommercial License 1.0.0](LICENSE) that covers the project.
-3. You additionally grant the copyright holder (ESEngine Team) a perpetual,
-   worldwide, irrevocable, royalty-free right to relicense your contribution
-   under other terms, including commercial licenses, so that the project can be
-   offered commercially. You retain copyright in your contribution.
+By submitting a contribution, you confirm that:
+
+1. You own, or otherwise have the right to submit, your contribution, and you
+   license it to the project and its users under Apache-2.0.
+2. To the extent your contribution is covered by patents you can license, you
+   grant the patent license described in Apache-2.0 §3.
+3. If your contribution includes third-party code, you identify it and its license
+   so it can be attributed correctly in [NOTICE](NOTICE).
+
+There is **no** separate Contributor License Agreement and **no** relicensing
+grant. The project is permissively licensed, so the copyright holder neither needs
+nor asks for the right to relicense your work under other terms.

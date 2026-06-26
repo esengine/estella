@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, AnimClipResult } from '../AssetLoader';
 import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from '../../animation/AnimClipLoader';

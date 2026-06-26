@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #define CUTE_TILED_NO_EXTERNAL_TILESET_WARNING
 #define CUTE_TILED_IMPLEMENTATION

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    Shader.cpp
@@ -11,7 +11,7 @@
  * @date    2025
  *
  * @copyright Copyright (c) 2025 ESEngine Team
- *            Licensed under the PolyForm Noncommercial License 1.0.0.
+ *            Licensed under the Apache License, Version 2.0.
  */
 
 #include "Shader.hpp"
