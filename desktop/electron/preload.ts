@@ -18,6 +18,20 @@ const api = {
   // Surfaces engine lifecycle in the main-process log (useful for headless checks).
   reportEngineStatus: (status: string): void => ipcRenderer.send('engine:status', status),
 
+  // — App lifecycle: the unsaved-changes quit guard. The renderer pushes its dirty
+  // state so main can prompt (Save / Don't Save / Cancel) on window close; on Save
+  // main asks the renderer to save, which confirms back when done. —
+  app: {
+    setDirty: (dirty: boolean): void => ipcRenderer.send('app:dirty', dirty),
+    /** Run `cb` (save the scene) when main requests a save-before-quit, then signal done. */
+    onSaveBeforeQuit: (cb: () => Promise<void> | void): void => {
+      ipcRenderer.removeAllListeners('app:saveBeforeQuit');
+      ipcRenderer.on('app:saveBeforeQuit', () => {
+        void Promise.resolve(cb()).finally(() => ipcRenderer.send('app:quitConfirmed'));
+      });
+    },
+  },
+
   // — Project / workspace (RC12 §E7) —
   project: {
     /** Show a directory picker and open the chosen Estella project (null if cancelled). */

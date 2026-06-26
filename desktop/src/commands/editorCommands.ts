@@ -10,6 +10,7 @@
  */
 import { commands } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscard } from '@/project/discardGuard';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
@@ -31,8 +32,7 @@ commands.register({
   keybinding: 'mod+n',
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: () => {
-    // Discard guard: history is the editor's unsaved-changes proxy (no dirty flag).
-    if (EditorHistory.canUndo() && !window.confirm('New scene? Unsaved changes will be lost.')) return;
+    if (!confirmDiscard('Creating a new scene will discard them')) return;
     void ProjectStore.newScene().then(() => sel().select(null));
   },
 });
@@ -48,7 +48,12 @@ commands.register({
   label: 'Save Scene',
   category: 'File',
   keybinding: 'mod+s',
-  isEnabled: () => !!ProjectStore.getSnapshot(),
+  // Enabled while there are unsaved edits, or the scene is untitled (Save → Save As
+  // to give it a path on disk for the first time).
+  isEnabled: () => {
+    const p = ProjectStore.getSnapshot();
+    return !!p && (EditorHistory.isDirty() || !p.currentScene);
+  },
   run: () => void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog()),
 });
 commands.register({
@@ -71,7 +76,10 @@ commands.register({
   label: 'Close Project',
   category: 'File',
   isEnabled: () => !!ProjectStore.getSnapshot(),
-  run: () => editor().openLauncher(),
+  run: () => {
+    if (!confirmDiscard('Closing the project will discard them')) return;
+    editor().openLauncher();
+  },
 });
 
 // — Edit / history —

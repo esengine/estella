@@ -9,7 +9,7 @@
  */
 import type { AssetType } from '@/types';
 import { ProjectStore } from './ProjectStore';
-import { EditorHistory } from '@/engine/EditorHistory';
+import { confirmDiscard } from './discardGuard';
 import { openAnimationClip } from '@/timeline/openClip';
 import { openTileset } from '@/tileset/openTileset';
 import { openMaterial } from '@/material/openMaterial';
@@ -18,8 +18,7 @@ import { openMaterialGraph } from '@/material/openMaterialGraph';
 /** Open action per asset type; types absent here aren't double-click-openable. */
 export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void>> = {
   scene: (path, name) => {
-    // History is cleared on open, so canUndo ≈ "edited this session" — warn first.
-    if (EditorHistory.canUndo() && !window.confirm(`Open ${name}? Unsaved changes will be lost.`)) return;
+    if (!confirmDiscard(`Opening ${name} will discard them`)) return;
     void ProjectStore.openScene(path);
   },
   animation: (path) => void openAnimationClip(path),

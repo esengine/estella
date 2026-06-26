@@ -42,6 +42,7 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import type { SceneData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscard } from '@/project/discardGuard';
 import { MaterialDocument } from '@/material/MaterialDocument';
 import {
   isMaterialAsset,
@@ -1509,7 +1510,13 @@ function AssetInspector({ path }: { path: string }) {
       </div>
       <div className="cb-act">
         {type === 'scene' && (
-          <button type="button" className="primary" onClick={() => void ProjectStore.openScene(path)}>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              if (confirmDiscard(`Opening ${baseName(path)} will discard them`)) void ProjectStore.openScene(path);
+            }}
+          >
             <FolderOpen size={13} strokeWidth={1.85} /> Open Scene
           </button>
         )}

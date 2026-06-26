@@ -777,6 +777,7 @@ class ProjectStoreImpl {
     if (!st || !st.currentScene) throw new Error('no scene to save');
     await this.writeScene(st.currentScene, await this.serializeCurrent());
     await this.persistLastScene(st.currentScene);
+    EditorHistory.markSaved();
     Toasts.push(`Saved ${st.currentScene.split('/').pop()}`, 'success');
   }
 
@@ -785,6 +786,7 @@ class ProjectStoreImpl {
     if (!this.state) throw new Error('no project open');
     await this.writeScene(relPath, await this.serializeCurrent());
     await this.persistLastScene(relPath);
+    EditorHistory.markSaved();
     Toasts.push(`Saved ${relPath.split('/').pop()}`, 'success');
   }
 

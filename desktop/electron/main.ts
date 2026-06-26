@@ -152,7 +152,34 @@ function createWindow() {
     // a real origin. handleApp serves dist/.
     win.loadURL(`${APP_ORIGIN}/index.html`);
   }
+
+  // Unsaved-changes quit guard: prompt before closing a window with a dirty scene.
+  // `sceneDirty` is pushed from the renderer (app:dirty); `quitting` lets the chosen
+  // action close past this handler.
+  win.on('close', (e) => {
+    if (quitting || !sceneDirty || !win) return;
+    e.preventDefault();
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      message: 'Save changes before closing?',
+      detail: 'Your scene has unsaved changes that will be lost otherwise.',
+    });
+    if (choice === 2) return; // Cancel → keep the window open
+    if (choice === 1) { quitting = true; win.destroy(); return; } // Don't Save
+    // Save → ask the renderer to write the scene, then close when it confirms.
+    ipcMain.once('app:quitConfirmed', () => { quitting = true; win?.destroy(); });
+    win.webContents.send('app:saveBeforeQuit');
+  });
 }
+
+// The renderer's current unsaved-changes state, mirrored for the close guard above.
+let sceneDirty = false;
+// Set once the user has chosen to close (Save/Don't Save), so win.destroy() is allowed through.
+let quitting = false;
+ipcMain.on('app:dirty', (_e, dirty: boolean) => { sceneDirty = !!dirty; });
 
 // — Minimal IPC surface (expanded as the editor grows) —
 ipcMain.handle('app:version', () => app.getVersion());

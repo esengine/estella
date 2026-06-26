@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
+import { EditorHistory } from '@/engine/EditorHistory';
 import { Toasts } from '@/store/Toasts';
 import { MenuItems, type MenuItem } from '@/components/Menu';
 import { commands, formatKeybinding } from '@/commands';
@@ -39,6 +40,8 @@ export function MenuBar() {
   // are rebuilt from the command registry each time a menu opens (a re-render),
   // so their enabled / checked state reads fresh from the domain stores then.
   const project = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
+  // Unsaved-changes star next to the scene name (UE's modified-document indicator).
+  const dirty = useSyncExternalStore(EditorHistory.subscribe, EditorHistory.isDirty);
 
   // Build a menu item from a registered command — one source for label, shortcut
   // hint, action, enablement, and checked state.
@@ -182,7 +185,13 @@ export function MenuBar() {
               <span className="sep">/</span>
               <span className="mono">{project.currentScene.split('/').pop()}</span>
             </>
-          ) : null}
+          ) : (
+            <>
+              <span className="sep">/</span>
+              <span className="mono">untitled</span>
+            </>
+          )}
+          {dirty && <span className="dirty" title="Unsaved changes">●</span>}
         </div>
       ) : null}
     </div>

@@ -41,6 +41,7 @@
 .menubar-title { font-size: var(--fs-xs); color: var(--text-mute); display: flex; align-items: center; gap: 6px; padding-right: 12px; }
 .menubar-title strong { color: var(--text-dim); font-weight: 600; }
 .menubar-title .sep { opacity: 0.5; }
+.menubar-title .dirty { color: var(--sel); font-size: 0.7em; line-height: 1; margin-left: -2px; }
 
 /* ── Toolbar (modes left · play center · actions right) ── */
 .toolbar {

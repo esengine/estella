@@ -19,6 +19,7 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import { TimelinePreview } from '@/engine/TimelinePreview';
 import { TimelineRecorder } from '@/timeline/TimelineRecorder';
 import { ProjectStore } from '@/project/ProjectStore';
+import { EditorHistory } from '@/engine/EditorHistory';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
 
@@ -55,6 +56,24 @@ export function App() {
   useEffect(() => {
     TimelinePreview.attach();
     TimelineRecorder.attach();
+  }, []);
+
+  // Mirror unsaved-changes state to main for the window-close quit guard, and run
+  // the save when main requests a save-before-quit.
+  useEffect(() => {
+    const bridge = window.estella?.app;
+    if (!bridge) return;
+    const push = () => bridge.setDirty(EditorHistory.isDirty());
+    push();
+    const unsub = EditorHistory.subscribe(push);
+    bridge.onSaveBeforeQuit(async () => {
+      try {
+        await ProjectStore.save();
+      } catch {
+        await ProjectStore.saveAsViaDialog();
+      }
+    });
+    return unsub;
   }, []);
 
   // Play runs in an ISOLATED realm (the Game panel's iframe = the shipping
