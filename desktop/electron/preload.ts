@@ -86,6 +86,8 @@ const api = {
     write: (relPath: string, contents: string): Promise<void> =>
       ipcRenderer.invoke('fs:write', relPath, contents),
     readDir: (relPath: string): Promise<DirEntry[]> => ipcRenderer.invoke('fs:readdir', relPath),
+    /** Project-relative paths of every browsable file under `relDir`, recursively. */
+    listFiles: (relDir: string): Promise<string[]> => ipcRenderer.invoke('fs:listFiles', relDir),
     /** Rename / move; a file's `.meta` sidecar travels with it (identity stable). */
     rename: (fromRel: string, toRel: string): Promise<void> =>
       ipcRenderer.invoke('fs:rename', fromRel, toRel),

@@ -156,6 +156,14 @@ function AssetTipCard({ path, entry }: { path: string; entry: DirEntry }) {
 }
 
 const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name);
+
+// A browser row: an entry plus its full project-relative path. Folder-view rows
+// derive the path from cwd; recursive-search rows carry their own (cross-folder) path.
+interface Row {
+  path: string;
+  name: string;
+  isDir: boolean;
+}
 const parentOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
 
 // Folder navigation with a back/forward history (the breadcrumb nav arrows).
@@ -266,9 +274,37 @@ export function ContentBrowser() {
   // Search supports `type:`/`t:` tokens + free text; the type chips add to the
   // token constraint; sort is folders-first, then by name or type.
   const parsed = useMemo(() => parseAssetQuery(query), [query]);
+  // With a non-empty query, search the whole cwd subtree (flat, project-wide-style);
+  // otherwise list just the current folder. The recursive file list is fetched
+  // main-side and refreshed on fs mutations (same signal useDir rides).
+  const searching = q.length > 0;
+  const fsVersion = useSyncExternalStore(fsRefresh.subscribe, fsRefresh.get);
+  const [allFiles, setAllFiles] = useState<string[]>([]);
+  useEffect(() => {
+    if (!project || !searching) {
+      setAllFiles([]);
+      return;
+    }
+    let alive = true;
+    window.estella.fs
+      .listFiles(cwd)
+      .then((f) => alive && setAllFiles(f))
+      .catch(() => alive && setAllFiles([]));
+    return () => {
+      alive = false;
+    };
+  }, [project, cwd, searching, fsVersion]);
+
+  const rows = useMemo<Row[]>(
+    () =>
+      searching
+        ? allFiles.map((p) => ({ path: p, name: p.split('/').pop() ?? p, isDir: false }))
+        : entries.map((e) => ({ path: join(cwd, e.name), name: e.name, isDir: e.isDir })),
+    [searching, allFiles, entries, cwd],
+  );
   const items = useMemo(
-    () => filterAndSortAssets(entries, parsed, filters as ReadonlySet<string>, sort, assetType),
-    [entries, parsed, filters, sort],
+    () => filterAndSortAssets(rows, parsed, filters as ReadonlySet<string>, sort, assetType),
+    [rows, parsed, filters, sort],
   );
 
   // Double-click: enter folders; otherwise dispatch through the per-type open
@@ -415,6 +451,39 @@ export function ContentBrowser() {
       .then(applyImportResult)
       .catch((err) => Toasts.push(`Import failed: ${errMsg(err)}`, 'error'));
   };
+
+  // Move an asset into a folder (drag onto a folder tile / tree node). Rename moves
+  // the `.meta` sidecar too, so uuid refs survive; rejects no-op and self/descendant
+  // moves. Refs are uuid-based, so nothing referencing the asset breaks.
+  const moveAssetToFolder = async (srcPath: string, folderPath: string) => {
+    const name = srcPath.split('/').pop();
+    if (!name) return;
+    const dest = join(folderPath, name);
+    if (dest === srcPath || srcPath === folderPath || folderPath.startsWith(`${srcPath}/`)) return;
+    try {
+      await window.estella.fs.rename(srcPath, dest);
+      refreshFs();
+      if (selected === srcPath) selectAsset(dest);
+    } catch (e) {
+      Toasts.push(`Move failed: ${errMsg(e)}`, 'error');
+    }
+  };
+
+  // Drop-target props for a folder (tile or tree node): accept internal asset drags.
+  const folderDrop = (folderPath: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes('application/x-estella-asset')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    },
+    onDrop: (e: React.DragEvent) => {
+      const src = e.dataTransfer.getData('application/x-estella-asset');
+      if (!src) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void moveAssetToFolder(src, folderPath);
+    },
+  });
 
   // Breadcrumb segments: Project › folder › subfolder, each a jump target.
   const crumbs = useMemo(() => {
@@ -625,16 +694,18 @@ export function ContentBrowser() {
           >
             {view === 'grid' ? (
               <div className="cb-grid" style={{ ['--tile' as string]: `${tileSize}px` } as React.CSSProperties}>
-                {items.map((e) => {
-                  const path = join(cwd, e.name);
-                  const type: AssetType = e.isDir ? 'folder' : assetType(e.name);
-                  const isImg = !e.isDir && IMAGE_RE.test(e.name);
+                {items.map((it) => {
+                  const path = it.path;
+                  const type: AssetType = it.isDir ? 'folder' : assetType(it.name);
+                  const isImg = !it.isDir && IMAGE_RE.test(it.name);
                   return (
                     <div
-                      key={e.name}
-                      className={`asset${e.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}`}
-                      // Files drag onto inspector asset fields / the viewport (assign / instantiate).
-                      {...bindItem(path, e)}
+                      key={path}
+                      className={`asset${it.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}`}
+                      // Files drag onto inspector asset fields / the viewport (assign / instantiate);
+                      // folders are drop targets that move the dragged asset into them.
+                      {...bindItem(path, it)}
+                      {...(it.isDir ? folderDrop(path) : null)}
                     >
                       <div className="th">
                         {isImg ? (
@@ -642,20 +713,20 @@ export function ContentBrowser() {
                         ) : (
                           <AssetIcon type={type} size={30} />
                         )}
-                        {!e.isDir && TYPE_CODE[type] && <span className="badge">{TYPE_CODE[type]}</span>}
+                        {!it.isDir && TYPE_CODE[type] && <span className="badge">{TYPE_CODE[type]}</span>}
                       </div>
                       <div
                         className="nm"
-                        style={e.isDir ? undefined : ({ ['--tc' as string]: assetTint(type) } as React.CSSProperties)}
+                        style={it.isDir ? undefined : ({ ['--tc' as string]: assetTint(type) } as React.CSSProperties)}
                       >
                         {renaming === path ? (
                           <RenameInput
-                            name={e.name}
+                            name={it.name}
                             onCommit={(v) => void commitRename(path, v)}
                             onCancel={() => setRenaming(null)}
                           />
                         ) : (
-                          <span>{e.name}</span>
+                          <span>{it.name}</span>
                         )}
                       </div>
                     </div>
@@ -673,24 +744,29 @@ export function ContentBrowser() {
                   <span>Name</span>
                   <span>Type</span>
                 </div>
-                {items.map((e) => {
-                  const path = join(cwd, e.name);
-                  const type: AssetType = e.isDir ? 'folder' : assetType(e.name);
+                {items.map((it) => {
+                  const path = it.path;
+                  const type: AssetType = it.isDir ? 'folder' : assetType(it.name);
                   return (
-                    <div key={e.name} className={`lr${selected === path ? ' sel' : ''}`} {...bindItem(path, e)}>
+                    <div
+                      key={path}
+                      className={`lr${selected === path ? ' sel' : ''}`}
+                      {...bindItem(path, it)}
+                      {...(it.isDir ? folderDrop(path) : null)}
+                    >
                       <span className="ln">
                         <AssetIcon type={type} size={15} />
                         {renaming === path ? (
                           <RenameInput
-                            name={e.name}
+                            name={it.name}
                             onCommit={(v) => void commitRename(path, v)}
                             onCancel={() => setRenaming(null)}
                           />
                         ) : (
-                          <span className="t">{e.name}</span>
+                          <span className="t">{it.name}</span>
                         )}
                       </span>
-                      <span className="c">{e.isDir ? '' : TYPE_CODE[type] || type}</span>
+                      <span className="c">{it.isDir ? '' : TYPE_CODE[type] || type}</span>
                     </div>
                   );
                 })}

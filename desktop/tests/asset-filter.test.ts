@@ -61,4 +61,13 @@ describe('filterAndSortAssets', () => {
     // material, scene, texture, texture — folders first.
     expect(run('', [], 'type')).toEqual(['afolder', 'zfolder', 'ground.esmat', 'main.esscene', 'hero.png', 'villain.png']);
   });
+
+  it('is generic — preserves extra row fields (e.g. a full path for recursive search)', () => {
+    const rows = [
+      { path: 'a/hero.png', name: 'hero.png', isDir: false },
+      { path: 'b/sub/villain.png', name: 'villain.png', isDir: false },
+    ];
+    const out = filterAndSortAssets(rows, parseAssetQuery('type:texture'), new Set(), 'name', typeOf);
+    expect(out.map((r) => r.path)).toEqual(['a/hero.png', 'b/sub/villain.png']);
+  });
 });

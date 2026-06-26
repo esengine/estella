@@ -7,9 +7,13 @@
  *        order. Kept engine/DOM-free so it unit-tests; the panel just feeds it the
  *        current folder's entries and renders the result.
  */
-import type { DirEntry } from './format';
-
 export type AssetSort = 'name' | 'type';
+
+/** The minimal row shape the filter/sort needs (name + folder flag). */
+export interface AssetRowLike {
+  name: string;
+  isDir: boolean;
+}
 
 export interface ParsedQuery {
   /** Free-text terms joined by spaces (name substring match). */
@@ -38,13 +42,13 @@ const matchesType = (actual: string, constraint: string): boolean =>
  * first, then by name or type). A type constraint (token or chip) is about files,
  * so it hides folders; free text still matches folder names (navigation).
  */
-export function filterAndSortAssets(
-  entries: readonly DirEntry[],
+export function filterAndSortAssets<T extends AssetRowLike>(
+  entries: readonly T[],
   parsed: ParsedQuery,
   chipTypes: ReadonlySet<string>,
   sort: AssetSort,
   typeOf: (name: string) => string,
-): DirEntry[] {
+): T[] {
   const constraints = [...new Set([...chipTypes, ...parsed.types])];
   const hasType = constraints.length > 0;
 

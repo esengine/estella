@@ -11,6 +11,7 @@ import {
   readInRoot,
   writeInRoot,
   readDirInRoot,
+  listFilesInRoot,
   renameInRoot,
   mkdirInRoot,
   duplicateInRoot,
@@ -245,6 +246,7 @@ ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
   writeInRoot(requireRoot(), relPath, contents),
 );
 ipcMain.handle('fs:readdir', (_e, relPath: string) => readDirInRoot(requireRoot(), relPath));
+ipcMain.handle('fs:listFiles', (_e, relDir: string) => listFilesInRoot(requireRoot(), relDir));
 ipcMain.handle('fs:rename', (_e, fromRel: string, toRel: string) =>
   renameInRoot(requireRoot(), fromRel, toRel),
 );

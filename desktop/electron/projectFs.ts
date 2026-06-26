@@ -92,6 +92,25 @@ async function* walkFiles(absDir: string): AsyncGenerator<string> {
   }
 }
 
+// Recursively yield project-relative paths of visible files (skips dot dirs/files —
+// `.esengine`, `.meta` sidecars — that aren't browsable assets).
+async function* walkVisible(absDir: string, root: string): AsyncGenerator<string> {
+  for (const e of await readdir(absDir, { withFileTypes: true })) {
+    if (e.name.startsWith('.')) continue;
+    const p = path.join(absDir, e.name);
+    if (e.isDirectory()) yield* walkVisible(p, root);
+    else if (!e.name.endsWith(META_EXT)) yield toRel(root, p);
+  }
+}
+
+/** Project-relative paths of every browsable file under `relDir`, recursively —
+ *  backs the Content Browser's project-wide (subtree) search. */
+export async function listFilesInRoot(root: string, relDir: string): Promise<string[]> {
+  const out: string[] = [];
+  for await (const rel of walkVisible(resolveInRoot(root, relDir), root)) out.push(rel);
+  return out;
+}
+
 /**
  * Rename / move a file or folder within the project. A file's `.meta` sidecar
  * travels with it so rename preserves asset identity (uuid). Refuses to clobber
