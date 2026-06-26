@@ -21,11 +21,12 @@ void TilemapRenderPlugin::rebuildChunk(
     const tilemap::TilemapSystem::LayerData& layer,
     const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
     f32 originX, f32 originY, u32 packedColor,
-    u32 tilesetColumns, f32 uvTileW, f32 uvTileH,
+    const std::vector<tilemap::TilesetSlot>& slots,
+    const std::vector<ResolvedSlot>& resolved,
     Entity entity, ChunkCache& cache
 ) {
-    cache.vertices.clear();
-    cache.indices.clear();
+    cache.slots.resize(slots.size());
+    for (auto& mesh : cache.slots) { mesh.vertices.clear(); mesh.indices.clear(); }
     cache.has_animated_tiles = false;
 
     i32 baseX = coord.x * static_cast<i32>(tilemap::CHUNK_SIZE);
@@ -53,11 +54,21 @@ void TilemapRenderPlugin::rebuildChunk(
                 tileId = tilemap_system_->resolveAnimatedTile(entity, tileId);
             }
 
+            // Resolve which tileset (slot) this tile belongs to, then its local
+            // index within that tileset. A tile whose tileset texture is missing
+            // is skipped.
+            int slotIndex = tilemap::resolveTilesetSlot(slots, tileId);
+            if (slotIndex < 0 || !resolved[slotIndex].valid) continue;
+            u32 tilesetColumns = slots[slotIndex].columns;
+            if (tilesetColumns == 0) continue;
+            f32 uvTileW = resolved[slotIndex].uvW;
+            f32 uvTileH = resolved[slotIndex].uvH;
+
             bool flipH = (rawTile & tilemap::TILE_FLIP_H) != 0;
             bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
             bool flipD = (rawTile & tilemap::TILE_FLIP_D) != 0;
 
-            u32 tileIndex = tileId - 1;
+            u32 tileIndex = tileId - slots[slotIndex].first_id;
             u32 tileCol = tileIndex % tilesetColumns;
             u32 tileRow = tileIndex / tilesetColumns;
 
@@ -94,14 +105,15 @@ void TilemapRenderPlugin::rebuildChunk(
             glm::vec2 tr = cornerUV(1.0f, 1.0f);
             glm::vec2 tl = cornerUV(0.0f, 1.0f);
 
-            u32 baseVertex = static_cast<u32>(cache.vertices.size());
-            cache.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {bl.x, bl.y} });
-            cache.vertices.push_back({ {worldX + hw, worldY - hh}, packedColor, {br.x, br.y} });
-            cache.vertices.push_back({ {worldX + hw, worldY + hh}, packedColor, {tr.x, tr.y} });
-            cache.vertices.push_back({ {worldX - hw, worldY + hh}, packedColor, {tl.x, tl.y} });
+            SlotMesh& mesh = cache.slots[slotIndex];
+            u32 baseVertex = static_cast<u32>(mesh.vertices.size());
+            mesh.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {bl.x, bl.y} });
+            mesh.vertices.push_back({ {worldX + hw, worldY - hh}, packedColor, {br.x, br.y} });
+            mesh.vertices.push_back({ {worldX + hw, worldY + hh}, packedColor, {tr.x, tr.y} });
+            mesh.vertices.push_back({ {worldX - hw, worldY + hh}, packedColor, {tl.x, tl.y} });
 
             for (u32 i = 0; i < 6; ++i) {
-                cache.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
+                mesh.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
             }
         }
     }
@@ -134,46 +146,62 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         const ecs::TilemapLayer* comp = registry.tryGet<ecs::TilemapLayer>(entity);
 
         bool visible;
-        resource::TextureHandle tilesetHandle;
-        u32 tilesetColumns;
         i32 sortLayer;
         f32 depth;
         glm::vec4 tint;
         f32 opacity;
         glm::vec2 parallax;
+        resource::TextureHandle singleTileset;  // single-tileset fallback source
+        u32 singleColumns;
         if (comp) {
             visible = comp->visible;
-            tilesetHandle = comp->tileset;
-            tilesetColumns = static_cast<u32>(comp->tilesetColumns);
             sortLayer = comp->renderLayer;
             depth = 0.0f;
             tint = comp->tintColor;
             opacity = comp->opacity;
             parallax = comp->parallaxFactor;
+            singleTileset = comp->tileset;
+            singleColumns = static_cast<u32>(comp->tilesetColumns);
         } else {
             visible = layer.visible;
-            tilesetHandle = resource::TextureHandle(layer.texture_handle);
-            tilesetColumns = layer.tileset_columns;
             sortLayer = layer.sort_layer;
             depth = layer.depth;
             tint = layer.tint;
             opacity = layer.opacity;
             parallax = layer.parallax_factor;
+            singleTileset = resource::TextureHandle(layer.texture_handle);
+            singleColumns = layer.tileset_columns;
         }
 
-        if (!visible || !tilesetHandle.isValid() || tilesetColumns == 0) continue;
+        if (!visible) continue;
 
-        auto* texRes = ctx.resources.getTexture(tilesetHandle);
-        if (!texRes) continue;
-        u32 glTextureId = texRes->getId();
+        // The layer's tileset slot list: the multi-tileset table when present
+        // (Tiled imports), else a single slot from the painted/synthetic tileset.
+        std::vector<tilemap::TilesetSlot> slots;
+        if (!layer.tilesets.empty()) {
+            slots = layer.tilesets;
+        } else {
+            if (!singleTileset.isValid() || singleColumns == 0) continue;
+            slots.push_back(tilemap::TilesetSlot{ 1, singleTileset.id(), singleColumns });
+        }
 
-        // UVs derive from tile size / texture size — the single source is the
-        // tile dimensions + the texture, so there is no synced uv copy to drift.
-        f32 texW = static_cast<f32>(texRes->getWidth());
-        f32 texH = static_cast<f32>(texRes->getHeight());
-        if (texW <= 0.0f || texH <= 0.0f) continue;
-        f32 uvTileW = layer.tile_width / texW;
-        f32 uvTileH = layer.tile_height / texH;
+        // Resolve each slot's texture + UV scale (tile size / texture size). Kept
+        // parallel to `slots`; a slot whose texture is missing renders nothing.
+        std::vector<ResolvedSlot> resolved(slots.size());
+        bool anySlotValid = false;
+        for (usize i = 0; i < slots.size(); ++i) {
+            auto* tex = ctx.resources.getTexture(resource::TextureHandle(slots[i].texture_handle));
+            if (!tex) continue;
+            f32 tw = static_cast<f32>(tex->getWidth());
+            f32 th = static_cast<f32>(tex->getHeight());
+            if (tw <= 0.0f || th <= 0.0f) continue;
+            resolved[i].valid = true;
+            resolved[i].glTexId = tex->getId();
+            resolved[i].uvW = layer.tile_width / tw;
+            resolved[i].uvH = layer.tile_height / th;
+            anySlotValid = true;
+        }
+        if (!anySlotValid) continue;
 
         f32 originX = 0, originY = 0;
         Entity transformEntity = (layer.origin_entity != INVALID_ENTITY)
@@ -215,8 +243,9 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
         auto& chunkCaches = layer_caches_[entity];
 
-        vertices_.clear();
-        indices_.clear();
+        // Per-slot merged geometry for this layer (one draw call per slot/texture).
+        std::vector<std::vector<BatchVertex>> slotVertices(slots.size());
+        std::vector<std::vector<u32>> slotIndices(slots.size());
 
         for (i32 cy = minCY; cy < maxCY; ++cy) {
             for (i32 cx = minCX; cx < maxCX; ++cx) {
@@ -227,41 +256,46 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                 const auto& chunkData = chunkIt->second;
                 auto& cache = chunkCaches[coord];
 
-                if (chunkData.revision != cache.built_revision || cache.has_animated_tiles) {
+                if (chunkData.revision != cache.built_revision
+                    || cache.has_animated_tiles
+                    || cache.slots.size() != slots.size()) {
                     rebuildChunk(layer, chunkData, coord,
                                 adjOriginX, adjOriginY, packedColor,
-                                tilesetColumns, uvTileW, uvTileH,
-                                entity, cache);
+                                slots, resolved, entity, cache);
                     cache.built_revision = chunkData.revision;
                 }
 
-                if (cache.indices.empty()) continue;
-
-                u32 baseVertex = static_cast<u32>(vertices_.size());
-                vertices_.insert(vertices_.end(), cache.vertices.begin(), cache.vertices.end());
-                for (u32 idx : cache.indices) {
-                    indices_.push_back(baseVertex + idx);
+                for (usize si = 0; si < slots.size() && si < cache.slots.size(); ++si) {
+                    const SlotMesh& mesh = cache.slots[si];
+                    if (mesh.indices.empty()) continue;
+                    u32 baseVertex = static_cast<u32>(slotVertices[si].size());
+                    slotVertices[si].insert(slotVertices[si].end(),
+                                            mesh.vertices.begin(), mesh.vertices.end());
+                    for (u32 idx : mesh.indices) {
+                        slotIndices[si].push_back(baseVertex + idx);
+                    }
                 }
             }
         }
 
-        if (indices_.empty()) continue;
-
-        // indices_ are 0-based within the merged vertices_; appendIndexedBatch rebases them
-        // onto the pool's baseVertex and assembles the command.
-        appendIndexedBatch(buffers, draw_list, clips,
-            vertices_.data(), static_cast<u32>(vertices_.size()),
-            indices_.data(), static_cast<u32>(indices_.size()),
-            BatchDrawKey{
-                .stage = ctx.current_stage,
-                .layer = sortLayer,
-                .shaderId = batch_shader_id_,
-                .blend = BlendMode::Normal,
-                .textureId = glTextureId,
-                .depth = depth,
-                .entity = entity,
-                .type = RenderType::Sprite,
-            });
+        // Emit one batch per tileset slot that produced geometry. Indices are
+        // 0-based within each slot's merged vertices; appendIndexedBatch rebases them.
+        for (usize si = 0; si < slots.size(); ++si) {
+            if (!resolved[si].valid || slotIndices[si].empty()) continue;
+            appendIndexedBatch(buffers, draw_list, clips,
+                slotVertices[si].data(), static_cast<u32>(slotVertices[si].size()),
+                slotIndices[si].data(), static_cast<u32>(slotIndices[si].size()),
+                BatchDrawKey{
+                    .stage = ctx.current_stage,
+                    .layer = sortLayer,
+                    .shaderId = batch_shader_id_,
+                    .blend = BlendMode::Normal,
+                    .textureId = resolved[si].glTexId,
+                    .depth = depth,
+                    .entity = entity,
+                    .type = RenderType::Sprite,
+                });
+        }
     }
 
     for (auto it = layer_caches_.begin(); it != layer_caches_.end(); ) {

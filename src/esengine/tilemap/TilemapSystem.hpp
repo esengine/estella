@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "TilesetTable.hpp"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -106,10 +107,17 @@ public:
         f32 tile_width = 0;
         f32 tile_height = 0;
 
+        // Single-tileset fields (kept for painted layers / the single-tileset
+        // fallback). Multi-tileset layers (e.g. Tiled imports) instead populate
+        // `tilesets` below; when it is non-empty the renderer uses it and these
+        // are ignored.
         u32 texture_handle = 0;
         u32 tileset_columns = 1;
         f32 uv_tile_width = 0;
         f32 uv_tile_height = 0;
+
+        // Multi-tileset table (sorted by first_id). Empty = single-tileset layer.
+        std::vector<TilesetSlot> tilesets;
         i32 sort_layer = 0;
         f32 depth = 0;
         glm::vec4 tint{1.0f, 1.0f, 1.0f, 1.0f};
@@ -140,6 +148,10 @@ public:
                         f32 uvTileW, f32 uvTileH,
                         i32 sortLayer, f32 depth,
                         f32 parallaxX, f32 parallaxY);
+
+    // Replace the layer's multi-tileset table (sorted ascending by first_id).
+    // Passing an empty table reverts the layer to the single-tileset fields.
+    void setTilesets(Entity entity, std::vector<TilesetSlot> slots);
     void setTint(Entity entity, f32 r, f32 g, f32 b, f32 a, f32 opacity);
     void setVisible(Entity entity, bool visible);
     void setOriginEntity(Entity layerKey, Entity originEntity);

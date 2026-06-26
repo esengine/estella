@@ -77,6 +77,24 @@ void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
     getTilemapSystem().setTiles(e, tiles, count);
 }
 
+// Multi-tileset table: `count` slots, each 3 packed u32 [first_id, textureHandle,
+// columns]. Empty table reverts the layer to its single tileset.
+void tilemap_setTilesets(u32 entity, uintptr_t dataPtr, u32 count) {
+    auto e = Entity::fromRaw(entity);
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    const auto* d = reinterpret_cast<const u32*>(dataPtr);
+    std::vector<tilemap::TilesetSlot> slots;
+    slots.reserve(count);
+    for (u32 i = 0; i < count; ++i) {
+        tilemap::TilesetSlot slot;
+        slot.first_id = static_cast<u16>(d[i * 3 + 0]);
+        slot.texture_handle = d[i * 3 + 1];
+        slot.columns = d[i * 3 + 2];
+        slots.push_back(slot);
+    }
+    getTilemapSystem().setTilesets(e, std::move(slots));
+}
+
 bool tilemap_hasLayer(u32 entity) {
     return getTilemapSystem().hasLayer(Entity::fromRaw(entity));
 }
@@ -674,6 +692,7 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tilemap_getTile", &esengine::tilemap_getTile);
     emscripten::function("tilemap_fillRect", &esengine::tilemap_fillRect);
     emscripten::function("tilemap_setTiles", &esengine::tilemap_setTiles);
+    emscripten::function("tilemap_setTilesets", &esengine::tilemap_setTilesets);
     emscripten::function("tilemap_hasLayer", &esengine::tilemap_hasLayer);
     emscripten::function("tilemap_setRenderProps", &esengine::tilemap_setRenderProps);
     emscripten::function("tilemap_setTint", &esengine::tilemap_setTint);

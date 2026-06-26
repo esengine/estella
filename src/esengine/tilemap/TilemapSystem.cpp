@@ -211,6 +211,14 @@ void TilemapSystem::setRenderProps(Entity entity, u32 textureHandle, u32 tileset
     layer->parallax_factor = {parallaxX, parallaxY};
 }
 
+void TilemapSystem::setTilesets(Entity entity, std::vector<TilesetSlot> slots) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    std::sort(slots.begin(), slots.end(),
+              [](const TilesetSlot& a, const TilesetSlot& b) { return a.first_id < b.first_id; });
+    layer->tilesets = std::move(slots);
+}
+
 void TilemapSystem::setTint(Entity entity, f32 r, f32 g, f32 b, f32 a, f32 opacity) {
     auto* layer = getLayerDataMut(entity);
     if (!layer) return;

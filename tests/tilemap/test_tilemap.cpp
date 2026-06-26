@@ -244,3 +244,31 @@ TEST_CASE("tilemap_tile_flip_uv") {
         CHECK(uv(1,1, true,true,false) == P{0,0});
     }
 }
+
+TEST_CASE("tilemap_resolve_tileset_slot") {
+    // A tile id resolves to the slot with the largest first_id <= id. Slots are
+    // sorted ascending; -1 means no owning tileset.
+    SUBCASE("empty table") {
+        std::vector<TilesetSlot> slots;
+        CHECK_EQ(resolveTilesetSlot(slots, 1), -1);
+    }
+    SUBCASE("single tileset starting at 1") {
+        std::vector<TilesetSlot> slots{ {1, 100, 4} };
+        CHECK_EQ(resolveTilesetSlot(slots, 1), 0);
+        CHECK_EQ(resolveTilesetSlot(slots, 4), 0);
+        CHECK_EQ(resolveTilesetSlot(slots, 9999), 0);
+    }
+    SUBCASE("two tilesets — pick by first_id range") {
+        std::vector<TilesetSlot> slots{ {1, 100, 4}, {5, 200, 8} };
+        CHECK_EQ(resolveTilesetSlot(slots, 1), 0);
+        CHECK_EQ(resolveTilesetSlot(slots, 4), 0);
+        CHECK_EQ(resolveTilesetSlot(slots, 5), 1);   // firstgid boundary of tileset 2
+        CHECK_EQ(resolveTilesetSlot(slots, 12), 1);
+    }
+    SUBCASE("three tilesets") {
+        std::vector<TilesetSlot> slots{ {1, 1, 4}, {5, 2, 4}, {9, 3, 4} };
+        CHECK_EQ(resolveTilesetSlot(slots, 7), 1);
+        CHECK_EQ(resolveTilesetSlot(slots, 9), 2);
+        CHECK_EQ(resolveTilesetSlot(slots, 20), 2);
+    }
+}
