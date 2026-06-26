@@ -3,6 +3,7 @@
 import { useSyncExternalStore, useState, useRef, useEffect } from 'react';
 import type { SubsystemStatus } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
+import { PlayRealm } from '@/engine/PlayRealm';
 
 // Status-bar indicator for engine subsystem (module) health. A single dot
 // summarizes the worst state; clicking opens a popover that lists each module
@@ -30,10 +31,29 @@ function overall(list: SubsystemStatus[]): DotKind {
 }
 
 export function SubsystemIndicator() {
-  const subsystems = useSyncExternalStore(
+  const editSubsystems = useSyncExternalStore(
     EngineHost.subscribeSubsystems,
     EngineHost.getSubsystemsSnapshot,
   );
+  // While playing, the real subsystems run in the play realm (iframe) — poll those so
+  // the indicator reflects the running game, not the frozen edit App. One observability
+  // surface across both realms.
+  const play = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
+  const [playSubsystems, setPlaySubsystems] = useState<SubsystemStatus[]>([]);
+  useEffect(() => {
+    if (!play.playing || !play.ready) { setPlaySubsystems([]); return; }
+    let alive = true;
+    const poll = async () => {
+      const s = await PlayRealm.subsystems();
+      if (alive && s) setPlaySubsystems(s);
+    };
+    void poll();
+    const t = setInterval(() => void poll(), 500);
+    return () => { alive = false; clearInterval(t); };
+  }, [play.playing, play.ready]);
+
+  const inPlay = play.playing && playSubsystems.length > 0;
+  const subsystems = inPlay ? playSubsystems : editSubsystems;
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +82,7 @@ export function SubsystemIndicator() {
       </button>
       {open && (
         <div className="mods-pop" role="menu">
-          <h4>Engine Modules</h4>
+          <h4>Engine Modules{inPlay ? ' · Play' : ''}</h4>
           {subsystems.length === 0 ? (
             <div className="mods-empty">Engine not booted</div>
           ) : (

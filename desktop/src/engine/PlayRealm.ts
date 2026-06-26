@@ -12,7 +12,7 @@
  *        touched, so there is nothing to restore.
  */
 import { createStore } from 'zustand/vanilla';
-import type { SceneData, PhysicsPluginConfig } from 'esengine';
+import type { SceneData, PhysicsPluginConfig, SubsystemStatus } from 'esengine';
 
 export interface PlayPayload {
   sceneData: SceneData;
@@ -128,6 +128,18 @@ class PlayRealmImpl {
       setTimeout(() => {
         if (this.pending.delete(reqId)) resolve(null);
       }, 2000);
+    });
+  }
+
+  /** The running game's subsystem (module) health, for the editor's Modules indicator.
+   *  Null if not ready. */
+  subsystems(): Promise<SubsystemStatus[] | null> {
+    if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
+    const reqId = ++this.reqSeq;
+    return new Promise((resolve) => {
+      this.pending.set(reqId, (data) => resolve((data as SubsystemStatus[]) ?? null));
+      this.post({ type: 'estella:play:query', kind: 'subsystems', reqId });
+      setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 2000);
     });
   }
 

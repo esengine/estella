@@ -269,6 +269,9 @@ window.addEventListener('message', (e: MessageEvent) => {
         const phases = app ? Object.fromEntries(app.getPhaseTimings() ?? []) : {};
         const systems = app ? Object.fromEntries(app.getSystemTimings() ?? []) : {};
         post({ type: 'estella:play:reply', reqId: data.reqId, data: { phases, systems } });
+      } else if (data.kind === 'subsystems') {
+        // The running game's module health (for the editor's Modules indicator).
+        post({ type: 'estella:play:reply', reqId: data.reqId, data: app ? app.subsystems.getStatuses() : [] });
       }
       break;
     case 'estella:play:setField':
