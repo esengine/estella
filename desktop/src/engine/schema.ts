@@ -181,6 +181,8 @@ export interface UserComponentSchema {
   colorKeys: string[];
   /** Asset-ref fields (e.g. `[{field:'texture', type:'texture'}]`). */
   assetFields?: Array<{ field: string; type: string }>;
+  /** Keyframeable field paths (Sequencer tracks). */
+  animatableFields?: string[];
   /** Per-field editor metadata (enum + numeric range/unit), keyed by field name. */
   fields?: Record<string, UserFieldMeta>;
 }
@@ -254,6 +256,14 @@ export function assetFieldType(compType: string, key: string): string | null {
   for (const d of getComponentAssetFieldDescriptors(compType)) if (d.field === key) return d.type;
   for (const f of userSchema(compType)?.assetFields ?? []) if (f.field === key) return f.type;
   return null;
+}
+
+/** Keyframeable field paths of a component — builtin via the engine registry, user
+ *  components via their serialized schema (so both are first-class Sequencer tracks). */
+export function animatableFieldsFor(compType: string): readonly string[] {
+  const builtin = getComponent(compType);
+  if (builtin) return builtin.animatableFields ?? [];
+  return userSchema(compType)?.animatableFields ?? [];
 }
 
 // — Field presentation metadata (the SDK's UPROPERTY analog) —

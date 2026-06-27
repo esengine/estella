@@ -17,7 +17,8 @@ import {
   Circle, ChevronFirst, ChevronLast, ChevronLeft, ChevronRight,
   Play, Pause, Repeat, Magnet, Plus, ChevronDown, Eye, EyeOff, Diamond, Film, Link2, Save, Trash2, Settings2,
 } from 'lucide-react';
-import { evaluateChannel, getComponent, InterpType, WrapMode } from 'esengine';
+import { evaluateChannel, InterpType, WrapMode } from 'esengine';
+import { animatableFieldsFor } from '@/engine/schema';
 import { TimelineDocument } from '@/timeline/TimelineDocument';
 import { TimelineCommands } from '@/timeline/TimelineCommands';
 import { useSequencerStore } from '@/store/sequencerStore';
@@ -69,7 +70,7 @@ function buildAddTrackItems(asset: { tracks: unknown } | null, rootSourceId: num
   if (!entity) return [];
   const items: AddTrackItem[] = [];
   for (const comp of entity.components) {
-    const fields = getComponent(comp.type)?.animatableFields ?? [];
+    const fields = animatableFieldsFor(comp.type);
     for (const property of fields) {
       const ref: ChannelRef = { childPath: '', component: comp.type, property };
       if (findChannel(asset as never, ref)) continue;

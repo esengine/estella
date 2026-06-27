@@ -63,6 +63,15 @@ describe('extractProjectSchemas (P2)', () => {
         expect(marker!.default).toEqual({});
     });
 
+    it('auto-derives keyframeable (animatable) fields for user components — numeric scalars + nested channels', async () => {
+        const res = await extractProjectSchemas(root);
+        const wave = byName(res.schemas, 'Wave')!;
+        // amplitude/speed are top-level numbers; tint is a {r,g,b,a} color → channel paths.
+        expect(wave.animatableFields).toContain('amplitude');
+        expect(wave.animatableFields).toContain('speed');
+        expect(wave.animatableFields).toContain('tint.r');
+    });
+
     it('serializes user-component field metadata — range/tooltip/DisplayName/category (first-class, like builtins)', async () => {
         const res = await extractProjectSchemas(root);
         const wave = byName(res.schemas, 'Wave')!;

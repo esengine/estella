@@ -75,6 +75,8 @@ export interface ComponentMetadata {
     entityFields?: string[];
     /** Per-field editor presentation policy, keyed by field name. */
     fields?: Record<string, FieldMeta>;
+    /** Keyframeable fields (Sequencer tracks); auto-derived from numeric fields if omitted. */
+    animatableFields?: string[];
     discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /**
      * Runtime-only state that must never persist: a transient component is
@@ -180,7 +182,7 @@ function createComponentDef<T extends object>(
         spineFields: metadata?.spineFields,
         entityFields: metadata?.entityFields ?? [],
         colorKeys: detectColorKeys(defaults),
-        animatableFields: [],
+        animatableFields: metadata?.animatableFields ?? numericAnimatableFields(defaults),
         fieldMeta: metadata?.fields ?? {},
         discoverAssets: metadata?.discoverAssets,
         transient: metadata?.transient ?? false,
@@ -349,6 +351,24 @@ function detectColorKeys(defaults: unknown): readonly string[] {
         }
     }
     return keys;
+}
+
+// Keyframeable fields for a user component (the Sequencer animates one number per
+// track): top-level numbers plus one level of nested numbers (vec / color channels
+// as dot-paths). So defineComponent('Patrol', { speed: 60 }) is animatable with no
+// boilerplate; metadata.animatableFields overrides this.
+function numericAnimatableFields(defaults: unknown): string[] {
+    if (defaults === null || typeof defaults !== 'object') return [];
+    const out: string[] = [];
+    for (const [key, val] of Object.entries(defaults as Record<string, unknown>)) {
+        if (typeof val === 'number') out.push(key);
+        else if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+            for (const [sub, sval] of Object.entries(val as Record<string, unknown>)) {
+                if (typeof sval === 'number') out.push(`${key}.${sub}`);
+            }
+        }
+    }
+    return out;
 }
 
 export function defineBuiltin<T>(name: string, defaults: T, metadata?: ComponentMetadata): BuiltinComponentDef<T> {

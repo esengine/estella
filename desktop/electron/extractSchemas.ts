@@ -55,6 +55,8 @@ export interface ComponentSchema {
   spineFields?: unknown;
   /** Field keys that hold an Entity handle. */
   entityFields: string[];
+  /** Keyframeable field paths (Sequencer tracks). */
+  animatableFields: string[];
   /** Per-field editor metadata (enum + numeric range/unit), keyed by field name. */
   fields?: Record<string, SerializedFieldMeta>;
 }
@@ -200,6 +202,7 @@ interface UserComponentDef {
   assetFields?: readonly unknown[];
   spineFields?: unknown;
   entityFields?: readonly string[];
+  animatableFields?: readonly string[];
   fieldMeta?: Record<string, SerializedFieldMeta & { advanced?: boolean; category?: string; flags?: Array<{ label: string; value: number }> }>;
 }
 
@@ -242,6 +245,7 @@ function toSchema(def: unknown): ComponentSchema {
     colorKeys: [...(d.colorKeys ?? [])],
     assetFields: [...(d.assetFields ?? [])],
     entityFields: [...(d.entityFields ?? [])],
+    animatableFields: [...(d.animatableFields ?? [])],
   };
   if (d.spineFields) schema.spineFields = d.spineFields;
   const fields = pickFieldMeta(d.fieldMeta);
