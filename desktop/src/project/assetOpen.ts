@@ -10,6 +10,7 @@
 import type { AssetType } from '@/types';
 import { ProjectStore } from './ProjectStore';
 import { confirmDiscard } from './discardGuard';
+import { toggleAudioPreview } from './audioPreview';
 import { openAnimationClip } from '@/timeline/openClip';
 import { openTileset } from '@/tileset/openTileset';
 import { openMaterial } from '@/material/openMaterial';
@@ -21,6 +22,7 @@ export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) 
     if (!confirmDiscard(`Opening ${name} will discard them`)) return;
     void ProjectStore.openScene(path);
   },
+  audio: (path) => toggleAudioPreview(path),
   animation: (path) => void openAnimationClip(path),
   tileset: (path) => void openTileset(path),
   material: (path) => void openMaterial(path),
