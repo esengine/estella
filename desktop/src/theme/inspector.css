@@ -60,7 +60,8 @@
 .prefab-bar { display: flex; align-items: center; gap: 7px; margin-top: 7px; padding: 5px 8px; background: var(--acc-soft); border: 1px solid rgba(47,136,214,0.25); border-radius: var(--r-sm); font-size: var(--fs-xs); }
 .prefab-bar .pic { color: var(--acc-hi); flex-shrink: 0; display: grid; place-items: center; }
 .prefab-bar .pn { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prefab-bar button { font-size: var(--fs-2xs); color: var(--acc-hi); padding: 2px 5px; border-radius: var(--r-xs); transition: background var(--t-fast); }
+.prefab-bar .pacts { display: flex; gap: 4px; flex-shrink: 0; }
+.prefab-bar button { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-2xs); color: var(--acc-hi); padding: 2px 6px; border-radius: var(--r-xs); transition: background var(--t-fast); }
 .prefab-bar button:hover { background: var(--acc-soft-2); }
 
 /* component / category */

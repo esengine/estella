@@ -1775,6 +1775,25 @@ function EditorDetails() {
               <Package size={13} strokeWidth={1.8} />
             </span>
             <span className="pn">{prefabName}</span>
+            <span className="pacts">
+              <button
+                type="button"
+                title="Select the prefab asset in the Content Browser"
+                onClick={() => {
+                  const info = prefabRef ? ProjectStore.assetInfo(prefabRef) : null;
+                  if (info) useSelection.getState().selectAsset(info.path);
+                }}
+              >
+                <FolderOpen size={12} strokeWidth={1.9} /> Select
+              </button>
+              <button
+                type="button"
+                title="Revert all overrides — re-sync this instance to the prefab"
+                onClick={() => void ProjectStore.revertPrefabInstance(selectedId)}
+              >
+                <RotateCcw size={12} strokeWidth={1.9} /> Revert
+              </button>
+            </span>
           </div>
         )}
       </div>

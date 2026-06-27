@@ -446,6 +446,31 @@ class ProjectStoreImpl {
   }
 
   /**
+   * Revert a prefab instance to the prefab (Details "Revert"): re-sync the whole
+   * instance to the asset, discarding all overrides, keeping its placement. Works on
+   * any entity of the instance (resolves to the instance root). Implemented by
+   * composing the existing, tested delete + re-instantiate commands — so it can't
+   * desync; the cost is two undo steps (delete, then instantiate). Returns the fresh
+   * root's source id, or null if the entity isn't a prefab instance.
+   */
+  async revertPrefabInstance(sourceId: number): Promise<number | null> {
+    const tag = SceneModel.prefabTag(sourceId);
+    const instanceRoot = tag?.instanceRoot ?? sourceId;
+    const ref = SceneModel.prefabTag(instanceRoot)?.prefab;
+    if (!ref) return null;
+    const info = this.assetInfo(ref);
+    if (!info) return null;
+    const root = SceneModel.entityBySource(instanceRoot);
+    const parent = root?.parent ?? null;
+    const tf = root?.components.find((c) => c.type === 'Transform')?.data as
+      | { position?: { x: number; y: number } }
+      | undefined;
+    const position = tf?.position ? { x: tf.position.x, y: tf.position.y } : undefined;
+    SceneCommands.deleteEntity(instanceRoot);
+    return this.instantiatePrefabFromPath(info.path, parent, position);
+  }
+
+  /**
    * Spawn a Sprite entity from an image asset dropped into the viewport: resolve its
    * texture ref (preloading it so it renders), read the image's natural pixel size,
    * and add a Transform + Sprite at the drop point. Returns the source id, or null if
