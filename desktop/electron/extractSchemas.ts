@@ -74,6 +74,8 @@ export interface SerializedFieldMeta {
   unit?: string;
   advanced?: boolean;
   category?: string;
+  tooltip?: string;
+  label?: string;
 }
 
 export interface ExtractSchemasResult {
@@ -223,6 +225,8 @@ function pickFieldMeta(
     if (meta.unit != null) m.unit = meta.unit;
     if (meta.advanced != null) m.advanced = meta.advanced;
     if (meta.category != null) m.category = meta.category;
+    if (meta.tooltip != null) m.tooltip = meta.tooltip;
+    if (meta.label != null) m.label = meta.label;
     if (Object.keys(m).length) out[key] = m;
   }
   return Object.keys(out).length ? out : undefined;

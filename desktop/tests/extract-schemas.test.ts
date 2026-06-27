@@ -27,6 +27,10 @@ beforeAll(() => {
             `  amplitude: 1,\n` +
             `  speed: 2.5,\n` +
             `  tint: { r: 1, g: 0, b: 0, a: 1 },\n` +
+            `}, {\n` +
+            `  fields: {\n` +
+            `    speed: { min: 0, max: 10, step: 0.1, slider: true, tooltip: 'Oscillation speed', label: 'Wave Speed', category: 'Motion' },\n` +
+            `  },\n` +
             `});\n` +
             `export const Marker = defineTag('Marker');\n`,
     );
@@ -57,6 +61,20 @@ describe('extractProjectSchemas (P2)', () => {
         expect(marker).toBeDefined();
         expect(marker!.isTag).toBe(true);
         expect(marker!.default).toEqual({});
+    });
+
+    it('serializes user-component field metadata — range/tooltip/DisplayName/category (first-class, like builtins)', async () => {
+        const res = await extractProjectSchemas(root);
+        const wave = byName(res.schemas, 'Wave')!;
+        expect(wave.fields?.speed).toMatchObject({
+            min: 0,
+            max: 10,
+            step: 0.1,
+            slider: true,
+            tooltip: 'Oscillation speed',
+            label: 'Wave Speed',
+            category: 'Motion',
+        });
     });
 
     it('excludes C++ builtins and the SDK\'s own defineComponent components', async () => {
