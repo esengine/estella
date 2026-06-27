@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { Entity } from '../types';
+import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { UICameraData } from './UICameraInfo';
+import { screenToWorld, createInvVPCache } from './uiMath';
+
+const NO_HIT = 0xffffffff;
+const vpCache = createInvVPCache();
+
+export function screenToUiWorld(camera: UICameraData, screenGLX: number, screenGLY: number): { x: number; y: number } {
+  vpCache.update(camera.viewProjection);
+  const invVP = vpCache.getInverse(camera.viewProjection);
+  return screenToWorld(screenGLX, screenGLY, invVP, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+}
+
+export function uiHitTestWorld(
+  module: ESEngineModule,
+  registry: CppRegistry,
+  worldX: number,
+  worldY: number,
+  mouseDown = false,
+  mousePressed = false,
+  mouseReleased = false,
+): Entity | null {
+  module.uiHitTest_update(registry, worldX, worldY, mouseDown, mousePressed, mouseReleased);
+  const hit = module.uiHitTest_getHitEntity();
+  return hit === NO_HIT ? null : hit;
+}

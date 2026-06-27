@@ -18,6 +18,7 @@ export {
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
+    UINode,
     UIVisual,
     UIVisualType,
     UILayoutGeneration,
@@ -45,6 +46,8 @@ export {
     UIEventQueue,
     makeInteractable,
     UICameraInfo,
+    screenToUiWorld,
+    uiHitTestWorld,
     /** @internal fill-sprite sizing helper used by widget composition, unstable */
     syncFillSpriteSize,
     TextInput,

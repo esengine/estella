@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Camera, CameraView, EditorView, Light2D, Sprite, Transform } from 'esengine';
+import {
+  Camera, CameraView, EditorView, Light2D, Sprite, Transform,
+  UINode, UICameraInfo, screenToUiWorld, uiHitTestWorld, type UICameraData,
+} from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { SceneModel } from './SceneModel';
@@ -85,6 +88,8 @@ export const ViewportController = {
   entityBounds(id: EntityId): OBB | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
+    // UI nodes are screen-space; they're picked via the UI hit-test, not a world OBB.
+    if (world.has(id, UINode)) return null;
     const t = world.get(id, Transform);
     const rot = quatAngleZ(t.rotation as { w: number; x: number; y: number; z: number });
 
@@ -112,8 +117,29 @@ export const ViewportController = {
     };
   },
 
-  /** Topmost entity whose oriented bounds contain the pointer, or null. */
+  /** The UI entity under the pointer (engine UI hit-test), or null. */
+  pickUIEntity(clientX: number, clientY: number): EntityId | null {
+    const world = EngineHost.world;
+    const module = EngineHost.module;
+    const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
+    if (!world || !module || !cam?.valid) return null;
+    type Registry = Parameters<typeof uiHitTestWorld>[1];
+    const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
+    const s = clientToScreen(clientX, clientY);
+    if (!reg || !s) return null;
+    const wp = screenToUiWorld(cam, s.sx, s.sy);
+    const hit = uiHitTestWorld(module, reg, wp.x, wp.y);
+    if (hit == null) return null;
+    const src = SceneModel.sourceFor(hit);
+    if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) return null;
+    return hit;
+  },
+
+  /** Topmost entity under the pointer — UI (screen-space) first, then a world OBB. */
   pickEntity(clientX: number, clientY: number): EntityId | null {
+    const ui = this.pickUIEntity(clientX, clientY);
+    if (ui != null) return ui;
+
     const world = EngineHost.world;
     const wp = this.canvasToWorld(clientX, clientY);
     if (!world || !wp) return null;

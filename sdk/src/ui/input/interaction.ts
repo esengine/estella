@@ -16,16 +16,13 @@ import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { UICameraInfo } from '../UICameraInfo';
 import type { UICameraData } from '../UICameraInfo';
 import type { InteractableData } from './interactable';
-import { screenToWorld, createInvVPCache } from '../uiMath';
+import { screenToUiWorld, uiHitTestWorld } from '../uiPick';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../uiHelpers';
 import type { ESEngineModule, CppRegistry } from '../../wasm';
 import { UILayoutGeneration } from '../UILayoutGeneration';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import type { UILayoutGenerationData } from '../UILayoutGeneration';
-
-const vpCache = createInvVPCache();
-const CPP_NO_HIT_ENTITY = 0xFFFFFFFF;
 
 function emitWithBubbling(
     world: World,
@@ -90,12 +87,7 @@ export class UIInteractionPlugin implements Plugin {
                 const mouseGLX = input.mouseX * dpr;
                 const mouseGLY = camera.screenH - input.mouseY * dpr;
 
-                vpCache.update(camera.viewProjection);
-                const invVP = vpCache.getInverse(camera.viewProjection);
-                const worldMouse = screenToWorld(
-                    mouseGLX, mouseGLY, invVP,
-                    camera.vpX, camera.vpY, camera.vpW, camera.vpH,
-                );
+                const worldMouse = screenToUiWorld(camera, mouseGLX, mouseGLY);
 
                 camera.worldMouseX = worldMouse.x;
                 camera.worldMouseY = worldMouse.y;
@@ -115,14 +107,11 @@ export class UIInteractionPlugin implements Plugin {
 
                 let hitEntity: Entity | null = hoveredEntity;
                 if (needsHitTest) {
-                    module.uiHitTest_update(
-                        registry,
+                    hitEntity = uiHitTestWorld(
+                        module, registry,
                         worldMouse.x, worldMouse.y,
                         mouseDown, mousePressed, mouseReleased,
                     );
-
-                    const hitEntityRaw = module.uiHitTest_getHitEntity();
-                    hitEntity = hitEntityRaw === CPP_NO_HIT_ENTITY ? null : hitEntityRaw;
                 }
 
                 if (hoveredEntity !== null && !world.valid(hoveredEntity)) {
