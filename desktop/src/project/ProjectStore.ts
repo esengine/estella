@@ -6,6 +6,7 @@ import type { SceneData, PrefabData, ExtractEntity, PhysicsPluginConfig } from '
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
+import { blankInputMap } from './inputMapDoc';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
@@ -353,6 +354,12 @@ class ProjectStoreImpl {
   async createSceneFile(destDir: string): Promise<string> {
     const content = JSON.stringify(this.blankScene(), null, 2) + '\n';
     return window.estella.project.createAsset(destDir, 'scene.esscene', content, 'scene');
+  }
+
+  /** Create a blank `.inputmap` asset (named input actions) under `destDir`. */
+  async createInputMapFile(destDir: string): Promise<string> {
+    const content = JSON.stringify(blankInputMap(), null, 2) + '\n';
+    return window.estella.project.createAsset(destDir, 'input.inputmap', content, 'inputmap');
   }
 
   /**

@@ -143,6 +143,7 @@ export type AssetType =
   | 'animation'
   | 'tileset'
   | 'tilemap'
+  | 'inputmap'
   | 'file';
 
 export interface AssetItem {

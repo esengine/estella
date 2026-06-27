@@ -410,6 +410,17 @@ export function ContentBrowser() {
     }
   };
 
+  const newInputMap = async () => {
+    try {
+      const path = await ProjectStore.createInputMapFile(cwd);
+      refreshFs();
+      selectAsset(path); // unified inspector opens the input-map editor
+      setRenaming(path);
+    } catch (e) {
+      Toasts.push(`New input map failed: ${errMsg(e)}`, 'error');
+    }
+  };
+
   const showInExplorer = async (path: string) => {
     try {
       await window.estella.shell.showItem(path);
@@ -542,6 +553,7 @@ export function ContentBrowser() {
         { label: 'New Folder', icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
         { sep: true },
         { label: 'New Scene', onClick: () => void newScene() },
+        { label: 'New Input Map', onClick: () => void newInputMap() },
         { label: 'New Material', onClick: () => void createMaterial(cwd) },
         { label: 'New Material Graph', onClick: () => void createMaterialGraph(cwd) },
         { sep: true },

@@ -41,8 +41,9 @@ import { SceneModel } from '@/engine/SceneModel';
 import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { PlayInspect } from '@/engine/PlayInspect';
-import type { SceneData } from 'esengine';
+import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions } from '@/engine/schema';
+import * as imap from '@/project/inputMapDoc';
 import { ProjectStore } from '@/project/ProjectStore';
 import { confirmDiscard } from '@/project/discardGuard';
 import { MaterialDocument } from '@/material/MaterialDocument';
@@ -1547,6 +1548,139 @@ function MaterialAssetInspector({ path }: { path: string }) {
 
 // Asset view of the unified inspector — shown when an asset (not an entity) is
 // selected (in the content browser). A material is edited inline (reflection-driven
+const BINDING_KINDS: Array<{ kind: Binding['kind']; label: string }> = [
+  { kind: 'key', label: 'Key' },
+  { kind: 'keys1d', label: 'Keys · 1D axis' },
+  { kind: 'keys2d', label: 'Keys · 2D axis' },
+  { kind: 'mouse', label: 'Mouse button' },
+  { kind: 'gpButton', label: 'Gamepad button' },
+  { kind: 'gpAxis', label: 'Gamepad axis' },
+  { kind: 'stick', label: 'Gamepad stick' },
+];
+
+function defaultBinding(kind: Binding['kind']): Binding {
+  switch (kind) {
+    case 'keys1d': return { kind: 'keys1d', neg: 'KeyA', pos: 'KeyD' };
+    case 'keys2d': return { kind: 'keys2d', up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD' };
+    case 'mouse': return { kind: 'mouse', button: 0 };
+    case 'gpButton': return { kind: 'gpButton', button: 0 };
+    case 'gpAxis': return { kind: 'gpAxis', axis: 0 };
+    case 'stick': return { kind: 'stick', stick: 'left' };
+    default: return { kind: 'key', code: 'Space' };
+  }
+}
+
+function BindingRow({ binding, onChange, onRemove }: { binding: Binding; onChange: (b: Binding) => void; onRemove: () => void }) {
+  const b = binding as Record<string, unknown>;
+  const set = (patch: Record<string, unknown>) => onChange({ ...(b as object), ...patch } as unknown as Binding);
+  const txt = (k: string, ph: string) => (
+    <input className="im-in" value={String(b[k] ?? '')} placeholder={ph} onChange={(e) => set({ [k]: e.target.value })} />
+  );
+  const num = (k: string) => (
+    <input className="im-in num" type="number" value={Number(b[k] ?? 0)} onChange={(e) => set({ [k]: Number(e.target.value) || 0 })} />
+  );
+  let fields: React.ReactNode = null;
+  switch (binding.kind) {
+    case 'key': fields = txt('code', 'Code (e.g. Space, KeyW)'); break;
+    case 'keys1d': fields = <>{txt('neg', '−')}{txt('pos', '+')}</>; break;
+    case 'keys2d': fields = <>{txt('up', 'Up')}{txt('down', 'Down')}{txt('left', 'Left')}{txt('right', 'Right')}</>; break;
+    case 'mouse': case 'gpButton': fields = num('button'); break;
+    case 'gpAxis': fields = num('axis'); break;
+    case 'stick':
+      fields = (
+        <select className="im-in" value={String(b.stick)} onChange={(e) => set({ stick: e.target.value })}>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+      );
+      break;
+  }
+  return (
+    <div className="im-binding">
+      <select className="im-in kind" value={binding.kind} onChange={(e) => onChange(defaultBinding(e.target.value as Binding['kind']))}>
+        {BINDING_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+      </select>
+      {fields}
+      <button type="button" className="im-x" onClick={onRemove} title="Remove binding">×</button>
+    </div>
+  );
+}
+
+// The .inputmap editor, embedded in the unified inspector (no separate panel): edits
+// the SAME JSON the runtime's loadInputMapAsset reads. Saves on every edit.
+function InputMapAssetInspector({ path }: { path: string }) {
+  const [map, setMap] = useState<InputMapAsset | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void window.estella.fs
+      .read(path)
+      .then((t) => {
+        if (!alive) return;
+        try {
+          setMap(JSON.parse(t) as InputMapAsset);
+        } catch {
+          setMap(imap.blankInputMap());
+        }
+      })
+      .catch(() => alive && setMap(imap.blankInputMap()));
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+
+  if (!map) return <div className="insp"><div className="filter-empty">Loading…</div></div>;
+
+  const commit = (next: InputMapAsset) => {
+    setMap(next);
+    void window.estella.fs.write(path, JSON.stringify(next, null, 2) + '\n');
+  };
+  const uniqueName = () => {
+    let n = 'NewAction';
+    for (let i = 2; map.actions[n]; i++) n = `NewAction${i}`;
+    return n;
+  };
+  const actions = Object.entries(map.actions);
+
+  return (
+    <div className="insp input-map">
+      <div className="im-head">
+        <span>Input Actions</span>
+        <button type="button" className="im-add" onClick={() => commit(imap.addAction(map, uniqueName()))}>+ Action</button>
+      </div>
+      {actions.length === 0 && <div className="filter-empty">No actions yet — add one to bind keys / buttons / axes.</div>}
+      {actions.map(([name, def]) => (
+        <div className="im-action" key={name}>
+          <div className="im-action-head">
+            <input
+              className="im-name"
+              key={name}
+              defaultValue={name}
+              onBlur={(e) => {
+                if (e.target.value.trim() && e.target.value !== name) commit(imap.renameAction(map, name, e.target.value));
+              }}
+            />
+            <select className="im-in" value={def.type} onChange={(e) => commit(imap.setActionType(map, name, e.target.value as ActionType))}>
+              <option value="button">Button</option>
+              <option value="axis">Axis</option>
+              <option value="axis2d">Axis 2D</option>
+            </select>
+            <button type="button" className="im-x" onClick={() => commit(imap.removeAction(map, name))} title="Remove action">×</button>
+          </div>
+          {def.bindings.map((bnd, i) => (
+            <BindingRow
+              key={i}
+              binding={bnd}
+              onChange={(nb) => commit(imap.setBinding(map, name, i, nb))}
+              onRemove={() => commit(imap.removeBinding(map, name, i))}
+            />
+          ))}
+          <button type="button" className="im-addb" onClick={() => commit(imap.addBinding(map, name, defaultBinding('key')))}>+ Binding</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // rows); other assets show their fs metadata + the image/type glyph preview.
 function AssetInspector({ path }: { path: string }) {
   const name = baseName(path);
@@ -1554,6 +1688,9 @@ function AssetInspector({ path }: { path: string }) {
   const isImage = IMAGE_RE.test(name);
   if (isMaterialAsset(path)) {
     return <MaterialAssetInspector path={path} />;
+  }
+  if (type === 'inputmap') {
+    return <InputMapAssetInspector path={path} />;
   }
   return (
     <div className="insp">

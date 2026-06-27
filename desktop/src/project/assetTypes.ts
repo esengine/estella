@@ -13,7 +13,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow,
+  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2,
   type LucideIcon,
 } from 'lucide-react';
 import type { AssetType } from '@/types';
@@ -47,6 +47,7 @@ export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
   animation: { extensions: ['esanim', 'estimeline'], badge: 'ANM', icon: Clapperboard, tint: '#9bb39a' },
   tileset: { extensions: ['estileset'], badge: 'TST', icon: Grid3x3, tint: '#9b8fc0' },
   tilemap: { extensions: ['estilemap'], badge: 'TMP', icon: Grid3x3, tint: '#7fa6c4' },
+  inputmap: { extensions: ['inputmap'], badge: 'INP', icon: Gamepad2, tint: '#a0b88f' },
   file: { badge: '', icon: File, tint: 'var(--text-dim)' },
 };
 

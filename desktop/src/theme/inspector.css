@@ -234,3 +234,19 @@
 
 /* Live "Game" inspector banner (UE5 PIE Details) — editing the running game. */
 .game-live { padding: 6px 12px; font-size: var(--fs-xs); font-weight: 500; color: var(--run-hi); background: rgba(70, 160, 74, 0.12); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+
+/* .inputmap editor (named input actions + bindings), embedded in the inspector. */
+.input-map { padding: 8px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.im-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-dim); font-weight: 600; }
+.im-add, .im-addb { font-size: var(--fs-2xs); color: var(--acc-hi); padding: 2px 8px; border-radius: var(--r-xs); border: 1px solid var(--border); }
+.im-add:hover, .im-addb:hover { background: var(--acc-soft); }
+.im-action { border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--inset); }
+.im-action-head { display: flex; align-items: center; gap: 4px; }
+.im-name { flex: 1; min-width: 0; background: var(--void); border: 1px solid var(--border); border-radius: var(--r-xs); padding: 2px 6px; color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+.im-binding { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.im-in { background: var(--void); border: 1px solid var(--border); border-radius: var(--r-xs); padding: 2px 5px; color: var(--text); font-size: var(--fs-xs); min-width: 0; }
+.im-in.kind { flex-shrink: 0; }
+.im-in.num { width: 54px; }
+.im-x { color: var(--text-mute); width: 18px; height: 18px; border-radius: var(--r-xs); flex-shrink: 0; line-height: 1; }
+.im-x:hover { color: var(--error); }
+.im-addb { align-self: flex-start; }

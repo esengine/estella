@@ -26,6 +26,7 @@ const EXT_TO_TYPE: Record<string, string> = {
   '.fnt': 'bitmapFont', '.bmfont': 'bitmapFont', '.ttf': 'font', '.otf': 'font', '.woff': 'font', '.woff2': 'font',
   '.tmx': 'tilemap', '.tmj': 'tilemap',
   '.skel': 'spine', '.atlas': 'spine',
+  '.inputmap': 'inputmap',
 };
 
 /** The supported import extensions (no leading dot) — used by the file dialog filter. */
