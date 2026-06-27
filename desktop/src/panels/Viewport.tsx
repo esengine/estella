@@ -244,6 +244,13 @@ export function Viewport() {
     () => (engine.status === 'ready' ? ViewportController.light2DIds() : []),
     [structRev, engine.status],
   );
+  // Physics colliders aren't drawn by the renderer — outline each (box polygon /
+  // circle) as a gizmo so you can see/tune collider shapes without entering Play.
+  const colliderRefs = useRef(new Map<number, SVGSVGElement | null>());
+  const colliderIds = useMemo(
+    () => (engine.status === 'ready' ? ViewportController.colliderIds() : []),
+    [structRev, engine.status],
+  );
 
   // Mount the live engine canvas into the stage; it survives panel re-docking.
   useEffect(() => {
@@ -423,6 +430,28 @@ export function Viewport() {
           }
         } else {
           wrap.style.opacity = '0';
+        }
+      }
+
+      // Collider gizmos — box polygon / circle outline at the collider's shape.
+      for (const [cid, svg] of colliderRefs.current) {
+        if (!svg) continue;
+        const cg = camsOn ? ViewportController.getColliderGizmo(cid) : null;
+        const poly = svg.querySelector('.cl-box') as SVGPolygonElement | null;
+        const circ = svg.querySelector('.cl-circle') as SVGCircleElement | null;
+        if (cg && cg.kind === 'box' && poly) {
+          poly.setAttribute('points', cg.pts.map((p) => `${p.x},${p.y}`).join(' '));
+          poly.style.opacity = '1';
+          if (circ) circ.style.opacity = '0';
+        } else if (cg && cg.kind === 'circle' && circ) {
+          circ.setAttribute('cx', String(cg.cx));
+          circ.setAttribute('cy', String(cg.cy));
+          circ.setAttribute('r', String(cg.r));
+          circ.style.opacity = '1';
+          if (poly) poly.style.opacity = '0';
+        } else {
+          if (poly) poly.style.opacity = '0';
+          if (circ) circ.style.opacity = '0';
         }
       }
 
@@ -694,6 +723,23 @@ export function Viewport() {
             <line className="lg-cone2" x1="0" y1="0" x2="0" y2="0" />
           </svg>
         </div>
+      ))}
+
+      {/* Collider gizmos: a full-viewport SVG per collider (box polygon / circle),
+          positioned in absolute canvas-relative CSS px by the rAF. */}
+      {colliderIds.map((id) => (
+        <svg
+          key={id}
+          ref={(el) => {
+            if (el) colliderRefs.current.set(id, el);
+            else colliderRefs.current.delete(id);
+          }}
+          className="viewport__collider-gizmo"
+          aria-hidden="true"
+        >
+          <polygon className="cl-box" points="" />
+          <circle className="cl-circle" cx="0" cy="0" r="0" />
+        </svg>
       ))}
 
       {/* Play In Viewport: the realm iframe fills the stage; a thin badge marks PIE. */}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
-  Camera, CameraView, EditorView, Light2D, Sprite, Transform,
+  Camera, CameraView, EditorView, Light2D, Sprite, Transform, Canvas, BoxCollider, CircleCollider,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiHitTestWorld, type UICameraData,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -381,5 +381,71 @@ export const ViewportController = {
     const hex = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
     const color = `#${hex(l.color.r)}${hex(l.color.g)}${hex(l.color.b)}`;
     return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf };
+  },
+
+  /** Ids of entities carrying a box/circle collider — the collider-gizmo set. */
+  colliderIds(): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (world.has(e, Transform) && (world.has(e, BoxCollider) || world.has(e, CircleCollider))) out.push(e);
+    }
+    return out;
+  },
+
+  // Collider sizes are physics meters; the world is pixels. Mirror the runtime's
+  // live read (the Canvas entity's pixelsPerUnit, else 100) so the gizmo matches.
+  colliderPixelsPerUnit(): number {
+    const world = EngineHost.world;
+    if (world) {
+      for (const e of world.getAllEntities()) {
+        if (world.has(e, Canvas)) {
+          const ppu = (world.get(e, Canvas) as { pixelsPerUnit?: number }).pixelsPerUnit;
+          if (ppu) return ppu;
+        }
+      }
+    }
+    return 100;
+  },
+
+  /**
+   * Screen-space collider outline for the gizmo: a 4-corner polygon (box) or a
+   * center + radius (circle), in CSS px. The collider lives at the entity's world
+   * transform + its (meter) offset, scaled to pixels by pixelsPerUnit.
+   */
+  getColliderGizmo(
+    id: EntityId,
+  ): { kind: 'box'; pts: Array<{ x: number; y: number }> } | { kind: 'circle'; cx: number; cy: number; r: number } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
+    const t = world.get(id, Transform);
+    const ppu = this.colliderPixelsPerUnit();
+    const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    const placeOffset = (off: { x: number; y: number }) => ({
+      x: t.worldPosition.x + (off.x * ppu) * cos - (off.y * ppu) * sin,
+      y: t.worldPosition.y + (off.x * ppu) * sin + (off.y * ppu) * cos,
+    });
+
+    if (world.has(id, BoxCollider)) {
+      const b = world.get(id, BoxCollider) as { halfExtents: { x: number; y: number }; offset: { x: number; y: number } };
+      const c = placeOffset(b.offset);
+      const hw = b.halfExtents.x * ppu;
+      const hh = b.halfExtents.y * ppu;
+      const screen = obbCorners({ cx: c.x, cy: c.y, hw: Math.abs(hw), hh: Math.abs(hh), rot }).map(([wx, wy]) =>
+        this.worldToClient(wx, wy),
+      );
+      if (screen.some((p) => !p)) return null;
+      return { kind: 'box', pts: screen.map((p) => ({ x: p!.x, y: p!.y })) };
+    }
+
+    const cc = world.get(id, CircleCollider) as { radius: number; offset: { x: number; y: number } };
+    const c = placeOffset(cc.offset);
+    const center = this.worldToClient(c.x, c.y);
+    const edge = this.worldToClient(c.x + cc.radius * ppu, c.y);
+    if (!center || !edge) return null;
+    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y) };
   },
 };
