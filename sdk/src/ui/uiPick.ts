@@ -3,7 +3,7 @@
 import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { UICameraData } from './UICameraInfo';
-import { screenToWorld, createInvVPCache } from './uiMath';
+import { screenToWorld, worldToScreen, createInvVPCache } from './uiMath';
 
 const NO_HIT = 0xffffffff;
 const vpCache = createInvVPCache();
@@ -12,6 +12,11 @@ export function screenToUiWorld(camera: UICameraData, screenGLX: number, screenG
   vpCache.update(camera.viewProjection);
   const invVP = vpCache.getInverse(camera.viewProjection);
   return screenToWorld(screenGLX, screenGLY, invVP, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+}
+
+export function uiWorldToScreen(camera: UICameraData, worldX: number, worldY: number): { x: number; y: number } {
+  const [x, y] = worldToScreen(worldX, worldY, camera.viewProjection, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+  return { x, y };
 }
 
 export function uiHitTestWorld(

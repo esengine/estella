@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
   Camera, CameraView, EditorView, Light2D, Sprite, Transform,
-  UINode, UICameraInfo, screenToUiWorld, uiHitTestWorld, type UICameraData,
+  UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiHitTestWorld, type UICameraData,
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -184,8 +184,45 @@ export const ViewportController = {
     return { x: t.position.x, y: t.position.y };
   },
 
+  /** A UI-camera world point → CSS px relative to the canvas (UI is screen-space). */
+  uiWorldToClient(cam: UICameraData, wx: number, wy: number): { x: number; y: number } | null {
+    const canvas = EngineHost.canvas;
+    if (!canvas) return null;
+    const s = uiWorldToScreen(cam, wx, wy);
+    const dpr = window.devicePixelRatio || 1;
+    return { x: s.x / dpr, y: (canvas.height - s.y) / dpr };
+  },
+
+  /**
+   * Screen rect of a UI node's resolved layout box — its world OBB (Yoga-resolved
+   * size × worldScale, pivot-centered on the world transform) projected through the
+   * UI camera. Drives the selection outline for UI, which lives in screen space.
+   */
+  uiEntityScreenRect(id: EntityId): ClientRect | null {
+    const world = EngineHost.world;
+    const module = EngineHost.module;
+    const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
+    if (!world || !module || !cam?.valid || !world.has(id, UINode) || !world.has(id, Transform)) return null;
+    type Registry = Parameters<typeof uiHitTestWorld>[1];
+    const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
+    if (!reg) return null;
+    const t = world.get(id, Transform);
+    const w = module.uiNode_computedWidth(reg, id) * t.worldScale.x;
+    const h = module.uiNode_computedHeight(reg, id) * t.worldScale.y;
+    if (!(w > 0) || !(h > 0)) return null;
+    const obb: OBB = {
+      cx: t.worldPosition.x,
+      cy: t.worldPosition.y,
+      hw: Math.abs(w) / 2,
+      hh: Math.abs(h) / 2,
+      rot: quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number }),
+    };
+    return screenAABB(obbCorners(obb).map(([wx, wy]) => this.uiWorldToClient(cam, wx, wy)));
+  },
+
   /** Screen-space bounding rect (CSS px rel. canvas) of an entity, for the selection outline. */
   getEntityScreenRect(id: EntityId): ClientRect | null {
+    if (EngineHost.world?.has(id, UINode)) return this.uiEntityScreenRect(id);
     const b = this.entityBounds(id);
     if (!b) return null;
     return screenAABB(obbCorners(b).map(([wx, wy]) => this.worldToClient(wx, wy)));

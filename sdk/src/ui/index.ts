@@ -261,7 +261,7 @@ export {
     type UICameraData,
 } from './UICameraInfo';
 
-export { screenToUiWorld, uiHitTestWorld } from './uiPick';
+export { screenToUiWorld, uiWorldToScreen, uiHitTestWorld } from './uiPick';
 
 export {
     UILayoutGeneration,

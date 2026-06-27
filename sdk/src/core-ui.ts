@@ -47,6 +47,7 @@ export {
     makeInteractable,
     UICameraInfo,
     screenToUiWorld,
+    uiWorldToScreen,
     uiHitTestWorld,
     /** @internal fill-sprite sizing helper used by widget composition, unstable */
     syncFillSpriteSize,

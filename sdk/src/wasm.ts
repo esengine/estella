@@ -341,6 +341,8 @@ export interface ESEngineModule {
     uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;
     uiHitTest_getHitEntity(): number;
     uiHitTest_getHitEntityPrev(): number;
+    uiNode_computedWidth(registry: CppRegistry, entity: number): number;
+    uiNode_computedHeight(registry: CppRegistry, entity: number): number;
     uiRenderOrder_update(registry: CppRegistry): void;
     uiFlexLayout_update(registry: CppRegistry): void;
     getUINodeComputedWidth?(registry: CppRegistry, entity: number): number;
