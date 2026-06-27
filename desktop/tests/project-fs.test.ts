@@ -18,7 +18,7 @@ import {
   statInRoot,
 } from '../electron/projectFs';
 import { isIgnoredPath } from '../electron/projectWatcher';
-import { importAssets } from '../electron/importAssets';
+import { importAssets, createAsset } from '../electron/importAssets';
 
 let root: string;
 const read = (rel: string) => readFileSync(path.join(root, rel), 'utf8');
@@ -146,5 +146,21 @@ describe('duplicateInRoot', () => {
     expect(rel).toBe('assets/pack copy');
     expect(read('assets/pack copy/a.png')).toBe('A');
     expect(JSON.parse(read('assets/pack copy/a.png.meta')).uuid).not.toBe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+  });
+});
+
+describe('createAsset', () => {
+  it('writes the file + a .meta (fresh uuid + type) and dedups the name', async () => {
+    const p1 = await createAsset(root, 'assets', 'scene.esscene', '{"v":"1.0"}', 'scene');
+    expect(p1).toBe('assets/scene.esscene');
+    expect(read('assets/scene.esscene')).toBe('{"v":"1.0"}');
+    const m = JSON.parse(read('assets/scene.esscene.meta'));
+    expect(m.type).toBe('scene');
+    expect(m.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
+
+    // A second create with the same base name dedups rather than clobbering.
+    const p2 = await createAsset(root, 'assets', 'scene.esscene', '{}', 'scene');
+    expect(p2).toBe('assets/scene 2.esscene');
+    expect(read('assets/scene.esscene')).toBe('{"v":"1.0"}'); // original untouched
   });
 });

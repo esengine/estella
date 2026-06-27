@@ -396,6 +396,17 @@ export function ContentBrowser() {
     }
   };
 
+  const newScene = async () => {
+    try {
+      const path = await ProjectStore.createSceneFile(cwd);
+      refreshFs();
+      selectAsset(path);
+      setRenaming(path); // drop into rename, like New Folder
+    } catch (e) {
+      Toasts.push(`New scene failed: ${errMsg(e)}`, 'error');
+    }
+  };
+
   const showInExplorer = async (path: string) => {
     try {
       await window.estella.shell.showItem(path);
@@ -526,6 +537,8 @@ export function ContentBrowser() {
       return [
         { label: 'Import…', icon: <Import size={14} />, onClick: () => void importAssets() },
         { label: 'New Folder', icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
+        { sep: true },
+        { label: 'New Scene', onClick: () => void newScene() },
         { label: 'New Material', onClick: () => void createMaterial(cwd) },
         { label: 'New Material Graph', onClick: () => void createMaterialGraph(cwd) },
         { sep: true },

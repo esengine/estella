@@ -26,7 +26,7 @@ import { extractProjectSchemas } from './extractSchemas';
 import { scanAssetDatabase } from './assetDb';
 import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
-import { importAssets, IMPORT_EXTENSIONS } from './importAssets';
+import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
 import { buildPlayRealm } from './buildPlayRealm';
 import { resolveScripts } from '../src/project/format';
@@ -239,6 +239,11 @@ ipcMain.handle('project:importAssets', async (_e, destDir: string) => {
 // Import already-resolved absolute paths (OS drag-drop onto the Content Browser).
 ipcMain.handle('project:importFiles', (_e, destDir: string, sources: string[]) =>
   importAssets(requireRoot(), destDir, sources),
+);
+
+// Create a new asset file (+ .meta) from renderer-supplied content (e.g. New Scene).
+ipcMain.handle('project:createAsset', (_e, destDir: string, baseName: string, content: string, type: string) =>
+  createAsset(requireRoot(), destDir, baseName, content, type),
 );
 
 ipcMain.handle('fs:read', (_e, relPath: string) => readInRoot(requireRoot(), relPath));

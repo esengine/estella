@@ -346,6 +346,16 @@ class ProjectStoreImpl {
   }
 
   /**
+   * Create a new blank scene FILE (+ `.meta`) under `destDir` for the Content
+   * Browser's "New Scene" — writes it to disk WITHOUT switching the editor to it
+   * (unlike {@link newScene}). Returns its project-relative path.
+   */
+  async createSceneFile(destDir: string): Promise<string> {
+    const content = JSON.stringify(this.blankScene(), null, 2) + '\n';
+    return window.estella.project.createAsset(destDir, 'scene.esscene', content, 'scene');
+  }
+
+  /**
    * Load the project's asset index (the main-process AssetDatabase scan)
    * into a uuid→path registry, then point the engine
    * `Assets` loader at it + the `estella://` transport. This is the ONE

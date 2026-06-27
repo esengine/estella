@@ -54,6 +54,28 @@ function uniqueName(absDir: string, name: string): string {
   return candidate;
 }
 
+/**
+ * Create a new asset file in `destDir` with `content` + a fresh `.meta` (uuid + the
+ * given type), deduping the name so it never clobbers. Returns the new project-
+ * relative path. Powers the Content Browser "New …" menu (e.g. New Scene).
+ */
+export async function createAsset(
+  root: string,
+  destDir: string,
+  baseName: string,
+  content: string,
+  type: string,
+): Promise<string> {
+  const absDir = resolveInRoot(root, destDir);
+  await mkdir(absDir, { recursive: true });
+  const name = uniqueName(absDir, baseName);
+  const abs = path.join(absDir, name);
+  await writeFile(abs, content, 'utf8');
+  const meta = { uuid: randomUUID(), version: META_VERSION, type, importer: importerDefaults(type) };
+  await writeFile(abs + META_EXT, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+  return destDir ? `${destDir}/${name}` : name;
+}
+
 export interface ImportResult {
   /** New project-relative paths of the imported files. */
   imported: string[];

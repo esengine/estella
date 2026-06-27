@@ -75,6 +75,9 @@ const api = {
     /** Import already-resolved absolute paths (OS drag-drop) into `destDir`. */
     importFiles: (destDir: string, sources: string[]): Promise<{ imported: string[]; skipped: string[] } | null> =>
       ipcRenderer.invoke('project:importFiles', destDir, sources),
+    /** Create a new asset file (+ .meta) from `content`; returns its project path. */
+    createAsset: (destDir: string, baseName: string, content: string, type: string): Promise<string> =>
+      ipcRenderer.invoke('project:createAsset', destDir, baseName, content, type),
   },
   // New-project templates (launcher New tab).
   templates: {
