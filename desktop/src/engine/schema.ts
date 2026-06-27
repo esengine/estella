@@ -266,6 +266,23 @@ export function animatableFieldsFor(compType: string): readonly string[] {
   return userSchema(compType)?.animatableFields ?? [];
 }
 
+// — Per-entity dynamic enums —
+// Some string fields are really a choice from a list that depends on the entity's
+// runtime state, not a static enum (e.g. a spine animation/skin name from the loaded
+// skeleton). A provider, keyed by `component|field`, yields the options for one
+// entity; the inspector renders a dropdown when it returns any.
+const dynamicEnums = new Map<string, (sourceId: number) => readonly string[]>();
+
+export function registerDynamicEnum(component: string, field: string, provider: (sourceId: number) => readonly string[]): void {
+  dynamicEnums.set(`${component}|${field}`, provider);
+}
+
+/** Dynamic enum options for a field on an entity, or null if the field has no provider / no options. */
+export function dynamicEnumOptions(component: string, field: string, sourceId: number): string[] | null {
+  const opts = dynamicEnums.get(`${component}|${field}`)?.(sourceId);
+  return opts && opts.length ? [...opts] : null;
+}
+
 // — Field presentation metadata (the SDK's UPROPERTY analog) —
 //
 // A component declares per-field editor policy (enum options, numeric range,

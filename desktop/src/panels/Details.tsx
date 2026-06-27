@@ -42,7 +42,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { PlayInspect } from '@/engine/PlayInspect';
 import type { SceneData } from 'esengine';
-import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 import { confirmDiscard } from '@/project/discardGuard';
 import { MaterialDocument } from '@/material/MaterialDocument';
@@ -1051,7 +1051,35 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     max: field.max,
   });
 
+  // A string field whose choices depend on the entity's runtime state (e.g. a spine
+  // animation/skin name) renders as a dropdown of the live options, falling back to
+  // the text field when none are available (no skeleton loaded).
+  const dynOpts = !mixed && !write && field.type === 'string' ? dynamicEnumOptions(comp, field.key, entities[0]) : null;
   let control;
+  if (dynOpts) {
+    const cur = String(field.value);
+    control = (
+      <span className="field">
+        <select
+          className="dyn-enum"
+          value={cur}
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            begin();
+            apply(e.target.value);
+            end();
+          }}
+        >
+          {!dynOpts.includes(cur) && <option value={cur}>{cur || '(none)'}</option>}
+          {dynOpts.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      </span>
+    );
+  } else
   switch (field.type) {
     case 'number':
       control =

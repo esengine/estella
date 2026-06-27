@@ -16,6 +16,7 @@ import {
   setPlayMode,
 } from 'esengine';
 import type { App, ESEngineModule, ResourceDef, SubsystemStatus, SceneData } from 'esengine';
+import { SpinePlugin } from 'esengine/spine';
 import { SceneLoader } from './SceneLoader';
 import { loadEditorSpine } from './spineLoad';
 import { checkEngineBuild } from './EngineGuard';
@@ -91,6 +92,14 @@ class EngineHostImpl {
   /** Read an app-scoped resource (e.g. Assets, CameraView). */
   getResource<T>(resource: ResourceDef<T>): T | undefined {
     return this.app_?.getResource(resource);
+  }
+  /** Animation names of a spine entity's loaded skeleton (for the inspector dropdown); empty if none. */
+  spineAnimations(runtimeId: number): string[] {
+    return this.app_?.getPlugin(SpinePlugin)?.spineManager?.getAnimations(runtimeId as never) ?? [];
+  }
+  /** Skin names of a spine entity's loaded skeleton; empty if none. */
+  spineSkins(runtimeId: number): string[] {
+    return this.app_?.getPlugin(SpinePlugin)?.spineManager?.getSkins(runtimeId as never) ?? [];
   }
   get module(): ESEngineModule | null {
     return this.module_;

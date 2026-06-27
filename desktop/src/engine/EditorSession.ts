@@ -8,6 +8,7 @@ import { SceneCommands, SceneCommandsImpl } from './SceneCommands';
 import { SceneQuery, SceneQueryImpl } from './SceneQuery';
 import { useSelection, createSelectionStore, type SelectionStore } from '@/store/selectionStore';
 import { EditorControlSurfaceImpl } from './EditorControlSurface';
+import './spineEnums'; // side effect: register spine animation/skin dynamic enums
 
 /**
  * The single editor boundary. One instance owns
