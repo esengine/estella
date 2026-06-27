@@ -199,12 +199,14 @@ function FolderNode({
   depth,
   cwd,
   onSelect,
+  folderDrop,
 }: {
   path: string;
   name: string;
   depth: number;
   cwd: string;
   onSelect: (p: string) => void;
+  folderDrop?: (folderPath: string) => Pick<React.HTMLAttributes<HTMLDivElement>, 'onDragOver' | 'onDrop'>;
 }) {
   const [open, setOpen] = useState(depth === 0);
   const children = useDir(open ? path : null);
@@ -217,6 +219,7 @@ function FolderNode({
         style={{ paddingLeft: depth * 12 + 6 }}
         title={name}
         onClick={() => onSelect(path)}
+        {...(folderDrop ? folderDrop(path) : null)}
       >
         <span
           className={`tw${subdirs.length ? '' : ' leaf'}`}
@@ -233,7 +236,7 @@ function FolderNode({
         <span className="tn">{name}</span>
       </div>
       {open && subdirs.map((d) => (
-        <FolderNode key={d.name} path={join(path, d.name)} name={d.name} depth={depth + 1} cwd={cwd} onSelect={onSelect} />
+        <FolderNode key={d.name} path={join(path, d.name)} name={d.name} depth={depth + 1} cwd={cwd} onSelect={onSelect} folderDrop={folderDrop} />
       ))}
     </>
   );
@@ -596,7 +599,7 @@ export function ContentBrowser() {
           </div>
           <div className="cb-src-body">
             <div className="cb-sec">Folders</div>
-            <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} />
+            <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} folderDrop={folderDrop} />
           </div>
         </div>
 
