@@ -26,7 +26,7 @@ struct BitmapText {
     ES_PROPERTY(animatable)
     glm::vec4 color{1.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(min=1)
     f32 fontSize{1.0f};
 
     ES_PROPERTY()
@@ -35,7 +35,7 @@ struct BitmapText {
     ES_PROPERTY()
     f32 spacing{0.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(step=1)
     i32 layer{0};
 
     ES_PROPERTY(asset = font)

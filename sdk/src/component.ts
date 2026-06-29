@@ -338,6 +338,23 @@ export function getComponentFieldMeta(name: string): Readonly<Record<string, Fie
     return getComponent(name)?.fieldMeta ?? {};
 }
 
+/**
+ * Per-field merge of two FieldMeta maps: `override` wins key-by-key *within* a field
+ * (not whole-field replacement), so a builtin can author min/tooltip at the C++
+ * ES_PROPERTY site (→ `base`) and still add a runtime-only `enum`/`flags` override in
+ * TS without dropping the generated keys. See {@link defineBuiltin}.
+ */
+function mergeFieldMeta(
+    base: Record<string, FieldMeta>,
+    override: Record<string, FieldMeta>,
+): Record<string, FieldMeta> {
+    const out: Record<string, FieldMeta> = { ...base };
+    for (const k of Object.keys(override)) {
+        out[k] = { ...base[k], ...override[k] };
+    }
+    return out;
+}
+
 function detectColorKeys(defaults: unknown): readonly string[] {
     if (defaults === null || typeof defaults !== 'object') return [];
     const keys: string[] = [];
@@ -392,7 +409,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         entityFields: metadata?.entityFields ?? meta?.entityFields ?? [],
         colorKeys: meta?.colorFields ?? detectColorKeys(defaults),
         animatableFields: meta?.animatableFields ?? [],
-        fieldMeta: metadata?.fields ?? {},
+        fieldMeta: mergeFieldMeta(meta?.fields ?? {}, metadata?.fields ?? {}),
         discoverAssets: metadata?.discoverAssets,
         // Builtins declare transience via the defineBuiltin metadata arg for now;
         // a C++-side ES_COMPONENT(transient) annotation can flow through
@@ -602,15 +619,13 @@ function metaDefaults<T>(name: string, overrides?: Partial<T>): T {
     return (overrides ? { ...base, ...overrides } : { ...base }) as T;
 }
 
+// Field presentation metadata (min/max/tooltip/category/…) is authored at the C++
+// ES_PROPERTY site and flows in via COMPONENT_META.fields (RC9-1). Only metadata that
+// can't be a static annotation — `enum`/`flags` built from a runtime TS constant, or a
+// TS-only field with no C++ backing — stays here as a per-field override (deep-merged
+// over the generated base by defineBuiltin).
 export const Transform = defineBuiltin<TransformData>('Transform',
-    metaDefaults<TransformData>('Transform'),
-    {
-        fields: {
-            position: { tooltip: 'Local position in world units, relative to the parent.' },
-            rotation: { tooltip: 'Rotation about the Z axis, in degrees.' },
-            scale: { tooltip: 'Local scale per axis (1 = original size; negative flips).' },
-        },
-    }
+    metaDefaults<TransformData>('Transform')
 );
 export const LocalTransform = Transform;
 export const WorldTransform = Transform;
@@ -618,44 +633,17 @@ export const WorldTransform = Transform;
 export const Sprite = defineBuiltin<SpriteData>('Sprite',
     metaDefaults<SpriteData>('Sprite', {
         size: { x: DEFAULT_SPRITE_SIZE.x, y: DEFAULT_SPRITE_SIZE.y },
-    }),
-    {
-        fields: {
-            layer: { step: 1, enumSource: 'sortingLayers', tooltip: 'Sorting layer — controls draw order across sprites.' },
-            color: { tooltip: 'Tint multiplied into the texture (white = unchanged).' },
-            pivot: { advanced: true, tooltip: 'Anchor point (0–1) the sprite rotates and scales about.' },
-            uvOffset: { advanced: true },
-            uvScale: { advanced: true },
-            tileSize: { advanced: true },
-            tileSpacing: { advanced: true },
-            material: { advanced: true },
-        },
-    }
+    })
 );
 
 export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
     metaDefaults<ShapeRendererData>('ShapeRenderer'),
-    {
-        fields: {
-            shapeType: { enum: enumOptions(ShapeType) },
-            cornerRadius: { min: 0 },
-            layer: { step: 1, enumSource: 'sortingLayers' },
-        },
-    }
+    { fields: { shapeType: { enum: enumOptions(ShapeType) } } }
 );
 
 export const Light2D = defineBuiltin<Light2DData>('Light2D',
     metaDefaults<Light2DData>('Light2D'),
-    {
-        fields: {
-            type: { enum: enumOptions(Light2DType), tooltip: 'Point, Directional, Ambient, or Spot.' },
-            intensity: { min: 0, tooltip: 'Brightness multiplier of the light.' },
-            radius: { min: 0, tooltip: 'Falloff reach in world units (Point / Spot).' },
-            direction: { advanced: true, tooltip: 'Aim direction (Directional / Spot).' },
-            innerAngle: { min: 0, max: 180, unit: '°', advanced: true },
-            outerAngle: { min: 0, max: 180, unit: '°', advanced: true },
-        },
-    }
+    { fields: { type: { enum: enumOptions(Light2DType) } } }
 );
 
 export const Camera = defineBuiltin<CameraData>('Camera',
@@ -668,15 +656,11 @@ export const Camera = defineBuiltin<CameraData>('Camera',
     }),
     {
         fields: {
-            projectionType: { enum: enumOptions(ProjectionType), tooltip: 'Orthographic (2D) or Perspective projection.' },
+            projectionType: { enum: enumOptions(ProjectionType) },
             // A bitmask (ColorAndDepth = Color | Depth), so a multi-select, not a dropdown.
-            clearFlags: { flags: [{ label: 'Color', value: 1 }, { label: 'Depth', value: 2 }], tooltip: 'Which buffers to clear before rendering this camera.' },
-            fov: { min: 1, max: 179, unit: '°' },
-            orthoSize: { min: 0, tooltip: 'Half the visible height in world units (Orthographic).' },
-            nearPlane: { min: 0, advanced: true },
-            farPlane: { min: 0, advanced: true },
-            aspectRatio: { advanced: true },
-            priority: { step: 1, advanced: true },
+            clearFlags: { flags: [{ label: 'Color', value: 1 }, { label: 'Depth', value: 2 }] },
+            // showFrustum is a TS-only editor field (no C++ Camera member), so its
+            // metadata can't come from an annotation.
             showFrustum: { advanced: true },
         },
     }
@@ -690,13 +674,7 @@ export const Canvas = defineBuiltin<CanvasData>('Canvas',
     }),
     {
         fields: {
-            scaleMode: {
-                enum: enumOptions(ScaleMode, ['FixedWidth', 'FixedHeight', 'Expand', 'Shrink', 'Match']),
-                tooltip: 'How the canvas adapts the design resolution to the screen.',
-            },
-            // 0 = match width, 1 = match height (only meaningful in the Match mode).
-            matchWidthOrHeight: { min: 0, max: 1, slider: true, tooltip: '0 matches width, 1 matches height (Match mode only).' },
-            pixelsPerUnit: { min: 1, tooltip: 'Texture pixels mapped to one world unit.' },
+            scaleMode: { enum: enumOptions(ScaleMode, ['FixedWidth', 'FixedHeight', 'Expand', 'Shrink', 'Match']) },
         },
     }
 );
@@ -714,31 +692,15 @@ export const Children = defineBuiltin<ChildrenData>('Children',
 );
 
 export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText',
-    metaDefaults<BitmapTextData>('BitmapText'),
-    { fields: { fontSize: { min: 1 }, layer: { step: 1 } } }
+    metaDefaults<BitmapTextData>('BitmapText')
 );
 
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation',
-    metaDefaults<SpineAnimationData>('SpineAnimation'),
-    {
-        fields: {
-            timeScale: { min: 0 },
-            skeletonScale: { min: 0 },
-            layer: { step: 1, enumSource: 'sortingLayers' },
-        },
-    }
+    metaDefaults<SpineAnimationData>('SpineAnimation')
 );
 
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
-    metaDefaults<TilemapLayerData>('TilemapLayer'),
-    {
-        fields: {
-            opacity: { min: 0, max: 1, slider: true, tooltip: 'Layer transparency (0 = invisible, 1 = opaque).' },
-            tilesetColumns: { min: 1, step: 1 },
-            tilesetRows: { min: 1, step: 1 },
-            renderLayer: { step: 1, enumSource: 'sortingLayers' },
-        },
-    }
+    metaDefaults<TilemapLayerData>('TilemapLayer')
 );
 
 // =============================================================================
@@ -833,50 +795,18 @@ export interface ParticleEmitterData {
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
     metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] }, sizeCurve: { keys: [] } }),
     {
-        // A large component — organized into UE-style property categories.
+        // Field categories + min/step/unit are authored at the C++ ES_PROPERTY site
+        // (→ COMPONENT_META.fields). Only what an annotation can't express stays here:
+        // enums built from runtime TS constants, and the two TS-only editor fields
+        // (sizeCurve / colorGradient have no C++ member, so their metadata lives here).
         fields: {
-            rate: { min: 0, category: 'Emission' },
-            maxParticles: { min: 1, step: 1, category: 'Emission' },
-            duration: { min: 0, category: 'Emission' },
-            looping: { category: 'Emission' },
-            playOnStart: { category: 'Emission' },
-            burstCount: { min: 0, step: 1, category: 'Emission' },
-            burstInterval: { min: 0, category: 'Emission' },
-            lifetimeMin: { min: 0, category: 'Lifetime' },
-            lifetimeMax: { min: 0, category: 'Lifetime' },
-            shape: { enum: enumOptions(EmitterShape), category: 'Shape' },
-            shapeRadius: { min: 0, category: 'Shape' },
-            shapeSize: { category: 'Shape' },
-            shapeAngle: { unit: '°', category: 'Shape' },
-            speedMin: { category: 'Velocity' },
-            speedMax: { category: 'Velocity' },
-            angleSpreadMin: { unit: '°', category: 'Velocity' },
-            angleSpreadMax: { unit: '°', category: 'Velocity' },
-            gravity: { category: 'Velocity' },
-            damping: { min: 0, category: 'Velocity' },
+            shape: { enum: enumOptions(EmitterShape) },
+            sizeEasing: { enum: enumOptions(ParticleEasing) },
+            colorEasing: { enum: enumOptions(ParticleEasing) },
+            blendMode: { enum: enumOptions(BlendMode) },
+            simulationSpace: { enum: enumOptions(SimulationSpace) },
             sizeCurve: { curve: true, category: 'Size' },
-            startSizeMin: { min: 0, category: 'Size' },
-            startSizeMax: { min: 0, category: 'Size' },
-            endSizeMin: { min: 0, category: 'Size' },
-            endSizeMax: { min: 0, category: 'Size' },
-            sizeEasing: { enum: enumOptions(ParticleEasing), category: 'Size' },
             colorGradient: { gradient: true, category: 'Color' },
-            startColor: { category: 'Color' },
-            endColor: { category: 'Color' },
-            colorEasing: { enum: enumOptions(ParticleEasing), category: 'Color' },
-            rotationMin: { unit: '°', category: 'Rotation' },
-            rotationMax: { unit: '°', category: 'Rotation' },
-            angularVelocityMin: { category: 'Rotation' },
-            angularVelocityMax: { category: 'Rotation' },
-            texture: { category: 'Texture' },
-            spriteColumns: { min: 1, step: 1, category: 'Texture' },
-            spriteRows: { min: 1, step: 1, category: 'Texture' },
-            spriteFPS: { min: 0, category: 'Texture' },
-            spriteLoop: { category: 'Texture' },
-            blendMode: { enum: enumOptions(BlendMode), category: 'Rendering' },
-            layer: { step: 1, category: 'Rendering', enumSource: 'sortingLayers' },
-            material: { category: 'Rendering' },
-            simulationSpace: { enum: enumOptions(SimulationSpace), category: 'Rendering' },
         },
     }
 );

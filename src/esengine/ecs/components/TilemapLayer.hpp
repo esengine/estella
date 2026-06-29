@@ -29,19 +29,19 @@ struct TilemapLayer {
     ES_PROPERTY(asset = texture)
     resource::TextureHandle tileset;
 
-    ES_PROPERTY()
+    ES_PROPERTY(min=1, step=1)
     i32 tilesetColumns{1};
 
-    ES_PROPERTY()
+    ES_PROPERTY(min=1, step=1)
     i32 tilesetRows{1};
 
-    ES_PROPERTY()
+    ES_PROPERTY(step=1, enum_source=sortingLayers)
     i32 renderLayer{0};
 
     ES_PROPERTY(animatable)
     glm::vec4 tintColor{1.0f, 1.0f, 1.0f, 1.0f};
 
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, min=0, max=1, slider, tooltip="Layer transparency (0 = invisible, 1 = opaque).")
     f32 opacity{1.0f};
 
     ES_PROPERTY()

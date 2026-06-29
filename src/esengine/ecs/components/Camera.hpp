@@ -69,27 +69,27 @@ enum class ClearFlags : u8 {
 ES_COMPONENT()
 struct Camera {
     /** @brief Projection type */
-    ES_PROPERTY()
+    ES_PROPERTY(tooltip="Orthographic (2D) or Perspective projection.")
     ProjectionType projectionType{ProjectionType::Perspective};
 
     /** @brief Field of view in degrees (perspective only) */
-    ES_PROPERTY()
+    ES_PROPERTY(min=1, max=179, unit="°")
     f32 fov{60.0f};
 
     /** @brief Orthographic size (half-height in world units) */
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, min=0, tooltip="Half the visible height in world units (Orthographic).")
     f32 orthoSize{5.0f};
 
     /** @brief Near clipping plane distance */
-    ES_PROPERTY()
+    ES_PROPERTY(min=0, advanced)
     f32 nearPlane{0.1f};
 
     /** @brief Far clipping plane distance */
-    ES_PROPERTY()
+    ES_PROPERTY(min=0, advanced)
     f32 farPlane{1000.0f};
 
     /** @brief Aspect ratio (width / height), 0 = auto from viewport */
-    ES_PROPERTY()
+    ES_PROPERTY(advanced)
     f32 aspectRatio{0.0f};
 
     /** @brief Whether this is the active camera */
@@ -97,14 +97,14 @@ struct Camera {
     bool isActive{false};
 
     /** @brief Priority for determining active camera (higher = preferred) */
-    ES_PROPERTY()
+    ES_PROPERTY(step=1, advanced)
     i32 priority{0};
 
     /** @brief Viewport rectangle (x, y, width, height) in normalized coords */
     ES_PROPERTY()
     glm::vec4 viewport{0.0f, 0.0f, 1.0f, 1.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(tooltip="Which buffers to clear before rendering this camera.")
     ClearFlags clearFlags{ClearFlags::ColorAndDepth};
 
     Camera() = default;

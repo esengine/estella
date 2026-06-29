@@ -43,17 +43,42 @@
  *          JavaScript/TypeScript with automatic getter/setter generation.
  *          Only works inside ES_COMPONENT() marked types.
  *
- *          Supports optional metadata annotations parsed by EHT:
- *          - asset=<type>     : marks field as asset reference (texture, material, font, audio, etc.)
- *          - animatable       : marks field as animatable via timeline
- *          - entity_ref       : marks field as entity reference (for ID remapping)
+ *          This is the single authoring site for a field's editor/serialization
+ *          metadata (RC9-1): the value lives in the struct, the presentation policy
+ *          lives in the annotation, and EHT generates both the TS metadata and the
+ *          C++ editor schema from it. Vocabulary parsed/validated by EHT:
+ *
+ *          Semantics (flags):
+ *          - asset=<type>     : asset reference (texture, material, font, audio, spine_skeleton, spine_atlas)
+ *          - animatable       : keyframeable via the Sequencer/timeline
+ *          - anim_override    : field may be tween-driven; layout must not clobber it
  *          - anim_flag=<flag> : animation side-effect flag (e.g. ANIM_POS_X on UINode)
+ *          - entity_ref       : entity reference (remapped on scene load / instancing)
+ *          - readonly         : not editable in the inspector
+ *
+ *          Editor presentation:
+ *          - min=<n> / max=<n> / step=<n> : numeric range and scrub granularity
+ *          - slider             : render as a slider (requires both min= and max=)
+ *          - unit=<s>           : unit suffix shown after the value (e.g. °, px, %)
+ *          - label=<s> / tooltip=<s> : human label / hover text
+ *          - category=<s>       : inspector group header
+ *          - advanced           : tuck behind an "advanced" fold
+ *          - enum_source=<name> / bitmask_source=<name> : editor-resolved option/label source
+ *
+ *          Serialization / runtime policy:
+ *          - invalidates=<field> : after an editor set, flip <field> so the owning
+ *                                  system re-runs its load path next tick
+ *          - skip_serialize      : omit from scene serialization (runtime-only state)
+ *          - replicated          : eligible for network replication (RC11; reserved)
+ *
+ *          Malformed *known* metadata (a non-numeric min=, slider without a range,
+ *          invalidates= naming no field) is a hard EHT error, not a silent drop.
  *
  *          Examples:
  *            ES_PROPERTY(asset=texture)
- *            ES_PROPERTY(animatable)
  *            ES_PROPERTY(animatable, anim_flag=ANIM_POS_X)
- *            ES_PROPERTY(entity_ref)
+ *            ES_PROPERTY(min=0, max=180, unit="°", advanced, category="Spot")
+ *            ES_PROPERTY(invalidates=needsReload)
  */
 #define ES_PROPERTY(...)
 

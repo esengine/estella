@@ -19,10 +19,10 @@ struct ShapeRenderer {
     ES_PROPERTY()
     glm::vec2 size{100.0f, 100.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(min=0)
     f32 cornerRadius{0.0f};
 
-    ES_PROPERTY()
+    ES_PROPERTY(step=1, enum_source=sortingLayers)
     i32 layer{0};
 
     ES_PROPERTY()

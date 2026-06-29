@@ -47,7 +47,7 @@ enum class Light2DType : i32 {
 ES_COMPONENT()
 struct Light2D {
     /** @brief Light kind: 0 = Point, 1 = Directional, 2 = Ambient (see Light2DType). */
-    ES_PROPERTY()
+    ES_PROPERTY(tooltip="Point, Directional, Ambient, or Spot.")
     i32 type{0};
 
     /** @brief Light color, multiplied by intensity. RGBA for editor color-picker consistency
@@ -57,24 +57,24 @@ struct Light2D {
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
 
     /** @brief Light strength multiplier. */
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, min=0, tooltip="Brightness multiplier of the light.")
     f32 intensity{1.0f};
 
     /** @brief Point/Spot falloff radius in world units (ignored by Directional/Ambient). */
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, min=0, tooltip="Falloff reach in world units (Point / Spot).")
     f32 radius{200.0f};
 
     /** @brief Direction in the 2D plane: Directional light direction, or Spot cone axis
      *         ({0,0} = straight at the screen / cone aims down). Ignored by Point/Ambient. */
-    ES_PROPERTY()
+    ES_PROPERTY(advanced, tooltip="Aim direction (Directional / Spot).")
     glm::vec2 direction{0.0f, 0.0f};
 
     /** @brief Spot inner cone angle in degrees (full angle; fully lit inside). */
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)
     f32 innerAngle{30.0f};
 
     /** @brief Spot outer cone angle in degrees (full angle; fades to dark by here). */
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)
     f32 outerAngle{45.0f};
 
     /** @brief Disabled lights are skipped during collection. */

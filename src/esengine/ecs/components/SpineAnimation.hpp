@@ -65,7 +65,7 @@ struct SpineAnimation {
     std::string animation;
 
     /** @brief Animation playback speed multiplier */
-    ES_PROPERTY()
+    ES_PROPERTY(min=0)
     f32 timeScale{1.0f};
 
     /** @brief Whether to loop the animation */
@@ -89,11 +89,11 @@ struct SpineAnimation {
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
 
     /** @brief Sorting layer (higher = rendered on top) */
-    ES_PROPERTY()
+    ES_PROPERTY(step=1, enum_source=sortingLayers)
     i32 layer{0};
 
     /** @brief Skeleton scale factor */
-    ES_PROPERTY()
+    ES_PROPERTY(min=0)
     f32 skeletonScale{1.0f};
 
     /** @brief Custom material ID (0 = use default batch shader) */

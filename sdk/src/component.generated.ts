@@ -5,6 +5,7 @@
  */
 
 import type { AssetFieldType } from './scene';
+import type { FieldMeta } from './component';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -31,6 +32,7 @@ export interface ComponentMetaEntry {
     entityFields: string[];
     colorFields: string[];
     animatableFields: string[];
+    fields?: Record<string, FieldMeta>;
 }
 
 export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
@@ -49,6 +51,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],
+        fields: {
+            fontSize: { min: 1 },
+            layer: { step: 1 },
+        },
     },
     BoxCollider: {
         defaults: {
@@ -84,6 +90,16 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: ['orthoSize'],
+        fields: {
+            projectionType: { tooltip: "Orthographic (2D) or Perspective projection." },
+            fov: { min: 1, max: 179, unit: "°" },
+            orthoSize: { min: 0, tooltip: "Half the visible height in world units (Orthographic)." },
+            nearPlane: { min: 0, advanced: true },
+            farPlane: { min: 0, advanced: true },
+            aspectRatio: { advanced: true },
+            priority: { step: 1, advanced: true },
+            clearFlags: { tooltip: "Which buffers to clear before rendering this camera." },
+        },
     },
     Canvas: {
         defaults: {
@@ -97,6 +113,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['backgroundColor'],
         animatableFields: [],
+        fields: {
+            pixelsPerUnit: { min: 1, tooltip: "Texture pixels mapped to one world unit." },
+            scaleMode: { tooltip: "How the canvas adapts the design resolution to the screen." },
+            matchWidthOrHeight: { min: 0, max: 1, slider: true, tooltip: "0 matches width, 1 matches height (Match mode only)." },
+        },
     },
     CapsuleCollider: {
         defaults: {
@@ -183,6 +204,14 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle'],
+        fields: {
+            type: { tooltip: "Point, Directional, Ambient, or Spot." },
+            intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
+            radius: { min: 0, tooltip: "Falloff reach in world units (Point / Spot)." },
+            direction: { tooltip: "Aim direction (Directional / Spot).", advanced: true },
+            innerAngle: { min: 0, max: 180, unit: "°", advanced: true },
+            outerAngle: { min: 0, max: 180, unit: "°", advanced: true },
+        },
     },
     Parent: {
         defaults: {
@@ -241,6 +270,48 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['startColor', 'endColor'],
         animatableFields: [],
+        fields: {
+            rate: { min: 0, category: "Emission" },
+            burstCount: { min: 0, step: 1, category: "Emission" },
+            burstInterval: { min: 0, category: "Emission" },
+            duration: { min: 0, category: "Emission" },
+            looping: { category: "Emission" },
+            playOnStart: { category: "Emission" },
+            maxParticles: { min: 1, step: 1, category: "Emission" },
+            lifetimeMin: { min: 0, category: "Lifetime" },
+            lifetimeMax: { min: 0, category: "Lifetime" },
+            shape: { category: "Shape" },
+            shapeRadius: { min: 0, category: "Shape" },
+            shapeSize: { category: "Shape" },
+            shapeAngle: { unit: "°", category: "Shape" },
+            speedMin: { category: "Velocity" },
+            speedMax: { category: "Velocity" },
+            angleSpreadMin: { unit: "°", category: "Velocity" },
+            angleSpreadMax: { unit: "°", category: "Velocity" },
+            startSizeMin: { min: 0, category: "Size" },
+            startSizeMax: { min: 0, category: "Size" },
+            endSizeMin: { min: 0, category: "Size" },
+            endSizeMax: { min: 0, category: "Size" },
+            sizeEasing: { category: "Size" },
+            startColor: { category: "Color" },
+            endColor: { category: "Color" },
+            colorEasing: { category: "Color" },
+            rotationMin: { unit: "°", category: "Rotation" },
+            rotationMax: { unit: "°", category: "Rotation" },
+            angularVelocityMin: { category: "Rotation" },
+            angularVelocityMax: { category: "Rotation" },
+            gravity: { category: "Velocity" },
+            damping: { min: 0, category: "Velocity" },
+            texture: { category: "Texture" },
+            spriteColumns: { min: 1, step: 1, category: "Texture" },
+            spriteRows: { min: 1, step: 1, category: "Texture" },
+            spriteFPS: { min: 0, category: "Texture" },
+            spriteLoop: { category: "Texture" },
+            blendMode: { category: "Rendering" },
+            layer: { step: 1, category: "Rendering", enumSource: "sortingLayers" },
+            material: { category: "Rendering" },
+            simulationSpace: { category: "Rendering" },
+        },
     },
     RigidBody: {
         defaults: {
@@ -287,6 +358,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['color'],
         animatableFields: [],
+        fields: {
+            cornerRadius: { min: 0 },
+            layer: { step: 1, enumSource: "sortingLayers" },
+        },
     },
     SpineAnimation: {
         defaults: {
@@ -310,6 +385,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['color'],
         animatableFields: [],
+        fields: {
+            timeScale: { min: 0 },
+            layer: { step: 1, enumSource: "sortingLayers" },
+            skeletonScale: { min: 0 },
+        },
     },
     Sprite: {
         defaults: {
@@ -331,6 +411,16 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'size.x', 'size.y'],
+        fields: {
+            color: { tooltip: "Tint multiplied into the texture (white = unchanged)." },
+            pivot: { tooltip: "Anchor point (0–1) the sprite rotates and scales about.", advanced: true },
+            uvOffset: { advanced: true },
+            uvScale: { advanced: true },
+            layer: { step: 1, tooltip: "Sorting layer — controls draw order across sprites.", enumSource: "sortingLayers" },
+            tileSize: { advanced: true },
+            tileSpacing: { advanced: true },
+            material: { advanced: true },
+        },
     },
     StateMachine: {
         defaults: {
@@ -371,6 +461,12 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['tintColor'],
         animatableFields: ['tintColor.r', 'tintColor.g', 'tintColor.b', 'tintColor.a', 'opacity'],
+        fields: {
+            tilesetColumns: { min: 1, step: 1 },
+            tilesetRows: { min: 1, step: 1 },
+            renderLayer: { step: 1, enumSource: "sortingLayers" },
+            opacity: { min: 0, max: 1, slider: true, tooltip: "Layer transparency (0 = invisible, 1 = opaque)." },
+        },
     },
     Transform: {
         defaults: {
@@ -385,6 +481,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: ['position.x', 'position.y', 'position.z', 'rotation.z', 'scale.x', 'scale.y', 'scale.z'],
+        fields: {
+            position: { tooltip: "Local position in world units, relative to the parent." },
+            rotation: { tooltip: "Rotation about the Z axis, in degrees." },
+            scale: { tooltip: "Local scale per axis (1 = original size; negative flips)." },
+        },
     },
     UIInteraction: {
         defaults: {

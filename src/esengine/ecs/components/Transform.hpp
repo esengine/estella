@@ -40,13 +40,13 @@ namespace esengine::ecs {
  */
 ES_COMPONENT()
 struct Transform {
-    ES_PROPERTY(animatable, anim_override)
+    ES_PROPERTY(animatable, anim_override, tooltip="Local position in world units, relative to the parent.")
     glm::vec3 position{0.0f, 0.0f, 0.0f};
 
-    ES_PROPERTY(animatable, anim_override)
+    ES_PROPERTY(animatable, anim_override, tooltip="Rotation about the Z axis, in degrees.")
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 
-    ES_PROPERTY(animatable, anim_override)
+    ES_PROPERTY(animatable, anim_override, tooltip="Local scale per axis (1 = original size; negative flips).")
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 
     ES_PROPERTY(readonly)

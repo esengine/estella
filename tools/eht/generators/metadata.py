@@ -1,10 +1,11 @@
 """Component metadata generator (component.generated.ts)."""
 
-from typing import Dict, List, Optional
+import json
+from typing import Dict, List, Optional, Tuple
 from ..data import Component, Enum, Property
 from ..type_system import TypeSystem
 from ..field_utils import (
-    is_color_field, build_enum_value_map, convert_default_ts,
+    is_color_field, build_enum_value_map, convert_default_ts, format_number,
 )
 
 
@@ -45,6 +46,43 @@ class MetadataGenerator:
     def _get_color_fields(self, comp: Component) -> List[str]:
         return [p.name for p in comp.properties if is_color_field(p, self.types)]
 
+    def _get_field_meta(self, comp: Component) -> List[Tuple[str, List[Tuple[str, str]]]]:
+        """Build per-field editor-presentation metadata (the FieldMeta shape) from
+        ES_PROPERTY annotations. `enum`/`flags`/`gradient`/`curve` are intentionally
+        absent — they carry runtime TS constants (e.g. enumOptions(...)) and stay as
+        TS-side defineBuiltin overrides; everything expressible as a static annotation
+        is authored at the C++ site. Returns [(field, [(metaKey, jsLiteral), ...])].
+        """
+        out: List[Tuple[str, List[Tuple[str, str]]]] = []
+        for prop in comp.properties:
+            a = prop.annotations
+            entries: List[Tuple[str, str]] = []
+            if 'min' in a:
+                entries.append(('min', format_number(a['min'])))
+            if 'max' in a:
+                entries.append(('max', format_number(a['max'])))
+            if 'step' in a:
+                entries.append(('step', format_number(a['step'])))
+            if 'slider' in a:
+                entries.append(('slider', 'true'))
+            if 'unit' in a:
+                entries.append(('unit', json.dumps(a['unit'], ensure_ascii=False)))
+            if 'label' in a:
+                entries.append(('label', json.dumps(a['label'], ensure_ascii=False)))
+            if 'tooltip' in a:
+                entries.append(('tooltip', json.dumps(a['tooltip'], ensure_ascii=False)))
+            if 'category' in a:
+                entries.append(('category', json.dumps(a['category'], ensure_ascii=False)))
+            if 'advanced' in a:
+                entries.append(('advanced', 'true'))
+            if 'enum_source' in a:
+                entries.append(('enumSource', json.dumps(a['enum_source'], ensure_ascii=False)))
+            if 'bitmask_source' in a:
+                entries.append(('bitmask', '{ source: ' + json.dumps(a['bitmask_source'], ensure_ascii=False) + ' }'))
+            if entries:
+                out.append((prop.name, entries))
+        return out
+
     def _get_animatable_fields(self, comp: Component) -> List[str]:
         fields = []
         for prop in comp.properties:
@@ -75,6 +113,7 @@ class MetadataGenerator:
             ' */',
             '',
             "import type { AssetFieldType } from './scene';",
+            "import type { FieldMeta } from './component';",
             '',
             '/**',
             ' * Single-source-of-truth hash of the C++/TS boundary ABI (component',
@@ -101,6 +140,7 @@ class MetadataGenerator:
             '    entityFields: string[];',
             '    colorFields: string[];',
             '    animatableFields: string[];',
+            '    fields?: Record<string, FieldMeta>;',
             '}',
             '',
             'export const COMPONENT_META: Record<string, ComponentMetaEntry> = {',
@@ -157,6 +197,14 @@ class MetadataGenerator:
                 lines.append(f'        animatableFields: [{parts}],')
             else:
                 lines.append('        animatableFields: [],')
+
+            field_meta = self._get_field_meta(comp)
+            if field_meta:
+                lines.append('        fields: {')
+                for fname, entries in field_meta:
+                    parts = ', '.join(f'{k}: {v}' for k, v in entries)
+                    lines.append(f'            {fname}: {{ {parts} }},')
+                lines.append('        },')
 
             lines.append('    },')
 

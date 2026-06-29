@@ -1,0 +1,493 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapshot of every builtin with declared field metadata 1`] = `
+{
+  "BitmapText": {
+    "fontSize": {
+      "min": 1,
+    },
+    "layer": {
+      "step": 1,
+    },
+  },
+  "Camera": {
+    "aspectRatio": {
+      "advanced": true,
+    },
+    "clearFlags": {
+      "flags": [
+        {
+          "label": "Color",
+          "value": 1,
+        },
+        {
+          "label": "Depth",
+          "value": 2,
+        },
+      ],
+      "tooltip": "Which buffers to clear before rendering this camera.",
+    },
+    "farPlane": {
+      "advanced": true,
+      "min": 0,
+    },
+    "fov": {
+      "max": 179,
+      "min": 1,
+      "unit": "°",
+    },
+    "nearPlane": {
+      "advanced": true,
+      "min": 0,
+    },
+    "orthoSize": {
+      "min": 0,
+      "tooltip": "Half the visible height in world units (Orthographic).",
+    },
+    "priority": {
+      "advanced": true,
+      "step": 1,
+    },
+    "projectionType": {
+      "enum": [
+        {
+          "label": "Perspective",
+          "value": 0,
+        },
+        {
+          "label": "Orthographic",
+          "value": 1,
+        },
+      ],
+      "tooltip": "Orthographic (2D) or Perspective projection.",
+    },
+    "showFrustum": {
+      "advanced": true,
+    },
+  },
+  "Canvas": {
+    "matchWidthOrHeight": {
+      "max": 1,
+      "min": 0,
+      "slider": true,
+      "tooltip": "0 matches width, 1 matches height (Match mode only).",
+    },
+    "pixelsPerUnit": {
+      "min": 1,
+      "tooltip": "Texture pixels mapped to one world unit.",
+    },
+    "scaleMode": {
+      "enum": [
+        {
+          "label": "FixedWidth",
+          "value": 0,
+        },
+        {
+          "label": "FixedHeight",
+          "value": 1,
+        },
+        {
+          "label": "Expand",
+          "value": 2,
+        },
+        {
+          "label": "Shrink",
+          "value": 3,
+        },
+        {
+          "label": "Match",
+          "value": 4,
+        },
+      ],
+      "tooltip": "How the canvas adapts the design resolution to the screen.",
+    },
+  },
+  "Light2D": {
+    "direction": {
+      "advanced": true,
+      "tooltip": "Aim direction (Directional / Spot).",
+    },
+    "innerAngle": {
+      "advanced": true,
+      "max": 180,
+      "min": 0,
+      "unit": "°",
+    },
+    "intensity": {
+      "min": 0,
+      "tooltip": "Brightness multiplier of the light.",
+    },
+    "outerAngle": {
+      "advanced": true,
+      "max": 180,
+      "min": 0,
+      "unit": "°",
+    },
+    "radius": {
+      "min": 0,
+      "tooltip": "Falloff reach in world units (Point / Spot).",
+    },
+    "type": {
+      "enum": [
+        {
+          "label": "Point",
+          "value": 0,
+        },
+        {
+          "label": "Directional",
+          "value": 1,
+        },
+        {
+          "label": "Ambient",
+          "value": 2,
+        },
+        {
+          "label": "Spot",
+          "value": 3,
+        },
+      ],
+      "tooltip": "Point, Directional, Ambient, or Spot.",
+    },
+  },
+  "ParticleEmitter": {
+    "angleSpreadMax": {
+      "category": "Velocity",
+      "unit": "°",
+    },
+    "angleSpreadMin": {
+      "category": "Velocity",
+      "unit": "°",
+    },
+    "angularVelocityMax": {
+      "category": "Rotation",
+    },
+    "angularVelocityMin": {
+      "category": "Rotation",
+    },
+    "blendMode": {
+      "category": "Rendering",
+      "enum": [
+        {
+          "label": "Normal",
+          "value": 0,
+        },
+        {
+          "label": "Additive",
+          "value": 1,
+        },
+        {
+          "label": "Multiply",
+          "value": 2,
+        },
+        {
+          "label": "Screen",
+          "value": 3,
+        },
+        {
+          "label": "PremultipliedAlpha",
+          "value": 4,
+        },
+      ],
+    },
+    "burstCount": {
+      "category": "Emission",
+      "min": 0,
+      "step": 1,
+    },
+    "burstInterval": {
+      "category": "Emission",
+      "min": 0,
+    },
+    "colorEasing": {
+      "category": "Color",
+      "enum": [
+        {
+          "label": "Linear",
+          "value": 0,
+        },
+        {
+          "label": "EaseIn",
+          "value": 1,
+        },
+        {
+          "label": "EaseOut",
+          "value": 2,
+        },
+        {
+          "label": "EaseInOut",
+          "value": 3,
+        },
+      ],
+    },
+    "colorGradient": {
+      "category": "Color",
+      "gradient": true,
+    },
+    "damping": {
+      "category": "Velocity",
+      "min": 0,
+    },
+    "duration": {
+      "category": "Emission",
+      "min": 0,
+    },
+    "endColor": {
+      "category": "Color",
+    },
+    "endSizeMax": {
+      "category": "Size",
+      "min": 0,
+    },
+    "endSizeMin": {
+      "category": "Size",
+      "min": 0,
+    },
+    "gravity": {
+      "category": "Velocity",
+    },
+    "layer": {
+      "category": "Rendering",
+      "enumSource": "sortingLayers",
+      "step": 1,
+    },
+    "lifetimeMax": {
+      "category": "Lifetime",
+      "min": 0,
+    },
+    "lifetimeMin": {
+      "category": "Lifetime",
+      "min": 0,
+    },
+    "looping": {
+      "category": "Emission",
+    },
+    "material": {
+      "category": "Rendering",
+    },
+    "maxParticles": {
+      "category": "Emission",
+      "min": 1,
+      "step": 1,
+    },
+    "playOnStart": {
+      "category": "Emission",
+    },
+    "rate": {
+      "category": "Emission",
+      "min": 0,
+    },
+    "rotationMax": {
+      "category": "Rotation",
+      "unit": "°",
+    },
+    "rotationMin": {
+      "category": "Rotation",
+      "unit": "°",
+    },
+    "shape": {
+      "category": "Shape",
+      "enum": [
+        {
+          "label": "Point",
+          "value": 0,
+        },
+        {
+          "label": "Circle",
+          "value": 1,
+        },
+        {
+          "label": "Rectangle",
+          "value": 2,
+        },
+        {
+          "label": "Cone",
+          "value": 3,
+        },
+      ],
+    },
+    "shapeAngle": {
+      "category": "Shape",
+      "unit": "°",
+    },
+    "shapeRadius": {
+      "category": "Shape",
+      "min": 0,
+    },
+    "shapeSize": {
+      "category": "Shape",
+    },
+    "simulationSpace": {
+      "category": "Rendering",
+      "enum": [
+        {
+          "label": "World",
+          "value": 0,
+        },
+        {
+          "label": "Local",
+          "value": 1,
+        },
+      ],
+    },
+    "sizeCurve": {
+      "category": "Size",
+      "curve": true,
+    },
+    "sizeEasing": {
+      "category": "Size",
+      "enum": [
+        {
+          "label": "Linear",
+          "value": 0,
+        },
+        {
+          "label": "EaseIn",
+          "value": 1,
+        },
+        {
+          "label": "EaseOut",
+          "value": 2,
+        },
+        {
+          "label": "EaseInOut",
+          "value": 3,
+        },
+      ],
+    },
+    "speedMax": {
+      "category": "Velocity",
+    },
+    "speedMin": {
+      "category": "Velocity",
+    },
+    "spriteColumns": {
+      "category": "Texture",
+      "min": 1,
+      "step": 1,
+    },
+    "spriteFPS": {
+      "category": "Texture",
+      "min": 0,
+    },
+    "spriteLoop": {
+      "category": "Texture",
+    },
+    "spriteRows": {
+      "category": "Texture",
+      "min": 1,
+      "step": 1,
+    },
+    "startColor": {
+      "category": "Color",
+    },
+    "startSizeMax": {
+      "category": "Size",
+      "min": 0,
+    },
+    "startSizeMin": {
+      "category": "Size",
+      "min": 0,
+    },
+    "texture": {
+      "category": "Texture",
+    },
+  },
+  "ShapeRenderer": {
+    "cornerRadius": {
+      "min": 0,
+    },
+    "layer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+    },
+    "shapeType": {
+      "enum": [
+        {
+          "label": "Circle",
+          "value": 0,
+        },
+        {
+          "label": "Capsule",
+          "value": 1,
+        },
+        {
+          "label": "RoundedRect",
+          "value": 2,
+        },
+      ],
+    },
+  },
+  "SpineAnimation": {
+    "layer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+    },
+    "skeletonScale": {
+      "min": 0,
+    },
+    "timeScale": {
+      "min": 0,
+    },
+  },
+  "Sprite": {
+    "color": {
+      "tooltip": "Tint multiplied into the texture (white = unchanged).",
+    },
+    "layer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+      "tooltip": "Sorting layer — controls draw order across sprites.",
+    },
+    "material": {
+      "advanced": true,
+    },
+    "pivot": {
+      "advanced": true,
+      "tooltip": "Anchor point (0–1) the sprite rotates and scales about.",
+    },
+    "tileSize": {
+      "advanced": true,
+    },
+    "tileSpacing": {
+      "advanced": true,
+    },
+    "uvOffset": {
+      "advanced": true,
+    },
+    "uvScale": {
+      "advanced": true,
+    },
+  },
+  "TilemapLayer": {
+    "opacity": {
+      "max": 1,
+      "min": 0,
+      "slider": true,
+      "tooltip": "Layer transparency (0 = invisible, 1 = opaque).",
+    },
+    "renderLayer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+    },
+    "tilesetColumns": {
+      "min": 1,
+      "step": 1,
+    },
+    "tilesetRows": {
+      "min": 1,
+      "step": 1,
+    },
+  },
+  "Transform": {
+    "position": {
+      "tooltip": "Local position in world units, relative to the parent.",
+    },
+    "rotation": {
+      "tooltip": "Rotation about the Z axis, in degrees.",
+    },
+    "scale": {
+      "tooltip": "Local scale per axis (1 = original size; negative flips).",
+    },
+  },
+}
+`;

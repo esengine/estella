@@ -35,6 +35,13 @@ def main() -> int:
     if cpp_parser.warnings:
         cpp_parser.print_warnings()
 
+    # Abort before codegen on malformed metadata — emitting bindings from a bad
+    # annotation would bake the mistake into committed *.generated.* files.
+    if cpp_parser.errors:
+        cpp_parser.print_errors()
+        print(f"[FAIL] {len(cpp_parser.errors)} annotation error(s); aborting before codegen.")
+        return 1
+
     # Emit components/enums in a stable alphabetical order so the generated files
     # are byte-reproducible across machines — Path.rglob order is filesystem-
     # dependent, which otherwise churns every committed *.generated.* file when a

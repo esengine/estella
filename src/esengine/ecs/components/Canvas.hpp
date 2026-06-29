@@ -72,15 +72,15 @@ struct Canvas {
     glm::uvec2 designResolution{1920, 1080};
 
     /** @brief Pixels per world unit (e.g., 100 means 100px = 1 unit) */
-    ES_PROPERTY()
+    ES_PROPERTY(min=1, tooltip="Texture pixels mapped to one world unit.")
     f32 pixelsPerUnit{100.0f};
 
     /** @brief Scaling mode for different screen resolutions */
-    ES_PROPERTY()
+    ES_PROPERTY(tooltip="How the canvas adapts the design resolution to the screen.")
     CanvasScaleMode scaleMode{CanvasScaleMode::FixedHeight};
 
     /** @brief Match factor for Match scale mode (0 = width, 1 = height) */
-    ES_PROPERTY()
+    ES_PROPERTY(min=0, max=1, slider, tooltip="0 matches width, 1 matches height (Match mode only).")
     f32 matchWidthOrHeight{0.5f};
 
     /** @brief Background color for letterbox/pillarbox areas */

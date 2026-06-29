@@ -50,7 +50,7 @@ struct Sprite {
     resource::TextureHandle texture;
 
     /** @brief Color tint (RGBA, 0-1 range) */
-    ES_PROPERTY(animatable)
+    ES_PROPERTY(animatable, tooltip="Tint multiplied into the texture (white = unchanged).")
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
 
     /** @brief Sprite size in world units */
@@ -58,19 +58,19 @@ struct Sprite {
     glm::vec2 size{1.0f, 1.0f};
 
     /** @brief Pivot point (0,0 = bottom-left, 0.5,0.5 = center, 1,1 = top-right) */
-    ES_PROPERTY()
+    ES_PROPERTY(advanced, tooltip="Anchor point (0–1) the sprite rotates and scales about.")
     glm::vec2 pivot{0.5f, 0.5f};
 
     /** @brief UV coordinate offset for sprite sheets */
-    ES_PROPERTY()
+    ES_PROPERTY(advanced)
     glm::vec2 uvOffset{0.0f, 0.0f};
 
     /** @brief UV coordinate scale for sprite sheets */
-    ES_PROPERTY()
+    ES_PROPERTY(advanced)
     glm::vec2 uvScale{1.0f, 1.0f};
 
     /** @brief Sorting layer (higher = rendered on top) */
-    ES_PROPERTY()
+    ES_PROPERTY(step=1, enum_source=sortingLayers, tooltip="Sorting layer — controls draw order across sprites.")
     i32 layer{0};
 
     /** @brief Flip sprite horizontally */
@@ -82,15 +82,15 @@ struct Sprite {
     bool flipY{false};
 
     /** @brief Tile size in world units for tiling mode ({0,0} = no tiling) */
-    ES_PROPERTY()
+    ES_PROPERTY(advanced)
     glm::vec2 tileSize{0.0f, 0.0f};
 
     /** @brief Spacing between tiles in world units ({0,0} = seamless) */
-    ES_PROPERTY()
+    ES_PROPERTY(advanced)
     glm::vec2 tileSpacing{0.0f, 0.0f};
 
     /** @brief Custom material ID (0 = use default batch shader) */
-    ES_PROPERTY(asset = material)
+    ES_PROPERTY(asset = material, advanced)
     u32 material{0};
 
     ES_PROPERTY()
