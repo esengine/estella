@@ -8,7 +8,7 @@
  *        proven separately by play:verify — gameHost reuses initPlayRealmRuntime.)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +27,9 @@ beforeAll(async () => {
   root = mkdtempSync(path.join(tmpdir(), 'estella-export-'));
   // A texture asset + sidecar.
   mkdirSync(path.join(root, 'assets'), { recursive: true });
-  writeFileSync(path.join(root, 'assets', 'hero.png'), 'PNGDATA');
+  // A real PNG so the content-addressed + KTX2-compress export path has valid input.
+  copyFileSync(path.resolve(HERE, '..', '..', 'examples', 'hello-world', 'assets', 'textures', 'logo.png'),
+    path.join(root, 'assets', 'hero.png'));
   writeFileSync(path.join(root, 'assets', 'hero.png.meta'), meta(TEX, 'texture'));
   // A scene that references the texture by @uuid: + its sidecar.
   mkdirSync(path.join(root, 'scenes'), { recursive: true });
@@ -92,5 +94,36 @@ describe('exportGame', () => {
     expect(html).toContain('./sdk/index.js');
     expect(html).toContain('./game.js');
     expect(JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')).entryScene).toBe('scenes/main.esscene');
+  }, 60_000);
+
+  it('content-addresses + KTX2-compresses cooked assets when opted in', async () => {
+    const out2 = path.join(root, 'dist-game-ca');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: out2,
+      title: 'CA Game',
+      contentAddressed: true,
+      compressTextures: true,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.errors).toEqual([]);
+
+    const manifest = JSON.parse(readFileSync(path.join(out2, 'assets.manifest.json'), 'utf8'));
+    const tex = manifest.entries.find((e: { uuid: string }) => e.uuid === TEX);
+    // The PNG was encoded to KTX2 and named by content hash; refs stay uuid-based.
+    expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.ktx2$/);
+    expect(tex.compressedFormats).toEqual(['astc-4x4', 'etc2-rgba8', 's3tc-dxt5']);
+    const bytes = readFileSync(path.join(out2, tex.path));
+    const magic = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
+    expect(magic.every((b, i) => bytes[i] === b)).toBe(true);
+
+    // The scene keeps its logical name and the whole build still assembled.
+    expect(existsSync(path.join(out2, 'scenes/main.esscene'))).toBe(true);
+    expect(existsSync(path.join(out2, 'game.js'))).toBe(true);
   }, 60_000);
 });
