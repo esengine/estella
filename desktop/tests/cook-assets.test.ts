@@ -14,7 +14,7 @@ import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
 interface AssetManifest {
   version: string;
-  entries: Array<{ uuid: string; path: string; type: string; contentHash?: string; size?: number }>;
+  entries: Array<{ uuid: string; path: string; type: string; contentHash?: string; size?: number; compressedFormats?: string[] }>;
 }
 
 let root: string;
@@ -180,4 +180,37 @@ describe('cookAssets (A4)', () => {
       rmSync(r, { recursive: true, force: true });
     }
   });
+
+  it('compresses raster textures to KTX2 (compressTextures) + records compressedFormats', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-ktx2-'));
+    try {
+      const TEX = '77777777-7777-4777-8777-777777777777';
+      const SC = '88888888-8888-4888-8888-888888888888';
+      const png = readFileSync(path.resolve(__dirname, '../../examples/hello-world/assets/textures/logo.png'));
+      const wa = (rel: string, type: string, uuid: string, body: Buffer | string): void => {
+        const abs = path.join(r, rel);
+        mkdirSync(path.dirname(abs), { recursive: true });
+        writeFileSync(abs, body);
+        writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+      };
+      wa('t/logo.png', 'texture', TEX, png);
+      wa('s/main.esscene', 'scene', SC, JSON.stringify({
+        version: '1.0', name: 's', entities: [
+          { id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] },
+        ],
+      }));
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out', compressTextures: true });
+      const m = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
+      const tex = m.entries.find((e) => e.uuid === TEX)!;
+
+      // The PNG was encoded to KTX2: extension, compressedFormats, and a valid container.
+      expect(tex.path).toMatch(/\.ktx2$/);
+      expect(tex.compressedFormats).toEqual(['astc-4x4', 'etc2-rgba8', 's3tc-dxt5']);
+      const bytes = readFileSync(path.join(res.outDir, tex.path));
+      const magic = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
+      expect(magic.every((b, i) => bytes[i] === b)).toBe(true);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

@@ -38,6 +38,17 @@ export interface CookManifestEntry extends AssetEntry {
   contentHash: string;
   /** Staged byte length. */
   size: number;
+  /** GPU formats the staged KTX2 can transcode to, when the asset was compressed. */
+  compressedFormats?: string[];
+}
+
+/** Targets the UASTC KTX2 the cook emits can transcode to at runtime. */
+const COMPRESSED_TARGETS = ['astc-4x4', 'etc2-rgba8', 's3tc-dxt5'];
+
+/** Replace a path's extension (e.g. .png → .ktx2); appends if it had none. */
+function swapExt(p: string, ext: string): string {
+  const cur = path.extname(p);
+  return (cur ? p.slice(0, p.length - cur.length) : p) + ext;
 }
 
 export interface CookResult {
@@ -59,9 +70,10 @@ export interface CookResult {
  */
 export async function cookAssets(
   root: string,
-  opts: { entryScenes: string[]; outDir: string; contentAddressed?: boolean },
+  opts: { entryScenes: string[]; outDir: string; contentAddressed?: boolean; compressTextures?: boolean },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
+  const compressTextures = opts.compressTextures ?? false;
   const { index } = await scanAssetDatabase(root, { write: false });
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
@@ -97,13 +109,32 @@ export async function cookAssets(
   // bytes (rather than copyFile) so we can content-hash exactly what ships — the
   // asset's physical identity. Once textures are encoded this naturally hashes the
   // ENCODED artifact (e.g. the .ktx2), since it hashes whatever bytes we stage.
+  // Load the KTX2 encoder lazily (only when compressing — it pulls a ~MB wasm) and
+  // by dynamic import, so the Electron-main bundle keeps it external rather than
+  // inlining a module that resolves its wasm via import.meta.url.
+  let encodePng: ((png: Uint8Array) => Promise<Uint8Array>) | null = null;
+  if (compressTextures) {
+    const enc = await import('../../build-tools/basis/encoder.mjs');
+    encodePng = (png) => enc.encodePngToKtx2(png, { mode: 'uastc' });
+  }
+
   const manifestEntries: CookManifestEntry[] = [];
   const staged = new Set<string>();  // staged output paths, for content-addressed dedup
   for (const uuid of reachable) {
     const entry = byUuid.get(uuid);
     if (!entry) continue;
     try {
-      const data = await readFile(path.join(root, entry.path));
+      let data: Uint8Array = await readFile(path.join(root, entry.path));
+      let ext = path.extname(entry.path);
+      let compressedFormats: string[] | undefined;
+      // Encode raster textures (PNG) to GPU-compressed KTX2 — they stay compressed
+      // in VRAM, the runtime transcodes per device. Hash + name reflect the ENCODED
+      // bytes, so this composes with content-addressing below.
+      if (encodePng && entry.type !== 'scene' && ext.toLowerCase() === '.png') {
+        data = await encodePng(data);
+        ext = '.ktx2';
+        compressedFormats = COMPRESSED_TARGETS;
+      }
       const hash = contentHashHex(data);
       // Content-addressed naming: leaf assets ship as assets/<hash><ext>, so
       // byte-identical assets collapse to one file (dedup) and the URL is immutable
@@ -111,7 +142,7 @@ export async function cookAssets(
       // keep their logical path: they're loaded by name and the exporters read +
       // transform them in place. Refs are by uuid, so renaming leaves is transparent.
       const useCA = contentAddressed && entry.type !== 'scene';
-      const outRel = useCA ? `assets/${hash}${path.extname(entry.path)}` : entry.path;
+      const outRel = useCA ? `assets/${hash}${ext}` : swapExt(entry.path, ext);
       const dst = path.join(absOut, outRel);
       if (!staged.has(outRel)) {
         await mkdir(path.dirname(dst), { recursive: true });
@@ -125,6 +156,7 @@ export async function cookAssets(
         importer: entry.importer,
         contentHash: hash,
         size: data.byteLength,
+        ...(compressedFormats ? { compressedFormats } : {}),
       });
     } catch (err) {
       warnings.push(`copy failed ${entry.path}: ${err instanceof Error ? err.message : String(err)}`);

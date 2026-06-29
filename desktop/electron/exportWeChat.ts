@@ -173,6 +173,8 @@ export async function exportWeChat(opts: {
   minify?: boolean;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
+  /** Encode raster textures to GPU-compressed KTX2 at cook time. */
+  compressTextures?: boolean;
   onProgress?: OnExportProgress;
 }): Promise<ExportWeChatResult> {
   const title = opts.title ?? 'Game';
@@ -184,7 +186,7 @@ export async function exportWeChat(opts: {
 
   // 1. Cook reachable assets (paths preserved) + the flat manifest.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed });
+  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures });
   warnings.push(...cook.warnings);
 
   // 1b. Scan the scene for the optional modules it needs (physics/spine), so the
