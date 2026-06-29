@@ -56,6 +56,9 @@ compile_commands.json
 *.wasm
 *.js.mem
 *.data
+# Exception: the vendored build-time Basis KTX2 encoder (RC6 B4) is committed so
+# asset cooking needs no emsdk. See build-tools/basis/README.md for provenance.
+!build-tools/basis/basis_encoder.wasm
 
 # emsdk discovery cache (per-machine path written by build-tools auto-discovery)
 .emsdk-path
