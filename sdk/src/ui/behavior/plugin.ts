@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
-import { Res } from '../resource';
-import { defineSystem, Schedule } from '../system';
-import { Input, type InputState } from '../input';
-import type { Entity } from '../types';
+import type { App, Plugin } from '../../app';
+import { Res } from '../../resource';
+import { defineSystem, Schedule } from '../../system';
+import { Input, type InputState } from '../../input';
+import type { Entity } from '../../types';
 
-import { UIEvents, UIEventQueue } from './core/events';
-import { PluginName } from '../systemLabels';
+import { UIEvents, UIEventQueue } from '../core/events';
+import { PluginName } from '../../systemLabels';
 import {
     createInteractableDriverSystem,
     createStateMachineDiffSystem,
     createStateVisualsApplySystem,
-} from './behavior/systems';
-import { ListView, ListViewRegistry } from './collection/list-view';
-import { ScrollContainer, ScrollContainerRegistry } from './collection/scroll-container';
-import { UIInteraction, type UIInteractionData } from './input/interactable';
+} from './systems';
+import { ListView, ListViewRegistry } from '../collection/list-view';
+import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
+import { UIInteraction, type UIInteractionData } from '../input/interactable';
 
 /**
  * Wires the Layer 2 behavior systems — interactable-driven state machine

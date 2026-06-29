@@ -9,7 +9,7 @@
 export {
     FillDirection,
     type ColorTransition,
-} from './uiTypes';
+} from './util/types';
 
 // Shared Helpers
 export {
@@ -27,7 +27,7 @@ export {
     colorScale,
     colorWithAlpha,
     EntityStateMap,
-} from './uiHelpers';
+} from './util/helpers';
 
 // UI Constants
 export {
@@ -47,7 +47,7 @@ export {
     DROPDOWN_ITEM_HEIGHT,
     DROPDOWN_FONT_SIZE,
     DROPDOWN_HIGHLIGHT_COLOR,
-} from './uiConstants';
+} from './util/constants';
 
 // ─── Layer 0: Events ────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ export {
     UIInteraction,
     type InteractableData,
     type UIInteractionData,
-} from './behavior/interactable';
+} from './input/interactable';
 
 export {
     StateMachine,
@@ -120,14 +120,14 @@ export {
     FocusManager,
     FocusManagerState,
     type FocusableData,
-} from './behavior/focusable';
+} from './input/focusable';
 
 export {
     Draggable,
     DragState,
     type DraggableData,
     type DragStateData,
-} from './behavior/draggable';
+} from './input/draggable';
 
 export {
     driverStateFor,
@@ -137,7 +137,7 @@ export {
     createStateVisualsApplySystem,
 } from './behavior/systems';
 
-export { UIBehaviorPlugin, uiBehaviorPlugin } from './plugin';
+export { UIBehaviorPlugin, uiBehaviorPlugin } from './behavior/plugin';
 
 // ─── Collection ─────────────────────────────────────────────────────────────
 
@@ -246,7 +246,7 @@ export {
     worldToScreen,
     createInvVPCache,
     type ScreenRect,
-} from './uiMath';
+} from './util/math';
 
 // ─── Plugins (composed UI pipeline + the concept plugins it builds) ─────────
 
@@ -259,14 +259,14 @@ export { UIMaskPlugin, uiMaskPlugin } from './render/mask';
 export {
     UICameraInfo,
     type UICameraData,
-} from './UICameraInfo';
+} from './core/ui-camera-info';
 
-export { screenToUiWorld, uiWorldToScreen, uiHitTestWorld } from './uiPick';
+export { screenToUiWorld, uiWorldToScreen, uiHitTestWorld } from './util/ui-pick';
 
 export {
     UILayoutGeneration,
     type UILayoutGenerationData,
-} from './UILayoutGeneration';
+} from './layout/ui-layout-generation';
 
 export { UILayoutPlugin, uiLayoutPlugin } from './layout/layout';
 
@@ -275,9 +275,9 @@ export { UIInteractionPlugin, uiInteractionPlugin } from './input/interaction';
 export {
     TextInput,
     type TextInputData,
-} from './TextInput';
+} from './text/text-input';
 
-export { TextInputPlugin, textInputPlugin } from './TextInputPlugin';
+export { TextInputPlugin, textInputPlugin } from './text/text-input-plugin';
 
 export { DragPlugin, dragPlugin } from './input/drag';
 
@@ -285,10 +285,10 @@ export { FocusPlugin, focusPlugin } from './input/focus';
 
 export {
     SafeArea,
+    SafeAreaPlugin,
+    safeAreaPlugin,
     type SafeAreaData,
-} from './SafeArea';
-
-export { SafeAreaPlugin, safeAreaPlugin } from './layout/safe-area';
+} from './layout/safe-area';
 
 export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './render/render-order';
 
@@ -311,7 +311,7 @@ export {
     getEntityProperty,
     setEntityProperty,
     type ParsedPropertyPath,
-} from './propertyPath';
+} from './util/property-path';
 
 // Rich Text
 export {
@@ -321,7 +321,7 @@ export {
     type ImageSegment,
     type ImageValign,
     type RichTextRun,
-} from './RichTextParser';
+} from './text/rich-text-parser';
 
 export {
     createFontSet,
@@ -332,7 +332,7 @@ export {
     type TextPositionedRun,
     type ImagePositionedRun,
     type LayoutLine,
-} from './RichTextLayout';
+} from './text/rich-text-layout';
 
 export {
     setImageResolver,
@@ -340,7 +340,7 @@ export {
     DefaultImageResolver,
     type ImageResolver,
     type ResolvedImage,
-} from './ImageResolver';
+} from './text/image-resolver';
 
 // ─── SDF glyph-atlas text ───────────────────────────────────────────────────
 

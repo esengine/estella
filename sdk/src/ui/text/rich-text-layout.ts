@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { Color } from '../types';
-import type { RichTextRun, ImageValign } from './RichTextParser';
-import { isWordChar } from './uiHelpers';
+import type { Color } from '../../types';
+import type { RichTextRun, ImageValign } from './rich-text-parser';
+import { isWordChar } from '../util/helpers';
 
 export interface FontSet {
     fonts: [string, string, string, string];

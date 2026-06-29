@@ -14,7 +14,7 @@ import { followUpdate } from './FollowTarget';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../world';
 import type { Entity } from '../types';
-import { UICameraInfo } from '../ui/UICameraInfo';
+import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ProjectionType, ScaleMode, SceneOwner, ClearFlags } from '../component';
 import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';

@@ -15,7 +15,7 @@
  */
 import type { GlyphAtlas } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
-import { parseRichText } from '../RichTextParser';
+import { parseRichText } from './rich-text-parser';
 import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 
 export interface TextLayoutOptions {

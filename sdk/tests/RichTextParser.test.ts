@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { parseRichText, type RichTextRun } from '../src/ui/RichTextParser';
+import { parseRichText, type RichTextRun } from '../src/ui/text/rich-text-parser';
 
 const IMG_DEFAULTS = { offsetX: 0, offsetY: 0, scale: 1, tint: null };
 

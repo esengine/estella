@@ -19,7 +19,7 @@ import type { RGBA } from './layout';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, type TextData } from '../core/text';
 import { UINode } from '../core/ui-node';
-import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../uiHelpers';
+import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 
 // Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
 const UI_BASE_LAYER = 1000;

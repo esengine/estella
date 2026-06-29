@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { Color } from '../types';
+import type { Color } from '../../types';
 
 export interface TextSegment {
     type: 'text';

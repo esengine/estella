@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { World } from '../world';
-import type { Entity } from '../types';
-import { getComponent } from '../component';
+import type { World } from '../../world';
+import type { Entity } from '../../types';
+import { getComponent } from '../../component';
 
 export function getNestedProperty(obj: Record<string, any>, path: string): unknown {
     const parts = path.split('.');

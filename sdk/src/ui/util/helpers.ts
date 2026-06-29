@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { CoreApiBridge } from '../CoreApiBridge';
-import { Sprite, Parent, Transform } from '../component';
-import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../component';
-import type { Entity, Color } from '../types';
-import type { World } from '../world';
-import { UIVisual, UIVisualType } from './core/ui-visual';
-import type { UIVisualData } from './core/ui-visual';
-import { FillDirection } from './uiTypes';
-import type { ColorTransition } from './uiTypes';
-import type { ESEngineModule, CppRegistry } from '../wasm';
-import { Interactable } from './behavior/interactable';
+import { CoreApiBridge } from '../../CoreApiBridge';
+import { Sprite, Parent, Transform } from '../../component';
+import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../../component';
+import type { Entity, Color } from '../../types';
+import type { World } from '../../world';
+import { UIVisual, UIVisualType } from '../core/ui-visual';
+import type { UIVisualData } from '../core/ui-visual';
+import { FillDirection } from './types';
+import type { ColorTransition } from './types';
+import type { ESEngineModule, CppRegistry } from '../../wasm';
+import { Interactable } from '../input/interactable';
 
 const bridge = new CoreApiBridge('uiHelpers');
 let module_: ESEngineModule | null = null;

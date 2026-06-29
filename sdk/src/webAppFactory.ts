@@ -24,7 +24,7 @@ export { uiMaskPlugin, UIMaskPlugin } from './ui/render/mask';
 export { uiInteractionPlugin, UIInteractionPlugin } from './ui/input/interaction';
 export { uiLayoutPlugin, UILayoutPlugin } from './ui/layout/layout';
 export { uiRenderOrderPlugin, UIRenderOrderPlugin } from './ui/render/render-order';
-export { textInputPlugin, TextInputPlugin } from './ui/TextInputPlugin';
+export { textInputPlugin, TextInputPlugin } from './ui/text/text-input-plugin';
 
 export { dragPlugin, DragPlugin } from './ui/input/drag';
 export { focusPlugin, FocusPlugin } from './ui/input/focus';

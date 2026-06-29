@@ -17,12 +17,12 @@ import type { DraggableData, DragStateData } from './draggable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { UIEvents, UIEventQueue } from '../core/events';
-import { UICameraInfo } from '../UICameraInfo';
-import type { UICameraData } from '../UICameraInfo';
+import { UICameraInfo } from '../core/ui-camera-info';
+import type { UICameraData } from '../core/ui-camera-info';
 import { playModeOnly } from '../../env';
-import { getEntityDepth } from '../uiHelpers';
+import { getEntityDepth } from '../util/helpers';
 import { SystemLabel, PluginName } from '../../systemLabels';
-import { quaternionToAngle2D } from '../uiMath';
+import { quaternionToAngle2D } from '../util/math';
 
 function worldToLocalDelta(
     world: World,

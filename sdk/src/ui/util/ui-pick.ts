@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { Entity } from '../types';
-import type { ESEngineModule, CppRegistry } from '../wasm';
-import type { UICameraData } from './UICameraInfo';
-import { screenToWorld, worldToScreen, createInvVPCache } from './uiMath';
+import type { Entity } from '../../types';
+import type { ESEngineModule, CppRegistry } from '../../wasm';
+import type { UICameraData } from '../core/ui-camera-info';
+import { screenToWorld, worldToScreen, createInvVPCache } from './math';
 
 const NO_HIT = 0xffffffff;
 const vpCache = createInvVPCache();

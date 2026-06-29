@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { uiHitTestWorld } from '../src/ui/uiPick';
+import { uiHitTestWorld } from '../src/ui/util/ui-pick';
 
 const mod = (hit: number) =>
   ({ uiHitTest_update: vi.fn(), uiHitTest_getHitEntity: () => hit }) as any;

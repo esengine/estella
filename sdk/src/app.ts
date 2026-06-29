@@ -11,7 +11,7 @@ import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import { EventRegistry, type EventDef } from './event';
 import type { ESEngineModule, CppRegistry } from './wasm';
 import type { BridgeConnectOptions } from './ecs/BuiltinBridge';
-import { UICameraInfo } from './ui/UICameraInfo';
+import { UICameraInfo } from './ui/core/ui-camera-info';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
 import { prefabsPlugin } from './prefabServer';

@@ -2,13 +2,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    core-ui.ts
- * @brief   UI layer surface (text, UINode box, renderer, interactables, layout).
+ * @brief   The stable UI surface promoted into the top-level `esengine`
+ *          namespace (text, UINode box visuals, interaction, layout, theme).
  *
- * Most application code reaches for `Text` / `UINode` / `Interactable`
- * directly. The `withChildEntity` / `setEntityColor`-style helpers are
- * engine-internal glue re-exported for now so that the UILayout /
- * UIInteraction plugins that ship in the SDK can consume them; they are
- * not intended to be part of the stable public API.
+ * This is the curated *public* UI API. The complete UI module surface — which
+ * also includes low-level text/atlas internals and engine-internal composition
+ * glue (e.g. `withChildEntity`, `setEntityColor`, `EntityStateMap`) — lives in
+ * `./ui` and is imported module-directly by the SDK code that needs it. Those
+ * internals are intentionally NOT re-exported here, so the public `esengine`
+ * namespace stays a stable, intentional surface.
  *
  * Re-exported wholesale by `core.ts`.
  */
@@ -49,8 +51,6 @@ export {
     screenToUiWorld,
     uiWorldToScreen,
     uiHitTestWorld,
-    /** @internal fill-sprite sizing helper used by widget composition, unstable */
-    syncFillSpriteSize,
     TextInput,
     FillMethod,
     FillOrigin,
@@ -79,18 +79,6 @@ export {
     type DragStateData,
     type FocusableData,
     type SafeAreaData,
-    /** @internal entity-tree helper for widget composition */
-    withChildEntity,
-    /** @internal state-driven tint helper used by widget state-visuals */
-    setEntityColor,
-    /** @internal component-toggle helper used by widget state-visuals */
-    setEntityEnabled,
-    /** @internal color math; prefer explicit Color objects in game code */
-    colorScale,
-    /** @internal color math; prefer explicit Color objects in game code */
-    colorWithAlpha,
-    /** @internal per-entity state map used by interaction behaviour */
-    EntityStateMap,
     // Theme design tokens
     DARK_TOKENS,
     getTheme,

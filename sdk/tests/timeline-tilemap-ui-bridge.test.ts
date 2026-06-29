@@ -11,7 +11,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { WasmModuleAborted } from '../src/moduleHealth';
 import { CoreApiBridge } from '../src/CoreApiBridge';
 import { TilemapAPI, initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
-import { initUIHelpers, getUINodeWidth } from '../src/ui/uiHelpers';
+import { initUIHelpers, getUINodeWidth } from '../src/ui/util/helpers';
 import { TimelineApi } from '../src/timeline/TimelineControl';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';

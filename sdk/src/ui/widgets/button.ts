@@ -3,7 +3,7 @@
 import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
-import { Interactable, UIInteraction } from '../behavior/interactable';
+import { Interactable, UIInteraction } from '../input/interactable';
 import { StateMachine } from '../behavior/state-machine';
 import {
     StateVisuals,

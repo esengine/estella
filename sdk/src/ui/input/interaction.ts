@@ -13,16 +13,16 @@ import { Interactable } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
-import { UICameraInfo } from '../UICameraInfo';
-import type { UICameraData } from '../UICameraInfo';
+import { UICameraInfo } from '../core/ui-camera-info';
+import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
-import { screenToUiWorld, uiHitTestWorld } from '../uiPick';
+import { screenToUiWorld, uiHitTestWorld } from '../util/ui-pick';
 import { platformDevicePixelRatio } from '../../platform';
-import { ensureComponent, walkParentChain } from '../uiHelpers';
+import { ensureComponent, walkParentChain } from '../util/helpers';
 import type { ESEngineModule, CppRegistry } from '../../wasm';
-import { UILayoutGeneration } from '../UILayoutGeneration';
+import { UILayoutGeneration } from '../layout/ui-layout-generation';
 import { SystemLabel, PluginName } from '../../systemLabels';
-import type { UILayoutGenerationData } from '../UILayoutGeneration';
+import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
 
 function emitWithBubbling(
     world: World,

@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { Canvas } from '../src/component';
-import { UICameraInfo } from '../src/ui/UICameraInfo';
+import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import { uiRenderOrderPlugin } from '../src/ui/render/render-order';
 import { Transform, Sprite } from '../src/component';

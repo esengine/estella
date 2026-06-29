@@ -10,8 +10,8 @@ import {
     worldToScreen,
     createInvVPCache,
     pointInOBB,
-} from '../src/ui/uiMath';
-import type { ScreenRect } from '../src/ui/uiMath';
+} from '../src/ui/util/math';
+import type { ScreenRect } from '../src/ui/util/math';
 
 // =============================================================================
 // Helpers

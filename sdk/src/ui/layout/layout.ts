@@ -21,13 +21,13 @@ import { Res } from '../../resource';
 import { UINode } from '../core/ui-node';
 import { UIVisual } from '../core/ui-visual';
 import { FlexContainer } from './flex';
-import { UICameraInfo } from '../UICameraInfo';
-import type { UICameraData } from '../UICameraInfo';
-import { UILayoutGeneration } from '../UILayoutGeneration';
-import type { UILayoutGenerationData } from '../UILayoutGeneration';
+import { UICameraInfo } from '../core/ui-camera-info';
+import type { UICameraData } from '../core/ui-camera-info';
+import { UILayoutGeneration } from './ui-layout-generation';
+import type { UILayoutGenerationData } from './ui-layout-generation';
 import type { ESEngineModule } from '../../wasm';
 import type { CppRegistry } from '../../wasm';
-import { initUIHelpers } from '../uiHelpers';
+import { initUIHelpers } from '../util/helpers';
 
 export class UILayoutPlugin implements Plugin {
     name = 'uiLayout';

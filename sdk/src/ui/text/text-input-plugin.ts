@@ -1,28 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
-import type { Entity } from '../types';
-import { defineSystem, Schedule } from '../system';
-import { registerComponent } from '../component';
-import { TextInput, type TextInputData } from './TextInput';
-import { UINode, UIPositionType, type UINodeData } from './core/ui-node';
-import { UIVisual, UIVisualType } from './core/ui-visual';
-import type { UIVisualData } from './core/ui-visual';
-import { Text, TextAlign, TextVerticalAlign, type TextData } from './core/text';
-import { Interactable } from './behavior/interactable';
-import { Focusable } from './behavior/focusable';
-import { FocusManager, FocusManagerState } from './behavior/focusable';
-import { UIEvents, UIEventQueue } from './core/events';
-import { Res } from '../resource';
-import { playModeOnly } from '../env';
-import { ensureComponent, getUINodeWidth, getUINodeHeight } from './uiHelpers';
-import { spawnUIEntity } from './widgets/helpers';
-import { px } from './core/dimension';
-import { SdfTextRenderer } from './text/text-renderer';
-import { measureWidth } from './text/layout';
-import { CURSOR_BLINK_INTERVAL } from './uiConstants';
-import { SystemLabel, PluginName } from '../systemLabels';
-import { log } from '../logger';
+import type { App, Plugin } from '../../app';
+import type { Entity } from '../../types';
+import { defineSystem, Schedule } from '../../system';
+import { registerComponent } from '../../component';
+import { TextInput, type TextInputData } from './text-input';
+import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
+import { UIVisual, UIVisualType } from '../core/ui-visual';
+import type { UIVisualData } from '../core/ui-visual';
+import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
+import { Interactable } from '../input/interactable';
+import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
+import { UIEvents, UIEventQueue } from '../core/events';
+import { Res } from '../../resource';
+import { playModeOnly } from '../../env';
+import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helpers';
+import { spawnUIEntity } from '../widgets/helpers';
+import { px } from '../core/dimension';
+import { SdfTextRenderer } from './text-renderer';
+import { measureWidth } from './layout';
+import { CURSOR_BLINK_INTERVAL } from '../util/constants';
+import { SystemLabel, PluginName } from '../../systemLabels';
+import { log } from '../../logger';
 
 /** Masking bullet for password fields. */
 const PASSWORD_CHAR = '●';

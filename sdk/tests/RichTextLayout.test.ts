@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { layoutRichText, createFontSet, type LayoutLine } from '../src/ui/RichTextLayout';
-import type { RichTextRun, ImageSegment } from '../src/ui/RichTextParser';
+import { layoutRichText, createFontSet, type LayoutLine } from '../src/ui/text/rich-text-layout';
+import type { RichTextRun, ImageSegment } from '../src/ui/text/rich-text-parser';
 import type { Color } from '../src/types';
 
 const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };

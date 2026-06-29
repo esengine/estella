@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineComponent } from '../component';
-import type { Color } from '../types';
+import { defineComponent } from '../../component';
+import type { Color } from '../../types';
 
 export interface TextInputData {
     value: string;

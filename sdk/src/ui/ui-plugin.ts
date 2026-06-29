@@ -21,10 +21,10 @@ import { uiMaskPlugin } from './render/mask';
 import { safeAreaPlugin } from './layout/safe-area';
 import { textPlugin } from './text/plugin';
 import { uiInteractionPlugin } from './input/interaction';
-import { uiBehaviorPlugin } from './plugin';
+import { uiBehaviorPlugin } from './behavior/plugin';
 import { dragPlugin } from './input/drag';
 import { focusPlugin } from './input/focus';
-import { textInputPlugin } from './TextInputPlugin';
+import { textInputPlugin } from './text/text-input-plugin';
 import { uiRenderOrderPlugin } from './render/render-order';
 
 import type { UIEventQueue } from './core/events';

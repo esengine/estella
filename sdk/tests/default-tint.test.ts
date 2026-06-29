@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { applyDefaultTint } from '../src/ui/uiHelpers';
+import { applyDefaultTint } from '../src/ui/util/helpers';
 import type { Color } from '../src/types';
 
 const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
