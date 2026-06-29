@@ -12,29 +12,17 @@
  *        touched, so there is nothing to restore.
  */
 import { createStore } from 'zustand/vanilla';
-import type { SceneData, PhysicsPluginConfig, SubsystemStatus } from 'esengine';
-import { LogStore, type LogLevel } from '@/store/LogStore';
+import type { SubsystemStatus } from 'esengine';
+import { LogStore } from '@/store/LogStore';
+import { playProtocolMismatch } from './playProtocol';
+import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot } from './playProtocol';
 
-export interface PlayPayload {
-  sceneData: SceneData;
-  assetManifest: Record<string, string>;
-  /** Project-declared physics enable (features.physics) — forwarded to the realm. */
-  physicsEnabled?: boolean;
-  /** Project physics world config (gravity, solver, collision matrix) — forwarded to the realm. */
-  physicsConfig?: PhysicsPluginConfig;
-}
+export type { PlayPayload, PlaySnapshot } from './playProtocol';
 
 export interface PlayRealmSnapshot {
   playing: boolean;
   ready: boolean;
   error: string | null;
-}
-
-/** A live inspect snapshot: a shallow entity tree (Outliner) + the selected
- *  entity's full data (Details). See PlayRealm.snapshot. */
-export interface PlaySnapshot {
-  tree: SceneData;
-  selected: SceneData['entities'][number] | null;
 }
 
 class PlayRealmImpl {
@@ -149,21 +137,27 @@ class PlayRealmImpl {
     this.post({ type: 'estella:play:setField', entityId, comp, key, value });
   }
 
-  private post(message: Record<string, unknown>): void {
+  private post(message: PlayOutbound): void {
     this.iframe?.contentWindow?.postMessage(message, '*');
   }
 
   private onMessage = (e: MessageEvent): void => {
     if (!this.iframe || e.source !== this.iframe.contentWindow) return;
-    const data = e.data as
-      | { type?: string; message?: string; reqId?: number; data?: unknown; level?: LogLevel; line?: string }
-      | null;
+    const data = e.data as PlayInbound | null;
     if (!data?.type) return;
     switch (data.type) {
-      case 'estella:play:hello':
-        // Realm mounted + listening — hand it the scene snapshot.
+      case 'estella:play:hello': {
+        // Realm mounted + listening. Verify the protocol contract before handing over
+        // the scene — a version mismatch is a stale realm bundle, surfaced as an error
+        // rather than a baffling downstream failure on an unknown message shape.
+        const mismatch = playProtocolMismatch(data.protocolVersion);
+        if (mismatch) {
+          this.set({ error: mismatch });
+          break;
+        }
         if (this.payload) this.post({ type: 'estella:play:init', ...this.payload });
         break;
+      }
       case 'estella:play:log':
         // The running game's console/wasm output, forwarded from the realm iframe so
         // it lands in the editor's Output Log (it runs in a separate JS realm, so the

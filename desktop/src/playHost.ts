@@ -15,7 +15,9 @@
  *        sidestepping the custom-scheme cross-fetch ban.
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents } from 'esengine';
-import type { App, ESEngineModule, SceneData, PhysicsPluginConfig } from 'esengine';
+import type { App, ESEngineModule, SceneData } from 'esengine';
+import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
+import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
 
 type LiveEntity = SceneData['entities'][number];
 
@@ -75,13 +77,7 @@ function liveSnapshot(world: App['world'], selectedId: number | null): { tree: S
   return { tree, selected };
 }
 
-interface InitMessage {
-  type: 'estella:play:init';
-  sceneData: SceneData;
-  assetManifest: Record<string, string>;
-  physicsEnabled?: boolean;
-  physicsConfig?: PhysicsPluginConfig;
-}
+type InitMessage = Extract<PlayOutbound, { type: 'estella:play:init' }>;
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const wasmBase = new URL('./wasm/', import.meta.url).href; // sibling of host.js
@@ -104,7 +100,7 @@ let glHandle = 0;
 let lastInit: InitMessage | null = null;
 let booted = false;
 let reloadSeq = 0;
-const post = (m: Record<string, unknown>) => parent.postMessage(m, '*');
+const post = (m: PlayInbound) => parent.postMessage(m, '*');
 
 // Forward the running game's console output to the editor's Output Log. The realm is
 // a separate JS realm, so the editor's console patch never sees these — mirror each
@@ -276,7 +272,7 @@ function setField(entityId: number, comp: string, key: string, value: unknown): 
 }
 
 window.addEventListener('message', (e: MessageEvent) => {
-  const data = e.data as { type?: string; paused?: boolean; reqId?: number; kind?: string; entityId?: number; comp?: string; key?: string; value?: unknown; selectedId?: number } | null;
+  const data = e.data as PlayOutbound | null;
   if (!data || typeof data !== 'object') return;
   switch (data.type) {
     case 'estella:play:init':
@@ -309,4 +305,4 @@ window.addEventListener('message', (e: MessageEvent) => {
   }
 });
 
-post({ type: 'estella:play:hello' });
+post({ type: 'estella:play:hello', protocolVersion: PLAY_PROTOCOL_VERSION });
