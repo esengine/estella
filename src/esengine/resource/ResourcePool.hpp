@@ -89,9 +89,13 @@ public:
      */
     struct Entry {
         Unique<T> resource;    ///< The owned resource
-        u32 refCount = 0;      ///< Reference count (0 = freed)
+        u32 refCount = 0;      ///< Reference count (0 = freed or evictable)
         std::string path;      ///< Optional path for caching
         u32 generation = 0;    ///< Reuse counter for stale handle detection
+        usize bytes = 0;       ///< Resource size, for the eviction budget (0 = untracked)
+        bool evictable = false;///< refCount==0 but retained as a cache entry (in the LRU)
+        u32 lruPrev = 0;       ///< Intrusive LRU links (entry index; 0 = sentinel/none)
+        u32 lruNext = 0;       ///< Intrusive LRU links (entry index; 0 = sentinel/none)
     };
 
     ResourcePool() {
@@ -109,25 +113,28 @@ public:
      * @brief Adds a resource to the pool
      * @param resource The resource to add (takes ownership)
      * @param path Optional path for cache lookup
+     * @param bytes Resource size for the eviction budget (0 = untracked)
      * @return Handle to the added resource
      */
-    Handle<T> add(Unique<T> resource, const std::string& path = "") {
+    Handle<T> add(Unique<T> resource, const std::string& path = "", usize bytes = 0) {
         u32 index;
         u32 gen;
         if (!freeList_.empty()) {
             index = freeList_.back();
             freeList_.pop_back();
             gen = entries_[index].generation;
-            entries_[index] = {std::move(resource), 1, path, gen};
+            entries_[index] = {std::move(resource), 1, path, gen, bytes, false, 0, 0};
         } else {
             index = static_cast<u32>(entries_.size());
             gen = 0;
-            entries_.push_back({std::move(resource), 1, path, 0});
+            entries_.push_back({std::move(resource), 1, path, 0, bytes, false, 0, 0});
         }
+        residentBytes_ += bytes;
         auto handle = Handle<T>::fromParts(index, gen);
         if (!path.empty()) {
             pathToId_[path] = handle.id();
         }
+        enforceBudget_();  // the new resource is held; this evicts OTHER evictables if over budget
         return handle;
     }
 
@@ -205,11 +212,17 @@ public:
     void addRef(Handle<T> handle) {
         if (!handle.isValid()) return;
         u32 idx = handle.index();
-        if (idx < entries_.size()) {
-            auto& entry = entries_[idx];
-            if (entry.refCount > 0 && entry.generation == handle.generation()) {
-                entry.refCount++;
-            }
+        if (idx >= entries_.size()) return;
+        auto& entry = entries_[idx];
+        if (entry.generation != handle.generation()) return;
+        if (entry.evictable) {
+            // Reviving a cached (refCount==0) entry: pull it out of the LRU back
+            // into the held state. This is the cache-hit path (findByPath → addRef).
+            lruRemove_(idx);
+            entry.evictable = false;
+            entry.refCount = 1;
+        } else if (entry.refCount > 0) {
+            entry.refCount++;
         }
     }
 
@@ -224,13 +237,16 @@ public:
         auto& entry = entries_[index];
         if (entry.refCount == 0 || entry.generation != gen) return;
         if (--entry.refCount == 0) {
-            if (!entry.path.empty()) {
-                pathToId_.erase(entry.path);
+            if (budget_ == 0) {
+                freeEntry_(index);  // no budget → free immediately (the default)
+            } else {
+                // 3-state lifecycle: held → evictable (cached in the LRU, still
+                // findByPath-able for cache hits) → evicted. Drop the oldest
+                // evictable entries if this pushed us over the byte budget.
+                entry.evictable = true;
+                lruPushBack_(index);
+                enforceBudget_();
             }
-            entry.resource.reset();
-            entry.path.clear();
-            entry.generation = (entry.generation + 1) & Handle<T>::GEN_MASK;
-            freeList_.push_back(index);
         }
     }
 
@@ -249,7 +265,47 @@ public:
         entries_.clear();
         freeList_.clear();
         pathToId_.clear();
-        entries_.push_back({nullptr, 0, "", 0});
+        residentBytes_ = 0;
+        lruHead_ = 0;
+        lruTail_ = 0;
+        entries_.push_back({nullptr, 0, "", 0, 0, false, 0, 0});  // reserved sentinel (index 0)
+    }
+
+    // =========================================================================
+    // Eviction budget (RC6 gap 3): held → evictable → evicted
+    // =========================================================================
+
+    /**
+     * @brief Sets the resident-byte budget. 0 (default) disables caching — a
+     *        resource is freed the instant its refCount hits 0 (legacy behavior).
+     *        When > 0, refCount==0 resources are retained as evictable cache
+     *        entries and dropped (oldest-first) only when over budget.
+     */
+    void setBudget(usize bytes) {
+        budget_ = bytes;
+        enforceBudget_();
+    }
+
+    /** @brief The current resident-byte budget (0 = caching disabled). */
+    usize budget() const { return budget_; }
+
+    /** @brief Bytes currently resident (held + evictable entries). */
+    usize residentBytes() const { return residentBytes_; }
+
+    /** @brief Number of evictable (refCount==0, cached) entries. */
+    usize evictableCount() const {
+        usize n = 0;
+        for (u32 i = lruHead_; i != 0; i = entries_[i].lruNext) ++n;
+        return n;
+    }
+
+    /** @brief True if the handle's entry is alive but evictable (cached). */
+    bool isEvictable(Handle<T> handle) const {
+        if (!handle.isValid()) return false;
+        u32 idx = handle.index();
+        if (idx >= entries_.size()) return false;
+        const auto& entry = entries_[idx];
+        return entry.generation == handle.generation() && entry.evictable;
     }
 
     /**
@@ -282,9 +338,65 @@ public:
     }
 
 private:
+    /** Actually free an entry: drop its resource + path, recycle the slot. */
+    void freeEntry_(u32 index) {
+        auto& entry = entries_[index];
+        if (entry.evictable) lruRemove_(index);
+        // Only drop the path mapping if it still points here — a later add() of the
+        // same path (while this entry lingered evictable) may have re-bound it.
+        if (!entry.path.empty()) {
+            auto it = pathToId_.find(entry.path);
+            if (it != pathToId_.end() && Handle<T>::extractIndex(it->second) == index) {
+                pathToId_.erase(it);
+            }
+        }
+        residentBytes_ -= entry.bytes;
+        entry.resource.reset();
+        entry.path.clear();
+        entry.bytes = 0;
+        entry.evictable = false;
+        entry.generation = (entry.generation + 1) & Handle<T>::GEN_MASK;
+        freeList_.push_back(index);
+    }
+
+    /** Evict oldest evictable entries until resident bytes fit the budget. Held
+     *  (refCount>0) entries are never evicted, so resident can exceed the budget
+     *  when the live set alone does — that's unavoidable, not a bug. */
+    void enforceBudget_() {
+        if (budget_ == 0) return;
+        while (residentBytes_ > budget_ && lruHead_ != 0) {
+            freeEntry_(lruHead_);  // freeEntry_ → lruRemove_ advances lruHead_
+        }
+    }
+
+    /** Append `index` as the most-recently-released (LRU tail). */
+    void lruPushBack_(u32 index) {
+        auto& e = entries_[index];
+        e.lruNext = 0;
+        e.lruPrev = lruTail_;
+        if (lruTail_ != 0) entries_[lruTail_].lruNext = index;
+        else lruHead_ = index;
+        lruTail_ = index;
+    }
+
+    /** Unlink `index` from the LRU list. */
+    void lruRemove_(u32 index) {
+        auto& e = entries_[index];
+        if (e.lruPrev != 0) entries_[e.lruPrev].lruNext = e.lruNext;
+        else lruHead_ = e.lruNext;
+        if (e.lruNext != 0) entries_[e.lruNext].lruPrev = e.lruPrev;
+        else lruTail_ = e.lruPrev;
+        e.lruPrev = 0;
+        e.lruNext = 0;
+    }
+
     std::vector<Entry> entries_;
     std::vector<u32> freeList_;
     std::unordered_map<std::string, u32> pathToId_;
+    usize budget_ = 0;          ///< Resident-byte budget (0 = caching disabled)
+    usize residentBytes_ = 0;   ///< Sum of bytes of all alive entries (held + evictable)
+    u32 lruHead_ = 0;           ///< Oldest evictable entry (next to evict); 0 = empty
+    u32 lruTail_ = 0;           ///< Newest evictable entry; 0 = empty
 };
 
 }  // namespace esengine::resource

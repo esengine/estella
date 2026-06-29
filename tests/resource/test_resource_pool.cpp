@@ -257,3 +257,96 @@ TEST_CASE("pool_mixed_operations") {
     pool.release(h1.id());
     CHECK(pool.get(h1) == nullptr);
 }
+
+// =============================================================================
+// Eviction budget + LRU (RC6 gap 3): held → evictable → evicted
+// =============================================================================
+
+TEST_CASE("pool_budget_zero_frees_immediately") {
+    // Default (budget 0) is unchanged: refCount 0 → freed at once, not cached.
+    test::DummyPool pool;
+    auto h = pool.add(esengine::makeUnique<test::DummyResource>(1), "a", 100);
+    pool.release(h.id());
+    CHECK_EQ(pool.residentBytes(), 0u);
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK(!pool.findByPath("a").isValid());
+    CHECK(pool.get(h) == nullptr);
+}
+
+TEST_CASE("pool_budget_retains_released_as_evictable_cache") {
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto h = pool.add(esengine::makeUnique<test::DummyResource>(7), "a.png", 100);
+    CHECK_EQ(pool.residentBytes(), 100u);
+    pool.release(h.id());
+    // Not freed — retained as an evictable cache entry: still resident + findable.
+    CHECK_EQ(pool.residentBytes(), 100u);
+    CHECK(pool.isEvictable(h));
+    CHECK_EQ(pool.evictableCount(), 1u);
+    CHECK(pool.get(h) == nullptr);              // refCount 0 → must revive before use
+    CHECK(pool.findByPath("a.png").isValid());  // but a cache hit can still find it
+}
+
+TEST_CASE("pool_budget_revive_on_cache_hit") {
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto h = pool.add(esengine::makeUnique<test::DummyResource>(7), "a.png", 100);
+    pool.release(h.id());
+    CHECK(pool.isEvictable(h));
+
+    auto found = pool.findByPath("a.png");
+    pool.addRef(found);  // revive the cached entry
+    CHECK(!pool.isEvictable(h));
+    CHECK_EQ(pool.getRefCount(h), 1u);
+    CHECK(pool.get(h) != nullptr);
+    CHECK_EQ(pool.get(h)->value, 7);
+    CHECK_EQ(pool.evictableCount(), 0u);
+}
+
+TEST_CASE("pool_budget_evicts_oldest_first") {
+    test::DummyPool pool;
+    pool.setBudget(250);
+    auto a = pool.add(esengine::makeUnique<test::DummyResource>(1), "a", 100);
+    auto b = pool.add(esengine::makeUnique<test::DummyResource>(2), "b", 100);
+    auto c = pool.add(esengine::makeUnique<test::DummyResource>(3), "c", 100);
+    CHECK_EQ(pool.residentBytes(), 300u);  // all held — allowed to exceed the budget
+
+    pool.release(a.id());  // a evictable; 300 > 250 → evict oldest (a) → 200
+    CHECK_EQ(pool.residentBytes(), 200u);
+    CHECK(pool.get(a) == nullptr);
+    CHECK(!pool.findByPath("a").isValid());
+
+    pool.release(b.id());  // b evictable; 200 ≤ 250 → retained as cache
+    CHECK_EQ(pool.residentBytes(), 200u);
+    CHECK(pool.isEvictable(b));
+    CHECK(pool.findByPath("b").isValid());
+
+    CHECK(pool.get(c) != nullptr);  // c still held
+}
+
+TEST_CASE("pool_budget_never_evicts_held") {
+    test::DummyPool pool;
+    pool.setBudget(50);  // smaller than even one resource
+    auto a = pool.add(esengine::makeUnique<test::DummyResource>(1), "a", 100);
+    auto b = pool.add(esengine::makeUnique<test::DummyResource>(2), "b", 100);
+    // Both held → never evicted, even though resident far exceeds the budget.
+    CHECK_EQ(pool.residentBytes(), 200u);
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK(pool.get(a) != nullptr);
+    CHECK(pool.get(b) != nullptr);
+}
+
+TEST_CASE("pool_set_budget_evicts_now") {
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto a = pool.add(esengine::makeUnique<test::DummyResource>(1), "a", 100);
+    auto b = pool.add(esengine::makeUnique<test::DummyResource>(2), "b", 100);
+    pool.release(a.id());
+    pool.release(b.id());
+    CHECK_EQ(pool.evictableCount(), 2u);
+
+    pool.setBudget(100);  // shrink → evict oldest until ≤ 100: a goes, b (100) stays
+    CHECK_EQ(pool.residentBytes(), 100u);
+    CHECK(!pool.findByPath("a").isValid());
+    CHECK(pool.findByPath("b").isValid());
+}
