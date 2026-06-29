@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { BasisTranscoderImpl, createBasisTranscoder, type BasisWasmModule } from '../src/asset/basisTranscoder';
+import { BasisTranscoderImpl, createBasisTranscoder, transcoderFromModule, type BasisWasmModule } from '../src/asset/basisTranscoder';
 import { CompressedTextureFormat } from '../src/asset/compressed';
 
 interface MockOpts {
@@ -104,5 +104,17 @@ describe('createBasisTranscoder', () => {
         expect(factory).toHaveBeenCalledOnce();
         expect(mod._es_basis_init).toHaveBeenCalledOnce();
         expect(t).toBeInstanceOf(BasisTranscoderImpl);
+    });
+});
+
+describe('transcoderFromModule', () => {
+    it('inits the tables once and wraps an already-instantiated SideModule', () => {
+        // The acquire('basis') path hands back an instantiated module, not a
+        // factory — this is the bridge the texture loaders use.
+        const { mod } = makeMockBasis();
+        const t = transcoderFromModule(mod);
+        expect(mod._es_basis_init).toHaveBeenCalledOnce();
+        expect(t).toBeInstanceOf(BasisTranscoderImpl);
+        expect(t.transcode(new Uint8Array([1, 2]), CompressedTextureFormat.ETC2_RGBA8)).not.toBeNull();
     });
 });

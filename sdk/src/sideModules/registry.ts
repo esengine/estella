@@ -18,7 +18,7 @@
 export type SpineVersion = '3.8' | '4.1' | '4.2';
 
 /** Identifies an optional native module across every realm and transport. */
-export type SideModuleId = 'physics' | `spine:${SpineVersion}`;
+export type SideModuleId = 'physics' | 'basis' | `spine:${SpineVersion}`;
 
 export interface SideModuleDescriptor {
     /** Artifact base name: the glue is `<file>.js`, the binary `<file>.wasm`. */
@@ -34,6 +34,9 @@ export interface SideModuleDescriptor {
 
 export const SIDE_MODULES: Record<SideModuleId, SideModuleDescriptor> = {
     physics: { file: 'physics' },
+    // Basis Universal KTX2 transcoder (RC6) — compressed textures decode to a
+    // GPU format on demand. MODULARIZE glue with a named EXPORT_NAME, like spine.
+    basis: { file: 'basis', globalName: 'ESBasisModule' },
     'spine:3.8': { file: 'spine38', globalName: 'ESSpineModule' },
     'spine:4.1': { file: 'spine41', globalName: 'ESSpineModule' },
     'spine:4.2': { file: 'spine42', globalName: 'ESSpineModule' },

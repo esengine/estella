@@ -90,3 +90,15 @@ export class BasisTranscoderImpl implements BasisTranscoder {
 export async function createBasisTranscoder(factory: BasisModuleFactory): Promise<BasisTranscoder> {
     return new BasisTranscoderImpl(await loadBasisModule(factory));
 }
+
+/**
+ * Adapt an already-instantiated basis module (acquired through the realm's
+ * {@link SideModuleHost}.acquire('basis')) to the {@link BasisTranscoder} seam.
+ * Inits the transcoder tables (idempotent) and wraps the module — the bridge the
+ * texture loaders use so KTX2 assets transcode on demand, the same way physics /
+ * spine modules are acquired.
+ */
+export function transcoderFromModule(mod: BasisWasmModule): BasisTranscoder {
+    mod._es_basis_init();
+    return new BasisTranscoderImpl(mod);
+}
