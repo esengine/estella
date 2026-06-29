@@ -204,9 +204,11 @@ export async function exportGame(opts: {
   sdkDistDir: string;
   wasmDir: string;
   outDir: string;
-  /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
+  /** Content-addressed asset filenames (<hash><ext>) — dedup + immutable/CDN caching.
+   *  Default ON (the modern-bundler standard); set false to keep logical paths. */
   contentAddressed?: boolean;
-  /** Encode raster textures to GPU-compressed KTX2 at cook time. */
+  /** Encode raster textures to GPU-compressed KTX2 at cook time. Default off
+   *  (lossy + encode-time cost — opt in per project). */
   compressTextures?: boolean;
   title?: string;
   platform?: ExportPlatform;
@@ -282,7 +284,7 @@ export async function exportGame(opts: {
 
   // 1. Cook reachable assets + manifest (the entry scene file is staged too).
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: payloadDir, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures });
   warnings.push(...cook.warnings);
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 

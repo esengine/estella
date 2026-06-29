@@ -79,7 +79,11 @@ describe('exportGame', () => {
     expect(has('game.config.json')).toBe(true);
     expect(has('assets.manifest.json')).toBe(true);
     expect(has('scenes/main.esscene')).toBe(true);
-    expect(has('assets/hero.png')).toBe(true);
+    // Content-addressing is on by default now: the texture ships as assets/<hash>.png.
+    const m = JSON.parse(readFileSync(path.join(out, 'assets.manifest.json'), 'utf8'));
+    const tex = m.entries.find((e: { type: string }) => e.type === 'texture');
+    expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
+    expect(has(tex.path)).toBe(true);
     expect(has('wasm/esengine.js')).toBe(true);
 
     // The host + project bundle are esengine-EXTERNAL (small; resolved by the

@@ -71,7 +71,11 @@ describe('exportGame (desktop)', () => {
     }
     expect(existsSync(path.join(app, 'wasm', 'esengine.js'))).toBe(true);
     expect(existsSync(path.join(app, 'sdk', 'index.js'))).toBe(true);
-    expect(existsSync(path.join(app, 'assets', 'hero.png'))).toBe(true);
+    // Content-addressed by default: the texture ships as assets/<hash>.png.
+    const m = JSON.parse(readFileSync(path.join(app, 'assets.manifest.json'), 'utf8'));
+    const tex = m.entries.find((e: { type: string }) => e.type === 'texture');
+    expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
+    expect(existsSync(path.join(app, tex.path))).toBe(true);
 
     // Electron shell beside it.
     const main = readFileSync(path.join(out, 'main.cjs'), 'utf8');
