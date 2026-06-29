@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
@@ -223,9 +223,39 @@ async function boot(msg: InitMessage): Promise<void> {
  * rebuilt bundle (cache-busted), then rebuilds the App from the play-start
  * snapshot. ~100ms vs a full realm reboot.
  */
+/**
+ * State-preserving fast path for {@link reload}. Re-imports the rebuilt bundle into a
+ * throwaway context (so the live registry is untouched) and, only if the user component
+ * schemas are unchanged, hot-swaps the live App's user system bodies in place — keeping
+ * the running World/entities. Returns true when the World was kept; false (or on any
+ * throw, caught here) means the caller must do the full restart. Component identity is
+ * interned by name, so the re-imported systems' queries resolve to the live storage.
+ */
+async function tryHotSwapReload(): Promise<boolean> {
+  if (!app) return false;
+  try {
+    const liveFingerprint = getUserComponentFingerprint();
+    const { fingerprint, pending } = await probeRegistrations(() =>
+      import(/* @vite-ignore */ `${bundleUrl}?v=${++reloadSeq}`).then(() => undefined),
+    );
+    if (fingerprint !== liveFingerprint) return false; // a component's fields changed
+    return app.hotSwapSystems(pending as Parameters<App['hotSwapSystems']>[0]);
+  } catch {
+    return false; // probe/import failure → safe full reload
+  }
+}
+
 async function reload(): Promise<void> {
   if (!booted || !engineModule || !lastInit) return;
   try {
+    // Fast path (RC10 P3): if only system logic changed (component schemas unchanged),
+    // hot-swap the function bodies and keep the live World — runtime state survives. Any
+    // structural change, a component-field edit, or a probe failure falls through to the
+    // full restart below (which replays the play-start snapshot, always correct).
+    if (app && (await tryHotSwapReload())) {
+      post({ type: 'estella:play:ready' });
+      return;
+    }
     if (app) {
       const oldRegistry = app.world.getCppRegistry();
       app.quit({ keepRenderer: true });

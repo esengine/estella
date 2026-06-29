@@ -347,6 +347,29 @@ export function getUserComponents(): Map<string, AnyComponentDef> {
     return userComponents();
 }
 
+/**
+ * A stable digest of the current context's user component schemas — each component's
+ * name plus its default field shape (keys + value types, recursively). The hot-reload
+ * fast path compares this across a project-bundle re-import: an unchanged digest means
+ * only system logic changed (hot-swap, keep the live World); a changed digest means a
+ * component's fields changed and the live data no longer matches the new schema, so the
+ * realm must full-reload. Builtins are excluded (their C++-backed shape never changes).
+ * Default *values* are intentionally not hashed — only the shape gates a rebuild.
+ */
+export function getUserComponentFingerprint(): string {
+    const comps = userComponents();
+    return [...comps.keys()].sort()
+        .map((name) => `${name}:${fieldShape(comps.get(name)!._default)}`)
+        .join('|');
+}
+
+function fieldShape(value: unknown): string {
+    if (value === null || typeof value !== 'object') return typeof value;
+    if (Array.isArray(value)) return `[${value.length ? fieldShape(value[0]) : ''}]`;
+    const rec = value as Record<string, unknown>;
+    return `{${Object.keys(rec).sort().map((k) => `${k}:${fieldShape(rec[k])}`).join(',')}}`;
+}
+
 export function getComponent(name: string): AnyComponentDef | undefined {
     return builtinRegistry.get(name) ?? userComponents().get(name);
 }

@@ -72,6 +72,7 @@ export {
     getComponentRegistry,
     getAllRegisteredComponents,
     getUserComponents,
+    getUserComponentFingerprint,
     enumOptions,
     type ComponentDef,
     type BuiltinComponentDef,
@@ -355,3 +356,6 @@ export {
 } from './env';
 
 export type { RunCondition } from './app';
+
+export { probeRegistrations } from './hotReload';
+export type { ProbedRegistrations } from './hotReload';

@@ -260,6 +260,59 @@ export class App {
     }
 
     /**
+     * Hot-swap the project's (user-authored) system function bodies in place, keeping
+     * the live World/Registry/entities — the state-preserving hot-reload fast path
+     * (RC10 P3). `incoming` is the freshly re-imported bundle's drained systems.
+     *
+     * Returns false when the structure changed — a user system was added, removed, or
+     * renamed, or a schedule's user-system count differs — because the running systems
+     * then no longer line up with the new code, so the caller must full-reload instead.
+     * Builtin/plugin systems (those with an owning subsystem) are never touched. The
+     * match validates fully before mutating, so a rejected swap leaves the scheduler
+     * untouched (no torn half-swap). Component identity is stable by name (see
+     * component.ts), so the new functions' queries resolve to the live storage.
+     */
+    hotSwapSystems(incoming: ReadonlyArray<{ schedule: number; system: SystemDef }>): boolean {
+        const bySchedule = new Map<Schedule, SystemDef[]>();
+        for (const e of incoming) {
+            const arr = bySchedule.get(e.schedule as Schedule);
+            if (arr) arr.push(e.system);
+            else bySchedule.set(e.schedule as Schedule, [e.system]);
+        }
+        const userEntries = (s: Schedule): SystemEntry[] =>
+            (this.systems_.get(s) ?? []).filter((entry) => entry.subsystem === undefined);
+
+        for (const [schedule, defs] of bySchedule) {
+            const live = userEntries(schedule);
+            if (live.length !== defs.length) return false;
+            for (let i = 0; i < live.length; i++) {
+                if (!App.systemNamesCompatible(live[i].system._name, defs[i]._name)) return false;
+            }
+        }
+        // A schedule that had user systems the new bundle didn't re-add is structural.
+        for (const [schedule, entries] of this.systems_) {
+            if (!bySchedule.has(schedule) && entries.some((e) => e.subsystem === undefined)) return false;
+        }
+
+        for (const [schedule, defs] of bySchedule) {
+            const live = userEntries(schedule);
+            for (let i = 0; i < live.length; i++) {
+                const cur = live[i].system;
+                live[i].system = { _id: cur._id, _params: defs[i]._params, _fn: defs[i]._fn, _name: cur._name };
+            }
+            this.sortedSystemsCache_.delete(schedule);
+        }
+        return true;
+    }
+
+    /** A live (scoped) system name and a re-imported raw name refer to the same system
+     *  if the live one is an explicit name that matches, or both are auto-named (the
+     *  live `System_N` placeholder ⇔ an unnamed re-import). */
+    private static systemNamesCompatible(liveName: string, rawName: string): boolean {
+        return /^System_\d+$/.test(liveName) ? rawName === '' : rawName === liveName;
+    }
+
+    /**
      * Register every system in `set` onto `schedule`. Each member inherits
      * the set's `runIf` (AND-combined with its own if supplied per-system
      * here), and its `runBefore` / `runAfter` lists are prepended to the
