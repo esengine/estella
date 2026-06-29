@@ -43,7 +43,7 @@ export interface ExportWeChatResult {
 }
 
 interface CookManifest {
-  entries: { uuid: string; path: string; type: string }[];
+  entries: { uuid: string; path: string; type: string; contentHash?: string; size?: number }[];
 }
 
 // Editor asset type → AddressableAssetType (sdk/src/assetTypes.ts). The WeChat
@@ -135,14 +135,20 @@ async function scanWeChatSideModules(
   return present;
 }
 
-/** Read the web cook's flat manifest → AddressableManifest the WeChat runtime reads. */
+/** Read the web cook's flat manifest → AddressableManifest the WeChat runtime reads.
+ *  Carries the cook's `contentHash` (XXH64) + `size` through so the runtime can
+ *  dedupe by content and treat `<hash>.<ext>` as a permanently-cacheable CDN URL
+ *  (RC6 Batch B); falls back to stat() for size only if a legacy cook omitted it. */
 async function buildAddressableManifest(absOut: string): Promise<string> {
   const cook = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as CookManifest;
-  const assets: Record<string, { path: string; type: string; size: number; labels: string[] }> = {};
+  type Entry = { path: string; type: string; size: number; labels: string[]; contentHash?: string };
+  const assets: Record<string, Entry> = {};
   for (const e of cook.entries) {
-    let size = 0;
-    try { size = (await stat(path.join(absOut, e.path))).size; } catch { /* missing file → 0 */ }
-    assets[e.uuid.toLowerCase()] = { path: e.path, type: addrType(e.type), size, labels: [] };
+    let size = e.size ?? 0;
+    if (e.size == null) { try { size = (await stat(path.join(absOut, e.path))).size; } catch { /* missing file → 0 */ } }
+    const entry: Entry = { path: e.path, type: addrType(e.type), size, labels: [] };
+    if (e.contentHash) entry.contentHash = e.contentHash;
+    assets[e.uuid.toLowerCase()] = entry;
   }
   return JSON.stringify({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets } } }, null, 2) + '\n';
 }

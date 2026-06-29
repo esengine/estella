@@ -10,10 +10,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { cookAssets } from '../electron/cookAssets';
+import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
 interface AssetManifest {
   version: string;
-  entries: Array<{ uuid: string; path: string; type: string }>;
+  entries: Array<{ uuid: string; path: string; type: string; contentHash?: string; size?: number }>;
 }
 
 let root: string;
@@ -83,5 +84,60 @@ describe('cookAssets (A4)', () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/missing.esscene'], outDir: 'build' });
     expect(res.warnings.some((w) => w.includes('missing.esscene'))).toBe(true);
     expect(res.included).toEqual([]);
+  });
+
+  it('records a contentHash + size for each staged asset (RC6 Batch B)', async () => {
+    const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
+    const manifest = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
+    for (const e of manifest.entries) {
+      expect(e.contentHash, e.path).toMatch(/^[0-9a-f]{16}$/);
+      expect(e.size, e.path).toBeGreaterThan(0);
+    }
+    // The hash is over the exact staged bytes; 'USED' is the used.png body.
+    const tex = manifest.entries.find((e) => e.path === 'assets/textures/used.png')!;
+    expect(tex.contentHash).toBe(contentHashHex(new TextEncoder().encode('USED')));
+    expect(tex.size).toBe(4);
+  });
+
+  it('is deterministic: re-cooking yields identical content hashes', async () => {
+    const a = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
+    const b = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build2' });
+    const hashes = (p: string) =>
+      JSON.parse(readFileSync(p, 'utf8')).entries
+        .map((e: { path: string; contentHash: string }) => `${e.path}=${e.contentHash}`)
+        .sort();
+    expect(hashes(a.manifestPath!)).toEqual(hashes(b.manifestPath!));
+  });
+
+  it('gives identical bytes one hash (dedup foundation), distinct bytes distinct hashes', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-dedup-'));
+    try {
+      const A = '33333333-3333-4333-8333-333333333333';
+      const B = '44444444-4444-4444-8444-444444444444';
+      const C = '55555555-5555-4555-8555-555555555555';
+      const SC = '66666666-6666-4666-8666-666666666666';
+      const wa = (rel: string, type: string, uuid: string, body: string): void => {
+        const abs = path.join(r, rel);
+        mkdirSync(path.dirname(abs), { recursive: true });
+        writeFileSync(abs, body);
+        writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+      };
+      wa('t/a.png', 'texture', A, 'SAME-BYTES');
+      wa('t/b.png', 'texture', B, 'SAME-BYTES'); // byte-identical to a, different uuid+path
+      wa('t/c.png', 'texture', C, 'OTHER-BYTES');
+      wa('s/main.esscene', 'scene', SC, JSON.stringify({
+        version: '1.0', name: 's', entities: [A, B, C].map((u, i) => ({
+          id: i + 1, name: `E${i}`, parent: null, children: [],
+          components: [{ type: 'Sprite', data: { texture: `@uuid:${u}` } }],
+        })),
+      }));
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out' });
+      const m = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
+      const h = (p: string) => m.entries.find((e) => e.path === p)!.contentHash;
+      expect(h('t/a.png')).toBe(h('t/b.png'));     // identical content → one physical identity
+      expect(h('t/a.png')).not.toBe(h('t/c.png')); // different content → different identity
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
   });
 });

@@ -17,11 +17,28 @@
  * native), texture atlasing, and the full web-build (html + runtime + scripts).
  * This is the reachability + manifest + staging core they all build on.
  */
-import { writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
+// Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
+// no hand-mirrored copy — so the cook and the runtime agree by construction.
+import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
 const MANIFEST = 'assets.manifest.json';
+
+/**
+ * One cooked asset in the ship manifest. Extends the DB index entry with the
+ * physical-identity fields RC6 needs: `contentHash` (XXH64 of the staged bytes)
+ * and `size`. The runtime AssetRegistry consumes the same v1.0 manifest and
+ * simply ignores these extra fields (it maps uuid→path); the AddressableManifest
+ * and content-addressed naming (RC6 B-F) are what read them.
+ */
+export interface CookManifestEntry extends AssetEntry {
+  /** XXH64 (16 hex) of the exact bytes staged — the asset's physical identity. */
+  contentHash: string;
+  /** Staged byte length. */
+  size: number;
+}
 
 export interface CookResult {
   ok: boolean;
@@ -75,20 +92,26 @@ export async function cookAssets(
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(root, opts.outDir);
   await mkdir(absOut, { recursive: true });
 
-  // Stage each reachable asset's file + build the ship manifest.
-  const manifestEntries: AssetEntry[] = [];
+  // Stage each reachable asset's file + build the ship manifest. We read the
+  // bytes (rather than copyFile) so we can content-hash exactly what ships — the
+  // asset's physical identity (RC6 Batch B). After B4 this naturally hashes the
+  // ENCODED artifact (e.g. the .ktx2), since it hashes whatever bytes we stage.
+  const manifestEntries: CookManifestEntry[] = [];
   for (const uuid of reachable) {
     const entry = byUuid.get(uuid);
     if (!entry) continue;
     const dst = path.join(absOut, entry.path);
     try {
+      const data = await readFile(path.join(root, entry.path));
       await mkdir(path.dirname(dst), { recursive: true });
-      await copyFile(path.join(root, entry.path), dst);
+      await writeFile(dst, data);
       manifestEntries.push({
         uuid: entry.uuid,
         path: entry.path,
         type: entry.type,
         importer: entry.importer,
+        contentHash: contentHashHex(data),
+        size: data.byteLength,
       });
     } catch (err) {
       warnings.push(`copy failed ${entry.path}: ${err instanceof Error ? err.message : String(err)}`);
