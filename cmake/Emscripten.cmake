@@ -18,6 +18,18 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
     -fno-exceptions
 )
 
+# Wasm SIMD for the main module + render + math (RC8-1). `-msse2` makes emscripten
+# define __SSE2__, which GLM auto-detects to vectorize vec4/mat4 ops; emscripten
+# lowers the SSE intrinsics to wasm SIMD (`-msimd128`). We deliberately do NOT force
+# aligned gentypes — GLM uses unaligned load/store, so component layouts and the
+# zero-copy ptr offsets are unchanged (ABI_LAYOUT_HASH stays put). The physics module
+# already ships SIMD to web AND wechat, so this is on by default with a compat
+# fallback (`-DES_MAIN_DISABLE_SIMD=ON`) mirroring BOX2D_DISABLE_SIMD.
+option(ES_MAIN_DISABLE_SIMD "Disable wasm SIMD for the main module (compat fallback)" OFF)
+if(NOT ES_MAIN_DISABLE_SIMD)
+    list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS -msimd128 -msse2)
+endif()
+
 # Standard (monolithic) link flags
 set(ES_EMSCRIPTEN_LINK_FLAGS
     --bind                          # Enable embind for C++ bindings

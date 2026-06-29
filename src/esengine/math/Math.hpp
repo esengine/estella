@@ -19,6 +19,11 @@
 // GLM Configuration
 // =============================================================================
 
+// SIMD is enabled via the build flags (-msse2 -msimd128), not here: GLM auto-detects
+// __SSE2__ and vectorizes vec4/mat4 ops with unaligned load/store. We intentionally do
+// NOT define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES — aligning would bloat vec3-heavy
+// components and change the ptr-layout ABI for marginal load-speed gain. See
+// docs/REARCH_SIMD.md and cmake/Emscripten.cmake (ES_MAIN_DISABLE_SIMD).
 #ifndef GLM_FORCE_RADIANS
     #define GLM_FORCE_RADIANS
 #endif
