@@ -4,6 +4,7 @@ import type { App, Plugin } from '../app';
 import { defineResource } from '../resource';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
+import { transcoderFromModule, type BasisWasmModule } from './basisTranscoder';
 import { initBuiltinAssetFields } from './AssetFieldRegistry';
 import { AssetRefCounter } from './AssetRefCounter';
 import { Audio, type AudioAPI } from '../audio/Audio';
@@ -36,6 +37,17 @@ export class AssetPlugin implements Plugin {
                 app.hasResource(Audio) ? app.getResource(Audio) : null,
             getSpriteAnimation: (): SpriteAnimationApi | null =>
                 app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null,
+        });
+
+        // Lazily acquire the Basis transcoder for KTX2 textures the same way
+        // physics/spine acquire their modules — only when a compressed texture is
+        // actually loaded (RC6 Batch C). The closure defers to app.sideModules,
+        // which the realm sets before any asset load.
+        assets.getTextureLoader().setTranscoderProvider(async () => {
+            const host = app.sideModules;
+            if (!host) return null;
+            const mod = await host.acquire('basis');
+            return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
         });
 
         // Install the ref counter so resolveSceneAssetPaths records who

@@ -32,6 +32,8 @@ import { registerTilemapSource } from './tilemap/tilesetCache';
 import { log } from './logger';
 import { createTextureFromPixels, type RuntimeAssetProvider, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
+import { loadCompressedTexture, type CompressedUploadOptions, type BasisTranscoder } from './asset/compressed';
+import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
 
 // =============================================================================
 // Public Interface
@@ -50,21 +52,62 @@ async function loadTextures(
     sceneData: SceneData,
     provider: RuntimeAssetProvider,
     texturePaths: Set<string>,
+    transcoder: BasisTranscoder | null,
 ): Promise<Record<string, number>> {
     const cache: Record<string, number> = {};
     const texSettings = (sceneData as any).textureImporterSettings as Record<string, TextureParams> | undefined;
+    const gl = transcoder ? getWebGL2(module) : null;
     for (const ref of texturePaths) {
         try {
             const params = texSettings?.[ref];
-            const pixelData = await provider.loadPixels(ref);
-            const handle = createTextureFromPixels(module, pixelData, true, params);
-            cache[ref] = handle;
+            // KTX2 stays GPU-compressed in VRAM (RC6): decode to a device format
+            // through the SAME compressed.ts core the editor TextureLoader uses, so
+            // both paths agree by construction. Non-KTX2 keeps the RGBA upload.
+            if (transcoder && gl && provider.resolvePath(ref).toLowerCase().endsWith('.ktx2')) {
+                const bytes = await provider.readBinary(ref);
+                const r = loadCompressedTexture(gl, module, transcoder, new Uint8Array(bytes), compressedOpts(params));
+                cache[ref] = r.handle;
+            } else {
+                const pixelData = await provider.loadPixels(ref);
+                cache[ref] = createTextureFromPixels(module, pixelData, true, params);
+            }
         } catch (e) {
             log.warn('runtime', `Failed to load texture: ${ref}`, e);
             cache[ref] = 0;
         }
     }
     return cache;
+}
+
+/** WebGL2 context the emscripten module renders into (for JS-side compressed
+ *  uploads via gl.compressedTexImage2D), or null. */
+function getWebGL2(module: ESEngineModule): WebGL2RenderingContext | null {
+    try {
+        const ctx = (module.GL as any)?.currentContext?.GLctx;
+        return (typeof WebGL2RenderingContext !== 'undefined' && ctx instanceof WebGL2RenderingContext) ? ctx : null;
+    } catch { return null; }
+}
+
+/** Map runtime TextureParams (filterMode/wrapMode) → compressed upload options. */
+function compressedOpts(params?: TextureParams): CompressedUploadOptions {
+    const filter = params?.filterMode === 'nearest' ? 'nearest' : 'linear';
+    const wrap = params?.wrapMode === 'repeat' ? 'repeat' : params?.wrapMode === 'mirror' ? 'mirror' : 'clamp';
+    return { filter, wrap };
+}
+
+/** Acquire the Basis transcoder iff the scene uses any KTX2 texture — self-gating
+ *  off app.sideModules, the same way physics/spine acquire their modules. */
+async function acquireBasisIfNeeded(
+    app: App, provider: RuntimeAssetProvider, texturePaths: Set<string>,
+): Promise<BasisTranscoder | null> {
+    if (!app.sideModules) return null;
+    let needs = false;
+    for (const ref of texturePaths) {
+        if (provider.resolvePath(ref).toLowerCase().endsWith('.ktx2')) { needs = true; break; }
+    }
+    if (!needs) return null;
+    const mod = await app.sideModules.acquire('basis');
+    return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
 }
 
 function applyTextureMetadata(
@@ -362,7 +405,9 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
     const discovered = discoverSceneAssets(sceneData);
 
-    const textureCache = await loadTextures(module, sceneData, provider, getAssetPathsByType(discovered, 'texture'));
+    const texturePaths = getAssetPathsByType(discovered, 'texture');
+    const transcoder = await acquireBasisIfNeeded(app, provider, texturePaths);
+    const textureCache = await loadTextures(module, sceneData, provider, texturePaths, transcoder);
     applyTextureMetadata(sceneData, textureCache);
 
     const spineAssetInfo = await loadSpineAssets(module, provider, spineManager, discovered.spines);

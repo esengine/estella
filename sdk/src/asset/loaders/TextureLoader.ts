@@ -28,12 +28,30 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     private module_: ESEngineModule;
     /**
-     * Basis transcoder for KTX2 assets, injected by the basis plugin (Batch C3).
-     * Null until registered — KTX2 loads then error with a clear message rather
-     * than silently falling back.
+     * Basis transcoder for KTX2 assets. Either injected directly via
+     * {@link setTranscoder} (tests / embedded realms) or acquired lazily on the
+     * first KTX2 load via {@link setTranscoderProvider} — AssetPlugin wires the
+     * provider to `app.sideModules.acquire('basis')`, so the basis wasm is only
+     * fetched when a project actually uses compressed textures (self-gating, like
+     * physics / spine).
      */
     private transcoder_: BasisTranscoder | null = null;
+    private transcoderProvider_: (() => Promise<BasisTranscoder | null>) | null = null;
+    private transcoderPending_: Promise<BasisTranscoder | null> | null = null;
     setTranscoder(t: BasisTranscoder | null): void { this.transcoder_ = t; }
+    setTranscoderProvider(p: (() => Promise<BasisTranscoder | null>) | null): void {
+        this.transcoderProvider_ = p;
+    }
+
+    /** The transcoder, acquiring it once on demand. Concurrent KTX2 loads share
+     *  the in-flight acquisition so the basis module loads exactly once. */
+    private async ensureTranscoder_(): Promise<BasisTranscoder | null> {
+        if (this.transcoder_) return this.transcoder_;
+        if (!this.transcoderProvider_) return null;
+        if (!this.transcoderPending_) this.transcoderPending_ = this.transcoderProvider_();
+        this.transcoder_ = await this.transcoderPending_;
+        return this.transcoder_;
+    }
     private canvas_: HTMLCanvasElement | OffscreenCanvas | null = null;
     private ctx_: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
     /**
@@ -115,10 +133,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (!isKtx2(bytes)) throw new Error(`TextureLoader: ${path} is not a KTX2 file`);
         const gl = this.getWebGL2Context();
         if (!gl) throw new Error('TextureLoader: KTX2 textures require a WebGL2 context');
-        if (!this.transcoder_) {
-            throw new Error('TextureLoader: no Basis transcoder registered (load the basis module before KTX2 assets)');
+        const transcoder = await this.ensureTranscoder_();
+        if (!transcoder) {
+            throw new Error('TextureLoader: no Basis transcoder available (basis side module missing — KTX2 assets need it)');
         }
-        const r = loadCompressedTexture(gl, this.module_, this.transcoder_, bytes, settings);
+        const r = loadCompressedTexture(gl, this.module_, transcoder, bytes, settings);
         return { handle: r.handle, width: r.width, height: r.height };
     }
 
