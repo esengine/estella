@@ -86,6 +86,14 @@ void rm_registerTextureWithPath(resource::ResourceManager& rm, u32 handleId, con
     rm.registerTextureWithPath(resource::TextureHandle(handleId), path);
 }
 
+void rm_setTextureBudget(resource::ResourceManager& rm, u32 bytes) {
+    rm.setTextureBudget(static_cast<usize>(bytes));
+}
+
+u32 rm_acquireTextureByPath(resource::ResourceManager& rm, const std::string& path) {
+    return rm.acquireTextureByPath(path).id();
+}
+
 void rm_releaseShader(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseShader(resource::ShaderHandle(handleId));
 }

@@ -25,6 +25,8 @@ u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getTextureRefCount(resource::ResourceManager& rm, u32 handleId);
 void rm_registerTextureWithPath(resource::ResourceManager& rm, u32 handleId, const std::string& path);
+void rm_setTextureBudget(resource::ResourceManager& rm, u32 bytes);
+u32 rm_acquireTextureByPath(resource::ResourceManager& rm, const std::string& path);
 void rm_releaseShader(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getShaderRefCount(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getTextureGLId(resource::ResourceManager& rm, u32 handleId);

@@ -51,6 +51,8 @@ export interface CppResourceManager {
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
     updateTextureSubregion(handle: number, x: number, y: number, width: number, height: number, pixels: number, pixelsLen: number): void;
     registerTextureWithPath(handle: number, path: string): void;
+    setTextureBudget(bytes: number): void;
+    acquireTextureByPath(path: string): number;
     loadBitmapFont(fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
     createLabelAtlasFont(textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;
     releaseBitmapFont(handle: number): void;

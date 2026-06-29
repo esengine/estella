@@ -396,6 +396,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
         .function("updateTextureSubregion", &esengine::rm_updateTextureSubregion)
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
+        .function("setTextureBudget", &esengine::rm_setTextureBudget)
+        .function("acquireTextureByPath", &esengine::rm_acquireTextureByPath)
 #ifdef ES_ENABLE_BITMAP_TEXT
         .function("loadBitmapFont", &esengine::rm_loadBitmapFont)
         .function("createLabelAtlasFont", &esengine::rm_createLabelAtlasFont)

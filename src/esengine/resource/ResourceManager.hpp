@@ -270,6 +270,19 @@ public:
      */
     void releaseTextureByGUID(const std::string& guid);
 
+    /**
+     * @brief Sets the texture pool's resident-byte budget (0 = no eviction).
+     *        Over budget, refCount==0 textures are evicted oldest-first.
+     */
+    void setTextureBudget(usize bytes);
+
+    /**
+     * @brief Reuses a cached texture by its build path: returns its handle with an
+     *        added reference (reviving an evictable one), or an invalid handle if
+     *        none is cached. Lets the runtime dedupe + reuse textures across loads.
+     */
+    TextureHandle acquireTextureByPath(const std::string& path);
+
     // =========================================================================
     // Texture Metadata
     // =========================================================================

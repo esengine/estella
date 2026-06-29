@@ -219,6 +219,16 @@ const std::string& ResourceManager::getTexturePath(TextureHandle handle) const {
     return textures_.getPath(handle);
 }
 
+void ResourceManager::setTextureBudget(usize bytes) {
+    textures_.setBudget(bytes);
+}
+
+TextureHandle ResourceManager::acquireTextureByPath(const std::string& path) {
+    auto handle = textures_.findByPath(path);
+    if (handle.isValid()) textures_.addRef(handle);
+    return handle;
+}
+
 TextureHandle ResourceManager::loadTextureByGUID(const std::string& guid, const std::string& path) {
     auto it = guidToTexture_.find(guid);
     if (it != guidToTexture_.end() && it->second.isValid()) {
