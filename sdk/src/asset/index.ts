@@ -6,6 +6,7 @@ export {
     type AddressableManifestGroup,
     type AddressableManifestAsset,
 } from './AddressableManifest';
+export { xxh64, contentHashHex, contentHashOf } from './contentHash';
 export { AsyncCache } from './AsyncCache';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
 export { decodeImageBitmap, decodeImagePixels, imageBitmapOptions, type DecodedPixels } from './imageDecode';

@@ -11,7 +11,8 @@ export interface AddressableManifestAsset {
     size: number;
     labels: string[];
     /**
-     * Content hash of the built bytes (xxh3), the asset's *physical* identity.
+     * Content hash of the built bytes (XXH64, see contentHash.ts), the asset's
+     * *physical* identity.
      * Populated by the import pipeline. Lets the runtime dedupe by content and
      * treat `<contentHash>.<ext>` as an immutable, permanently-cacheable URL
      * (changing a file yields a new hash → a new URL, never a stale cache).
