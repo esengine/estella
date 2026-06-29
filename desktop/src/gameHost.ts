@@ -23,6 +23,11 @@ interface CookedManifest {
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  // Render-verification hook: with ?headless the cooked build keeps its drawing
+  // buffer + exposes a framebuffer readback, so a driver can prove the SHIPPED
+  // runtime actually rendered the cooked scene (the editor host can't — it uses a
+  // different asset path).
+  const headless = new URLSearchParams(location.search).has('headless');
   const resize = () => {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
@@ -62,6 +67,7 @@ async function boot(): Promise<void> {
     depth: true,
     stencil: true,
     premultipliedAlpha: false,
+    preserveDrawingBuffer: headless,
   }) as WebGL2RenderingContext | null;
   if (!gl) throw new Error('WebGL2 is not available.');
   const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
@@ -73,6 +79,16 @@ async function boot(): Promise<void> {
   });
   setEditorMode(false);
   setPlayMode(true);
+  if (headless) {
+    (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = {
+      capture(): { width: number; height: number; rgba: Uint8Array } {
+        const w = canvas.width, h = canvas.height;
+        const rgba = new Uint8Array(w * h * 4);
+        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+        return { width: w, height: h, rgba };
+      },
+    };
+  }
   // physics.wasm sits next to esengine.wasm; the runtime loads it when the scene
   // uses physics. (Runtime-spawned bodies still need a build-time enable flag —
   // a follow-up that cooks features.physics into game.config.json.)
