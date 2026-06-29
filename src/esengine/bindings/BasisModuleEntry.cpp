@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    BasisModuleEntry.cpp
- * @brief   Emscripten module: Basis Universal KTX2 transcoder (RC6 Batch C3)
+ * @brief   Emscripten module: Basis Universal KTX2 transcoder
  * @details A standalone wasm module (built like spine/physics) exposing a small C
  *          API over basist::ktx2_transcoder. The SDK loads it on demand and uses it
  *          to turn a KTX2/Basis container into GPU-ready compressed (or RGBA8) bytes

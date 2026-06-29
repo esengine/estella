@@ -1,9 +1,9 @@
-// Native MSVC/CTest harness for the GfxDevice compressed-texture entry (RC6-A).
+// Native MSVC/CTest harness for the GfxDevice compressed-texture entry.
 //
 // No GL here — it drives MockGfxDevice to prove (1) the interface shape compiles
 // and the mock satisfies the contract, and (2) the capability-gated upload
 // decision: compressed when the device supports the format, RGBA8 fallback
-// otherwise. This is the exact decision TextureLoader will make in Batch C.
+// otherwise. This is the exact decision the texture loader makes at runtime.
 
 #include "MockGfxDevice.hpp"
 

@@ -86,7 +86,7 @@ describe('cookAssets (A4)', () => {
     expect(res.included).toEqual([]);
   });
 
-  it('records a contentHash + size for each staged asset (RC6 Batch B)', async () => {
+  it('records a contentHash + size for each staged asset', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     const manifest = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
     for (const e of manifest.entries) {

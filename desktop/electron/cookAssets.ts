@@ -28,10 +28,10 @@ const MANIFEST = 'assets.manifest.json';
 
 /**
  * One cooked asset in the ship manifest. Extends the DB index entry with the
- * physical-identity fields RC6 needs: `contentHash` (XXH64 of the staged bytes)
+ * physical-identity fields it needs: `contentHash` (XXH64 of the staged bytes)
  * and `size`. The runtime AssetRegistry consumes the same v1.0 manifest and
  * simply ignores these extra fields (it maps uuid→path); the AddressableManifest
- * and content-addressed naming (RC6 B-F) are what read them.
+ * and content-addressed naming are what read them.
  */
 export interface CookManifestEntry extends AssetEntry {
   /** XXH64 (16 hex) of the exact bytes staged — the asset's physical identity. */
@@ -94,7 +94,7 @@ export async function cookAssets(
 
   // Stage each reachable asset's file + build the ship manifest. We read the
   // bytes (rather than copyFile) so we can content-hash exactly what ships — the
-  // asset's physical identity (RC6 Batch B). After B4 this naturally hashes the
+  // asset's physical identity. Once textures are encoded this naturally hashes the
   // ENCODED artifact (e.g. the .ktx2), since it hashes whatever bytes we stage.
   const manifestEntries: CookManifestEntry[] = [];
   for (const uuid of reachable) {

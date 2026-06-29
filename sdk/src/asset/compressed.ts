@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Compressed-texture loading (KTX2 / Basis Universal) — RC6 Batch C.
+ * Compressed-texture loading (KTX2 / Basis Universal).
  *
  * Decoded textures stay GPU-compressed in VRAM (4–8× smaller than RGBA8), the key
  * constraint on mobile. The actual transcode is done by a wasm side-module behind
- * the {@link BasisTranscoder} seam (Batch C3); this module owns the device
+ * the {@link BasisTranscoder} seam; this module owns the device
  * capability probe, the format choice, and the WebGL upload — all testable without
  * the wasm.
  *
  * Upload is JS-direct (`gl.compressedTexImage2D`) to mirror the existing
  * `TextureLoader` PNG path, and because WebGL compressed-texture extensions must be
  * enabled JS-side via `getExtension`. The C++ `GfxDevice::compressedTexImage2D`
- * entry (RC6-A) backs the non-WebGL2 fallback path instead.
+ * entry backs the non-WebGL2 fallback path instead.
  */
 import type { ESEngineModule } from '../wasm';
 import { requireResourceManager } from '../resourceManager';
@@ -63,7 +63,7 @@ export interface RgbaResult {
 
 /**
  * Decodes a KTX2/Basis container into GPU-ready bytes. The concrete implementation
- * is a wasm side-module (Batch C3) injected behind this interface, so the loader
+ * is a wasm side-module injected behind this interface, so the loader
  * decision logic stays unit-testable without it.
  */
 export interface BasisTranscoder {

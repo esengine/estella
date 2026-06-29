@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  RC6 Batch B4 — PNG/RGBA → KTX2 encode via the vendored Basis encoder.
+ * @file  PNG/RGBA → KTX2 encode via the vendored Basis encoder.
  *        Validates the produced KTX2 container and round-trips it back to RGBA to
  *        confirm encode quality (PSNR), proving the cook's compressed-texture
  *        producer end-to-end before it is wired into the pipeline.
@@ -39,7 +39,7 @@ function gradient(size = 64): Uint8Array {
   return px;
 }
 
-describe('basis KTX2 encoder (RC6 B4)', () => {
+describe('basis KTX2 encoder', () => {
   it('encodes raw RGBA → valid KTX2 and round-trips at high PSNR', async () => {
     const size = 64;
     const src = gradient(size);

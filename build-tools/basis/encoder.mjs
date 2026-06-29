@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * PNG/JPG/RGBA → KTX2 (Basis Universal) encoder for the build-time asset cook
- * (RC6 Batch B4). Wraps the vendored, prebuilt Basis encoder wasm
+ * PNG/JPG/RGBA → KTX2 (Basis Universal) encoder for the build-time asset cook.
+ * Wraps the vendored, prebuilt Basis encoder wasm
  * (basis_encoder.cjs + basis_encoder.wasm — built from third_party/basis_universal,
  * see README.md) behind a small Promise API. Build-time only: the *runtime*
  * transcoder is a separate side module (sdk/src/asset/basisTranscoder.ts).

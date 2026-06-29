@@ -34,7 +34,7 @@ export interface SideModuleDescriptor {
 
 export const SIDE_MODULES: Record<SideModuleId, SideModuleDescriptor> = {
     physics: { file: 'physics' },
-    // Basis Universal KTX2 transcoder (RC6) — compressed textures decode to a
+    // Basis Universal KTX2 transcoder — compressed textures decode to a
     // GPU format on demand. MODULARIZE glue with a named EXPORT_NAME, like spine.
     basis: { file: 'basis', globalName: 'ESBasisModule' },
     'spine:3.8': { file: 'spine38', globalName: 'ESSpineModule' },

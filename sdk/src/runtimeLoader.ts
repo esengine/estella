@@ -60,7 +60,7 @@ async function loadTextures(
     for (const ref of texturePaths) {
         try {
             const params = texSettings?.[ref];
-            // KTX2 stays GPU-compressed in VRAM (RC6): decode to a device format
+            // KTX2 stays GPU-compressed in VRAM: decode to a device format
             // through the SAME compressed.ts core the editor TextureLoader uses, so
             // both paths agree by construction. Non-KTX2 keeps the RGBA upload.
             if (transcoder && gl && provider.resolvePath(ref).toLowerCase().endsWith('.ktx2')) {

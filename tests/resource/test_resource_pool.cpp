@@ -259,7 +259,7 @@ TEST_CASE("pool_mixed_operations") {
 }
 
 // =============================================================================
-// Eviction budget + LRU (RC6 gap 3): held → evictable → evicted
+// Eviction budget + LRU: held → evictable → evicted
 // =============================================================================
 
 TEST_CASE("pool_budget_zero_frees_immediately") {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Content hash (RC6 Batch B). XXH64 is the canonical `contentHash`
+ * @file  Content hash. XXH64 is the canonical `contentHash`
  *        algorithm; correctness is anchored on the official empty-input vector,
  *        with determinism / sensitivity / branch-coverage guards around it.
  */

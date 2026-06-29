@@ -137,8 +137,8 @@ async function scanWeChatSideModules(
 
 /** Read the web cook's flat manifest → AddressableManifest the WeChat runtime reads.
  *  Carries the cook's `contentHash` (XXH64) + `size` through so the runtime can
- *  dedupe by content and treat `<hash>.<ext>` as a permanently-cacheable CDN URL
- *  (RC6 Batch B); falls back to stat() for size only if a legacy cook omitted it. */
+ *  dedupe by content and treat `<hash>.<ext>` as a permanently-cacheable CDN URL;
+ *  falls back to stat() for size only if a legacy cook omitted it. */
 async function buildAddressableManifest(absOut: string): Promise<string> {
   const cook = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as CookManifest;
   type Entry = { path: string; type: string; size: number; labels: string[]; contentHash?: string };

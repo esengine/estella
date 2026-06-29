@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Content hashing for asset identity (RC6 Batch B — content-addressed identity).
+ * Content hashing for asset identity (content-addressed identity).
  *
  * XXH64 — a fast, well-distributed 64-bit non-cryptographic hash — is the single
  * canonical definition backing {@link AddressableManifest}'s `contentHash` field.

@@ -1,8 +1,8 @@
 # Basis Universal KTX2 encoder (build-time)
 
 Vendored, prebuilt Basis Universal **encoder** wasm used by the asset cook to
-transcode source textures (PNG/JPG) into GPU-compressed **KTX2** at build time
-(RC6 Batch B4). Encode-time only — the *runtime* transcoder that turns KTX2 into
+transcode source textures (PNG/JPG) into GPU-compressed **KTX2** at build time.
+Encode-time only — the *runtime* transcoder that turns KTX2 into
 ASTC/ETC2/BC on-device is a separate side module
 (`sdk/src/asset/basisTranscoder.ts` + `src/esengine/bindings/BasisModuleEntry.cpp`).
 

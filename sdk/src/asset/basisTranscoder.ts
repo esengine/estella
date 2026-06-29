@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Runtime side of the Basis Universal KTX2 transcoder (RC6 Batch C3).
+ * Runtime side of the Basis Universal KTX2 transcoder.
  *
  * Loads the standalone `basis` wasm module (built like spine/physics) and adapts
  * its C API to the {@link BasisTranscoder} seam consumed by the texture loader.

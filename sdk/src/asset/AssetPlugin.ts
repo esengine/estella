@@ -41,7 +41,7 @@ export class AssetPlugin implements Plugin {
 
         // Lazily acquire the Basis transcoder for KTX2 textures the same way
         // physics/spine acquire their modules — only when a compressed texture is
-        // actually loaded (RC6 Batch C). The closure defers to app.sideModules,
+        // actually loaded. The closure defers to app.sideModules,
         // which the realm sets before any asset load.
         assets.getTextureLoader().setTranscoderProvider(async () => {
             const host = app.sideModules;
