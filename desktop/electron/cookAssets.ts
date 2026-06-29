@@ -59,8 +59,9 @@ export interface CookResult {
  */
 export async function cookAssets(
   root: string,
-  opts: { entryScenes: string[]; outDir: string },
+  opts: { entryScenes: string[]; outDir: string; contentAddressed?: boolean },
 ): Promise<CookResult> {
+  const contentAddressed = opts.contentAddressed ?? false;
   const { index } = await scanAssetDatabase(root, { write: false });
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
@@ -97,20 +98,32 @@ export async function cookAssets(
   // asset's physical identity. Once textures are encoded this naturally hashes the
   // ENCODED artifact (e.g. the .ktx2), since it hashes whatever bytes we stage.
   const manifestEntries: CookManifestEntry[] = [];
+  const staged = new Set<string>();  // staged output paths, for content-addressed dedup
   for (const uuid of reachable) {
     const entry = byUuid.get(uuid);
     if (!entry) continue;
-    const dst = path.join(absOut, entry.path);
     try {
       const data = await readFile(path.join(root, entry.path));
-      await mkdir(path.dirname(dst), { recursive: true });
-      await writeFile(dst, data);
+      const hash = contentHashHex(data);
+      // Content-addressed naming: leaf assets ship as assets/<hash><ext>, so
+      // byte-identical assets collapse to one file (dedup) and the URL is immutable
+      // — content changes yield a new name, so it is permanently cacheable. Scenes
+      // keep their logical path: they're loaded by name and the exporters read +
+      // transform them in place. Refs are by uuid, so renaming leaves is transparent.
+      const useCA = contentAddressed && entry.type !== 'scene';
+      const outRel = useCA ? `assets/${hash}${path.extname(entry.path)}` : entry.path;
+      const dst = path.join(absOut, outRel);
+      if (!staged.has(outRel)) {
+        await mkdir(path.dirname(dst), { recursive: true });
+        await writeFile(dst, data);
+        staged.add(outRel);
+      }
       manifestEntries.push({
         uuid: entry.uuid,
-        path: entry.path,
+        path: outRel,
         type: entry.type,
         importer: entry.importer,
-        contentHash: contentHashHex(data),
+        contentHash: hash,
         size: data.byteLength,
       });
     } catch (err) {

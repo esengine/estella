@@ -204,6 +204,8 @@ export async function exportGame(opts: {
   sdkDistDir: string;
   wasmDir: string;
   outDir: string;
+  /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
+  contentAddressed?: boolean;
   title?: string;
   platform?: ExportPlatform;
   /** Playable host source (src/playableHost.ts). */
@@ -278,7 +280,7 @@ export async function exportGame(opts: {
 
   // 1. Cook reachable assets + manifest (the entry scene file is staged too).
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: payloadDir });
+  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: payloadDir, contentAddressed: opts.contentAddressed });
   warnings.push(...cook.warnings);
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 

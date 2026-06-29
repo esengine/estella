@@ -140,4 +140,44 @@ describe('cookAssets (A4)', () => {
       rmSync(r, { recursive: true, force: true });
     }
   });
+
+  it('content-addresses leaf assets (<hash><ext>), dedups identical bytes, keeps scenes by name', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-ca-'));
+    try {
+      const A = '33333333-3333-4333-8333-333333333333';
+      const B = '44444444-4444-4444-8444-444444444444';
+      const C = '55555555-5555-4555-8555-555555555555';
+      const SC = '66666666-6666-4666-8666-666666666666';
+      const wa = (rel: string, type: string, uuid: string, body: string): void => {
+        const abs = path.join(r, rel);
+        mkdirSync(path.dirname(abs), { recursive: true });
+        writeFileSync(abs, body);
+        writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+      };
+      wa('t/a.png', 'texture', A, 'SAME-BYTES');
+      wa('t/b.png', 'texture', B, 'SAME-BYTES'); // byte-identical to a
+      wa('t/c.png', 'texture', C, 'OTHER-BYTES');
+      wa('s/main.esscene', 'scene', SC, JSON.stringify({
+        version: '1.0', name: 's', entities: [A, B, C].map((u, i) => ({
+          id: i + 1, name: `E${i}`, parent: null, children: [],
+          components: [{ type: 'Sprite', data: { texture: `@uuid:${u}` } }],
+        })),
+      }));
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out', contentAddressed: true });
+      const m = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
+      const byUuid = (u: string) => m.entries.find((e) => e.uuid === u)!;
+
+      // Leaf textures are content-addressed; scene keeps its logical name.
+      expect(byUuid(A).path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
+      expect(byUuid(SC).path).toBe('s/main.esscene');
+
+      // Byte-identical leaves collapse to one path (and one staged file); distinct content does not.
+      expect(byUuid(A).path).toBe(byUuid(B).path);
+      expect(byUuid(A).path).not.toBe(byUuid(C).path);
+      expect(existsSync(path.join(res.outDir, byUuid(A).path))).toBe(true);
+      expect(existsSync(path.join(res.outDir, byUuid(C).path))).toBe(true);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  });
 });
