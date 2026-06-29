@@ -166,6 +166,24 @@ function classifyKeys(obj: object): { flatKeys: string[]; objectKeys: string[]; 
     return hasNested ? { flatKeys, objectKeys, arrayKeys } : null;
 }
 
+// User component identity is interned by name: the same name always maps to the same
+// _id symbol, module-globally (like builtins, which are defined once at load). The
+// World keys storage/queries/change-tracking by _id, so a stable-by-name id lets a
+// re-imported project bundle (hot reload) resolve to the live World's existing
+// component storage instead of minting a fresh identity that silently misses every
+// existing entity. Component DATA stays isolated per-App at the World/storage layer,
+// not at the id, so sharing ids by name across contexts is safe — the same reason
+// builtins share one global id across every App. See docs/REARCH_HOT_RELOAD.md §3.
+const componentIdRegistry = new Map<string, symbol>();
+function componentId(name: string): symbol {
+    let id = componentIdRegistry.get(name);
+    if (id === undefined) {
+        id = Symbol(`Component_${name}`);
+        componentIdRegistry.set(name, id);
+    }
+    return id;
+}
+
 function createComponentDef<T extends object>(
     name: string,
     defaults: T,
@@ -174,7 +192,7 @@ function createComponentDef<T extends object>(
     const keyInfo = classifyKeys(defaults);
     const defaultsRec = defaults as Record<string, unknown>;
     return {
-        _id: Symbol(`Component_${name}`),
+        _id: componentId(name),
         _name: name,
         _default: defaults,
         _builtin: false as const,
