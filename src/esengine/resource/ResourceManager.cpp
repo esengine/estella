@@ -138,7 +138,8 @@ TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
         ES_LOG_ERROR("Failed to create texture from spec");
         return TextureHandle();
     }
-    return textures_.add(std::move(texture));
+    const usize bytes = static_cast<usize>(texture->getWidth()) * texture->getHeight() * 4;
+    return textures_.add(std::move(texture), "", bytes);
 }
 
 TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8> pixels,
@@ -150,7 +151,8 @@ TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8
         ES_LOG_ERROR("Failed to create texture from pixels");
         return TextureHandle();
     }
-    return textures_.add(std::move(texture));
+    const usize bytes = static_cast<usize>(width) * height * 4;
+    return textures_.add(std::move(texture), "", bytes);
 }
 
 TextureHandle ResourceManager::loadTexture(const std::string& path) {
@@ -203,7 +205,8 @@ TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 widt
         ES_LOG_ERROR("Failed to register external texture (GL ID: {})", glTextureId);
         return TextureHandle();
     }
-    return textures_.add(std::move(texture));
+    const usize bytes = static_cast<usize>(width) * height * 4;
+    return textures_.add(std::move(texture), "", bytes);
 }
 
 void ResourceManager::registerTextureWithPath(TextureHandle handle, const std::string& path) {
@@ -408,6 +411,7 @@ ResourceStats ResourceManager::getStats() const {
     stats_.textureCount = textures_.size();
     stats_.vertexBufferCount = vertexBuffers_.size();
     stats_.indexBufferCount = indexBuffers_.size();
+    stats_.textureBytes = textures_.residentBytes();
     return stats_;
 }
 

@@ -51,6 +51,7 @@ struct ResourceStats {
     usize indexBufferCount = 0;   ///< Number of active index buffers
     usize cacheHits = 0;          ///< Number of cache hits since reset
     usize cacheMisses = 0;        ///< Number of cache misses since reset
+    usize textureBytes = 0;       ///< Resident texture bytes (RGBA8 estimate) — VRAM usage (RC6)
 };
 
 // =============================================================================
