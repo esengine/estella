@@ -25,11 +25,17 @@ export async function runEht(options = {}) {
 
     logger.debug(`Found ${componentFiles.length} component files`);
 
+    // The generated output is a function of BOTH the C++ component headers AND the
+    // generator sources — so a change to either must bust the cache. Hashing only the
+    // headers silently skipped regeneration after a generator edit (you had to pass
+    // --no-cache by hand).
+    const generatorFiles = await getPythonFiles(path.join(path.dirname(script), 'eht'));
+
     if (!noCache) {
         const cache = new HashCache(config.paths.cache);
         await cache.load();
 
-        const allFiles = [script, ...componentFiles];
+        const allFiles = [script, ...generatorFiles, ...componentFiles];
         const currentHash = await hashFiles(allFiles);
 
         if (!await cache.isChanged('eht', currentHash)) {
@@ -70,6 +76,33 @@ async function getComponentFiles(inputDir) {
         }
 
         await walk(inputDir);
+    } catch {
+        // Directory doesn't exist
+    }
+    return files;
+}
+
+// The EHT generator package (tools/eht/**/*.py) — a second input to the generated
+// output, so its sources join the cache hash. __pycache__ is skipped (derived).
+async function getPythonFiles(dir) {
+    const files = [];
+    try {
+        const { readdir } = await import('fs/promises');
+
+        async function walk(d) {
+            const entries = await readdir(d, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.name === '__pycache__') continue;
+                const fullPath = path.join(d, entry.name);
+                if (entry.isDirectory()) {
+                    await walk(fullPath);
+                } else if (entry.isFile() && entry.name.endsWith('.py')) {
+                    files.push(fullPath);
+                }
+            }
+        }
+
+        await walk(dir);
     } catch {
         // Directory doesn't exist
     }

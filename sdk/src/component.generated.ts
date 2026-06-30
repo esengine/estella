@@ -6,6 +6,8 @@
 
 import type { AssetFieldType } from './scene';
 import type { FieldMeta } from './component';
+import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from './types';
+import type { Dimension, Padding, VisualState } from './wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -584,3 +586,314 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
     },
 };
+
+// C++-backed builtin component data shapes — the ES_COMPONENT struct fields,
+// generated so the TS field types cannot drift from the C++ structs. A consumer
+// adds any TS-only authoring field (e.g. Camera.showFrustum) by extending these.
+
+export interface BitmapTextData {
+    text: string;
+    color: Color;
+    fontSize: number;
+    align: number;
+    spacing: number;
+    layer: number;
+    font: number;
+    enabled: boolean;
+}
+
+export interface BoxColliderData {
+    halfExtents: Vec2;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface CameraData {
+    projectionType: number;
+    fov: number;
+    orthoSize: number;
+    nearPlane: number;
+    farPlane: number;
+    aspectRatio: number;
+    isActive: boolean;
+    priority: number;
+    viewport: Vec4;
+    clearFlags: number;
+}
+
+export interface CanvasData {
+    designResolution: Vec2;
+    pixelsPerUnit: number;
+    scaleMode: number;
+    matchWidthOrHeight: number;
+    backgroundColor: Color;
+}
+
+export interface CapsuleColliderData {
+    radius: number;
+    halfHeight: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface ChildrenData {
+    entities: Entity[];
+}
+
+export interface CircleColliderData {
+    radius: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface FlexContainerData {
+    direction: number;
+    wrap: number;
+    justifyContent: number;
+    alignItems: number;
+    alignContent: number;
+    gap: Vec2;
+    padding: Padding;
+}
+
+export interface InteractableData {
+    enabled: boolean;
+    blockRaycast: boolean;
+    raycastTarget: boolean;
+}
+
+export interface Light2DData {
+    type: number;
+    color: Color;
+    intensity: number;
+    radius: number;
+    direction: Vec2;
+    innerAngle: number;
+    outerAngle: number;
+    shadowSoftness: number;
+    shadowDistance: number;
+    enabled: boolean;
+}
+
+export interface ParentData {
+    entity: Entity;
+}
+
+export interface ParticleEmitterData {
+    rate: number;
+    burstCount: number;
+    burstInterval: number;
+    duration: number;
+    looping: boolean;
+    playOnStart: boolean;
+    maxParticles: number;
+    lifetimeMin: number;
+    lifetimeMax: number;
+    shape: number;
+    shapeRadius: number;
+    shapeSize: Vec2;
+    shapeAngle: number;
+    speedMin: number;
+    speedMax: number;
+    angleSpreadMin: number;
+    angleSpreadMax: number;
+    startSizeMin: number;
+    startSizeMax: number;
+    endSizeMin: number;
+    endSizeMax: number;
+    sizeEasing: number;
+    startColor: Color;
+    endColor: Color;
+    colorEasing: number;
+    rotationMin: number;
+    rotationMax: number;
+    angularVelocityMin: number;
+    angularVelocityMax: number;
+    gravity: Vec2;
+    damping: number;
+    texture: number;
+    spriteColumns: number;
+    spriteRows: number;
+    spriteFPS: number;
+    spriteLoop: boolean;
+    blendMode: number;
+    layer: number;
+    material: number;
+    simulationSpace: number;
+    enabled: boolean;
+}
+
+export interface RigidBodyData {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    bullet: boolean;
+    enabled: boolean;
+}
+
+export interface SegmentColliderData {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface ShadowCaster2DData {
+    size: Vec2;
+    enabled: boolean;
+}
+
+export interface ShapeRendererData {
+    shapeType: number;
+    color: Color;
+    size: Vec2;
+    cornerRadius: number;
+    layer: number;
+    enabled: boolean;
+}
+
+export interface SpineAnimationData {
+    skeletonPath: string;
+    atlasPath: string;
+    skin: string;
+    animation: string;
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    flipX: boolean;
+    flipY: boolean;
+    color: Color;
+    layer: number;
+    skeletonScale: number;
+    material: number;
+    enabled: boolean;
+}
+
+export interface SpriteData {
+    texture: number;
+    color: Color;
+    size: Vec2;
+    pivot: Vec2;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    layer: number;
+    flipX: boolean;
+    flipY: boolean;
+    tileSize: Vec2;
+    tileSpacing: Vec2;
+    material: number;
+    enabled: boolean;
+}
+
+export interface StateMachineData {
+    current: string;
+    previous: string;
+}
+
+export interface StateVisualsData {
+    targetGraphic: Entity;
+    transitionFlags: number;
+    fadeDuration: number;
+    states: VisualState[];
+}
+
+export interface TilemapLayerData {
+    cellSize: Vec2;
+    originOffset: Vec2;
+    tileset: number;
+    tilesetColumns: number;
+    tilesetRows: number;
+    renderLayer: number;
+    tintColor: Color;
+    opacity: number;
+    parallaxFactor: Vec2;
+    visible: boolean;
+}
+
+export interface TransformData {
+    position: Vec3;
+    rotation: Quat;
+    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
+}
+
+export interface UIInteractionData {
+    hovered: boolean;
+    pressed: boolean;
+    justPressed: boolean;
+    justReleased: boolean;
+}
+
+export interface UIMaskData {
+    enabled: boolean;
+    mode: number;
+}
+
+export interface UINodeData {
+    position: number;
+    width: Dimension;
+    height: Dimension;
+    minWidth: Dimension;
+    minHeight: Dimension;
+    maxWidth: Dimension;
+    maxHeight: Dimension;
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: Dimension;
+    alignSelf: number;
+    marginLeft: Dimension;
+    marginTop: Dimension;
+    marginRight: Dimension;
+    marginBottom: Dimension;
+    insetLeft: Dimension;
+    insetTop: Dimension;
+    insetRight: Dimension;
+    insetBottom: Dimension;
+}
+
+export interface UIVisualData {
+    visualType: number;
+    texture: number;
+    color: Color;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    sliceBorder: Vec4;
+    tileSize: Vec2;
+    fillMethod: number;
+    fillOrigin: number;
+    fillAmount: number;
+    material: number;
+    enabled: boolean;
+}
+
+export interface VelocityData {
+    linear: Vec3;
+    angular: Vec3;
+}

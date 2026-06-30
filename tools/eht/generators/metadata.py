@@ -104,7 +104,85 @@ class MetadataGenerator:
                 fields.append(prop.name)
         return fields
 
+    # TS helper types a generated data interface field may reference (imported from
+    # './types'); custom-struct names (Padding/Dimension/VisualState) come instead
+    # from './wasm.generated'.
+    _BASE_TS_TYPES = {'Entity', 'Vec2', 'Vec3', 'Vec4', 'Quat', 'Color'}
+
+    def _data_ts_type(self, prop: Property) -> str:
+        """TS type for a component-DATA field — the plain serialized shape, not the
+        embind/Registry shape `TypeSystem.to_typescript` produces (which maps vectors
+        to emscripten wrappers and is color-blind). A color vec4 -> Color, an entity
+        ref -> Entity, an Entity vector -> Entity[], glm vecs -> their {x,y,..} types,
+        a registered custom struct -> its own interface name."""
+        t = self.types.clean_type(prop.cpp_type)
+        if is_color_field(prop, self.types):
+            return 'Color'
+        # Vectors before the scalar entity check: `entity_ref` also tags
+        # `std::vector<Entity>` (Children.entities), which must stay an array.
+        if self.types.is_entity_vector(t):
+            return 'Entity[]'
+        if self.types.is_struct_vector(t):
+            return f'{self.types.vector_elem(t)}[]'
+        if self.types.is_handle(t):
+            return 'number'
+        if 'entity_ref' in prop.annotations or self.types.is_entity(t):
+            return 'Entity'
+        if self.types.is_enum(t):
+            return 'number'
+        if t in self.types.CUSTOM_STRUCTS:
+            return t
+        if t in ('glm::vec2', 'glm::uvec2'):
+            return 'Vec2'
+        if t == 'glm::vec3':
+            return 'Vec3'
+        if t == 'glm::vec4':
+            return 'Vec4'
+        if t == 'glm::quat':
+            return 'Quat'
+        if t == 'std::string':
+            return 'string'
+        if t == 'bool':
+            return 'boolean'
+        return 'number'
+
+    def _gen_interfaces(self):
+        """Emit one `export interface <Name>Data` per component (the C++ field shape),
+        and report which './types' and './wasm.generated' helper types are referenced
+        so generate() can import exactly those. The skip rule matches the defaults
+        loop so each interface lists exactly the fields its defaults object carries."""
+        lines: List[str] = [
+            '// C++-backed builtin component data shapes — the ES_COMPONENT struct fields,',
+            '// generated so the TS field types cannot drift from the C++ structs. A consumer',
+            '// adds any TS-only authoring field (e.g. Camera.showFrustum) by extending these.',
+            '',
+        ]
+        used_base: set = set()
+        used_struct: set = set()
+        for comp in self.components:
+            if not comp.properties:
+                continue
+            field_lines: List[str] = []
+            for prop in comp.properties:
+                if self.types.is_skip(prop.cpp_type) and prop.cpp_type not in self.types.VECTOR_TYPES:
+                    continue
+                ts = self._data_ts_type(prop)
+                base = ts[:-2] if ts.endswith('[]') else ts
+                if base in self._BASE_TS_TYPES:
+                    used_base.add(base)
+                elif base in self.types.CUSTOM_STRUCTS:
+                    used_struct.add(base)
+                field_lines.append(f'    {prop.name}: {ts};')
+            lines.append(f'export interface {comp.name}Data {{')
+            lines.extend(field_lines)
+            lines.append('}')
+            lines.append('')
+        return lines, used_base, used_struct
+
     def generate(self) -> str:
+        # Build the data interfaces first so we know which helper types to import.
+        iface_lines, used_base, used_struct = self._gen_interfaces()
+
         lines = [
             '/**',
             ' * @file    component.generated.ts',
@@ -114,7 +192,13 @@ class MetadataGenerator:
             '',
             "import type { AssetFieldType } from './scene';",
             "import type { FieldMeta } from './component';",
-            '',
+        ]
+        if used_base:
+            lines.append(f"import type {{ {', '.join(sorted(used_base))} }} from './types';")
+        if used_struct:
+            lines.append(f"import type {{ {', '.join(sorted(used_struct))} }} from './wasm.generated';")
+        lines.append('')
+        lines += [
             '/**',
             ' * Single-source-of-truth hash of the C++/TS boundary ABI (component',
             ' * schema + pointer layouts). The WASM module exposes the same digest via',
@@ -210,4 +294,5 @@ class MetadataGenerator:
 
         lines.append('};')
         lines.append('')
+        lines.extend(iface_lines)
         return '\n'.join(lines)

@@ -146,10 +146,7 @@ export class PreviewPlugin implements Plugin {
                 aspectRatio,
                 priority: 0,
                 showFrustum: false,
-                viewportX: 0,
-                viewportY: 0,
-                viewportW: 1,
-                viewportH: 1,
+                viewport: { x: 0, y: 0, z: 1, w: 1 },
                 clearFlags: ClearFlags.ColorAndDepth,
             };
             world.insert(cameraEntity, Camera, cameraData);

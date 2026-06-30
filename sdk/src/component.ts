@@ -8,6 +8,16 @@
 import { Entity, Vec2, Vec3, Color, Quat } from './types';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPRITE_SIZE } from './defaults';
 import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
+// C++-backed component data shapes, generated from the ES_COMPONENT structs (single
+// source — a TS field can no longer drift from C++). Re-exported below so the public
+// `esengine` import site is unchanged; Camera/ParticleEmitter add TS-only fields by
+// extending the generated base.
+import type {
+    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
+    CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
+    TilemapLayerData, BitmapTextData,
+    CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
+} from './component.generated';
 import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
@@ -518,33 +528,17 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // Builtin Component Types
 // =============================================================================
 
-export interface TransformData {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
-    worldPosition: Vec3;
-    worldRotation: Quat;
-    worldScale: Vec3;
-}
+// Data shapes whose fields are exactly the C++ struct — re-exported straight from
+// the generated module (the single source). Adding/removing a C++ field flows here
+// automatically; tsc then enforces every consumer matches.
+export type {
+    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
+    CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
+    TilemapLayerData, BitmapTextData,
+};
 
 export type LocalTransformData = TransformData;
 export type WorldTransformData = TransformData;
-
-export interface SpriteData {
-    texture: number;
-    color: Color;
-    size: Vec2;
-    pivot: Vec2;
-    uvOffset: Vec2;
-    uvScale: Vec2;
-    layer: number;
-    flipX: boolean;
-    flipY: boolean;
-    tileSize: Vec2;
-    tileSpacing: Vec2;
-    material: number;
-    enabled: boolean;
-}
 
 export const ShapeType = {
     Circle: 0,
@@ -563,111 +557,11 @@ export const Light2DType = {
 
 export type Light2DType = (typeof Light2DType)[keyof typeof Light2DType];
 
-export interface Light2DData {
-    type: number;
-    color: Color;
-    intensity: number;
-    radius: number;
-    direction: Vec2;
-    innerAngle: number;
-    outerAngle: number;
-    shadowSoftness: number;
-    shadowDistance: number;
-    enabled: boolean;
-}
-
-export interface ShadowCaster2DData {
-    size: Vec2;
-    enabled: boolean;
-}
-
-export interface ShapeRendererData {
-    shapeType: number;
-    color: Color;
-    size: Vec2;
-    cornerRadius: number;
-    layer: number;
-    enabled: boolean;
-}
-
-export interface CameraData {
-    projectionType: number;
-    fov: number;
-    orthoSize: number;
-    nearPlane: number;
-    farPlane: number;
-    aspectRatio: number;
-    isActive: boolean;
-    priority: number;
-    /** Editor-only: not synced to C++ Camera component, used for gizmo rendering */
+// Camera = the generated C++ field shape + one editor-only field. `showFrustum`
+// drives gizmo rendering and has no C++ Camera member, so it is added here rather
+// than in the generated interface (the only hand-written Camera field).
+export interface CameraData extends CameraDataCpp {
     showFrustum: boolean;
-    viewportX: number;
-    viewportY: number;
-    viewportW: number;
-    viewportH: number;
-    clearFlags: number;
-}
-
-export interface CanvasData {
-    designResolution: Vec2;
-    pixelsPerUnit: number;
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: Color;
-}
-
-export interface VelocityData {
-    linear: Vec3;
-    angular: Vec3;
-}
-
-export interface ParentData {
-    entity: Entity;
-}
-
-export interface ChildrenData {
-    entities: Entity[];
-}
-
-export interface SpineAnimationData {
-    skeletonPath: string;
-    atlasPath: string;
-    skin: string;
-    animation: string;
-    timeScale: number;
-    loop: boolean;
-    playing: boolean;
-    flipX: boolean;
-    flipY: boolean;
-    color: Color;
-    layer: number;
-    skeletonScale: number;
-    material: number;
-    enabled: boolean;
-}
-
-export interface TilemapLayerData {
-    cellSize: Vec2;
-    originOffset: Vec2;
-    tileset: number;
-    tilesetColumns: number;
-    tilesetRows: number;
-    renderLayer: number;
-    tintColor: Color;
-    opacity: number;
-    parallaxFactor: Vec2;
-    visible: boolean;
-}
-
-export interface BitmapTextData {
-    text: string;
-    color: Color;
-    fontSize: number;
-    align: number;
-    spacing: number;
-    layer: number;
-    font: number;
-    enabled: boolean;
 }
 
 export interface NameData {
@@ -809,58 +703,18 @@ export type ParticleEasing = (typeof ParticleEasing)[keyof typeof ParticleEasing
 // ParticleEmitter Component
 // =============================================================================
 
-export interface ParticleEmitterData {
-    rate: number;
-    burstCount: number;
-    burstInterval: number;
-    duration: number;
-    looping: boolean;
-    playOnStart: boolean;
-    maxParticles: number;
-    lifetimeMin: number;
-    lifetimeMax: number;
-    shape: number;
-    shapeRadius: number;
-    shapeSize: Vec2;
-    shapeAngle: number;
-    speedMin: number;
-    speedMax: number;
-    angleSpreadMin: number;
-    angleSpreadMax: number;
-    startSizeMin: number;
-    startSizeMax: number;
-    endSizeMin: number;
-    endSizeMax: number;
-    sizeEasing: number;
-    startColor: Color;
-    endColor: Color;
-    colorEasing: number;
-    rotationMin: number;
-    rotationMax: number;
-    angularVelocityMin: number;
-    angularVelocityMax: number;
-    gravity: Vec2;
-    damping: number;
-    texture: number;
-    spriteColumns: number;
-    spriteRows: number;
-    spriteFPS: number;
-    spriteLoop: boolean;
-    blendMode: number;
-    layer: number;
-    material: number;
-    simulationSpace: number;
-    enabled: boolean;
+// ParticleEmitter = the generated C++ field shape + two out-of-band TS-only fields
+// (gradient / curve) that have no C++ member — they are baked to a LUT the sim reads
+// (see particlePlugin's scene codec). They live here, not in the generated interface.
+export interface ParticleEmitterData extends ParticleEmitterDataCpp {
     /**
      * Color-over-life gradient (authored stops). When it has stops it overrides
-     * startColor/endColor + colorEasing. Not a C++ field — baked to a LUT the sim
-     * samples (see particlePlugin's scene codec). Empty ⇒ start/end fallback.
+     * startColor/endColor + colorEasing. Empty ⇒ start/end fallback.
      */
     colorGradient: { stops: { t: number; color: Color }[] };
     /**
      * Size-over-life curve (a multiplier × start size, keys over [0,1]). When it
-     * has keys it overrides startSize/endSize + sizeEasing. Out-of-band like
-     * colorGradient. Empty ⇒ start/end fallback.
+     * has keys it overrides startSize/endSize + sizeEasing. Empty ⇒ start/end fallback.
      */
     sizeCurve: { keys: { t: number; v: number }[] };
 }
