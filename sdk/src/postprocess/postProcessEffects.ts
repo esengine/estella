@@ -149,6 +149,44 @@ void main() {
         return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
     },
 
+    createColorGrade(): ShaderHandle {
+        const fragmentSrc = `#version 300 es
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform float u_exposure;     // stops; 0 = unchanged
+uniform float u_contrast;     // 1 = unchanged
+uniform float u_saturation;   // 1 = unchanged
+uniform float u_temperature;  // -1 cool .. +1 warm
+uniform float u_tint;         // -1 green .. +1 magenta
+out vec4 fragColor;
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    vec3 c = src.rgb;
+
+    // Exposure (stops): 2^EV.
+    c *= exp2(u_exposure);
+
+    // White balance: warm/cool on R/B, green/magenta on G. Identity at 0.
+    c.r *= 1.0 + u_temperature * 0.2;
+    c.b *= 1.0 - u_temperature * 0.2;
+    c.g *= 1.0 + u_tint * 0.2;
+
+    // Contrast about mid-grey.
+    c = (c - 0.5) * u_contrast + 0.5;
+
+    // Saturation about Rec.709 luma.
+    float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(vec3(luma), c, u_saturation);
+
+    fragColor = vec4(clamp(c, 0.0, 1.0), src.a);
+}
+`;
+        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+    },
+
     createChromaticAberration(): ShaderHandle {
         const fragmentSrc = `#version 300 es
 precision highp float;

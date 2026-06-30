@@ -8,7 +8,7 @@ vi.mock('../src/material', () => ({
 }));
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { PostProcessApi, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI } from '../src/postprocess';
+import { PostProcessApi, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI, getEffectDef } from '../src/postprocess';
 import { Material } from '../src/material';
 import type { ESEngineModule } from '../src/wasm';
 
@@ -361,6 +361,29 @@ describe('PostProcess API', () => {
                 expect.stringContaining('u_intensity'),
             );
             expect(handle).toBe(42);
+        });
+
+        it('should create color grade shader using Material.createShader', () => {
+            const handle = postProcessEffects.createColorGrade();
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.stringContaining('a_position'),
+                expect.stringContaining('u_exposure'),
+            );
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.stringContaining('u_saturation'),
+            );
+            expect(handle).toBe(42);
+        });
+
+        it('registers colorGrade with identity defaults (no-op at defaults)', () => {
+            const def = getEffectDef('colorGrade');
+            expect(def?.label).toBe('Color Grade');
+            const defaults = Object.fromEntries((def?.uniforms ?? []).map(u => [u.name, u.defaultValue]));
+            // Identity: 2^0=1, contrast 1, saturation 1, no white-balance shift.
+            expect(defaults).toEqual({
+                u_exposure: 0, u_contrast: 1, u_saturation: 1, u_temperature: 0, u_tint: 0,
+            });
         });
 
         it('should use the shared POSTPROCESS_VERTEX shader for all effects', () => {

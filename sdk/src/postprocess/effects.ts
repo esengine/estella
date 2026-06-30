@@ -92,6 +92,19 @@ registerEffect({
 });
 
 registerEffect({
+    type: 'colorGrade',
+    label: 'Color Grade',
+    factory: () => postProcessEffects.createColorGrade(),
+    uniforms: [
+        { name: 'u_exposure', label: 'Exposure', min: -3, max: 3, step: 0.05, defaultValue: 0 },
+        { name: 'u_contrast', label: 'Contrast', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        { name: 'u_saturation', label: 'Saturation', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        { name: 'u_temperature', label: 'Temperature', min: -1, max: 1, step: 0.01, defaultValue: 0 },
+        { name: 'u_tint', label: 'Tint', min: -1, max: 1, step: 0.01, defaultValue: 0 },
+    ],
+});
+
+registerEffect({
     type: 'chromaticAberration',
     label: 'Chromatic Aberration',
     factory: () => postProcessEffects.createChromaticAberration(),
