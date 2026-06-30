@@ -281,6 +281,49 @@ describe('AnimatorControllerApi.update', () => {
         expect((world.get(E, SpriteAnimator) as SpriteAnimatorData).clip).toBe('idle');
     });
 
+    it('drives the Spine driver on entry to a spine state (and not every frame)', () => {
+        const setAnimation = vi.fn();
+        const ctrl = new AnimatorControllerApi();
+        ctrl.setSpineDriver({ setAnimation });
+        ctrl.registerController('caster', {
+            parameters: [{ name: 'cast', type: 'trigger' }],
+            initialState: 'idle',
+            states: [
+                { name: 'idle', spine: { animation: 'idle', loop: true }, transitions: [
+                    { to: 'cast', conditions: [{ param: 'cast', op: 'trigger' }] },
+                ] },
+                { name: 'cast', spine: { animation: 'cast', loop: false }, transitions: [] },
+            ],
+        });
+        const world = makeWorld();
+        // No SpriteAnimator — a pure-spine entity.
+        world.insert(E, Animator, { controller: 'caster', currentState: '', enabled: true } as AnimatorData);
+
+        ctrl.update(world); // → idle (entry) → setAnimation('idle', true)
+        expect(setAnimation).toHaveBeenCalledWith(E, 'idle', true);
+        expect(setAnimation).toHaveBeenCalledTimes(1);
+
+        ctrl.update(world); // no state change → no re-set
+        expect(setAnimation).toHaveBeenCalledTimes(1);
+
+        ctrl.setTrigger(E, 'cast');
+        ctrl.update(world); // → cast → setAnimation('cast', false)
+        expect(setAnimation).toHaveBeenLastCalledWith(E, 'cast', false);
+        expect(setAnimation).toHaveBeenCalledTimes(2);
+    });
+
+    it('spine states are inert without a driver (no throw)', () => {
+        const ctrl = new AnimatorControllerApi();
+        ctrl.registerController('s', {
+            parameters: [], initialState: 'a',
+            states: [{ name: 'a', spine: { animation: 'a' }, transitions: [] }],
+        });
+        const world = makeWorld();
+        world.insert(E, Animator, { controller: 's', currentState: '', enabled: true } as AnimatorData);
+        expect(() => ctrl.update(world)).not.toThrow();
+        expect((world.get(E, Animator) as AnimatorData).currentState).toBe('a');
+    });
+
     it('a 1D-blend state switches clip within the state as the parameter crosses thresholds', () => {
         const ctrl = new AnimatorControllerApi();
         ctrl.registerController('loco', {

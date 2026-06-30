@@ -50,6 +50,8 @@ export {
     type AnimatorData,
     type AnimatorBlend1D,
     type AnimatorBlendThreshold,
+    type AnimatorSpineMotion,
+    type SpineAnimationDriver,
     type AnimatorParam,
     type AnimatorParamType,
     type AnimatorCondition,

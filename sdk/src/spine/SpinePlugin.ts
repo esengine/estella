@@ -9,6 +9,7 @@ import type { Entity } from '../types';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import type { SpineModuleFactory, SpineWasmModule } from './SpineModuleLoader';
 import { SPINE_VERSIONS, spineModuleId } from '../sideModules';
+import { AnimatorController } from '../animation/Animator';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'event';
 
@@ -63,6 +64,7 @@ export class SpinePlugin implements Plugin {
             pipeline?.addPreFlushCallback((registry) => {
                 manager.submitMeshes(registry._cpp);
             });
+            this.wireAnimatorDriver_(app);
         }
     }
 
@@ -111,6 +113,22 @@ export class SpinePlugin implements Plugin {
             pipeline?.addPreFlushCallback((registry) => {
                 manager.submitMeshes(registry._cpp);
             });
+        }
+    }
+
+    /**
+     * Wire the spine manager into the Animator as its Spine driver, so
+     * spine-targeting Animator states drive skeletal animations. Runs after all
+     * plugins build (the AnimatorController resource exists by then if the
+     * AnimationPlugin is installed).
+     */
+    finish(app: App): void {
+        this.wireAnimatorDriver_(app);
+    }
+
+    private wireAnimatorDriver_(app: App): void {
+        if (this.spineManager_ && app.hasResource(AnimatorController)) {
+            app.getResource(AnimatorController).setSpineDriver(this.spineManager_);
         }
     }
 

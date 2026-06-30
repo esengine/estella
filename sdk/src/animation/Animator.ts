@@ -77,12 +77,29 @@ export interface AnimatorBlend1D {
     thresholds: AnimatorBlendThreshold[];
 }
 
+/** A state that drives a Spine skeletal animation instead of a sprite clip. */
+export interface AnimatorSpineMotion {
+    animation: string;
+    loop?: boolean;
+}
+
+/**
+ * Minimal channel the Animator uses to drive Spine, kept here so the animation
+ * core does not depend on the optional spine module. `SpineManager` satisfies it
+ * structurally; `SpinePlugin` injects it via `AnimatorController.setSpineDriver`.
+ */
+export interface SpineAnimationDriver {
+    setAnimation(entity: Entity, animation: string, loop: boolean): void;
+}
+
 export interface AnimatorState {
     name: string;
-    /** Single sprite clip this state plays. Mutually exclusive with `blend`. */
+    /** Single sprite clip this state plays. Mutually exclusive with `blend`/`spine`. */
     clip?: string;
-    /** 1D blend selection. Mutually exclusive with `clip`. */
+    /** 1D blend selection. Mutually exclusive with `clip`/`spine`. */
     blend?: AnimatorBlend1D;
+    /** Drive a Spine animation instead of a sprite clip. */
+    spine?: AnimatorSpineMotion;
     speed?: number;
     loop?: boolean;
     transitions: AnimatorTransition[];
@@ -230,6 +247,13 @@ export class AnimatorControllerApi {
     private readonly controllers = new Map<string, AnimatorControllerDef>();
     private readonly params = new Map<Entity, Map<string, number | boolean>>();
     private readonly triggers = new Map<Entity, Set<string>>();
+    private spineDriver_: SpineAnimationDriver | null = null;
+
+    /** Inject the Spine driver (SpinePlugin wires SpineManager here). Optional —
+     *  without it, spine-targeting states are inert. */
+    setSpineDriver(driver: SpineAnimationDriver | null): void {
+        this.spineDriver_ = driver;
+    }
 
     // -- controller registry --------------------------------------------------
 
@@ -319,10 +343,11 @@ export class AnimatorControllerApi {
             // and has stopped — not merely stopped (which is also true before the
             // clip is ever applied, e.g. the frame a state is entered).
             const fromDef = def.states.find((s) => s.name === fromState);
-            const expectedClip = fromDef ? this.motionClipOf(fromDef, params).clip : '';
-            const clipFinished = spNow
-                ? (expectedClip !== '' && spNow.clip === expectedClip && !spNow.playing)
-                : true;
+            // Only a sprite state can report "clip finished"; a spine state's
+            // completion is owned by SpineManager (exit time for spine is future).
+            const expectedClip = fromDef && !fromDef.spine ? this.motionClipOf(fromDef, params).clip : '';
+            const clipFinished = expectedClip !== '' && spNow != null
+                && spNow.clip === expectedClip && !spNow.playing;
             const { next, consumedTriggers } = evaluateAnimatorTransitions(
                 def, fromState, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
             );
@@ -352,8 +377,18 @@ export class AnimatorControllerApi {
         stateName: string, params: AnimatorParamValues, forceRestart: boolean,
     ): void {
         const st = def.states.find((s) => s.name === stateName);
-        if (!st || !world.has(entity, SpriteAnimator)) return;
+        if (!st) return;
 
+        // Spine state: set the skeletal animation on entry (SpineManager owns the
+        // track playback/mixing); don't re-set every frame or touch SpriteAnimator.
+        if (st.spine) {
+            if (forceRestart && this.spineDriver_) {
+                this.spineDriver_.setAnimation(entity, st.spine.animation, st.spine.loop ?? true);
+            }
+            return;
+        }
+
+        if (!world.has(entity, SpriteAnimator)) return;
         const sel = this.motionClipOf(st, params);
         const sp = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
         if (sp.clip === sel.clip && !forceRestart) return;
