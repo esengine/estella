@@ -40,6 +40,19 @@ export {
 } from './i18n';
 
 // =============================================================================
+// Save / load (versioned persistence with migration)
+// =============================================================================
+
+export {
+    SaveManager,
+    migrateSaveData,
+    type SaveEnvelope,
+    type SaveMigration,
+    type SaveStorage,
+    type SaveManagerOptions,
+} from './saveGame';
+
+// =============================================================================
 // Entity Utils
 // =============================================================================
 
