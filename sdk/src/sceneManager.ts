@@ -7,7 +7,7 @@
 
 import type { App } from './app';
 import type { Entity, Color } from './types';
-import type { SceneData, SceneLoadOptions, LoadedSceneAssets } from './scene';
+import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import type { SystemDef } from './system';
 import { Material } from './material';
@@ -263,7 +263,7 @@ export class SceneManagerState {
         this.transitionController_.update(dt);
     }
 
-    async load(name: string): Promise<SceneContext> {
+    async load(name: string, onProgress?: SceneLoadProgressCallback): Promise<SceneContext> {
         if (this.scenes_.has(name)) {
             const existing = this.scenes_.get(name)!;
             if (existing.status === 'loading') {
@@ -299,7 +299,7 @@ export class SceneManagerState {
                 }
             }
 
-            await this.loadSceneData_(instance, name, config, sceneData);
+            await this.loadSceneData_(instance, name, config, sceneData, onProgress);
 
             instance.status = 'running';
             this.activeScene_ = name;
@@ -318,7 +318,7 @@ export class SceneManagerState {
         }
     }
 
-    async loadAdditive(name: string): Promise<SceneContext> {
+    async loadAdditive(name: string, onProgress?: SceneLoadProgressCallback): Promise<SceneContext> {
         if (this.scenes_.has(name)) {
             const existing = this.scenes_.get(name)!;
             if (existing.status === 'loading') {
@@ -354,7 +354,7 @@ export class SceneManagerState {
                 }
             }
 
-            await this.loadSceneData_(instance, name, config, sceneData);
+            await this.loadSceneData_(instance, name, config, sceneData, onProgress);
 
             instance.status = 'running';
             this.additiveScenes_.add(name);
@@ -459,6 +459,7 @@ export class SceneManagerState {
         name: string,
         config: SceneConfig,
         sceneData: SceneData | undefined,
+        onProgress?: SceneLoadProgressCallback,
     ): Promise<void> {
         if (sceneData) {
             const discovered = discoverSceneAssets(sceneData);
@@ -481,6 +482,7 @@ export class SceneManagerState {
             };
 
             const loadOptions: SceneLoadOptions = { collectAssets };
+            if (onProgress) loadOptions.onProgress = onProgress;
             if (this.app_.hasResource(Assets)) {
                 loadOptions.assets = this.app_.getResource(Assets);
             }

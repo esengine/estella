@@ -118,6 +118,17 @@ export {
     type TransitionOptions,
 } from './sceneManager';
 
+export {
+    SceneStreaming,
+    SceneStreamingController,
+    computeStreaming,
+    type StreamCell,
+    type StreamDecision,
+    type StreamPolicy,
+    type SceneStreamingConfig,
+    type SceneStreamHost,
+} from './sceneStreaming';
+
 export { sceneManagerPlugin } from './scenePlugin';
 
 export {

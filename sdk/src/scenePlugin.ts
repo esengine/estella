@@ -7,9 +7,13 @@
 
 import type { App, Plugin } from './app';
 import { SceneManager, SceneManagerState } from './sceneManager';
-import { defineSystem, Schedule } from './system';
+import { SceneStreaming, SceneStreamingController } from './sceneStreaming';
+import { defineSystem, Schedule, GetWorld } from './system';
 import { Res, ResMut, Time } from './resource';
+import { Transform, type TransformData } from './component';
+import { playModeOnly } from './env';
 import type { SystemDef } from './system';
+import type { World } from './world';
 import { log } from './logger';
 
 const sceneTransitionSystem = defineSystem(
@@ -21,11 +25,27 @@ const sceneTransitionSystem = defineSystem(
     { name: 'SceneTransitionSystem' }
 );
 
+// Drives proximity streaming: pulls the focus from a follow-entity's Transform (if
+// one is set), then reconciles resident cells. A no-op until cells are registered.
+const sceneStreamingSystem = defineSystem(
+    [Res(SceneStreaming), GetWorld()],
+    (streaming: SceneStreamingController, world: World) => {
+        const focus = streaming.getFocusEntity();
+        if (focus != null && world.valid(focus) && world.has(focus, Transform)) {
+            const t = world.get(focus, Transform) as TransformData;
+            streaming.setFocus(t.position.x, t.position.y);
+        }
+        streaming.update();
+    },
+    { name: 'SceneStreamingSystem' }
+);
+
 export const sceneManagerPlugin: Plugin = {
     name: 'sceneManager',
     build(app: App): void {
         const state = new SceneManagerState(app);
         app.insertResource(SceneManager, state);
+        app.insertResource(SceneStreaming, new SceneStreamingController(state));
 
         const initSystem: SystemDef = {
             _id: Symbol('SceneInitSystem'),
@@ -44,5 +64,6 @@ export const sceneManagerPlugin: Plugin = {
 
         app.addSystemToSchedule(Schedule.Startup, initSystem);
         app.addSystemToSchedule(Schedule.Last, sceneTransitionSystem);
+        app.addSystemToSchedule(Schedule.Update, sceneStreamingSystem, { runIf: playModeOnly });
     },
 };
