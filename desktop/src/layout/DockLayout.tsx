@@ -35,11 +35,12 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   game: () => <GamePanel />,
 };
 
-// Bumped to v5 (tabbed docking): Viewport center, right column Outliner-over-
-// Details, and Content Browser + Output Log as sibling tabs along the bottom
-// (resize/close via dockview). The Content Drawer (Ctrl+Space) is a separate
-// quick-access overlay on top.
-const LAYOUT_KEY = 'estella.editor.layout.v5';
+// Bumped to v6 (document-area editors): Viewport center, right column Outliner-
+// over-Details, Content Browser + Output Log + Sequencer as bottom tabs. The big
+// editing canvases (Material Graph / Tilemap / Tileset) are NOT bottom tabs — they
+// open on-demand as document tabs beside the Viewport (dockApi.openDocument),
+// matching UE/Unity. The Content Drawer (Ctrl+Space) is a separate overlay.
+const LAYOUT_KEY = 'estella.editor.layout.v6';
 
 function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   // Viewport is the anchor; the right column stacks Outliner over Details.
@@ -77,15 +78,14 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   });
 }
 
-// Bottom-dock editor tabs added on both fresh builds and restored layouts, so a
+// Bottom-dock utility tabs added on both fresh builds and restored layouts, so a
 // saved layout predating a tab gains it without resetting the user's arrangement.
-// Each docks next to the first of `refs` that exists; tabs are added in order, so
-// a later tab may reference an earlier one. Adding a bottom-dock tab is one entry.
+// Each docks next to the first of `refs` that exists. The big editing canvases
+// (Material Graph / Tilemap / Tileset) are intentionally NOT here — they open as
+// center document tabs on demand (dockApi.openDocument); only the timeline-shaped
+// Sequencer belongs in the bottom utility row (UE convention).
 const BOTTOM_TABS: { id: string; component: string; title: string; refs: string[] }[] = [
   { id: 'sequencer', component: 'sequencer', title: 'Sequencer', refs: ['content', 'log'] },
-  { id: 'tileset', component: 'tileset', title: 'Tileset', refs: ['content', 'sequencer'] },
-  { id: 'tilemap', component: 'tilemap', title: 'Tilemap', refs: ['content', 'tileset'] },
-  { id: 'materialgraph', component: 'materialgraph', title: 'Material Graph', refs: ['content', 'tilemap'] },
 ];
 
 function ensureBottomTabs(api: DockviewReadyEvent['api']) {

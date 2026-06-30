@@ -22,7 +22,7 @@ export async function openMaterialGraph(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     MaterialGraphDocument.openJson(JSON.parse(text), path);
-    dockApi.revealAndExpand('materialgraph');
+    dockApi.openDocument('materialgraph', 'materialgraph', 'Material Graph');
   } catch (e) {
     Toasts.push(`无法打开材质图：${String(e)}`, 'error');
   }

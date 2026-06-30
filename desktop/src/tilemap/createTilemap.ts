@@ -64,6 +64,8 @@ export async function createTilemapFromTileset(tilesetPath: string): Promise<voi
   useSelection.getState().select(sourceId);
   useTilemapPaint.getState().setTileset(tilesetPath);
   useTilemapPaint.getState().setTool('brush');
-  dockApi.revealAndExpand('tilemap');
+  // The painter is a palette companion to viewport painting — dock it to the side
+  // so the Viewport stays visible (a center tab would hide what you paint on).
+  dockApi.openSidePanel('tilemap', 'tilemap', 'Tilemap', 'left', 300);
   Toasts.push('已创建瓦片地图 — 选择刷子在视口绘制', 'info');
 }

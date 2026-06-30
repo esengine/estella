@@ -41,6 +41,43 @@ export const dockApi = {
   reveal(id: string) {
     api?.getPanel(id)?.api.setActive();
   },
+  /**
+   * Open (or front) a large editor as a document tab in the CENTER stage beside
+   * the Viewport — the modern unified-editor home for full editing canvases
+   * (Material Graph, Tilemap, Tileset), opened on-demand and closeable. Creates
+   * the panel on first open; subsequent calls just front it.
+   */
+  openDocument(id: string, component: string, title: string) {
+    if (!api) return;
+    if (!api.getPanel(id)) {
+      api.addPanel({
+        id,
+        component,
+        title,
+        position: api.getPanel('viewport') ? { referencePanel: 'viewport', direction: 'within' } : undefined,
+      });
+    }
+    api.getPanel(id)?.api.setActive();
+  },
+  /**
+   * Open (or front) a companion tool panel docked beside the Viewport (default
+   * left) so it stays visible WHILE you work in the Viewport — for palettes like
+   * the Tilemap painter, where painting happens in the Viewport and a center
+   * document tab would hide it. Opened on-demand and closeable.
+   */
+  openSidePanel(id: string, component: string, title: string, direction: 'left' | 'right' = 'left', width = 300) {
+    if (!api) return;
+    if (!api.getPanel(id)) {
+      api.addPanel({
+        id,
+        component,
+        title,
+        position: api.getPanel('viewport') ? { referencePanel: 'viewport', direction } : undefined,
+        initialWidth: width,
+      });
+    }
+    api.getPanel(id)?.api.setActive();
+  },
   /** Open (or reveal) the Game view as a tab beside the Viewport — used on Play. */
   openGame() {
     if (!api) return;

@@ -19,7 +19,7 @@ export async function openTileset(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     TilesetDocument.openJson(JSON.parse(text), path);
-    dockApi.revealAndExpand('tileset');
+    dockApi.openDocument('tileset', 'tileset', 'Tileset');
   } catch (e) {
     Toasts.push(`无法打开瓦片集：${String(e)}`, 'error');
   }
