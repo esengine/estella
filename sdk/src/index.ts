@@ -6,7 +6,12 @@
  */
 
 import { setPlatform, webAdapter } from './platform';
+import { ensureBuiltinComponentsRegistered } from './component';
 setPlatform(webAdapter);
+
+// Register every engine component (COMPONENT_META) up front so a scene can never
+// silently drop a component that exists in the engine but lacks a typed const.
+ensureBuiltinComponentsRegistered();
 
 export * from './core';
 export * from './webAppFactory';

@@ -461,6 +461,27 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
     return def;
 }
 
+/**
+ * Register every engine component in COMPONENT_META that doesn't already have a
+ * typed builtin const below. COMPONENT_META is EHT-generated from the C++
+ * `ES_COMPONENT` structs, so it is the single source of truth for *which*
+ * components exist; this guarantees each one is registered — and therefore
+ * loadable from a scene — even before someone hand-writes its typed
+ * `export const`. Without this backstop a newly-added C++ component had metadata
+ * + a binding but no registry entry, so `loadSceneData` silently dropped it.
+ *
+ * Idempotent (defineBuiltin no-ops on an already-registered builtin). The typed
+ * consts below remain the ergonomic, type-checked overlay; this only fills gaps.
+ * Called once from the package entry (index.ts / index.wechat.ts).
+ */
+export function ensureBuiltinComponentsRegistered(): void {
+    for (const name of Object.keys(COMPONENT_META)) {
+        if (!builtinRegistry.has(name)) {
+            defineBuiltin(name, COMPONENT_META[name].defaults as Record<string, unknown>);
+        }
+    }
+}
+
 // =============================================================================
 // Camera / Canvas Enums
 // =============================================================================
