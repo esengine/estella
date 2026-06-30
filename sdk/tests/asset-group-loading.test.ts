@@ -5,6 +5,7 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog, type CatalogData } from '../src/asset/Catalog';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import type { Backend } from '../src/asset/Backend';
+import * as platform from '../src/platform';
 
 const mockModule = {
     _malloc: vi.fn(() => 0),
@@ -44,6 +45,7 @@ vi.mock('../src/platform', () => ({
     },
     platformNow: () => 0,
     platformDevicePixelRatio: () => 1,
+    platformLoadSubpackage: vi.fn(() => Promise.resolve()),
 }));
 
 function createMockBackend(): Backend {
@@ -184,5 +186,25 @@ describe('Assets.loadGroup', () => {
         });
         expect(bundle.textures.size).toBe(0);
         expect(progressCalls).toContainEqual([0, 0]);
+    });
+
+    it('downloads a lazy group as a subpackage before loading its assets', async () => {
+        const sub = vi.mocked(platform.platformLoadSubpackage);
+        sub.mockClear();
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        vi.spyOn(assets, 'loadTexture').mockResolvedValue({ handle: 1, width: 1, height: 1 } as any);
+        await assets.loadGroup('extra'); // createManifest: 'extra' is bundleMode 'lazy'
+        expect(sub).toHaveBeenCalledWith('extra');
+    });
+
+    it('does not download a subpackage for a local (main-package) group', async () => {
+        const sub = vi.mocked(platform.platformLoadSubpackage);
+        sub.mockClear();
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        vi.spyOn(assets, 'loadTexture').mockResolvedValue({ handle: 1, width: 1, height: 1 } as any);
+        await assets.loadGroup('main'); // bundleMode 'local'
+        expect(sub).not.toHaveBeenCalled();
     });
 });

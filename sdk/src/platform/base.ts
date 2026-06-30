@@ -112,6 +112,14 @@ export function platformCreateAudioBackend(): import('../audio/PlatformAudioBack
     return getPlatform().createAudioBackend();
 }
 
+/** Download an on-demand subpackage by name (resolves immediately on platforms
+ *  with no subpackage concept, e.g. web). The single channel lazy asset groups
+ *  use before loading their assets. */
+export function platformLoadSubpackage(name: string): Promise<void> {
+    const p = getPlatform();
+    return p.loadSubpackage ? p.loadSubpackage(name) : Promise.resolve();
+}
+
 export function platformDevicePixelRatio(): number {
     if (currentPlatform) {
         return currentPlatform.devicePixelRatio();

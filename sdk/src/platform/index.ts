@@ -33,6 +33,7 @@ export {
     platformCreateImage,
     platformNow,
     platformCreateAudioBackend,
+    platformLoadSubpackage,
     platformDevicePixelRatio,
 } from './base';
 

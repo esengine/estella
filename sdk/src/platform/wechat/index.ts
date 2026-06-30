@@ -68,6 +68,18 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         return wx.createImage() as unknown as HTMLImageElement;
     }
 
+    /** WeChat 分包: download a subpackage so its files become readable. */
+    loadSubpackage(name: string): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            wx.loadSubpackage({
+                name,
+                success: () => resolve(),
+                fail: (err: unknown) => reject(new Error(`loadSubpackage("${name}") failed: ${JSON.stringify(err)}`)),
+                complete: () => {},
+            });
+        });
+    }
+
     createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
         const canvas = wx.createCanvas() as unknown as HTMLCanvasElement;
         canvas.width = width;

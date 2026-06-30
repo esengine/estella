@@ -40,6 +40,26 @@ export interface CookManifestEntry extends AssetEntry {
   size: number;
   /** GPU formats the staged KTX2 can transcode to, when the asset was compressed. */
   compressedFormats?: string[];
+  /**
+   * Addressable group this asset belongs to. `'main'` ships in the main package
+   * (loaded eagerly); any other name is a lazy subpackage (folder convention:
+   * `subpackages/<name>/…` → group `<name>`), loaded on demand. The runtime
+   * AssetRegistry ignores this field; the AddressableManifest + WeChat subpackage
+   * layout read it.
+   */
+  group: string;
+}
+
+/**
+ * Folder-convention subpackage detection: an asset under `subpackages/<name>/…`
+ * belongs to lazy group `<name>`. Returns null for main-package assets. The
+ * single source of truth for the grouping — cook (here), export layout, and the
+ * manifest all derive from it.
+ */
+const SUBPACKAGE_RE = /^subpackages\/([^/]+)\//;
+export function subpackageOf(projectRelPath: string): string | null {
+  const m = SUBPACKAGE_RE.exec(projectRelPath.replace(/\\/g, '/'));
+  return m ? m[1] : null;
 }
 
 /** Targets the UASTC KTX2 the cook emits can transcode to at runtime. */
@@ -96,6 +116,13 @@ export async function cookAssets(
     }
     seed(entry.uuid);
   }
+  // Force-include lazy-subpackage assets: they're loaded on demand, so the entry
+  // scene never references them — but they (and their deps) must still ship. A
+  // shared dep that lives outside subpackages/ resolves to group 'main' below, so
+  // it lands in the always-present main package, not duplicated per subpackage.
+  for (const e of index.entries) {
+    if (subpackageOf(e.path)) seed(e.uuid);
+  }
   // …then take the transitive closure over the dependency graph.
   while (queue.length > 0) {
     const uuid = queue.shift()!;
@@ -141,8 +168,13 @@ export async function cookAssets(
       // — content changes yield a new name, so it is permanently cacheable. Scenes
       // keep their logical path: they're loaded by name and the exporters read +
       // transform them in place. Refs are by uuid, so renaming leaves is transparent.
+      // Group by folder convention. Lazy-subpackage assets must stay under their
+      // subpackage root (subpackages/<name>/…) so the root maps to a WeChat
+      // subPackage — including the content-addressed layout (root/assets/<hash>).
+      const group = subpackageOf(entry.path) ?? 'main';
       const useCA = contentAddressed && entry.type !== 'scene';
-      const outRel = useCA ? `assets/${hash}${ext}` : swapExt(entry.path, ext);
+      const caBase = group === 'main' ? 'assets' : `subpackages/${group}/assets`;
+      const outRel = useCA ? `${caBase}/${hash}${ext}` : swapExt(entry.path, ext);
       const dst = path.join(absOut, outRel);
       if (!staged.has(outRel)) {
         await mkdir(path.dirname(dst), { recursive: true });
@@ -156,6 +188,7 @@ export async function cookAssets(
         importer: entry.importer,
         contentHash: hash,
         size: data.byteLength,
+        group,
         ...(compressedFormats ? { compressedFormats } : {}),
       });
     } catch (err) {

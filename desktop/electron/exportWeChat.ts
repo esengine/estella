@@ -43,7 +43,7 @@ export interface ExportWeChatResult {
 }
 
 interface CookManifest {
-  entries: { uuid: string; path: string; type: string; contentHash?: string; size?: number }[];
+  entries: { uuid: string; path: string; type: string; contentHash?: string; size?: number; group?: string }[];
 }
 
 // Editor asset type → AddressableAssetType (sdk/src/assetTypes.ts). The WeChat
@@ -71,8 +71,22 @@ function stripUuidRefs(v: unknown): unknown {
   return v;
 }
 
-function gameJson(orientation: 'portrait' | 'landscape'): string {
-  return JSON.stringify({ deviceOrientation: orientation, showStatusBar: false }, null, 2) + '\n';
+function gameJson(
+  orientation: 'portrait' | 'landscape',
+  subPackages: ReadonlyArray<{ name: string; root: string }>,
+): string {
+  const cfg: Record<string, unknown> = { deviceOrientation: orientation, showStatusBar: false };
+  // WeChat 分包: each lazy group is a subpackage rooted at subpackages/<name>/.
+  // The game calls Assets.loadGroup(name) → wx.loadSubpackage at runtime.
+  if (subPackages.length > 0) cfg.subPackages = subPackages.map((s) => ({ name: s.name, root: s.root }));
+  return JSON.stringify(cfg, null, 2) + '\n';
+}
+
+/** Distinct lazy subpackage groups present in the cook, as WeChat subPackage roots. */
+function subPackagesOf(entries: CookManifest['entries']): Array<{ name: string; root: string }> {
+  const names = new Set<string>();
+  for (const e of entries) if (e.group && e.group !== 'main') names.add(e.group);
+  return [...names].map((name) => ({ name, root: `subpackages/${name}` }));
 }
 
 function projectConfigJson(title: string, appid: string): string {
@@ -142,15 +156,26 @@ async function scanWeChatSideModules(
 async function buildAddressableManifest(absOut: string): Promise<string> {
   const cook = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as CookManifest;
   type Entry = { path: string; type: string; size: number; labels: string[]; contentHash?: string };
-  const assets: Record<string, Entry> = {};
+  type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
+  // One group per cook group: 'main' is local (eager); every other is a lazy
+  // subpackage. bundleMode here is the typed wire value the SDK's normalizeBundleMode
+  // reads ('local' | 'lazy').
+  const groups: Record<string, Group> = {};
   for (const e of cook.entries) {
     let size = e.size ?? 0;
     if (e.size == null) { try { size = (await stat(path.join(absOut, e.path))).size; } catch { /* missing file → 0 */ } }
+    const groupName = e.group ?? 'main';
+    const group = (groups[groupName] ??= {
+      bundleMode: groupName === 'main' ? 'local' : 'lazy', labels: [], assets: {},
+    });
     const entry: Entry = { path: e.path, type: addrType(e.type), size, labels: [] };
     if (e.contentHash) entry.contentHash = e.contentHash;
-    assets[e.uuid.toLowerCase()] = entry;
+    group.assets[e.uuid.toLowerCase()] = entry;
   }
-  return JSON.stringify({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets } } }, null, 2) + '\n';
+  // Always emit a main group so the runtime's main package exists even if every
+  // asset happened to land in a subpackage.
+  groups.main ??= { bundleMode: 'local', labels: [], assets: {} };
+  return JSON.stringify({ version: '2.0', groups }, null, 2) + '\n';
 }
 
 /**
@@ -257,7 +282,7 @@ export async function exportWeChat(opts: {
   const engineGlueFile = ['esengine.js', 'esengine.wxgame.js']
     .find((f) => existsSync(path.join(opts.wasmDir, f))) ?? 'esengine.js';
   await writeFile(path.join(absOut, 'game.js'), gameEntryJs(sideModules, engineGlueFile));
-  await writeFile(path.join(absOut, 'game.json'), gameJson(opts.orientation ?? 'portrait'));
+  await writeFile(path.join(absOut, 'game.json'), gameJson(opts.orientation ?? 'portrait', subPackagesOf(cookEntries)));
   await writeFile(path.join(absOut, 'project.config.json'), projectConfigJson(title, opts.appid ?? ''));
 
   // 6. The -t wechat engine runtime (WXWebAssembly glue + binary + side modules).

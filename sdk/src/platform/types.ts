@@ -119,6 +119,11 @@ export interface PlatformAdapter {
 
     createAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
 
+    /** Download an on-demand asset subpackage by name and resolve when its files
+     *  are available. WeChat → wx.loadSubpackage; platforms with no subpackage
+     *  concept (web) omit it and lazy groups load directly from their URLs. */
+    loadSubpackage?(name: string): Promise<void>;
+
     devicePixelRatio(): number;
 
     getStorageItem(key: string): string | null;

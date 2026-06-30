@@ -19,6 +19,7 @@ let root: string;
 let out: string;
 const TEX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const SCN = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+const SUBTEX = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 const meta = (uuid: string, type: string) => JSON.stringify({ uuid, version: '2.0', type, importer: {} });
 
 beforeAll(() => {
@@ -32,6 +33,11 @@ beforeAll(() => {
     JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }),
   );
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
+  // A lazy-subpackage asset (folder convention): NOT referenced by the entry
+  // scene, so it exercises force-include + grouping.
+  mkdirSync(path.join(root, 'subpackages', 'level2'), { recursive: true });
+  writeFileSync(path.join(root, 'subpackages', 'level2', 'extra.png'), 'PNG2DATA');
+  writeFileSync(path.join(root, 'subpackages', 'level2', 'extra.png.meta'), meta(SUBTEX, 'texture'));
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), `import { defineComponent } from 'esengine';\ndefineComponent('SpawnMarker', { rate: 1 });\n`);
   // Stub SDK dist (the bundle aliases `esengine` → <sdkDir>/index.wechat.js) + stub -t wechat runtime.
@@ -93,5 +99,13 @@ describe('exportGame (wechat)', () => {
     expect(gjson.deviceOrientation).toBe('landscape');
     expect(existsSync(path.join(out, 'wasm', 'esengine.js'))).toBe(true);
     expect(existsSync(path.join(out, 'wasm', 'esengine.wasm'))).toBe(true);
+
+    // 分包: the subpackages/level2 asset forms a lazy group, registered as a
+    // WeChat subPackage, with its file staged under the subpackage root.
+    expect(manifest.groups.level2.bundleMode).toBe('lazy');
+    expect(manifest.groups.main.bundleMode).toBe('local');
+    expect(manifest.groups.level2.assets[SUBTEX].path).toBe('subpackages/level2/extra.png');
+    expect(gjson.subPackages).toContainEqual({ name: 'level2', root: 'subpackages/level2' });
+    expect(existsSync(path.join(out, 'subpackages', 'level2', 'extra.png'))).toBe(true);
   }, 60_000);
 });

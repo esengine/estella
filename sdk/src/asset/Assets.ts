@@ -3,6 +3,7 @@
 import type { Backend } from './Backend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, type AddressableManifest } from './AddressableManifest';
+import { platformLoadSubpackage } from '../platform';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
@@ -368,6 +369,12 @@ export class Assets {
             log.warn('asset', `loadGroup('${groupName}') called but no manifest is set`);
             onProgress?.(0, 0);
             return bundle;
+        }
+
+        // A lazy group is an on-demand subpackage — download it before loading its
+        // assets (no-op on platforms without a subpackage concept, e.g. web).
+        if (model.bundleMode(groupName) === 'lazy') {
+            await platformLoadSubpackage(groupName);
         }
 
         let loadedCount = 0;

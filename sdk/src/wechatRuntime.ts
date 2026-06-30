@@ -15,6 +15,7 @@ import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformReadFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
+import { Assets } from './asset/AssetPlugin';
 import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -142,6 +143,12 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     if (config.runtimeConfig) {
         applyBuildRuntimeConfig(app, config.runtimeConfig);
     }
+
+    // Hand the manifest to the App's Assets so game code can `Assets.loadGroup(name)`
+    // on demand — a lazy (subpackage) group triggers wx.loadSubpackage first, the
+    // eager 'main' group loads directly. Eager scene assets still load through the
+    // runtime loader below; this enables the on-demand subpackage path.
+    if (app.hasResource(Assets)) app.getResource(Assets).setManifest(manifest);
 
     const provider = new WeChatAssetProvider(resolvePath);
 
