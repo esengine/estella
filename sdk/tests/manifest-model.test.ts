@@ -99,3 +99,56 @@ describe('ManifestModel', () => {
         expect(ManifestModel.empty().allAssets()).toEqual([]);
     });
 });
+
+// A uuid-keyed manifest, as the WeChat export emits (group asset record keyed by
+// lowercased uuid). Exercises the resolution path the shipped runtime relies on.
+function uuidManifest(): AddressableManifest {
+    return {
+        version: '2.0',
+        groups: {
+            main: {
+                bundleMode: 'local',
+                labels: [],
+                assets: {
+                    'uuid-1': { path: 'images/a.abc123.png', type: 'texture', size: 1, labels: [] },
+                    'uuid-2': { path: 'b.png', address: '@b', type: 'texture', size: 2, labels: [] },
+                },
+            },
+        },
+    };
+}
+
+describe('ManifestModel resolution', () => {
+    const model = () => ManifestModel.fromJson(uuidManifest());
+
+    it('looks up an asset by its record key (uuid) and by path', () => {
+        expect(model().assetByKey('uuid-1')?.path).toBe('images/a.abc123.png');
+        expect(model().assetByKey('missing')).toBeNull();
+        expect(model().assetByPath('b.png')?.path).toBe('b.png');
+        expect(model().assetByPath('nope')).toBeNull();
+    });
+
+    it('resolvePath: key hit on the raw ref', () => {
+        expect(model().resolvePath('uuid-1')).toBe('images/a.abc123.png');
+    });
+
+    it('resolvePath: key hit after normalize', () => {
+        // ref isn't a key, but normalize maps it onto one.
+        const r = model().resolvePath('raw', (s) => (s === 'raw' ? 'uuid-1' : s));
+        expect(r).toBe('images/a.abc123.png');
+    });
+
+    it('resolvePath: path hit (identity normalize)', () => {
+        expect(model().resolvePath('b.png')).toBe('b.png');
+    });
+
+    it('resolvePath: path hit after normalize (toBuildPath-style)', () => {
+        const r = model().resolvePath('b.src', (s) => (s === 'b.src' ? 'b.png' : s));
+        expect(r).toBe('b.png');
+    });
+
+    it('resolvePath: miss returns the normalized ref', () => {
+        expect(model().resolvePath('nope', (s) => `${s}.x`)).toBe('nope.x');
+        expect(model().resolvePath('nope')).toBe('nope');
+    });
+});

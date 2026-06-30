@@ -138,4 +138,54 @@ export class ManifestModel {
         }
         return null;
     }
+
+    // -------------------------------------------------------------------------
+    // Resolution (uuid/address key → asset → build path)
+    // -------------------------------------------------------------------------
+
+    private keyIndex_: Map<string, AddressableManifestAsset> | null = null;
+    private pathIndex_: Map<string, AddressableManifestAsset> | null = null;
+
+    private indexes(): { byKey: Map<string, AddressableManifestAsset>; byPath: Map<string, AddressableManifestAsset> } {
+        if (!this.keyIndex_ || !this.pathIndex_) {
+            const byKey = new Map<string, AddressableManifestAsset>();
+            const byPath = new Map<string, AddressableManifestAsset>();
+            for (const g of Object.values(this.manifest.groups)) {
+                for (const [key, asset] of Object.entries(g.assets)) {
+                    // First write wins, mirroring the historical hand-built index
+                    // (a uuid/path appearing in two groups keeps its first entry).
+                    if (!byKey.has(key)) byKey.set(key, asset);
+                    if (!byPath.has(asset.path)) byPath.set(asset.path, asset);
+                }
+            }
+            this.keyIndex_ = byKey;
+            this.pathIndex_ = byPath;
+        }
+        return { byKey: this.keyIndex_, byPath: this.pathIndex_ };
+    }
+
+    /** Asset by its group-record key (the uuid in editor/WeChat manifests). */
+    assetByKey(key: string): AddressableManifestAsset | null {
+        return this.indexes().byKey.get(key) ?? null;
+    }
+
+    /** Asset by its build path. */
+    assetByPath(path: string): AddressableManifestAsset | null {
+        return this.indexes().byPath.get(path) ?? null;
+    }
+
+    /**
+     * Resolve a serialized asset ref (a uuid, an address, or a path) to its
+     * build path. `normalize` maps a ref to its expected build path (e.g.
+     * `toBuildPath`); it is applied before the lookups and is the fallback when
+     * nothing matches. This is the single manifest→path resolution used by the
+     * shipped runtimes — callers never re-walk `groups` to build their own.
+     */
+    resolvePath(ref: string, normalize: (ref: string) => string = (s) => s): string {
+        const { byKey, byPath } = this.indexes();
+        const resolved = normalize(ref);
+        const entry =
+            byKey.get(ref) ?? byKey.get(resolved) ?? byPath.get(resolved) ?? byPath.get(ref);
+        return entry ? entry.path : resolved;
+    }
 }

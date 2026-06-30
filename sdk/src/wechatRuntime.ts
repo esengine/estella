@@ -14,7 +14,7 @@ import { initRuntime } from './runtimeLoader';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformReadFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
-import type { AddressableManifest } from './asset/AddressableManifest';
+import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
 import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -47,39 +47,6 @@ export class WeChatAssetProvider implements RuntimeAssetProvider {
     resolvePath(ref: string): string {
         return this.resolvePath_(ref);
     }
-}
-
-// =============================================================================
-// Manifest Utilities
-// =============================================================================
-
-interface ManifestIndex {
-    assetIndex: Record<string, { path: string }>;
-    pathIndex: Record<string, { path: string }>;
-}
-
-function buildManifestIndex(manifest: AddressableManifest): ManifestIndex {
-    const assetIndex: Record<string, { path: string }> = {};
-    const pathIndex: Record<string, { path: string }> = {};
-    for (const groupName in manifest.groups) {
-        const group = manifest.groups[groupName];
-        for (const uuid in group.assets) {
-            const entry = group.assets[uuid];
-            assetIndex[uuid] = entry;
-            pathIndex[entry.path] = entry;
-        }
-    }
-    return { assetIndex, pathIndex };
-}
-
-function createPathResolver(index: ManifestIndex): (ref: string) => string {
-    const { assetIndex, pathIndex } = index;
-    return (ref: string): string => {
-        const resolved = toBuildPath(ref);
-        const entry = assetIndex[ref] || assetIndex[resolved]
-            || pathIndex[resolved] || pathIndex[ref];
-        return entry ? entry.path : resolved;
-    };
 }
 
 // =============================================================================
@@ -136,8 +103,10 @@ export interface WeChatRuntimeConfig {
 export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<void> {
     const manifestText = await platformReadTextFile('asset-manifest.json');
     const manifest: AddressableManifest = JSON.parse(manifestText);
-    const manifestIndex = buildManifestIndex(manifest);
-    const resolvePath = createPathResolver(manifestIndex);
+    // Single manifest model — same query/resolution core the SDK Assets channel
+    // uses, instead of a hand-rolled index walk duplicated here.
+    const manifestModel = ManifestModel.fromJson(manifest);
+    const resolvePath = (ref: string): string => manifestModel.resolvePath(ref, toBuildPath);
 
     const canvas = wx.createCanvas();
     const info = wx.getSystemInfoSync();
