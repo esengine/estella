@@ -18,6 +18,12 @@ import type {
     TilemapLayerData, BitmapTextData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
 } from './component.generated';
+// Builtin enums whose values come from C++ ES_ENUMs — imported from the generated
+// module (single source) and re-exported below, so a TS const cannot drift from the
+// C++ enum and the editor dropdowns (enumOptions) derive from the same values. The
+// remaining hand-written enums (ScaleMode aliases, ShapeType, ParticleEasing) have no
+// matching C++ enum yet, so they stay local.
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType } from './wasm.generated';
 import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
@@ -496,21 +502,10 @@ export function ensureBuiltinComponentsRegistered(): void {
 // Camera / Canvas Enums
 // =============================================================================
 
-export const ProjectionType = {
-    Perspective: 0,
-    Orthographic: 1,
-} as const;
-
-export type ProjectionType = (typeof ProjectionType)[keyof typeof ProjectionType];
-
-export const ClearFlags = {
-    None: 0,
-    ColorOnly: 1,
-    DepthOnly: 2,
-    ColorAndDepth: 3,
-} as const;
-
-export type ClearFlags = (typeof ClearFlags)[keyof typeof ClearFlags];
+// Single-sourced from C++ ES_ENUMs (see import above). ProjectionType, ClearFlags,
+// EmitterShape, SimulationSpace and Light2DType are re-exported from the generated
+// module; their values and the editor dropdowns built from them now have one source.
+export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType };
 
 export const ScaleMode = {
     FixedWidth: 0,
@@ -547,15 +542,6 @@ export const ShapeType = {
 } as const;
 
 export type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
-
-export const Light2DType = {
-    Point: 0,
-    Directional: 1,
-    Ambient: 2,
-    Spot: 3,
-} as const;
-
-export type Light2DType = (typeof Light2DType)[keyof typeof Light2DType];
 
 // Camera = the generated C++ field shape + one editor-only field. `showFrustum`
 // drives gizmo rendering and has no C++ Camera member, so it is added here rather
@@ -674,22 +660,8 @@ export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
 // ParticleEmitter Enums
 // =============================================================================
 
-export const EmitterShape = {
-    Point: 0,
-    Circle: 1,
-    Rectangle: 2,
-    Cone: 3,
-} as const;
-
-export type EmitterShape = (typeof EmitterShape)[keyof typeof EmitterShape];
-
-export const SimulationSpace = {
-    World: 0,
-    Local: 1,
-} as const;
-
-export type SimulationSpace = (typeof SimulationSpace)[keyof typeof SimulationSpace];
-
+// EmitterShape + SimulationSpace are re-exported from the generated module (see the
+// import at the top). ParticleEasing has no C++ ES_ENUM yet, so it stays local.
 export const ParticleEasing = {
     Linear: 0,
     EaseIn: 1,

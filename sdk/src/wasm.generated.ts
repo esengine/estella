@@ -97,6 +97,13 @@ export enum JustifyContent {
     SpaceEvenly = 5,
 }
 
+export enum Light2DType {
+    Point = 0,
+    Directional = 1,
+    Ambient = 2,
+    Spot = 3,
+}
+
 export enum MaskMode {
     Scissor = 0,
     Stencil = 1,

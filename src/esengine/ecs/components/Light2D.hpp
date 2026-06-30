@@ -27,6 +27,7 @@ namespace esengine::ecs {
  * @brief 2D light kind. Point uses the Transform position + radius falloff; Directional uses
  *        `direction` with no attenuation; Ambient adds a flat term independent of normal/position.
  */
+ES_ENUM()
 enum class Light2DType : i32 {
     Point = 0,
     Directional = 1,
