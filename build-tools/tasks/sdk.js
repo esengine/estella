@@ -45,7 +45,14 @@ export async function buildSdk(options = {}) {
             const sdkSrcDir = path.join(sdkDir, 'src');
             currentHash = await hashDirectory(sdkSrcDir, /\.ts$/);
 
-            if (!await cache.isChanged('sdk', currentHash)) {
+            // Skip only when the source is unchanged AND the artifacts are actually
+            // present. Hashing the source alone wrongly reported "cached" after the
+            // dist/outputDir had been deleted or left incomplete, so a stale or
+            // missing build was never regenerated (this masked a newly-generated
+            // component.generated.ts from reaching consumers).
+            const distFresh = existsSync(path.join(sdkDir, 'dist', 'index.js'));
+            const outputsFresh = sdkOutputs.every((rel) => existsSync(path.join(outputDir, rel)));
+            if (!await cache.isChanged('sdk', currentHash) && distFresh && outputsFresh) {
                 logger.success('SDK: No changes detected (cached)');
                 const result = { outputDir, outputs: sdkOutputs, skipped: true };
                 if (manifest) {
