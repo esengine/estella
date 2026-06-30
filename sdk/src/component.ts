@@ -609,8 +609,9 @@ export const Camera = defineBuiltin<CameraData>('Camera',
     }),
     {
         fields: {
-            projectionType: { enum: enumOptions(ProjectionType) },
-            // A bitmask (ColorAndDepth = Color | Depth), so a multi-select, not a dropdown.
+            // projectionType's dropdown is generated from the C++ ProjectionType enum.
+            // clearFlags is a bitmask (ColorAndDepth = Color | Depth) — a curated bit
+            // list (the C++ `flags` annotation suppresses the single-choice dropdown).
             clearFlags: { flags: [{ label: 'Color', value: 1 }, { label: 'Depth', value: 2 }] },
             // showFrustum is a TS-only editor field (no C++ Camera member), so its
             // metadata can't come from an annotation.
@@ -620,16 +621,12 @@ export const Camera = defineBuiltin<CameraData>('Camera',
 );
 
 export const Canvas = defineBuiltin<CanvasData>('Canvas',
+    // scaleMode's dropdown is generated from the C++ CanvasScaleMode enum.
     metaDefaults<CanvasData>('Canvas', {
         designResolution: { x: DEFAULT_DESIGN_WIDTH, y: DEFAULT_DESIGN_HEIGHT },
         pixelsPerUnit: DEFAULT_PIXELS_PER_UNIT,
         scaleMode: ScaleMode.FixedHeight,
-    }),
-    {
-        fields: {
-            scaleMode: { enum: enumOptions(ScaleMode, ['FixedWidth', 'FixedHeight', 'Expand', 'Shrink', 'Match']) },
-        },
-    }
+    })
 );
 
 export const Velocity = defineBuiltin<VelocityData>('Velocity',

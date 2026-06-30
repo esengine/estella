@@ -6,7 +6,7 @@
  */
 
 import type { Vec2 } from '../types';
-import { defineBuiltin, defineComponent, enumOptions } from '../component';
+import { defineBuiltin, defineComponent } from '../component';
 
 // Box2D collision filtering: a body's own layers (category) and the layers it
 // collides with (mask), as named bitmasks. Bit labels come from the project's
@@ -128,7 +128,7 @@ export const RigidBody = defineBuiltin<RigidBodyData>('RigidBody', {
     enabled: true
 }, {
     fields: {
-        bodyType: { enum: enumOptions(BodyType) },
+        // bodyType's dropdown is generated from the C++ BodyType enum.
         linearDamping: { min: 0, advanced: true },
         angularDamping: { min: 0, advanced: true },
         fixedRotation: { advanced: true },

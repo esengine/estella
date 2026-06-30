@@ -3,6 +3,22 @@
 exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapshot of every builtin with declared field metadata 1`] = `
 {
   "BitmapText": {
+    "align": {
+      "enum": [
+        {
+          "label": "Left",
+          "value": 0,
+        },
+        {
+          "label": "Center",
+          "value": 1,
+        },
+        {
+          "label": "Right",
+          "value": 2,
+        },
+      ],
+    },
     "fontSize": {
       "min": 1,
     },

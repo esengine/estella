@@ -40,6 +40,10 @@ class CppParser:
     FLAG_ANNOTATIONS = frozenset({
         'animatable', 'anim_override', 'entity_ref', 'readonly',
         'slider', 'advanced', 'skip_serialize', 'replicated',
+        # An enum-typed field renders as a multi-select bitmask instead of a single-
+        # choice dropdown; suppresses the auto-generated `enum` options (the bit list
+        # is curated in TS — combined values like ColorAndDepth aren't single bits).
+        'flags',
     })
     KV_ANNOTATIONS = frozenset({
         'asset', 'anim_flag', 'min', 'max', 'step', 'unit', 'label',

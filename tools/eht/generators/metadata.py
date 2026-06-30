@@ -48,15 +48,22 @@ class MetadataGenerator:
 
     def _get_field_meta(self, comp: Component) -> List[Tuple[str, List[Tuple[str, str]]]]:
         """Build per-field editor-presentation metadata (the FieldMeta shape) from
-        ES_PROPERTY annotations. `enum`/`flags`/`gradient`/`curve` are intentionally
-        absent — they carry runtime TS constants (e.g. enumOptions(...)) and stay as
-        TS-side defineBuiltin overrides; everything expressible as a static annotation
-        is authored at the C++ site. Returns [(field, [(metaKey, jsLiteral), ...])].
+        ES_PROPERTY annotations. An enum-TYPED field also gets its `enum` dropdown
+        options generated straight from the C++ enum values (single source — no TS
+        `enumOptions(...)` mirror); a field annotated `flags` is a bitmask, so its
+        curated bit list stays in TS and the dropdown is suppressed. `gradient`/`curve`
+        carry TS-only state and stay TS-side. Returns [(field, [(metaKey, jsLiteral), ...])].
         """
         out: List[Tuple[str, List[Tuple[str, str]]]] = []
         for prop in comp.properties:
             a = prop.annotations
             entries: List[Tuple[str, str]] = []
+            if self.types.is_enum(prop.cpp_type) and 'flags' not in a:
+                vals = self.types.get_enum_values(prop.cpp_type)
+                opts = ', '.join(
+                    f"{{ label: '{v}', value: {i} }}" for i, v in enumerate(vals)
+                )
+                entries.append(('enum', f'[{opts}]'))
             if 'min' in a:
                 entries.append(('min', format_number(a['min'])))
             if 'max' in a:

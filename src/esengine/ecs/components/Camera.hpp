@@ -104,7 +104,9 @@ struct Camera {
     ES_PROPERTY()
     glm::vec4 viewport{0.0f, 0.0f, 1.0f, 1.0f};
 
-    ES_PROPERTY(tooltip="Which buffers to clear before rendering this camera.")
+    // A bitmask (ColorAndDepth = Color | Depth) → multi-select, so the curated bit
+    // list lives in TS and the single-choice enum dropdown is suppressed (flags).
+    ES_PROPERTY(flags, tooltip="Which buffers to clear before rendering this camera.")
     ClearFlags clearFlags{ClearFlags::ColorAndDepth};
 
     Camera() = default;

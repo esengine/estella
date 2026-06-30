@@ -55,6 +55,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],
         fields: {
             fontSize: { min: 1 },
+            align: { enum: [{ label: 'Left', value: 0 }, { label: 'Center', value: 1 }, { label: 'Right', value: 2 }] },
             layer: { step: 1 },
         },
     },
@@ -93,7 +94,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: ['orthoSize'],
         fields: {
-            projectionType: { tooltip: "Orthographic (2D) or Perspective projection." },
+            projectionType: { enum: [{ label: 'Perspective', value: 0 }, { label: 'Orthographic', value: 1 }], tooltip: "Orthographic (2D) or Perspective projection." },
             fov: { min: 1, max: 179, unit: "°" },
             orthoSize: { min: 0, tooltip: "Half the visible height in world units (Orthographic)." },
             nearPlane: { min: 0, advanced: true },
@@ -117,7 +118,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
         fields: {
             pixelsPerUnit: { min: 1, tooltip: "Texture pixels mapped to one world unit." },
-            scaleMode: { tooltip: "How the canvas adapts the design resolution to the screen." },
+            scaleMode: { enum: [{ label: 'FixedWidth', value: 0 }, { label: 'FixedHeight', value: 1 }, { label: 'Expand', value: 2 }, { label: 'Shrink', value: 3 }, { label: 'Match', value: 4 }], tooltip: "How the canvas adapts the design resolution to the screen." },
             matchWidthOrHeight: { min: 0, max: 1, slider: true, tooltip: "0 matches width, 1 matches height (Match mode only)." },
         },
     },
@@ -179,6 +180,13 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+        fields: {
+            direction: { enum: [{ label: 'Row', value: 0 }, { label: 'Column', value: 1 }, { label: 'RowReverse', value: 2 }, { label: 'ColumnReverse', value: 3 }] },
+            wrap: { enum: [{ label: 'NoWrap', value: 0 }, { label: 'Wrap', value: 1 }] },
+            justifyContent: { enum: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'SpaceBetween', value: 3 }, { label: 'SpaceAround', value: 4 }, { label: 'SpaceEvenly', value: 5 }] },
+            alignItems: { enum: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'Stretch', value: 3 }] },
+            alignContent: { enum: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'Stretch', value: 3 }, { label: 'SpaceBetween', value: 4 }, { label: 'SpaceAround', value: 5 }] },
+        },
     },
     Interactable: {
         defaults: {
@@ -333,6 +341,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+        fields: {
+            bodyType: { enum: [{ label: 'Static', value: 0 }, { label: 'Kinematic', value: 1 }, { label: 'Dynamic', value: 2 }] },
+        },
     },
     SegmentCollider: {
         defaults: {
@@ -527,6 +538,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+        fields: {
+            mode: { enum: [{ label: 'Scissor', value: 0 }, { label: 'Stencil', value: 1 }] },
+        },
     },
     UINode: {
         defaults: {
@@ -554,6 +568,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+        fields: {
+            position: { enum: [{ label: 'Relative', value: 0 }, { label: 'Absolute', value: 1 }] },
+            alignSelf: { enum: [{ label: 'Auto', value: 0 }, { label: 'Start', value: 1 }, { label: 'Center', value: 2 }, { label: 'End', value: 3 }, { label: 'Stretch', value: 4 }] },
+        },
     },
     UIVisual: {
         defaults: {
@@ -574,6 +592,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'fillAmount'],
+        fields: {
+            visualType: { enum: [{ label: 'None', value: 0 }, { label: 'SolidColor', value: 1 }, { label: 'Image', value: 2 }, { label: 'NineSlice', value: 3 }, { label: 'Tiled', value: 4 }, { label: 'Filled', value: 5 }] },
+            fillMethod: { enum: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }] },
+            fillOrigin: { enum: [{ label: 'Left', value: 0 }, { label: 'Right', value: 1 }, { label: 'Bottom', value: 2 }, { label: 'Top', value: 3 }] },
+        },
     },
     Velocity: {
         defaults: {
