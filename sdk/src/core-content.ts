@@ -163,6 +163,7 @@ export {
     migratePrefabData,
     PREFAB_FORMAT_VERSION,
     diffAgainstSource,
+    applyOverridesToSource,
     validateOverrides,
     expandInstance,
     collapseInstance,

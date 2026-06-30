@@ -23,6 +23,7 @@ import {
   Search,
   Square,
   Trash2,
+  Upload,
   Volume2,
   X,
   type LucideIcon,
@@ -1950,6 +1951,13 @@ function EditorDetails() {
                 }}
               >
                 <FolderOpen size={12} strokeWidth={1.9} /> Select
+              </button>
+              <button
+                type="button"
+                title="Apply this instance's overrides to the prefab asset (updates the base for all instances)"
+                onClick={() => void ProjectStore.applyPrefabInstance(selectedId)}
+              >
+                <Upload size={12} strokeWidth={1.9} /> Apply
               </button>
               <button
                 type="button"

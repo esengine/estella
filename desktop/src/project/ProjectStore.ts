@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets, migratePrefabData, extractPrefab } from 'esengine';
-import type { SceneData, PrefabData, ExtractEntity, PhysicsPluginConfig } from 'esengine';
+import { getComponent, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
@@ -485,6 +485,75 @@ class ProjectStoreImpl {
     const position = tf?.position ? { x: tf.position.x, y: tf.position.y } : undefined;
     SceneCommands.deleteEntity(instanceRoot);
     return this.instantiatePrefabFromPath(info.path, parent, position);
+  }
+
+  /**
+   * Apply a prefab instance's overrides back to the prefab asset (Details "Apply"):
+   * this instance's current values become the prefab's new base, then the instance
+   * re-syncs to that base so its overrides clear. Works on any entity of the
+   * instance (resolves to the root). Returns the fresh root's source id, or null.
+   *
+   * Scope: property / name / visibility / component overrides on existing prefab
+   * entities (the same set `diffAgainstSource` reports). Metadata diffs are dropped
+   * — the editor model doesn't track per-instance metadata, so they're never a real
+   * override, and baking them would strip the prefab's own metadata. Structural
+   * edits (entities the instance added/removed) and live propagation to *other*
+   * in-scene instances are not applied here; those siblings re-derive from the new
+   * base on next load.
+   */
+  async applyPrefabInstance(sourceId: number): Promise<number | null> {
+    const tag = SceneModel.prefabTag(sourceId);
+    const instanceRoot = tag?.instanceRoot ?? sourceId;
+    const ref = SceneModel.prefabTag(instanceRoot)?.prefab;
+    if (!ref) return null;
+    const info = this.assetInfo(ref);
+    if (!info) return null;
+    const oldPrefab = await this.loadPrefabAsset(ref);
+    if (!oldPrefab) {
+      Toasts.push(`Could not load prefab: ${info.path.split('/').pop() ?? info.path}`, 'error');
+      return null;
+    }
+
+    // The instance's live subtree as flattened entities (matching the save path's
+    // ProcessedEntity shape — metadata is not modelled per-instance).
+    const processed: ProcessedEntity[] = [];
+    for (const id of SceneModel.collectSubtree(instanceRoot)) {
+      const e = SceneModel.entityBySource(id);
+      const t = SceneModel.prefabTag(id);
+      if (!e || !t) continue;
+      processed.push({
+        id,
+        prefabEntityId: t.prefabId,
+        name: e.name,
+        parent: e.parent,
+        children: e.children ?? [],
+        components: e.components as ProcessedEntity['components'],
+        visible: (e as { visible?: boolean }).visible ?? true,
+      });
+    }
+    if (processed.length === 0) return null;
+
+    const overrides = diffAgainstSource(oldPrefab, processed).overrides
+      .filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
+    if (overrides.length === 0) {
+      Toasts.push('No overrides to apply', 'info');
+      return instanceRoot;
+    }
+    const newPrefab = applyOverridesToSource(oldPrefab, overrides);
+
+    try {
+      await window.estella.fs.write(info.path, JSON.stringify(newPrefab, null, 2) + '\n');
+    } catch (err) {
+      Toasts.push(`Apply failed: could not write ${info.path.split('/').pop() ?? info.path}`, 'error');
+      return null;
+    }
+    this.prefabCache.set(ref, newPrefab);
+
+    // Re-sync this instance to the updated base so its (now-applied) overrides
+    // clear — reuses the proven delete + re-instantiate path.
+    const newRoot = await this.revertPrefabInstance(instanceRoot);
+    Toasts.push(`Applied ${overrides.length} override${overrides.length === 1 ? '' : 's'} to ${info.path.split('/').pop() ?? info.path}`, 'success');
+    return newRoot;
   }
 
   /**

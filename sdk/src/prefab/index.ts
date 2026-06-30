@@ -13,7 +13,8 @@ export type {
 } from './types';
 
 export { flattenPrefab } from './flatten';
-export { applyOverrides, bucketOverridesByEntity } from './override';
+export { applyOverrides, applyOverridesToSource, bucketOverridesByEntity } from './override';
+export type { OverrideTarget } from './override';
 export { remapComponentEntityRefs } from './entityRef';
 export { cloneComponents, cloneComponentData, cloneMetadata } from './clone';
 export { collectNestedPrefabPaths, preloadNestedPrefabs } from './collect';

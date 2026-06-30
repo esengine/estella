@@ -1,11 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type {
+    ComponentData,
+    PrefabData,
     PrefabEntityId,
     PrefabOverride,
-    ProcessedEntity,
 } from './types';
 import { cloneComponentData } from './clone';
+
+/**
+ * The fields {@link applyOverrides} reads/writes. Both `ProcessedEntity` (a
+ * flattened instance entity) and `PrefabEntityData` (a source-file entity)
+ * satisfy it structurally, so the same override logic bakes overrides into a
+ * live instance *or* into the prefab source.
+ */
+export interface OverrideTarget {
+    prefabEntityId: PrefabEntityId;
+    name: string;
+    visible: boolean;
+    components: ComponentData[];
+    metadata?: Record<string, unknown>;
+}
 
 /**
  * Group overrides by their target entity once so flatten can apply each
@@ -24,7 +39,7 @@ export function bucketOverridesByEntity(
 }
 
 export function applyOverrides(
-    entity: ProcessedEntity,
+    entity: OverrideTarget,
     overrides: readonly PrefabOverride[] | undefined,
 ): void {
     if (!overrides || overrides.length === 0) return;
@@ -102,4 +117,29 @@ export function applyOverrides(
                 break;
         }
     }
+}
+
+/**
+ * Bake a set of overrides into a prefab's source, returning a NEW PrefabData with
+ * the changes applied as the base (entity identities preserved). This is the core
+ * of editor "Apply to Prefab": an instance's overrides (from {@link diffAgainstSource})
+ * become the prefab's new base, so every instance re-derives from them.
+ *
+ * Scope matches {@link diffAgainstSource}: property / name / visibility /
+ * component add·replace·remove / metadata overrides on existing prefab entities.
+ * Structural changes (entities the instance added or removed) are not folded in —
+ * the caller surfaces those separately. Pure: the input `source` is not mutated.
+ */
+export function applyOverridesToSource(
+    source: PrefabData,
+    overrides: readonly PrefabOverride[],
+): PrefabData {
+    const next = JSON.parse(JSON.stringify(source)) as PrefabData;
+    if (overrides.length === 0) return next;
+    const buckets = bucketOverridesByEntity(overrides);
+    for (const entity of next.entities) {
+        const bucket = buckets.get(entity.prefabEntityId);
+        if (bucket) applyOverrides(entity, bucket);
+    }
+    return next;
 }
