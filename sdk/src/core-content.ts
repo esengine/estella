@@ -56,11 +56,21 @@ export {
     type AddressableManifest,
     type AddressableManifestGroup,
     type AddressableManifestAsset,
+    type BundleMode,
+    BUNDLE_MODES,
+    normalizeBundleMode,
+    ManifestModel,
     type AssetsData,
     type TextureInfo,
     type SpineLoadResult,
     type AssetRefInfo,
 } from './asset';
+
+// =============================================================================
+// Resource budget (VRAM)
+// =============================================================================
+
+export { setTextureBudget } from './resourceManager';
 
 // =============================================================================
 // Scene

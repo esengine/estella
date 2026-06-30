@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
+import { ManifestModel, type AddressableManifest } from './AddressableManifest';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
@@ -76,6 +77,12 @@ async function runWithConcurrency(
 export interface AssetsOptions {
     backend: Backend;
     catalog?: Catalog;
+    /**
+     * Addressable manifest (groups + bundle modes). When set, enables
+     * `loadGroup(name)`. Accepts the raw manifest JSON or a pre-built
+     * {@link ManifestModel}. Optional — label/path loading works without it.
+     */
+    manifest?: AddressableManifest | ManifestModel;
     module: ESEngineModule;
     /**
      * Lazy accessor for the owning app's Audio API. AudioAssetLoader
@@ -91,6 +98,10 @@ export interface AssetBundle {
     materials: Map<string, MaterialResult>;
     spine: Map<string, SpineResult>;
     fonts: Map<string, FontResult>;
+}
+
+function emptyBundle(): AssetBundle {
+    return { textures: new Map(), materials: new Map(), spine: new Map(), fonts: new Map() };
 }
 
 /**
@@ -135,6 +146,7 @@ export class Assets {
     private baseUrl_?: string;
 
     private module_: ESEngineModule;
+    private manifestModel_: ManifestModel | null = null;
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationApi | null;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
@@ -161,6 +173,7 @@ export class Assets {
         this.module_ = options.module;
         this.getAudio_ = options.getAudio ?? (() => null);
         this.getSpriteAnimation_ = options.getSpriteAnimation ?? (() => null);
+        this.setManifest(options.manifest ?? null);
 
         this.textureLoader_ = new TextureLoader(options.module);
         this.spineLoader_ = new SpineAssetLoader(options.module);
@@ -286,54 +299,45 @@ export class Assets {
     }
 
     // =========================================================================
-    // Label Batch Load
+    // Addressable Manifest (groups / bundle modes)
+    // =========================================================================
+
+    /**
+     * Set (or clear) the addressable manifest used by {@link loadGroup}.
+     * Accepts the raw manifest JSON or a pre-built {@link ManifestModel};
+     * `null` clears it.
+     */
+    setManifest(manifest: AddressableManifest | ManifestModel | null): void {
+        this.manifestModel_ =
+            manifest == null ? null
+            : manifest instanceof ManifestModel ? manifest
+            : ManifestModel.fromJson(manifest);
+    }
+
+    getManifest(): ManifestModel | null {
+        return this.manifestModel_;
+    }
+
+    // =========================================================================
+    // Batch Load (by label / by group)
     // =========================================================================
 
     async loadByLabel(
         label: string,
         onProgress?: (loaded: number, total: number) => void,
     ): Promise<AssetBundle> {
-        const paths = this.catalog.getByLabel(label);
-        const bundle: AssetBundle = {
-            textures: new Map(),
-            materials: new Map(),
-            spine: new Map(),
-            fonts: new Map(),
-        };
-
+        const bundle = emptyBundle();
         let loadedCount = 0;
         const promises: Promise<void>[] = [];
-
         const track = (p: Promise<void>): Promise<void> =>
             p.then(() => { onProgress?.(++loadedCount, totalCount); })
              .catch(() => { onProgress?.(++loadedCount, totalCount); });
 
-        for (const path of paths) {
+        for (const path of this.catalog.getByLabel(label)) {
             const entry = this.catalog.getEntry(path);
             if (!entry) continue;
-
-            switch (entry.type) {
-                case 'texture':
-                    promises.push(track(
-                        this.loadTexture(path).then(r => { bundle.textures.set(path, r); }),
-                    ));
-                    break;
-                case 'material':
-                    promises.push(track(
-                        this.loadMaterial(path).then(r => { bundle.materials.set(path, r); }),
-                    ));
-                    break;
-                case 'spine':
-                    promises.push(track(
-                        this.loadSpine(path).then(r => { bundle.spine.set(path, r); }),
-                    ));
-                    break;
-                case 'font':
-                    promises.push(track(
-                        this.loadFont(path).then(r => { bundle.fonts.set(path, r); }),
-                    ));
-                    break;
-            }
+            const task = this.bundleLoadTask_(path, entry.type, bundle);
+            if (task) promises.push(track(task));
         }
 
         const totalCount = promises.length;
@@ -342,6 +346,90 @@ export class Assets {
 
         await Promise.allSettled(promises);
         return bundle;
+    }
+
+    /**
+     * Load every asset in an addressable group through the typed loaders,
+     * warming the cache (and populating the returned bundle for the four
+     * displayable types). Requires a manifest (see {@link setManifest}); with
+     * no manifest set, this is a no-op returning an empty bundle.
+     *
+     * This is the single group-loading channel — the basis for on-demand /
+     * subpackage delivery. It dispatches through the same per-type loaders as
+     * {@link loadByLabel}, so the two never diverge.
+     */
+    async loadGroup(
+        groupName: string,
+        onProgress?: (loaded: number, total: number) => void,
+    ): Promise<AssetBundle> {
+        const bundle = emptyBundle();
+        const model = this.manifestModel_;
+        if (!model) {
+            log.warn('asset', `loadGroup('${groupName}') called but no manifest is set`);
+            onProgress?.(0, 0);
+            return bundle;
+        }
+
+        let loadedCount = 0;
+        const promises: Promise<void>[] = [];
+        const track = (p: Promise<void>): Promise<void> =>
+            p.then(() => { onProgress?.(++loadedCount, totalCount); })
+             .catch(() => { onProgress?.(++loadedCount, totalCount); });
+
+        for (const asset of model.assetsInGroup(groupName)) {
+            const path = this.resolveLoadPath_(asset.path);
+            const task = this.groupLoadTask_(path, asset.type, bundle);
+            if (task) promises.push(track(task));
+        }
+
+        const totalCount = promises.length;
+        onProgress?.(0, totalCount);
+        loadedCount = 0;
+
+        await Promise.allSettled(promises);
+        return bundle;
+    }
+
+    /**
+     * Load one asset into the displayable bundle maps. Returns the in-flight
+     * promise for the four bundle-able types (texture / material / spine /
+     * font), or null for any other type. Shared by `loadByLabel` and
+     * `loadGroup` so both dispatch through one channel.
+     */
+    private bundleLoadTask_(
+        path: string, type: string, bundle: AssetBundle,
+    ): Promise<void> | null {
+        switch (type) {
+            case 'texture':
+                return this.loadTexture(path).then(r => { bundle.textures.set(path, r); });
+            case 'material':
+                return this.loadMaterial(path).then(r => { bundle.materials.set(path, r); });
+            case 'spine':
+                return this.loadSpine(path).then(r => { bundle.spine.set(path, r); });
+            case 'font':
+            case 'bitmap-font':
+                return this.loadFont(path).then(r => { bundle.fonts.set(path, r); });
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Like {@link bundleLoadTask_} but also warms the cache for non-displayable
+     * types that have a typed loader (prefab, audio), so a whole group / sub-
+     * package preloads. Raw types (json / text / binary) and unknowns return
+     * null — they have no typed loader and are fetched lazily on demand.
+     */
+    private groupLoadTask_(
+        path: string, type: string, bundle: AssetBundle,
+    ): Promise<void> | null {
+        const bundled = this.bundleLoadTask_(path, type, bundle);
+        if (bundled) return bundled;
+        switch (type) {
+            case 'prefab': return this.loadPrefab(path).then(() => {});
+            case 'audio':  return this.loadAudio(path).then(() => {});
+            default:       return null;
+        }
     }
 
     // =========================================================================

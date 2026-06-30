@@ -5,6 +5,10 @@ export {
     type AddressableManifest,
     type AddressableManifestGroup,
     type AddressableManifestAsset,
+    type BundleMode,
+    BUNDLE_MODES,
+    normalizeBundleMode,
+    ManifestModel,
 } from './AddressableManifest';
 export { xxh64, contentHashHex, contentHashOf } from './contentHash';
 export { AsyncCache } from './AsyncCache';

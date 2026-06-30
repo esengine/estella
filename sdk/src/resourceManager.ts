@@ -53,6 +53,19 @@ export function requireResourceManager(): CppResourceManager {
     return rm_;
 }
 
+/**
+ * Set the resident GPU-texture byte budget. When resident bytes exceed this,
+ * the C++ ResourcePool evicts least-recently-used unreferenced textures. `0`
+ * (the default) disables caching — a texture frees the moment its refcount hits
+ * zero. Negative / fractional inputs are clamped to a non-negative integer.
+ *
+ * This is the single game-facing surface over the C++ budget; there is no
+ * parallel TS-side budget to drift from it.
+ */
+export function setTextureBudget(bytes: number): void {
+    requireResourceManager().setTextureBudget(Math.max(0, Math.floor(bytes)));
+}
+
 export function evictTextureDimensions(handle: number): void {
     dimsCache_.delete(handle);
 }
