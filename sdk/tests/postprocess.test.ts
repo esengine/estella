@@ -391,6 +391,10 @@ describe('PostProcess API', () => {
             postProcessEffects.createVignette();
             postProcessEffects.createGrayscale();
             postProcessEffects.createChromaticAberration();
+            postProcessEffects.createTonemap();
+            postProcessEffects.createFxaa();
+            postProcessEffects.createLensDistortion();
+            postProcessEffects.createPixelate();
 
             const calls = (Material.createShader as ReturnType<typeof vi.fn>).mock.calls;
             const vertexShaders = calls.map((c: unknown[]) => c[0]);
@@ -398,6 +402,80 @@ describe('PostProcess API', () => {
             for (const vs of vertexShaders) {
                 expect(vs).toBe(firstVertex);
             }
+        });
+    });
+
+    // =========================================================================
+    // Extended effect library (tonemap / FXAA / lens distortion / pixelate)
+    // =========================================================================
+
+    describe('extended effects', () => {
+        it('should create an ACES tonemap shader with exposure', () => {
+            const handle = postProcessEffects.createTonemap();
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.stringContaining('a_position'),
+                expect.stringContaining('u_exposure'),
+            );
+            // ACES Narkowicz curve constant — guards the operator identity.
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.stringContaining('2.51'),
+            );
+            expect(handle).toBe(42);
+        });
+
+        it('should create an FXAA shader sampling by resolution', () => {
+            const handle = postProcessEffects.createFxaa();
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.stringContaining('u_resolution'),
+            );
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.stringContaining('u_intensity'),
+            );
+            expect(handle).toBe(42);
+        });
+
+        it('should create a lens distortion shader with strength and zoom', () => {
+            const handle = postProcessEffects.createLensDistortion();
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.stringContaining('u_strength'),
+            );
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.stringContaining('u_zoom'),
+            );
+            expect(handle).toBe(42);
+        });
+
+        it('should create a pixelate shader with pixel size', () => {
+            const handle = postProcessEffects.createPixelate();
+            expect(Material.createShader).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.stringContaining('u_pixelSize'),
+            );
+            expect(handle).toBe(42);
+        });
+
+        it('registers all four effects with matching factories and labels', () => {
+            expect(getEffectDef('tonemap')?.label).toBe('Tonemap (ACES)');
+            expect(getEffectDef('fxaa')?.label).toBe('FXAA');
+            expect(getEffectDef('lensDistortion')?.label).toBe('Lens Distortion');
+            expect(getEffectDef('pixelate')?.label).toBe('Pixelate');
+        });
+
+        it('uses identity defaults where the effect is meant to be tuned up from off', () => {
+            const def = (t: string) =>
+                Object.fromEntries((getEffectDef(t)?.uniforms ?? []).map(u => [u.name, u.defaultValue]));
+            // Tonemap: 2^0 = 1 exposure (the ACES curve itself always applies).
+            expect(def('tonemap')).toEqual({ u_exposure: 0 });
+            // Lens distortion: strength 0 + zoom 1 == sample uv unchanged (no-op).
+            expect(def('lensDistortion')).toEqual({ u_strength: 0, u_zoom: 1 });
+            // FXAA full strength by default; pixelate visibly chunky so it reads as on.
+            expect(def('fxaa')).toEqual({ u_intensity: 1 });
+            expect(def('pixelate')).toEqual({ u_pixelSize: 4 });
         });
     });
 

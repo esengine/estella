@@ -112,3 +112,40 @@ registerEffect({
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 20, step: 0.1, defaultValue: 3 },
     ],
 });
+
+registerEffect({
+    type: 'tonemap',
+    label: 'Tonemap (ACES)',
+    factory: () => postProcessEffects.createTonemap(),
+    uniforms: [
+        { name: 'u_exposure', label: 'Exposure', min: -3, max: 3, step: 0.05, defaultValue: 0 },
+    ],
+});
+
+registerEffect({
+    type: 'fxaa',
+    label: 'FXAA',
+    factory: () => postProcessEffects.createFxaa(),
+    uniforms: [
+        { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 1 },
+    ],
+});
+
+registerEffect({
+    type: 'lensDistortion',
+    label: 'Lens Distortion',
+    factory: () => postProcessEffects.createLensDistortion(),
+    uniforms: [
+        { name: 'u_strength', label: 'Strength', min: -1, max: 1, step: 0.01, defaultValue: 0 },
+        { name: 'u_zoom', label: 'Zoom', min: 0.5, max: 2, step: 0.01, defaultValue: 1 },
+    ],
+});
+
+registerEffect({
+    type: 'pixelate',
+    label: 'Pixelate',
+    factory: () => postProcessEffects.createPixelate(),
+    uniforms: [
+        { name: 'u_pixelSize', label: 'Pixel Size', min: 1, max: 64, step: 1, defaultValue: 4 },
+    ],
+});
