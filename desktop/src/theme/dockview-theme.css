@@ -99,6 +99,14 @@
   z-index: 1;
 }
 
+/* Region legibility: a faint top edge-light gives each docked panel content a crisp
+   upper hairline, so the four regions parse as distinct stacked surfaces at a glance —
+   the design's "light hairlines for dividers" language applied per-panel, without
+   boxing the bodies (the grooves stay the primary structure). */
+.dockview-theme-estella .dv-content-container {
+  box-shadow: inset 0 1px 0 0 var(--line-soft);
+}
+
 /* Per-panel collapse chevron in the group header (rightHeaderActionsComponent) —
    the design's `.pcol`. Collapses the panel to its tab bar; rotates when collapsed. */
 .dockview-theme-estella .dv-collapse {
