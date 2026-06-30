@@ -66,3 +66,14 @@ export {
     drawPhysicsDebug,
     type PhysicsDebugDrawConfig,
 } from './PhysicsDebugDraw';
+
+export {
+    CharacterController,
+    moveAndSlide,
+    registerCharacterControllerSystem,
+    type CharacterControllerData,
+    type MoveAndSlideParams,
+    type MoveAndSlideResult,
+    type SlideCast,
+    type SlideHit,
+} from './CharacterController';

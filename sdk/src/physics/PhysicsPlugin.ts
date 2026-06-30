@@ -22,6 +22,7 @@ import { PhysicsBridge } from './PhysicsBridge';
 import { PhysicsRuntime } from './PhysicsRuntime';
 import { Physics, PhysicsAPI } from './Physics';
 import { registerPhysicsSystem } from './PhysicsSystem';
+import { registerCharacterControllerSystem } from './CharacterController';
 import {
     PhysicsEvents,
     type PhysicsPluginConfig,
@@ -135,6 +136,7 @@ export class PhysicsPlugin implements Plugin {
 
                 app.getResource(PhysicsRuntime).module = module;
                 app.insertResource(PhysicsAPI, Physics._fromModule(module));
+                registerCharacterControllerSystem(app);
                 setupPhysicsDebugDraw(app, PhysicsAPI, PhysicsEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
                 // Module loaded, world initialized, systems registered.

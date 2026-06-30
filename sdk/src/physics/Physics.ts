@@ -38,6 +38,15 @@ export class Physics {
         if (ppu > 0) this.ppu_ = ppu;
     }
 
+    /**
+     * Live pixels-per-unit (world pixels per Box2D meter). Collider dimensions are
+     * stored in meters, so consumers that cast a collider's shape through the
+     * pixel-space query API (raycast/shapeCast) must scale by this.
+     */
+    getPixelsPerUnit(): number {
+        return this.ppu_;
+    }
+
     constructor(app: App) {
         const module = app.hasResource(PhysicsRuntime)
             ? app.getResource(PhysicsRuntime).module
