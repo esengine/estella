@@ -58,6 +58,7 @@ export function lerpPOV(a: CameraPOV, b: CameraPOV, t: number): CameraPOV {
     viewport: b.viewport,
     clearFlags: b.clearFlags,
     priority: b.priority,
+    pixelPerfect: t < 0.5 ? a.pixelPerfect : b.pixelPerfect, // discrete: flip at the midpoint
   };
 }
 

@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '124c9c3f323b74f1';
+export const ABI_LAYOUT_HASH = '70f3953079450020';
 
 export interface AssetFieldMeta {
     field: string;
@@ -88,6 +88,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             priority: 0,
             viewport: { x: 0, y: 0, z: 1, w: 1 },
             clearFlags: 3,
+            pixelPerfect: false,
         },
         assetFields: [],
         entityFields: [],
@@ -102,6 +103,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             aspectRatio: { advanced: true },
             priority: { step: 1, advanced: true },
             clearFlags: { tooltip: "Which buffers to clear before rendering this camera." },
+            pixelPerfect: { tooltip: "Snap the camera to the pixel grid for crisp pixel-art (Orthographic).", advanced: true },
         },
     },
     Canvas: {
@@ -648,6 +650,7 @@ export interface CameraData {
     priority: number;
     viewport: Vec4;
     clearFlags: number;
+    pixelPerfect: boolean;
 }
 
 export interface CanvasData {

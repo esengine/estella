@@ -124,6 +124,7 @@ export interface CameraPtrData {
     priority: number;
     viewport: Vec4;
     clearFlags: number;
+    pixelPerfect: boolean;
 }
 
 export function fillCamera(
@@ -140,6 +141,7 @@ export function fillCamera(
     out.priority = u32[(ptr + 28) >> 2] | 0;
     const viewport_ = out.viewport; viewport_.x = f32[(ptr + 32) >> 2]; viewport_.y = f32[((ptr + 32) >> 2) + 1]; viewport_.z = f32[((ptr + 32) >> 2) + 2]; viewport_.w = f32[((ptr + 32) >> 2) + 3];
     out.clearFlags = u8[ptr + 48];
+    out.pixelPerfect = u8[ptr + 49] !== 0;
 }
 
 export function writeCamera(
@@ -156,6 +158,7 @@ export function writeCamera(
     u32[(ptr + 28) >> 2] = data.priority | 0;
     f32[(ptr + 32) >> 2] = data.viewport.x; f32[((ptr + 32) >> 2) + 1] = data.viewport.y; f32[((ptr + 32) >> 2) + 2] = data.viewport.z; f32[((ptr + 32) >> 2) + 3] = data.viewport.w;
     u8[ptr + 48] = data.clearFlags;
+    u8[ptr + 49] = data.pixelPerfect ? 1 : 0;
 }
 
 export function createCameraData(): CameraPtrData {
@@ -170,6 +173,7 @@ export function createCameraData(): CameraPtrData {
         priority: 0,
         viewport: { x: 0, y: 0, z: 0, w: 0 },
         clearFlags: 0,
+        pixelPerfect: false,
     };
 }
 

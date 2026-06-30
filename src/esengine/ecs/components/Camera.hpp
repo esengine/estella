@@ -109,6 +109,11 @@ struct Camera {
     ES_PROPERTY(flags, tooltip="Which buffers to clear before rendering this camera.")
     ClearFlags clearFlags{ClearFlags::ColorAndDepth};
 
+    /** @brief Snap the camera to the world-space pixel grid (Orthographic) so static
+     *         pixel art renders crisp, without sub-pixel shimmer when the camera moves. */
+    ES_PROPERTY(advanced, tooltip="Snap the camera to the pixel grid for crisp pixel-art (Orthographic).")
+    bool pixelPerfect{false};
+
     Camera() = default;
 };
 

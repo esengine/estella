@@ -187,6 +187,7 @@ export interface Camera {
     priority: number;
     viewport: Vec4;
     clearFlags: number;
+    pixelPerfect: boolean;
 }
 
 export interface Canvas {

@@ -119,6 +119,17 @@ export interface CameraPOV {
     viewport: { x: number; y: number; z: number; w: number };
     clearFlags: number;
     priority: number;
+    pixelPerfect: boolean;
+}
+
+/**
+ * Snap a world coordinate to the camera's pixel grid (one cell = one rendered pixel,
+ * in world units). Rounding the camera position to this grid is what makes pixel-perfect
+ * rendering stable — static sprites land on the same texels every frame instead of
+ * shimmering as the camera drifts by sub-pixel amounts. worldPerPixel <= 0 is a no-op.
+ */
+export function snapToPixelGrid(value: number, worldPerPixel: number): number {
+    return worldPerPixel > 0 ? Math.round(value / worldPerPixel) * worldPerPixel : value;
 }
 
 function readCameraPOV(
@@ -142,6 +153,7 @@ function readCameraPOV(
         viewport: { x: camera.viewport.x, y: camera.viewport.y, z: camera.viewport.z, w: camera.viewport.w },
         clearFlags: camera.clearFlags,
         priority: camera.priority,
+        pixelPerfect: camera.pixelPerfect,
     };
 }
 
@@ -180,7 +192,20 @@ export function buildCameraInfo(
         projection = perspective(pov.fov * Math.PI / 180, aspect, pov.near, pov.far);
     }
 
-    const view = invertViewZ(pov.x, pov.y, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
+    // Pixel-perfect: snap the camera onto the world-space pixel grid before building
+    // the view, so static pixel art doesn't shimmer. Orthographic only (a perspective
+    // pixel grid is ill-defined); snapped in world space, which is exact for the common
+    // unrotated 2D case. The snapped position also drives cameraX/Y so screen↔world stays
+    // consistent with what's rendered.
+    let camX = pov.x;
+    let camY = pov.y;
+    if (pov.pixelPerfect && pov.projection === ProjectionType.Orthographic) {
+        const worldPerPixel = (2 * halfH) / Math.max(pov.viewport.w * height, 1);
+        camX = snapToPixelGrid(pov.x, worldPerPixel);
+        camY = snapToPixelGrid(pov.y, worldPerPixel);
+    }
+
+    const view = invertViewZ(camX, camY, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
     const cam = acquireCameraInfo(pool, index);
     cam.entity = pov.entity;
     cam.viewProjection.set(multiply(projection, view));
@@ -192,8 +217,8 @@ export function buildCameraInfo(
     cam.priority = pov.priority;
     cam.halfW = halfW;
     cam.halfH = halfH;
-    cam.cameraX = pov.x;
-    cam.cameraY = pov.y;
+    cam.cameraX = camX;
+    cam.cameraY = camY;
     return cam;
 }
 
@@ -283,6 +308,7 @@ export function editorCameraInfo(
         viewport: { x: 0, y: 0, z: 1, w: 1 },
         clearFlags: ClearFlags.ColorAndDepth,
         priority: 0,
+        pixelPerfect: false, // editor navigation pans/zooms freely — no pixel snapping
     };
     return buildCameraInfo(pov, width, height, null, pool, 0);
 }

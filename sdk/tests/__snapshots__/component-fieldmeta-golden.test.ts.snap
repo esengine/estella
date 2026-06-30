@@ -60,6 +60,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 0,
       "tooltip": "Half the visible height in world units (Orthographic).",
     },
+    "pixelPerfect": {
+      "advanced": true,
+      "tooltip": "Snap the camera to the pixel grid for crisp pixel-art (Orthographic).",
+    },
     "priority": {
       "advanced": true,
       "step": 1,

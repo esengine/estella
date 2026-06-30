@@ -57,6 +57,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'priority', type: 'i32', offset: 28 },
             { name: 'viewport', type: 'vec4', offset: 32 },
             { name: 'clearFlags', type: 'u8', offset: 48 },
+            { name: 'pixelPerfect', type: 'bool', offset: 49 },
         ],
     },
     Canvas: {

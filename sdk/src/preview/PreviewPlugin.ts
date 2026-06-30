@@ -146,6 +146,7 @@ export class PreviewPlugin implements Plugin {
                 aspectRatio,
                 priority: 0,
                 showFrustum: false,
+                pixelPerfect: false,
                 viewport: { x: 0, y: 0, z: 1, w: 1 },
                 clearFlags: ClearFlags.ColorAndDepth,
             };

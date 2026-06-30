@@ -6,7 +6,7 @@
  *        is the decoupling point a camera director will blend over (Phase C).
  */
 import { describe, it, expect } from 'vitest';
-import { buildCameraInfo, type CameraPOV } from '../src/camera/CameraPlugin';
+import { buildCameraInfo, snapToPixelGrid, type CameraPOV } from '../src/camera/CameraPlugin';
 import { ProjectionType, ClearFlags } from '../src/component';
 
 function ndc(vp: Float32Array, x: number, y: number) {
@@ -28,6 +28,7 @@ const pov = (over: Partial<CameraPOV>): CameraPOV => ({
   viewport: { x: 0, y: 0, z: 1, w: 1 },
   clearFlags: ClearFlags.ColorAndDepth,
   priority: 0,
+  pixelPerfect: false,
   ...over,
 });
 
@@ -46,6 +47,30 @@ describe('camera POV → view-projection', () => {
     const r = ndc(cam.viewProjection, 50, 0); // world point to the right of the camera
     expect(r.x).toBeCloseTo(0);
     expect(r.y).toBeCloseTo(-0.5); // appears at the bottom of the view
+  });
+
+  it('snapToPixelGrid rounds to the nearest cell (and no-ops at 0)', () => {
+    expect(snapToPixelGrid(10.4, 1)).toBeCloseTo(10);
+    expect(snapToPixelGrid(10.6, 1)).toBeCloseTo(11);
+    expect(snapToPixelGrid(-3.6, 1)).toBeCloseTo(-4);
+    expect(snapToPixelGrid(2.7, 0.5)).toBeCloseTo(2.5);
+    expect(snapToPixelGrid(7.3, 0)).toBe(7.3); // worldPerPixel 0 → unchanged
+  });
+
+  it('pixel-perfect collapses sub-pixel-grid positions to one view', () => {
+    // orthoSize 100, 200px tall, full viewport → worldPerPixel = 2*100/200 = 1.
+    const a = buildCameraInfo(pov({ x: 10.1, y: 0.2, pixelPerfect: true }), 200, 200, null, [], 0);
+    const b = buildCameraInfo(pov({ x: 10.4, y: -0.3, pixelPerfect: true }), 200, 200, null, [], 1);
+    // Both snap to (10, 0) → identical view-projection.
+    expect(Array.from(b.viewProjection)).toEqual(Array.from(a.viewProjection));
+    expect(b.cameraX).toBeCloseTo(10);
+    expect(b.cameraY).toBeCloseTo(0);
+  });
+
+  it('without pixel-perfect those same positions produce different views', () => {
+    const a = buildCameraInfo(pov({ x: 10.1, y: 0.2, pixelPerfect: false }), 200, 200, null, [], 0);
+    const b = buildCameraInfo(pov({ x: 10.4, y: -0.3, pixelPerfect: false }), 200, 200, null, [], 1);
+    expect(Array.from(b.viewProjection)).not.toEqual(Array.from(a.viewProjection));
   });
 
   it('perspective POV builds without throwing and is non-degenerate', () => {
