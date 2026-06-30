@@ -14,6 +14,7 @@ import { confirmDiscard } from '@/project/discardGuard';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
+import { hasEntityClipboard } from '@/engine/entityClipboard';
 import { ViewportController } from '@/engine/ViewportController';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
@@ -131,6 +132,36 @@ commands.register({
   isEnabled: () => sel().selectedIds.size > 0,
   // Despawn self-heals the selection (SelectionStore) — no manual deselect.
   run: () => [...sel().selectedIds].forEach((id) => SceneCommands.deleteEntity(id)),
+});
+commands.register({
+  id: 'entity.copy',
+  label: 'Copy',
+  category: 'Entity',
+  keybinding: 'mod+c',
+  isEnabled: () => sel().selectedIds.size > 0,
+  run: () => { SceneCommands.copyEntities([...sel().selectedIds]); },
+});
+commands.register({
+  id: 'entity.cut',
+  label: 'Cut',
+  category: 'Entity',
+  keybinding: 'mod+x',
+  isEnabled: () => sel().selectedIds.size > 0,
+  run: () => { SceneCommands.cutEntities([...sel().selectedIds]); },
+});
+commands.register({
+  id: 'entity.paste',
+  label: 'Paste',
+  category: 'Entity',
+  keybinding: 'mod+v',
+  isEnabled: () => hasEntityClipboard(),
+  // Paste under the lone selection's parent (as a sibling), else at the scene root.
+  run: () => {
+    const ids = [...sel().selectedIds];
+    const parent = ids.length === 1 ? (SceneModel.entityBySource(ids[0])?.parent ?? null) : null;
+    const roots = SceneCommands.pasteEntities(parent);
+    if (roots.length > 0) sel().selectMany(roots, roots[0]);
+  },
 });
 commands.register({
   id: 'entity.deselect',

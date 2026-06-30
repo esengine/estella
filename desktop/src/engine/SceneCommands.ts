@@ -6,6 +6,7 @@ import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types'
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
 import { expandInstance } from './PrefabInstance';
+import { setEntityClipboard, getEntityClipboard, remapClipboardEntities } from './entityClipboard';
 import {
   componentByName,
   componentDefaults,
@@ -391,6 +392,56 @@ export class SceneCommandsImpl {
       },
     );
     return newSourceId;
+  }
+
+  /**
+   * Copy the given entities (each WITH its subtree) to the entity clipboard. The
+   * subtrees are deduped (a selected descendant of another selection isn't copied
+   * twice). No model change, no undo step. Returns the entity count copied.
+   */
+  copyEntities(ids: readonly EntityId[]): number {
+    const seen = new Set<EntityId>();
+    const payload: SceneEntity[] = [];
+    for (const id of ids) {
+      for (const sid of this.model.collectSubtree(id)) {
+        if (seen.has(sid)) continue;
+        seen.add(sid);
+        const e = this.model.entityBySource(sid);
+        if (e) payload.push(e);
+      }
+    }
+    setEntityClipboard(payload);
+    return payload.length;
+  }
+
+  /** Copy the entities, then delete them (one delete step per selected root). */
+  cutEntities(ids: readonly EntityId[]): number {
+    const n = this.copyEntities(ids);
+    if (n > 0) for (const id of ids) this.deleteEntity(id);
+    return n;
+  }
+
+  /**
+   * Paste the clipboard subtrees under `targetParent` (null = scene root), re-keyed
+   * to fresh ids with a paste offset. One undo step. Returns the new root ids.
+   */
+  pasteEntities(targetParent: EntityId | null = null): EntityId[] {
+    const payload = getEntityClipboard();
+    if (!payload || payload.length === 0) return [];
+    const { entities, rootIds } = remapClipboardEntities(
+      payload,
+      () => this.model.allocateSourceId(),
+      targetParent,
+      { x: 24, y: -24 },
+    );
+    const apply = (): void => this.model.insertSubtree(entities);
+    apply();
+    this.history.record(
+      rootIds.length > 1 ? `Paste ${rootIds.length} Entities` : 'Paste Entity',
+      apply,
+      () => { for (const e of entities) this.model.removeEntityBySource((e as { id: EntityId }).id); },
+    );
+    return rootIds;
   }
 
   /**

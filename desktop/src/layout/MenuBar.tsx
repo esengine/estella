@@ -92,7 +92,14 @@ export function MenuBar() {
     },
     {
       title: 'Edit',
-      items: [cmdItem('edit.undo'), cmdItem('edit.redo')],
+      items: [
+        cmdItem('edit.undo'),
+        cmdItem('edit.redo'),
+        { sep: true },
+        cmdItem('entity.cut'),
+        cmdItem('entity.copy'),
+        cmdItem('entity.paste'),
+      ],
     },
     {
       title: 'Entity',
