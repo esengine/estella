@@ -55,14 +55,23 @@ export function distToSegment(p: Pt, a: Pt, b: Pt): number {
 const within = (p: Pt, c: Pt, half: number): boolean => Math.abs(p.x - c.x) <= half && Math.abs(p.y - c.y) <= half;
 const along = (pivot: Pt, dir: Pt, d: number): Pt => ({ x: pivot.x + dir.x * d, y: pivot.y + dir.y * d });
 
+/** Rotate a screen-space direction by `a` radians (screen frame). */
+function rotDir(dir: Pt, a: number): Pt {
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return { x: dir.x * c - dir.y * s, y: dir.x * s + dir.y * c };
+}
+
 /**
  * The handle under `cursor` for the active gizmo at `pivot` (all CSS px), or null.
  * Central handles (plane / uniform box / nothing) are tested before the axes so the
- * smaller, foreground targets win.
+ * smaller, foreground targets win. `axisAngleRad` rotates the axis arrows to the
+ * gizmo's on-screen orientation (0 = world-aligned; non-zero in local space, and it
+ * must match the gizmo's render rotation so the handle you aim at is the one hit).
  */
-export function hitTestGizmo(mode: GizmoMode, pivot: Pt, cursor: Pt): GizmoHandle | null {
-  const xEnd = along(pivot, X_DIR, GIZMO.axisLen);
-  const yEnd = along(pivot, Y_DIR, GIZMO.axisLen);
+export function hitTestGizmo(mode: GizmoMode, pivot: Pt, cursor: Pt, axisAngleRad = 0): GizmoHandle | null {
+  const xEnd = along(pivot, rotDir(X_DIR, axisAngleRad), GIZMO.axisLen);
+  const yEnd = along(pivot, rotDir(Y_DIR, axisAngleRad), GIZMO.axisLen);
 
   if (mode === 'move') {
     if (within(cursor, pivot, GIZMO.planeSize / 2)) return { id: 'move.xy', mode, axis: 'xy' };
@@ -84,11 +93,28 @@ export function hitTestGizmo(mode: GizmoMode, pivot: Pt, cursor: Pt): GizmoHandl
   return null;
 }
 
-/** Constrain a world-space delta to a handle's axis. */
+/** Constrain a world-space delta to a handle's axis (world-aligned axes). */
 export function constrainWorldDelta(axis: GizmoAxis, dx: number, dy: number): [number, number] {
   if (axis === 'x') return [dx, 0];
   if (axis === 'y') return [0, dy];
   return [dx, dy];
+}
+
+/**
+ * Constrain a world-space delta to a handle's axis rotated into the object's local
+ * frame by `angleRad` (the entity's world rotation, +Y up). The delta is projected
+ * onto the local axis so a single-axis drag slides along the object's own X/Y.
+ * `xy` is unconstrained. With `angleRad === 0` this equals {@link constrainWorldDelta}.
+ */
+export function constrainLocalDelta(axis: GizmoAxis, dx: number, dy: number, angleRad: number): [number, number] {
+  if (axis === 'xy') return [dx, dy];
+  const c = Math.cos(angleRad);
+  const s = Math.sin(angleRad);
+  // Local X = (cosθ, sinθ); local Y = (−sinθ, cosθ) in world space (+Y up).
+  const ax = axis === 'x' ? c : -s;
+  const ay = axis === 'x' ? s : c;
+  const k = dx * ax + dy * ay; // project the delta onto the chosen local axis
+  return [k * ax, k * ay];
 }
 
 /** Centroid of a set of world points — the group transform pivot for multi-select. */

@@ -47,6 +47,12 @@ interface EditorState {
   // 15° / 0.1 constants so they're user-tunable from the viewport snap menu.
   snapAngle: number;
   snapScale: number;
+  /** Gizmo axis frame: world-aligned, or rotated to the active entity's local axes. */
+  coordSpace: 'world' | 'local';
+  /** Gizmo pivot: the selection's centroid (center), or the active entity's own pivot. */
+  pivotMode: 'center' | 'pivot';
+  toggleCoordSpace: () => void;
+  togglePivotMode: () => void;
   /** Axis of the gizmo handle currently being dragged (null = none) — drives the
    *  handle's active highlight. Set by the transform tool on grab, cleared on release. */
   activeGizmoAxis: GizmoAxis | null;
@@ -108,6 +114,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   snapStep: 32,
   snapAngle: 15,
   snapScale: 0.1,
+  coordSpace: 'world',
+  pivotMode: 'center',
+  toggleCoordSpace: () => set((s) => ({ coordSpace: s.coordSpace === 'world' ? 'local' : 'world' })),
+  togglePivotMode: () => set((s) => ({ pivotMode: s.pivotMode === 'center' ? 'pivot' : 'center' })),
   activeGizmoAxis: null,
   setActiveGizmoAxis: (activeGizmoAxis) => set({ activeGizmoAxis }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),

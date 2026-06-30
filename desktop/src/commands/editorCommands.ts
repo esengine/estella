@@ -258,6 +258,20 @@ commands.register({
   run: () => editor().toggleColliders(),
 });
 commands.register({
+  id: 'view.toggleCoordSpace',
+  label: 'Local Axes',
+  category: 'View',
+  isChecked: () => editor().coordSpace === 'local',
+  run: () => editor().toggleCoordSpace(),
+});
+commands.register({
+  id: 'view.togglePivotMode',
+  label: 'Pivot (vs Center)',
+  category: 'View',
+  isChecked: () => editor().pivotMode === 'pivot',
+  run: () => editor().togglePivotMode(),
+});
+commands.register({
   id: 'view.toggleSnapping',
   label: 'Snapping',
   category: 'View',

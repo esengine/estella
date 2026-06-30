@@ -26,7 +26,7 @@ import {
   type GizmoMode,
   type Pt,
   hitTestGizmo,
-  constrainWorldDelta,
+  constrainLocalDelta,
   groupPivot,
   rotateAround,
   scaleAround,
@@ -51,6 +51,8 @@ interface Drag {
   downWorld: Pt;
   startAngle: number; // rotate: cursor screen-angle around the pivot
   startDist: number; // scale: cursor screen-distance from the pivot
+  /** Local-frame angle (world radians) for axis-constrained move; 0 = world axes. */
+  angleRad: number;
   targets: Target[];
 }
 
@@ -85,7 +87,7 @@ function captureTargets(ids: readonly EntityId[]): Target[] {
   return ids.map(readTarget).filter((t): t is Target => t !== null);
 }
 
-/** Selection pivot = centroid of the live world positions of `ids`. */
+/** Selection centroid = mean of the live world positions of `ids`. */
 function pivotOf(ids: readonly EntityId[]): Pt | null {
   const pts: Pt[] = [];
   for (const sid of ids) {
@@ -95,6 +97,41 @@ function pivotOf(ids: readonly EntityId[]): Pt | null {
     if (pos) pts.push(pos);
   }
   return pts.length ? groupPivot(pts) : null;
+}
+
+/** The active (primary) entity of a selection — the one local space / pivot mode key off. */
+function primaryOf(ids: readonly EntityId[]): EntityId | null {
+  const primary = useSelection.getState().selectedId;
+  return primary != null && ids.includes(primary) ? primary : (ids[0] ?? null);
+}
+
+/** The active entity's world rotation in radians (drives local-axis frame). */
+function primaryRotationRad(ids: readonly EntityId[]): number {
+  const id = primaryOf(ids);
+  if (id == null) return 0;
+  const deg = (SceneQuery.getFieldValue(id, 'Transform', 'rotation') as number) ?? 0;
+  return (deg * Math.PI) / 180;
+}
+
+/**
+ * The gizmo pivot for the current `pivotMode`: the active entity's own position
+ * ('pivot'), else the selection centroid ('center'). Shared by the tool and the
+ * viewport's gizmo placement so both agree.
+ */
+export function selectionPivot(ids: readonly EntityId[]): Pt | null {
+  if (useEditorStore.getState().pivotMode === 'pivot') {
+    const id = primaryOf(ids);
+    const rt = id != null ? SceneModel.runtimeFor(id) : null;
+    const pos = rt != null ? ViewportController.getEntityXY(rt) : null;
+    if (pos) return pos;
+  }
+  return pivotOf(ids);
+}
+
+/** The gizmo's on-screen rotation (radians): the negated active rotation in local
+ *  space (screen y is down), else 0. Shared with the viewport's gizmo render. */
+export function gizmoScreenAngleRad(ids: readonly EntityId[]): number {
+  return useEditorStore.getState().coordSpace === 'local' ? -primaryRotationRad(ids) : 0;
 }
 
 /**
@@ -129,6 +166,7 @@ function beginDrag(
   pivotClient: Pt,
   p: PointerInput,
   cur: Pt,
+  angleRad = 0,
 ): Drag {
   const label = kind === 'rotate' ? 'Rotate' : kind === 'scale' ? 'Scale' : 'Move';
   const downWorld = ViewportController.canvasToWorld(p.clientX, p.clientY) ?? { x: 0, y: 0 };
@@ -141,6 +179,7 @@ function beginDrag(
     downWorld,
     startAngle: Math.atan2(cur.y - pivotClient.y, cur.x - pivotClient.x),
     startDist: Math.max(1, Math.hypot(cur.x - pivotClient.x, cur.y - pivotClient.y)),
+    angleRad,
     targets,
   };
 }
@@ -148,7 +187,9 @@ function beginDrag(
 function applyMove(d: Drag, curWorld: Pt): void {
   let dx = curWorld.x - d.downWorld.x;
   let dy = curWorld.y - d.downWorld.y;
-  [dx, dy] = constrainWorldDelta(d.axis, dx, dy);
+  // angleRad is 0 for world axes (→ identical to constrainWorldDelta) and the
+  // entity's rotation for local axes, so the drag slides along the object's own X/Y.
+  [dx, dy] = constrainLocalDelta(d.axis, dx, dy, d.angleRad);
   const ed = useEditorStore.getState();
   if (ed.snapping && d.targets.length) {
     // Snap the primary's resulting position to the grid, apply that delta to all,
@@ -210,12 +251,13 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       // 1) Gizmo handle → axis-constrained transform of the current selection.
       if (mode !== 'select' && ed.showGizmos && sel.selectedIds.size > 0) {
         const ids = [...sel.selectedIds];
-        const pivotWorld = pivotOf(ids);
+        const pivotWorld = selectionPivot(ids);
         const pc = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
         if (pivotWorld && pc) {
-          const handle = hitTestGizmo(mode as GizmoMode, pc, cur);
+          const localAngle = ed.coordSpace === 'local' ? primaryRotationRad(ids) : 0;
+          const handle = hitTestGizmo(mode as GizmoMode, pc, cur, -localAngle);
           if (handle) {
-            drag = beginDrag(kind, handle.axis, captureTargets(ids), pivotWorld, pc, p, cur);
+            drag = beginDrag(kind, handle.axis, captureTargets(ids), pivotWorld, pc, p, cur, localAngle);
             ed.setActiveGizmoAxis(handle.axis); // light up the grabbed handle
             ctx.capture(p.pointerId);
             return true;
@@ -243,7 +285,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
           pivotWorld = dup.pivot;
         } else {
           targets = captureTargets(ids);
-          pivotWorld = pivotOf(ids);
+          pivotWorld = selectionPivot(ids);
         }
         if (!targets.length || !pivotWorld) return false;
         const pc = ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) ?? cur;

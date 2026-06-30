@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
-  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, type LucideIcon,
+  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Globe, Crosshair, type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
@@ -22,6 +22,7 @@ import type { ToolMode } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
 import { GIZMO, type GizmoAxis } from '@/tools/gizmo';
+import { selectionPivot, gizmoScreenAngleRad } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
 
 // A React pointer event → the tool-facing PointerInput (no DOM coupling in tools).
@@ -203,6 +204,8 @@ export function Viewport() {
   const showGizmos = useEditorStore((s) => s.showGizmos);
   const showColliders = useEditorStore((s) => s.showColliders);
   const activeGizmoAxis = useEditorStore((s) => s.activeGizmoAxis);
+  const coordSpace = useEditorStore((s) => s.coordSpace);
+  const pivotMode = useEditorStore((s) => s.pivotMode);
   const snapping = useEditorStore((s) => s.snapping);
   const snapStep = useEditorStore((s) => s.snapStep);
   const snapAngle = useEditorStore((s) => s.snapAngle);
@@ -316,10 +319,9 @@ export function Viewport() {
       const toolMode = useEditorStore.getState().tool;
 
       // Per-entity selection outlines (one div per selected source id).
-      let sumX = 0;
-      let sumY = 0;
-      let nPos = 0;
+      const selIds: number[] = [];
       for (const [sid, el] of selRefs.current) {
+        selIds.push(sid);
         if (!el) continue;
         const rt = ready ? SceneModel.runtimeFor(sid) : undefined;
         const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
@@ -328,22 +330,19 @@ export function Viewport() {
           el.style.width = `${rect.w}px`;
           el.style.height = `${rect.h}px`;
           el.style.opacity = '1';
-          const pos = ViewportController.getEntityXY(rt!);
-          if (pos) {
-            sumX += pos.x;
-            sumY += pos.y;
-            nPos += 1;
-          }
         } else {
           el.style.opacity = '0';
         }
       }
 
-      // The transform gizmo sits at the selection pivot (centroid), and only for the
-      // move/rotate/scale tools — the select tool shows just the outline.
-      const pivot = nPos > 0 ? ViewportController.worldToClient(sumX / nPos, sumY / nPos) : null;
+      // The transform gizmo sits at the selection pivot (centroid or active-entity
+      // pivot per pivotMode), rotated to the active entity's axes in local space.
+      // Only for the move/rotate/scale tools — select shows just the outline.
+      const pivotWorld = ready && selIds.length ? selectionPivot(selIds) : null;
+      const pivot = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
       if (pivot && showG && toolMode !== 'select') {
-        g.style.transform = `translate(${pivot.x}px, ${pivot.y}px)`;
+        const angDeg = (gizmoScreenAngleRad(selIds) * 180) / Math.PI;
+        g.style.transform = `translate(${pivot.x}px, ${pivot.y}px) rotate(${angDeg}deg)`;
         g.style.opacity = '1';
       } else {
         g.style.opacity = '0';
@@ -629,6 +628,25 @@ export function Viewport() {
           </OvDropdown>
           <span className="ov-divider" />
           <OvTool icon={Frame} label="Frame Selected  (F)" kbd="F" onClick={() => commands.run('view.frameSelected')} />
+          <span className="ov-divider" />
+          <button
+            type="button"
+            className={`ovbtn${coordSpace === 'local' ? ' active' : ''}`}
+            title="Gizmo axes: World / Local (the active object's own axes)"
+            onClick={() => commands.run('view.toggleCoordSpace')}
+          >
+            <Globe size={13} strokeWidth={1.9} />
+            <span className="val">{coordSpace === 'local' ? 'Local' : 'World'}</span>
+          </button>
+          <button
+            type="button"
+            className={`ovbtn${pivotMode === 'pivot' ? ' active' : ''}`}
+            title="Gizmo pivot: Center of selection / the active object's Pivot"
+            onClick={() => commands.run('view.togglePivotMode')}
+          >
+            <Crosshair size={13} strokeWidth={1.9} />
+            <span className="val">{pivotMode === 'pivot' ? 'Pivot' : 'Center'}</span>
+          </button>
         </div>
       </div>
 
