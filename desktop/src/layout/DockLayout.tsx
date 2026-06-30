@@ -51,7 +51,7 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
     component: 'outliner',
     title: 'World Outliner',
     position: { referencePanel: 'viewport', direction: 'right' },
-    initialWidth: 340,
+    initialWidth: 366, // --w-rightdock
   });
 
   api.addPanel({
@@ -66,7 +66,7 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
     component: 'content',
     title: 'Content Browser',
     position: { referencePanel: 'viewport', direction: 'below' },
-    initialHeight: 240,
+    initialHeight: 300,
   });
 
   // Output Log shares the bottom group as a sibling tab of the Content Browser.

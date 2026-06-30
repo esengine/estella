@@ -36,6 +36,12 @@ export function StatusBar() {
         <span className="sitem">
           {selectedIds.size ? `${selectedIds.size} selected` : 'No selection'}
         </span>
+        {stats.selection && (
+          <span className="sitem mono" title="Selected transform (X, Y · rotation)">
+            {stats.selection.x}, {stats.selection.y}
+            <span className="smute"> · {stats.selection.rot}°</span>
+          </span>
+        )}
       </div>
 
       <span className="sp" />

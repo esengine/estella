@@ -99,6 +99,10 @@ export function MenuBar() {
         cmdItem('entity.cut'),
         cmdItem('entity.copy'),
         cmdItem('entity.paste'),
+        cmdItem('entity.delete'),
+        { sep: true },
+        cmdItem('edit.selectAll'),
+        cmdItem('entity.deselect'),
       ],
     },
     {
@@ -117,6 +121,7 @@ export function MenuBar() {
       items: [
         cmdItem('view.toggleGrid'),
         cmdItem('view.toggleGizmos'),
+        cmdItem('view.toggleColliders'),
         cmdItem('view.toggleSnapping'),
       ],
     },

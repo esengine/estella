@@ -216,6 +216,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
           const handle = hitTestGizmo(mode as GizmoMode, pc, cur);
           if (handle) {
             drag = beginDrag(kind, handle.axis, captureTargets(ids), pivotWorld, pc, p, cur);
+            ed.setActiveGizmoAxis(handle.axis); // light up the grabbed handle
             ctx.capture(p.pointerId);
             return true;
           }
@@ -288,6 +289,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       if (drag) {
         drag.tx.commit();
         drag = null;
+        useEditorStore.getState().setActiveGizmoAxis(null);
         return;
       }
       if (marquee) {
@@ -320,6 +322,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       if (drag) {
         drag.tx.abort();
         drag = null;
+        useEditorStore.getState().setActiveGizmoAxis(null);
       }
       Marquee.set(null);
       marquee = null;

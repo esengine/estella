@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { create } from 'zustand';
 import type { ToolMode } from '@/types';
+import type { GizmoAxis } from '@/tools/gizmo';
 
 // Global editor UI state (tools, viewport toggles, play state, launcher gate).
 // Entity selection lives in its own engine-anchored store — see selectionStore.ts;
@@ -34,6 +35,8 @@ interface EditorState {
   // Viewport overlays.
   showGrid: boolean;
   showGizmos: boolean;
+  /** Draw collider outlines in the viewport (off declutters a physics-heavy scene). */
+  showColliders: boolean;
   snapping: boolean;
   // Grid-snap increment (world units) applied to Move while `snapping` is on. The
   // viewport snap dropdown picks from a fixed set (16 / 32 / 64); "off" flips
@@ -44,8 +47,13 @@ interface EditorState {
   // 15° / 0.1 constants so they're user-tunable from the viewport snap menu.
   snapAngle: number;
   snapScale: number;
+  /** Axis of the gizmo handle currently being dragged (null = none) — drives the
+   *  handle's active highlight. Set by the transform tool on grab, cleared on release. */
+  activeGizmoAxis: GizmoAxis | null;
+  setActiveGizmoAxis: (axis: GizmoAxis | null) => void;
   toggleGrid: () => void;
   toggleGizmos: () => void;
+  toggleColliders: () => void;
   toggleSnapping: () => void;
   setSnapStep: (step: number) => void;
   setSnapAngle: (deg: number) => void;
@@ -95,12 +103,16 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   showGrid: true,
   showGizmos: true,
+  showColliders: true,
   snapping: false,
   snapStep: 32,
   snapAngle: 15,
   snapScale: 0.1,
+  activeGizmoAxis: null,
+  setActiveGizmoAxis: (activeGizmoAxis) => set({ activeGizmoAxis }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleGizmos: () => set((s) => ({ showGizmos: !s.showGizmos })),
+  toggleColliders: () => set((s) => ({ showColliders: !s.showColliders })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
   setSnapStep: (snapStep) => set({ snapStep, snapping: true }),
   setSnapAngle: (snapAngle) => set({ snapAngle }),

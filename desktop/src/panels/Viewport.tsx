@@ -21,7 +21,7 @@ import { StatsStore } from '@/engine/StatsStore';
 import type { ToolMode } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
-import { GIZMO } from '@/tools/gizmo';
+import { GIZMO, type GizmoAxis } from '@/tools/gizmo';
 import { Marquee } from '@/tools/marquee';
 
 // A React pointer event → the tool-facing PointerInput (no DOM coupling in tools).
@@ -35,14 +35,22 @@ const toInput = (e: ReactPointerEvent): PointerInput => ({
 // gizmo.ts (GIZMO constants) so the handles a user aims at are the handles the tool
 // hit-tests. Screen y is down, so the world +Y handle points up (negative y). Only
 // move/rotate/scale render a gizmo; the select tool shows just the selection outline.
-function GizmoOverlay({ tool }: { tool: ToolMode }) {
+function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | null }) {
   const L = GIZMO.axisLen;
   const B = GIZMO.boxSize;
   const P = GIZMO.planeSize;
+  // The grabbed handle reads "hot": a thicker stroke + full-opacity fill, so the
+  // drag has the visual confirmation UE/Unity give. Axes light independently; the
+  // center plane lights on the 'xy' (uniform) handle.
+  const onX = active === 'x';
+  const onY = active === 'y';
+  const onXY = active === 'xy';
+  const axW = (on: boolean) => (on ? 4 : 2.5);
+  const planeOp = (on: boolean) => (on ? 1 : 0.85);
   if (tool === 'rotate') {
     return (
       <svg className="gizmo-svg" width="0" height="0" overflow="visible">
-        <circle cx="0" cy="0" r={GIZMO.ringRadius} fill="none" stroke="var(--run)" strokeWidth="2" />
+        <circle cx="0" cy="0" r={GIZMO.ringRadius} fill="none" stroke="var(--run)" strokeWidth={active ? 3.5 : 2} />
         <circle cx="0" cy="0" r="2.5" fill="var(--star)" />
       </svg>
     );
@@ -50,22 +58,22 @@ function GizmoOverlay({ tool }: { tool: ToolMode }) {
   if (tool === 'scale') {
     return (
       <svg className="gizmo-svg" width="0" height="0" overflow="visible">
-        <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth="2.5" />
-        <rect x={L - B / 2} y={-B / 2} width={B} height={B} fill="var(--error)" />
-        <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth="2.5" />
-        <rect x={-B / 2} y={-L - B / 2} width={B} height={B} fill="var(--run)" />
-        <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity="0.85" />
+        <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth={axW(onX)} />
+        <rect x={L - B / 2} y={-B / 2} width={B} height={B} fill="var(--error)" opacity={onX ? 1 : 0.95} />
+        <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth={axW(onY)} />
+        <rect x={-B / 2} y={-L - B / 2} width={B} height={B} fill="var(--run)" opacity={onY ? 1 : 0.95} />
+        <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity={planeOp(onXY)} />
       </svg>
     );
   }
   // move (and any other) → axis arrows + a center plane square
   return (
     <svg className="gizmo-svg" width="0" height="0" overflow="visible">
-      <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth="2.5" />
-      <path d={`M${L} 0 L${L - 9} -4 L${L - 9} 4 Z`} fill="var(--error)" />
-      <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth="2.5" />
-      <path d={`M0 ${-L} L-4 ${-L + 9} L4 ${-L + 9} Z`} fill="var(--run)" />
-      <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity="0.85" />
+      <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth={axW(onX)} />
+      <path d={`M${L} 0 L${L - 9} -4 L${L - 9} 4 Z`} fill="var(--error)" opacity={onX ? 1 : 0.95} />
+      <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth={axW(onY)} />
+      <path d={`M0 ${-L} L-4 ${-L + 9} L4 ${-L + 9} Z`} fill="var(--run)" opacity={onY ? 1 : 0.95} />
+      <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity={planeOp(onXY)} />
     </svg>
   );
 }
@@ -193,6 +201,8 @@ export function Viewport() {
   const tool = useEditorStore((s) => s.tool);
   const showGrid = useEditorStore((s) => s.showGrid);
   const showGizmos = useEditorStore((s) => s.showGizmos);
+  const showColliders = useEditorStore((s) => s.showColliders);
+  const activeGizmoAxis = useEditorStore((s) => s.activeGizmoAxis);
   const snapping = useEditorStore((s) => s.snapping);
   const snapStep = useEditorStore((s) => s.snapStep);
   const snapAngle = useEditorStore((s) => s.snapAngle);
@@ -248,8 +258,8 @@ export function Viewport() {
   // circle) as a gizmo so you can see/tune collider shapes without entering Play.
   const colliderRefs = useRef(new Map<number, SVGSVGElement | null>());
   const colliderIds = useMemo(
-    () => (engine.status === 'ready' ? ViewportController.colliderIds() : []),
-    [structRev, engine.status],
+    () => (engine.status === 'ready' && showColliders ? ViewportController.colliderIds() : []),
+    [structRev, engine.status, showColliders],
   );
 
   // Mount the live engine canvas into the stage; it survives panel re-docking.
@@ -615,6 +625,7 @@ export function Viewport() {
             <div className="dd-lbl">Show Flags</div>
             <DdCheck on={showGrid} label="Grid" onClick={() => commands.run('view.toggleGrid')} />
             <DdCheck on={showGizmos} label="Gizmos" onClick={() => commands.run('view.toggleGizmos')} />
+            <DdCheck on={showColliders} label="Colliders" onClick={() => commands.run('view.toggleColliders')} />
           </OvDropdown>
           <span className="ov-divider" />
           <OvTool icon={Frame} label="Frame Selected  (F)" kbd="F" onClick={() => commands.run('view.frameSelected')} />
@@ -779,7 +790,7 @@ export function Viewport() {
       <div ref={tilePreviewRef} className="viewport__tilepreview" aria-hidden="true" />
 
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
-        <GizmoOverlay tool={tool} />
+        <GizmoOverlay tool={tool} active={activeGizmoAxis} />
       </div>
 
       {engine.status !== 'ready' && (

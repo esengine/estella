@@ -2,18 +2,48 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
 import { EngineHost } from './EngineHost';
+import { SceneModel } from './SceneModel';
+import { useSelection } from '@/store/selectionStore';
+
+/** The lone-selected entity's transform for the status bar (rot in degrees). */
+export interface SelTransform {
+  x: number;
+  y: number;
+  rot: number;
+}
 
 export interface StatsSnapshot {
   fps: number;
   entities: number;
   cursor: { x: number; y: number } | null;
+  /** The transform of the single selected entity, or null (0 or >1 selected). */
+  selection: SelTransform | null;
 }
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Sample the lone selection's transform from the model, or null. */
+function sampleSelection(): SelTransform | null {
+  const sel = useSelection.getState();
+  if (sel.selectedIds.size !== 1 || sel.selectedId == null) return null;
+  const e = SceneModel.entityBySource(sel.selectedId);
+  const tf = e?.components.find((c) => c.type === 'Transform')?.data as
+    | { position?: { x: number; y: number }; rotation?: { w: number; z: number } }
+    | undefined;
+  if (!tf?.position) return null;
+  // 2D rotation lives on Z; recover the angle from the (w, z) quaternion.
+  const rot = tf.rotation ? 2 * Math.atan2(tf.rotation.z, tf.rotation.w) * (180 / Math.PI) : 0;
+  return { x: round1(tf.position.x), y: round1(tf.position.y), rot: round1(rot) };
+}
+
+const selEq = (a: SelTransform | null, b: SelTransform | null): boolean =>
+  a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.rot === b.rot);
 
 // Live editor telemetry for the status bar: real FPS (measured here), live
 // entity count, and the viewport cursor's world position. Updated a few times
 // a second (not per frame) to avoid churning the status bar.
 class StatsStoreImpl {
-  private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, cursor: null }));
+  private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, cursor: null, selection: null }));
 
   private running = false;
   private frames = 0;
@@ -35,8 +65,9 @@ class StatsStoreImpl {
         this.frames = 0;
         this.windowStart = t;
         const cur = this.store.getState();
-        if (fps !== cur.fps || entities !== cur.entities) {
-          this.store.setState({ fps, entities });
+        const selection = sampleSelection();
+        if (fps !== cur.fps || entities !== cur.entities || !selEq(selection, cur.selection)) {
+          this.store.setState({ fps, entities, selection });
         }
       }
     };

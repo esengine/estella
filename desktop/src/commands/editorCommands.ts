@@ -164,6 +164,17 @@ commands.register({
   },
 });
 commands.register({
+  id: 'edit.selectAll',
+  label: 'Select All',
+  category: 'Edit',
+  keybinding: 'mod+a',
+  isEnabled: () => SceneModel.entityOrder().length > 0,
+  run: () => {
+    const ids = SceneModel.entityOrder();
+    if (ids.length) sel().selectMany(ids, ids[ids.length - 1]);
+  },
+});
+commands.register({
   id: 'entity.deselect',
   label: 'Deselect',
   category: 'Entity',
@@ -238,6 +249,13 @@ commands.register({
   category: 'View',
   isChecked: () => editor().showGizmos,
   run: () => editor().toggleGizmos(),
+});
+commands.register({
+  id: 'view.toggleColliders',
+  label: 'Show Colliders',
+  category: 'View',
+  isChecked: () => editor().showColliders,
+  run: () => editor().toggleColliders(),
 });
 commands.register({
   id: 'view.toggleSnapping',
