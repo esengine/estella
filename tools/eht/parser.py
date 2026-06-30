@@ -48,6 +48,10 @@ class CppParser:
     KV_ANNOTATIONS = frozenset({
         'asset', 'anim_flag', 'min', 'max', 'step', 'unit', 'label',
         'tooltip', 'category', 'enum_source', 'bitmask_source', 'invalidates',
+        # `enum=SomeEnum` links an int field to a C++ ES_ENUM so EHT generates the
+        # editor dropdown from that enum's values — for fields kept as i32 (not the
+        # enum type) but still single-choice. Enum-TYPED fields need no annotation.
+        'enum',
     })
     NUMERIC_ANNOTATIONS = frozenset({'min', 'max', 'step'})
     VALID_ASSET_TYPES = frozenset({

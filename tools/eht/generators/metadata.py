@@ -58,12 +58,18 @@ class MetadataGenerator:
         for prop in comp.properties:
             a = prop.annotations
             entries: List[Tuple[str, str]] = []
-            if self.types.is_enum(prop.cpp_type) and 'flags' not in a:
-                vals = self.types.get_enum_values(prop.cpp_type)
-                opts = ', '.join(
-                    f"{{ label: '{v}', value: {i} }}" for i, v in enumerate(vals)
-                )
-                entries.append(('enum', f'[{opts}]'))
+            # The dropdown enum is the field's own enum type, or — for an int field
+            # kept as i32 — the `enum=SomeEnum` annotation. A `flags` field is a
+            # bitmask (curated bit list lives in TS), so no single-choice dropdown.
+            enum_name = (self.types.clean_type(prop.cpp_type)
+                         if self.types.is_enum(prop.cpp_type) else a.get('enum'))
+            if enum_name and 'flags' not in a:
+                vals = self.types.get_enum_values(enum_name)
+                if vals:
+                    opts = ', '.join(
+                        f"{{ label: '{v}', value: {i} }}" for i, v in enumerate(vals)
+                    )
+                    entries.append(('enum', f'[{opts}]'))
             if 'min' in a:
                 entries.append(('min', format_number(a['min'])))
             if 'max' in a:

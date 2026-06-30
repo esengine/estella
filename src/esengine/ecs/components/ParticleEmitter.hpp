@@ -55,8 +55,8 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Lifetime)
     f32 lifetimeMax{5.0f};
 
-    // Shape (shape kind enum stays a TS-side override — runtime enumOptions constant)
-    ES_PROPERTY(category=Shape)
+    // Shape kind — i32 storage, dropdown generated from the EmitterShape enum.
+    ES_PROPERTY(enum=EmitterShape, category=Shape)
     i32 shape{static_cast<i32>(EmitterShape::Cone)};
 
     ES_PROPERTY(min=0, category=Shape)
@@ -143,7 +143,8 @@ struct ParticleEmitter {
     ES_PROPERTY(category=Texture)
     bool spriteLoop{true};
 
-    // Rendering (blendMode/simulationSpace enums stay TS-side overrides)
+    // Rendering — blendMode keeps a TS override (BlendMode is a renderer-side enum,
+    // not a component ES_ENUM); simulationSpace's dropdown is generated (see below).
     ES_PROPERTY(category=Rendering)
     i32 blendMode{1};
 
@@ -153,8 +154,8 @@ struct ParticleEmitter {
     ES_PROPERTY(asset = material, category=Rendering)
     u32 material{0};
 
-    // Space
-    ES_PROPERTY(category=Rendering)
+    // Space — i32 storage, dropdown generated from the SimulationSpace enum.
+    ES_PROPERTY(enum=SimulationSpace, category=Rendering)
     i32 simulationSpace{static_cast<i32>(SimulationSpace::World)};
 
     // State

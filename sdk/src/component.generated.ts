@@ -217,7 +217,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle', 'shadowSoftness', 'shadowDistance'],
         fields: {
-            type: { tooltip: "Point, Directional, Ambient, or Spot." },
+            type: { enum: [{ label: 'Point', value: 0 }, { label: 'Directional', value: 1 }, { label: 'Ambient', value: 2 }, { label: 'Spot', value: 3 }], tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
             radius: { min: 0, tooltip: "Falloff reach in world units (Point / Spot)." },
             direction: { tooltip: "Aim direction (Directional / Spot).", advanced: true },
@@ -294,7 +294,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             maxParticles: { min: 1, step: 1, category: "Emission" },
             lifetimeMin: { min: 0, category: "Lifetime" },
             lifetimeMax: { min: 0, category: "Lifetime" },
-            shape: { category: "Shape" },
+            shape: { enum: [{ label: 'Point', value: 0 }, { label: 'Circle', value: 1 }, { label: 'Rectangle', value: 2 }, { label: 'Cone', value: 3 }], category: "Shape" },
             shapeRadius: { min: 0, category: "Shape" },
             shapeSize: { category: "Shape" },
             shapeAngle: { unit: "°", category: "Shape" },
@@ -324,7 +324,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             blendMode: { category: "Rendering" },
             layer: { step: 1, category: "Rendering", enumSource: "sortingLayers" },
             material: { category: "Rendering" },
-            simulationSpace: { category: "Rendering" },
+            simulationSpace: { enum: [{ label: 'World', value: 0 }, { label: 'Local', value: 1 }], category: "Rendering" },
         },
     },
     RigidBody: {

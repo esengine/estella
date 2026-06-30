@@ -48,7 +48,7 @@ enum class Light2DType : i32 {
 ES_COMPONENT()
 struct Light2D {
     /** @brief Light kind: 0 = Point, 1 = Directional, 2 = Ambient (see Light2DType). */
-    ES_PROPERTY(tooltip="Point, Directional, Ambient, or Spot.")
+    ES_PROPERTY(enum=Light2DType, tooltip="Point, Directional, Ambient, or Spot.")
     i32 type{0};
 
     /** @brief Light color, multiplied by intensity. RGBA for editor color-picker consistency

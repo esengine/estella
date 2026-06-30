@@ -590,9 +590,9 @@ export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
     { fields: { shapeType: { enum: enumOptions(ShapeType) } } }
 );
 
+// type's dropdown is generated from the C++ Light2DType enum (ES_PROPERTY enum=).
 export const Light2D = defineBuiltin<Light2DData>('Light2D',
-    metaDefaults<Light2DData>('Light2D'),
-    { fields: { type: { enum: enumOptions(Light2DType) } } }
+    metaDefaults<Light2DData>('Light2D')
 );
 
 export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D',
@@ -691,16 +691,15 @@ export interface ParticleEmitterData extends ParticleEmitterDataCpp {
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
     metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] }, sizeCurve: { keys: [] } }),
     {
-        // Field categories + min/step/unit are authored at the C++ ES_PROPERTY site
-        // (→ COMPONENT_META.fields). Only what an annotation can't express stays here:
-        // enums built from runtime TS constants, and the two TS-only editor fields
-        // (sizeCurve / colorGradient have no C++ member, so their metadata lives here).
+        // Most field metadata is authored at the C++ ES_PROPERTY site (categories,
+        // min/step, and the shape/simulationSpace enum dropdowns via `enum=`). Only
+        // what an annotation can't express stays here: enums built from a TS-only
+        // constant (ParticleEasing / BlendMode have no component ES_ENUM), and the two
+        // TS-only editor fields (sizeCurve / colorGradient have no C++ member).
         fields: {
-            shape: { enum: enumOptions(EmitterShape) },
             sizeEasing: { enum: enumOptions(ParticleEasing) },
             colorEasing: { enum: enumOptions(ParticleEasing) },
             blendMode: { enum: enumOptions(BlendMode) },
-            simulationSpace: { enum: enumOptions(SimulationSpace) },
             sizeCurve: { curve: true, category: 'Size' },
             colorGradient: { gradient: true, category: 'Color' },
         },
