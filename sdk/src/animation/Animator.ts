@@ -49,6 +49,12 @@ export interface AnimatorTransition {
     to: string;
     /** All conditions must hold (AND). Empty = unconditional. */
     conditions: AnimatorCondition[];
+    /**
+     * Only fire once the current state's clip has finished (a non-looping sprite
+     * clip reached its end). Combined with `conditions`, both must hold. With no
+     * conditions, this is "auto-advance when the clip ends" (e.g. attack→idle).
+     */
+    hasExitTime?: boolean;
 }
 
 /** One stop on a 1D blend: at/above `value`, play `clip`. */
@@ -119,13 +125,16 @@ function conditionHolds(
     }
 }
 
-/** First transition in `list` whose conditions all hold, with the triggers it used. */
+/** First transition in `list` that is ready (conditions hold; exit time met if
+ *  required), with the triggers it used. */
 function firstReady(
     list: readonly AnimatorTransition[],
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
+    clipFinished: boolean,
 ): { to: string; usedTriggers: string[] } | null {
     for (const t of list) {
+        if (t.hasExitTime && !clipFinished) continue;
         const used: string[] = [];
         let ok = true;
         for (const c of t.conditions) {
@@ -139,7 +148,9 @@ function firstReady(
 
 /**
  * Evaluate one step of the state machine. Any-state transitions are checked
- * before the current state's. Returns the next state (or null to stay) and the
+ * before the current state's. `clipFinished` gates `hasExitTime` transitions
+ * (true = the current clip has ended); it defaults true so transitions without
+ * exit time are unaffected. Returns the next state (or null to stay) and the
  * triggers a fired transition consumed. Pure.
  */
 export function evaluateAnimatorTransitions(
@@ -147,10 +158,11 @@ export function evaluateAnimatorTransitions(
     currentState: string,
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
+    clipFinished: boolean = true,
 ): AnimatorEvalResult {
-    const fromAny = firstReady(def.anyStateTransitions ?? [], params, triggers);
+    const fromAny = firstReady(def.anyStateTransitions ?? [], params, triggers, clipFinished);
     const current = def.states.find((s) => s.name === currentState);
-    const fired = fromAny ?? firstReady(current?.transitions ?? [], params, triggers);
+    const fired = fromAny ?? firstReady(current?.transitions ?? [], params, triggers, clipFinished);
     return fired
         ? { next: fired.to, consumedTriggers: fired.usedTriggers }
         : { next: null, consumedTriggers: [] };
@@ -298,8 +310,21 @@ export class AnimatorControllerApi {
 
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
             const triggerSet = this.triggers.get(entity);
+            // The current clip has finished when its SpriteAnimator stopped (a
+            // non-looping clip reached its end). Gates hasExitTime transitions.
+            const spNow = world.has(entity, SpriteAnimator)
+                ? (world.get(entity, SpriteAnimator) as SpriteAnimatorData)
+                : null;
+            // "Finished" means the SpriteAnimator is playing *this* state's clip
+            // and has stopped — not merely stopped (which is also true before the
+            // clip is ever applied, e.g. the frame a state is entered).
+            const fromDef = def.states.find((s) => s.name === fromState);
+            const expectedClip = fromDef ? this.motionClipOf(fromDef, params).clip : '';
+            const clipFinished = spNow
+                ? (expectedClip !== '' && spNow.clip === expectedClip && !spNow.playing)
+                : true;
             const { next, consumedTriggers } = evaluateAnimatorTransitions(
-                def, fromState, params, triggerSet ?? EMPTY_TRIGGERS,
+                def, fromState, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
             );
             if (triggerSet) for (const t of consumedTriggers) triggerSet.delete(t);
 
@@ -329,10 +354,7 @@ export class AnimatorControllerApi {
         const st = def.states.find((s) => s.name === stateName);
         if (!st || !world.has(entity, SpriteAnimator)) return;
 
-        const sel: AnimatorBlendThreshold = st.blend
-            ? selectBlendClip(st.blend, Number(params[st.blend.parameter] ?? 0))
-            : { value: 0, clip: st.clip ?? '', speed: st.speed, loop: st.loop };
-
+        const sel = this.motionClipOf(st, params);
         const sp = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
         if (sp.clip === sel.clip && !forceRestart) return;
 
@@ -344,6 +366,14 @@ export class AnimatorControllerApi {
         sp.playing = true;
         sp.enabled = true;
         world.insert(entity, SpriteAnimator, sp);
+    }
+
+    /** The clip (and its speed/loop) a state would play for the given params:
+     *  the single clip, or the 1D-blend selection. */
+    private motionClipOf(st: AnimatorState, params: AnimatorParamValues): AnimatorBlendThreshold {
+        return st.blend
+            ? selectBlendClip(st.blend, Number(params[st.blend.parameter] ?? 0))
+            : { value: 0, clip: st.clip ?? '', speed: st.speed, loop: st.loop };
     }
 }
 

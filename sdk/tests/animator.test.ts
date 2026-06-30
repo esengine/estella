@@ -77,6 +77,23 @@ describe('evaluateAnimatorTransitions', () => {
         expect(r.consumedTriggers).toEqual(['jump']);
     });
 
+    it('gates hasExitTime transitions on clipFinished', () => {
+        const d: AnimatorControllerDef = {
+            parameters: [],
+            initialState: 'attack',
+            states: [
+                { name: 'attack', clip: 'attack', transitions: [
+                    { to: 'idle', conditions: [], hasExitTime: true },
+                ] },
+                { name: 'idle', clip: 'idle', transitions: [] },
+            ],
+        };
+        // clip still playing → does not fire
+        expect(evaluateAnimatorTransitions(d, 'attack', {}, new Set(), false).next).toBeNull();
+        // clip finished → auto-advances
+        expect(evaluateAnimatorTransitions(d, 'attack', {}, new Set(), true).next).toBe('idle');
+    });
+
     it('eq / neq comparisons', () => {
         const d: AnimatorControllerDef = {
             parameters: [{ name: 'phase', type: 'float', default: 0 }],
@@ -229,6 +246,39 @@ describe('AnimatorControllerApi.update', () => {
         expect(ctrl.getFloat(E, 'speed')).toBe(9);
         ctrl.removeEntity(E);
         expect(ctrl.getFloat(E, 'speed')).toBe(0);
+    });
+
+    it('auto-advances on exit time when the current clip finishes', () => {
+        const ctrl = new AnimatorControllerApi();
+        ctrl.registerController('atk', {
+            parameters: [],
+            initialState: 'attack',
+            states: [
+                { name: 'attack', clip: 'attack', loop: false, transitions: [
+                    { to: 'idle', conditions: [], hasExitTime: true },
+                ] },
+                { name: 'idle', clip: 'idle', transitions: [] },
+            ],
+        });
+        const world = makeWorld();
+        world.insert(E, Animator, { controller: 'atk', currentState: '', enabled: true } as AnimatorData);
+        world.insert(E, SpriteAnimator, spriteData());
+
+        ctrl.update(world); // → attack, applyMotion sets playing = true
+        expect((world.get(E, Animator) as AnimatorData).currentState).toBe('attack');
+
+        // Still playing → stays in attack.
+        ctrl.update(world);
+        expect((world.get(E, Animator) as AnimatorData).currentState).toBe('attack');
+
+        // Simulate the non-looping clip ending (SpriteAnimationApi clears playing).
+        const sp = world.get(E, SpriteAnimator) as SpriteAnimatorData;
+        sp.playing = false;
+        world.insert(E, SpriteAnimator, sp);
+
+        ctrl.update(world); // exit time met → idle
+        expect((world.get(E, Animator) as AnimatorData).currentState).toBe('idle');
+        expect((world.get(E, SpriteAnimator) as SpriteAnimatorData).clip).toBe('idle');
     });
 
     it('a 1D-blend state switches clip within the state as the parameter crosses thresholds', () => {
