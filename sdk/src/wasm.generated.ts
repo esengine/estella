@@ -316,6 +316,11 @@ export interface SegmentCollider {
     maskBits: number;
 }
 
+export interface ShadowCaster2D {
+    size: Vec2;
+    enabled: boolean;
+}
+
 export interface ShapeRenderer {
     shapeType: number;
     color: Vec4;
@@ -509,6 +514,10 @@ export interface Registry {
     getSegmentCollider(entity: Entity): SegmentCollider;
     addSegmentCollider(entity: Entity, component: SegmentCollider): void;
     removeSegmentCollider(entity: Entity): void;
+    hasShadowCaster2D(entity: Entity): boolean;
+    getShadowCaster2D(entity: Entity): ShadowCaster2D;
+    addShadowCaster2D(entity: Entity, component: ShadowCaster2D): void;
+    removeShadowCaster2D(entity: Entity): void;
     hasShapeRenderer(entity: Entity): boolean;
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
@@ -585,6 +594,7 @@ export interface ESEngineModule {
     ParticleEmitter: new () => ParticleEmitter;
     RigidBody: new () => RigidBody;
     SegmentCollider: new () => SegmentCollider;
+    ShadowCaster2D: new () => ShadowCaster2D;
     ShapeRenderer: new () => ShapeRenderer;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;

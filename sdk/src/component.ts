@@ -553,6 +553,11 @@ export interface Light2DData {
     enabled: boolean;
 }
 
+export interface ShadowCaster2DData {
+    size: Vec2;
+    enabled: boolean;
+}
+
 export interface ShapeRendererData {
     shapeType: number;
     color: Color;
@@ -685,6 +690,10 @@ export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
 export const Light2D = defineBuiltin<Light2DData>('Light2D',
     metaDefaults<Light2DData>('Light2D'),
     { fields: { type: { enum: enumOptions(Light2DType) } } }
+);
+
+export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D',
+    metaDefaults<ShadowCaster2DData>('ShadowCaster2D')
 );
 
 export const Camera = defineBuiltin<CameraData>('Camera',

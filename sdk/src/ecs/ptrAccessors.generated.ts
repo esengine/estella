@@ -745,6 +745,34 @@ export function createSegmentColliderData(): SegmentColliderPtrData {
     };
 }
 
+export interface ShadowCaster2DPtrData {
+    size: Vec2;
+    enabled: boolean;
+}
+
+export function fillShadowCaster2D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: ShadowCaster2DPtrData,
+): void {
+    const size_ = out.size; size_.x = f32[ptr >> 2]; size_.y = f32[(ptr >> 2) + 1];
+    out.enabled = u8[ptr + 8] !== 0;
+}
+
+export function writeShadowCaster2D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: ShadowCaster2DPtrData,
+): void {
+    f32[ptr >> 2] = data.size.x; f32[(ptr >> 2) + 1] = data.size.y;
+    u8[ptr + 8] = data.enabled ? 1 : 0;
+}
+
+export function createShadowCaster2DData(): ShadowCaster2DPtrData {
+    return {
+        size: { x: 0, y: 0 },
+        enabled: false,
+    };
+}
+
 export interface ShapeRendererPtrData {
     shapeType: number;
     color: Color;
@@ -1240,6 +1268,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
     SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
+    ShadowCaster2D: { fill: fillShadowCaster2D, write: writeShadowCaster2D, create: createShadowCaster2DData },
     ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },

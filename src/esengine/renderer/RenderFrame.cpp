@@ -6,6 +6,7 @@
 #include "LightStore.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Light2D.hpp"
+#include "../ecs/components/ShadowCaster2D.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 
@@ -455,6 +456,21 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         collected.resize(MAX_LIGHTS_2D);
     }
     for (const auto& gpu : collected) lights.addLight(gpu);
+
+    // Shadow occluders: each enabled ShadowCaster2D becomes a world-space AABB (centered on its
+    // Transform, `size` wide/tall). The injected es_shadowFactor2D blocks point/spot light at any
+    // fragment whose segment to the light crosses a box. Past the cap are silently dropped.
+    auto occluders = registry.view<ecs::Transform, ecs::ShadowCaster2D>();
+    for (auto entity : occluders) {
+        const auto& caster = occluders.get<ecs::ShadowCaster2D>(entity);
+        if (!caster.enabled) continue;
+        auto& transform = occluders.get<ecs::Transform>(entity);
+        transform.ensureDecomposed();
+        const glm::vec3 p = transform.worldPosition;
+        const f32 hx = caster.size.x * 0.5f;
+        const f32 hy = caster.size.y * 0.5f;
+        lights.addOccluder(glm::vec4(p.x - hx, p.y - hy, p.x + hx, p.y + hy));
+    }
 }
 
 void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {

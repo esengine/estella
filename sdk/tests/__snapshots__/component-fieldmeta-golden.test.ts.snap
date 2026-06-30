@@ -392,6 +392,12 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "category": "Texture",
     },
   },
+  "ShadowCaster2D": {
+    "size": {
+      "min": 0,
+      "tooltip": "Occluder box size in world units (centered on the entity).",
+    },
+  },
   "ShapeRenderer": {
     "cornerRadius": {
       "min": 0,

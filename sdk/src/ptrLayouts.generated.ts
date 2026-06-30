@@ -202,6 +202,13 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'maskBits', type: 'u32', offset: 36 },
         ],
     },
+    ShadowCaster2D: {
+        ptrFn: 'getShadowCaster2DPtr',
+        fields: [
+            { name: 'size', type: 'vec2', offset: 0 },
+            { name: 'enabled', type: 'bool', offset: 8 },
+        ],
+    },
     ShapeRenderer: {
         ptrFn: 'getShapeRendererPtr',
         fields: [

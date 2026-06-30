@@ -13,7 +13,7 @@ import type { FieldMeta } from './component';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '2896a68ab5ef40b7';
+export const ABI_LAYOUT_HASH = '7ac6cfeb8c0c1963';
 
 export interface AssetFieldMeta {
     field: string;
@@ -344,6 +344,19 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+    },
+    ShadowCaster2D: {
+        defaults: {
+            size: { x: 32, y: 32 },
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: ['size.x', 'size.y'],
+        fields: {
+            size: { min: 0, tooltip: "Occluder box size in world units (centered on the entity)." },
+        },
     },
     ShapeRenderer: {
         defaults: {

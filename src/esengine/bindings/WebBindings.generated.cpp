@@ -21,6 +21,7 @@
 #include "../ecs/components/Light2D.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
+#include "../ecs/components/ShadowCaster2D.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
@@ -967,6 +968,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
         .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
 
+    value_object<esengine::ecs::ShadowCaster2D>("ShadowCaster2D")
+        .field("size", &esengine::ecs::ShadowCaster2D::size)
+        .field("enabled", &esengine::ecs::ShadowCaster2D::enabled);
+
     value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
         .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
         .field("color", &esengine::ecs::ShapeRenderer::color)
@@ -1391,6 +1396,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::SegmentCollider>(entity);
         }))
 
+        // ShadowCaster2D
+        .function("hasShadowCaster2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ShadowCaster2D>(static_cast<Entity>(e));
+        }))
+        .function("getShadowCaster2D", optional_override([](Registry& r, u32 e) -> esengine::ecs::ShadowCaster2D& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::ShadowCaster2D s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::ShadowCaster2D>(entity)) return s_dummy;
+            return r.get<esengine::ecs::ShadowCaster2D>(entity);
+        }), allow_raw_pointers())
+        .function("addShadowCaster2D", optional_override([](Registry& r, u32 e, const esengine::ecs::ShadowCaster2D& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ShadowCaster2D>(entity, c);
+        }))
+        .function("removeShadowCaster2D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ShadowCaster2D>(entity)) return;
+            r.remove<esengine::ecs::ShadowCaster2D>(entity);
+        }))
+
         // ShapeRenderer
         .function("hasShapeRenderer", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
@@ -1669,6 +1695,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("RigidBody")));
     arr.set(i++, val(std::string("SegmentCollider")));
+    arr.set(i++, val(std::string("ShadowCaster2D")));
     arr.set(i++, val(std::string("ShapeRenderer")));
     arr.set(i++, val(std::string("SpineAnimation")));
     arr.set(i++, val(std::string("Sprite")));
@@ -1819,6 +1846,8 @@ static_assert(offsetof(esengine::ecs::SegmentCollider, isSensor) == 28, "ABI off
 static_assert(offsetof(esengine::ecs::SegmentCollider, enabled) == 29, "ABI offset drift: esengine::ecs::SegmentCollider.enabled (EHT expected 29)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::SegmentCollider.categoryBits (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::SegmentCollider.maskBits (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::ShadowCaster2D, size) == 0, "ABI offset drift: esengine::ecs::ShadowCaster2D.size (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::ShadowCaster2D, enabled) == 8, "ABI offset drift: esengine::ecs::ShadowCaster2D.enabled (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, shapeType) == 0, "ABI offset drift: esengine::ecs::ShapeRenderer.shapeType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, color) == 4, "ABI offset drift: esengine::ecs::ShapeRenderer.color (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, size) == 20, "ABI offset drift: esengine::ecs::ShapeRenderer.size (EHT expected 20)");
@@ -1894,7 +1923,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "2896a68ab5ef40b7";
+static const char* kEsAbiLayoutHash = "7ac6cfeb8c0c1963";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);
