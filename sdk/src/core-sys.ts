@@ -78,7 +78,11 @@ export { ScreenInfo, ScreenOrientation } from './screen';
 // Network
 // =============================================================================
 
-export { GameSocket, WeChatSocket, createSocket, type GameSocketOptions, type SocketReadyState } from './net';
+export {
+    GameSocket, WeChatSocket, createSocket, NetChannel,
+    type GameSocketOptions, type SocketReadyState, type NetTransport,
+    type NetChannelOptions, type MessageHandler, type RequestHandler,
+} from './net';
 
 // =============================================================================
 // Platform (base functions only)
