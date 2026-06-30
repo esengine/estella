@@ -127,6 +127,15 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 0,
       "tooltip": "Falloff reach in world units (Point / Spot).",
     },
+    "shadowDistance": {
+      "advanced": true,
+      "min": 0,
+      "tooltip": "Directional shadow distance; 0 = no directional shadow.",
+    },
+    "shadowSoftness": {
+      "min": 0,
+      "tooltip": "Shadow softness (light-source size); 0 = hard edge.",
+    },
     "type": {
       "enum": [
         {

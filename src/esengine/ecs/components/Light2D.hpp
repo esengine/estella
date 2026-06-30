@@ -77,6 +77,18 @@ struct Light2D {
     ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)
     f32 outerAngle{45.0f};
 
+    /** @brief Shadow penumbra softness = light-source half-extent in world units. 0 = hard-edged
+     *         shadow (default; identical to no softening). Larger values widen the penumbra the way
+     *         a bigger area light does. Applies to every light type that casts a shadow. */
+    ES_PROPERTY(animatable, min=0, tooltip="Shadow softness (light-source size); 0 = hard edge.")
+    f32 shadowSoftness{0.0f};
+
+    /** @brief Directional-light shadow reach in world units: how far back toward the light a
+     *         fragment searches for an occluder. 0 = a Directional light casts no shadow (default).
+     *         Ignored by Point/Spot, which shadow along the segment to the light position. */
+    ES_PROPERTY(animatable, min=0, advanced, tooltip="Directional shadow distance; 0 = no directional shadow.")
+    f32 shadowDistance{0.0f};
+
     /** @brief Disabled lights are skipped during collection. */
     ES_PROPERTY()
     bool enabled{true};

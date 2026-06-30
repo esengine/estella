@@ -426,10 +426,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // carry explicit highp for the same reason MaterialConstants does: a fragment shader has no
     // default float precision until its `precision` line, which follows this injected header.
     // The light-array size and packing here MUST match renderer/LightConstants.hpp (MAX_LIGHTS_2D,
-    // GpuLight2D = two vec4s).
+    // GpuLight2D = four vec4s).
     if (stage == ShaderStage::Fragment && parsed.domain == "Lit2D") {
         static const char* kLit2DHeader =
-            "struct es_Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; };\n"
+            "struct es_Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow; };\n"
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
             "    es_Light2D u_lights[16];\n"
@@ -466,23 +466,48 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    }\n"
             "    return 1.0;\n"
             "}\n"
-            // 0.0 if any occluder blocks the fragment from the light, else 1.0. No occluders
-            // (count 0) -> always 1.0, so the shadow test is inert until the render path feeds boxes.
-            "highp float es_shadowFactor2D(in highp vec2 worldPos, in highp vec2 lightPos) {\n"
+            // Soft 2D shadows: averages occlusion of K rays cast from the fragment toward points
+            // spread across the light's apparent size (softness = source half-extent, world units).
+            // softness 0 collapses to the single hard-edged centre ray — bit-identical to the prior
+            // behaviour; larger softness widens the penumbra the way an area light's shadow does.
+            // `target` is the point the rays aim at — the light position for point/spot, or a far
+            // point along the light direction for directional — so one primitive shadows every type.
+            // No occluders (count 0) -> always 1.0, inert until the render path feeds boxes.
+            "highp float es_shadowFactor2D(in highp vec2 worldPos, in highp vec2 target, in highp float softness) {\n"
             "    int n = int(u_occluderCount.x);\n"
-            "    for (int i = 0; i < 8; ++i) {\n"
-            "        if (i >= n) break;\n"
-            "        if (es_segHitsBox(worldPos, lightPos, u_occluders[i]) > 0.5) return 0.0;\n"
+            "    if (n <= 0) return 1.0;\n"
+            "    if (softness < 1e-4) {\n"
+            "        for (int i = 0; i < 8; ++i) {\n"
+            "            if (i >= n) break;\n"
+            "            if (es_segHitsBox(worldPos, target, u_occluders[i]) > 0.5) return 0.0;\n"
+            "        }\n"
+            "        return 1.0;\n"
             "    }\n"
-            "    return 1.0;\n"
+            "    highp vec2 dir = target - worldPos;\n"
+            "    highp float dl = length(dir);\n"
+            "    highp vec2 perp = (dl > 1e-4) ? vec2(-dir.y, dir.x) / dl : vec2(1.0, 0.0);\n"
+            "    const int K = 5;\n"
+            "    highp float blocked = 0.0;\n"
+            "    for (int s = 0; s < K; ++s) {\n"
+            "        highp float t = float(s) / float(K - 1) * 2.0 - 1.0;\n"
+            "        highp vec2 tp = target + perp * (t * softness);\n"
+            "        for (int i = 0; i < 8; ++i) {\n"
+            "            if (i >= n) break;\n"
+            "            if (es_segHitsBox(worldPos, tp, u_occluders[i]) > 0.5) { blocked += 1.0; break; }\n"
+            "        }\n"
+            "    }\n"
+            "    return 1.0 - blocked / float(K);\n"
             "}\n"
             "highp vec3 es_applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    highp vec3 lit = u_ambient.rgb;\n"
             "    for (int i = 0; i < 16; ++i) {\n"
             "        highp vec4 pd = u_lights[i].posDir;\n"
             "        highp vec4 col = u_lights[i].color;\n"
+            "        highp vec4 sh = u_lights[i].shadow;\n"  // x = penumbra softness, y = directional distance
             "        highp vec3 L;\n"
             "        highp float atten;\n"
+            "        highp vec2 target = pd.xy;\n"           // shadow-ray aim point (light position by default)
+            "        bool castShadow = true;\n"
             "        if (pd.z < 0.5) {\n"
             "            highp vec2 d = pd.xy - worldPos;\n"
             "            highp float dist = length(d);\n"
@@ -491,6 +516,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        } else if (pd.z < 1.5) {\n"
             "            atten = 1.0;\n"
             "            L = normalize(vec3(-pd.xy, 1.0));\n"
+            // Directional rays are parallel: aim at a far point toward the light source, opt in via
+            // a positive march distance, and require a real direction (a zeroed one casts nothing).
+            "            highp vec2 toLight = (dot(pd.xy, pd.xy) > 1e-8) ? normalize(-pd.xy) : vec2(0.0);\n"
+            "            castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;\n"
+            "            target = worldPos + toLight * sh.y;\n"
             "        } else {\n"
             "            highp vec4 sp = u_lights[i].spot;\n"
             "            highp vec2 d = pd.xy - worldPos;\n"
@@ -500,8 +530,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            highp vec2 toFrag = (dist > 0.0001) ? (-d / dist) : sp.xy;\n"
             "            atten *= smoothstep(sp.w, sp.z, dot(sp.xy, toFrag));\n"
             "        }\n"
-            "        if (pd.z < 0.5 || pd.z >= 1.5) {\n"  // point/spot cast shadows; directional skipped
-            "            atten *= es_shadowFactor2D(worldPos, pd.xy);\n"
+            // Only pay for the shadow test when the light actually reaches this fragment (skips the
+            // zeroed/inactive slots and unlit fragments — cheaper than the old unconditional call).
+            "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
+            "            atten *= es_shadowFactor2D(worldPos, target, sh.x);\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        lit += col.rgb * (col.a * ndotl * atten);\n"

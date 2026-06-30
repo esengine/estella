@@ -40,25 +40,29 @@ inline constexpr u32 MAX_LIGHTS_2D = 16;
 inline constexpr u32 MAX_OCCLUDERS_2D = 8;
 
 /**
- * @brief One 2D light, std140-packed (three vec4s, 48 bytes, 16-aligned).
+ * @brief One 2D light, std140-packed (four vec4s, 64 bytes, 16-aligned).
  * @details posDir: xy = world position (point/spot) or direction (directional); z = type
  *          (0 = point, 1 = directional, 2 = spot); w = falloff radius (point/spot, world units).
  *          color: rgb = light color, a = intensity.
  *          spot: xy = normalized cone axis, z = cos(innerHalfAngle), w = cos(outerHalfAngle)
  *          (spot only; zero for other types). Ambient lights are folded into
  *          LightConstants::ambient instead of occupying a slot.
+ *          shadow: x = penumbra softness (light-source half-extent in world units; 0 = hard,
+ *          backward-compatible); y = directional shadow march distance (world units; 0 = a
+ *          directional light casts no shadow). zw reserved (0). Read by es_shadowFactor2D.
  */
 struct GpuLight2D {
     glm::vec4 posDir{0.0f};
     glm::vec4 color{0.0f};
     glm::vec4 spot{0.0f};
+    glm::vec4 shadow{0.0f};
 };
 
 /**
  * @brief CPU mirror of the GLSL LightConstants block (std140).
  * @details ambient: rgb = summed ambient color, a = active light count (informational).
- *          std140 array-of-struct stride is 32 (each GpuLight2D is already 16-aligned), so
- *          lights start at offset 16 and the whole block is 16 + 32*MAX_LIGHTS_2D bytes.
+ *          std140 array-of-struct stride is 64 (each GpuLight2D is four 16-aligned vec4s), so
+ *          lights start at offset 16 and the lights array spans 64*MAX_LIGHTS_2D bytes.
  */
 struct LightConstants {
     glm::vec4 ambient{0.0f};
@@ -66,13 +70,14 @@ struct LightConstants {
     /// x = active occluder count; yzw unused. Appended after `lights` so existing std140
     /// offsets (ambient, lights) are unchanged — old Lit2D shaders keep reading the same bytes.
     glm::vec4 occluderCount{0.0f};
-    /// World-space AABBs: (minX, minY, maxX, maxY). A point/spot light is shadowed at a fragment
-    /// when the fragment→light segment crosses any box.
+    /// World-space AABBs: (minX, minY, maxX, maxY). A light is shadowed at a fragment when the
+    /// fragment→light segment (or, for directional, the fragment→far-along-light-dir segment)
+    /// crosses any box.
     glm::vec4 occluders[MAX_OCCLUDERS_2D];
 };
 
-static_assert(sizeof(GpuLight2D) == 48, "GpuLight2D must be std140-tight (three vec4s)");
-static_assert(sizeof(LightConstants) == 16 + 48 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D,
+static_assert(sizeof(GpuLight2D) == 64, "GpuLight2D must be std140-tight (four vec4s)");
+static_assert(sizeof(LightConstants) == 16 + 64 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

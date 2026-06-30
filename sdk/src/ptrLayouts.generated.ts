@@ -127,7 +127,9 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'direction', type: 'vec2', offset: 28 },
             { name: 'innerAngle', type: 'f32', offset: 36 },
             { name: 'outerAngle', type: 'f32', offset: 40 },
-            { name: 'enabled', type: 'bool', offset: 44 },
+            { name: 'shadowSoftness', type: 'f32', offset: 44 },
+            { name: 'shadowDistance', type: 'f32', offset: 48 },
+            { name: 'enabled', type: 'bool', offset: 52 },
         ],
     },
     ParticleEmitter: {

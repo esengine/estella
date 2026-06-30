@@ -13,7 +13,7 @@ import type { FieldMeta } from './component';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '7ac6cfeb8c0c1963';
+export const ABI_LAYOUT_HASH = 'b77fc377a67f3228';
 
 export interface AssetFieldMeta {
     field: string;
@@ -198,12 +198,14 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             direction: { x: 0, y: 0 },
             innerAngle: 30,
             outerAngle: 45,
+            shadowSoftness: 0,
+            shadowDistance: 0,
             enabled: true,
         },
         assetFields: [],
         entityFields: [],
         colorFields: ['color'],
-        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle', 'shadowSoftness', 'shadowDistance'],
         fields: {
             type: { tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
@@ -211,6 +213,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             direction: { tooltip: "Aim direction (Directional / Spot).", advanced: true },
             innerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             outerAngle: { min: 0, max: 180, unit: "°", advanced: true },
+            shadowSoftness: { min: 0, tooltip: "Shadow softness (light-source size); 0 = hard edge." },
+            shadowDistance: { min: 0, tooltip: "Directional shadow distance; 0 = no directional shadow.", advanced: true },
         },
     },
     Parent: {

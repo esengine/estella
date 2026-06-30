@@ -900,6 +900,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("direction", &esengine::ecs::Light2D::direction)
         .field("innerAngle", &esengine::ecs::Light2D::innerAngle)
         .field("outerAngle", &esengine::ecs::Light2D::outerAngle)
+        .field("shadowSoftness", &esengine::ecs::Light2D::shadowSoftness)
+        .field("shadowDistance", &esengine::ecs::Light2D::shadowDistance)
         .field("enabled", &esengine::ecs::Light2D::enabled);
 
     value_object<ParentJS>("Parent")
@@ -1788,7 +1790,9 @@ static_assert(offsetof(esengine::ecs::Light2D, radius) == 24, "ABI offset drift:
 static_assert(offsetof(esengine::ecs::Light2D, direction) == 28, "ABI offset drift: esengine::ecs::Light2D.direction (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::Light2D, innerAngle) == 36, "ABI offset drift: esengine::ecs::Light2D.innerAngle (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::Light2D, outerAngle) == 40, "ABI offset drift: esengine::ecs::Light2D.outerAngle (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::Light2D, enabled) == 44, "ABI offset drift: esengine::ecs::Light2D.enabled (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::Light2D, shadowSoftness) == 44, "ABI offset drift: esengine::ecs::Light2D.shadowSoftness (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::Light2D, shadowDistance) == 48, "ABI offset drift: esengine::ecs::Light2D.shadowDistance (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::Light2D, enabled) == 52, "ABI offset drift: esengine::ecs::Light2D.enabled (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -1923,7 +1927,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "7ac6cfeb8c0c1963";
+static const char* kEsAbiLayoutHash = "b77fc377a67f3228";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

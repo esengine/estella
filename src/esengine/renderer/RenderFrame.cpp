@@ -428,6 +428,10 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
 
         GpuLight2D gpu;
         gpu.color = glm::vec4(rgb, light.intensity);
+        // shadow.x = penumbra softness (all types); shadow.y = directional march distance (only the
+        // directional branch of es_shadowFactor2D reads it; 0 keeps directional shadows off).
+        gpu.shadow = glm::vec4(std::max(light.shadowSoftness, 0.0f),
+                               std::max(light.shadowDistance, 0.0f), 0.0f, 0.0f);
         if (type == ecs::Light2DType::Directional) {
             // Direction in the 2D plane; z=1 flags directional (no attenuation) in the shader.
             gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, 0.0f);

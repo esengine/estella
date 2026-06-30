@@ -243,6 +243,8 @@ export interface Light2D {
     direction: Vec2;
     innerAngle: number;
     outerAngle: number;
+    shadowSoftness: number;
+    shadowDistance: number;
     enabled: boolean;
 }
 
