@@ -26,4 +26,6 @@ export const SystemLabel = {
     Text: 'TextSystem',
     Focus: 'FocusSystem',
     Tween: 'TweenSystem',
+    Animator: 'AnimatorSystem',
+    SpriteAnimator: 'SpriteAnimatorSystem',
 } as const;

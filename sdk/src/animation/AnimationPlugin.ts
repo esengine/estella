@@ -13,6 +13,7 @@ import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { Tween, TweenAPI } from './Tween';
 import { SpriteAnimation, SpriteAnimationApi } from './SpriteAnimator';
+import { AnimatorController, AnimatorControllerApi } from './Animator';
 import { playModeOnly } from '../env';
 import { SystemLabel } from '../systemLabels';
 
@@ -26,11 +27,14 @@ export class AnimationPlugin implements Plugin {
         app.insertResource(Tween, tween);
         const anim = new SpriteAnimationApi();
         app.insertResource(SpriteAnimation, anim);
+        const animator = new AnimatorControllerApi();
+        app.insertResource(AnimatorController, animator);
         const world = app.world;
 
         world.onDespawn((entity: Entity) => {
             tween.cancelAll(entity);
             anim.removeEntityListeners(entity);
+            animator.removeEntity(entity);
         });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
@@ -41,13 +45,23 @@ export class AnimationPlugin implements Plugin {
             { name: 'TweenSystem' }
         ), { runIf: playModeOnly });
 
+        // The state machine runs before the sprite animator so a transition's
+        // clip switch applies the same frame it fires.
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [Res(AnimatorController)],
+            (ctrl: AnimatorControllerApi) => {
+                ctrl.update(world);
+            },
+            { name: 'AnimatorSystem' }
+        ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });
+
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(SpriteAnimation)],
             (time: TimeData, animApi: SpriteAnimationApi) => {
                 animApi.update(world, time.delta);
             },
             { name: 'SpriteAnimatorSystem' }
-        ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });
+        ), { runAfter: [SystemLabel.Tween, SystemLabel.Animator], runIf: playModeOnly });
     }
 }
 

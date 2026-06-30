@@ -41,6 +41,23 @@ export {
 } from './SpriteAnimator';
 
 export {
+    Animator,
+    AnimatorController,
+    AnimatorControllerApi,
+    evaluateAnimatorTransitions,
+    resolveParams,
+    type AnimatorData,
+    type AnimatorParam,
+    type AnimatorParamType,
+    type AnimatorCondition,
+    type AnimatorTransition,
+    type AnimatorState,
+    type AnimatorControllerDef,
+    type AnimatorParamValues,
+    type AnimatorEvalResult,
+} from './Animator';
+
+export {
     AnimationPlugin,
     animationPlugin,
 } from './AnimationPlugin';
