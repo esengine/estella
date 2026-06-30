@@ -32,6 +32,14 @@ inline constexpr const char* LIGHT_CONSTANTS_BLOCK = "LightConstants";
 inline constexpr u32 MAX_LIGHTS_2D = 16;
 
 /**
+ * @brief Max 2D shadow occluders packed into the UBO (axis-aligned boxes in world space).
+ *        The injected es_applyLighting2D loops up to the active count; 0 occluders = no
+ *        shadowing (identity), so the feature is inert until the render path feeds boxes.
+ *        Must match the `u_occluders[..]` array size in ShaderParser's injected GLSL.
+ */
+inline constexpr u32 MAX_OCCLUDERS_2D = 8;
+
+/**
  * @brief One 2D light, std140-packed (three vec4s, 48 bytes, 16-aligned).
  * @details posDir: xy = world position (point/spot) or direction (directional); z = type
  *          (0 = point, 1 = directional, 2 = spot); w = falloff radius (point/spot, world units).
@@ -55,10 +63,16 @@ struct GpuLight2D {
 struct LightConstants {
     glm::vec4 ambient{0.0f};
     GpuLight2D lights[MAX_LIGHTS_2D];
+    /// x = active occluder count; yzw unused. Appended after `lights` so existing std140
+    /// offsets (ambient, lights) are unchanged — old Lit2D shaders keep reading the same bytes.
+    glm::vec4 occluderCount{0.0f};
+    /// World-space AABBs: (minX, minY, maxX, maxY). A point/spot light is shadowed at a fragment
+    /// when the fragment→light segment crosses any box.
+    glm::vec4 occluders[MAX_OCCLUDERS_2D];
 };
 
 static_assert(sizeof(GpuLight2D) == 48, "GpuLight2D must be std140-tight (three vec4s)");
-static_assert(sizeof(LightConstants) == 16 + 48 * MAX_LIGHTS_2D,
+static_assert(sizeof(LightConstants) == 16 + 48 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

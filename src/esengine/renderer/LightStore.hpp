@@ -60,6 +60,16 @@ public:
         dirty_ = true;
     }
 
+    /// Appends a world-space AABB occluder (minX, minY, maxX, maxY). Silently drops past
+    /// MAX_OCCLUDERS_2D. With no occluders added, the injected shader shadow test is a no-op.
+    void addOccluder(const glm::vec4& box) {
+        const u32 n = static_cast<u32>(data_.occluderCount.x);
+        if (n >= MAX_OCCLUDERS_2D) return;
+        data_.occluders[n] = box;
+        data_.occluderCount.x = static_cast<f32>(n + 1);
+        dirty_ = true;
+    }
+
     /// Uploads the mirror (when dirty) and binds it at LIGHT_CONSTANTS_BINDING. Called once per
     /// frame in flush(); the binding persists, only the contents change. No-op without a device.
     void uploadAndBind();

@@ -433,12 +433,48 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
             "    es_Light2D u_lights[16];\n"
+            "    highp vec4 u_occluderCount;\n"   // x = active occluder count
+            "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
             "};\n"
             // Engine-owned normal-map convention (RGB[0,1] -> normal[-1,1], normalized), so every
             // Lit2D shader unpacks tangent-space normals the same way. 2D applies it screen-space
             // (no per-sprite tangent frame); a flat surface uses vec3(0,0,1).
             "highp vec3 es_sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
             "    return normalize(texture(map, uv).xyz * 2.0 - 1.0);\n"
+            "}\n"
+            // 2D hard shadows: a slab test of the fragment->light segment against a world AABB.
+            // Returns 1.0 when the segment crosses the box's interior, else 0.0. The [0,1] param
+            // clamp means boxes behind the fragment or beyond the light don't occlude.
+            "highp float es_segHitsBox(in highp vec2 p0, in highp vec2 p1, in highp vec4 box) {\n"
+            "    highp vec2 d = p1 - p0;\n"
+            "    highp float tmin = 0.0;\n"
+            "    highp float tmax = 1.0;\n"
+            "    for (int a = 0; a < 2; ++a) {\n"
+            "        highp float da = (a == 0) ? d.x : d.y;\n"
+            "        highp float p0a = (a == 0) ? p0.x : p0.y;\n"
+            "        highp float lo = ((a == 0) ? box.x : box.y) - p0a;\n"
+            "        highp float hi = ((a == 0) ? box.z : box.w) - p0a;\n"
+            "        if (abs(da) < 1e-5) {\n"
+            "            if (lo > 0.0 || hi < 0.0) return 0.0;\n"
+            "        } else {\n"
+            "            highp float t1 = lo / da;\n"
+            "            highp float t2 = hi / da;\n"
+            "            tmin = max(tmin, min(t1, t2));\n"
+            "            tmax = min(tmax, max(t1, t2));\n"
+            "            if (tmin > tmax) return 0.0;\n"
+            "        }\n"
+            "    }\n"
+            "    return 1.0;\n"
+            "}\n"
+            // 0.0 if any occluder blocks the fragment from the light, else 1.0. No occluders
+            // (count 0) -> always 1.0, so the shadow test is inert until the render path feeds boxes.
+            "highp float es_shadowFactor2D(in highp vec2 worldPos, in highp vec2 lightPos) {\n"
+            "    int n = int(u_occluderCount.x);\n"
+            "    for (int i = 0; i < 8; ++i) {\n"
+            "        if (i >= n) break;\n"
+            "        if (es_segHitsBox(worldPos, lightPos, u_occluders[i]) > 0.5) return 0.0;\n"
+            "    }\n"
+            "    return 1.0;\n"
             "}\n"
             "highp vec3 es_applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    highp vec3 lit = u_ambient.rgb;\n"
@@ -463,6 +499,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
             "            highp vec2 toFrag = (dist > 0.0001) ? (-d / dist) : sp.xy;\n"
             "            atten *= smoothstep(sp.w, sp.z, dot(sp.xy, toFrag));\n"
+            "        }\n"
+            "        if (pd.z < 0.5 || pd.z >= 1.5) {\n"  // point/spot cast shadows; directional skipped
+            "            atten *= es_shadowFactor2D(worldPos, pd.xy);\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        lit += col.rgb * (col.a * ndotl * atten);\n"
