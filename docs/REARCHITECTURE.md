@@ -162,9 +162,12 @@
 见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：
 - **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d` + RM 闭环 `41bea17a`，五套桥接全部收敛，abort 守卫全子系统覆盖）。
 - **F3 全 per-App 资源 — ✅ 已落地**（分支 `rearch/f3-per-app`）：Camera（`CameraView`）、Timeline（`Timeline`）、PostProcess（拆 god-object + 管线注入 + 删 sync.ts）、SpriteAnimator（`SpriteAnimation`）全部 per-App;模块绑定单例在单模块运行时下无需改（B4 关闭）。
-- F1 平台后端接缝（**保留 native 但隔离**，已拍板）、F4 重写 `ARCHITECTURE.md` — ⏳ 待做。
+- **F4 重写 `ARCHITECTURE.md` — ✅ 已落地**：`docs/ARCHITECTURE.md` 重写为当前现实（`RenderFrame`+`GfxDevice`/`GLDevice` 单一 GPU 边界、单一 `SparseSet`+`version()`、按域 TypeId、per-App 资源 + `WasmBridge` 基类、`ResourcePool` LRU/预算），删除对已删除的 `Renderer`/`BatchRenderer2D` 的描述。
+- F1 平台后端接缝（**保留 native 但隔离**，已拍板）— ⏳ 待做。
 
 执行先于 RC6。
+
+> **能力对标路线**：RC1–RC5 修正确性、F/RC6 修地基与平台错配之外，"能力缺口对标"（交付管线 / 内容创作闭环 / 渲染深度 / 完整度）的优先级与执行顺序见 [`REARCH_2D_PARITY.md`](./REARCH_2D_PARITY.md)（本地 gitignore）。
 
 ### RC6 资产管线 — 📋 已立项（设计文档）
 见 [`REARCH_RC6_ASSETS.md`](./REARCH_RC6_ASSETS.md)：面向微信/移动端的资产管线根治——GPU 压缩纹理（keystone）、内容寻址身份、显存预算 + LRU 驱逐、运行时分包/流式 + 微信分包映射。属"能力/平台错配"根治，区别于 RC1–RC5 的"正确性根因"。
