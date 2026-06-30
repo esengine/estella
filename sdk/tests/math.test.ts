@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { scalar } from '../src/math/scalar';
 import { v2 } from '../src/math/vec2';
 import { v3 } from '../src/math/vec3';
+import { col } from '../src/math/color';
 
 const close = (a: number, b: number, eps = 1e-9) => expect(Math.abs(a - b)).toBeLessThanOrEqual(eps);
 
@@ -107,5 +108,37 @@ describe('v3', () => {
     it('lerp / equals', () => {
         expect(v3.lerp({ x: 0, y: 0, z: 0 }, { x: 2, y: 4, z: 6 }, 0.5)).toEqual({ x: 1, y: 2, z: 3 });
         expect(v3.equals({ x: 1, y: 1, z: 1 }, { x: 1, y: 1, z: 1 + 1e-9 })).toBe(true);
+    });
+});
+
+describe('col', () => {
+    it('create / rgb / from255', () => {
+        expect(col.rgb(1, 0, 0)).toEqual({ r: 1, g: 0, b: 0, a: 1 });
+        expect(col.from255(255, 128, 0, 255).r).toBe(1);
+        close(col.from255(255, 128, 0).g, 128 / 255);
+    });
+    it('fromHex (#rrggbb, #rgb, #rrggbbaa, no #)', () => {
+        expect(col.fromHex('#ff0000')).toEqual({ r: 1, g: 0, b: 0, a: 1 });
+        expect(col.fromHex('#f00')).toEqual({ r: 1, g: 0, b: 0, a: 1 });
+        expect(col.fromHex('00ff00')).toEqual({ r: 0, g: 1, b: 0, a: 1 });
+        close(col.fromHex('#ff000080').a, 128 / 255);
+    });
+    it('fromHex throws on malformed input', () => {
+        expect(() => col.fromHex('#xyz')).toThrow(/invalid hex/);
+        expect(() => col.fromHex('#ff000')).toThrow(/invalid hex/); // 5 digits: not 3/4/6/8
+    });
+    it('toHex round-trips', () => {
+        expect(col.toHex({ r: 1, g: 0, b: 0, a: 1 })).toBe('#ff0000');
+        expect(col.toHex({ r: 0, g: 1, b: 0, a: 0.5 }, true)).toBe('#00ff0080');
+        expect(col.toHex(col.fromHex('#3399cc'))).toBe('#3399cc');
+    });
+    it('lerp / withAlpha / multiply / scaleRgb / equals', () => {
+        expect(col.lerp({ r: 0, g: 0, b: 0, a: 0 }, { r: 1, g: 1, b: 1, a: 1 }, 0.5))
+            .toEqual({ r: 0.5, g: 0.5, b: 0.5, a: 0.5 });
+        expect(col.withAlpha({ r: 1, g: 1, b: 1, a: 1 }, 0.25).a).toBe(0.25);
+        expect(col.multiply({ r: 1, g: 0.5, b: 1, a: 1 }, { r: 0.5, g: 1, b: 0, a: 1 }))
+            .toEqual({ r: 0.5, g: 0.5, b: 0, a: 1 });
+        expect(col.scaleRgb({ r: 0.4, g: 0.2, b: 0.1, a: 0.8 }, 2)).toEqual({ r: 0.8, g: 0.4, b: 0.2, a: 0.8 });
+        expect(col.equals({ r: 1, g: 1, b: 1, a: 1 }, { r: 1, g: 1, b: 1, a: 1 + 1e-9 })).toBe(true);
     });
 });
