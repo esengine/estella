@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { app, BrowserWindow, shell, ipcMain, dialog, protocol } from 'electron';
 import { fileURLToPath } from 'node:url';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -119,6 +119,52 @@ const VITE_PUBLIC = VITE_DEV_SERVER_URL
 
 let win: BrowserWindow | null = null;
 
+/**
+ * Screenshot / visual-regression capture (gated on ESTELLA_SHOT=out.png). Drives the
+ * renderer's `?automation=1` hook to open ESTELLA_SHOT_PROJECT (+ optional
+ * ESTELLA_SHOT_SCENE), lets the panels + WebGL viewport settle, writes a PNG, and quits.
+ */
+async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
+  const exec = (code: string): Promise<unknown> =>
+    w.webContents.executeJavaScript(code, true).catch(() => undefined);
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+  try {
+    let ready = false;
+    for (let i = 0; i < 100; i++) {
+      if (await exec('!!window.__estellaEditor')) { ready = true; break; }
+      await sleep(100);
+    }
+    if (!ready) throw new Error('automation hook never attached');
+
+    const project = process.env.ESTELLA_SHOT_PROJECT;
+    const scene = process.env.ESTELLA_SHOT_SCENE;
+    if (project) {
+      const ok = await exec(`window.__estellaEditor.open(${JSON.stringify(project)})`);
+      if (ok) await exec('window.__estellaEditor.enterEditor()');
+      await sleep(1500);
+      if (scene) { await exec(`window.__estellaEditor.openScene(${JSON.stringify(scene)})`); await sleep(1500); }
+    }
+    const selectName = process.env.ESTELLA_SHOT_SELECT;
+    if (selectName) {
+      await exec(`(async () => {
+        const s = window.__estellaEditor.surface;
+        const tree = await s.getSceneTree();
+        const hit = (tree || []).find((n) => n.name === ${JSON.stringify(selectName)});
+        if (hit) s.select(hit.id);
+      })()`);
+      await sleep(800);
+    }
+    await sleep(2500); // dockview panels + the WebGL viewport settle
+    const img = await w.webContents.capturePage();
+    await writeFile(out, img.toPNG());
+    console.log('[screenshot] wrote', out);
+  } catch (e) {
+    console.error('[screenshot] failed:', e);
+  } finally {
+    app.quit();
+  }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1480,
@@ -145,14 +191,21 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // Screenshot/visual-regression mode (ESTELLA_SHOT=out.png): open ?automation=1 so
+  // the renderer hook is live, then drive the launcher→editor flow and capturePage.
+  const shotOut = process.env.ESTELLA_SHOT;
+  const automation = shotOut ? '?automation=1' : '';
+
   if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL);
-    win.webContents.openDevTools({ mode: 'detach' });
+    win.loadURL(VITE_DEV_SERVER_URL + automation);
+    if (!shotOut) win.webContents.openDevTools({ mode: 'detach' });
   } else {
     // Load over app:// (not file://) so the engine glue + play realm resolve from
     // a real origin. handleApp serves dist/.
-    win.loadURL(`${APP_ORIGIN}/index.html`);
+    win.loadURL(`${APP_ORIGIN}/index.html${automation}`);
   }
+
+  if (shotOut) void runScreenshot(win, shotOut);
 
   // Unsaved-changes quit guard: prompt before closing a window with a dirty scene.
   // `sceneDirty` is pushed from the renderer (app:dirty); `quitting` lets the chosen

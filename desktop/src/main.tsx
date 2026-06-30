@@ -30,6 +30,9 @@ import './theme/menus.css';
 import './theme/settings.css';
 import './theme/launcher.css';
 import { App } from './App';
+import { ProjectStore } from './project/ProjectStore';
+import { useEditorStore } from './store/editorStore';
+import { EditorControlSurface } from './engine/EditorSession';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
 // Register the built-in settings (side effect) and replay persisted ones.
@@ -43,6 +46,18 @@ applySettings();
 // Live-sync the asset registry + Content Browser with on-disk changes (incl.
 // edits made outside the editor) via the main-process project watcher.
 initFsWatch();
+
+// Automation hook (screenshots / visual-regression): with `?automation=1`, expose the
+// minimum to drive the launcher→editor flow from a headless driver. Gated so the normal
+// editor never carries it; mirrors the headless render host's `window.__estellaHeadless`.
+if (new URLSearchParams(location.search).has('automation')) {
+  (window as unknown as { __estellaEditor?: unknown }).__estellaEditor = {
+    open: (root: string) => ProjectStore.open(root),
+    enterEditor: () => useEditorStore.getState().enterEditor(),
+    openScene: (rel: string) => ProjectStore.openScene(rel),
+    surface: EditorControlSurface,
+  };
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

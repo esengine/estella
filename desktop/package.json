@@ -17,6 +17,7 @@
     "editor:mcp": "electron scripts/editor-mcp.mjs",
     "editor:mcp:build": "vite build && electron scripts/editor-mcp.mjs",
     "editor:mcp:e2e": "vite build && node scripts/editor-mcp-e2e.mjs",
+    "editor:shot": "vite build && electron .",
     "verify:render:spine": "vite build && ESTELLA_VERIFY_SCENE=/scenes/spine-test.esscene ESTELLA_VERIFY_MANIFEST=/scenes/spine-test.textures.json electron scripts/headless-verify.mjs",
     "verify:render:particles": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/particle-demo.esscene ESTELLA_VERIFY_MANIFEST=/scenes/particle-demo.textures.json ESTELLA_VERIFY_STEPS=90 electron scripts/headless-verify.mjs",
     "verify:render:particles:gradient": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/particle-gradient.esscene ESTELLA_VERIFY_MANIFEST=/scenes/particle-gradient.textures.json ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=20 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.5,\\\"y\\\":0.5,\\\"rgb\\\":[0,255,0],\\\"tol\\\":90}]\" electron scripts/headless-verify.mjs",
