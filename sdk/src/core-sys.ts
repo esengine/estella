@@ -19,6 +19,27 @@
 export { scalar, v2, v3 } from './math';
 
 // =============================================================================
+// Localization (i18n)
+// =============================================================================
+
+export {
+    Localization,
+    LocalizationApi,
+    LocalizationPlugin,
+    localizationPlugin,
+    interpolate,
+    selectPluralForm,
+    defaultPluralSelector,
+    type LocalizationOptions,
+    type PluralCategory,
+    type PluralForms,
+    type LocaleEntry,
+    type LocaleCatalog,
+    type TParams,
+    type PluralSelector,
+} from './i18n';
+
+// =============================================================================
 // Entity Utils
 // =============================================================================
 
