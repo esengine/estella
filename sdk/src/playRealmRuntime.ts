@@ -88,7 +88,7 @@ class FetchAssetProvider implements RuntimeAssetProvider {
  * register the snapshot as the sole scene, wire a fetch-backed provider, and run.
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
-    const { app, module, canvas, sceneData, assetManifest, manifest } = config;
+    const { app, module, canvas, sceneData, assetManifest } = config;
     const provider = new FetchAssetProvider(assetManifest);
     await initRuntime({
         app,
@@ -96,7 +96,6 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         provider,
         scenes: [{ name: '__play', data: sceneData }],
         firstScene: '__play',
-        manifest: manifest ?? null,
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,

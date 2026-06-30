@@ -110,7 +110,6 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         scenes,
         firstScene,
         physicsConfig: config.physicsConfig,
-        manifest: config.manifest,
         aspectRatio: config.canvas.width / config.canvas.height,
     });
 

@@ -16,7 +16,6 @@ import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
-import type { AddressableManifest } from './asset/AddressableManifest';
 import { Assets } from './asset/AssetPlugin';
 import { getAssetTypeEntry } from './assetTypes';
 import { SceneManager, type SceneConfig } from './sceneManager';
@@ -369,7 +368,6 @@ export interface LoadRuntimeSceneOptions {
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
     physicsEnabled?: boolean;
-    manifest?: AddressableManifest | null;
     sceneName?: string;
 }
 
@@ -395,7 +393,7 @@ function sceneUsesPhysics(sceneData: SceneData): boolean {
 }
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, provider, physicsConfig, physicsEnabled, manifest, sceneName } = options;
+    const { app, module, sceneData, provider, physicsConfig, physicsEnabled, sceneName } = options;
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
     // app.sideModules host); read it from there so every realm — play / playable /
@@ -471,11 +469,6 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
             app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
         }
     }
-
-
-    if (manifest) {
-        // Manifest/Catalog is now set at Assets creation time via Catalog.fromJson
-    }
 }
 
 export function createRuntimeSceneConfig(
@@ -505,7 +498,6 @@ export interface RuntimeInitConfig {
     physicsConfig?: PhysicsPluginConfig;
     /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
     physicsEnabled?: boolean;
-    manifest?: AddressableManifest | null;
     aspectRatio?: number;
 }
 
@@ -523,7 +515,6 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         physicsModule: config.physicsModule,
         physicsConfig: config.physicsConfig,
         physicsEnabled: config.physicsEnabled,
-        manifest: config.manifest,
     };
 
     const mgr = app.getResource(SceneManager);

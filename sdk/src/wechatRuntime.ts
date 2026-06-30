@@ -165,7 +165,6 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         scenes,
         firstScene: config.firstScene,
         physicsConfig: config.physicsConfig,
-        manifest,
         aspectRatio: canvas.width / canvas.height,
     });
 
