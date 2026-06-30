@@ -51,10 +51,32 @@ export interface AnimatorTransition {
     conditions: AnimatorCondition[];
 }
 
+/** One stop on a 1D blend: at/above `value`, play `clip`. */
+export interface AnimatorBlendThreshold {
+    value: number;
+    clip: string;
+    speed?: number;
+    loop?: boolean;
+}
+
+/**
+ * 1D parameter-driven clip selection. The sprite channel plays one clip at a
+ * time, so a "blend" here is a *selection* by threshold (idle→walk→run as a
+ * speed parameter rises), not a weighted pose blend (that's the skeletal/Spine
+ * follow-on). Thresholds may be given in any order.
+ */
+export interface AnimatorBlend1D {
+    /** Float parameter that drives the selection. */
+    parameter: string;
+    thresholds: AnimatorBlendThreshold[];
+}
+
 export interface AnimatorState {
     name: string;
-    /** Sprite clip name this state plays (registered with SpriteAnimation). */
-    clip: string;
+    /** Single sprite clip this state plays. Mutually exclusive with `blend`. */
+    clip?: string;
+    /** 1D blend selection. Mutually exclusive with `clip`. */
+    blend?: AnimatorBlend1D;
     speed?: number;
     loop?: boolean;
     transitions: AnimatorTransition[];
@@ -132,6 +154,22 @@ export function evaluateAnimatorTransitions(
     return fired
         ? { next: fired.to, consumedTriggers: fired.usedTriggers }
         : { next: null, consumedTriggers: [] };
+}
+
+/**
+ * Select a 1D blend's clip for a parameter value: the threshold with the
+ * greatest `value` ≤ `value`, clamped up to the first stop when below all.
+ * Pure. Returns `{ clip: '' }` for an empty blend.
+ */
+export function selectBlendClip(blend: AnimatorBlend1D, value: number): AnimatorBlendThreshold {
+    const sorted = [...blend.thresholds].sort((a, b) => a.value - b.value);
+    if (sorted.length === 0) return { value: 0, clip: '' };
+    let chosen = sorted[0];
+    for (const t of sorted) {
+        if (value >= t.value) chosen = t;
+        else break;
+    }
+    return chosen;
 }
 
 /** Merge a controller's declared parameter defaults with per-entity overrides. */
@@ -266,22 +304,41 @@ export class AnimatorControllerApi {
             if (triggerSet) for (const t of consumedTriggers) triggerSet.delete(t);
 
             const target = next ?? fromState;
-            if (target !== a.currentState) {
+            const stateChanged = target !== a.currentState;
+            if (stateChanged) {
                 a.currentState = target;
-                this.applyState(world, entity, def, target);
                 world.insert(entity, Animator, a);
             }
+            // Apply the active state's motion every frame: a 1D-blend state's
+            // selected clip can change as its parameter crosses a threshold
+            // without any state change. A single-clip state in steady state is a
+            // no-op (the desired clip already matches), so this is cheap.
+            this.applyMotion(world, entity, def, target, params, stateChanged);
         }
     }
 
-    /** Switch the entity's SpriteAnimator to the state's clip (restart from frame 0). */
-    private applyState(world: World, entity: Entity, def: AnimatorControllerDef, stateName: string): void {
+    /**
+     * Drive the entity's SpriteAnimator from the active state's motion (single
+     * clip or 1D-blend selection). Writes only when the desired clip differs or
+     * the state just changed — restarting from frame 0 on a switch.
+     */
+    private applyMotion(
+        world: World, entity: Entity, def: AnimatorControllerDef,
+        stateName: string, params: AnimatorParamValues, forceRestart: boolean,
+    ): void {
         const st = def.states.find((s) => s.name === stateName);
         if (!st || !world.has(entity, SpriteAnimator)) return;
+
+        const sel: AnimatorBlendThreshold = st.blend
+            ? selectBlendClip(st.blend, Number(params[st.blend.parameter] ?? 0))
+            : { value: 0, clip: st.clip ?? '', speed: st.speed, loop: st.loop };
+
         const sp = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
-        sp.clip = st.clip;
-        sp.speed = st.speed ?? 1.0;
-        sp.loop = st.loop ?? true;
+        if (sp.clip === sel.clip && !forceRestart) return;
+
+        sp.clip = sel.clip;
+        sp.speed = sel.speed ?? st.speed ?? 1.0;
+        sp.loop = sel.loop ?? st.loop ?? true;
         sp.currentFrame = 0;
         sp.frameTimer = 0;
         sp.playing = true;

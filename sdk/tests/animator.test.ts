@@ -6,6 +6,8 @@ import {
     AnimatorControllerApi,
     evaluateAnimatorTransitions,
     resolveParams,
+    selectBlendClip,
+    type AnimatorBlend1D,
     type AnimatorControllerDef,
     type AnimatorData,
 } from '../src/animation/Animator';
@@ -97,6 +99,39 @@ describe('resolveParams', () => {
     });
     it('applies per-entity overrides', () => {
         expect(resolveParams(def, new Map<string, number | boolean>([['speed', 9]]))).toEqual({ speed: 9, grounded: true });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 1D blend selection (pure)
+// ---------------------------------------------------------------------------
+
+describe('selectBlendClip', () => {
+    const blend: AnimatorBlend1D = {
+        parameter: 'speed',
+        // intentionally unordered to exercise the sort
+        thresholds: [
+            { value: 7, clip: 'run' },
+            { value: 0, clip: 'idle' },
+            { value: 3, clip: 'walk' },
+        ],
+    };
+
+    it('floors to the greatest threshold <= value', () => {
+        expect(selectBlendClip(blend, 0).clip).toBe('idle');
+        expect(selectBlendClip(blend, 2.9).clip).toBe('idle');
+        expect(selectBlendClip(blend, 3).clip).toBe('walk');
+        expect(selectBlendClip(blend, 6.9).clip).toBe('walk');
+        expect(selectBlendClip(blend, 7).clip).toBe('run');
+        expect(selectBlendClip(blend, 100).clip).toBe('run');
+    });
+
+    it('clamps up to the first stop below all thresholds', () => {
+        expect(selectBlendClip(blend, -5).clip).toBe('idle');
+    });
+
+    it('returns an empty clip for an empty blend', () => {
+        expect(selectBlendClip({ parameter: 'x', thresholds: [] }, 1).clip).toBe('');
     });
 });
 
@@ -194,5 +229,42 @@ describe('AnimatorControllerApi.update', () => {
         expect(ctrl.getFloat(E, 'speed')).toBe(9);
         ctrl.removeEntity(E);
         expect(ctrl.getFloat(E, 'speed')).toBe(0);
+    });
+
+    it('a 1D-blend state switches clip within the state as the parameter crosses thresholds', () => {
+        const ctrl = new AnimatorControllerApi();
+        ctrl.registerController('loco', {
+            parameters: [{ name: 'speed', type: 'float', default: 0 }],
+            initialState: 'move',
+            states: [{
+                name: 'move',
+                blend: { parameter: 'speed', thresholds: [
+                    { value: 0, clip: 'idle' },
+                    { value: 3, clip: 'walk' },
+                    { value: 7, clip: 'run', speed: 2 },
+                ] },
+                transitions: [],
+            }],
+        });
+        const world = makeWorld();
+        world.insert(E, Animator, { controller: 'loco', currentState: '', enabled: true } as AnimatorData);
+        world.insert(E, SpriteAnimator, spriteData());
+
+        ctrl.update(world); // seed 'move', speed 0 → idle
+        expect((world.get(E, SpriteAnimator) as SpriteAnimatorData).clip).toBe('idle');
+
+        ctrl.setFloat(E, 'speed', 4); ctrl.update(world);
+        let sp = world.get(E, SpriteAnimator) as SpriteAnimatorData;
+        expect(sp.clip).toBe('walk');
+        // No state change occurred — still 'move'.
+        expect((world.get(E, Animator) as AnimatorData).currentState).toBe('move');
+
+        ctrl.setFloat(E, 'speed', 9); ctrl.update(world);
+        sp = world.get(E, SpriteAnimator) as SpriteAnimatorData;
+        expect(sp.clip).toBe('run');
+        expect(sp.speed).toBe(2); // per-threshold speed
+
+        ctrl.setFloat(E, 'speed', 1); ctrl.update(world);
+        expect((world.get(E, SpriteAnimator) as SpriteAnimatorData).clip).toBe('idle');
     });
 });
