@@ -92,14 +92,28 @@ export interface SpineAnimationDriver {
     setAnimation(entity: Entity, animation: string, loop: boolean): void;
 }
 
+/**
+ * A nested state machine. A state carrying one is a *container* (it plays no
+ * motion of its own); on entry the machine descends to `initialState`, and the
+ * container state's own `transitions` are the edges that exit the whole machine.
+ */
+export interface AnimatorSubMachine {
+    states: AnimatorState[];
+    initialState: string;
+    /** Transitions evaluated from every sub-state in this machine. */
+    anyStateTransitions?: AnimatorTransition[];
+}
+
 export interface AnimatorState {
     name: string;
-    /** Single sprite clip this state plays. Mutually exclusive with `blend`/`spine`. */
+    /** Single sprite clip this state plays. Mutually exclusive with `blend`/`spine`/`stateMachine`. */
     clip?: string;
-    /** 1D blend selection. Mutually exclusive with `clip`/`spine`. */
+    /** 1D blend selection. Mutually exclusive with `clip`/`spine`/`stateMachine`. */
     blend?: AnimatorBlend1D;
     /** Drive a Spine animation instead of a sprite clip. */
     spine?: AnimatorSpineMotion;
+    /** Nested machine — makes this a container state (no motion of its own). */
+    stateMachine?: AnimatorSubMachine;
     speed?: number;
     loop?: boolean;
     transitions: AnimatorTransition[];
@@ -112,6 +126,12 @@ export interface AnimatorControllerDef {
     /** Transitions evaluated from every state, before the current state's own. */
     anyStateTransitions?: AnimatorTransition[];
 }
+
+/**
+ * The shape shared by the top-level controller and every nested machine: a set of
+ * states, an entry point, and machine-wide any-state transitions.
+ */
+export type AnimatorScope = Pick<AnimatorControllerDef, 'states' | 'initialState' | 'anyStateTransitions'>;
 
 // =============================================================================
 // Pure transition evaluator (no World, no side effects → unit-testable)
@@ -183,6 +203,103 @@ export function evaluateAnimatorTransitions(
     return fired
         ? { next: fired.to, consumedTriggers: fired.usedTriggers }
         : { next: null, consumedTriggers: [] };
+}
+
+// =============================================================================
+// Nested state machines — path resolution + recursive evaluator (pure)
+// =============================================================================
+
+/** The active state is a `/`-separated path of state names (e.g. `Combat/Attack1`). */
+export const STATE_PATH_SEP = '/';
+
+/**
+ * Descend from state `name` in `scope` to a concrete leaf, returning the path
+ * segments. A container state (one with a `stateMachine`) recurses into its
+ * `initialState`; a normal state ends the path.
+ */
+export function enterStatePath(scope: AnimatorScope, name: string): string[] {
+    const st = scope.states.find((s) => s.name === name);
+    if (!st || !st.stateMachine) return [name];
+    return [name, ...enterStatePath(st.stateMachine, st.stateMachine.initialState)];
+}
+
+interface ResolvedPath {
+    /** The scope that contains `states[i]` (top-level for i=0). */
+    scopes: AnimatorScope[];
+    /** The state chain from the outermost container down to the leaf. */
+    states: AnimatorState[];
+}
+
+/** Resolve a path to its scope/state chain, or null if any segment is unknown. */
+function resolveStatePath(top: AnimatorScope, segments: readonly string[]): ResolvedPath | null {
+    if (segments.length === 0) return null;
+    const scopes: AnimatorScope[] = [];
+    const states: AnimatorState[] = [];
+    let scope: AnimatorScope = top;
+    for (const seg of segments) {
+        const st = scope.states.find((s) => s.name === seg);
+        if (!st) return null;
+        scopes.push(scope);
+        states.push(st);
+        if (!st.stateMachine) break;
+        scope = st.stateMachine;
+    }
+    return { scopes, states };
+}
+
+export interface AnimatorPathEvalResult {
+    /** Target path if a transition fired, else null (stay). */
+    nextPath: string | null;
+    consumedTriggers: string[];
+}
+
+/**
+ * Evaluate one step of a (possibly nested) state machine over a path. Transitions
+ * are checked highest-priority first: top-level any-state, then each enclosing
+ * machine's any-state from outermost in, then the leaf's own transitions, then the
+ * container exit transitions from innermost out. A fired transition's `to` is
+ * resolved within the machine that owns it (descending into a sub-machine's
+ * initial state when needed). `clipFinished` reflects the leaf clip. Pure.
+ */
+export function evaluateAnimatorPath(
+    def: AnimatorControllerDef,
+    currentPath: string,
+    params: AnimatorParamValues,
+    triggers: ReadonlySet<string>,
+    clipFinished: boolean = true,
+): AnimatorPathEvalResult {
+    const segments = currentPath ? currentPath.split(STATE_PATH_SEP) : [];
+    const resolved = resolveStatePath(def, segments);
+    if (!resolved) return { nextPath: null, consumedTriggers: [] };
+    const { scopes, states } = resolved;
+    const depth = states.length;
+
+    // (list, owning scope, path to that scope) in priority order.
+    const lists: { list: readonly AnimatorTransition[]; scope: AnimatorScope; base: string[] }[] = [];
+    lists.push({ list: def.anyStateTransitions ?? [], scope: def, base: [] });
+    for (let i = 0; i < depth - 1; i++) {
+        const sm = states[i].stateMachine!;
+        lists.push({ list: sm.anyStateTransitions ?? [], scope: sm, base: segments.slice(0, i + 1) });
+    }
+    lists.push({ list: states[depth - 1].transitions ?? [], scope: scopes[depth - 1], base: segments.slice(0, depth - 1) });
+    for (let i = depth - 2; i >= 0; i--) {
+        lists.push({ list: states[i].transitions ?? [], scope: scopes[i], base: segments.slice(0, i) });
+    }
+
+    for (const entry of lists) {
+        const fired = firstReady(entry.list, params, triggers, clipFinished);
+        if (fired) {
+            const next = [...entry.base, ...enterStatePath(entry.scope, fired.to)];
+            return { nextPath: next.join(STATE_PATH_SEP), consumedTriggers: fired.usedTriggers };
+        }
+    }
+    return { nextPath: null, consumedTriggers: [] };
+}
+
+/** The leaf (motion-bearing) state of a resolved path, or null if unresolvable. */
+export function leafStateOf(def: AnimatorControllerDef, path: string): AnimatorState | null {
+    const resolved = resolveStatePath(def, path ? path.split(STATE_PATH_SEP) : []);
+    return resolved ? resolved.states[resolved.states.length - 1] : null;
 }
 
 /**
@@ -328,57 +445,57 @@ export class AnimatorControllerApi {
             const def = this.controllers.get(a.controller);
             if (!def || def.states.length === 0) continue;
 
-            // Seed / repair the active state.
-            const known = a.currentState && def.states.some((s) => s.name === a.currentState);
-            const fromState = known ? a.currentState : def.initialState;
+            // Seed / repair the active state path. The path descends into a
+            // sub-machine's initial state when the entry point is a container.
+            let fromPath = a.currentState;
+            let leaf = fromPath ? leafStateOf(def, fromPath) : null;
+            if (!leaf) {
+                fromPath = enterStatePath(def, def.initialState).join(STATE_PATH_SEP);
+                leaf = leafStateOf(def, fromPath);
+                if (!leaf) continue;
+            }
 
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
             const triggerSet = this.triggers.get(entity);
-            // The current clip has finished when its SpriteAnimator stopped (a
-            // non-looping clip reached its end). Gates hasExitTime transitions.
+            // The leaf clip has finished when its SpriteAnimator is playing exactly
+            // that clip and has stopped — not merely stopped (also true before the
+            // clip is ever applied, e.g. the frame a state is entered). Only a
+            // sprite leaf reports this; a spine leaf's completion is SpineManager's.
             const spNow = world.has(entity, SpriteAnimator)
                 ? (world.get(entity, SpriteAnimator) as SpriteAnimatorData)
                 : null;
-            // "Finished" means the SpriteAnimator is playing *this* state's clip
-            // and has stopped — not merely stopped (which is also true before the
-            // clip is ever applied, e.g. the frame a state is entered).
-            const fromDef = def.states.find((s) => s.name === fromState);
-            // Only a sprite state can report "clip finished"; a spine state's
-            // completion is owned by SpineManager (exit time for spine is future).
-            const expectedClip = fromDef && !fromDef.spine ? this.motionClipOf(fromDef, params).clip : '';
+            const expectedClip = !leaf.spine ? this.motionClipOf(leaf, params).clip : '';
             const clipFinished = expectedClip !== '' && spNow != null
                 && spNow.clip === expectedClip && !spNow.playing;
-            const { next, consumedTriggers } = evaluateAnimatorTransitions(
-                def, fromState, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
+
+            const { nextPath, consumedTriggers } = evaluateAnimatorPath(
+                def, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
             );
             if (triggerSet) for (const t of consumedTriggers) triggerSet.delete(t);
 
-            const target = next ?? fromState;
+            const target = nextPath ?? fromPath;
             const stateChanged = target !== a.currentState;
             if (stateChanged) {
                 a.currentState = target;
                 world.insert(entity, Animator, a);
             }
-            // Apply the active state's motion every frame: a 1D-blend state's
-            // selected clip can change as its parameter crosses a threshold
-            // without any state change. A single-clip state in steady state is a
-            // no-op (the desired clip already matches), so this is cheap.
-            this.applyMotion(world, entity, def, target, params, stateChanged);
+            const targetLeaf = nextPath ? leafStateOf(def, target) : leaf;
+            // Apply the active leaf's motion every frame: a 1D-blend leaf's selected
+            // clip can change as its parameter crosses a threshold without any state
+            // change. A single-clip leaf in steady state is a no-op (cheap).
+            if (targetLeaf) this.applyMotion(world, entity, targetLeaf, params, stateChanged);
         }
     }
 
     /**
-     * Drive the entity's SpriteAnimator from the active state's motion (single
-     * clip or 1D-blend selection). Writes only when the desired clip differs or
-     * the state just changed — restarting from frame 0 on a switch.
+     * Drive the entity's SpriteAnimator from a leaf state's motion (single clip or
+     * 1D-blend selection). Writes only when the desired clip differs or the state
+     * just changed — restarting from frame 0 on a switch.
      */
     private applyMotion(
-        world: World, entity: Entity, def: AnimatorControllerDef,
-        stateName: string, params: AnimatorParamValues, forceRestart: boolean,
+        world: World, entity: Entity, st: AnimatorState,
+        params: AnimatorParamValues, forceRestart: boolean,
     ): void {
-        const st = def.states.find((s) => s.name === stateName);
-        if (!st) return;
-
         // Spine state: set the skeletal animation on entry (SpineManager owns the
         // track playback/mixing); don't re-set every frame or touch SpriteAnimator.
         if (st.spine) {

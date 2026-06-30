@@ -45,12 +45,18 @@ export {
     AnimatorController,
     AnimatorControllerApi,
     evaluateAnimatorTransitions,
+    evaluateAnimatorPath,
+    enterStatePath,
+    leafStateOf,
     resolveParams,
     selectBlendClip,
+    STATE_PATH_SEP,
     type AnimatorData,
     type AnimatorBlend1D,
     type AnimatorBlendThreshold,
     type AnimatorSpineMotion,
+    type AnimatorSubMachine,
+    type AnimatorScope,
     type SpineAnimationDriver,
     type AnimatorParam,
     type AnimatorParamType,
@@ -60,6 +66,7 @@ export {
     type AnimatorControllerDef,
     type AnimatorParamValues,
     type AnimatorEvalResult,
+    type AnimatorPathEvalResult,
 } from './Animator';
 
 export {
