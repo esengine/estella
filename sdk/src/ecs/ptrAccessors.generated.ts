@@ -901,6 +901,7 @@ export interface SpritePtrData {
     flipY: boolean;
     tileSize: Vec2;
     tileSpacing: Vec2;
+    parallax: Vec2;
     material: number;
     enabled: boolean;
 }
@@ -920,8 +921,9 @@ export function fillSprite(
     out.flipY = u8[ptr + 57] !== 0;
     const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 60) >> 2]; tileSize_.y = f32[((ptr + 60) >> 2) + 1];
     const tileSpacing_ = out.tileSpacing; tileSpacing_.x = f32[(ptr + 68) >> 2]; tileSpacing_.y = f32[((ptr + 68) >> 2) + 1];
-    out.material = u32[(ptr + 76) >> 2];
-    out.enabled = u8[ptr + 80] !== 0;
+    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 76) >> 2]; parallax_.y = f32[((ptr + 76) >> 2) + 1];
+    out.material = u32[(ptr + 84) >> 2];
+    out.enabled = u8[ptr + 88] !== 0;
 }
 
 export function writeSprite(
@@ -939,8 +941,9 @@ export function writeSprite(
     u8[ptr + 57] = data.flipY ? 1 : 0;
     f32[(ptr + 60) >> 2] = data.tileSize.x; f32[((ptr + 60) >> 2) + 1] = data.tileSize.y;
     f32[(ptr + 68) >> 2] = data.tileSpacing.x; f32[((ptr + 68) >> 2) + 1] = data.tileSpacing.y;
-    u32[(ptr + 76) >> 2] = data.material;
-    u8[ptr + 80] = data.enabled ? 1 : 0;
+    f32[(ptr + 76) >> 2] = data.parallax.x; f32[((ptr + 76) >> 2) + 1] = data.parallax.y;
+    u32[(ptr + 84) >> 2] = data.material;
+    u8[ptr + 88] = data.enabled ? 1 : 0;
 }
 
 export function createSpriteData(): SpritePtrData {
@@ -956,6 +959,7 @@ export function createSpriteData(): SpritePtrData {
         flipY: false,
         tileSize: { x: 0, y: 0 },
         tileSpacing: { x: 0, y: 0 },
+        parallax: { x: 0, y: 0 },
         material: 0,
         enabled: false,
     };

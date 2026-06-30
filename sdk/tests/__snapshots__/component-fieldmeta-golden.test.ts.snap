@@ -476,6 +476,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "material": {
       "advanced": true,
     },
+    "parallax": {
+      "advanced": true,
+      "tooltip": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
+    },
     "pivot": {
       "advanced": true,
       "tooltip": "Anchor point (0–1) the sprite rotates and scales about.",

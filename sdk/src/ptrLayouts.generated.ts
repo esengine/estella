@@ -252,8 +252,9 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'flipY', type: 'bool', offset: 57 },
             { name: 'tileSize', type: 'vec2', offset: 60 },
             { name: 'tileSpacing', type: 'vec2', offset: 68 },
-            { name: 'material', type: 'u32', offset: 76 },
-            { name: 'enabled', type: 'bool', offset: 80 },
+            { name: 'parallax', type: 'vec2', offset: 76 },
+            { name: 'material', type: 'u32', offset: 84 },
+            { name: 'enabled', type: 'bool', offset: 88 },
         ],
     },
     TilemapLayer: {

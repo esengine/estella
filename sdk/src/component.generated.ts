@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '70f3953079450020';
+export const ABI_LAYOUT_HASH = 'b129a05be7804b7f';
 
 export interface AssetFieldMeta {
     field: string;
@@ -436,6 +436,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             flipY: false,
             tileSize: { x: 0, y: 0 },
             tileSpacing: { x: 0, y: 0 },
+            parallax: { x: 1, y: 1 },
             material: 0,
             enabled: true,
         },
@@ -451,6 +452,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across sprites.", enumSource: "sortingLayers" },
             tileSize: { advanced: true },
             tileSpacing: { advanced: true },
+            parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
             material: { advanced: true },
         },
     },
@@ -832,6 +834,7 @@ export interface SpriteData {
     flipY: boolean;
     tileSize: Vec2;
     tileSpacing: Vec2;
+    parallax: Vec2;
     material: number;
     enabled: boolean;
 }

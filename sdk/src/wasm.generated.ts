@@ -369,6 +369,7 @@ export interface Sprite {
     flipY: boolean;
     tileSize: Vec2;
     tileSpacing: Vec2;
+    parallax: Vec2;
     material: number;
     enabled: boolean;
 }

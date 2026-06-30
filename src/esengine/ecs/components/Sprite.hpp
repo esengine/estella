@@ -89,6 +89,13 @@ struct Sprite {
     ES_PROPERTY(advanced)
     glm::vec2 tileSpacing{0.0f, 0.0f};
 
+    /** @brief Parallax scroll factor per axis. 1 = moves with the world (default, no
+     *         parallax); <1 = scrolls slower than the camera (appears farther, e.g. a
+     *         background); 0 = locked to the camera (e.g. a sky). The renderer offsets
+     *         the sprite by camera_center * (1 - factor). */
+    ES_PROPERTY(advanced, tooltip="Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).")
+    glm::vec2 parallax{1.0f, 1.0f};
+
     /** @brief Custom material ID (0 = use default batch shader) */
     ES_PROPERTY(asset = material, advanced)
     u32 material{0};

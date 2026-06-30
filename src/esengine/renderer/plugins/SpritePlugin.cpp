@@ -22,6 +22,15 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
     auto& ctx = collect_ctx.frame_context;
     auto spriteView = registry.view<ecs::Transform, ecs::Sprite>();
 
+    // Camera center in world space (from the inverse view-projection), for parallax —
+    // the same derivation TilemapRenderPlugin uses, so sprite and tilemap parallax
+    // scroll consistently. Computed once per collect, not per sprite.
+    glm::mat4 invVP = glm::inverse(ctx.view_projection);
+    glm::vec4 camBL = invVP * glm::vec4(-1.0f, -1.0f, 0.0f, 1.0f);
+    glm::vec4 camTR = invVP * glm::vec4( 1.0f,  1.0f, 0.0f, 1.0f);
+    const f32 camCenterX = (camBL.x / camBL.w + camTR.x / camTR.w) * 0.5f;
+    const f32 camCenterY = (camBL.y / camBL.w + camTR.y / camTR.w) * 0.5f;
+
     for (auto entity : spriteView) {
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
         if (!sprite.enabled) continue;
@@ -30,6 +39,10 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
         auto& transform = spriteView.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
         glm::vec3 position = transform.worldPosition;
+        // Parallax: shift toward the camera by (1 - factor); factor 1 = no shift. Applied
+        // before the frustum cull so a parallaxed sprite is culled at where it's drawn.
+        position.x += camCenterX * (1.0f - sprite.parallax.x);
+        position.y += camCenterY * (1.0f - sprite.parallax.y);
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 
