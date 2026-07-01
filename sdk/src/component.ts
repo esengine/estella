@@ -6,7 +6,7 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat } from './types';
-import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPRITE_SIZE } from './defaults';
+import { DEFAULT_SPRITE_SIZE } from './defaults';
 import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
 // C++-backed component data shapes, generated from the ES_COMPONENT structs (single
 // source — a TS field can no longer drift from C++). Re-exported below so the public
@@ -623,13 +623,12 @@ export const Camera = defineBuiltin<CameraData>('Camera',
     }
 );
 
+// All Canvas creation defaults (designResolution 1920×1080 / pixelsPerUnit 100 /
+// scaleMode FixedHeight) match the C++ ctor, so they come straight from
+// COMPONENT_META — no TS override to drift when C++ changes. scaleMode's dropdown
+// is likewise generated from the C++ CanvasScaleMode enum.
 export const Canvas = defineBuiltin<CanvasData>('Canvas',
-    // scaleMode's dropdown is generated from the C++ CanvasScaleMode enum.
-    metaDefaults<CanvasData>('Canvas', {
-        designResolution: { x: DEFAULT_DESIGN_WIDTH, y: DEFAULT_DESIGN_HEIGHT },
-        pixelsPerUnit: DEFAULT_PIXELS_PER_UNIT,
-        scaleMode: ScaleMode.FixedHeight,
-    })
+    metaDefaults<CanvasData>('Canvas')
 );
 
 export const Velocity = defineBuiltin<VelocityData>('Velocity',
