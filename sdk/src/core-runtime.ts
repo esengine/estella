@@ -143,6 +143,11 @@ export {
     BodyType,
 } from './physics/PhysicsComponents';
 
+export {
+    CharacterController,
+    type CharacterControllerData,
+} from './physics/CharacterController';
+
 // =============================================================================
 // Resources
 // =============================================================================
