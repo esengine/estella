@@ -11,12 +11,20 @@ runtime resolves references through a **manifest**, typed **loaders** turn a
 reference into a usable handle, and **reference counting** frees what's no longer
 used. This guide covers each piece.
 
-## Asset references
+## Referencing assets
 
-Assets are referenced by UUID in the canonical form `@uuid:<uuid>`. The editor
-manages these — you rarely type them by hand. At runtime a reference is resolved
-to a real file path through the manifest; `assets.resolveRef(ref)` gives you that
-path if you need it.
+In code, reference an asset by its **project-relative path** — readable, and what
+you'll normally write:
+
+```typescript
+const tex = await assets.loadTexture('textures/player.png');
+```
+
+The editor, by contrast, serializes references into scenes and prefabs as a
+**stable UUID** (`@uuid:<uuid>`) so a reference survives the file being renamed or
+moved. Both forms are accepted by every loader and resolve to the same path — you
+don't hand-write `@uuid:` refs, the editor does. `resolveRef(ref)` returns the
+resolved path for either.
 
 ## Loading by type
 
@@ -27,7 +35,7 @@ id you put on a component. For example, load a texture and show it on a `Sprite`
 import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
 
 const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
-  const tex = await assets.loadTexture('@uuid:a1b2c3…');   // { handle, width, height }
+  const tex = await assets.loadTexture('textures/player.png');   // { handle, width, height }
   for (const [entity, sprite] of q) {
     sprite.texture = tex.handle;
   }

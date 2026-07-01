@@ -9,10 +9,17 @@ import { Aside } from '@astrojs/starlight/components';
 (cook)游戏能触达的部分,运行时通过**清单(manifest)**解析引用,按类型的**加载器**
 把引用变成可用句柄,**引用计数**再释放不再用的资源。本篇逐一讲清。
 
-## 资源引用
+## 引用资源
 
-资源以规范形式 `@uuid:<uuid>` 按 UUID 引用。编辑器会管理它们——你几乎不用手写。运行时
-引用会通过清单解析为真实文件路径;需要时 `assets.resolveRef(ref)` 会给你那个路径。
+在代码里,按资源的**项目相对路径**引用它——可读,也是你平常会写的:
+
+```typescript
+const tex = await assets.loadTexture('textures/player.png');
+```
+
+而编辑器会把引用序列化进场景/预制体时写成**稳定 UUID**(`@uuid:<uuid>`),这样文件被
+改名或移动后引用仍然有效,并自动解析——**`@uuid:` 不是给你手写的,是编辑器写的**。两种
+形式所有加载器都认、解析到同一路径。`resolveRef(ref)` 会返回两者解析后的路径。
 
 ## 按类型加载
 
@@ -23,7 +30,7 @@ import { Aside } from '@astrojs/starlight/components';
 import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
 
 const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
-  const tex = await assets.loadTexture('@uuid:a1b2c3…');   // { handle, width, height }
+  const tex = await assets.loadTexture('textures/player.png');   // { handle, width, height }
   for (const [entity, sprite] of q) {
     sprite.texture = tex.handle;
   }
