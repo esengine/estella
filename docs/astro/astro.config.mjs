@@ -51,6 +51,7 @@ export default defineConfig({
             { label: 'Input', translations: { 'zh-CN': '输入' }, slug: 'guides/input' },
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
+            { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'guides/animation' },
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
             { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'guides/ui' },
             { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },

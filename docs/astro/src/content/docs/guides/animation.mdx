@@ -1,0 +1,62 @@
+---
+title: Animation
+description: Sprite sheets, tweens, and animator state machines.
+---
+
+Estella has three ways to animate, each suited to a different job.
+
+## Sprite animation
+
+The `SpriteAnimator` component plays sprite-sheet clips. Switch the clip by
+writing the component (query it with `Mut`):
+
+```typescript
+import { defineSystem, Query, Mut, SpriteAnimator } from 'esengine';
+
+const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
+  for (const [entity, animator] of q) {
+    animator.clip = 'walk';       // switch to another clip
+    animator.currentFrame = 0;    // restart from the first frame
+    animator.frameTimer = 0;
+  }
+});
+```
+
+## Tweens
+
+The `Tween` resource interpolates one property from a start value to an end value
+over a duration:
+
+```typescript
+import { defineSystem, Res, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
+
+const animate = defineSystem([Res(Tween)], (tween) => {
+  tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
+    easing: EasingType.EaseInOutQuad,
+    loop: LoopMode.PingPong,
+  });
+});
+```
+
+`TweenTarget` covers position, scale, rotation, and color channels — e.g.
+`PositionX`, `ScaleX`, `RotationZ`, `ColorR`. `EasingType` has the usual curves
+(`Linear`, `EaseInOutQuad`, …), and `LoopMode` includes `PingPong`.
+
+## Animator state machine
+
+For character animation, an animator controller (authored in the editor) holds
+states, transitions, and 1D blend trees driven by parameters. At runtime you set
+those parameters through `Res(AnimatorController)`:
+
+```typescript
+import { defineSystem, Res, AnimatorController } from 'esengine';
+
+const drive = defineSystem([Res(AnimatorController)], (animator) => {
+  animator.setFloat(entity, 'speed', 4.2);
+  animator.setBool(entity, 'grounded', true);
+  animator.setTrigger(entity, 'jump');
+});
+```
+
+The controller resolves the current state/clip (or blends between clips) from the
+parameters, and can drive both sprite and Spine animations.

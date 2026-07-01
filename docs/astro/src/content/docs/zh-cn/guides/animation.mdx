@@ -1,0 +1,60 @@
+---
+title: 动画
+description: 精灵表、补间与动画状态机。
+---
+
+Estella 有三种动画方式,各自适合不同场景。
+
+## 精灵动画
+
+`SpriteAnimator` 组件播放精灵表(sprite-sheet)片段。写这个组件即可切换片段(用 `Mut`
+查询它):
+
+```typescript
+import { defineSystem, Query, Mut, SpriteAnimator } from 'esengine';
+
+const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
+  for (const [entity, animator] of q) {
+    animator.clip = 'walk';       // 切换到另一个片段
+    animator.currentFrame = 0;    // 从第一帧重新开始
+    animator.frameTimer = 0;
+  }
+});
+```
+
+## 补间(Tween)
+
+`Tween` 资源在一段时长内把某个属性从起始值插值到结束值:
+
+```typescript
+import { defineSystem, Res, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
+
+const animate = defineSystem([Res(Tween)], (tween) => {
+  tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
+    easing: EasingType.EaseInOutQuad,
+    loop: LoopMode.PingPong,
+  });
+});
+```
+
+`TweenTarget` 覆盖位置、缩放、旋转和颜色通道——例如 `PositionX`、`ScaleX`、
+`RotationZ`、`ColorR`。`EasingType` 提供常见缓动曲线(`Linear`、`EaseInOutQuad` 等),
+`LoopMode` 包含 `PingPong`。
+
+## 动画状态机
+
+对于角色动画,动画控制器(在编辑器里编排)持有状态、过渡,以及由参数驱动的 1D 混合
+树(blend tree)。运行时你通过 `Res(AnimatorController)` 设置这些参数:
+
+```typescript
+import { defineSystem, Res, AnimatorController } from 'esengine';
+
+const drive = defineSystem([Res(AnimatorController)], (animator) => {
+  animator.setFloat(entity, 'speed', 4.2);
+  animator.setBool(entity, 'grounded', true);
+  animator.setTrigger(entity, 'jump');
+});
+```
+
+控制器根据这些参数解析出当前状态/片段(或在片段间混合),并且可以同时驱动精灵动画和
+Spine 动画。
