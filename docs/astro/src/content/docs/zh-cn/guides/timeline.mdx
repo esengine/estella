@@ -1,0 +1,53 @@
+---
+title: 时间轴
+description: Sequencer 动画 —— 附加时间轴并控制播放。
+---
+
+时间轴是一段 **Sequencer 动画**——随时间排布的关键帧轨道(移动 Transform、切换精灵、
+触发音频、开关实体、驱动 Spine)。你在编辑器的 Sequencer 里编排它,用 `TimelinePlayer`
+组件把它附加到实体上,再通过 `Timeline` 资源控制播放。
+
+## 附加时间轴
+
+`TimelinePlayer` 组件把实体指向一个时间轴资源:
+
+- `timeline` —— 时间轴资源路径。
+- `playing` —— 是否开始播放。
+- `speed` —— 播放速率(默认 `1.0`)。
+- `wrapMode` —— `'once'`、循环等。
+
+通常你在编辑器里设置它;用代码则用 `Commands` 插入:
+
+```typescript
+import { defineSystem, Commands, TimelinePlayer } from 'esengine';
+
+const attach = defineSystem([Commands()], (cmds) => {
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'timelines/intro.estimeline',
+    playing: true,
+    speed: 1.0,
+    wrapMode: 'once',
+  });
+});
+```
+
+## 控制播放
+
+读取 `Timeline` 资源来驱动某个实体的时间轴:
+
+```typescript
+import { defineSystem, Query, Res, TimelinePlayer, Timeline } from 'esengine';
+
+const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timeline) => {
+  for (const [entity] of q) {
+    timeline.play(entity);
+    timeline.pause(entity);
+    timeline.stop(entity);
+    timeline.setTime(entity, 1.5);                  // 跳到 1.5 秒
+    const t = timeline.getCurrentTime(entity);
+    const playing = timeline.isPlaying(entity);
+  }
+});
+```
+
+因为一条时间轴能同时驱动很多东西,它是做过场动画和脚本化序列的工具。

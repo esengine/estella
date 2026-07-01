@@ -1,0 +1,55 @@
+---
+title: Timeline
+description: Sequencer animations — attach a timeline and control playback.
+---
+
+A timeline is a **Sequencer animation** — tracks of keyframes over time (moving a
+Transform, swapping sprites, firing audio, toggling entities, driving Spine). You
+author it in the editor's Sequencer, attach it to an entity with a
+`TimelinePlayer` component, and control playback through the `Timeline` resource.
+
+## Attach a timeline
+
+The `TimelinePlayer` component points an entity at a timeline asset:
+
+- `timeline` — the timeline asset path.
+- `playing` — whether it starts playing.
+- `speed` — playback rate (default `1.0`).
+- `wrapMode` — `'once'`, loop, etc.
+
+You usually set this in the editor; in code, insert it with `Commands`:
+
+```typescript
+import { defineSystem, Commands, TimelinePlayer } from 'esengine';
+
+const attach = defineSystem([Commands()], (cmds) => {
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'timelines/intro.estimeline',
+    playing: true,
+    speed: 1.0,
+    wrapMode: 'once',
+  });
+});
+```
+
+## Control playback
+
+Read the `Timeline` resource to drive an entity's timeline:
+
+```typescript
+import { defineSystem, Query, Res, TimelinePlayer, Timeline } from 'esengine';
+
+const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timeline) => {
+  for (const [entity] of q) {
+    timeline.play(entity);
+    timeline.pause(entity);
+    timeline.stop(entity);
+    timeline.setTime(entity, 1.5);                  // seek to 1.5s
+    const t = timeline.getCurrentTime(entity);
+    const playing = timeline.isPlaying(entity);
+  }
+});
+```
+
+Because one timeline can drive many things at once, it's the tool for cutscenes
+and scripted sequences.

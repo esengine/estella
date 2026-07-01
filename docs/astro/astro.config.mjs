@@ -53,6 +53,7 @@ export default defineConfig({
             { label: 'Camera', translations: { 'zh-CN': '相机' }, slug: 'guides/camera' },
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
             { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'guides/animation' },
+            { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'guides/timeline' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
           ],
         },
