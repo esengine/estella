@@ -1,0 +1,38 @@
+---
+title: 预制体
+description: 把实体树存成模板,并在运行时生成实例。
+---
+
+预制体是一棵存下来的实体树——你在编辑器里编排一次,然后多次生成(敌人、拾取物、
+子弹)。运行时通过 `Prefabs` 资源实例化它。
+
+## 生成一个预制体
+
+`instantiate` 加载预制体并生成它。它是异步的,返回生成的树——`root` 是新的根实体:
+
+```typescript
+import { defineSystem, Res, Prefabs } from 'esengine';
+
+const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
+  const { root } = await prefabs.instantiate('prefabs/enemy.esprefab');
+  // `root` 是新实体——移动它、打标记、设置 Transform 位置……
+});
+```
+
+## 挂到父级并访问子实体
+
+把实例嵌套到另一个实体下,并用返回的 `entities` map 按预制体内的本地 id 访问子实体:
+
+```typescript
+const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', {
+  parent: mountPointEntity,
+});
+// root      → 实例根
+// entities  → Map<预制体本地 id, 生成的 Entity>,用于访问子实体
+```
+
+## 逐实例覆盖(override)
+
+传入 `overrides` 可以**只为这个实例**改组件值,而不修改预制体资源——例如用同一个敌人
+预制体生成不同血量或不同着色的实例。预制体仍是单一权威来源,每个实例只是在它之上叠加
+自己的值。

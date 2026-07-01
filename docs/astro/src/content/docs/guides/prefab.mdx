@@ -1,0 +1,42 @@
+---
+title: Prefabs
+description: Save an entity tree as a template and spawn instances at runtime.
+---
+
+A prefab is a saved entity tree — a template you author once in the editor and
+spawn many times (enemies, pickups, bullets). Instantiate one at runtime through
+the `Prefabs` resource.
+
+## Spawn a prefab
+
+`instantiate` loads the prefab and spawns it. It's async, and returns the spawned
+tree — `root` is the new root entity:
+
+```typescript
+import { defineSystem, Res, Prefabs } from 'esengine';
+
+const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
+  const { root } = await prefabs.instantiate('prefabs/enemy.esprefab');
+  // `root` is the new entity — move it, tag it, give it a Transform position…
+});
+```
+
+## Parent it and reach its children
+
+Nest the instance under another entity, and use the returned `entities` map to
+reach children by their prefab-local id:
+
+```typescript
+const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', {
+  parent: mountPointEntity,
+});
+// root      → the instance root
+// entities  → Map<prefab-local id, spawned Entity>, for reaching children
+```
+
+## Per-instance overrides
+
+Pass `overrides` to change component values for **this instance only** without
+editing the prefab asset — for example, spawn the same enemy prefab with
+different health or tint. The prefab stays the single source of truth; each
+instance just layers its own values on top.

@@ -71,6 +71,7 @@ export default defineConfig({
           translations: { 'zh-CN': '内容与流程' },
           items: [
             { label: 'Assets', translations: { 'zh-CN': '资源' }, slug: 'guides/assets' },
+            { label: 'Prefabs', translations: { 'zh-CN': '预制体' }, slug: 'guides/prefab' },
             { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scene' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
