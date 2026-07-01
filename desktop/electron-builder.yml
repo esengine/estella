@@ -30,5 +30,9 @@ mac:
 linux:
   target: AppImage
   category: Development
+# GitHub releases are created as drafts: the per-platform CI jobs upload their
+# artifacts to one draft release, then a maintainer reviews and publishes it.
+# Switch to `release` for direct publishing.
 publish:
   provider: github
+  releaseType: draft
