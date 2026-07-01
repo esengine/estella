@@ -16,6 +16,7 @@
  */
 import type { ESEngineModule } from '../wasm';
 import { requireResourceManager } from '../resourceManager';
+import { glWrapMode } from './glTexParams';
 
 // =============================================================================
 // Format vocabulary
@@ -142,10 +143,7 @@ function applyParams(gl: WebGL2RenderingContext, opts?: CompressedUploadOptions)
     // Single-level textures: never select a mipmap min-filter (would be incomplete).
     const mag = opts?.filter === 'nearest' ? gl.NEAREST : gl.LINEAR;
     const min = mag;
-    const wrap =
-        opts?.wrap === 'clamp' ? gl.CLAMP_TO_EDGE :
-        opts?.wrap === 'mirror' ? gl.MIRRORED_REPEAT :
-        gl.REPEAT;
+    const wrap = glWrapMode(gl, opts?.wrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, min);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, mag);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);

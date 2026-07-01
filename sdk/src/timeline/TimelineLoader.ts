@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
-    WrapMode,
+    wrapModeFromName,
     TrackType,
     type TimelineAsset,
     type Track,
@@ -51,17 +51,6 @@ function migrateAsset(raw: any): void {
     }
 
     raw.version = CURRENT_VERSION;
-}
-
-const WRAP_MODE_MAP: Record<string, WrapMode> = {
-    once: WrapMode.Once,
-    loop: WrapMode.Loop,
-    pingPong: WrapMode.PingPong,
-};
-
-function parseWrapMode(value: string | undefined): WrapMode {
-    if (!value) return WrapMode.Once;
-    return WRAP_MODE_MAP[value] ?? WrapMode.Once;
 }
 
 function parseTrack(raw: any): Track {
@@ -153,7 +142,7 @@ export function parseTimelineAsset(raw: any): TimelineAsset {
         version: CURRENT_VERSION,
         type: 'timeline',
         duration: raw.duration ?? 0,
-        wrapMode: parseWrapMode(raw.wrapMode),
+        wrapMode: wrapModeFromName(raw.wrapMode),
         tracks: (raw.tracks ?? []).map(parseTrack).filter((t: Track | null) => t !== null),
     };
 }

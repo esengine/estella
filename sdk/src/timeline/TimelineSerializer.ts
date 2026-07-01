@@ -12,15 +12,9 @@
  * reads `raw.animFrames` into the in-memory `frames`).
  */
 
-import { WrapMode, TrackType, type TimelineAsset, type Track } from './TimelineTypes';
+import { wrapModeToName, TrackType, type TimelineAsset, type Track } from './TimelineTypes';
 
 const CURRENT_VERSION = '1.1';
-
-const WRAP_MODE_NAMES: Record<WrapMode, string> = {
-    [WrapMode.Once]: 'once',
-    [WrapMode.Loop]: 'loop',
-    [WrapMode.PingPong]: 'pingPong',
-};
 
 function serializeTrack(track: Track): Record<string, unknown> {
     const base = { type: track.type, name: track.name, childPath: track.childPath };
@@ -67,7 +61,7 @@ export function serializeTimelineAsset(asset: TimelineAsset): Record<string, unk
         version: CURRENT_VERSION,
         type: 'timeline',
         duration: asset.duration,
-        wrapMode: WRAP_MODE_NAMES[asset.wrapMode] ?? 'once',
+        wrapMode: wrapModeToName(asset.wrapMode),
         tracks: asset.tracks.map(serializeTrack),
     };
 }

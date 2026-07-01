@@ -8,6 +8,31 @@ export const WrapMode = {
 
 export type WrapMode = (typeof WrapMode)[keyof typeof WrapMode];
 
+// Single source for the wrapMode ↔ on-disk-string mapping, shared by the loader,
+// the plugin, and the serializer so the three can't drift.
+const WRAP_MODE_BY_NAME: Record<string, WrapMode> = {
+    once: WrapMode.Once,
+    loop: WrapMode.Loop,
+    pingPong: WrapMode.PingPong,
+};
+
+const WRAP_MODE_NAMES: Record<WrapMode, string> = {
+    [WrapMode.Once]: 'once',
+    [WrapMode.Loop]: 'loop',
+    [WrapMode.PingPong]: 'pingPong',
+};
+
+/** Decode a serialized wrapMode string; unknown / missing → `Once`. */
+export function wrapModeFromName(value: string | undefined): WrapMode {
+    if (!value) return WrapMode.Once;
+    return WRAP_MODE_BY_NAME[value] ?? WrapMode.Once;
+}
+
+/** Encode a wrapMode to its on-disk string (inverse of {@link wrapModeFromName}). */
+export function wrapModeToName(mode: WrapMode): string {
+    return WRAP_MODE_NAMES[mode] ?? 'once';
+}
+
 export const TrackType = {
     Property: 'property',
     Spine: 'spine',

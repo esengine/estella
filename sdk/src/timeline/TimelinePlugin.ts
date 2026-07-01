@@ -7,7 +7,7 @@ import { Time, type TimeData } from '../resource';
 import { defineComponent, getComponent } from '../component';
 import { playModeOnly } from '../env';
 import { Audio, type AudioAPI } from '../audio/Audio';
-import { WrapMode, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
+import { wrapModeFromName, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { Timeline, TimelineApi } from './TimelineControl';
 import { resolveChildEntity } from './TimelineRuntime';
 import { advanceTimelineTS } from './TimelineDrive';
@@ -49,12 +49,6 @@ export function registerTimelineTextureHandles(path: string, handles: Map<string
 export function getTimelineTextureHandle(timelinePath: string, textureUuid: string): number {
     return activeTimelinePlugin?.getTextureHandle(timelinePath, textureUuid) ?? 0;
 }
-
-const WRAP_MODE_MAP: Record<string, WrapMode> = {
-    once: WrapMode.Once,
-    loop: WrapMode.Loop,
-    pingPong: WrapMode.PingPong,
-};
 
 interface AnimFramesState {
     tracks: AnimFramesTrack[];
@@ -115,7 +109,7 @@ export class TimelinePlugin implements Plugin {
                     const asset = this.loadedAssets_.get(player.timeline);
                     if (!asset) continue;
 
-                    const wrapMode = WRAP_MODE_MAP[player.wrapMode] ?? WrapMode.Once;
+                    const wrapMode = wrapModeFromName(player.wrapMode);
                     const state = tl.ensureState(entity, wrapMode, player.speed);
                     state.speed = player.speed;
                     state.wrapMode = wrapMode;

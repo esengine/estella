@@ -7,6 +7,7 @@ import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasmScratch';
 import { isKtx2, loadCompressedTexture, type BasisTranscoder } from '../compressed';
+import { glWrapMode } from '../glTexParams';
 import { createTextureFromPixels, type TextureParams } from '../../runtimeAssets';
 
 /**
@@ -239,10 +240,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             ? (useMipmaps ? gl.NEAREST_MIPMAP_NEAREST : gl.NEAREST)
             : (useMipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
         const glMagFilter = filter === 'nearest' ? gl.NEAREST : gl.LINEAR;
-        const glWrap =
-            wrap === 'clamp'  ? gl.CLAMP_TO_EDGE :
-            wrap === 'mirror' ? gl.MIRRORED_REPEAT :
-            gl.REPEAT;
+        const glWrap = glWrapMode(gl, wrap);
 
         // createTexture returns null on a lost context — don't `!`-assert it
         // into the calls below.
