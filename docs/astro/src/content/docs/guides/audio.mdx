@@ -1,15 +1,29 @@
 ---
 title: Audio
-description: Sound effects, music, playback handles, mixer buses, and spatial audio.
+description: The complete guide to audio — sound effects, music, playback handles, the AudioSource/AudioListener components, mixer buses, and spatial audio.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Audio is registered by default. Play one-shot effects and looping music through
-the `Audio` resource, control individual sounds with a handle, balance the mix
-with buses, and position sounds in the world with spatial audio.
+Estella's audio plays one-shot effects and looping music through the `Audio`
+resource, controls individual sounds with a handle, balances the mix with a bus
+hierarchy, and positions sounds in the world with spatial audio. It runs on the
+Web Audio backend in browsers and the native backend on WeChat.
 
-## Sound effects and music
+## How it works
+
+`Audio` is a per-App resource, registered by default. Sound files are decoded into
+**buffers** that are cached on first use, then played on a **bus** (a named volume
+group). Each play returns an `AudioHandle` you can keep to adjust or stop that one
+sound. For sounds tied to a place or an object, an `AudioSource` component plays
+declaratively and (when `spatial`) attenuates by distance from the `AudioListener`.
+
+<Aside type="note">
+  Audio is registered automatically — no plugin to add. Browsers require a user
+  gesture before sound can start, so trigger the first playback from a tap or key.
+</Aside>
+
+## Sound effects & music
 
 ```typescript
 import { defineSystem, Res, Audio } from 'esengine';
@@ -20,37 +34,79 @@ const play = defineSystem([Res(Audio)], (audio) => {
 });
 ```
 
-- `playSFX(url, { volume?, pitch?, pan?, priority? })` returns an `AudioHandle`.
-- `playBGM(url, { volume?, fadeIn?, crossFade? })` loops and replaces the current
-  track.
-- `stopBGM(fadeOut?)`, `stopAll()`.
-- `preload(url)` / `preloadAll(urls)` — load buffers ahead of time so the first
-  play isn't silent.
+`playSFX` fires a one-shot and returns a handle; `playBGM` loops and replaces the
+current track, optionally cross-fading. Both auto-preload an uncached clip and play
+it once ready.
 
-## Control a playing sound
+## `Audio` API reference
 
-`playSFX` returns an `AudioHandle` you keep and drive:
+| Method | Description |
+|---|---|
+| `playSFX(url, config?)` | Play a one-shot; returns an `AudioHandle`. Config: `volume`, `pitch`, `pan`, `priority`. |
+| `playBGM(url, config?)` | Loop music, replacing the current track. Config: `volume`, `fadeIn`, `crossFade`. |
+| `stopBGM(fadeOut?)` | Stop the music, optionally fading out over `fadeOut` seconds. |
+| `stopAll()` | Stop every playing sound. |
+| `setMasterVolume(v)` | Set the master bus volume (0..1). |
+| `setMusicVolume(v)` | Set the `music` bus volume. |
+| `setSFXVolume(v)` | Set the `sfx` bus volume. |
+| `setUIVolume(v)` | Set the `ui` bus volume. |
+| `muteBus(name, muted)` | Mute/unmute a bus by name. |
+| `preload(url)` | Decode and cache a clip ahead of time (async). |
+| `preloadAll(urls)` | Preload an array of clips (async). |
+| `getBufferHandle(url)` | The cached buffer for `url`, or `undefined`. |
+
+## Controlling a playing sound
+
+`playSFX` returns an `AudioHandle` — keep it to drive that specific sound:
 
 ```typescript
 const shot = audio.playSFX('assets/laser.wav');
 shot.setVolume(0.6);
 shot.setPan(-0.5);            // -1 left … +1 right
-shot.setPlaybackRate(1.2);   // pitch/speed
+shot.setPlaybackRate(1.2);   // pitch / speed
+shot.setLoop(true);
 shot.pause(); shot.resume(); shot.stop();
 shot.onEnd = () => { /* the sound finished */ };
-// readonly: shot.isPlaying, shot.currentTime, shot.duration
 ```
 
-## Declarative playback: `AudioSource`
+| Member | Type | Description |
+|---|---|---|
+| `setVolume(v)` | method | Volume, 0..1. |
+| `setPan(p)` | method | Stereo pan, `-1` (left) … `+1` (right). |
+| `setPlaybackRate(r)` | method | Playback speed / pitch (`1` = normal). |
+| `setLoop(l)` | method | Loop the sound. |
+| `pause()` / `resume()` / `stop()` | method | Transport control. |
+| `onEnd` | callback | Called once when the sound finishes. |
+| `isPlaying` | readonly | Whether it's currently playing. |
+| `currentTime` | readonly | Playback position in seconds. |
+| `duration` | readonly | Total length in seconds. |
 
-Attach an `AudioSource` to an entity to play without code — set `clip`, `bus`
-(`"sfx"` by default), `volume`, `pitch`, `loop`, and `playOnAwake`. With
-`playOnAwake` + `enabled`, the audio system plays it automatically.
+## Declarative playback — `AudioSource`
+
+Attach an `AudioSource` to an entity to play without code — ideal for ambience,
+looping machines, or a sound anchored to an object. With `playOnAwake` + `enabled`
+the audio system starts it automatically.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `clip` | asset | `''` | Audio asset to play. |
+| `bus` | string | `'sfx'` | Mixer bus to route through. |
+| `volume` | number | `1` | Volume, 0..1. |
+| `pitch` | number | `1` | Playback speed / pitch. |
+| `loop` | boolean | `false` | Loop the clip. |
+| `playOnAwake` | boolean | `false` | Start automatically when the entity is enabled. |
+| `spatial` | boolean | `false` | Attenuate by distance from the listener. |
+| `minDistance` | number | `100` | Distance within which volume is full. |
+| `maxDistance` | number | `1000` | Distance beyond which the sound is silent. |
+| `attenuationModel` | `AttenuationModel` | `Inverse` | Falloff curve — `Linear` / `Inverse` / `Exponential`. |
+| `rolloff` | number | `1` | Falloff steepness multiplier. |
+| `priority` | number | `0` | Voice priority when the pool is full (higher wins). |
+| `enabled` | boolean | `true` | Disable to stop and silence without removing the component. |
 
 ## Mixer buses
 
 The mixer is hierarchical — `master → { music, sfx, ui, voice }`. Setting a bus
-volume scales everything under it:
+volume scales everything routed under it:
 
 ```typescript
 audio.setMasterVolume(0.8);
@@ -60,18 +116,56 @@ audio.setUIVolume(0.9);
 audio.muteBus('music', true);
 ```
 
-Route a sound to a bus with the `bus` option (`playSFX(url, { … })` defaults to
-`sfx`) or the `AudioSource.bus` field.
+Route a sound to a bus with the `AudioSource.bus` field, or leave `playSFX`
+defaulting to `sfx`. Use `master` for a global volume slider, and separate `music`
+/ `sfx` / `ui` / `voice` sliders in your options menu.
 
 ## Spatial audio
 
-Set `AudioSource.spatial = true` and give your camera/player an enabled
-`AudioListener`; the source attenuates by distance. Tune it with `minDistance`,
-`maxDistance`, and `attenuationModel` (an `AttenuationModel`: inverse / linear /
-exponential).
+Set `AudioSource.spatial = true` and give your listener entity (usually the camera
+or player) an enabled `AudioListener`. The source then attenuates by distance:
 
-<Aside type="caution">
-  `playSFX` auto-preloads an uncached clip and plays it once ready, so the very
-  first hit can be silent — call `preload(url)` up front. Browsers also require a
-  user gesture before audio can start, so kick playback off the first tap/key.
-</Aside>
+```typescript
+import { defineSystem, Commands, Transform, AudioSource, AudioListener,
+         AttenuationModel } from 'esengine';
+
+const setupSpatial = defineSystem([Commands()], (cmds) => {
+  // A positioned, looping ambience that fades with distance.
+  cmds.spawn()
+    .insert(Transform, { position: { x: 600, y: 0, z: 0 } })
+    .insert(AudioSource, {
+      clip: 'assets/campfire.ogg', loop: true, playOnAwake: true,
+      spatial: true, minDistance: 80, maxDistance: 900,
+      attenuationModel: AttenuationModel.Inverse,
+    });
+
+  // The listener (attach to the camera/player).
+  cmds.entity(cameraEntity).insert(AudioListener, { enabled: true });
+});
+```
+
+| `AttenuationModel` | Falloff |
+|---|---|
+| `Linear` | Straight line from `minDistance` to `maxDistance`. |
+| `Inverse` (default) | Natural inverse-distance rolloff. |
+| `Exponential` | Steeper exponential rolloff. |
+
+`AudioListener` has a single field, `enabled` (default `true`) — keep exactly one
+enabled listener in the scene.
+
+## Best practices
+
+- **Preload** clips you'll play in performance-critical moments (`preload` /
+  `preloadAll`) so the first play isn't silent while it decodes.
+- **Start on a gesture** — browsers block audio until the first user input.
+- **Separate buses** (`music` / `sfx` / `ui` / `voice`) so players can mix them,
+  and drive everything from `master`.
+- **Cap simultaneous sounds** with `priority` on `AudioSource` so important sounds
+  win when the voice pool is full.
+- **Use `AudioSource` (declarative)** for world/object sounds and `playSFX` for
+  fire-and-forget UI/gameplay one-shots.
+
+## See also
+
+- [Assets](/docs/guides/assets/) — loading and bundling audio clips.
+- [Scenes](/docs/guides/scene/) — `AudioSource` state persists with the scene.

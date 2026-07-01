@@ -1,12 +1,24 @@
 ---
 title: 音频
-description: 音效、音乐、播放句柄、混音总线与空间音频。
+description: 音频完整指南——音效、音乐、播放句柄、AudioSource/AudioListener 组件、混音总线与空间音频。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-音频默认已注册。通过 `Audio` 资源播放一次性音效和循环音乐,用句柄控制单个声音,用总线
-平衡整体混音,并用空间音频把声音定位到世界里。
+Estella 的音频通过 `Audio` 资源播放一次性音效和循环音乐,用句柄控制单个声音,用总线层级
+平衡混音,并用空间音频把声音定位到世界里。它在浏览器上跑 Web Audio 后端,在微信上跑原生后端。
+
+## 工作原理
+
+`Audio` 是逐 App 的资源,默认已注册。音频文件会被解码成**缓冲区**并在首次使用时缓存,然后
+在某个**总线**(命名的音量分组)上播放。每次播放返回一个 `AudioHandle`,你可以留着它来调节
+或停止这一个声音。对于绑定到某个位置或物体的声音,`AudioSource` 组件声明式地播放,并在
+(`spatial`)开启时按与 `AudioListener` 的距离衰减。
+
+<Aside type="note">
+  音频自动注册——无需加插件。浏览器要求先有用户手势才能开始播放,所以第一次播放要从点击或
+  按键触发。
+</Aside>
 
 ## 音效与音乐
 
@@ -19,35 +31,77 @@ const play = defineSystem([Res(Audio)], (audio) => {
 });
 ```
 
-- `playSFX(url, { volume?, pitch?, pan?, priority? })` 返回一个 `AudioHandle`。
-- `playBGM(url, { volume?, fadeIn?, crossFade? })` 循环播放并替换当前曲目。
-- `stopBGM(fadeOut?)`、`stopAll()`。
-- `preload(url)` / `preloadAll(urls)` —— 提前加载缓冲,这样第一次播放不会是静音。
+`playSFX` 触发一次性播放并返回一个句柄;`playBGM` 循环并替换当前曲目,可选交叉淡入。两者都会
+自动预加载未缓存的片段并在就绪后播放。
+
+## `Audio` API 参考
+
+| 方法 | 说明 |
+|---|---|
+| `playSFX(url, config?)` | 播放一次性;返回 `AudioHandle`。config:`volume`、`pitch`、`pan`、`priority`。 |
+| `playBGM(url, config?)` | 循环音乐,替换当前曲目。config:`volume`、`fadeIn`、`crossFade`。 |
+| `stopBGM(fadeOut?)` | 停止音乐,可在 `fadeOut` 秒内淡出。 |
+| `stopAll()` | 停止所有正在播放的声音。 |
+| `setMasterVolume(v)` | 设置 master 总线音量(0..1)。 |
+| `setMusicVolume(v)` | 设置 `music` 总线音量。 |
+| `setSFXVolume(v)` | 设置 `sfx` 总线音量。 |
+| `setUIVolume(v)` | 设置 `ui` 总线音量。 |
+| `muteBus(name, muted)` | 按名字静音/取消静音一个总线。 |
+| `preload(url)` | 提前解码并缓存一个片段(异步)。 |
+| `preloadAll(urls)` | 预加载一组片段(异步)。 |
+| `getBufferHandle(url)` | `url` 的已缓存缓冲区,或 `undefined`。 |
 
 ## 控制正在播放的声音
 
-`playSFX` 返回一个你可以保留并驱动的 `AudioHandle`:
+`playSFX` 返回一个 `AudioHandle`——留着它驱动这个特定的声音:
 
 ```typescript
 const shot = audio.playSFX('assets/laser.wav');
 shot.setVolume(0.6);
-shot.setPan(-0.5);            // -1 左 … +1 右
-shot.setPlaybackRate(1.2);   // 音高/速度
+shot.setPan(-0.5);            // -1 left … +1 right
+shot.setPlaybackRate(1.2);   // pitch / speed
+shot.setLoop(true);
 shot.pause(); shot.resume(); shot.stop();
-shot.onEnd = () => { /* 声音播放完毕 */ };
-// 只读:shot.isPlaying、shot.currentTime、shot.duration
+shot.onEnd = () => { /* the sound finished */ };
 ```
 
-## 声明式播放:`AudioSource`
+| 成员 | 类型 | 说明 |
+|---|---|---|
+| `setVolume(v)` | 方法 | 音量,0..1。 |
+| `setPan(p)` | 方法 | 立体声声像,`-1`(左)…`+1`(右)。 |
+| `setPlaybackRate(r)` | 方法 | 播放速度 / 音调(`1` = 正常)。 |
+| `setLoop(l)` | 方法 | 循环该声音。 |
+| `pause()` / `resume()` / `stop()` | 方法 | 传输控制。 |
+| `onEnd` | 回调 | 声音结束时调用一次。 |
+| `isPlaying` | 只读 | 是否正在播放。 |
+| `currentTime` | 只读 | 播放位置(秒)。 |
+| `duration` | 只读 | 总时长(秒)。 |
 
-给实体挂一个 `AudioSource`,无需写代码即可播放——设置 `clip`、`bus`(默认 `"sfx"`)、
-`volume`、`pitch`、`loop`、`playOnAwake`。当 `playOnAwake` 且 `enabled` 时,音频系统
-会自动播放它。
+## 声明式播放 —— `AudioSource`
+
+给实体加一个 `AudioSource` 即可不写代码播放——非常适合环境音、循环的机器声,或锚定到物体的
+声音。配 `playOnAwake` + `enabled`,音频系统会自动开始播放。
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `clip` | asset | `''` | 要播放的音频资源。 |
+| `bus` | string | `'sfx'` | 路由经过的混音总线。 |
+| `volume` | number | `1` | 音量,0..1。 |
+| `pitch` | number | `1` | 播放速度 / 音调。 |
+| `loop` | boolean | `false` | 循环片段。 |
+| `playOnAwake` | boolean | `false` | 实体启用时自动开始。 |
+| `spatial` | boolean | `false` | 按与监听器的距离衰减。 |
+| `minDistance` | number | `100` | 在此距离内音量为满。 |
+| `maxDistance` | number | `1000` | 超过此距离即静音。 |
+| `attenuationModel` | `AttenuationModel` | `Inverse` | 衰减曲线——`Linear` / `Inverse` / `Exponential`。 |
+| `rolloff` | number | `1` | 衰减陡峭度的倍率。 |
+| `priority` | number | `0` | 池满时的声部优先级(高者胜)。 |
+| `enabled` | boolean | `true` | 关掉即停止并静音,而不移除组件。 |
 
 ## 混音总线
 
-混音器是分层的——`master → { music, sfx, ui, voice }`。设置某总线的音量会缩放它下面的
-一切:
+混音器是层级的——`master → { music, sfx, ui, voice }`。设置某个总线的音量会缩放路由到它下面
+的一切:
 
 ```typescript
 audio.setMasterVolume(0.8);
@@ -57,17 +111,50 @@ audio.setUIVolume(0.9);
 audio.muteBus('music', true);
 ```
 
-用 `bus` 选项把声音路由到某个总线(`playSFX(url, { … })` 默认 `sfx`),或用
-`AudioSource.bus` 字段。
+用 `AudioSource.bus` 字段把声音路由到某个总线,或让 `playSFX` 默认走 `sfx`。用 `master` 做
+全局音量滑条,在选项菜单里分开做 `music` / `sfx` / `ui` / `voice` 的滑条。
 
 ## 空间音频
 
-把 `AudioSource.spatial` 设为 `true`,并给相机/玩家一个启用的 `AudioListener`;音源会
-按距离衰减。用 `minDistance`、`maxDistance` 和 `attenuationModel`(一个
-`AttenuationModel`:inverse / linear / exponential)来调它。
+设 `AudioSource.spatial = true`,并给监听实体(通常是相机或玩家)加一个启用的 `AudioListener`。
+声源便按距离衰减:
 
-<Aside type="caution">
-  `playSFX` 会自动预加载未缓存的片段并在就绪后播放,所以第一次触发可能是静音的——请
-  提前调用 `preload(url)`。浏览器还要求先有一次用户手势才能开始播放音频,所以在第一次
-  点击/按键时启动播放。
-</Aside>
+```typescript
+import { defineSystem, Commands, Transform, AudioSource, AudioListener,
+         AttenuationModel } from 'esengine';
+
+const setupSpatial = defineSystem([Commands()], (cmds) => {
+  // A positioned, looping ambience that fades with distance.
+  cmds.spawn()
+    .insert(Transform, { position: { x: 600, y: 0, z: 0 } })
+    .insert(AudioSource, {
+      clip: 'assets/campfire.ogg', loop: true, playOnAwake: true,
+      spatial: true, minDistance: 80, maxDistance: 900,
+      attenuationModel: AttenuationModel.Inverse,
+    });
+
+  // The listener (attach to the camera/player).
+  cmds.entity(cameraEntity).insert(AudioListener, { enabled: true });
+});
+```
+
+| `AttenuationModel` | 衰减 |
+|---|---|
+| `Linear` | 从 `minDistance` 到 `maxDistance` 的直线。 |
+| `Inverse`(默认) | 自然的反距离衰减。 |
+| `Exponential` | 更陡的指数衰减。 |
+
+`AudioListener` 只有一个字段 `enabled`(默认 `true`)——场景里保持恰好一个启用的监听器。
+
+## 最佳实践
+
+- 对在关键时刻要播放的片段**预加载**(`preload` / `preloadAll`),第一次播放就不会因解码而静音。
+- **在手势上开始**——浏览器在第一次用户输入前会屏蔽音频。
+- **分开总线**(`music` / `sfx` / `ui` / `voice`)让玩家能各自调节,并统一由 `master` 驱动。
+- 用 `AudioSource` 上的 `priority` **限制同时播放的声音数**,声部池满时重要的声音才胜出。
+- 世界/物体声音**用 `AudioSource`(声明式)**,一次性的 UI/玩法音效用 `playSFX`。
+
+## 参见
+
+- [资源](/docs/zh-cn/guides/assets/) —— 加载与打包音频片段。
+- [场景](/docs/zh-cn/guides/scene/) —— `AudioSource` 状态随场景持久化。
