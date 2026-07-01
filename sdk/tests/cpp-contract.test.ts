@@ -29,6 +29,13 @@ import { ENTITY_INDEX_BITS, ENTITY_GEN_BITS } from '../src/types';
 import { TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D } from '../src/tilemap/tileBits';
 import { CHUNK_SIZE } from '../src/tilemap/chunkCodec';
 
+// EHT-generated twins (the authoritative C++ ES_ENUM values) + the hand-copied
+// mirrors that still restate them in the UI/physics modules.
+import * as gen from '../src/wasm.generated';
+import { BodyType } from '../src/physics/PhysicsComponents';
+import { UIPositionType, AlignSelf } from '../src/ui/core/ui-node';
+import { UIVisualType, FillMethod, FillOrigin } from '../src/ui/core/ui-visual';
+
 // Repo root is two levels up from sdk/tests/ (mirrors the spine integration tests).
 const CPP = resolve(__dirname, '../../src/esengine');
 const readCpp = (rel: string): string => {
@@ -85,6 +92,13 @@ function byName(entries: Array<{ name: string; value: number }>, sentinel = 'COU
 
 const sortedEntries = (m: Map<string, number>): Array<[string, number]> =>
     [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+/** Forward (name -> number) entries of a numeric TS enum, dropping its reverse map. */
+function enumForward(e: Record<string, string | number>): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const [k, v] of Object.entries(e)) if (typeof v === 'number') map.set(k, v);
+    return map;
+}
 
 describe('C++ contract: animation tween enums (animation/TweenData.hpp)', () => {
     const src = readCpp('animation/TweenData.hpp');
@@ -167,4 +181,27 @@ describe('C++ contract: UI base layer (renderer/plugins/UIElementPlugin.hpp)', (
         if (!tsm) throw new Error('TS UI_BASE_LAYER not found in ui/text/plugin.ts');
         expect(Number(tsm[1])).toBe(cpp);
     });
+});
+
+describe('C++ contract: hand-copied enum mirrors == their EHT-generated twin', () => {
+    // These enums ARE generated from C++ ES_ENUM into wasm.generated.ts, but the
+    // UI/physics modules also hand-restate them as `as const` objects (predating
+    // the EHT enum generation). The generated copy is authoritative; the hand copy
+    // is the drift risk. Guard the member map (name -> value) so a C++/EHT change
+    // that updates the generated twin but not the hand copy goes RED here. (Full
+    // collapse to a re-export is an API-shape change tracked separately.)
+    const cases: Array<[string, Record<string, number>, Record<string, string | number>]> = [
+        ['BodyType', BodyType, gen.BodyType],
+        ['UIPositionType', UIPositionType, gen.UIPositionType],
+        ['AlignSelf', AlignSelf, gen.AlignSelf],
+        ['UIVisualType', UIVisualType, gen.UIVisualType],
+        ['FillMethod', FillMethod, gen.UIFillMethod],
+        ['FillOrigin', FillOrigin, gen.UIFillOrigin],
+    ];
+    for (const [label, hand, generated] of cases) {
+        it(`${label} matches wasm.generated`, () => {
+            expect(sortedEntries(new Map(Object.entries(hand))))
+                .toEqual(sortedEntries(enumForward(generated)));
+        });
+    }
 });
