@@ -1,33 +1,31 @@
 ---
 title: Physics
-description: Rigid bodies, colliders, forces, and collision events.
+description: Bodies, colliders, forces, queries, events, and joints — the full 2D physics API.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella's physics runs in the C++/WebAssembly core (Box2D). You attach a
-`RigidBody` and a collider to an entity, and drive or read it through the
-physics resources.
+`RigidBody` and a collider to an entity; then move it with forces, query the
+world with raycasts, react to collisions, and connect bodies with joints.
 
 ## Enabling physics
 
-Physics is a loadable module. In the editor and the web runtime it loads
-automatically when a scene uses physics components — you don't wire anything up.
-In a custom app you can add it yourself:
+Physics is an optional side-module. In the editor and web runtime it loads
+automatically when a scene uses physics components. In a custom app you add it
+yourself:
 
 ```typescript
 import { PhysicsPlugin } from 'esengine/physics';
 
-app.addPlugin(new PhysicsPlugin('physics.js', {
-  gravity: { x: 0, y: -9.81 },
-}));
+app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
-## Bodies and colliders
+## Bodies & colliders
 
-Attach a `RigidBody` plus one collider. **Collider dimensions are in meters, not
-pixels** — divide pixel sizes by your pixels-per-unit (PPU). Spawn entities from
-a system that takes `Commands()`:
+Attach a `RigidBody` plus one collider shape. **Collider dimensions are in
+meters, not pixels** — divide pixel sizes by your pixels-per-unit (PPU). Spawn
+from a system that takes `Commands()`:
 
 ```typescript
 import {
@@ -40,61 +38,89 @@ const PPU = 100;
 const spawnBall = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
-    .insert(RigidBody, { bodyType: BodyType.Dynamic })
-    .insert(CircleCollider, { radius: 24 / PPU, restitution: 0.4 });
+    .insert(RigidBody, { bodyType: BodyType.Dynamic, gravityScale: 1, linearDamping: 0 })
+    .insert(CircleCollider, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
 });
 ```
 
-- **`BodyType`** — `Static` (immovable), `Kinematic` (moved by you), `Dynamic`
-  (moved by the simulation).
-- **Collider shapes** (from `esengine`) — `BoxCollider`, `CircleCollider`,
-  `CapsuleCollider`, `SegmentCollider`, `PolygonCollider`, `ChainCollider`. They
-  share `density`, `friction`, `restitution`, `isSensor`, `categoryBits`,
-  `maskBits`.
-- **Joints** — `RevoluteJoint`, `DistanceJoint`, `PrismaticJoint`, `WeldJoint`,
-  `WheelJoint`.
+- **`RigidBody`** — `bodyType` (`Static` / `Kinematic` / `Dynamic`),
+  `gravityScale`, `linearDamping`, `angularDamping`, `fixedRotation`, `bullet`
+  (continuous collision for fast bodies).
+- **Collider shapes** (from `esengine`) — `BoxCollider` (`halfExtents`),
+  `CircleCollider` (`radius`), `CapsuleCollider` (`radius`, `halfHeight`),
+  `SegmentCollider` (`point1`, `point2`), `PolygonCollider` (`vertices`),
+  `ChainCollider` (`points`, `isLoop`). All share `density`, `friction`,
+  `restitution`, `isSensor`, `categoryBits`, `maskBits`.
 
 ## Collision layers
 
 `categoryBits` (what layer a body is on) and `maskBits` (what it collides with)
-are bit filters. Two bodies collide only if each one's category is in the
+are 16-bit filters. Two bodies collide only if each one's category is in the
 other's mask:
 
 ```typescript
 const LAYER_PLAYER = 0x0001;
+const LAYER_ENEMY  = 0x0002;
 const LAYER_GROUND = 0x0008;
 
 .insert(CircleCollider, {
   radius: 16 / PPU,
   categoryBits: LAYER_PLAYER,
-  maskBits: LAYER_PLAYER | LAYER_GROUND,
+  maskBits: LAYER_ENEMY | LAYER_GROUND,   // ignores other players
 });
 ```
 
-## Forces and velocity
+## Move bodies: forces & velocity
 
-Read the `PhysicsAPI` resource in a system to push bodies around:
+Read the `PhysicsAPI` resource to push bodies around. All of these take a world
+entity:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody } from 'esengine';
 import { PhysicsAPI } from 'esengine/physics';
 
-const push = defineSystem([Query(RigidBody), Res(PhysicsAPI)], (q, physics) => {
-  for (const [entity] of q) {          // narrow to your player component in practice
-    physics.applyImpulse(entity, { x: 0, y: 5 });      // jump
+const move = defineSystem([Query(RigidBody), Res(PhysicsAPI)], (q, physics) => {
+  for (const [entity] of q) {
+    physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
+    physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
     physics.setLinearVelocity(entity, { x: 3, y: 0 });
     physics.applyTorque(entity, 2);
+    physics.applyAngularImpulse(entity, 0.5);
   }
 });
 ```
 
-`PhysicsAPI` also exposes `applyForce`, `getLinearVelocity`, `setGravity` /
-`getGravity`, angular variants, and spatial queries (raycast / overlap) that take
-pixel-space arguments and scale by the live PPU.
+Also: `getLinearVelocity`, `getAngularVelocity`, `setAngularVelocity`,
+`setGravity` / `getGravity` (world gravity), `getMass`, `getInertia`,
+`getCenterOfMass`, `getMassData`, and `setAwake` / `isAwake` (sleeping bodies).
 
-## Collision events
+## Spatial queries
 
-The `PhysicsEvents` resource carries this frame's contacts:
+Queries take **pixel-space** arguments and auto-scale by the live PPU:
+
+```typescript
+// Raycast — returns every hit along the ray, nearest first.
+const hits = physics.raycast(origin, direction, 200);
+for (const hit of hits) {
+  // hit.entity, hit.point, hit.normal
+}
+
+// Overlap — entities whose colliders intersect a shape.
+const nearby = physics.overlapCircle(center, 64);        // Entity[]
+const inBox  = physics.overlapAABB(min, max);            // Entity[]
+
+// Shape cast — sweep a shape and get what it would hit.
+const swept = physics.shapeCastCircle(/* … */);
+```
+
+Each takes an optional `maskBits` to filter by layer. `overlapCircle` /
+`overlapAABB` / `shapeCastBox` / `shapeCastCapsule` round out the set.
+
+## Collision & sensor events
+
+The `PhysicsEvents` resource carries this frame's contacts. Set `isSensor: true`
+on a collider to get enter/exit events **without** a physical response (trigger
+zones):
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -102,16 +128,48 @@ import { PhysicsEvents } from 'esengine/physics';
 
 const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
   for (const c of events.collisionEnters) {
-    // c.entityA, c.entityB, c.normalX, c.normalY, c.contactX, c.contactY
+    // c.entityA, c.entityB, c.normalX/Y, c.contactX/Y
   }
-  for (const s of events.sensorEnters) {
-    // s.sensorEntity, s.visitorEntity
+  for (const x of events.collisionExits) { /* x.entityA, x.entityB */ }
+  for (const h of events.collisionHits) {
+    // high-speed impact: h.approachSpeed, h.pointX/Y, h.normalX/Y
   }
+  for (const s of events.sensorEnters) { /* s.sensorEntity, s.visitorEntity */ }
+  for (const s of events.sensorExits)  { /* … */ }
 });
 ```
 
+## Joints
+
+Connect two bodies. Add a joint **component** (`RevoluteJoint`, `DistanceJoint`,
+`PrismaticJoint`, `WeldJoint`, `WheelJoint`), or create one imperatively and
+drive its motor / limits:
+
+```typescript
+// A hinge with a motor (e.g. a powered wheel or a swinging door).
+physics.createRevoluteJoint(bodyA, bodyB, anchorA, anchorB, {
+  enableMotor: true, motorSpeed: 6, maxMotorTorque: 200,
+  enableLimit: true, lowerAngle: -1.0, upperAngle: 1.0,
+});
+
+physics.setRevoluteMotorSpeed(bodyA, 10);
+physics.setRevoluteLimits(bodyA, -0.5, 0.5);
+const angle = physics.getRevoluteAngle(bodyA);
+physics.destroyJoint(bodyA);
+```
+
+Distance, prismatic, and wheel joints have the parallel set —
+`setDistanceJointLength`, `enablePrismaticJointMotor`, `setWheelJointMotorSpeed`,
+and so on.
+
+## Character controller
+
+For a player that doesn't tumble like a dynamic body, add a `CharacterController`
+and resolve movement with `moveAndSlide` — a kinematic move-and-slide that walks
+along surfaces instead of bouncing.
+
 <Aside type="caution">
-  Set `isSensor: true` on a collider to get sensor enter/exit events **without**
-  a physical response (trigger zones). Physics steps at a fixed timestep, not the
-  frame delta, so read `PhysicsEvents` every frame.
+  Physics steps at a **fixed timestep**, not the frame delta, so read
+  `PhysicsEvents` every frame and apply continuous forces every frame. Set
+  `bullet: true` on fast, thin bodies to avoid tunneling.
 </Aside>
