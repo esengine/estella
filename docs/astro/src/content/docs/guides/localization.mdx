@@ -1,0 +1,41 @@
+---
+title: Localization
+description: Multi-language text with Res(Localization).
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Register a translation catalog per locale, switch the active locale, and look up
+strings with `t()` — all through the `Localization` resource.
+
+## Catalogs and translation
+
+```typescript
+import { defineSystem, Res, Localization } from 'esengine';
+
+const setupI18n = defineSystem([Res(Localization)], (i18n) => {
+  i18n.addCatalog('en',    { play: 'Play', score: 'Score: {n}' });
+  i18n.addCatalog('zh-CN', { play: '开始', score: '得分：{n}' });
+
+  i18n.setLocale('zh-CN');
+  const label = i18n.t('score', { n: 42 });   // "得分：42"
+});
+```
+
+- **`addCatalog(locale, entries)`** merges keys into a locale — call it again to
+  add more (later calls override).
+- **`t(key, params?)`** interpolates `{placeholder}` values. If the key is missing
+  it falls back to the fallback locale, then to the key itself.
+- Also: `setLocale`, `setFallbackLocale`, `availableLocales()`, `has(key)`.
+
+## Plurals
+
+A catalog entry can carry plural forms (`zero` / `one` / `other`); `t` selects the
+right one from a `count` parameter, and you can register a per-locale plural
+selector for languages whose rules differ from the default.
+
+<Aside type="tip">
+  Localization is a per-App service, so switching the locale updates every `t()`
+  lookup from that point on — re-run the systems that build your text (or read
+  `t()` each frame where the text can change).
+</Aside>

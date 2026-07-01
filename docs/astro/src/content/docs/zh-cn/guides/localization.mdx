@@ -1,0 +1,39 @@
+---
+title: 本地化
+description: 用 Res(Localization) 做多语言文本。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+为每个 locale 注册一份翻译目录(catalog),切换当前 locale,并用 `t()` 查字符串——都
+通过 `Localization` 资源完成。
+
+## 目录与翻译
+
+```typescript
+import { defineSystem, Res, Localization } from 'esengine';
+
+const setupI18n = defineSystem([Res(Localization)], (i18n) => {
+  i18n.addCatalog('en',    { play: 'Play', score: 'Score: {n}' });
+  i18n.addCatalog('zh-CN', { play: '开始', score: '得分：{n}' });
+
+  i18n.setLocale('zh-CN');
+  const label = i18n.t('score', { n: 42 });   // "得分：42"
+});
+```
+
+- **`addCatalog(locale, entries)`** 把 key 合并进某个 locale——可多次调用追加(后面的
+  会覆盖)。
+- **`t(key, params?)`** 会插值 `{placeholder}` 的值。若 key 缺失,则回退到 fallback
+  locale,再回退到 key 本身。
+- 还有:`setLocale`、`setFallbackLocale`、`availableLocales()`、`has(key)`。
+
+## 复数
+
+目录条目可以携带复数形式(`zero` / `one` / `other`);`t` 会根据 `count` 参数选出正确的
+那个,你还能为规则不同的语言注册按 locale 的复数选择器。
+
+<Aside type="tip">
+  本地化是逐 App 的服务,所以切换 locale 后,从那一刻起每次 `t()` 查询都会更新——重新
+  运行搭建文本的系统(或在文本会变化的地方每帧读 `t()`)。
+</Aside>
