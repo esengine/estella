@@ -1,65 +1,52 @@
 ---
 title: UI
-description: 弹性盒布局、文本与可交互控件。
+description: 弹性盒布局、文本与指针交互。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 的 UI 是一套在 C++ 内核里求解的类 CSS 弹性盒（flexbox）系统。你用 `UINode`
-盒子组合界面，用 `FlexContainer` 布局，用 `Text` 和 `UIVisual` 渲染，再用
-`Interactable` 让元素可点击。
+Estella 的 UI 是一套在 C++ 内核里求解的类 CSS 弹性盒(flexbox)系统。你在编辑器里用
+UI 组件组合界面,再从系统里读取交互状态。
 
-## 用 `UINode` + `FlexContainer` 布局
+## UI 组件
 
-`UINode` 是盒模型原语。用 `px()`、`percent()` 或 `auto()` 构建尺寸：
+在编辑器里把这些加到实体上来搭建界面:
 
-```typescript
-import { spawnUIEntity, buildUINode, px, percent } from 'esengine';
+- **`UINode`** —— 布局盒。弹性盒字段直接在它身上:`width`、`height`(以及 min/max)、
+  `flexGrow`、`flexShrink`、`flexBasis`、`alignSelf`、`margin*`,以及用于绝对定位的
+  `inset*`。布局每帧重新计算。
+- **`Text`** —— 通过 SDF 字形图集渲染的文本(`content`、`fontSize`、`color`、`align`、
+  `bold`、`italic`、描边/阴影、`wordWrap`、`richText`)。
+- **`UIVisual`** —— 纯色、贴图、九宫格或平铺填充。
+- **`UIMask`** —— 裁剪其子元素。
+- **`Interactable`** —— 标记实体可命中测试(`enabled`、`blockRaycast`、
+  `raycastTarget`)。
 
-spawnUIEntity({
-  node: buildUINode({ width: px(240), height: percent(100) }),
-});
-```
+## 处理交互
 
-`FlexContainer` 控制子元素如何排布（`direction`、`justifyContent`、`alignItems`、
-`gap`、`padding`）。布局每帧重新计算，因此改属性即刻生效。
-
-## 文本
-
-`Text` 组件通过 SDF 字形图集渲染：`content`、`fontSize`、`color`、`align`、`bold`、
-`italic`、`strokeColor`、`shadowColor`、`wordWrap`、`richText` 等。
-
-## 控件
-
-控件工厂把这些原语组合成开箱即用的控件——`createButton`、`createToggle`、
-`createSlider`、`createProgress`、`createDialog`、`createDropdown`：
+命中测试系统每帧把指针状态写入 `UIInteraction`(`hovered`、`pressed`、`justPressed`、
+`justReleased`)。它对你的逻辑而言是**只读的**——与 `Interactable` 一起查询即可响应:
 
 ```typescript
-import { createButton } from 'esengine';
+import { defineSystem, Query, Interactable, UIInteraction } from 'esengine';
 
-createButton({
-  world: app.world,
-  events: uiPlugin.events,
-  parent: canvasEntity,
-  text: 'Play',
-  states: {
-    normal:  { color: { r: 1,   g: 1,   b: 1,   a: 1 } },
-    hover:   { color: { r: 0.8, g: 0.8, b: 0.8, a: 1 } },
-    pressed: { color: { r: 0.6, g: 0.6, b: 0.6, a: 1 } },
-  },
-  onClick: () => audio.playSFX('assets/audio/click.wav'),
-});
+const handleClicks = defineSystem(
+  [Query(Interactable, UIInteraction)],
+  (q) => {
+    for (const [entity, _gate, state] of q) {
+      if (state.justReleased) {
+        // 该实体被点击了
+      }
+    }
+  }
+);
 ```
 
-## 交互与事件
-
-`Interactable` 标记实体可点击；系统会把只读的指针状态写入 `UIInteraction`
-（`hovered`、`pressed`、`justPressed`、`justReleased`）。要处理输入，请订阅 UI 事件
-总线（`UIEvents`）——像 `click`、`hover_enter`、`change`、`submit`、`drag_move` 这些
-事件会沿父链冒泡。
+若需要更丰富的输入——沿父链冒泡的 `click` / `hover_enter` / `change` / `submit` /
+`drag` 等事件——请读取 `UIEvents` 资源,即 UI 事件总线。
 
 <Aside type="note">
-  这里没有 `RectTransform`——`UINode` 用真正的弹性盒取代它（`px`/`percent`/`auto`
-  以及通过 inset 的 `Absolute` 定位）。`UIInteraction` 由引擎写入；请用事件驱动逻辑，
-  而不是去修改它。
+  这里没有 `RectTransform`:`UINode` 是真正的弹性盒,用 `px`、`percent`、`auto` 尺寸
+  (在检视面板里设置)加上通过 inset 的 `Absolute` 定位。`UIInteraction` 由引擎每帧
+  写入——请用它或 `UIEvents` 驱动逻辑,不要去修改它。
 </Aside>
