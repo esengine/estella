@@ -76,6 +76,7 @@ export default defineConfig({
             { label: 'Prefabs', translations: { 'zh-CN': '预制体' }, slug: 'guides/prefab' },
             { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scene' },
+            { label: 'Saving & Loading', translations: { 'zh-CN': '存档与读档' }, slug: 'guides/save' },
             { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'guides/localization' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
             { label: 'Networking', translations: { 'zh-CN': '联网' }, slug: 'guides/networking' },

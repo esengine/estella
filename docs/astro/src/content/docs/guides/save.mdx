@@ -1,0 +1,95 @@
+---
+title: Saving & Loading
+description: Versioned save slots with schema migration, built on the Storage API.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`SaveManager` persists named save slots as versioned envelopes. Each save records
+the schema `version` it was written at, so a shipped game can change its save
+shape later and still read old saves — on load, older data is migrated forward.
+
+## Save slots
+
+Create one manager for your game (pick a current schema `version`), then read and
+write slots by name:
+
+```typescript
+import { SaveManager } from 'esengine';
+
+const saves = new SaveManager({ version: 1 });
+
+saves.save('slot1', { level: 3, score: 1200, hp: 80 });
+
+const data = saves.load<{ level: number; score: number; hp: number }>('slot1');
+// -> { level: 3, score: 1200, hp: 80 }   (or null if the slot is empty)
+
+saves.has('slot1');       // true
+saves.savedAt('slot1');   // epoch ms the slot was written, or null
+saves.remove('slot1');    // delete the slot
+```
+
+- **`save(slot, data)`** writes `data` stamped with the current version and time.
+- **`load(slot)`** returns the slot's data (migrated forward), or `null` when the
+  slot is empty or unreadable.
+- **`has` / `remove` / `savedAt`** query, delete, and timestamp a slot.
+
+## Schema migration
+
+When your save shape changes, bump `version` and add a migration for each step.
+`migrations[n]` upgrades a save written at version `n` to `n + 1`; on load, every
+step from the save's version up to the current one runs in order:
+
+```typescript
+const saves = new SaveManager({
+  version: 2,
+  migrations: {
+    // v1 stored a flat score; v2 nests it under `stats`.
+    1: (old) => {
+      const s = old as { level: number; score: number };
+      return { level: s.level, stats: { score: s.score, deaths: 0 } };
+    },
+  },
+});
+
+// A v1 save on disk is upgraded to the v2 shape transparently on load.
+const data = saves.load('slot1');
+```
+
+Migration is **forward-only**: loading a save that is *newer* than the current
+version throws (no downgrade), and a missing step in the chain throws too — so a
+gap is caught immediately instead of silently corrupting data.
+
+<Aside type="tip">
+  The migration chain is also exported as a pure function — `migrateSaveData(version,
+  data, currentVersion, migrations)` — for migrating data outside a `SaveManager`
+  (e.g. in a unit test or a one-off import). `SaveManager` also accepts `storage`
+  and `now` options you can inject for deterministic tests.
+</Aside>
+
+## Plain key/value storage
+
+For simple flags and preferences that don't need versioning, use the `Storage`
+API directly — a per-platform key/value store (browser `localStorage`, WeChat
+storage, …) with typed helpers:
+
+```typescript
+import { Storage } from 'esengine';
+
+Storage.setBoolean('muted', true);
+Storage.setNumber('volume', 0.8);
+Storage.setJSON('keybinds', { jump: 'Space', fire: 'KeyJ' });
+
+Storage.getBoolean('muted', false);   // true
+Storage.getNumber('volume', 1);       // 0.8
+Storage.has('keybinds');              // true
+```
+
+`Storage` also has `getString` / `setString`, `remove(key)`, and `clear()`.
+`SaveManager` is built on top of it, so both persist to the same per-platform
+backend.
+
+<Aside>
+  Both APIs are synchronous and back onto the platform's storage, which has a size
+  limit (a few MB in browsers). Keep saves to game state — not bulk assets.
+</Aside>

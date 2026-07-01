@@ -1,0 +1,88 @@
+---
+title: 存档与读档
+description: 带 schema 迁移的版本化存档槽位,构建在 Storage API 之上。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`SaveManager` 把命名的存档槽位持久化为版本化的信封(envelope)。每份存档都记录它写入
+时的 schema `version`,所以已发布的游戏之后可以修改存档结构、仍能读取旧存档——读档时
+旧数据会被向前迁移。
+
+## 存档槽位
+
+为你的游戏创建一个管理器(选定当前的 schema `version`),然后按名字读写槽位:
+
+```typescript
+import { SaveManager } from 'esengine';
+
+const saves = new SaveManager({ version: 1 });
+
+saves.save('slot1', { level: 3, score: 1200, hp: 80 });
+
+const data = saves.load<{ level: number; score: number; hp: number }>('slot1');
+// -> { level: 3, score: 1200, hp: 80 }   (or null if the slot is empty)
+
+saves.has('slot1');       // true
+saves.savedAt('slot1');   // epoch ms the slot was written, or null
+saves.remove('slot1');    // delete the slot
+```
+
+- **`save(slot, data)`** 把 `data` 打上当前版本与时间戳后写入。
+- **`load(slot)`** 返回槽位的数据(已向前迁移);槽位为空或无法读取时返回 `null`。
+- **`has` / `remove` / `savedAt`** 分别用于查询、删除、取写入时间。
+
+## Schema 迁移
+
+当存档结构变化时,提升 `version` 并为每一步加一个迁移函数。`migrations[n]` 把版本 `n`
+写入的存档升级到 `n + 1`;读档时,从存档版本到当前版本的每一步按顺序依次执行:
+
+```typescript
+const saves = new SaveManager({
+  version: 2,
+  migrations: {
+    // v1 stored a flat score; v2 nests it under `stats`.
+    1: (old) => {
+      const s = old as { level: number; score: number };
+      return { level: s.level, stats: { score: s.score, deaths: 0 } };
+    },
+  },
+});
+
+// A v1 save on disk is upgraded to the v2 shape transparently on load.
+const data = saves.load('slot1');
+```
+
+迁移是**单向向前**的:读取比当前版本**更新**的存档会抛错(不支持降级),迁移链中缺步
+同样抛错——这样缺口会被立即发现,而不是悄悄损坏数据。
+
+<Aside type="tip">
+  迁移链也作为纯函数导出——`migrateSaveData(version, data, currentVersion, migrations)`
+  ——用于在 `SaveManager` 之外迁移数据(比如单元测试或一次性导入)。`SaveManager` 还接受
+  可注入的 `storage` 与 `now` 选项,便于写确定性的测试。
+</Aside>
+
+## 普通键值存储
+
+对于不需要版本化的简单开关和偏好设置,直接用 `Storage` API——一个逐平台的键值存储
+(浏览器 `localStorage`、微信存储……),带类型化的辅助方法:
+
+```typescript
+import { Storage } from 'esengine';
+
+Storage.setBoolean('muted', true);
+Storage.setNumber('volume', 0.8);
+Storage.setJSON('keybinds', { jump: 'Space', fire: 'KeyJ' });
+
+Storage.getBoolean('muted', false);   // true
+Storage.getNumber('volume', 1);       // 0.8
+Storage.has('keybinds');              // true
+```
+
+`Storage` 还有 `getString` / `setString`、`remove(key)` 和 `clear()`。`SaveManager`
+就构建在它之上,两者持久化到同一个逐平台后端。
+
+<Aside>
+  两个 API 都是同步的,且落在平台的存储上,存储有大小限制(浏览器里通常几 MB)。存档只放
+  游戏状态——不要放大块资源。
+</Aside>
