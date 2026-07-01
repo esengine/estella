@@ -1,0 +1,40 @@
+---
+title: 组件
+description: 用 defineComponent 声明和使用组件。
+---
+
+**组件**是挂在实体上的一小块纯数据结构。用 `defineComponent` 声明一个组件，给它一个
+名字和默认值：
+
+```typescript
+import { defineComponent } from 'esengine';
+
+const Speed = defineComponent('Speed', { value: 200 });
+const Health = defineComponent('Health', { current: 100, max: 100 });
+```
+
+默认值同时定义了组件的形状（字段与类型）和新实例的初始值。组件是纯数据——没有方法、
+没有行为。行为存在于[系统](/docs/zh-cn/core-concepts/systems/)里。
+
+## 内置组件
+
+SDK 自带一批引擎组件，你可以和自己的组件一起查询，例如：
+
+- `LocalTransform` —— 位置、旋转与缩放。
+- `Sprite` —— 一个带贴图的四边形。
+- `Camera` —— 观察世界的视图。
+
+## 读取与写入
+
+系统通过查询拿到组件数据。当系统要写入某个组件时，把它包进 `Mut(...)`，这样变更检测
+和渲染器就知道这块数据被改动过：
+
+```typescript
+Query(Mut(LocalTransform), Speed)
+// LocalTransform 会被写入；Speed 只读
+```
+
+<br />
+
+在底层，一个组件是带 `ES_COMPONENT` / `ES_PROPERTY` 注解的 C++ 结构体；跨边界的内存
+布局是生成的，因此 TypeScript 组件与 C++ 结构体始终保持一致。

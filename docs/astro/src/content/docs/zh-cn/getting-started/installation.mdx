@@ -1,0 +1,61 @@
+---
+title: 安装
+description: 安装 Estella 编辑器，或从源码构建引擎。
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+<Tabs>
+  <TabItem label="使用编辑器">
+    <Steps>
+
+    1. 从[发布页](https://github.com/esengine/estella/releases)下载最新版编辑器。
+
+    2. 安装并打开，点击 **New Project**（新建项目）。
+
+    3. 填写项目名称与位置，点击 **Create**（创建）。编辑器会打开一个带有相机实体的
+       默认场景。
+
+    </Steps>
+
+    <Aside type="note">
+      安装包目前尚未签名，因此首次启动时 Windows SmartScreen 或 macOS Gatekeeper
+      可能提示「未知开发者」——请选择**仍要运行**，或在**系统设置 → 隐私与安全性**中
+      放行。
+    </Aside>
+  </TabItem>
+
+  <TabItem label="从源码构建">
+    环境要求：
+
+    - **Node.js** ≥ 18 与 **pnpm** ≥ 8
+    - **Emscripten** 5.0.0（需精确版本，与 CI 对齐）
+
+    <Steps>
+
+    1. 克隆并安装依赖：
+
+       ```bash
+       git clone https://github.com/esengine/estella.git
+       cd estella
+       pnpm install
+       ```
+
+    2. 构建引擎、SDK 并同步到编辑器：
+
+       ```bash
+       node build-tools/cli.js build -t all
+       ```
+
+    3. 运行编辑器：
+
+       ```bash
+       cd desktop && pnpm dev
+       ```
+
+    </Steps>
+
+    完整构建说明见
+    [CONTRIBUTING.md](https://github.com/esengine/estella/blob/master/CONTRIBUTING.md)。
+  </TabItem>
+</Tabs>

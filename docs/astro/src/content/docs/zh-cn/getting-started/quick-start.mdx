@@ -1,0 +1,47 @@
+---
+title: 快速上手
+description: 创建项目并写下你的第一个系统。
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+下面走一遍「让一个实体动起来」：在编辑器里把它加进场景，再用一段 TypeScript
+系统驱动它。
+
+<Steps>
+
+1. **创建项目。** 在编辑器中点击 **New Project**，命名后点击 **Create**。你会得到
+   一个带相机实体的默认场景。
+
+2. **添加实体。** 在场景层级里新建一个实体，在检视面板中给它加上 `Sprite` 与
+   `LocalTransform` 组件。
+
+3. **编写系统。** 在项目的脚本里新建一个 TypeScript 文件，注册一个系统，让所有带
+   `Speed` 组件的实体移动：
+
+   ```typescript
+   import {
+       defineComponent, defineSystem, addSystem,
+       Query, Mut, Res, Time, LocalTransform
+   } from 'esengine';
+
+   const Speed = defineComponent('Speed', { value: 200 });
+
+   addSystem(defineSystem(
+       [Res(Time), Query(Mut(LocalTransform), Speed)],
+       (time, query) => {
+           for (const [entity, transform, speed] of query) {
+               transform.position.x += speed.value * time.delta;
+           }
+       }
+   ));
+   ```
+
+4. **预览。** 给实体加上 `Speed` 组件，然后按 **F5** 运行场景，精灵就会移动。
+
+</Steps>
+
+<Aside type="tip">
+  `Res(Time)` 提供帧计时，`Query(...)` 遍历同时拥有列出的每个组件的实体，`Mut(...)`
+  标记一个你打算写入的组件。完整的查询词汇见[系统](/docs/zh-cn/core-concepts/systems/)。
+</Aside>

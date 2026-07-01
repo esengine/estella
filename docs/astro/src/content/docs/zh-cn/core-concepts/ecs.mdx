@@ -1,0 +1,37 @@
+---
+title: ECS 架构
+description: Estella 中的实体、组件与系统。
+---
+
+Estella 构建在 **Entity-Component-System**（ECS，实体-组件-系统）架构之上。
+它不用层层继承的类，而是把游戏状态放进纯数据的组件里，把行为放进遍历这些数据的
+系统里。
+
+- **实体（Entity）** —— 一个标识符。它不持有数据、也不含行为，只是组件挂载的句柄。
+- **组件（Component）** —— 一小块纯数据结构（位置、速度、精灵）。一个实体由它拥有
+  哪些组件来定义。
+- **系统（System）** —— 每帧运行的函数，遍历所有匹配某个查询的实体，读写它们的组件。
+
+## 为什么要数据导向
+
+组件存放在单一、缓存友好的存储层（稀疏集，sparse set）里，因此一个系统遍历
+「所有同时拥有 `LocalTransform` 与 `Speed` 的实体」时走的是连续内存。存储位于
+C++/WebAssembly 内核中，SDK 通过一份生成并经哈希校验的内存布局**零拷贝**读取它——
+于是同一个组件的 TypeScript 视图与 C++ 视图永远不会悄悄地对不上。
+
+## 你编写的界面
+
+你用三个 SDK 原语组装一个游戏：
+
+- [`defineComponent`](/docs/zh-cn/core-concepts/components/) —— 声明一个组件类型。
+- [`defineSystem`](/docs/zh-cn/core-concepts/systems/) —— 声明一个系统及其查询。
+- `App` / 插件 —— 把系统、资源与各子系统（物理、Spine、瓦片地图、UI、音频、场景）
+  组装成一个运行中的游戏。
+
+```typescript
+import { App } from 'esengine';
+
+const app = new App();
+// 在 app 上注册组件、系统与插件……
+app.run();
+```

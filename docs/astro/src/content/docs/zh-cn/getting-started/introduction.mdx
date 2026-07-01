@@ -1,0 +1,34 @@
+---
+title: 简介
+description: Estella 是什么，以及它为什么存在。
+---
+
+Estella 是一个 **2D 游戏引擎**：上层是 TypeScript SDK，底层由高性能的
+**C++/WebAssembly** 内核驱动。它自带一个用于场景编辑与项目管理的可视化编辑器，
+产出的游戏可运行在 **Web 浏览器**与**微信小游戏**中。
+
+## 为什么选择 Estella？
+
+- **快** —— C++ 渲染管线编译为 WebAssembly，而非解释执行的 JavaScript。
+- **类型安全** —— 一流的 TypeScript SDK，提供 `defineSystem`、`defineComponent`、
+  `Query`。
+- **数据导向** —— Entity-Component-System 架构，游戏逻辑可规模化扩展。
+- **可视化编辑器** —— 场景层级、检视面板、资源浏览器，无需手写 JSON。
+- **跨平台** —— 一套代码，发布到 Web 浏览器与微信小游戏。
+- **Spine 与物理** —— 内置 Spine 骨骼动画与物理支持。
+
+## 各层如何协作
+
+| 层 | 职责 |
+|----|------|
+| **TypeScript SDK**（`esengine`） | 你编写的界面：`App`、`World`、系统、组件、查询、插件。 |
+| **WasmBridge** | SDK 与引擎之间的唯一边界，内存布局由生成器产出并经哈希校验。 |
+| **C++ / WebAssembly** | 引擎内核：ECS 存储、渲染器（`GfxDevice`）、资源、粒子、瓦片地图、文本。 |
+
+完整架构见
+[`ARCHITECTURE.md`](https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md)。
+
+## 下一步
+
+- [安装](/docs/zh-cn/getting-started/installation/) —— 获取编辑器或从源码构建。
+- [快速上手](/docs/zh-cn/getting-started/quick-start/) —— 创建项目并写下你的第一个系统。

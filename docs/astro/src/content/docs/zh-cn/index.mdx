@@ -1,0 +1,33 @@
+---
+title: Estella
+description: 由 WebAssembly 与 ECS 驱动的高性能 2D 游戏引擎。
+template: splash
+hero:
+  tagline: 一个搭配 TypeScript SDK、由 C++/WebAssembly 内核驱动的 2D 游戏引擎。一次开发，发布到 Web 与微信小游戏。
+  actions:
+    - text: 快速开始
+      link: /docs/zh-cn/getting-started/introduction/
+      icon: right-arrow
+    - text: 在 GitHub 查看
+      link: https://github.com/esengine/estella
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="快" icon="rocket">
+    C++ 渲染管线编译为 WebAssembly，而不是解释执行的 JavaScript。
+  </Card>
+  <Card title="类型安全" icon="seti:typescript">
+    一流的 TypeScript SDK：`defineComponent`、`defineSystem`、`Query`、
+    `Commands`、`Res`。
+  </Card>
+  <Card title="数据导向" icon="puzzle">
+    Entity-Component-System 内核，单一且缓存友好的组件存储层。
+  </Card>
+  <Card title="跨平台" icon="laptop">
+    一套代码，发布到 Web 浏览器与微信小游戏。
+  </Card>
+</CardGrid>

@@ -1,0 +1,47 @@
+---
+title: 系统
+description: 用 defineSystem、Query、Res 和 Mut 声明系统。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**系统**是每帧运行的函数。你声明它需要什么——一个组件查询，加上资源和事件——
+Estella 就会在调度中用恰好这些参数调用它。
+
+```typescript
+import {
+    defineComponent, defineSystem, addSystem,
+    Query, Mut, Res, Time, LocalTransform
+} from 'esengine';
+
+const Speed = defineComponent('Speed', { value: 200 });
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));
+```
+
+## 参数
+
+系统的第一个参数是它的**参数列表**——它将按顺序收到的数据：
+
+- **`Query(...)`** —— 遍历同时拥有列出的每个组件的实体。每次迭代产出
+  `[entity, ...组件]`。
+- **`Mut(Component)`** —— 系统会写入的组件。未包裹的组件是只读的。
+- **`Res(Resource)`** —— 一个共享资源，例如提供帧计时的 `Time`。
+
+<Aside type="caution">
+  只有当你确实要写入某个组件时才把它包进 `Mut`。只读查询让引擎可以跳过多余的变更
+  检测，也让更多系统能并行运行。
+</Aside>
+
+## 运行顺序
+
+系统由**调度（schedule）**组织。用 `addSystem` 注册一个系统，或通过 `App` 上的插件
+加入它。场景系统只在其所属场景处于激活状态时运行，因此多个场景可以共存于同一个世界
+而互不干扰。
