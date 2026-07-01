@@ -1,49 +1,48 @@
 ---
 title: UI
-description: Build flexbox interfaces — in the editor or in code — and handle interaction.
+description: The complete UI reference — the flexbox component model (UINode/FlexContainer), text, visuals, widgets, and interaction handling.
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
 Estella's UI is a CSS-like flexbox system solved in the C++ core. You compose an
-interface from UI components — either visually in the editor, or in code — and
-handle interaction from your systems. This guide builds a working pause menu in
-code, then covers layout and interaction.
+interface from UI components — visually in the editor or in code — and handle
+interaction from your systems. There is **no `RectTransform`**: `UINode` is real
+flexbox, sized with `px` / `percent` / `auto` plus `Absolute` insets.
 
 ## The components
 
 | Component | Role |
 |---|---|
-| `UINode` | The layout box. Holds the flex-item fields (`width`, `height`, `flexGrow`, `margin*`, `inset*`). |
-| `FlexContainer` | Makes a node lay its children out with flexbox (`direction`, `justifyContent`, `alignItems`, `gap`). |
-| `Text` | Text via an SDF glyph atlas (`content`, `fontSize`, `color`, `align`, …). |
-| `UIVisual` | The fill — solid color, texture, 9-slice, or tiled. |
+| `UINode` | The layout box; holds the per-item flex fields (size, grow/shrink, margin, inset). |
+| `FlexContainer` | Lays a node's children out with flexbox (direction, justify, align, gap, padding). |
+| `Text` | Text via an SDF glyph atlas (content, font, color, align, stroke, shadow, rich text). |
+| `UIVisual` | The fill — solid color, texture, 9-slice, tiled, or filled. |
 | `UIMask` | Clips its children. |
-| `Interactable` | Marks a node hit-testable, so it can be hovered/clicked. |
+| `Interactable` | Marks a node hit-testable so it can be hovered/clicked. |
+| `UIInteraction` | Engine-written per-frame pointer state (read-only for your logic). |
 
 ## Build a UI in code
 
-Here's a complete pause menu: a panel laid out as a centered column, with a title
-and a button that runs a handler on click. Register it as a **startup system** so
-it builds once.
+A complete pause menu — a centered column panel with a title and a button — built
+once from a **startup system**:
 
 ```typescript
 import {
   defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
   spawnUIEntity, createButton,
-  FlexContainer, FlexDirection, JustifyContent, AlignItems,
-  px,
+  FlexContainer, FlexDirection, JustifyContent, AlignItems, px,
 } from 'esengine';
 
 const buildPauseMenu = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
-  // 1. A panel: 320×220 with a dark translucent background.
+  // A panel: 320×220 with a dark translucent background.
   const panel = spawnUIEntity({
     world,
     node: { width: px(320), height: px(220) },
     visual: { color: { r: 0.08, g: 0.10, b: 0.16, a: 0.95 } },
   });
 
-  // 2. Lay its children out as a centered vertical column.
+  // Lay its children out as a centered vertical column.
   world.insert(panel, FlexContainer, {
     direction: FlexDirection.Column,
     justifyContent: JustifyContent.Center,
@@ -51,85 +50,139 @@ const buildPauseMenu = defineSystem([GetWorld(), Res(UIEvents)], (world, events)
     gap: { x: 0, y: 16 },
   });
 
-  // 3. A title label, parented to the panel.
-  spawnUIEntity({
-    world,
-    parent: panel,
-    text: { content: 'Paused', fontSize: 28 },
-  });
+  // A title, parented to the panel.
+  spawnUIEntity({ world, parent: panel, text: { content: 'Paused', fontSize: 28 } });
 
-  // 4. A button that resumes the game on click.
+  // A button that resumes the game on click.
   createButton({
-    world,
-    events,
-    parent: panel,
-    text: 'Resume',
+    world, events, parent: panel, text: 'Resume',
     node: { width: px(160), height: px(44) },
     states: {
       normal:  { color: { r: 0.20, g: 0.55, b: 1.0, a: 1 } },
       hover:   { color: { r: 0.30, g: 0.65, b: 1.0, a: 1 } },
       pressed: { color: { r: 0.12, g: 0.45, b: 0.9, a: 1 } },
     },
-    onClick: () => {
-      // resume: unpause, switch scene, hide the menu…
-    },
+    onClick: () => { /* unpause, switch scene, hide the menu… */ },
   });
 });
 
 addStartupSystem(buildPauseMenu);
 ```
 
-- `spawnUIEntity({ world, parent?, node?, visual?, text? })` returns the entity —
-  pass `parent` to nest it.
-- Sizes use the dimension helpers `px`, `percent`, `auto`.
-- The other widget factories work the same way: `createToggle`, `createSlider`,
-  `createProgress`, `createDialog`, `createDropdown`.
+`spawnUIEntity({ world, parent?, node?, visual?, text? })` returns the entity; pass
+`parent` to nest. Sizes use the dimension helpers `px`, `percent`, `auto`. The other
+widget factories work the same way: `createToggle`, `createSlider`, `createProgress`,
+`createDialog`, `createDropdown`.
 
 <Aside type="tip">
-  UI renders under the scene's UI camera — the default project sets one up. In
-  the editor you can build the same tree visually: add `UINode` entities, nest
-  them, and add a `FlexContainer` / `Text` / `UIVisual` / `Interactable` in the
-  inspector.
+  In the editor you build the same tree visually: add `UINode` entities, nest them,
+  and add `FlexContainer` / `Text` / `UIVisual` / `Interactable` in the inspector.
 </Aside>
 
-## Layout with FlexContainer
+## `UINode` — the layout box
 
-Add a `FlexContainer` to a node to lay out its children. The enums mirror CSS:
+Per-item sizing and placement live here (dimensions are built with `px()` /
+`percent()` / `auto()`).
 
-- `FlexDirection` — `Row`, `Column`, `RowReverse`, `ColumnReverse`.
-- `JustifyContent` — `Start`, `Center`, `End`, `SpaceBetween`, `SpaceAround`,
-  `SpaceEvenly` (main axis).
-- `AlignItems` — `Start`, `Center`, `End`, `Stretch` (cross axis).
-- `gap` (a `Vec2`) and `padding`.
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `position` | `UIPositionType` | `Relative` | `Relative` (in flow) or `Absolute` (placed by inset). |
+| `width` / `height` | Dimension | `auto` | Box size; `auto` = content-/flex-driven. |
+| `minWidth` / `minHeight` | Dimension | `auto` | Lower size bounds. |
+| `maxWidth` / `maxHeight` | Dimension | `auto` | Upper size bounds. |
+| `flexGrow` | number | `0` | Share of free space to absorb. |
+| `flexShrink` | number | `1` | Shrink factor when space is tight. |
+| `flexBasis` | Dimension | `auto` | Base size before grow/shrink. |
+| `alignSelf` | `AlignSelf` | `Auto` | Per-item cross-axis alignment override. |
+| `marginLeft/Top/Right/Bottom` | Dimension | `0` | Outer spacing. |
+| `insetLeft/Top/Right/Bottom` | Dimension | `auto` | Edge offsets when `Absolute`. |
 
-Per-child sizing lives on each child's `UINode`: `flexGrow`, `flexShrink`,
-`width` / `height`, `margin*`, and `inset*` for `Absolute` positioning.
+## `FlexContainer` — layout
+
+Add a `FlexContainer` to a node to lay out its children. The enums mirror CSS.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `direction` | `FlexDirection` | `Row` | `Row` / `Column` / `RowReverse` / `ColumnReverse`. |
+| `wrap` | `FlexWrap` | `NoWrap` | `NoWrap` / `Wrap`. |
+| `justifyContent` | `JustifyContent` | `Start` | Main-axis distribution (`Start`…`SpaceEvenly`). |
+| `alignItems` | `AlignItems` | `Stretch` | Cross-axis alignment (`Start` / `Center` / `End` / `Stretch`). |
+| `alignContent` | `AlignContent` | `Start` | Wrapped-line distribution. |
+| `gap` | Vec2 | `{0, 0}` | Space between children (x = column gap, y = row gap). |
+| `padding` | Padding | `{0,0,0,0}` | Inner spacing (`left/top/right/bottom`). |
+
+## `Text`
+
+Text is rendered from an SDF glyph atlas, so it scales crisply.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `content` | string | `''` | The string to display. |
+| `fontFamily` | string | `'Arial'` | Font family. |
+| `fontSize` | number | `24` | Size in pixels. |
+| `color` | Color | `{1,1,1,1}` | Text color. |
+| `align` | `TextAlign` | `Left` | Horizontal alignment. |
+| `verticalAlign` | `TextVerticalAlign` | `Top` | Vertical alignment. |
+| `wordWrap` | boolean | `true` | Wrap at the box width. |
+| `overflow` | `TextOverflow` | `Visible` | Overflow handling. |
+| `lineHeight` | number | — | Line spacing multiplier. |
+| `bold` / `italic` | boolean | `false` | Font style. |
+| `strokeColor` / `strokeWidth` | Color / number | — | Outline. |
+| `shadowColor` / `shadowBlur` / `shadowOffsetX` / `shadowOffsetY` | — | Drop shadow. |
+| `richText` | boolean | `false` | Parse inline rich-text markup. |
+
+## `UIVisual` — the fill
+
+`UIVisual` draws the node's background. `visualType` selects the mode:
+
+| `UIVisualType` | Uses | Description |
+|---|---|---|
+| `None` | — | Invisible (layout/hit-test only). |
+| `SolidColor` | `color` | Tinted quad. |
+| `Image` | `texture`, `uvOffset`, `uvScale` | Textured quad / sprite region. |
+| `NineSlice` | `sliceBorder` | Scalable panel with fixed corners. |
+| `Tiled` | `tileSize` | Texture repeated across the box. |
+| `Filled` | `fillAmount`, `fillMethod`, `fillOrigin` | Cropped fill (health/progress bars). |
 
 ## Handling interaction
 
-`createButton` gives you `onClick` directly. For your own widgets, the hit-test
-system writes per-frame pointer state into `UIInteraction` (`hovered`, `pressed`,
-`justPressed`, `justReleased`) on any entity that has an `Interactable`. It's
-**read-only for your logic** — query it to react:
+`createButton` gives you `onClick` directly. For custom widgets, the hit-test system
+writes per-frame pointer state into `UIInteraction` on any entity with an
+`Interactable`. It is **read-only** — query it, never mutate it:
 
 ```typescript
 import { defineSystem, Query, Interactable, UIInteraction } from 'esengine';
 
 const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
   for (const [entity, _gate, state] of q) {
-    if (state.justReleased) {
-      // this node was clicked
-    }
+    if (state.justReleased) { /* this node was clicked */ }
   }
 });
 ```
 
-For bubbling events — `click`, `hover_enter`, `change`, `submit`, `drag` up the
-parent chain — read the `UIEvents` resource (the event bus, a `UIEventQueue`).
+| `UIInteraction` field | Description |
+|---|---|
+| `hovered` | The pointer is over the node. |
+| `pressed` | The pointer is held down on the node. |
+| `justPressed` | Became pressed this frame. |
+| `justReleased` | Released this frame (a click). |
 
-<Aside type="note">
-  There is no `RectTransform`: `UINode` is real flexbox, sized with `px`,
-  `percent`, and `auto`, plus `Absolute` positioning via insets. `UIInteraction`
-  is written by the engine each frame — drive your logic from it or from
-  `UIEvents`, never mutate it.
-</Aside>
+For bubbling events — `click`, `hover_enter`, `change`, `submit`, `drag` up the
+parent chain — read the `UIEvents` resource (the UI event bus).
+
+## Best practices
+
+- **Flex, not absolute** — lay out with `FlexContainer` + `flexGrow`; reserve
+  `Absolute` insets for overlays and badges.
+- **Size with `percent` / `auto`** for resolution independence; hard `px` only where
+  a fixed size is intended.
+- **Drive logic from `UIInteraction` or `UIEvents`**, never by mutating them.
+- **Reuse the widget factories** (`createButton`, `createSlider`, …) for consistent
+  state visuals instead of wiring hover/press by hand.
+- **9-slice panels** (`NineSlice`) keep borders crisp at any size.
+
+## See also
+
+- [Input](/docs/guides/input/) — raw keyboard/mouse/touch below the UI layer.
+- [Localization](/docs/guides/localization/) — bind `Text.content` to translated keys.
+- [Animation](/docs/guides/animation/) — tween UI color/position for juice.
