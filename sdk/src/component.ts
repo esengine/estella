@@ -21,9 +21,10 @@ import type {
 // Builtin enums whose values come from C++ ES_ENUMs — imported from the generated
 // module (single source) and re-exported below, so a TS const cannot drift from the
 // C++ enum and the editor dropdowns (enumOptions) derive from the same values. The
-// remaining hand-written enums (ScaleMode aliases, ShapeType, ParticleEasing) have no
-// matching C++ enum yet, so they stay local.
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType } from './wasm.generated';
+// remaining hand-written enums (ShapeType, ParticleEasing) have no matching C++ enum
+// yet, so they stay local; ScaleMode's canonical values come from CanvasScaleMode
+// (only its Cocos-compat aliases ShowAll/NoBorder are TS-side).
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, CanvasScaleMode } from './wasm.generated';
 import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
@@ -507,14 +508,16 @@ export function ensureBuiltinComponentsRegistered(): void {
 // module; their values and the editor dropdowns built from them now have one source.
 export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType };
 
+// Canonical values single-sourced from the C++ CanvasScaleMode enum (generated);
+// ShowAll/NoBorder are Cocos-compat aliases with no C++ member.
 export const ScaleMode = {
-    FixedWidth: 0,
-    FixedHeight: 1,
-    Expand: 2,
-    Shrink: 3,
-    Match: 4,
-    ShowAll: 2,
-    NoBorder: 3,
+    FixedWidth: CanvasScaleMode.FixedWidth,
+    FixedHeight: CanvasScaleMode.FixedHeight,
+    Expand: CanvasScaleMode.Expand,
+    Shrink: CanvasScaleMode.Shrink,
+    Match: CanvasScaleMode.Match,
+    ShowAll: CanvasScaleMode.Expand,
+    NoBorder: CanvasScaleMode.Shrink,
 } as const;
 
 export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];

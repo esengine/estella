@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { CanvasScaleMode } from './wasm.generated';
+
 export const DEFAULT_DESIGN_WIDTH = 1920;
 export const DEFAULT_DESIGN_HEIGHT = 1080;
 export const DEFAULT_PIXELS_PER_UNIT = 100;
@@ -57,9 +59,15 @@ export interface RuntimeBuildConfig {
     assetFailureCooldown?: number;
 }
 
-const CANVAS_SCALE_MODE_MAP: Record<string, number> = {
-    FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4, ShowAll: 2, NoBorder: 3,
-};
+/** Canvas scale-mode name → value. Canonical names are single-sourced from the
+ *  C++ CanvasScaleMode enum; ShowAll/NoBorder are Cocos-compat aliases with no C++
+ *  member. Unknown names fall back to FixedHeight (the C++ default). */
+function canvasScaleModeValue(name: string): number {
+    if (name === 'ShowAll') return CanvasScaleMode.Expand;
+    if (name === 'NoBorder') return CanvasScaleMode.Shrink;
+    const v = (CanvasScaleMode as unknown as Record<string, number>)[name];
+    return typeof v === 'number' ? v : CanvasScaleMode.FixedHeight;
+}
 
 export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void }, config: RuntimeBuildConfig): void {
     if (config.maxDeltaTime !== undefined) {
@@ -89,7 +97,7 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
         };
     }
     if (config.canvasScaleMode !== undefined) {
-        RuntimeConfig.canvasScaleMode = CANVAS_SCALE_MODE_MAP[config.canvasScaleMode] ?? 1;
+        RuntimeConfig.canvasScaleMode = canvasScaleModeValue(config.canvasScaleMode);
     }
     if (config.canvasMatchWidthOrHeight !== undefined) {
         RuntimeConfig.canvasMatchWidthOrHeight = config.canvasMatchWidthOrHeight;
