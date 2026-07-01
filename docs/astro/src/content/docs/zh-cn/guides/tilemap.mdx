@@ -1,18 +1,23 @@
 ---
 title: 瓦片地图
-description: 加载 Tiled 地图,或用代码构建、编辑并让瓦片图层动起来。
+description: 瓦片图层的完整指南——加载 Tiled 地图、Tilemap/TilemapLayer 组件、用代码构建与编辑图层、多图集图层、动画、无限分块地图与碰撞。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 在 C++/WebAssembly 内核中渲染瓦片图层。你可以从 Tiled 文件加载整张地图,也可以
-用 `Tilemaps` 资源自己构建、编辑图层——包括多图集图层、逐瓦片动画,以及无限分块地图。
+Estella 在 C++/WebAssembly 内核里渲染瓦片图层,按图集纹理合批并以分块(chunk)存储。用
+`Tilemap` 组件从 [Tiled](https://www.mapeditor.org/) 文件加载整张地图,或用 `Tilemaps`
+资源自己构建与编辑图层——包括多图集图层、逐瓦片动画和无限流式地图。
 
-## 高层:加载 Tiled 地图
+## 工作原理
 
-`Tilemap` 组件通过唯一字段 `source` 把实体指向一个 Tiled JSON(`.tmj`)文件。通常你在
-编辑器里添加它;运行时加载地图并为每个图层生成一个 `TilemapLayer`(带 `cellSize`、图集
-贴图、`renderLayer`、`tintColor`、`opacity`、`parallaxFactor`)。用代码:
+有两个入口。**`Tilemap`** 组件把实体指向一个 Tiled JSON 文件,加载时为每个图层生成一个
+**`TilemapLayer`** 实体。**`Tilemaps`** 资源是用代码创建与编辑图层的命令式 API。两种方式最终
+都落到同一个运行时图层模型。瓦片 id 是**从 1 开始**的(`0` = 空)。
+
+## 加载 Tiled 地图
+
+`Tilemap` 组件通过它唯一的字段加载一个 `.tmj`/`.tmx` 地图:
 
 ```typescript
 import { defineSystem, Commands, Tilemap } from 'esengine';
@@ -22,10 +27,31 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 });
 ```
 
+| `Tilemap` 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `source` | asset | `''` | Tiled 地图文件(`tilemap` 资源)。 |
+
+## `TilemapLayer` 组件
+
+每个图层(从 Tiled 加载,或你自己生成)携带它的视觉元数据。渲染器实时读取这些,所以动画化
+`tintColor` / `opacity` 没有延迟。
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `cellSize` | Vec2 | `{32, 32}` | 瓦片尺寸(世界单位)。 |
+| `originOffset` | Vec2 | `{0, 0}` | 图层原点偏移。 |
+| `tileset` | asset | 无 | 图集纹理(单图集图层)。 |
+| `tilesetColumns` | number | `1` | 图集图册的列数。 |
+| `tilesetRows` | number | `1` | 图集图册的行数。 |
+| `renderLayer` | number | `0` | 决定绘制顺序的排序层。 |
+| `tintColor` | Color | `{1,1,1,1}` | 叠乘到每个瓦片上。可动画。 |
+| `opacity` | number | `1` | 图层透明度,0..1。可动画。 |
+| `parallaxFactor` | Vec2 | `{1, 1}` | 相对相机的视差滚动系数。 |
+| `visible` | boolean | `true` | 显示 / 隐藏图层。 |
+
 ## 用代码构建图层
 
-`Tilemaps` 是运行时 API。生成一个实体,初始化图层,再填充它——瓦片 id 从 `1` 开始
-(`0` = 空):
+生成一个实体,初始化一个图层,然后填充它:
 
 ```typescript
 import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
@@ -33,27 +59,27 @@ import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
 const build = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
   const layer = cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } }).id();
 
-  tilemap.initLayer(layer, 32, 32, 16, 16);    // 32×32 格,16px 格子
-  tilemap.setTiles(layer, new Uint16Array(32 * 32));   // 批量载入
-  tilemap.setTile(layer, 5, 3, 7);             // 单个瓦片
-  tilemap.fillRect(layer, 0, 0, 32, 1, 2);     // 一行瓦片 2
+  tilemap.initLayer(layer, 32, 32, 16, 16);           // 32×32 tiles, 16px cells
+  tilemap.setTiles(layer, new Uint16Array(32 * 32));  // bulk load
+  tilemap.setTile(layer, 5, 3, 7);                    // one tile (x, y, id)
+  tilemap.fillRect(layer, 0, 0, 32, 1, 2);            // a row of tile 2
 });
 ```
 
-## 编辑与变换瓦片
+## 编辑与变换
 
 ```typescript
-tilemap.getTile(layer, 5, 3);                       // 读取瓦片 id
-tilemap.flipTile(layer, 5, 3, true, false, false);  // 水平、垂直、对角翻转
-tilemap.rotateTile(layer, 5, 3, 90);                // 度数
+tilemap.getTile(layer, 5, 3);                       // read a tile id
+tilemap.flipTile(layer, 5, 3, true, false, false);  // flipH, flipV, flipDiagonal
+tilemap.rotateTile(layer, 5, 3, 90);                // degrees
 tilemap.tileToWorld(layer, 5, 3, 0, 0);             // → { x, y }
 tilemap.worldToTile(layer, wx, wy, 0, 0);           // → { x, y }
 ```
 
 ## 多图集
 
-一个图层可以从多个图集绘制。给它一张 slot 表——每个 slot 把一个 `firstId` 范围映射到
-一张贴图及其列数:
+一个图层可以从多个图集绘制。给它一张 slot 表——每个 slot 把一个 `firstId` 区间映射到一张
+纹理及其列数(每张纹理一次 draw call):
 
 ```typescript
 tilemap.setTilesets(layer, [
@@ -64,28 +90,63 @@ tilemap.setTilesets(layer, [
 
 ## 瓦片动画
 
-给某个瓦片 id 设置一次动画——插件每帧推进它:
+对某个瓦片 id 设一次动画——插件每帧推进它:
 
 ```typescript
 tilemap.setTileAnimation(layer, 10, [
-  { tileId: 10, duration: 100 },
+  { tileId: 10, duration: 100 },   // durations in ms
   { tileId: 11, duration: 100 },
 ]);
 ```
 
 ## 无限(分块)地图
 
-对于大型或流式世界,用无限图层并逐块写入:
+对于大型或流式世界,用无限图层并逐块写入;`exportChunks` / `importChunks` 序列化稀疏的
+分块数据:
 
 ```typescript
 tilemap.initInfiniteLayer(layer, 16, 16);
 tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 ```
 
-`exportChunks` / `importChunks` 序列化稀疏的分块数据。
+## 图集与碰撞
+
+引擎的一等图集资源是 **`.estileset`**——它引用一张图集纹理,并携带逐瓦片的碰撞、动画和
+地形/自动拼接(auto-tile)数据。
 
 <Aside type="note">
-  瓦片**碰撞仅在运行模式**存在——静态碰撞体在场景运行时由可碰撞瓦片(在 `.estileset`
-  图集里标记,该图集还携带逐瓦片动画和地形/自动图块数据)生成;它们不存在于编辑世界中,
-  也不会被序列化。其他方法:`setTint`、`setVisible`、`setRenderProps`、`rotateTile`。
+  瓦片**碰撞仅在播放模式**存在:静态碰撞体在场景运行时从可碰撞瓦片(在 `.estileset` 里标记)
+  生成——它们从不在编辑世界里,也不被序列化。
 </Aside>
+
+## `Tilemaps` API 参考
+
+| 方法 | 说明 |
+|---|---|
+| `initLayer(layer, cols, rows, tileW, tileH)` | 创建一个固定尺寸的图层。 |
+| `initInfiniteLayer(layer, tileW, tileH)` | 创建一个分块、无界的图层。 |
+| `setTiles(layer, Uint16Array)` | 批量加载一个固定图层的瓦片。 |
+| `setTile(layer, x, y, id)` / `getTile(layer, x, y)` | 写 / 读一个瓦片。 |
+| `fillRect(layer, x, y, w, h, id)` | 用瓦片 id 填充一个矩形。 |
+| `flipTile(layer, x, y, h, v, d)` | 翻转一个瓦片(水平 / 垂直 / 对角)。 |
+| `rotateTile(layer, x, y, degrees)` | 旋转一个瓦片(90° 步进)。 |
+| `tileToWorld(layer, tx, ty, ox, oy)` / `worldToTile(layer, wx, wy, ox, oy)` | 坐标转换。 |
+| `setTilesets(layer, slots)` | 指定多图集 slot 表。 |
+| `setTileAnimation(layer, tileId, frames)` | 动画化一个瓦片 id。 |
+| `setChunkTiles(layer, cx, cy, tiles, w, h)` | 写一个块(无限图层)。 |
+| `exportChunks(layer)` / `importChunks(layer, data)` | 序列化 / 恢复分块数据。 |
+| `setTint(layer, color)` / `setVisible(layer, on)` / `setRenderProps(...)` | 实时视觉覆盖。 |
+
+## 最佳实践
+
+- 手工关卡**优先用 Tiled**(`Tilemap` + `.tmj`);程序化或运行时生成的地图用 `Tilemaps` API。
+- **按图集合批**:每图层的图集纹理越少,draw call 越少;把瓦片打成图集。
+- 批量写入**用 `setTiles` / `setChunkTiles`**,而不是循环里逐个 `setTile`。
+- 流式世界**用无限图层**;只写玩家附近的块。
+- 碰撞与瓦片动画**在 `.estileset` 里编辑**,保持数据驱动并在重新导入后仍然保留。
+
+## 参见
+
+- [物理](/docs/zh-cn/guides/physics/) —— 瓦片碰撞体参与物理世界。
+- [资源](/docs/zh-cn/guides/assets/) —— 加载 `.tmj` 地图与 `.estileset` 图集。
+- [场景](/docs/zh-cn/guides/scene/) —— 瓦片图层随场景序列化。

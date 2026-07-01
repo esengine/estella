@@ -1,20 +1,27 @@
 ---
 title: Tilemaps
-description: Load Tiled maps or build, edit, and animate tile layers in code.
+description: The complete guide to tile layers — loading Tiled maps, the Tilemap/TilemapLayer components, building and editing layers in code, multi-tileset layers, animation, infinite chunked maps, and collision.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella renders tile layers in the C++/WebAssembly core. Load a whole map from a
-Tiled file, or build and edit layers yourself with the `Tilemaps` resource —
-including multi-tileset layers, per-tile animation, and infinite chunked maps.
+Estella renders tile layers in the C++/WebAssembly core, batched per tileset
+texture and stored in chunks. Load a whole map from a [Tiled](https://www.mapeditor.org/)
+file with the `Tilemap` component, or build and edit layers yourself with the
+`Tilemaps` resource — including multi-tileset layers, per-tile animation, and
+infinite streaming maps.
 
-## High-level: load a Tiled map
+## How it works
 
-The `Tilemap` component points an entity at a Tiled JSON (`.tmj`) file via its
-one field, `source`. You usually add it in the editor; the runtime loads the map
-and spawns a `TilemapLayer` per layer (with `cellSize`, tileset texture,
-`renderLayer`, `tintColor`, `opacity`, `parallaxFactor`). In code:
+There are two entry points. The **`Tilemap`** component points an entity at a Tiled
+JSON file and, at load, spawns one **`TilemapLayer`** entity per layer. The
+**`Tilemaps`** resource is the imperative API for creating and editing layers from
+code. Either way the data ends up in the same runtime layer model. Tile ids are
+**1-based** (`0` = empty).
+
+## Load a Tiled map
+
+The `Tilemap` component loads a `.tmj`/`.tmx` map via its one field:
 
 ```typescript
 import { defineSystem, Commands, Tilemap } from 'esengine';
@@ -24,10 +31,31 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 });
 ```
 
+| `Tilemap` field | Type | Default | Description |
+|---|---|---|---|
+| `source` | asset | `''` | The Tiled map file (`tilemap` asset). |
+
+## The `TilemapLayer` component
+
+Each layer (loaded from Tiled, or spawned by you) carries its visual metadata. The
+renderer reads these live, so animating `tintColor` / `opacity` is lag-free.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `cellSize` | Vec2 | `{32, 32}` | Tile size in world units. |
+| `originOffset` | Vec2 | `{0, 0}` | Layer origin offset. |
+| `tileset` | asset | none | Tileset texture (single-tileset layers). |
+| `tilesetColumns` | number | `1` | Columns in the tileset atlas. |
+| `tilesetRows` | number | `1` | Rows in the tileset atlas. |
+| `renderLayer` | number | `0` | Sorting layer for draw order. |
+| `tintColor` | Color | `{1,1,1,1}` | Multiplied over every tile. Animatable. |
+| `opacity` | number | `1` | Layer transparency, 0..1. Animatable. |
+| `parallaxFactor` | Vec2 | `{1, 1}` | Parallax scroll factor relative to the camera. |
+| `visible` | boolean | `true` | Show / hide the layer. |
+
 ## Build a layer in code
 
-`Tilemaps` is the runtime API. Spawn an entity, initialise a layer, then fill it —
-tile ids are `1`-based (`0` = empty):
+Spawn an entity, initialise a layer, then fill it:
 
 ```typescript
 import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
@@ -35,14 +63,14 @@ import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
 const build = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
   const layer = cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } }).id();
 
-  tilemap.initLayer(layer, 32, 32, 16, 16);    // 32×32 tiles, 16px cells
-  tilemap.setTiles(layer, new Uint16Array(32 * 32));   // bulk load
-  tilemap.setTile(layer, 5, 3, 7);             // one tile
-  tilemap.fillRect(layer, 0, 0, 32, 1, 2);     // a row of tile 2
+  tilemap.initLayer(layer, 32, 32, 16, 16);           // 32×32 tiles, 16px cells
+  tilemap.setTiles(layer, new Uint16Array(32 * 32));  // bulk load
+  tilemap.setTile(layer, 5, 3, 7);                    // one tile (x, y, id)
+  tilemap.fillRect(layer, 0, 0, 32, 1, 2);            // a row of tile 2
 });
 ```
 
-## Edit and transform tiles
+## Editing & transforms
 
 ```typescript
 tilemap.getTile(layer, 5, 3);                       // read a tile id
@@ -55,7 +83,7 @@ tilemap.worldToTile(layer, wx, wy, 0, 0);           // → { x, y }
 ## Multiple tilesets
 
 One layer can draw from several tilesets. Give it a slot table — each slot maps a
-`firstId` range to a texture and its column count:
+`firstId` range to a texture and its column count (one draw call per texture):
 
 ```typescript
 tilemap.setTilesets(layer, [
@@ -70,26 +98,64 @@ Set an animation on a tile id once — the plugin advances it every frame:
 
 ```typescript
 tilemap.setTileAnimation(layer, 10, [
-  { tileId: 10, duration: 100 },
+  { tileId: 10, duration: 100 },   // durations in ms
   { tileId: 11, duration: 100 },
 ]);
 ```
 
 ## Infinite (chunked) maps
 
-For large or streaming worlds, use an infinite layer and write chunk by chunk:
+For large or streaming worlds, use an infinite layer and write chunk by chunk;
+`exportChunks` / `importChunks` serialize the sparse chunk data:
 
 ```typescript
 tilemap.initInfiniteLayer(layer, 16, 16);
 tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 ```
 
-`exportChunks` / `importChunks` serialize the sparse chunk data.
+## Tilesets & collision
+
+The engine's first-class tileset asset is **`.estileset`** — it references an atlas
+texture and carries per-tile collision, animation, and terrain/auto-tile data.
 
 <Aside type="note">
-  Tile **collision is play-mode only** — static colliders are spawned from
-  collidable tiles (marked in the `.estileset` tileset, which also carries
-  per-tile animation and terrain/auto-tile data) when the scene runs; they are
-  never in the edit world or serialized. Other methods: `setTint`, `setVisible`,
-  `setRenderProps`, `rotateTile`.
+  Tile **collision is play-mode only**: static colliders are spawned from collidable
+  tiles (marked in the `.estileset`) when the scene runs — they are never in the edit
+  world or serialized.
 </Aside>
+
+## `Tilemaps` API reference
+
+| Method | Description |
+|---|---|
+| `initLayer(layer, cols, rows, tileW, tileH)` | Create a fixed-size layer. |
+| `initInfiniteLayer(layer, tileW, tileH)` | Create a chunked, unbounded layer. |
+| `setTiles(layer, Uint16Array)` | Bulk-load a fixed layer's tiles. |
+| `setTile(layer, x, y, id)` / `getTile(layer, x, y)` | Write / read one tile. |
+| `fillRect(layer, x, y, w, h, id)` | Fill a rectangle with a tile id. |
+| `flipTile(layer, x, y, h, v, d)` | Flip a tile (horizontal / vertical / diagonal). |
+| `rotateTile(layer, x, y, degrees)` | Rotate a tile (90° steps). |
+| `tileToWorld(layer, tx, ty, ox, oy)` / `worldToTile(layer, wx, wy, ox, oy)` | Convert coordinates. |
+| `setTilesets(layer, slots)` | Assign a multi-tileset slot table. |
+| `setTileAnimation(layer, tileId, frames)` | Animate a tile id. |
+| `setChunkTiles(layer, cx, cy, tiles, w, h)` | Write a chunk (infinite layers). |
+| `exportChunks(layer)` / `importChunks(layer, data)` | Serialize / restore chunk data. |
+| `setTint(layer, color)` / `setVisible(layer, on)` / `setRenderProps(...)` | Live visual overrides. |
+
+## Best practices
+
+- **Prefer Tiled** (`Tilemap` + `.tmj`) for hand-authored levels; use the `Tilemaps`
+  API for procedural or runtime-generated maps.
+- **Batch by tileset**: fewer tileset textures per layer = fewer draw calls; atlas
+  your tiles.
+- **Use `setTiles` / `setChunkTiles`** for bulk writes instead of per-tile `setTile`
+  in a loop.
+- **Infinite layers** for streaming worlds; write only the chunks near the player.
+- Author **collision and tile animation in the `.estileset`** so they stay data-driven
+  and survive re-imports.
+
+## See also
+
+- [Physics](/docs/guides/physics/) — tile colliders participate in the physics world.
+- [Assets](/docs/guides/assets/) — loading `.tmj` maps and `.estileset` tilesets.
+- [Scenes](/docs/guides/scene/) — tilemap layers serialize with the scene.
