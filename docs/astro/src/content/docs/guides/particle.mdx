@@ -1,71 +1,304 @@
 ---
 title: Particles
-description: Configure effects with the ParticleEmitter component and Res(Particle).
+description: The complete guide to the ParticleEmitter component and the Particle runtime API — emission, shapes, over-life color/size, sprite sheets, blend modes, and playback control.
 ---
 
-Estella simulates particles on the CPU and renders them GPU-instanced. Add a
-`ParticleEmitter` component to an entity — in the editor or in code — configure
-the emission, and control playback with the `Particle` resource.
+import { Aside } from '@astrojs/starlight/components';
 
-## Create an emitter
+Particles drive effects like fire, smoke, explosions, sparks, rain, and magic.
+Estella simulates them on the CPU in the C++/WebAssembly core and renders them
+**GPU-instanced** in a single draw call per emitter, so a scene can run thousands
+of particles cheaply. You describe an effect declaratively with one
+`ParticleEmitter` component and control playback through the `Particle` resource.
 
-This spawns a one-shot burst — a little puff of embers that fade from yellow to
-red and fall:
+## How it works
+
+An emitter owns a fixed pool of up to `maxParticles`. Each frame it spawns new
+particles at `rate` per second (plus optional bursts), and each particle:
+
+1. **Spawns** somewhere inside the emitter **shape**, with a **velocity** whose
+   speed and direction are picked randomly between the configured min/max.
+2. **Lives** for a random `lifetimeMin…lifetimeMax` seconds, during which its
+   **color** and **size** animate from their start value to their end value.
+3. **Moves** under its own velocity plus `gravity` and `damping`, optionally
+   spinning (`angularVelocity`).
+4. **Dies** and returns to the pool when its lifetime elapses.
+
+Everything is randomized *per particle* between a `…Min` and `…Max` pair — set
+them equal for a uniform look, or spread them apart for variety. Over-life
+animation uses `startColor`/`endColor` + `startSize`/`endSize` with an easing
+curve by default, or a full **gradient/curve** for precise control (see below).
+
+<Aside type="note">
+  Particle simulation is **gameplay**: it advances in play mode and in the
+  standalone runtime, and is frozen in the editor's edit mode (like physics,
+  animation, and timelines). Enter Play to preview an effect.
+</Aside>
+
+## Setup
+
+The particle system ships in the main bundle. In the editor and the web runtime
+the plugin is installed automatically. In a custom `App`, add it once:
 
 ```typescript
-import { defineSystem, Commands, Transform, ParticleEmitter } from 'esengine';
+import { particlePlugin } from 'esengine';
 
-const spawnBurst = defineSystem([Commands()], (cmds) => {
+app.addPlugin(particlePlugin);
+```
+
+## Quick start
+
+Attach a `ParticleEmitter` to an entity and it starts emitting (`playOnStart` is
+on by default). This makes a looping fountain of embers that fade from yellow to
+transparent red and arc under gravity:
+
+```typescript
+import {
+  defineSystem, Commands, Transform, ParticleEmitter, EmitterShape,
+} from 'esengine';
+
+const spawnEmbers = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
-    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Transform, { position: { x: 0, y: -200, z: 0 } })
     .insert(ParticleEmitter, {
-      playOnStart: true,
-      looping: false,
-      burstCount: 60,                 // emit 60 particles at once
-      maxParticles: 128,
-      lifetimeMin: 0.4, lifetimeMax: 0.9,
-      speedMin: 120, speedMax: 260,   // world units / second
-      startSizeMin: 6, startSizeMax: 12,
-      endSizeMin: 0, endSizeMax: 0,   // shrink to nothing
-      startColor: { r: 1, g: 0.8, b: 0.2, a: 1 },
-      endColor: { r: 1, g: 0.2, b: 0.0, a: 0 },   // fade to transparent red
-      gravity: { x: 0, y: -200 },
+      rate: 120,
+      lifetimeMin: 1.2, lifetimeMax: 2.0,
+      shape: EmitterShape.Cone, shapeAngle: 20,
+      speedMin: 300, speedMax: 520,
+      startSizeMin: 12, startSizeMax: 20,
+      endSizeMin: 0,  endSizeMax: 0,
+      startColor: { r: 1, g: 0.9, b: 0.3, a: 1 },
+      endColor:   { r: 1, g: 0.2, b: 0.1, a: 0 },
+      gravity: { x: 0, y: -400 },
     });
 });
 ```
 
-For a **continuous** effect (smoke, a fountain), set `looping: true` and drive it
-with `rate` (particles per second) instead of `burstCount`.
+## `ParticleEmitter` reference
 
-## Key fields
+Every field is optional — omit one and it takes the default below. Sizes,
+distances, and speeds are in world units (pixels at the default PPU); angles are
+in degrees.
 
-Everything is data-driven; tune it in the inspector or in the insert above:
+### Emission
 
-- **Emission** — `rate`, `burstCount`, `burstInterval`, `duration`, `looping`,
-  `playOnStart`, `maxParticles`.
-- **Lifetime & motion** — `lifetimeMin` / `lifetimeMax`, `speedMin` / `speedMax`,
-  `gravity`, `damping`, `angleSpreadMin` / `angleSpreadMax`.
-- **Appearance** — `startSize*` / `endSize*` (+ `sizeEasing`), `startColor` /
-  `endColor` (+ `colorEasing`), `blendMode`, `layer`.
-- **Shape** — `shape`, `shapeRadius`, `shapeSize`, `shapeAngle` (where particles
-  spawn from).
-- **Texture / sprite sheet** — `texture`, `spriteColumns`, `spriteRows`,
-  `spriteFPS`, `spriteLoop`.
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `rate` | number | `10` | Continuous emission, particles per second. `0` = bursts only. |
+| `burstCount` | number | `0` | Particles released per burst. `0` disables bursts. |
+| `burstInterval` | number | `1` | Seconds between bursts. |
+| `duration` | number | `5` | Seconds the emitter runs before stopping (see `looping`). |
+| `looping` | boolean | `true` | Restart after `duration` instead of stopping. |
+| `playOnStart` | boolean | `true` | Begin emitting as soon as the entity exists. |
+| `maxParticles` | number | `1000` | Pool size — the hard cap on live particles. |
 
-## Control playback
+### Lifetime
 
-Read the `Particle` resource to start, stop, or clear an emitter, and to read its
-live particle count:
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `lifetimeMin` | number | `5` | Shortest particle lifetime, seconds. |
+| `lifetimeMax` | number | `5` | Longest particle lifetime, seconds. |
+
+### Shape
+
+Where particles spawn and their initial direction. See [Emitter shapes](#emitter-shapes).
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `shape` | `EmitterShape` | `Cone` | `Point` / `Circle` / `Rectangle` / `Cone`. |
+| `shapeRadius` | number | `100` | Radius for `Circle` / `Cone`. |
+| `shapeSize` | Vec2 | `{100, 100}` | Box extents for `Rectangle`. |
+| `shapeAngle` | number | `25` | Cone half-angle (°) for `Cone`. |
+
+### Velocity & forces
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `speedMin` | number | `500` | Slowest initial speed. |
+| `speedMax` | number | `500` | Fastest initial speed. |
+| `angleSpreadMin` | number | `0` | Start of the emission-direction arc (°). |
+| `angleSpreadMax` | number | `360` | End of the emission-direction arc (°). |
+| `gravity` | Vec2 | `{0, 0}` | Constant acceleration applied to every particle. |
+| `damping` | number | `0` | Velocity drag per second (`0` = none). |
+
+### Size over life
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `startSizeMin` | number | `100` | Smallest size at spawn. |
+| `startSizeMax` | number | `100` | Largest size at spawn. |
+| `endSizeMin` | number | `100` | Smallest size at death. |
+| `endSizeMax` | number | `100` | Largest size at death. |
+| `sizeEasing` | `ParticleEasing` | `Linear` | Interpolation from start to end size. |
+| `sizeCurve` | `Curve` | none | Full size-over-life curve; overrides start/end (see [below](#color--size-over-life)). |
+
+### Color over life
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `startColor` | Color | `{1,1,1,1}` | Color at spawn (RGBA, 0..1). |
+| `endColor` | Color | `{1,1,1,0}` | Color at death — default fades alpha to 0. |
+| `colorEasing` | `ParticleEasing` | `Linear` | Interpolation from start to end color. |
+| `colorGradient` | `Gradient` | none | Full color-over-life gradient; overrides start/end. |
+
+### Rotation
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `rotationMin` | number | `0` | Smallest spawn rotation (°). |
+| `rotationMax` | number | `0` | Largest spawn rotation (°). |
+| `angularVelocityMin` | number | `0` | Slowest spin (°/s). |
+| `angularVelocityMax` | number | `0` | Fastest spin (°/s). |
+
+### Texture & sprite sheet
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `texture` | asset | none | Particle texture. Untextured particles are soft quads. |
+| `spriteColumns` | number | `1` | Sprite-sheet columns (`1` = whole texture). |
+| `spriteRows` | number | `1` | Sprite-sheet rows. |
+| `spriteFPS` | number | `10` | Frames per second when animating the sheet. |
+| `spriteLoop` | boolean | `true` | Loop the sheet vs. hold the last frame. |
+
+### Rendering & state
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `blendMode` | `BlendMode` | `Additive` | How particles composite. See [Blend modes](#blend-modes). |
+| `layer` | number | `0` | Sorting layer for draw order. |
+| `material` | asset | none | Optional custom material/shader. |
+| `simulationSpace` | `SimulationSpace` | `World` | `World` or `Local` (see [below](#simulation-space)). |
+| `enabled` | boolean | `true` | Disable to freeze and hide without removing the component. |
+
+## Emitter shapes
+
+`EmitterShape` sets the spawn region and initial direction:
+
+| Shape | Uses | Behavior |
+|---|---|---|
+| `Point` | — | All particles spawn at the entity origin. |
+| `Circle` | `shapeRadius` | Spawn inside a disc; direction radiates outward. |
+| `Rectangle` | `shapeSize` | Spawn inside a box. |
+| `Cone` | `shapeRadius`, `shapeAngle` | Spawn in a cone — a directed spray (fountains, thrusters). |
+
+The `angleSpreadMin…Max` arc further constrains the launch direction, so you can
+aim any shape (e.g. a `Circle` that only emits upward with `0…180`).
+
+## Color & size over life
+
+For most effects, `startColor` → `endColor` and `startSize` → `endSize` with an
+easing curve are enough — these are plain fields, so they work from code and in
+the editor. `ParticleEasing` values are `Linear`, `EaseIn`, `EaseOut`, and
+`EaseInOut`.
+
+For precise control, author a **gradient** (color) or **curve** (size multiplier)
+in the `ParticleEmitter` inspector — a list of stops/keys over normalized life `t`
+in `0..1`. The engine bakes them into a lookup table the simulation samples by
+particle age. The authored data looks like this:
 
 ```typescript
-import { defineSystem, Query, Res, ParticleEmitter, Particle } from 'esengine';
+// colorGradient: hot white -> orange -> smoke, fading out.
+{
+  stops: [
+    { t: 0.0, color: { r: 1, g: 1,   b: 0.8, a: 1 } },
+    { t: 0.4, color: { r: 1, g: 0.5, b: 0.1, a: 1 } },
+    { t: 1.0, color: { r: 0.2, g: 0.2, b: 0.2, a: 0 } },
+  ],
+}
+// sizeCurve: swell in, then shrink away (multiplies the particle's start size).
+{ keys: [{ t: 0, v: 0.2 }, { t: 0.3, v: 1 }, { t: 1, v: 0 }] }
+```
 
-const control = defineSystem([Query(ParticleEmitter), Res(Particle)], (q, particle) => {
-  for (const [entity] of q) {
-    particle.play(entity);    // start emitting
-    particle.stop(entity);    // stop emitting; existing particles finish out
-    particle.reset(entity);   // clear all particles immediately
-    const alive = particle.getAliveCount(entity);
-  }
+To change the ramp **procedurally at runtime**, upload a pre-baked lookup table
+through the resource — an `N×4` RGBA `Float32Array` for color, an `N`-scalar array
+for size. Pass `null` to clear it and fall back to start/end + easing:
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const recolor = defineSystem([Res(Particle)], (particles) => {
+  const lut = new Float32Array([ /* r,g,b,a, r,g,b,a, … */ ]);
+  particles.setColorLut(entity, lut);   // or particles.setColorLut(entity, null)
 });
 ```
+
+## Sprite-sheet animation
+
+Point `texture` at a sprite sheet and set `spriteColumns` / `spriteRows` to animate
+each particle across the frames at `spriteFPS`. A 4×4 explosion sheet, played once
+over each particle's life:
+
+```typescript
+.insert(ParticleEmitter, {
+  texture: 'effects/explosion.png',
+  spriteColumns: 4, spriteRows: 4, spriteFPS: 24, spriteLoop: false,
+});
+```
+
+## Simulation space
+
+| Value | Particles follow the emitter? | Use for |
+|---|---|---|
+| `World` (default) | No — they stay where they were born | Trails, exhaust, sparks left behind a moving object |
+| `Local` | Yes — they move with the entity's transform | Auras, shields, effects rigidly attached to a mover |
+
+## Blend modes
+
+`BlendMode` controls how particles composite over the scene:
+
+| Mode | Effect |
+|---|---|
+| `Normal` | Standard alpha blending. |
+| `Additive` (default) | Colors add — glows, fire, magic, light. |
+| `Multiply` | Darkens — smoke, shadow. |
+| `Screen` | Brightens, softer than additive. |
+| `PremultipliedAlpha` | For textures with premultiplied alpha. |
+
+## Controlling playback — `Res(Particle)`
+
+Read the `Particle` resource in a system (or `app.getResource(Particle)` outside
+ECS) to drive an emitter imperatively:
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const control = defineSystem([Res(Particle)], (particles) => {
+  particles.play(entity);        // start / resume emitting
+  particles.stop(entity);        // stop emitting (live particles finish)
+  particles.reset(entity);       // clear all live particles immediately
+  const n = particles.getAliveCount(entity);   // live particle count
+});
+```
+
+| Method | Description |
+|---|---|
+| `play(entity)` | Start or resume emission. |
+| `stop(entity)` | Stop emitting; existing particles live out their lifetime. |
+| `reset(entity)` | Kill all live particles and reset the emitter. |
+| `getAliveCount(entity)` | Number of currently live particles. |
+| `setColorLut(entity, lut \| null)` | Upload a baked color LUT (see above), or clear. |
+| `setSizeLut(entity, lut \| null)` | Upload a baked size LUT, or clear. |
+
+<Aside type="tip">
+  The per-frame `update` is driven automatically by the particle system — you
+  don't call it. For one-shot effects, keep a stopped emitter around and
+  `reset` + `play` it to re-fire (e.g. a reusable hit spark) — cheaper than
+  spawning a new entity each time.
+</Aside>
+
+## Performance & best practices
+
+- **Budget `maxParticles`.** It's a fixed pool; size it to the worst case, not
+  higher. Many small emitters beat one huge one for culling.
+- **Prefer `Additive` for light** (fire, sparks, magic) — it hides overdraw and
+  needs no sorting. Reserve `Normal`/`Multiply` for opaque smoke/dust.
+- **Atlas particle textures** and share one `material` so emitters batch.
+- **Spread min/max** for natural variety; equal min/max reads as mechanical.
+- **Reuse emitters** via `reset` + `play` instead of spawning/despawning.
+- Remember particles only advance in **play mode** — preview in Play.
+
+## See also
+
+- [Materials & Shaders](/docs/guides/material/) — custom particle materials.
+- [Post-processing](/docs/guides/postprocess/) — bloom over additive particles.
+- [Assets](/docs/guides/assets/) — loading particle textures and atlases.
