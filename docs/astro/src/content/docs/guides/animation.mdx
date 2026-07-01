@@ -1,66 +1,118 @@
 ---
 title: Animation
-description: Sprite sheets, tweens, and animator state machines.
+description: Sprite sheets, tweens (with sequencing), and animator state machines.
 ---
 
-Estella has three ways to animate, each suited to a different job.
+import { Aside } from '@astrojs/starlight/components';
+
+Estella has three animation systems, each for a different job: **sprite
+animation** for frame-by-frame art, **tweens** for interpolating properties, and
+the **animator state machine** for character animation driven by parameters.
 
 ## Sprite animation
 
-The `SpriteAnimator` component plays sprite-sheet clips. Switch the clip by
-writing the component (query it with `Mut`):
+The `SpriteAnimator` component plays sprite-sheet clips. Its fields are `clip`
+(the current clip name), `speed`, `playing`, `loop`, plus the read-only
+`currentFrame` and `frameTimer`. Switch clips by writing the component:
 
 ```typescript
 import { defineSystem, Query, Mut, SpriteAnimator } from 'esengine';
 
 const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
   for (const [entity, animator] of q) {
-    animator.clip = 'walk';       // switch to another clip
-    animator.currentFrame = 0;    // restart from the first frame
-    animator.frameTimer = 0;
+    animator.clip = 'walk';
+    animator.speed = 1.5;
+    animator.playing = true;
   }
 });
 ```
+
+For finer control, the `SpriteAnimation` resource can jump to a specific frame or
+a named label, and register clips at runtime:
+
+```typescript
+import { defineSystem, Query, Mut, Res, SpriteAnimator, SpriteAnimation } from 'esengine';
+
+const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q, sprites) => {
+  for (const [entity, animator] of q) {
+    sprites.gotoFrame(animator, 0, true);      // frame index, and play
+    sprites.gotoLabel(animator, 'attack', true);
+  }
+});
+```
+
+Clips can carry **frame events** (`SpriteAnimEvent`) that fire when playback
+reaches a frame — use them for footstep sounds or hit frames.
 
 ## Tweens
 
-The `Tween` resource interpolates one property from a start value to an end value
-over a duration:
+The `Tween` resource interpolates a property from one value to another over a
+duration:
 
 ```typescript
-import { defineSystem, Query, Res, Transform, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
+import { defineSystem, Res, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
 
-const animate = defineSystem([Query(Transform), Res(Tween)], (q, tween) => {
-  for (const [entity] of q) {
-    tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
-      easing: EasingType.EaseInOutQuad,
-      loop: LoopMode.PingPong,
-    });
-  }
+const animate = defineSystem([Res(Tween)], (tween) => {
+  tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
+    easing: EasingType.EaseInOutQuad,
+    delay: 0.2,
+    loop: LoopMode.PingPong,
+    loopCount: 3,          // -1 = forever
+  });
 });
 ```
 
-`TweenTarget` covers position, scale, rotation, and color channels — e.g.
-`PositionX`, `ScaleX`, `RotationZ`, `ColorR`. `EasingType` has the usual curves
-(`Linear`, `EaseInOutQuad`, …), and `LoopMode` includes `PingPong`.
+**Targets** (`TweenTarget`): `PositionX` / `PositionY` / `PositionZ`, `ScaleX` /
+`ScaleY`, `RotationZ`, `ColorR` / `ColorG` / `ColorB` / `ColorA`, `SizeX` /
+`SizeY`, and `CameraOrthoSize`. `EasingType` has the usual curves, and a handle
+can use a custom cubic-bezier via `.bezier(p1x, p1y, p2x, p2y)`.
+
+### Sequencing and control
+
+Compose tweens, and cancel or pause them:
+
+```typescript
+// Chain: run one after another.
+tween.to(e, TweenTarget.ScaleX, 1, 1.4, 0.15).then(
+  tween.to(e, TweenTarget.ScaleX, 1.4, 1, 0.15)
+);
+
+tween.parallel([...]);      // run several at once (a group)
+tween.sequence([...]);      // run in order (factories)
+tween.delay(0.5);           // a timed gap
+
+tween.cancel(handle);       // stop one
+tween.cancelAll(entity);    // stop everything on an entity
+```
+
+`tween.value(...)` tweens a plain number (not a component target) — for driving
+custom logic through a callback.
 
 ## Animator state machine
 
 For character animation, an animator controller (authored in the editor) holds
-states, transitions, and 1D blend trees driven by parameters. At runtime you set
-those parameters through `Res(AnimatorController)`:
+states, transitions, and 1D blend trees driven by **parameters**. At runtime you
+set the parameters through `Res(AnimatorController)`; the controller resolves the
+current state, clip, and blend:
 
 ```typescript
 import { defineSystem, Query, Res, SpriteAnimator, AnimatorController } from 'esengine';
 
 const drive = defineSystem([Query(SpriteAnimator), Res(AnimatorController)], (q, animator) => {
   for (const [entity] of q) {
-    animator.setFloat(entity, 'speed', 4.2);
+    animator.setFloat(entity, 'speed', 4.2);     // drives a 1D blend / transition
     animator.setBool(entity, 'grounded', true);
-    animator.setTrigger(entity, 'jump');
+    animator.setTrigger(entity, 'jump');         // one-shot; resetTrigger to clear
+    const speed = animator.getFloat(entity, 'speed');
   }
 });
 ```
 
-The controller resolves the current state/clip (or blends between clips) from the
-parameters, and can drive both sprite and Spine animations.
+The controller can drive both sprite and Spine animations, so one state machine
+handles a whole character.
+
+<Aside type="tip">
+  Reach for **tweens** for one-off UI/juice (a button pop, a fade), **sprite
+  animation** for looping art, and the **state machine** when transitions between
+  many clips depend on gameplay parameters.
+</Aside>
