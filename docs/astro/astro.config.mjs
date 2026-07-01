@@ -50,6 +50,7 @@ export default defineConfig({
           translations: { 'zh-CN': '玩法' },
           items: [
             { label: 'Input', translations: { 'zh-CN': '输入' }, slug: 'guides/input' },
+            { label: 'Camera', translations: { 'zh-CN': '相机' }, slug: 'guides/camera' },
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
             { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'guides/animation' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },

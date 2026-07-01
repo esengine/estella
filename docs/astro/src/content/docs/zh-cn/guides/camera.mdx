@@ -1,0 +1,58 @@
+---
+title: 相机
+description: 跟随目标、屏幕/世界坐标转换,以及震屏。
+---
+
+每个场景都通过一个相机来渲染——一个带 `Camera` 组件的实体。你控制它如何移动,以及它
+如何把屏幕映射到世界。
+
+## 跟随目标
+
+给相机加一个 `FollowTarget` 组件并指向某个实体。相机每帧向目标阻尼移动,带死区和平滑。
+通常你在编辑器里添加它并选择目标;用代码:
+
+```typescript
+import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
+
+const followPlayer = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
+  for (const [cameraEntity] of cameras) {
+    cmds.entity(cameraEntity).insert(FollowTarget, {
+      target: playerEntity,   // 要跟随的实体(来自你的玩家 Query)
+      offsetY: 40,            // 稍微看它上方一点
+      deadzone: 24,           // 目标在此范围内游走时相机不动
+      damping: 0.25,          // 平滑时间常数(0 = 直接吸附)
+    });
+  }
+});
+```
+
+## 屏幕 ↔ 世界
+
+读 `CameraView` 在屏幕像素与世界坐标之间转换——用于把实体放到光标处,或判断什么在
+屏幕上:
+
+```typescript
+import { defineSystem, Res, CameraView, Input } from 'esengine';
+
+const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
+  const worldPos = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
+  const bounds = view.getWorldBounds();  // 可见范围 { left, right, bottom, top }
+});
+```
+
+若只是鼠标,`Res(UICameraInfo)` 已经直接给你 `worldMouseX` / `worldMouseY`——见
+[输入](/docs/zh-cn/guides/input/)。
+
+## 震屏
+
+`shakeCamera` 给**渲染**视图加一个衰减扰动——它不碰相机的 Transform,所以总能恢复,
+也不会弄脏场景:
+
+```typescript
+import { shakeCamera } from 'esengine';
+
+shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
+```
+
+在你持有 `app` 的地方调用它——例如在受击或爆炸时。四个选项都是可选的(默认是一次短促
+有力的震动)。

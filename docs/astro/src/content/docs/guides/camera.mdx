@@ -1,0 +1,60 @@
+---
+title: Camera
+description: Follow a target, convert screen/world coordinates, and shake the view.
+---
+
+Every scene renders through a camera — an entity with a `Camera` component. You
+control how it moves and how it maps the screen to the world.
+
+## Follow a target
+
+Add a `FollowTarget` component to the camera and point it at an entity. The
+camera damps toward the target each frame, with a dead zone and smoothing.
+Usually you add it in the editor and pick the target; in code:
+
+```typescript
+import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
+
+const followPlayer = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
+  for (const [cameraEntity] of cameras) {
+    cmds.entity(cameraEntity).insert(FollowTarget, {
+      target: playerEntity,   // the Entity to follow (from your player Query)
+      offsetY: 40,            // look a little above it
+      deadzone: 24,           // the target can roam this far before the camera moves
+      damping: 0.25,          // smoothing time-constant (0 = snap)
+    });
+  }
+});
+```
+
+## Screen ↔ world
+
+Read `CameraView` to convert between screen pixels and world coordinates — for
+placing entities under the cursor, or checking what's on screen:
+
+```typescript
+import { defineSystem, Res, CameraView, Input } from 'esengine';
+
+const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
+  const worldPos = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
+  const bounds = view.getWorldBounds();  // visible { left, right, bottom, top }
+});
+```
+
+For the mouse specifically, `Res(UICameraInfo)` already gives you `worldMouseX` /
+`worldMouseY` — see [Input](/docs/guides/input/).
+
+## Shake the camera
+
+`shakeCamera` adds a decaying perturbation to the **rendered** view — it never
+touches the camera's Transform, so it always recovers and never dirties the
+scene:
+
+```typescript
+import { shakeCamera } from 'esengine';
+
+shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
+```
+
+Call it wherever you hold the `app` — for example on a hit or an explosion. All
+four options are optional (they default to a short punchy shake).
