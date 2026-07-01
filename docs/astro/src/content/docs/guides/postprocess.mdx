@@ -1,42 +1,53 @@
 ---
 title: Post-processing
-description: Full-screen effects via the PostProcessVolume component.
+description: The complete guide to full-screen effects — the PostProcessVolume component, the built-in effect library, and the programmatic PostProcess API.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella runs full-screen post-processing through ping-pong framebuffers. Add a
-`PostProcessVolume` component — usually in the editor — enable the effects you
-want, and tune their parameters in the inspector.
+`PostProcessVolume` component, enable the effects you want, and tune their
+parameters — in the editor or in code. Effects share the ping-pong buffers, so
+several can stack in one frame at no extra target cost beyond the passes.
 
 ## Built-in effects
 
-| Effect | What it does |
-|--------|--------------|
-| `bloom` | Glow on bright areas (threshold + intensity) |
-| `tonemap` | ACES tonemapping |
-| `colorGrade` | Color grading |
-| `vignette` | Darkened screen edges |
-| `chromaticAberration` | RGB fringing |
-| `blur` | Gaussian blur |
-| `fxaa` | Fast anti-aliasing |
-| `lensDistortion` | Barrel / pincushion distortion |
-| `pixelate` | Pixelation |
-| `grayscale` | Desaturate |
+| Effect | What it does | Key uniforms |
+|---|---|---|
+| `bloom` | Glow on bright areas | `threshold`, `intensity` |
+| `tonemap` | ACES filmic tonemapping | `exposure` |
+| `colorGrade` | Exposure / contrast / saturation / white balance | `exposure`, `contrast`, `saturation`, `temperature`, `tint` |
+| `vignette` | Darkened screen edges | `intensity`, `radius` |
+| `chromaticAberration` | RGB fringing | `intensity` |
+| `blur` | Gaussian blur | `radius` |
+| `fxaa` | Fast anti-aliasing | `intensity` |
+| `lensDistortion` | Barrel / pincushion warp | `strength`, `zoom` |
+| `pixelate` | Block quantization | `pixelSize` |
+| `grayscale` | Desaturate | — |
 
-Each effect exposes tunable uniforms (for example bloom's `threshold` and
-`intensity`) in the inspector.
+Every effect is a no-op at its default values, so adding one to a stack doesn't
+change the image until you dial it in.
 
-## Using a volume
+## Using a `PostProcessVolume`
 
-Add a `PostProcessVolume`, enable the effects, and set their parameters. Volumes
-**blend where they overlap**, so you can drive effects by area or fade them in
-over a transition.
+Add a `PostProcessVolume`, enable effects, and set their parameters. Volumes
+**blend where they overlap**, so you can drive effects by area (a "underwater"
+volume) or fade them in over a transition.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `effects` | list | `[]` | `{ type, enabled, uniforms }` per effect. |
+| `isGlobal` | boolean | `true` | Apply everywhere vs. only inside the volume shape. |
+| `shape` | `'box' \| 'sphere'` | `'box'` | Bounds shape for a local volume. |
+| `size` | Vec2 | `{5, 5}` | Volume extents (local volumes). |
+| `priority` | number | `0` | Higher-priority volumes win where they overlap. |
+| `weight` | number | `1` | Blend weight, 0..1 (fade the whole volume). |
+| `blendDistance` | number | `0` | Falloff distance at the volume edge. |
 
 ## Programmatic control
 
-For a custom pipeline, read the `PostProcess` resource — create a stack and bind
-it to a camera:
+For a custom pipeline, read the `PostProcess` resource — create a stack, tune it,
+and bind it to a camera:
 
 ```typescript
 import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
@@ -44,13 +55,37 @@ import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
 const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
   for (const [camera] of q) {
     const stack = pp.createStack();
+    stack.setEnabled('bloom', true)
+         .setUniform('bloom', 'intensity', 1.2)
+         .setUniform('bloom', 'threshold', 0.8);
     pp.bind(camera, stack);   // pp.unbind(camera) to remove
   }
 });
 ```
 
+| Method | Description |
+|---|---|
+| `PostProcess.createStack()` | Create an effect stack. |
+| `PostProcess.bind(camera, stack)` | Attach a stack to a camera. |
+| `PostProcess.unbind(camera)` | Remove the camera's stack. |
+| `stack.setEnabled(name, on)` | Enable/disable an effect (chainable). |
+| `stack.setUniform(pass, uniform, value)` | Set an effect parameter (chainable). |
+
+## Best practices
+
+- **Order matters** — effects run in registration order and share the buffers, so
+  a sensible chain is bloom → tonemap → color grade → vignette.
+- **Use volumes for locality** (an area's mood) and the `PostProcess` API for a
+  fixed camera pipeline.
+- **Fade with `weight`** on a volume for smooth transitions instead of toggling.
+- **Keep the stack short** on low-end/mobile — each pass is a full-screen draw.
+
 <Aside type="note">
-  Effects run in registration order and share the ping-pong buffers, so several
-  can stack in one frame (e.g. bloom → tonemap → vignette) at no extra target
-  cost beyond the passes themselves.
+  Effects are pure-GLSL and data-driven from a registry, so the editor and runtime
+  share one list — there's no hard-coded effect set to drift.
 </Aside>
+
+## See also
+
+- [Materials & Shaders](/docs/guides/material/) — per-object shaders (a separate path).
+- [Camera](/docs/guides/camera/) — bind a stack per camera.

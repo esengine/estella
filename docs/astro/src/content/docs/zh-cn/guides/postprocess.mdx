@@ -1,38 +1,49 @@
 ---
 title: 后处理
-description: 通过 PostProcessVolume 组件实现全屏效果。
+description: 全屏效果的完整指南——PostProcessVolume 组件、内置效果库,以及程序化的 PostProcess API。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcessVolume` 组件——通常
-在编辑器里——启用你想要的效果,并在检视面板里调参数。
+Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcessVolume` 组件,启用你要的
+效果,并调节它们的参数——在编辑器里或用代码。效果共享 ping-pong 缓冲,所以多个可以在一帧里
+叠加,除各遍(pass)本身外没有额外的目标开销。
 
 ## 内置效果
 
-| 效果 | 作用 |
-|------|------|
-| `bloom` | 高亮区域泛光(阈值 + 强度)|
-| `tonemap` | ACES 色调映射 |
-| `colorGrade` | 调色 |
-| `vignette` | 屏幕边缘压暗 |
-| `chromaticAberration` | RGB 色散 |
-| `blur` | 高斯模糊 |
-| `fxaa` | 快速抗锯齿 |
-| `lensDistortion` | 桶形 / 枕形畸变 |
-| `pixelate` | 像素化 |
-| `grayscale` | 去色 |
+| 效果 | 作用 | 关键 uniform |
+|---|---|---|
+| `bloom` | 亮部辉光 | `threshold`、`intensity` |
+| `tonemap` | ACES filmic 色调映射 | `exposure` |
+| `colorGrade` | 曝光 / 对比度 / 饱和度 / 白平衡 | `exposure`、`contrast`、`saturation`、`temperature`、`tint` |
+| `vignette` | 屏幕边缘变暗 | `intensity`、`radius` |
+| `chromaticAberration` | RGB 色散 | `intensity` |
+| `blur` | 高斯模糊 | `radius` |
+| `fxaa` | 快速抗锯齿 | `intensity` |
+| `lensDistortion` | 桶形 / 枕形畸变 | `strength`、`zoom` |
+| `pixelate` | 块状量化 | `pixelSize` |
+| `grayscale` | 去色 | — |
 
-每个效果都在检视面板里暴露可调 uniform(例如 bloom 的 `threshold` 与 `intensity`)。
+每个效果在默认值下都是恒等(no-op),所以把它加进栈里、在你调参之前不会改变画面。
 
-## 使用体积(Volume)
+## 使用 `PostProcessVolume`
 
-加一个 `PostProcessVolume`,启用效果并设定参数。多个体积**重叠时会混合**,因此你可以
-按区域驱动效果,或在过渡中淡入。
+加一个 `PostProcessVolume`,启用效果,设置参数。体积**在重叠处混合**,所以你可以按区域驱动
+效果(比如一个"水下"体积),或在过渡中淡入。
 
-## 代码控制
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `effects` | list | `[]` | 每个效果的 `{ type, enabled, uniforms }`。 |
+| `isGlobal` | boolean | `true` | 全局应用 vs 仅在体积形状内。 |
+| `shape` | `'box' \| 'sphere'` | `'box'` | 局部体积的边界形状。 |
+| `size` | Vec2 | `{5, 5}` | 体积范围(局部体积)。 |
+| `priority` | number | `0` | 重叠处优先级高者胜。 |
+| `weight` | number | `1` | 混合权重,0..1(淡化整个体积)。 |
+| `blendDistance` | number | `0` | 体积边缘的衰减距离。 |
 
-要自定义管线,读取 `PostProcess` 资源——创建一个 stack 并绑定到相机:
+## 程序化控制
+
+自定义管线时,读 `PostProcess` 资源——创建一个栈、调参,并绑定到相机:
 
 ```typescript
 import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
@@ -40,12 +51,34 @@ import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
 const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
   for (const [camera] of q) {
     const stack = pp.createStack();
-    pp.bind(camera, stack);   // pp.unbind(camera) 可移除
+    stack.setEnabled('bloom', true)
+         .setUniform('bloom', 'intensity', 1.2)
+         .setUniform('bloom', 'threshold', 0.8);
+    pp.bind(camera, stack);   // pp.unbind(camera) to remove
   }
 });
 ```
 
+| 方法 | 说明 |
+|---|---|
+| `PostProcess.createStack()` | 创建一个效果栈。 |
+| `PostProcess.bind(camera, stack)` | 把栈附加到相机。 |
+| `PostProcess.unbind(camera)` | 移除相机的栈。 |
+| `stack.setEnabled(name, on)` | 启用/禁用一个效果(可链式)。 |
+| `stack.setUniform(pass, uniform, value)` | 设置一个效果参数(可链式)。 |
+
+## 最佳实践
+
+- **顺序有讲究**——效果按注册顺序运行并共享缓冲,合理的链是 bloom → tonemap → 调色 → vignette。
+- **用体积做局部**(某区域的氛围),用 `PostProcess` API 做固定的相机管线。
+- 过渡时**用 `weight` 淡化**体积,而不是硬开关。
+- 低端/移动端**让栈保持简短**——每一遍都是一次全屏绘制。
+
 <Aside type="note">
-  效果按注册顺序运行并共享 ping-pong 缓冲,所以多个效果可以在一帧里叠加(例如
-  bloom → tonemap → vignette),除了各自的 pass 之外不产生额外的渲染目标开销。
+  效果是纯 GLSL、由注册表数据驱动的,所以编辑器和运行时共用一份列表——没有会漂移的硬编码效果集。
 </Aside>
+
+## 参见
+
+- [材质与着色器](/docs/zh-cn/guides/material/) —— 逐物体着色器(独立的路径)。
+- [相机](/docs/zh-cn/guides/camera/) —— 为每个相机绑定一个栈。
