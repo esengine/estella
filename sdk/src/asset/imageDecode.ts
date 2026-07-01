@@ -64,3 +64,15 @@ export async function decodeImagePixels(src: ImageBitmapSource): Promise<Decoded
         bitmap.close?.();
     }
 }
+
+/**
+ * Fetch a URL and decode it to top-first RGBA pixels. The single fetch→blob→decode
+ * path the runtime asset sources use for `estella://` / http origins (a CORS-mode
+ * `<img>` taints the canvas on custom schemes; fetch→blob sidesteps it). Uses the
+ * global `fetch` — these callers all run in a browser/electron context.
+ */
+export async function fetchDecodePixels(url: string): Promise<DecodedPixels> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`image fetch failed (${res.status}): ${url}`);
+    return decodeImagePixels(await res.blob());
+}

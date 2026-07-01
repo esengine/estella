@@ -6,4 +6,3 @@
  */
 
 export { PreviewPlugin } from './PreviewPlugin';
-export { WebAssetProvider } from './WebAssetProvider';

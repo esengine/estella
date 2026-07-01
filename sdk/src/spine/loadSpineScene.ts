@@ -24,7 +24,7 @@ import { getAssetTypeEntry } from '../assetTypes';
 import { requireResourceManager } from '../resourceManager';
 import { log } from '../logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
-import { createTextureFromPixels, type RuntimeAssetProvider } from '../runtimeAssets';
+import { createTextureFromPixels, type RuntimeAssetSource } from '../runtimeAssets';
 
 /** The opaque C++ registry handle SpineManager.loadEntity expects (app.world.getCppRegistry()). */
 type CppRegistry = Parameters<SpineManager['loadEntity']>[4];
@@ -53,27 +53,30 @@ function parseAtlasTextures(content: string): string[] {
  */
 export async function loadSpineAssets(
     module: ESEngineModule,
-    provider: RuntimeAssetProvider,
+    source: RuntimeAssetSource,
     spineManager: SpineManager | null | undefined,
     spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
 ): Promise<Map<string, SpineAssetInfo>> {
     const assetInfoMap = new Map<string, SpineAssetInfo>();
+    const resolveRef = source.resolveRef ?? ((r: string) => r);
 
     for (const pair of spinePairs) {
         const skelRef = pair.skeleton;
         const atlasRef = pair.atlas;
         const cacheKey = `${skelRef}:${atlasRef}`;
 
-        const atlasPath = provider.resolvePath(atlasRef);
+        // Resolve skeleton/atlas refs (uuid/manifest → build path); the derived
+        // texPath below is already a path, so it is NOT re-resolved.
+        const atlasPath = resolveRef(atlasRef);
 
         try {
-            const atlasContent = await provider.readText(atlasRef);
+            const atlasContent = await source.backend.fetchText(atlasPath);
 
-            const skelPath = provider.resolvePath(skelRef);
+            const skelPath = resolveRef(skelRef);
             const isBinary = getAssetTypeEntry(skelPath)?.contentType === 'binary';
-            const skelData = isBinary
-                ? await provider.readBinary(skelRef)
-                : await provider.readText(skelRef);
+            const skelData: Uint8Array | string = isBinary
+                ? new Uint8Array(await source.backend.fetchBinary(skelPath))
+                : await source.backend.fetchText(skelPath);
 
             const version = spineManager
                 ? (typeof skelData === 'string'
@@ -89,9 +92,7 @@ export async function loadSpineAssets(
             for (const texName of texNames) {
                 const texPath = atlasDir + '/' + texName;
                 try {
-                    const result = provider.loadPixelsRaw
-                        ? await provider.loadPixelsRaw(texPath)
-                        : await provider.loadPixels(texPath);
+                    const result = await source.decodePixels(texPath, false);
                     const handle = createTextureFromPixels(module, result, false);
                     rm.registerTextureWithPath(handle, texPath);
                     textures.set(texName, {
@@ -168,7 +169,7 @@ export async function applySpineEntities(opts: {
  */
 export async function loadSpineSceneEntities(opts: {
     module: ESEngineModule;
-    provider: RuntimeAssetProvider;
+    source: RuntimeAssetSource;
     spineManager: SpineManager;
     sceneData: SceneData;
     entityMap: Map<number, Entity>;
@@ -176,7 +177,7 @@ export async function loadSpineSceneEntities(opts: {
 }): Promise<void> {
     const discovered = discoverSceneAssets(opts.sceneData);
     if (discovered.spines.length === 0) return;
-    const assetInfo = await loadSpineAssets(opts.module, opts.provider, opts.spineManager, discovered.spines);
+    const assetInfo = await loadSpineAssets(opts.module, opts.source, opts.spineManager, discovered.spines);
     await applySpineEntities({
         spineManager: opts.spineManager,
         sceneData: opts.sceneData,

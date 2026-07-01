@@ -9,10 +9,11 @@
 
 import { createWebApp } from './webAppFactory';
 import type { ESEngineModule } from './wasm';
-import type { RuntimeAssetProvider } from './runtimeLoader';
 import { initRuntime } from './runtimeLoader';
+import type { RuntimeAssetSource } from './runtimeAssets';
+import { FileSystemBackend } from './asset/Backend';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
-import { platformReadTextFile, platformReadFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
+import { platformReadTextFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
 import { Assets } from './asset/AssetPlugin';
@@ -20,35 +21,6 @@ import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './si
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
 import { log } from './logger';
-
-// =============================================================================
-// WeChat Asset Provider
-// =============================================================================
-
-export class WeChatAssetProvider implements RuntimeAssetProvider {
-    private readonly resolvePath_: (ref: string) => string;
-
-    constructor(resolvePath: (ref: string) => string) {
-        this.resolvePath_ = resolvePath;
-    }
-
-    async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
-        return platformLoadImagePixels(this.resolvePath_(ref));
-    }
-
-    async readText(ref: string): Promise<string> {
-        return platformReadTextFile(this.resolvePath_(ref));
-    }
-
-    async readBinary(ref: string): Promise<Uint8Array> {
-        const buffer = await platformReadFile(this.resolvePath_(ref));
-        return new Uint8Array(buffer);
-    }
-
-    resolvePath(ref: string): string {
-        return this.resolvePath_(ref);
-    }
-}
 
 // =============================================================================
 // Emscripten WASM Instantiation
@@ -150,7 +122,13 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     // runtime loader below; this enables the on-demand subpackage path.
     if (app.hasResource(Assets)) app.getResource(Assets).setManifest(manifest);
 
-    const provider = new WeChatAssetProvider(resolvePath);
+    // Canonical asset source: WeChat filesystem backend, wx image decode, manifest
+    // ref resolution (bare-uuid → build path).
+    const source: RuntimeAssetSource = {
+        backend: new FileSystemBackend(),
+        decodePixels: (path) => platformLoadImagePixels(path),
+        resolveRef: resolvePath,
+    };
 
     const scenes: Array<{ name: string; data: SceneData }> = [];
     for (const name of config.sceneNames) {
@@ -161,7 +139,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     await initRuntime({
         app,
         module,
-        provider,
+        source,
         scenes,
         firstScene: config.firstScene,
         physicsConfig: config.physicsConfig,

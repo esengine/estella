@@ -1,39 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { SpinePlugin, loadSpineSceneEntities } from 'esengine/spine';
-import type { RuntimeAssetProvider } from 'esengine/spine';
+import type { RuntimeAssetSource } from 'esengine/spine';
 import { decodeImagePixels, type App, type SceneData } from 'esengine';
 
 /**
- * Fetch-backed asset provider for spine in the editor: skeleton/atlas come over
+ * Fetch-backed asset source for spine in the editor: skeleton/atlas come over
  * fetch as text/bytes; the atlas PNG is decoded to RGBA via the shared
  * `decodeImagePixels` (the same path the play realm uses — robust across the
- * editor's http/app:// origins). `toUrl` maps an asset ref to a fetchable URL.
+ * editor's http/app:// origins). `toUrl` maps an asset ref to a fetchable URL,
+ * applied uniformly on fetch (so `resolveRef` stays identity).
  */
-class EditorSpineProvider implements RuntimeAssetProvider {
-  constructor(private readonly toUrl: (ref: string) => string) {}
-
-  resolvePath(ref: string): string {
-    return this.toUrl(ref);
-  }
-
-  async readText(ref: string): Promise<string> {
-    const r = await fetch(this.toUrl(ref));
-    if (!r.ok) throw new Error(`spine asset ${r.status}: ${ref}`);
-    return r.text();
-  }
-
-  async readBinary(ref: string): Promise<Uint8Array> {
-    const r = await fetch(this.toUrl(ref));
-    if (!r.ok) throw new Error(`spine asset ${r.status}: ${ref}`);
-    return new Uint8Array(await r.arrayBuffer());
-  }
-
-  async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
-    const r = await fetch(this.toUrl(ref));
-    if (!r.ok) throw new Error(`spine texture ${r.status}: ${ref}`);
-    return decodeImagePixels(await r.blob());
-  }
+function editorSpineSource(toUrl: (ref: string) => string): RuntimeAssetSource {
+  const fetchOk = async (ref: string, kind: string): Promise<Response> => {
+    const r = await fetch(toUrl(ref));
+    if (!r.ok) throw new Error(`spine ${kind} ${r.status}: ${ref}`);
+    return r;
+  };
+  return {
+    backend: {
+      resolveUrl: (ref) => toUrl(ref),
+      fetchText: async (ref) => (await fetchOk(ref, 'asset')).text(),
+      fetchBinary: async (ref) => (await fetchOk(ref, 'asset')).arrayBuffer(),
+    },
+    decodePixels: async (ref) => decodeImagePixels(await (await fetchOk(ref, 'texture')).blob()),
+  };
 }
 
 /**
@@ -58,7 +49,7 @@ export async function loadEditorSpine(
   try {
     await loadSpineSceneEntities({
       module,
-      provider: new EditorSpineProvider(toUrl),
+      source: editorSpineSource(toUrl),
       spineManager,
       sceneData,
       entityMap: entityMap as Map<number, number>,

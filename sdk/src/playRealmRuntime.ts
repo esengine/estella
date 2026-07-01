@@ -18,11 +18,12 @@
 import type { App } from './app';
 import type { ESEngineModule } from './wasm';
 import { initRuntime } from './runtimeLoader';
-import type { RuntimeAssetProvider } from './runtimeLoader';
+import type { RuntimeAssetSource } from './runtimeAssets';
+import { HttpBackend } from './asset/Backend';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
 import type { PhysicsPluginConfig } from './physics/PhysicsPlugin';
-import { decodeImagePixels } from './asset/imageDecode';
+import { fetchDecodePixels } from './asset/imageDecode';
 
 const UUID_PREFIX = '@uuid:';
 
@@ -49,51 +50,41 @@ export interface PlayRealmRuntimeConfig {
 }
 
 /**
- * Fetches scene assets over the realm origin, resolving `@uuid:` refs through the
- * editor-supplied manifest. Images go fetch → blob → the shared `decodeImagePixels`
- * (NOT `<img crossorigin>`: Chromium refuses CORS-mode images for custom schemes
- * like `estella://`, and a non-CORS `<img>` would taint the canvas so getImageData
- * throws — fetch+blob sidesteps both). `estella://` is fetchable because it's a
- * privileged supportFetchAPI scheme; the editor returns `access-control-allow-origin: *`.
+ * Build the realm's asset source: `@uuid:` refs resolve through the editor-supplied
+ * manifest (`resolveRef`), fetch goes over the realm origin via `HttpBackend`, and
+ * images go fetch → blob → decode (NOT `<img crossorigin>`: Chromium refuses
+ * CORS-mode images for custom schemes like `estella://`, and a non-CORS `<img>`
+ * taints the canvas so getImageData throws — fetch+blob sidesteps both).
+ * `estella://` is fetchable because it's a privileged supportFetchAPI scheme; the
+ * editor returns `access-control-allow-origin: *`.
  */
-class FetchAssetProvider implements RuntimeAssetProvider {
-    constructor(private readonly manifest: Record<string, string>) {}
-
-    resolvePath(ref: string): string {
+function createPlayRealmSource(manifest: Record<string, string>): RuntimeAssetSource {
+    const backend = new HttpBackend({ baseUrl: '' });
+    const resolveRef = (ref: string): string => {
         if (!ref.startsWith(UUID_PREFIX)) return ref;
-        const url = this.manifest[ref.slice(UUID_PREFIX.length).toLowerCase()];
+        const url = manifest[ref.slice(UUID_PREFIX.length).toLowerCase()];
         if (!url) throw new Error(`asset not in play manifest: ${ref}`);
         return url;
-    }
-
-    async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
-        const url = this.resolvePath(ref);
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`image fetch failed (${res.status}): ${url}`);
-        return decodeImagePixels(await res.blob());
-    }
-
-    async readText(ref: string): Promise<string> {
-        return (await fetch(this.resolvePath(ref))).text();
-    }
-
-    async readBinary(ref: string): Promise<Uint8Array> {
-        return new Uint8Array(await (await fetch(this.resolvePath(ref))).arrayBuffer());
-    }
+    };
+    return {
+        backend,
+        decodePixels: (path) => fetchDecodePixels(backend.resolveUrl(path)),
+        resolveRef,
+    };
 }
 
 /**
  * Boot the shipping runtime against a single in-memory scene snapshot. The host
  * page has already created `app` (createWebApp) + bound a GL context; here we
- * register the snapshot as the sole scene, wire a fetch-backed provider, and run.
+ * register the snapshot as the sole scene, wire a fetch-backed source, and run.
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest } = config;
-    const provider = new FetchAssetProvider(assetManifest);
+    const source = createPlayRealmSource(assetManifest);
     await initRuntime({
         app,
         module,
-        provider,
+        source,
         scenes: [{ name: '__play', data: sceneData }],
         firstScene: '__play',
         aspectRatio: canvas.width / canvas.height,

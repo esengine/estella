@@ -33,6 +33,5 @@ export {
 
 export {
     initWeChatRuntime,
-    WeChatAssetProvider,
     type WeChatRuntimeConfig,
 } from './wechatRuntime';

@@ -197,7 +197,7 @@ export {
     loadRuntimeScene,
     createRuntimeSceneConfig,
     initRuntime,
-    type RuntimeAssetProvider,
+    type RuntimeAssetSource,
     type LoadRuntimeSceneOptions,
     type RuntimeInitConfig,
 } from './runtimeLoader';
@@ -206,7 +206,7 @@ export {
 // Preview
 // =============================================================================
 
-export { PreviewPlugin, WebAssetProvider } from './preview';
+export { PreviewPlugin } from './preview';
 
 // =============================================================================
 // Animation

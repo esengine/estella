@@ -12,7 +12,9 @@ import { Transform, Camera, Canvas, ProjectionType, ClearFlags, type TransformDa
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from '../defaults';
 import { platformFetch } from '../platform';
 import { SceneManager } from '../sceneManager';
-import { WebAssetProvider } from './WebAssetProvider';
+import { HttpBackend } from '../asset/Backend';
+import { fetchDecodePixels } from '../asset/imageDecode';
+import type { RuntimeAssetSource } from '../runtimeAssets';
 import { SpinePlugin } from '../spine/SpinePlugin';
 import { log } from '../logger';
 
@@ -74,8 +76,13 @@ export class PreviewPlugin implements Plugin {
         }
         const sceneData = await response.json<SceneData>();
 
-        const provider = new WebAssetProvider(this.baseUrl_);
-        await provider.prefetch(sceneData);
+        // Canonical asset source: http fetch over the preview origin + fetch→blob
+        // image decode. Preview refs are plain paths (resolveRef = identity).
+        const backend = new HttpBackend({ baseUrl: this.baseUrl_ });
+        const source: RuntimeAssetSource = {
+            backend,
+            decodePixels: (path) => fetchDecodePixels(backend.resolveUrl(path)),
+        };
 
         const spinePlugin = this.app_.getPlugin(SpinePlugin);
         const spineManager = spinePlugin?.spineManager ?? null;
@@ -84,7 +91,7 @@ export class PreviewPlugin implements Plugin {
             app: this.app_,
             module: this.app_.wasmModule!,
             sceneData,
-            provider,
+            source,
             spineManager,
             sceneName: PREVIEW_SCENE,
         });

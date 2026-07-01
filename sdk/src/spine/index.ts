@@ -12,4 +12,4 @@ export { wrapSpineModule } from './SpineModuleLoader';
 // Shared spine scene loader — the editor loads spine entities through the same
 // single implementation the builder runtime uses (see ./loadSpineScene).
 export { loadSpineSceneEntities, loadSpineAssets, applySpineEntities } from './loadSpineScene';
-export type { RuntimeAssetProvider } from '../runtimeAssets';
+export type { RuntimeAssetSource } from '../runtimeAssets';

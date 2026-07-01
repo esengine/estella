@@ -8,12 +8,13 @@
  *          an {@link createEmbeddedSideModuleHost} from the exporter-inlined
  *          base64 registry and hands it to `createWebApp`, so physics and spine
  *          self-gate off `app.sideModules` exactly as in every other realm. This
- *          entry only owns the embedded asset provider + the runtime boot.
+ *          entry only owns the embedded asset source + the runtime boot.
  */
 import type { App } from './app';
 import type { ESEngineModule } from './wasm';
 import { initRuntime } from './runtimeLoader';
-import type { RuntimeAssetProvider } from './runtimeLoader';
+import type { RuntimeAssetSource } from './runtimeAssets';
+import { EmbeddedBackend } from './asset/Backend';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -28,40 +29,6 @@ export interface PlayableRuntimeConfig {
     firstScene: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
     manifest?: AddressableManifest | null;
-}
-
-class EmbeddedAssetProvider implements RuntimeAssetProvider {
-    private readonly assets_: Record<string, string>;
-
-    constructor(assets: Record<string, string>) {
-        this.assets_ = assets;
-    }
-
-    async loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
-        return loadImagePixels(this.getAsset(ref));
-    }
-
-    readText(ref: string): string {
-        return decodeDataUrlText(this.getAsset(ref));
-    }
-
-    readBinary(ref: string): Uint8Array {
-        return decodeDataUrlBinary(this.getAsset(ref));
-    }
-
-    resolvePath(ref: string): string {
-        return ref;
-    }
-
-    private getAsset(ref: string): string {
-        const d = this.assets_[ref];
-        if (!d) throw new Error(`Asset not found: ${ref}`);
-        return d;
-    }
-}
-
-function decodeDataUrlText(dataUrl: string): string {
-    return atob(dataUrl.split(',')[1]);
 }
 
 function decodeDataUrlBinary(dataUrl: string): Uint8Array {
@@ -93,7 +60,13 @@ function loadImagePixels(dataUrl: string): Promise<{ width: number; height: numb
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
     const { app, module, assets, scenes, firstScene } = config;
 
-    const provider = new EmbeddedAssetProvider(assets);
+    // Canonical asset source: the shared EmbeddedBackend (data-URLs) + a DOM image
+    // decode over the same data-URL. Refs are the map keys (resolveRef = identity).
+    const backend = new EmbeddedBackend(assets);
+    const source: RuntimeAssetSource = {
+        backend,
+        decodePixels: (path) => loadImagePixels(backend.resolveUrl(path)),
+    };
 
     if (app.hasResource(Audio)) {
         app.getResource(Audio).setAssetResolver((url: string) => {
@@ -106,7 +79,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     await initRuntime({
         app,
         module,
-        provider,
+        source,
         scenes,
         firstScene,
         physicsConfig: config.physicsConfig,

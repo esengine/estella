@@ -50,6 +50,26 @@ export class HttpBackend implements Backend {
     }
 }
 
+/**
+ * Reads assets from the platform filesystem (WeChat `wx.getFileSystemManager`).
+ * Paths are already resolved build paths (the runtime's `resolveRef` maps
+ * uuid→build path before fetch), so `resolveUrl` is identity — there is no URL,
+ * the path IS the file location.
+ */
+export class FileSystemBackend implements Backend {
+    async fetchBinary(path: string): Promise<ArrayBuffer> {
+        return platformReadFile(path);
+    }
+
+    async fetchText(path: string): Promise<string> {
+        return platformReadTextFile(path);
+    }
+
+    resolveUrl(path: string): string {
+        return path;
+    }
+}
+
 export class EmbeddedBackend implements Backend {
     private assets_: Map<string, string>;
 

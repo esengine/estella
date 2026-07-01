@@ -9,16 +9,27 @@
  *          runtime loader nor the spine loader has to import the other.
  */
 import type { ESEngineModule } from './wasm';
+import type { Backend } from './asset/Backend';
 import { requireResourceManager } from './resourceManager';
 import { withMalloc } from './wasmScratch';
 
-/** How the loader fetches scene assets on a given target (http, virtual FS, …). */
-export interface RuntimeAssetProvider {
-    loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
-    loadPixelsRaw?(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
-    readText(ref: string): string | Promise<string>;
-    readBinary(ref: string): Uint8Array | Promise<Uint8Array>;
-    resolvePath(ref: string): string;
+/**
+ * How a target supplies scene assets to the single `Assets` channel, built from
+ * canonical parts instead of a bespoke provider:
+ *   - `backend`  — canonical fetch (text/binary, incl. KTX2 containers)
+ *   - `decodePixels` — platform image → RGBA (URL `<img>` can't reach `estella://`
+ *     / WeChat package files / inlined data-URLs); `flip` is applied on upload via
+ *     `createTextureFromPixels`, so decoders return top-first and ignore it
+ *   - `resolveRef` — ref → resolved (extension-bearing) path; must run before the
+ *     `TextureLoader` KTX2 extension check, so uuid/manifest lookup lives HERE, not
+ *     in `backend.resolveUrl`. Omit for identity.
+ * (Signature declared locally, not imported from TextureLoader — that module
+ * imports from this one, so importing back would cycle.)
+ */
+export interface RuntimeAssetSource {
+    backend: Backend;
+    decodePixels(path: string, flip: boolean): Promise<{ width: number; height: number; pixels: Uint8Array }>;
+    resolveRef?(ref: string): string;
 }
 
 export interface TextureParams {

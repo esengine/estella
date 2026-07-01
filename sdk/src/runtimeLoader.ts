@@ -16,7 +16,6 @@ import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin
 import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
 import { Assets as AssetsClass } from './asset/Assets';
-import { ProviderBackend } from './asset/ProviderBackend';
 import { initBuiltinAssetFields } from './asset/AssetFieldRegistry';
 import type { TextureImportSettings } from './asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from './sceneManager';
@@ -26,7 +25,7 @@ import { Audio } from './audio/Audio';
 import { flushPendingSystems } from './app';
 import { requireResourceManager } from './resourceManager';
 import { log } from './logger';
-import { type RuntimeAssetProvider, type TextureParams } from './runtimeAssets';
+import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
 import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
 
@@ -34,9 +33,9 @@ import { transcoderFromModule, type BasisWasmModule } from './asset/basisTransco
 // Public Interface
 // =============================================================================
 
-// RuntimeAssetProvider + createTextureFromPixels live in ./runtimeAssets so the
+// RuntimeAssetSource + createTextureFromPixels live in ./runtimeAssets so the
 // spine scene loader can share them without importing this module.
-export type { RuntimeAssetProvider } from './runtimeAssets';
+export type { RuntimeAssetSource } from './runtimeAssets';
 
 // =============================================================================
 // Scene-local Assets channel
@@ -44,32 +43,30 @@ export type { RuntimeAssetProvider } from './runtimeAssets';
 
 /**
  * Build a scene-local `Assets` that loads this realm's scene through the single
- * canonical asset channel, driven by the realm's `RuntimeAssetProvider`:
- *   - fetch (text/binary, incl. KTX2 containers) → `ProviderBackend`
- *   - texture pixels → the provider's platform decoder (handles `estella://` /
- *     WeChat package files / inlined data-URLs that a URL `<img>` can't)
+ * canonical asset channel, driven by the realm's `RuntimeAssetSource`:
+ *   - fetch (text/binary, incl. KTX2 containers) → `source.backend`
+ *   - texture pixels → `source.decodePixels` (handles `estella://` / WeChat
+ *     package files / inlined data-URLs that a URL `<img>` can't)
  *   - KTX2 transcode → the same self-gating Basis side-module the editor wires
- * The provider's `resolvePath` is the single ref resolver, so refs resolve to
- * their real (extension-bearing) build paths before KTX2 detection and fetch.
- * No ref counter / catalog is attached (parity with the old runtime loader,
- * which tracked neither and applied no atlas-frame indirection).
+ * `source.resolveRef` is the single ref resolver, so refs resolve to their real
+ * (extension-bearing) build paths before KTX2 detection and fetch. No ref
+ * counter / catalog is attached (parity with the old runtime loader, which
+ * tracked neither and applied no atlas-frame indirection).
  */
 function createSceneAssets(
-    app: App, module: ESEngineModule, provider: RuntimeAssetProvider, sceneData: SceneData,
+    app: App, module: ESEngineModule, source: RuntimeAssetSource, sceneData: SceneData,
 ): AssetsClass {
     initBuiltinAssetFields();
     const assets = AssetsClass.create({
-        backend: new ProviderBackend(provider),
+        backend: source.backend,
         module,
         getAudio: () => (app.hasResource(Audio) ? app.getResource(Audio) : null),
         getSpriteAnimation: () => (app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null),
     });
-    assets.setAssetRefResolver((ref) => provider.resolvePath(ref));
+    if (source.resolveRef) assets.setAssetRefResolver(source.resolveRef);
 
     const loader = assets.getTextureLoader();
-    loader.setPixelDecoder((path, flip) =>
-        flip ? provider.loadPixels(path) : (provider.loadPixelsRaw?.(path) ?? provider.loadPixels(path)),
-    );
+    loader.setPixelDecoder((path, flip) => source.decodePixels(path, flip));
     // KTX2 transcoder, self-gated off app.sideModules — identical wiring to
     // AssetPlugin.build so eager + on-demand loads transcode the same way.
     loader.setTranscoderProvider(async () => {
@@ -80,15 +77,16 @@ function createSceneAssets(
     });
 
     // Per-texture import settings (filter/wrap) keyed by the scene's stored ref:
-    // normalize keys through resolvePath so they match the resolved path the
+    // normalize keys through resolveRef so they match the resolved path the
     // TextureLoader sees, and map the stored {filterMode,wrapMode} shape to the
     // loader's {filter,wrap}.
+    const resolveRef = source.resolveRef ?? ((r: string) => r);
     const rawSettings = (sceneData as { textureImporterSettings?: Record<string, TextureParams> })
         .textureImporterSettings;
     if (rawSettings) {
         const resolved: Record<string, TextureImportSettings> = {};
         for (const [ref, s] of Object.entries(rawSettings)) {
-            resolved[provider.resolvePath(ref)] = {
+            resolved[resolveRef(ref)] = {
                 filter: s.filterMode as TextureImportSettings['filter'],
                 wrap: s.wrapMode as TextureImportSettings['wrap'],
             };
@@ -126,7 +124,7 @@ export interface LoadRuntimeSceneOptions {
     app: App;
     module: ESEngineModule;
     sceneData: SceneData;
-    provider: RuntimeAssetProvider;
+    source: RuntimeAssetSource;
     spineModule?: SpineWasmModule | null;
     spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
@@ -162,7 +160,7 @@ function sceneUsesPhysics(sceneData: SceneData): boolean {
 }
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, provider, physicsConfig, physicsEnabled, sceneName } = options;
+    const { app, module, sceneData, source, physicsConfig, physicsEnabled, sceneName } = options;
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
     // app.sideModules host); read it from there so every realm — play / playable /
@@ -178,12 +176,12 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // audio) load through the single canonical Assets channel — one per-type
     // loader implementation, shared with the editor — driven by this realm's
     // provider. Spine stays a two-phase load+apply below (skipSpine).
-    const sceneAssets = createSceneAssets(app, module, provider, sceneData);
+    const sceneAssets = createSceneAssets(app, module, source, sceneData);
     const assetResult = await sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true });
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
-    applyTextureMetadata(sceneData, assetResult.textureHandles, (ref) => provider.resolvePath(ref));
+    applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
 
-    const spineAssetInfo = await loadSpineAssets(module, provider, spineManager, discovered.spines);
+    const spineAssetInfo = await loadSpineAssets(module, source, spineManager, discovered.spines);
 
     // Self-gating: install physics when the project declares it OR the scene uses
     // it, so no runtime entry can forget to wire it. The module comes from the
@@ -255,7 +253,7 @@ export function createRuntimeSceneConfig(
 export interface RuntimeInitConfig {
     app: App;
     module: ESEngineModule;
-    provider: RuntimeAssetProvider;
+    source: RuntimeAssetSource;
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     spineModule?: SpineWasmModule | null;
@@ -277,7 +275,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const sceneOpts: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> = {
         app: config.app,
         module: config.module,
-        provider: config.provider,
+        source: config.source,
         spineModule: config.spineModule,
         spineManager: config.spineManager,
         physicsModule: config.physicsModule,
