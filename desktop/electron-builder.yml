@@ -1,0 +1,34 @@
+# electron-builder config — Estella Editor.
+# The renderer (dist/) and Electron main+preload (dist-electron/) are produced by
+# `vite build` (see vite.config.ts). `pnpm --filter @estella/editor dist` builds
+# installers; `dist:dir` produces an unpacked app for local smoke testing.
+appId: com.estellaengine.editor
+productName: Estella Editor
+directories:
+  output: release
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+asarUnpack:
+  - "**/node_modules/{esbuild,@esbuild}/**"
+# The Basis KTX2 encoder lives at the monorepo root (build-tools/basis).
+# cookAssets imports it via `../../build-tools/basis` relative to the bundled
+# main; once packaged, main sits at resources/app.asar/dist-electron/, so that
+# path resolves to resources/build-tools/basis. Ship it there as an extra
+# resource (outside the asar, so its native wasm resolves via import.meta.url).
+extraResources:
+  - from: ../build-tools/basis
+    to: build-tools/basis
+win:
+  target: nsis
+mac:
+  target:
+    - target: dmg
+      arch: universal
+  category: public.app-category.developer-tools
+linux:
+  target: AppImage
+  category: Development
+publish:
+  provider: github
