@@ -1,19 +1,20 @@
 ---
 title: Physics
-description: Bodies, colliders, forces, queries, events, and joints — the full 2D physics API.
+description: The complete 2D physics reference — rigid bodies, colliders, collision filtering, forces, spatial queries, collision/sensor events, joints, and the character controller.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella's physics runs in the C++/WebAssembly core (Box2D). You attach a
-`RigidBody` and a collider to an entity; then move it with forces, query the
-world with raycasts, react to collisions, and connect bodies with joints.
+Estella's physics runs in the C++/WebAssembly core, powered by Box2D v3. You attach
+a `RigidBody` and a collider to an entity, then move it with forces, query the world
+with raycasts, react to collisions, and connect bodies with joints. Physics steps at
+a **fixed timestep**, decoupled from the frame rate, for stable simulation.
 
-## Enabling physics
+## Setup
 
 Physics is an optional side-module. In the editor and web runtime it loads
-automatically when a scene uses physics components. In a custom app you add it
-yourself:
+automatically when a scene uses physics components. In a custom app, add the plugin
+yourself (gravity defaults to `{ x: 0, y: -9.81 }`):
 
 ```typescript
 import { PhysicsPlugin } from 'esengine/physics';
@@ -21,11 +22,17 @@ import { PhysicsPlugin } from 'esengine/physics';
 app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
+<Aside type="note">
+  Physics types are imported from **`esengine/physics`** (the API, plugin, events),
+  while the components (`RigidBody`, colliders, `CharacterController`) come from the
+  main `esengine` barrel.
+</Aside>
+
 ## Bodies & colliders
 
-Attach a `RigidBody` plus one collider shape. **Collider dimensions are in
-meters, not pixels** — divide pixel sizes by your pixels-per-unit (PPU). Spawn
-from a system that takes `Commands()`:
+Attach a `RigidBody` plus one collider shape. **Collider dimensions are in meters,
+not pixels** — divide pixel sizes by your pixels-per-unit (PPU). Spawn from a system
+that takes `Commands()`:
 
 ```typescript
 import {
@@ -38,25 +45,52 @@ const PPU = 100;
 const spawnBall = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
-    .insert(RigidBody, { bodyType: BodyType.Dynamic, gravityScale: 1, linearDamping: 0 })
+    .insert(RigidBody, { bodyType: BodyType.Dynamic, gravityScale: 1 })
     .insert(CircleCollider, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
 });
 ```
 
-- **`RigidBody`** — `bodyType` (`Static` / `Kinematic` / `Dynamic`),
-  `gravityScale`, `linearDamping`, `angularDamping`, `fixedRotation`, `bullet`
-  (continuous collision for fast bodies).
-- **Collider shapes** (from `esengine`) — `BoxCollider` (`halfExtents`),
-  `CircleCollider` (`radius`), `CapsuleCollider` (`radius`, `halfHeight`),
-  `SegmentCollider` (`point1`, `point2`), `PolygonCollider` (`vertices`),
-  `ChainCollider` (`points`, `isLoop`). All share `density`, `friction`,
-  `restitution`, `isSensor`, `categoryBits`, `maskBits`.
+### `RigidBody`
 
-## Collision layers
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `bodyType` | `BodyType` | `Dynamic` | `Static` (immovable), `Kinematic` (moved by code), `Dynamic` (simulated). |
+| `gravityScale` | number | `1` | Multiplier on world gravity (`0` = float). |
+| `linearDamping` | number | `0` | Linear velocity drag. |
+| `angularDamping` | number | `0` | Angular velocity drag. |
+| `fixedRotation` | boolean | `false` | Lock rotation (typical for characters). |
+| `bullet` | boolean | `false` | Continuous collision for fast, thin bodies (anti-tunneling). |
+| `enabled` | boolean | `true` | Disable to remove from the simulation. |
 
-`categoryBits` (what layer a body is on) and `maskBits` (what it collides with)
-are 16-bit filters. Two bodies collide only if each one's category is in the
-other's mask:
+### Colliders
+
+All colliders share these fields; each adds its own shape parameters. Dimensions
+are in meters.
+
+| Shared property | Type | Default | Description |
+|---|---|---|---|
+| `offset` | Vec2 | `{0, 0}` | Local offset from the entity origin. |
+| `density` | number | `1` | Mass per area (drives the body's mass). |
+| `friction` | number | `0.3` | Surface friction, 0..1+. |
+| `restitution` | number | `0` | Bounciness, 0..1. |
+| `isSensor` | boolean | `false` | Detect overlaps without a physical response (triggers). |
+| `categoryBits` | number | `0x0001` | Which collision layer this collider is on. |
+| `maskBits` | number | `0xFFFF` | Which layers it collides with. |
+| `enabled` | boolean | `true` | Disable the shape. |
+
+| Component | Shape parameters |
+|---|---|
+| `BoxCollider` | `halfExtents` (`{0.5, 0.5}`), `radius` (rounded corner, `0.05`). |
+| `CircleCollider` | `radius` (`0.5`). |
+| `CapsuleCollider` | `radius`, `halfHeight`. |
+| `SegmentCollider` | `point1`, `point2` (a one-sided edge). |
+| `PolygonCollider` | `vertices: Vec2[]`, `radius` (rounded). |
+| `ChainCollider` | `points: Vec2[]`, `isLoop` (static edge chain; no `density`/`isSensor`). |
+
+## Collision filtering
+
+`categoryBits` (what layer a body is on) and `maskBits` (what it collides with) are
+16-bit filters. Two bodies collide only if each one's category is in the other's mask:
 
 ```typescript
 const LAYER_PLAYER = 0x0001;
@@ -70,10 +104,9 @@ const LAYER_GROUND = 0x0008;
 });
 ```
 
-## Move bodies: forces & velocity
+## Moving bodies — forces & velocity
 
-Read the `PhysicsAPI` resource to push bodies around. All of these take a world
-entity:
+Read the `PhysicsAPI` resource to drive bodies. Every method takes the world entity:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody } from 'esengine';
@@ -84,69 +117,76 @@ const move = defineSystem([Query(RigidBody), Res(PhysicsAPI)], (q, physics) => {
     physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
     physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
     physics.setLinearVelocity(entity, { x: 3, y: 0 });
-    physics.applyTorque(entity, 2);
-    physics.applyAngularImpulse(entity, 0.5);
   }
 });
 ```
 
-Also: `getLinearVelocity`, `getAngularVelocity`, `setAngularVelocity`,
-`setGravity` / `getGravity` (world gravity), `getMass`, `getInertia`,
-`getCenterOfMass`, `getMassData`, and `setAwake` / `isAwake` (sleeping bodies).
+| Method | Description |
+|---|---|
+| `applyForce(e, v)` / `applyImpulse(e, v)` | Continuous force / instantaneous impulse. |
+| `applyTorque(e, t)` / `applyAngularImpulse(e, i)` | Rotational force / impulse. |
+| `setLinearVelocity(e, v)` / `getLinearVelocity(e)` | Set / read linear velocity. |
+| `setAngularVelocity(e, w)` / `getAngularVelocity(e)` | Set / read angular velocity. |
+| `setGravity(v)` / `getGravity()` | World gravity. |
+| `getMass(e)` / `getInertia(e)` / `getCenterOfMass(e)` / `getMassData(e)` | Mass properties. |
+| `setAwake(e, awake)` / `isAwake(e)` | Sleeping-body control. |
 
 ## Spatial queries
 
-Queries take **pixel-space** arguments and auto-scale by the live PPU:
+Queries take **pixel-space** arguments and auto-scale by the live PPU. Each accepts
+an optional `maskBits` to filter by layer:
 
 ```typescript
-// Raycast — returns every hit along the ray, nearest first.
+// Raycast — every hit along the ray, nearest first.
 const hits = physics.raycast(origin, direction, 200);
 for (const hit of hits) {
   // hit.entity, hit.point, hit.normal
 }
 
-// Overlap — entities whose colliders intersect a shape.
-const nearby = physics.overlapCircle(center, 64);        // Entity[]
-const inBox  = physics.overlapAABB(min, max);            // Entity[]
-
-// Shape cast — sweep a shape and get what it would hit.
-const swept = physics.shapeCastCircle(/* … */);
+const nearby = physics.overlapCircle(center, 64);   // Entity[]
+const inBox  = physics.overlapAABB(min, max);       // Entity[]
+const swept  = physics.shapeCastCircle(/* … */);    // sweep a shape
 ```
 
-Each takes an optional `maskBits` to filter by layer. `overlapCircle` /
-`overlapAABB` / `shapeCastBox` / `shapeCastCapsule` round out the set.
+| Method | Returns | Description |
+|---|---|---|
+| `raycast(origin, dir, dist, maskBits?)` | hit list | All hits along a ray, nearest first. |
+| `overlapCircle(center, radius, maskBits?)` | `Entity[]` | Colliders overlapping a circle. |
+| `overlapAABB(min, max, maskBits?)` | `Entity[]` | Colliders overlapping a box. |
+| `shapeCastCircle` / `shapeCastBox` / `shapeCastCapsule` | hit | Sweep a shape and get what it would hit. |
 
 ## Collision & sensor events
 
-The `PhysicsEvents` resource carries this frame's contacts. Set `isSensor: true`
-on a collider to get enter/exit events **without** a physical response (trigger
-zones):
+The `PhysicsEvents` resource carries this frame's contacts. Set `isSensor: true` on a
+collider to get enter/exit events **without** a physical response (trigger zones):
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
 import { PhysicsEvents } from 'esengine/physics';
 
 const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
-  for (const c of events.collisionEnters) {
-    // c.entityA, c.entityB, c.normalX/Y, c.contactX/Y
-  }
-  for (const x of events.collisionExits) { /* x.entityA, x.entityB */ }
-  for (const h of events.collisionHits) {
-    // high-speed impact: h.approachSpeed, h.pointX/Y, h.normalX/Y
-  }
-  for (const s of events.sensorEnters) { /* s.sensorEntity, s.visitorEntity */ }
-  for (const s of events.sensorExits)  { /* … */ }
+  for (const c of events.collisionEnters) { /* c.entityA, c.entityB, c.normalX/Y, c.contactX/Y */ }
+  for (const x of events.collisionExits)  { /* x.entityA, x.entityB */ }
+  for (const h of events.collisionHits)   { /* h.approachSpeed, h.pointX/Y, h.normalX/Y */ }
+  for (const s of events.sensorEnters)    { /* s.sensorEntity, s.visitorEntity */ }
+  for (const s of events.sensorExits)     { /* … */ }
 });
 ```
+
+| Event list | Fired when |
+|---|---|
+| `collisionEnters` / `collisionExits` | Two solid colliders begin / stop touching. |
+| `collisionHits` | A high-speed impact (carries `approachSpeed`). |
+| `sensorEnters` / `sensorExits` | A body enters / leaves a sensor collider. |
 
 ## Joints
 
 Connect two bodies. Add a joint **component** (`RevoluteJoint`, `DistanceJoint`,
-`PrismaticJoint`, `WeldJoint`, `WheelJoint`), or create one imperatively and
-drive its motor / limits:
+`PrismaticJoint`, `WeldJoint`, `WheelJoint`), or create one imperatively and drive
+its motor / limits:
 
 ```typescript
-// A hinge with a motor (e.g. a powered wheel or a swinging door).
+// A hinge with a motor (a powered wheel or swinging door).
 physics.createRevoluteJoint(bodyA, bodyB, anchorA, anchorB, {
   enableMotor: true, motorSpeed: 6, maxMotorTorque: 200,
   enableLimit: true, lowerAngle: -1.0, upperAngle: 1.0,
@@ -158,18 +198,62 @@ const angle = physics.getRevoluteAngle(bodyA);
 physics.destroyJoint(bodyA);
 ```
 
-Distance, prismatic, and wheel joints have the parallel set —
-`setDistanceJointLength`, `enablePrismaticJointMotor`, `setWheelJointMotorSpeed`,
-and so on.
+Each joint type has a parallel set of control methods:
+
+| Joint | Control methods |
+|---|---|
+| Revolute (hinge) | `setRevoluteMotorSpeed`, `setRevoluteMaxMotorTorque`, `enableRevoluteMotor`, `enableRevoluteLimit`, `setRevoluteLimits`, `getRevoluteAngle`, `getRevoluteMotorTorque`. |
+| Distance (spring) | `setDistanceJointLength`, `getDistanceJoint*Length`, `enableDistanceJointSpring`/`Limit`/`Motor`, `setDistanceJointLimits`, `setDistanceJointMotorSpeed`, … |
+| Prismatic (slider) | `getPrismaticJointTranslation`/`Speed`, `enablePrismaticJointSpring`/`Limit`/`Motor`, `setPrismaticJointLimits`/`MotorSpeed`/`MaxMotorForce`, … |
+| Wheel | `enableWheelJointSpring`/`Limit`/`Motor`, `setWheelJointLimits`/`MotorSpeed`/`MaxMotorTorque`, `getWheelJointMotorTorque`. |
+
+Destroy any joint with `destroyJoint(bodyA)`.
 
 ## Character controller
 
-For a player that doesn't tumble like a dynamic body, add a `CharacterController`
-and resolve movement with `moveAndSlide` — a kinematic move-and-slide that walks
-along surfaces instead of bouncing.
+For a player that walks along surfaces instead of tumbling like a dynamic body, add
+a `CharacterController`. Set its `velocity` from gameplay each step; the system
+resolves a kinematic move-and-slide, writes the result back, and reports what it
+touched:
 
-<Aside type="caution">
-  Physics steps at a **fixed timestep**, not the frame delta, so read
-  `PhysicsEvents` every frame and apply continuous forces every frame. Set
-  `bullet: true` on fast, thin bodies to avoid tunneling.
-</Aside>
+```typescript
+import { defineSystem, Query, Mut, CharacterController } from 'esengine';
+
+const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
+  for (const [entity, cc] of q) {
+    cc.velocity = { x: input.moveX * 240, y: cc.velocity.y - 900 * dt };  // gravity
+    if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
+  }
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `velocity` | Vec2 | `{0, 0}` | Desired velocity in world pixels/second (set each step). |
+| `up` | Vec2 | `{0, 1}` | Up direction for floor/ceiling classification. |
+| `floorMaxAngle` | number | `0.785` | Max walkable slope from `up`, radians (45°). |
+| `maxSlides` | number | `4` | Slide iterations per move (corners need more). |
+| `skinWidth` | number | `1` | Gap kept from surfaces (px) to avoid sticking. |
+| `snapLength` | number | `0` | Down-probe (px) to stay glued to slopes/stairs; `0` = off. |
+| `slideOnCeiling` | boolean | `true` | Slide along a ceiling vs. stop the move. |
+| `maskBits` | number | `0xFFFF` | Layers that block the character. |
+| `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **Output**: what was touched this move. |
+| `floorNormal` | Vec2 | — | **Output**: normal of the last floor touched. |
+| `realVelocity` | Vec2 | — | **Output**: actual displacement / dt after collisions. |
+
+## Best practices
+
+- **Fixed timestep**: apply continuous forces and read `PhysicsEvents` *every frame*,
+  since physics substeps independently of the frame delta.
+- **`bullet: true`** on fast, thin bodies (bullets, thin platforms) to avoid tunneling.
+- **`fixedRotation: true`** for characters so they don't topple.
+- **Colliders in meters** (÷ PPU), but **queries and the character controller in
+  pixels** — mixing the two is the most common bug.
+- **Sensors for triggers**: `isSensor: true` gives enter/exit events with no physical push.
+- **Filter with layers** (`categoryBits` / `maskBits`) instead of checking entity types
+  in event handlers.
+
+## See also
+
+- [Scenes](/docs/guides/scene/) — physics components serialize with the scene.
+- [Math Helpers](/docs/guides/math/) — vector math for velocities and directions.

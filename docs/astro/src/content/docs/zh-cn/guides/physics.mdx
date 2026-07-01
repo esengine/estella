@@ -1,17 +1,18 @@
 ---
 title: 物理
-description: 刚体、碰撞体、力、查询、事件与关节 —— 完整的 2D 物理 API。
+description: 完整的 2D 物理参考——刚体、碰撞体、碰撞过滤、力、空间查询、碰撞/传感事件、关节,以及角色控制器。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 的物理运行在 C++/WebAssembly 内核中(Box2D)。你给实体挂上 `RigidBody` 和一个
-碰撞体;然后用力移动它、用射线查询世界、响应碰撞、用关节连接刚体。
+Estella 的物理跑在 C++/WebAssembly 内核里,由 Box2D v3 驱动。你给实体加一个 `RigidBody`
+和一个碰撞体,然后用力移动它、用射线查询世界、响应碰撞、用关节连接刚体。物理以**固定时间步**
+推进,与帧率解耦,得到稳定的模拟。
 
-## 启用物理
+## 安装
 
-物理是可选 side-module。在编辑器和 Web 运行时中,场景用到物理组件时它会自动加载。在
-自定义 App 里你也可以自己添加:
+物理是一个可选的侧模块。在编辑器和 Web 运行时里,当场景使用物理组件时会自动加载。在自定义
+应用里,自己加插件(重力默认 `{ x: 0, y: -9.81 }`):
 
 ```typescript
 import { PhysicsPlugin } from 'esengine/physics';
@@ -19,10 +20,15 @@ import { PhysicsPlugin } from 'esengine/physics';
 app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
+<Aside type="note">
+  物理的类型从 **`esengine/physics`** 导入(API、插件、事件),而组件(`RigidBody`、各碰撞体、
+  `CharacterController`)来自主 `esengine` barrel。
+</Aside>
+
 ## 刚体与碰撞体
 
-挂一个 `RigidBody` 加一个碰撞体形状。**碰撞体尺寸单位是米,不是像素**——把像素尺寸
-除以你的 PPU(每单位像素数)。在带 `Commands()` 的系统里生成:
+加一个 `RigidBody` 再加一个碰撞体形状。**碰撞体尺寸以米计,不是像素**——把像素尺寸除以你的
+每单位像素数(PPU)。从一个取 `Commands()` 的系统里生成:
 
 ```typescript
 import {
@@ -35,24 +41,51 @@ const PPU = 100;
 const spawnBall = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
-    .insert(RigidBody, { bodyType: BodyType.Dynamic, gravityScale: 1, linearDamping: 0 })
+    .insert(RigidBody, { bodyType: BodyType.Dynamic, gravityScale: 1 })
     .insert(CircleCollider, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
 });
 ```
 
-- **`RigidBody`** —— `bodyType`(`Static` / `Kinematic` / `Dynamic`)、
-  `gravityScale`、`linearDamping`、`angularDamping`、`fixedRotation`、`bullet`
-  (快速物体的连续碰撞检测)。
-- **碰撞体形状**(来自 `esengine`)—— `BoxCollider`(`halfExtents`)、
-  `CircleCollider`(`radius`)、`CapsuleCollider`(`radius`、`halfHeight`)、
-  `SegmentCollider`(`point1`、`point2`)、`PolygonCollider`(`vertices`)、
-  `ChainCollider`(`points`、`isLoop`)。都共享 `density`、`friction`、
-  `restitution`、`isSensor`、`categoryBits`、`maskBits`。
+### `RigidBody`
 
-## 碰撞层
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `bodyType` | `BodyType` | `Dynamic` | `Static`(不动)、`Kinematic`(由代码移动)、`Dynamic`(被模拟)。 |
+| `gravityScale` | number | `1` | 世界重力的倍率(`0` = 漂浮)。 |
+| `linearDamping` | number | `0` | 线速度阻尼。 |
+| `angularDamping` | number | `0` | 角速度阻尼。 |
+| `fixedRotation` | boolean | `false` | 锁定旋转(角色常用)。 |
+| `bullet` | boolean | `false` | 对快速细小刚体做连续碰撞(防穿透)。 |
+| `enabled` | boolean | `true` | 关掉即从模拟中移除。 |
 
-`categoryBits`(刚体所在的层)与 `maskBits`(它会与哪些层碰撞)是 16 位过滤器。两个
-刚体只有在各自的 category 都落在对方的 mask 里时才碰撞:
+### 碰撞体
+
+所有碰撞体共享这些字段,各自再加自己的形状参数。尺寸以米计。
+
+| 共享属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `offset` | Vec2 | `{0, 0}` | 相对实体原点的局部偏移。 |
+| `density` | number | `1` | 单位面积质量(决定刚体质量)。 |
+| `friction` | number | `0.3` | 表面摩擦,0..1+。 |
+| `restitution` | number | `0` | 弹性,0..1。 |
+| `isSensor` | boolean | `false` | 检测重叠但无物理响应(触发器)。 |
+| `categoryBits` | number | `0x0001` | 该碰撞体所在的碰撞层。 |
+| `maskBits` | number | `0xFFFF` | 它与哪些层碰撞。 |
+| `enabled` | boolean | `true` | 关掉该形状。 |
+
+| 组件 | 形状参数 |
+|---|---|
+| `BoxCollider` | `halfExtents`(`{0.5, 0.5}`)、`radius`(圆角,`0.05`)。 |
+| `CircleCollider` | `radius`(`0.5`)。 |
+| `CapsuleCollider` | `radius`、`halfHeight`。 |
+| `SegmentCollider` | `point1`、`point2`(单边)。 |
+| `PolygonCollider` | `vertices: Vec2[]`、`radius`(圆角)。 |
+| `ChainCollider` | `points: Vec2[]`、`isLoop`(静态边链;无 `density`/`isSensor`)。 |
+
+## 碰撞过滤
+
+`categoryBits`(刚体在哪一层)和 `maskBits`(它与什么碰撞)是 16 位过滤器。仅当彼此的 category
+都在对方的 mask 里,两个刚体才碰撞:
 
 ```typescript
 const LAYER_PLAYER = 0x0001;
@@ -62,13 +95,13 @@ const LAYER_GROUND = 0x0008;
 .insert(CircleCollider, {
   radius: 16 / PPU,
   categoryBits: LAYER_PLAYER,
-  maskBits: LAYER_ENEMY | LAYER_GROUND,   // 忽略其他玩家
+  maskBits: LAYER_ENEMY | LAYER_GROUND,   // ignores other players
 });
 ```
 
-## 移动刚体:力与速度
+## 移动刚体 —— 力与速度
 
-读 `PhysicsAPI` 资源来推动刚体。它们都作用于一个世界实体:
+读 `PhysicsAPI` 资源来驱动刚体。每个方法都取世界实体:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody } from 'esengine';
@@ -76,70 +109,77 @@ import { PhysicsAPI } from 'esengine/physics';
 
 const move = defineSystem([Query(RigidBody), Res(PhysicsAPI)], (q, physics) => {
   for (const [entity] of q) {
-    physics.applyForce(entity, { x: 0, y: 20 });        // 持续力
-    physics.applyImpulse(entity, { x: 0, y: 5 });       // 瞬时冲量(跳跃)
+    physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
+    physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
     physics.setLinearVelocity(entity, { x: 3, y: 0 });
-    physics.applyTorque(entity, 2);
-    physics.applyAngularImpulse(entity, 0.5);
   }
 });
 ```
 
-还有:`getLinearVelocity`、`getAngularVelocity`、`setAngularVelocity`、
-`setGravity` / `getGravity`(世界重力)、`getMass`、`getInertia`、
-`getCenterOfMass`、`getMassData`,以及 `setAwake` / `isAwake`(休眠刚体)。
+| 方法 | 说明 |
+|---|---|
+| `applyForce(e, v)` / `applyImpulse(e, v)` | 持续力 / 瞬时冲量。 |
+| `applyTorque(e, t)` / `applyAngularImpulse(e, i)` | 旋转力 / 冲量。 |
+| `setLinearVelocity(e, v)` / `getLinearVelocity(e)` | 设置 / 读取线速度。 |
+| `setAngularVelocity(e, w)` / `getAngularVelocity(e)` | 设置 / 读取角速度。 |
+| `setGravity(v)` / `getGravity()` | 世界重力。 |
+| `getMass(e)` / `getInertia(e)` / `getCenterOfMass(e)` / `getMassData(e)` | 质量属性。 |
+| `setAwake(e, awake)` / `isAwake(e)` | 睡眠刚体控制。 |
 
 ## 空间查询
 
-查询接受**像素单位**参数,并按实时 PPU 自动缩放:
+查询取**像素空间**参数,并按当前 PPU 自动缩放。每个都接受一个可选的 `maskBits` 按层过滤:
 
 ```typescript
-// 射线检测 —— 返回射线上的每个命中,由近到远。
+// Raycast — every hit along the ray, nearest first.
 const hits = physics.raycast(origin, direction, 200);
 for (const hit of hits) {
-  // hit.entity、hit.point、hit.normal
+  // hit.entity, hit.point, hit.normal
 }
 
-// 重叠 —— 碰撞体与某形状相交的实体。
-const nearby = physics.overlapCircle(center, 64);        // Entity[]
-const inBox  = physics.overlapAABB(min, max);            // Entity[]
-
-// 形状扫掠 —— 扫一个形状,得到它会撞到什么。
-const swept = physics.shapeCastCircle(/* … */);
+const nearby = physics.overlapCircle(center, 64);   // Entity[]
+const inBox  = physics.overlapAABB(min, max);       // Entity[]
+const swept  = physics.shapeCastCircle(/* … */);    // sweep a shape
 ```
 
-每个都可传可选的 `maskBits` 按层过滤。`overlapCircle` / `overlapAABB` /
-`shapeCastBox` / `shapeCastCapsule` 补齐整套。
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `raycast(origin, dir, dist, maskBits?)` | 命中列表 | 射线上所有命中,最近优先。 |
+| `overlapCircle(center, radius, maskBits?)` | `Entity[]` | 与圆重叠的碰撞体。 |
+| `overlapAABB(min, max, maskBits?)` | `Entity[]` | 与盒重叠的碰撞体。 |
+| `shapeCastCircle` / `shapeCastBox` / `shapeCastCapsule` | 命中 | 扫掠一个形状并得到它会撞到什么。 |
 
-## 碰撞与传感器事件
+## 碰撞与传感事件
 
-`PhysicsEvents` 资源携带当前帧的接触。给碰撞体设 `isSensor: true`,可在**没有物理
-响应**的情况下获得进入/离开事件(触发区):
+`PhysicsEvents` 资源携带这一帧的接触。给碰撞体设 `isSensor: true` 即可得到 enter/exit 事件
+而**没有**物理响应(触发区):
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
 import { PhysicsEvents } from 'esengine/physics';
 
 const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
-  for (const c of events.collisionEnters) {
-    // c.entityA、c.entityB、c.normalX/Y、c.contactX/Y
-  }
-  for (const x of events.collisionExits) { /* x.entityA、x.entityB */ }
-  for (const h of events.collisionHits) {
-    // 高速撞击:h.approachSpeed、h.pointX/Y、h.normalX/Y
-  }
-  for (const s of events.sensorEnters) { /* s.sensorEntity、s.visitorEntity */ }
-  for (const s of events.sensorExits)  { /* … */ }
+  for (const c of events.collisionEnters) { /* c.entityA, c.entityB, c.normalX/Y, c.contactX/Y */ }
+  for (const x of events.collisionExits)  { /* x.entityA, x.entityB */ }
+  for (const h of events.collisionHits)   { /* h.approachSpeed, h.pointX/Y, h.normalX/Y */ }
+  for (const s of events.sensorEnters)    { /* s.sensorEntity, s.visitorEntity */ }
+  for (const s of events.sensorExits)     { /* … */ }
 });
 ```
 
+| 事件列表 | 触发时机 |
+|---|---|
+| `collisionEnters` / `collisionExits` | 两个实心碰撞体开始 / 停止接触。 |
+| `collisionHits` | 高速冲击(携带 `approachSpeed`)。 |
+| `sensorEnters` / `sensorExits` | 刚体进入 / 离开一个传感碰撞体。 |
+
 ## 关节
 
-连接两个刚体。加一个关节**组件**(`RevoluteJoint`、`DistanceJoint`、
-`PrismaticJoint`、`WeldJoint`、`WheelJoint`),或用命令式创建并驱动它的马达/限位:
+连接两个刚体。加一个关节**组件**(`RevoluteJoint`、`DistanceJoint`、`PrismaticJoint`、
+`WeldJoint`、`WheelJoint`),或命令式创建一个并驱动它的马达 / 限位:
 
 ```typescript
-// 带马达的铰链(例如带动力的轮子或摆动的门)。
+// A hinge with a motor (a powered wheel or swinging door).
 physics.createRevoluteJoint(bodyA, bodyB, anchorA, anchorB, {
   enableMotor: true, motorSpeed: 6, maxMotorTorque: 200,
   enableLimit: true, lowerAngle: -1.0, upperAngle: 1.0,
@@ -151,15 +191,57 @@ const angle = physics.getRevoluteAngle(bodyA);
 physics.destroyJoint(bodyA);
 ```
 
-距离、棱柱、轮子关节有对应的整套——`setDistanceJointLength`、
-`enablePrismaticJointMotor`、`setWheelJointMotorSpeed` 等等。
+每种关节都有一套平行的控制方法:
+
+| 关节 | 控制方法 |
+|---|---|
+| Revolute(铰链) | `setRevoluteMotorSpeed`、`setRevoluteMaxMotorTorque`、`enableRevoluteMotor`、`enableRevoluteLimit`、`setRevoluteLimits`、`getRevoluteAngle`、`getRevoluteMotorTorque`。 |
+| Distance(弹簧) | `setDistanceJointLength`、`getDistanceJoint*Length`、`enableDistanceJointSpring`/`Limit`/`Motor`、`setDistanceJointLimits`、`setDistanceJointMotorSpeed`…… |
+| Prismatic(滑轨) | `getPrismaticJointTranslation`/`Speed`、`enablePrismaticJointSpring`/`Limit`/`Motor`、`setPrismaticJointLimits`/`MotorSpeed`/`MaxMotorForce`…… |
+| Wheel(车轮) | `enableWheelJointSpring`/`Limit`/`Motor`、`setWheelJointLimits`/`MotorSpeed`/`MaxMotorTorque`、`getWheelJointMotorTorque`。 |
+
+用 `destroyJoint(bodyA)` 销毁任何关节。
 
 ## 角色控制器
 
-想要一个不像动态刚体那样翻滚的玩家,加一个 `CharacterController`,用 `moveAndSlide`
-解算移动——这是一种运动学的"移动并滑动",沿着表面行走而不是弹开。
+想让玩家沿着表面行走、而不是像动态刚体那样翻滚,加一个 `CharacterController`。每步从玩法设它
+的 `velocity`;系统会解析一次运动学 move-and-slide,把结果写回,并报告它碰到了什么:
 
-<Aside type="caution">
-  物理按**固定时间步**步进,而不是帧间隔,所以每帧都要读 `PhysicsEvents`、每帧都要施加
-  持续力。给又快又薄的物体设 `bullet: true` 以避免穿透。
-</Aside>
+```typescript
+import { defineSystem, Query, Mut, CharacterController } from 'esengine';
+
+const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
+  for (const [entity, cc] of q) {
+    cc.velocity = { x: input.moveX * 240, y: cc.velocity.y - 900 * dt };  // gravity
+    if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
+  }
+});
+```
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `velocity` | Vec2 | `{0, 0}` | 期望速度(世界像素/秒,每步设置)。 |
+| `up` | Vec2 | `{0, 1}` | 用于地面/天花板分类的上方向。 |
+| `floorMaxAngle` | number | `0.785` | 相对 `up` 的最大可行走坡度,弧度(45°)。 |
+| `maxSlides` | number | `4` | 每次移动的滑动迭代次数(拐角需要更多)。 |
+| `skinWidth` | number | `1` | 与表面保持的间隙(px),避免粘住。 |
+| `snapLength` | number | `0` | 向下探测(px)以贴住斜坡/台阶;`0` = 关。 |
+| `slideOnCeiling` | boolean | `true` | 沿天花板滑动 vs 停止移动。 |
+| `maskBits` | number | `0xFFFF` | 阻挡角色的层。 |
+| `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **输出**:这次移动碰到了什么。 |
+| `floorNormal` | Vec2 | — | **输出**:最后接触地面的法线。 |
+| `realVelocity` | Vec2 | — | **输出**:碰撞后的实际位移 / dt。 |
+
+## 最佳实践
+
+- **固定时间步**:*每帧*施加持续力、读 `PhysicsEvents`,因为物理独立于帧 delta 做子步。
+- 快速细小刚体(子弹、薄平台)用 **`bullet: true`** 防穿透。
+- 角色用 **`fixedRotation: true`** 免得翻倒。
+- **碰撞体用米**(÷ PPU),但**查询和角色控制器用像素**——混用是最常见的 bug。
+- **触发器用传感器**:`isSensor: true` 给出 enter/exit 事件而无物理推挤。
+- **用层过滤**(`categoryBits` / `maskBits`),而不是在事件处理里判断实体类型。
+
+## 参见
+
+- [场景](/docs/zh-cn/guides/scene/) —— 物理组件随场景序列化。
+- [数学辅助](/docs/zh-cn/guides/math/) —— 速度与方向的向量运算。
