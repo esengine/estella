@@ -1,12 +1,13 @@
 ---
 title: Input
-description: Keyboard, mouse, touch, and gamepad via the Input resource.
+description: The complete input reference — keyboard, mouse, touch, and gamepad through the Input resource, plus world-space cursor.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Read input from a system through the `Input` resource. It tracks held state plus
-this-frame edges (pressed / released), so query it every frame.
+Read input from a system through the `Input` resource. It tracks **held** state plus
+this-frame **edges** (pressed / released), so query it every frame — the edges are
+only true for the one frame the change happened.
 
 ## Keyboard
 
@@ -20,25 +21,25 @@ const keys = defineSystem([Res(Input)], (input) => {
 });
 ```
 
-Keys use DOM code strings: `KeyW`, `KeyA`, `ArrowUp`, `Space`, `Escape`,
-`Digit1`, …
+Keys use DOM code strings: `KeyW`, `KeyA`, `ArrowUp`, `Space`, `Escape`, `Digit1`, …
 
 ## Mouse
 
 ```typescript
 const mouse = defineSystem([Res(Input)], (input) => {
   if (input.isMouseButtonPressed(0)) { /* left click this frame */ }
-  // buttons: 0 = left, 1 = middle, 2 = right
   const screenX = input.mouseX, screenY = input.mouseY;   // screen pixels
   const wheel = input.scrollDeltaY;
 });
 ```
 
+Buttons: `0` = left, `1` = middle, `2` = right.
+
 ### Mouse in world space
 
-`input.mouseX` / `input.mouseY` are screen pixels. For world coordinates — to
-place or hit entities — read `UICameraInfo`, which exposes the cursor already
-projected into the world:
+`input.mouseX` / `mouseY` are screen pixels. For world coordinates — to place or hit
+entities — read `UICameraInfo`, which exposes the cursor already projected into the
+world:
 
 ```typescript
 import { defineSystem, Commands, Res, Input, UICameraInfo, Transform } from 'esengine';
@@ -56,15 +57,28 @@ const spawnAtCursor = defineSystem(
 );
 ```
 
-## Touch and gamepad
+## Reference
 
-- **Touch** — `input.isTouchActive(id)`, plus the `touches` map of active points.
-- **Gamepad** — `input.isGamepadConnected(pad)`,
-  `input.isGamepadButtonDown(button, pad)` (and `isGamepadButtonPressed` /
-  `Released`), with `GamepadAxis` for the sticks.
+| Group | Methods |
+|---|---|
+| Keyboard | `isKeyDown(code)`, `isKeyPressed(code)`, `isKeyReleased(code)`. |
+| Mouse | `isMouseButtonDown(b)`, `isMouseButtonPressed(b)`, `isMouseButtonReleased(b)`; `mouseX` / `mouseY`, `scrollDeltaY`. |
+| Touch | `isTouchActive(id)`, the `touches` map of active points. |
+| Gamepad | `isGamepadConnected(pad?)`, `isGamepadButtonDown(btn, pad?)`, `isGamepadButtonPressed`/`Released(btn, pad?)`, `getGamepadAxis(axis, pad?)`. |
+| Pointer | `isPointerOverUI()` — the cursor is over a UI element. |
 
-<Aside type="tip">
-  `input.isPointerOverUI()` is `true` when the cursor is over a UI element —
-  check it before acting on a world click so clicks on buttons don't also hit the
-  game world.
-</Aside>
+Each `*Down` reads held state; `*Pressed` / `*Released` are the this-frame edges.
+
+## Best practices
+
+- **Poll every frame** — edges (`*Pressed` / `*Released`) are only set for one frame.
+- **Guard world clicks with `isPointerOverUI()`** so clicking a button doesn't also
+  hit the game world.
+- **Use `UICameraInfo` for world coordinates**, not raw `mouseX/Y`, so picking
+  respects the camera.
+- **Gamepad `pad` defaults to 0** — pass an index for local multiplayer.
+
+## See also
+
+- [Camera](/docs/guides/camera/) — `screenToWorld` for arbitrary screen points.
+- [UI](/docs/guides/ui/) — UI consumes pointer input above the game world.

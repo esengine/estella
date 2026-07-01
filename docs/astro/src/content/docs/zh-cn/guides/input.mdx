@@ -1,12 +1,12 @@
 ---
 title: 输入
-description: 通过 Input 资源读取键盘、鼠标、触摸与手柄。
+description: 输入完整参考——通过 Input 资源读取键盘、鼠标、触摸与手柄,以及世界空间光标。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-在系统里通过 `Input` 资源读取输入。它既跟踪按住状态,也跟踪当前帧的边沿(按下 /
-松开),所以每帧查询它。
+在系统里通过 `Input` 资源读取输入。它跟踪**按住**状态以及本帧的**边沿**(按下 / 释放),
+所以每帧查询它——边沿只在变化发生的那一帧为真。
 
 ## 键盘
 
@@ -14,9 +14,9 @@ import { Aside } from '@astrojs/starlight/components';
 import { defineSystem, Res, Input } from 'esengine';
 
 const keys = defineSystem([Res(Input)], (input) => {
-  if (input.isKeyDown('KeyW'))       { /* 按住中 */ }
-  if (input.isKeyPressed('Space'))   { /* 本帧按下 */ }
-  if (input.isKeyReleased('Escape')) { /* 本帧松开 */ }
+  if (input.isKeyDown('KeyW'))       { /* held down */ }
+  if (input.isKeyPressed('Space'))   { /* pressed this frame */ }
+  if (input.isKeyReleased('Escape')) { /* released this frame */ }
 });
 ```
 
@@ -26,17 +26,18 @@ const keys = defineSystem([Res(Input)], (input) => {
 
 ```typescript
 const mouse = defineSystem([Res(Input)], (input) => {
-  if (input.isMouseButtonPressed(0)) { /* 本帧左键点击 */ }
-  // 按键:0 = 左键,1 = 中键,2 = 右键
-  const screenX = input.mouseX, screenY = input.mouseY;   // 屏幕像素
+  if (input.isMouseButtonPressed(0)) { /* left click this frame */ }
+  const screenX = input.mouseX, screenY = input.mouseY;   // screen pixels
   const wheel = input.scrollDeltaY;
 });
 ```
 
-### 世界坐标下的鼠标
+按键:`0` = 左,`1` = 中,`2` = 右。
 
-`input.mouseX` / `input.mouseY` 是屏幕像素。要拿世界坐标——用于放置或命中实体——请读
-`UICameraInfo`,它已把光标投影到世界空间:
+### 世界空间里的鼠标
+
+`input.mouseX` / `mouseY` 是屏幕像素。要世界坐标——用于放置或命中实体——读 `UICameraInfo`,
+它暴露已投影到世界里的光标:
 
 ```typescript
 import { defineSystem, Commands, Res, Input, UICameraInfo, Transform } from 'esengine';
@@ -54,13 +55,26 @@ const spawnAtCursor = defineSystem(
 );
 ```
 
-## 触摸与手柄
+## 参考
 
-- **触摸** —— `input.isTouchActive(id)`,以及记录活动触点的 `touches` map。
-- **手柄** —— `input.isGamepadConnected(pad)`、`input.isGamepadButtonDown(button, pad)`
-  (还有 `isGamepadButtonPressed` / `Released`),摇杆用 `GamepadAxis`。
+| 分组 | 方法 |
+|---|---|
+| 键盘 | `isKeyDown(code)`、`isKeyPressed(code)`、`isKeyReleased(code)`。 |
+| 鼠标 | `isMouseButtonDown(b)`、`isMouseButtonPressed(b)`、`isMouseButtonReleased(b)`;`mouseX` / `mouseY`、`scrollDeltaY`。 |
+| 触摸 | `isTouchActive(id)`、活动触点的 `touches` map。 |
+| 手柄 | `isGamepadConnected(pad?)`、`isGamepadButtonDown(btn, pad?)`、`isGamepadButtonPressed`/`Released(btn, pad?)`、`getGamepadAxis(axis, pad?)`。 |
+| 指针 | `isPointerOverUI()` —— 光标在 UI 元素上方。 |
 
-<Aside type="tip">
-  当光标位于某个 UI 元素之上时,`input.isPointerOverUI()` 为 `true` —— 在处理世界点击
-  前先检查它,这样点在按钮上的点击就不会同时命中游戏世界。
-</Aside>
+`*Down` 读按住状态;`*Pressed` / `*Released` 是本帧边沿。
+
+## 最佳实践
+
+- **每帧轮询**——边沿(`*Pressed` / `*Released`)只在一帧被设置。
+- **用 `isPointerOverUI()` 守卫世界点击**,点按钮时不要也命中游戏世界。
+- **世界坐标用 `UICameraInfo`**,而非裸 `mouseX/Y`,让拾取尊重相机。
+- **手柄 `pad` 默认 0**——本地多人传索引。
+
+## 参见
+
+- [相机](/docs/zh-cn/guides/camera/) —— 对任意屏幕点用 `screenToWorld`。
+- [UI](/docs/zh-cn/guides/ui/) —— UI 在游戏世界之上消费指针输入。
