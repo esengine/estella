@@ -7,6 +7,19 @@ import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasmScratch';
 import { isKtx2, loadCompressedTexture, type BasisTranscoder } from '../compressed';
+import { createTextureFromPixels, type TextureParams } from '../../runtimeAssets';
+
+/**
+ * Decode a texture ref to raw RGBA pixels on the current platform. Set by a
+ * caller that fetches through a channel `TextureLoader`'s URL-based `<img>`
+ * decode can't reach — e.g. the runtime scene loader, whose asset providers
+ * pre-decode from `estella://` / WeChat package files / inlined data-URLs. When
+ * set, non-KTX2 textures upload through this instead of `loadImage(url)`.
+ */
+export type TexturePixelDecoder = (
+    path: string,
+    flip: boolean,
+) => Promise<{ width: number; height: number; pixels: Uint8Array }>;
 
 /**
  * Texture import-time settings. Applied when the GL texture is first uploaded,
@@ -72,6 +85,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private pendingSettings_: TextureImportSettings | undefined;
     setPendingSettings(s: TextureImportSettings | undefined): void { this.pendingSettings_ = s; }
 
+    /** Platform pixel decoder (see {@link TexturePixelDecoder}). Null ⇒ the
+     *  default URL `<img>` decode path (editor / app Assets, unchanged). */
+    private pixelDecoder_: TexturePixelDecoder | null = null;
+    setPixelDecoder(decoder: TexturePixelDecoder | null): void { this.pixelDecoder_ = decoder; }
+
     private ensureCanvas_(): { canvas: HTMLCanvasElement | OffscreenCanvas; ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D } {
         if (this.canvas_ && this.ctx_) return { canvas: this.canvas_, ctx: this.ctx_ };
         this.canvas_ = platformCreateCanvas(256, 256);
@@ -114,6 +132,15 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     ): Promise<TextureResult> {
         if (path.toLowerCase().endsWith('.ktx2')) {
             return this.loadCompressed(path, ctx, settings);
+        }
+        // A platform pixel decoder (runtime scene loader) pre-decodes to RGBA and
+        // uploads through the shared createTexture path — the same code the old
+        // runtimeLoader.loadTextures used — instead of a URL-based <img>.
+        if (this.pixelDecoder_) {
+            const result = await this.pixelDecoder_(path, flip);
+            const params: TextureParams = { filterMode: settings?.filter, wrapMode: settings?.wrap };
+            const handle = createTextureFromPixels(this.module_, result, flip, params);
+            return { handle, width: result.width, height: result.height };
         }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
         const img = await this.loadImage(url, flip);

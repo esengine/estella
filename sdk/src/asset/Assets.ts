@@ -469,7 +469,7 @@ export class Assets {
     async preloadSceneAssets(
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
-        options?: { readonly maxConcurrent?: number },
+        options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean },
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
         const discovered = discoverSceneAssets(sceneData, (ref) => this.resolveRef(ref));
@@ -544,13 +544,18 @@ export class Assets {
         pushHandleLoad(texturePaths, p => this.loadTexture(p), textureHandles, 'texture');
         pushHandleLoad(materialPaths, p => this.loadMaterial(p), materialHandles, 'material');
         pushHandleLoad(fontPaths, p => this.loadFont(p), fontHandles, 'font');
-        for (const pair of spinePairs) {
-            tasks.push(() =>
-                this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
-                    log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
-                    recordFailure(pair.skeleton, 'spine', e);
-                }),
-            );
+        // The runtime scene loader owns spine as a two-phase load+apply through the
+        // SpineManager (skeletons must bind to spawned entities); it opts out here so
+        // spine page textures / virtual-FS writes aren't done twice.
+        if (!options?.skipSpine) {
+            for (const pair of spinePairs) {
+                tasks.push(() =>
+                    this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
+                        log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
+                        recordFailure(pair.skeleton, 'spine', e);
+                    }),
+                );
+            }
         }
         pushFireAndForget(animClipPaths, p => this.loadAnimClip(p), 'anim-clip');
         pushFireAndForget(tilemapPaths, p => this.loadTilemap(p), 'tilemap');

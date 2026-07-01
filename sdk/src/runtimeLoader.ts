@@ -6,9 +6,8 @@
  */
 
 import { SceneOwner } from './component';
-import { Material } from './material';
-import { loadSceneData, getComponentAssetFieldDescriptors, type AssetFieldType, type SceneData } from './scene';
-import { discoverSceneAssets, getAssetPathsByType } from './asset/discoverAssets';
+import { loadSceneData, updateCameraAspectRatio, type SceneData } from './scene';
+import { discoverSceneAssets } from './asset/discoverAssets';
 import type { ESEngineModule } from './wasm';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import { SpineManager } from './spine/SpineManager';
@@ -16,22 +15,19 @@ import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
-import { Assets } from './asset/AssetPlugin';
-import { getAssetTypeEntry } from './assetTypes';
+import { Assets as AssetsClass } from './asset/Assets';
+import { ProviderBackend } from './asset/ProviderBackend';
+import { initBuiltinAssetFields } from './asset/AssetFieldRegistry';
+import type { TextureImportSettings } from './asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
-import { type AnimClipAssetData, extractAnimClipTexturePaths, parseAnimClipData } from './animation/AnimClipLoader';
 import { SpriteAnimation } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
 import { flushPendingSystems } from './app';
-import { updateCameraAspectRatio } from './scene';
 import { requireResourceManager } from './resourceManager';
-import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
-import { registerTilemapSource } from './tilemap/tilesetCache';
 import { log } from './logger';
-import { createTextureFromPixels, type RuntimeAssetProvider, type TextureParams } from './runtimeAssets';
+import { type RuntimeAssetProvider, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
-import { loadCompressedTexture, type CompressedUploadOptions, type BasisTranscoder } from './asset/compressed';
 import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
 
 // =============================================================================
@@ -43,308 +39,81 @@ import { transcoderFromModule, type BasisWasmModule } from './asset/basisTransco
 export type { RuntimeAssetProvider } from './runtimeAssets';
 
 // =============================================================================
-// Texture Helpers
+// Scene-local Assets channel
 // =============================================================================
 
-async function loadTextures(
-    module: ESEngineModule,
-    sceneData: SceneData,
-    provider: RuntimeAssetProvider,
-    texturePaths: Set<string>,
-    transcoder: BasisTranscoder | null,
-): Promise<Record<string, number>> {
-    const cache: Record<string, number> = {};
-    const texSettings = (sceneData as any).textureImporterSettings as Record<string, TextureParams> | undefined;
-    const gl = transcoder ? getWebGL2(module) : null;
-    for (const ref of texturePaths) {
-        try {
-            const params = texSettings?.[ref];
-            // KTX2 stays GPU-compressed in VRAM: decode to a device format
-            // through the SAME compressed.ts core the editor TextureLoader uses, so
-            // both paths agree by construction. Non-KTX2 keeps the RGBA upload.
-            if (transcoder && gl && provider.resolvePath(ref).toLowerCase().endsWith('.ktx2')) {
-                const bytes = await provider.readBinary(ref);
-                const r = loadCompressedTexture(gl, module, transcoder, new Uint8Array(bytes), compressedOpts(params));
-                cache[ref] = r.handle;
-            } else {
-                const pixelData = await provider.loadPixels(ref);
-                cache[ref] = createTextureFromPixels(module, pixelData, true, params);
-            }
-        } catch (e) {
-            log.warn('runtime', `Failed to load texture: ${ref}`, e);
-            cache[ref] = 0;
+/**
+ * Build a scene-local `Assets` that loads this realm's scene through the single
+ * canonical asset channel, driven by the realm's `RuntimeAssetProvider`:
+ *   - fetch (text/binary, incl. KTX2 containers) → `ProviderBackend`
+ *   - texture pixels → the provider's platform decoder (handles `estella://` /
+ *     WeChat package files / inlined data-URLs that a URL `<img>` can't)
+ *   - KTX2 transcode → the same self-gating Basis side-module the editor wires
+ * The provider's `resolvePath` is the single ref resolver, so refs resolve to
+ * their real (extension-bearing) build paths before KTX2 detection and fetch.
+ * No ref counter / catalog is attached (parity with the old runtime loader,
+ * which tracked neither and applied no atlas-frame indirection).
+ */
+function createSceneAssets(
+    app: App, module: ESEngineModule, provider: RuntimeAssetProvider, sceneData: SceneData,
+): AssetsClass {
+    initBuiltinAssetFields();
+    const assets = AssetsClass.create({
+        backend: new ProviderBackend(provider),
+        module,
+        getAudio: () => (app.hasResource(Audio) ? app.getResource(Audio) : null),
+        getSpriteAnimation: () => (app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null),
+    });
+    assets.setAssetRefResolver((ref) => provider.resolvePath(ref));
+
+    const loader = assets.getTextureLoader();
+    loader.setPixelDecoder((path, flip) =>
+        flip ? provider.loadPixels(path) : (provider.loadPixelsRaw?.(path) ?? provider.loadPixels(path)),
+    );
+    // KTX2 transcoder, self-gated off app.sideModules — identical wiring to
+    // AssetPlugin.build so eager + on-demand loads transcode the same way.
+    loader.setTranscoderProvider(async () => {
+        const host = app.sideModules;
+        if (!host) return null;
+        const mod = await host.acquire('basis');
+        return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
+    });
+
+    // Per-texture import settings (filter/wrap) keyed by the scene's stored ref:
+    // normalize keys through resolvePath so they match the resolved path the
+    // TextureLoader sees, and map the stored {filterMode,wrapMode} shape to the
+    // loader's {filter,wrap}.
+    const rawSettings = (sceneData as { textureImporterSettings?: Record<string, TextureParams> })
+        .textureImporterSettings;
+    if (rawSettings) {
+        const resolved: Record<string, TextureImportSettings> = {};
+        for (const [ref, s] of Object.entries(rawSettings)) {
+            resolved[provider.resolvePath(ref)] = {
+                filter: s.filterMode as TextureImportSettings['filter'],
+                wrap: s.wrapMode as TextureImportSettings['wrap'],
+            };
         }
+        assets.setTextureImportSettingsResolver((ref) => resolved[ref]);
     }
-    return cache;
+
+    return assets;
 }
 
-/** WebGL2 context the emscripten module renders into (for JS-side compressed
- *  uploads via gl.compressedTexImage2D), or null. */
-function getWebGL2(module: ESEngineModule): WebGL2RenderingContext | null {
-    try {
-        const ctx = (module.GL as any)?.currentContext?.GLctx;
-        return (typeof WebGL2RenderingContext !== 'undefined' && ctx instanceof WebGL2RenderingContext) ? ctx : null;
-    } catch { return null; }
-}
-
-/** Map runtime TextureParams (filterMode/wrapMode) → compressed upload options. */
-function compressedOpts(params?: TextureParams): CompressedUploadOptions {
-    const filter = params?.filterMode === 'nearest' ? 'nearest' : 'linear';
-    const wrap = params?.wrapMode === 'repeat' ? 'repeat' : params?.wrapMode === 'mirror' ? 'mirror' : 'clamp';
-    return { filter, wrap };
-}
-
-/** Acquire the Basis transcoder iff the scene uses any KTX2 texture — self-gating
- *  off app.sideModules, the same way physics/spine acquire their modules. */
-async function acquireBasisIfNeeded(
-    app: App, provider: RuntimeAssetProvider, texturePaths: Set<string>,
-): Promise<BasisTranscoder | null> {
-    if (!app.sideModules) return null;
-    let needs = false;
-    for (const ref of texturePaths) {
-        if (provider.resolvePath(ref).toLowerCase().endsWith('.ktx2')) { needs = true; break; }
-    }
-    if (!needs) return null;
-    const mod = await app.sideModules.acquire('basis');
-    return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
-}
-
+/** Apply 9-slice borders to loaded textures. `textureHandles` is keyed by the
+ *  resolved build path (Assets discovery resolves refs), so the metadata's
+ *  stored ref is resolved the same way before lookup. */
 function applyTextureMetadata(
     sceneData: SceneData,
-    textureCache: Record<string, number>,
+    textureHandles: Map<string, number>,
+    resolveRef: (ref: string) => string,
 ): void {
     if (!sceneData.textureMetadata) return;
     const rm = requireResourceManager();
-    for (const ref in sceneData.textureMetadata) {
-        const handle = textureCache[ref];
-        if (handle) {
-            const metadata = sceneData.textureMetadata[ref];
-            if (metadata?.sliceBorder) {
-                const b = metadata.sliceBorder;
-                rm.setTextureMetadata(handle, b.left, b.right, b.top, b.bottom);
-            }
-        }
-    }
-}
-
-function resolveSceneAssetPaths(
-    sceneData: SceneData,
-    textureCache: Record<string, number>,
-    fontCache: Record<string, number>,
-    materialCache: Record<string, number>,
-): void {
-    const cacheByType: Partial<Record<AssetFieldType, Record<string, number>>> = {
-        texture: textureCache,
-        material: materialCache,
-        font: fontCache,
-    };
-    for (const entity of sceneData.entities) {
-        for (const comp of entity.components) {
-            const descriptors = getComponentAssetFieldDescriptors(comp.type);
-            if (descriptors.length === 0) continue;
-
-            const data = comp.data as Record<string, unknown>;
-            for (const desc of descriptors) {
-                const cache = cacheByType[desc.type];
-                if (cache && typeof data[desc.field] === 'string') {
-                    data[desc.field] = cache[data[desc.field] as string] || 0;
-                }
-            }
-        }
-    }
-}
-
-// =============================================================================
-// BitmapFont Helpers
-// =============================================================================
-
-async function loadBitmapFonts(
-    module: ESEngineModule,
-    provider: RuntimeAssetProvider,
-    fontPaths: Set<string>,
-): Promise<Record<string, number>> {
-    const cache: Record<string, number> = {};
-    for (const ref of fontPaths) {
-        if (cache[ref] !== undefined) continue;
-        try {
-            let fntContent: string;
-            let fntDir: string;
-
-            const fontEntry = getAssetTypeEntry(ref);
-            if (fontEntry?.editorType === 'bitmap-font' && fontEntry.contentType === 'json') {
-                const json = JSON.parse(await provider.readText(ref));
-                const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
-                if (!fntFile) { cache[ref] = 0; continue; }
-                const dir = ref.substring(0, ref.lastIndexOf('/'));
-                const fntRef = dir ? `${dir}/${fntFile}` : fntFile;
-                fntContent = await provider.readText(fntRef);
-                fntDir = fntRef.substring(0, fntRef.lastIndexOf('/'));
-            } else {
-                fntContent = await provider.readText(ref);
-                fntDir = ref.substring(0, ref.lastIndexOf('/'));
-            }
-
-            const pageMatch = fntContent.match(/file="([^"]+)"/);
-            if (!pageMatch) { cache[ref] = 0; continue; }
-
-            const texRef = fntDir ? `${fntDir}/${pageMatch[1]}` : pageMatch[1];
-            const pixels = provider.loadPixelsRaw
-                ? await provider.loadPixelsRaw(texRef)
-                : await provider.loadPixels(texRef);
-            const texHandle = createTextureFromPixels(module, pixels, false);
-
-            const rm = requireResourceManager();
-            cache[ref] = rm.loadBitmapFont(fntContent, texHandle, pixels.width, pixels.height);
-        } catch (e) {
-            log.warn('runtime', `Failed to load bitmap font: ${ref}`, e);
-            cache[ref] = 0;
-        }
-    }
-    return cache;
-}
-
-// =============================================================================
-// Material Helpers
-// =============================================================================
-
-async function loadMaterials(
-    provider: RuntimeAssetProvider,
-    materialPaths: Set<string>,
-): Promise<Record<string, number>> {
-    const materialCache: Record<string, number> = {};
-    const shaderCache: Record<string, number> = {};
-    for (const matRef of materialPaths) {
-        if (materialCache[matRef] !== undefined) continue;
-        try {
-            const matData = JSON.parse(await provider.readText(matRef));
-            if (!matData.vertexSource || !matData.fragmentSource) {
-                materialCache[matRef] = 0;
-                continue;
-            }
-            const shaderKey = matData.vertexSource + matData.fragmentSource;
-            let shaderHandle = shaderCache[shaderKey];
-            if (!shaderHandle) {
-                shaderHandle = Material.createShader(matData.vertexSource, matData.fragmentSource);
-                shaderCache[shaderKey] = shaderHandle;
-            }
-            materialCache[matRef] = Material.createFromAsset(matData, shaderHandle);
-        } catch (e) {
-            log.warn('runtime', `Failed to load material: ${matRef}`, e);
-            materialCache[matRef] = 0;
-        }
-    }
-    return materialCache;
-}
-
-// =============================================================================
-// Audio Helpers
-// =============================================================================
-
-async function preloadAudioClips(app: App, provider: RuntimeAssetProvider, audioPaths: Set<string>): Promise<void> {
-    if (audioPaths.size === 0) return;
-    if (!app.hasResource(Audio)) {
-        log.warn('runtime', 'No Audio resource; skipping audio preload (AudioPlugin not installed?)');
-        return;
-    }
-    const audio = app.getResource(Audio);
-
-    const paths = [...audioPaths];
-
-    if (provider) {
-        await Promise.all(paths.map(async (path) => {
-            try {
-                const binary = await provider.readBinary(path);
-                await audio.preloadFromData(path, binary.buffer as ArrayBuffer);
-            } catch (err) {
-                log.warn('runtime', `Failed to preload audio: ${path}`, err);
-            }
-        }));
-    } else {
-        await audio.preloadAll(paths).catch(err => {
-            log.warn('runtime', 'Failed to preload audio assets', err);
-        });
-    }
-}
-
-// =============================================================================
-// Anim-Clip Helpers
-// =============================================================================
-
-async function loadAnimClips(
-    app: App,
-    module: ESEngineModule,
-    provider: RuntimeAssetProvider,
-    animClipPaths: Set<string>,
-): Promise<void> {
-    const anim = app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null;
-    for (const clipPath of animClipPaths) {
-        try {
-            const clipText = await provider.readText(clipPath);
-            const clipData: AnimClipAssetData = JSON.parse(clipText);
-            const texturePaths = extractAnimClipTexturePaths(clipData);
-            const textureHandles = new Map<string, number>();
-
-            for (const texPath of texturePaths) {
-                try {
-                    const result = await provider.loadPixels(texPath);
-                    textureHandles.set(texPath, createTextureFromPixels(module, result));
-                } catch (e) {
-                    log.warn('runtime', `Failed to load anim texture: ${texPath}`, e);
-                    textureHandles.set(texPath, 0);
-                }
-            }
-
-            const clip = parseAnimClipData(clipPath, clipData, textureHandles);
-            anim?.registerClip(clip);
-        } catch (err) {
-            log.warn('runtime', `Failed to load animation clip: ${clipPath}`, err);
-        }
-    }
-}
-
-// =============================================================================
-// Tilemap Helpers
-// =============================================================================
-
-async function loadTilemaps(
-    module: ESEngineModule,
-    provider: RuntimeAssetProvider,
-    tilemapPaths: Set<string>,
-): Promise<void> {
-    for (const tmjPath of tilemapPaths) {
-        try {
-            const jsonText = await provider.readText(tmjPath);
-            const mapData = parseTmjJson(JSON.parse(jsonText));
-            if (!mapData) continue;
-
-            const tilesets = [];
-            for (const ts of mapData.tilesets) {
-                const imagePath = resolveRelativePath(tmjPath, ts.image);
-                let textureHandle = 0;
-                try {
-                    const result = await provider.loadPixels(imagePath);
-                    textureHandle = createTextureFromPixels(module, result);
-                } catch (e) {
-                    log.warn('runtime', `Failed to load tileset texture: ${imagePath}`, e);
-                }
-                tilesets.push({ textureHandle, columns: ts.columns, firstId: ts.firstGid });
-            }
-
-            registerTilemapSource(tmjPath, {
-                tileWidth: mapData.tileWidth,
-                tileHeight: mapData.tileHeight,
-                layers: mapData.layers.map(l => ({
-                    name: l.name,
-                    width: l.width,
-                    height: l.height,
-                    tiles: l.tiles,
-                    chunks: l.chunks ?? [],
-                    infinite: l.infinite ?? false,
-                })),
-                tilesets,
-            });
-        } catch (err) {
-            log.warn('runtime', `Failed to load tilemap: ${tmjPath}`, err);
+    for (const [ref, metadata] of Object.entries(sceneData.textureMetadata)) {
+        const handle = textureHandles.get(resolveRef(ref));
+        if (handle && metadata?.sliceBorder) {
+            const b = metadata.sliceBorder;
+            rm.setTextureMetadata(handle, b.left, b.right, b.top, b.bottom);
         }
     }
 }
@@ -401,12 +170,18 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // wins for headless/tests.
     const spineManager = options.spineManager ?? app.getPlugin(SpinePlugin)?.spineManager ?? null;
 
+    // Spine pairs (raw refs) for the two-phase spine load+apply below; every
+    // other asset type loads through the single canonical Assets channel.
     const discovered = discoverSceneAssets(sceneData);
 
-    const texturePaths = getAssetPathsByType(discovered, 'texture');
-    const transcoder = await acquireBasisIfNeeded(app, provider, texturePaths);
-    const textureCache = await loadTextures(module, sceneData, provider, texturePaths, transcoder);
-    applyTextureMetadata(sceneData, textureCache);
+    // Eager scene assets (textures / fonts / materials / anim-clips / tilemaps /
+    // audio) load through the single canonical Assets channel — one per-type
+    // loader implementation, shared with the editor — driven by this realm's
+    // provider. Spine stays a two-phase load+apply below (skipSpine).
+    const sceneAssets = createSceneAssets(app, module, provider, sceneData);
+    const assetResult = await sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true });
+    sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
+    applyTextureMetadata(sceneData, assetResult.textureHandles, (ref) => provider.resolvePath(ref));
 
     const spineAssetInfo = await loadSpineAssets(module, provider, spineManager, discovered.spines);
 
@@ -446,13 +221,6 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         }
     }
 
-    const fontCache = await loadBitmapFonts(module, provider, getAssetPathsByType(discovered, 'font'));
-    const materialCache = await loadMaterials(provider, getAssetPathsByType(discovered, 'material'));
-    await loadAnimClips(app, module, provider, getAssetPathsByType(discovered, 'anim-clip'));
-    await loadTilemaps(module, provider, getAssetPathsByType(discovered, 'tilemap'));
-    await preloadAudioClips(app, provider, getAssetPathsByType(discovered, 'audio'));
-
-    resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);
 
     const cppRegistry = app.world.getCppRegistry();
