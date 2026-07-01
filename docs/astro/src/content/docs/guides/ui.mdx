@@ -1,80 +1,135 @@
 ---
 title: UI
-description: Flexbox layout, text, and interaction — in the editor or in code.
+description: Build flexbox interfaces — in the editor or in code — and handle interaction.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 
-Estella's UI is a CSS-like flexbox system solved in the C++ core. Compose an
-interface from UI components — in the editor or in code — and read interaction
-state from your systems.
+Estella's UI is a CSS-like flexbox system solved in the C++ core. You compose an
+interface from UI components — either visually in the editor, or in code — and
+handle interaction from your systems. This guide builds a working pause menu in
+code, then covers layout and interaction.
 
-## UI components
+## The components
 
-- **`UINode`** — the layout box. Flexbox fields live on it directly: `width`,
-  `height` (and min/max), `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`,
-  `margin*`, and `inset*` for absolute positioning. Layout is recomputed each
-  frame.
-- **`Text`** — text rendered through an SDF glyph atlas (`content`, `fontSize`,
-  `color`, `align`, `bold`, `italic`, stroke/shadow, `wordWrap`, `richText`).
-- **`UIVisual`** — solid-color, textured, sliced, or tiled fills.
-- **`UIMask`** — clips its children.
-- **`Interactable`** — marks an entity hit-testable (`enabled`, `blockRaycast`,
-  `raycastTarget`).
+| Component | Role |
+|---|---|
+| `UINode` | The layout box. Holds the flex-item fields (`width`, `height`, `flexGrow`, `margin*`, `inset*`). |
+| `FlexContainer` | Makes a node lay its children out with flexbox (`direction`, `justifyContent`, `alignItems`, `gap`). |
+| `Text` | Text via an SDF glyph atlas (`content`, `fontSize`, `color`, `align`, …). |
+| `UIVisual` | The fill — solid color, texture, 9-slice, or tiled. |
+| `UIMask` | Clips its children. |
+| `Interactable` | Marks a node hit-testable, so it can be hovered/clicked. |
 
-## Build UI in code
+## Build a UI in code
 
-The composition helpers are public. Spawn a node with `spawnUIEntity` +
-`buildUINode`, sized with the dimension helpers `px` / `percent` / `auto`:
+Here's a complete pause menu: a panel laid out as a centered column, with a title
+and a button that runs a handler on click. Register it as a **startup system** so
+it builds once.
 
 ```typescript
 import {
-  defineSystem, GetWorld,
-  spawnUIEntity, buildUINode, px, percent,
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, createButton,
+  FlexContainer, FlexDirection, JustifyContent, AlignItems,
+  px,
 } from 'esengine';
 
-const buildHUD = defineSystem([GetWorld()], (world) => {
+const buildPauseMenu = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  // 1. A panel: 320×220 with a dark translucent background.
+  const panel = spawnUIEntity({
+    world,
+    node: { width: px(320), height: px(220) },
+    visual: { color: { r: 0.08, g: 0.10, b: 0.16, a: 0.95 } },
+  });
+
+  // 2. Lay its children out as a centered vertical column.
+  world.insert(panel, FlexContainer, {
+    direction: FlexDirection.Column,
+    justifyContent: JustifyContent.Center,
+    alignItems: AlignItems.Center,
+    gap: { x: 0, y: 16 },
+  });
+
+  // 3. A title label, parented to the panel.
   spawnUIEntity({
     world,
-    node: buildUINode({ width: px(220), height: percent(100) }),
-    text: { content: 'Score: 0', fontSize: 18 },
+    parent: panel,
+    text: { content: 'Paused', fontSize: 28 },
+  });
+
+  // 4. A button that resumes the game on click.
+  createButton({
+    world,
+    events,
+    parent: panel,
+    text: 'Resume',
+    node: { width: px(160), height: px(44) },
+    states: {
+      normal:  { color: { r: 0.20, g: 0.55, b: 1.0, a: 1 } },
+      hover:   { color: { r: 0.30, g: 0.65, b: 1.0, a: 1 } },
+      pressed: { color: { r: 0.12, g: 0.45, b: 0.9, a: 1 } },
+    },
+    onClick: () => {
+      // resume: unpause, switch scene, hide the menu…
+    },
   });
 });
+
+addStartupSystem(buildPauseMenu);
 ```
 
-Use **`FlexContainer`** (with `FlexDirection` / `JustifyContent` / `AlignItems`)
-for flex layout, and the widget factories — **`createButton`**, `createToggle`,
-`createSlider`, `createProgress`, `createDialog`, `createDropdown` — for
-ready-made controls.
+- `spawnUIEntity({ world, parent?, node?, visual?, text? })` returns the entity —
+  pass `parent` to nest it.
+- Sizes use the dimension helpers `px`, `percent`, `auto`.
+- The other widget factories work the same way: `createToggle`, `createSlider`,
+  `createProgress`, `createDialog`, `createDropdown`.
+
+<Aside type="tip">
+  UI renders under the scene's UI camera — the default project sets one up. In
+  the editor you can build the same tree visually: add `UINode` entities, nest
+  them, and add a `FlexContainer` / `Text` / `UIVisual` / `Interactable` in the
+  inspector.
+</Aside>
+
+## Layout with FlexContainer
+
+Add a `FlexContainer` to a node to lay out its children. The enums mirror CSS:
+
+- `FlexDirection` — `Row`, `Column`, `RowReverse`, `ColumnReverse`.
+- `JustifyContent` — `Start`, `Center`, `End`, `SpaceBetween`, `SpaceAround`,
+  `SpaceEvenly` (main axis).
+- `AlignItems` — `Start`, `Center`, `End`, `Stretch` (cross axis).
+- `gap` (a `Vec2`) and `padding`.
+
+Per-child sizing lives on each child's `UINode`: `flexGrow`, `flexShrink`,
+`width` / `height`, `margin*`, and `inset*` for `Absolute` positioning.
 
 ## Handling interaction
 
-The hit-test system writes per-frame pointer state into `UIInteraction`
-(`hovered`, `pressed`, `justPressed`, `justReleased`). It's **read-only for your
-logic** — query it alongside `Interactable` to react:
+`createButton` gives you `onClick` directly. For your own widgets, the hit-test
+system writes per-frame pointer state into `UIInteraction` (`hovered`, `pressed`,
+`justPressed`, `justReleased`) on any entity that has an `Interactable`. It's
+**read-only for your logic** — query it to react:
 
 ```typescript
 import { defineSystem, Query, Interactable, UIInteraction } from 'esengine';
 
-const handleClicks = defineSystem(
-  [Query(Interactable, UIInteraction)],
-  (q) => {
-    for (const [entity, _gate, state] of q) {
-      if (state.justReleased) {
-        // entity was clicked
-      }
+const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
+  for (const [entity, _gate, state] of q) {
+    if (state.justReleased) {
+      // this node was clicked
     }
   }
-);
+});
 ```
 
-For richer input — bubbling `click` / `hover_enter` / `change` / `submit` /
-`drag` events across the parent chain — read the `UIEvents` resource, the UI
-event bus.
+For bubbling events — `click`, `hover_enter`, `change`, `submit`, `drag` up the
+parent chain — read the `UIEvents` resource (the event bus, a `UIEventQueue`).
 
 <Aside type="note">
   There is no `RectTransform`: `UINode` is real flexbox, sized with `px`,
   `percent`, and `auto`, plus `Absolute` positioning via insets. `UIInteraction`
   is written by the engine each frame — drive your logic from it or from
-  `UIEvents`, don't mutate it.
+  `UIEvents`, never mutate it.
 </Aside>

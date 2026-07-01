@@ -1,74 +1,130 @@
 ---
 title: UI
-description: 弹性盒布局、文本与交互 —— 在编辑器里或用代码。
+description: 用弹性盒搭建界面 —— 在编辑器里或用代码 —— 并处理交互。
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 
-Estella 的 UI 是一套在 C++ 内核里求解的类 CSS 弹性盒(flexbox)系统。你用 UI 组件
-组合界面——在编辑器里或用代码——再从系统里读取交互状态。
+Estella 的 UI 是一套在 C++ 内核里求解的类 CSS 弹性盒(flexbox)系统。你用 UI 组件组合
+界面——在编辑器里可视化地搭,或用代码搭——再从系统里处理交互。本篇用代码搭一个可用的
+暂停菜单,然后讲布局与交互。
 
-## UI 组件
+## 组件
 
-- **`UINode`** —— 布局盒。弹性盒字段直接在它身上:`width`、`height`(以及 min/max)、
-  `flexGrow`、`flexShrink`、`flexBasis`、`alignSelf`、`margin*`,以及用于绝对定位的
-  `inset*`。布局每帧重新计算。
-- **`Text`** —— 通过 SDF 字形图集渲染的文本(`content`、`fontSize`、`color`、`align`、
-  `bold`、`italic`、描边/阴影、`wordWrap`、`richText`)。
-- **`UIVisual`** —— 纯色、贴图、九宫格或平铺填充。
-- **`UIMask`** —— 裁剪其子元素。
-- **`Interactable`** —— 标记实体可命中测试(`enabled`、`blockRaycast`、
-  `raycastTarget`)。
+| 组件 | 作用 |
+|---|---|
+| `UINode` | 布局盒。持有弹性项字段(`width`、`height`、`flexGrow`、`margin*`、`inset*`)。|
+| `FlexContainer` | 让一个节点用弹性盒排布子元素(`direction`、`justifyContent`、`alignItems`、`gap`)。|
+| `Text` | 通过 SDF 字形图集渲染的文本(`content`、`fontSize`、`color`、`align` 等)。|
+| `UIVisual` | 填充——纯色、贴图、九宫格或平铺。|
+| `UIMask` | 裁剪其子元素。|
+| `Interactable` | 标记节点可命中测试,从而能被悬停/点击。|
 
-## 用代码构建 UI
+## 用代码搭建 UI
 
-组合助手都是公开的。用 `spawnUIEntity` + `buildUINode` 生成节点,并用尺寸助手
-`px` / `percent` / `auto` 设定大小:
+下面是一个完整的暂停菜单:一个按居中列排布的面板,含标题和一个点击后运行回调的按钮。
+把它注册为**启动系统(startup system)**,只在启动时搭一次。
 
 ```typescript
 import {
-  defineSystem, GetWorld,
-  spawnUIEntity, buildUINode, px, percent,
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, createButton,
+  FlexContainer, FlexDirection, JustifyContent, AlignItems,
+  px,
 } from 'esengine';
 
-const buildHUD = defineSystem([GetWorld()], (world) => {
+const buildPauseMenu = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  // 1. 面板:320×220,深色半透明背景。
+  const panel = spawnUIEntity({
+    world,
+    node: { width: px(320), height: px(220) },
+    visual: { color: { r: 0.08, g: 0.10, b: 0.16, a: 0.95 } },
+  });
+
+  // 2. 把它的子元素按居中的竖直列排布。
+  world.insert(panel, FlexContainer, {
+    direction: FlexDirection.Column,
+    justifyContent: JustifyContent.Center,
+    alignItems: AlignItems.Center,
+    gap: { x: 0, y: 16 },
+  });
+
+  // 3. 标题文本,挂到面板下。
   spawnUIEntity({
     world,
-    node: buildUINode({ width: px(220), height: percent(100) }),
-    text: { content: 'Score: 0', fontSize: 18 },
+    parent: panel,
+    text: { content: 'Paused', fontSize: 28 },
+  });
+
+  // 4. 一个点击后恢复游戏的按钮。
+  createButton({
+    world,
+    events,
+    parent: panel,
+    text: 'Resume',
+    node: { width: px(160), height: px(44) },
+    states: {
+      normal:  { color: { r: 0.20, g: 0.55, b: 1.0, a: 1 } },
+      hover:   { color: { r: 0.30, g: 0.65, b: 1.0, a: 1 } },
+      pressed: { color: { r: 0.12, g: 0.45, b: 0.9, a: 1 } },
+    },
+    onClick: () => {
+      // 恢复:取消暂停、切换场景、隐藏菜单……
+    },
   });
 });
+
+addStartupSystem(buildPauseMenu);
 ```
 
-用 **`FlexContainer`**(配合 `FlexDirection` / `JustifyContent` / `AlignItems`)
-做弹性布局;用控件工厂——**`createButton`**、`createToggle`、`createSlider`、
-`createProgress`、`createDialog`、`createDropdown`——做开箱即用的控件。
+- `spawnUIEntity({ world, parent?, node?, visual?, text? })` 返回实体——传 `parent`
+  即可嵌套。
+- 尺寸用助手 `px`、`percent`、`auto`。
+- 其他控件工厂用法相同:`createToggle`、`createSlider`、`createProgress`、
+  `createDialog`、`createDropdown`。
+
+<Aside type="tip">
+  UI 在场景的 UI 相机下渲染——默认项目会自动设好一个。在编辑器里你也能可视化搭同样的
+  树:添加 `UINode` 实体、嵌套它们,并在检视面板里加 `FlexContainer` / `Text` /
+  `UIVisual` / `Interactable`。
+</Aside>
+
+## 用 FlexContainer 布局
+
+给节点加一个 `FlexContainer` 来排布它的子元素。枚举与 CSS 对应:
+
+- `FlexDirection` —— `Row`、`Column`、`RowReverse`、`ColumnReverse`。
+- `JustifyContent` —— `Start`、`Center`、`End`、`SpaceBetween`、`SpaceAround`、
+  `SpaceEvenly`(主轴)。
+- `AlignItems` —— `Start`、`Center`、`End`、`Stretch`(交叉轴)。
+- `gap`(一个 `Vec2`)与 `padding`。
+
+每个子元素的尺寸在它自己的 `UINode` 上:`flexGrow`、`flexShrink`、`width` / `height`、
+`margin*`,以及用于 `Absolute` 定位的 `inset*`。
 
 ## 处理交互
 
-命中测试系统每帧把指针状态写入 `UIInteraction`(`hovered`、`pressed`、`justPressed`、
-`justReleased`)。它对你的逻辑而言是**只读的**——与 `Interactable` 一起查询即可响应:
+`createButton` 直接给你 `onClick`。对于你自己的控件,命中测试系统每帧把指针状态写入
+带 `Interactable` 的实体的 `UIInteraction`(`hovered`、`pressed`、`justPressed`、
+`justReleased`)。它对你的逻辑而言是**只读的**——查询它即可响应:
 
 ```typescript
 import { defineSystem, Query, Interactable, UIInteraction } from 'esengine';
 
-const handleClicks = defineSystem(
-  [Query(Interactable, UIInteraction)],
-  (q) => {
-    for (const [entity, _gate, state] of q) {
-      if (state.justReleased) {
-        // 该实体被点击了
-      }
+const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
+  for (const [entity, _gate, state] of q) {
+    if (state.justReleased) {
+      // 这个节点被点击了
     }
   }
-);
+});
 ```
 
-若需要更丰富的输入——沿父链冒泡的 `click` / `hover_enter` / `change` / `submit` /
-`drag` 等事件——请读取 `UIEvents` 资源,即 UI 事件总线。
+若需要冒泡事件——沿父链的 `click`、`hover_enter`、`change`、`submit`、`drag`——请读取
+`UIEvents` 资源(事件总线,一个 `UIEventQueue`)。
 
 <Aside type="note">
   这里没有 `RectTransform`:`UINode` 是真正的弹性盒,用 `px`、`percent`、`auto` 设定
   尺寸,加上通过 inset 的 `Absolute` 定位。`UIInteraction` 由引擎每帧写入——请用它或
-  `UIEvents` 驱动逻辑,不要去修改它。
+  `UIEvents` 驱动逻辑,绝不要去修改它。
 </Aside>
