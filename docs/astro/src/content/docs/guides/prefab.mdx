@@ -1,15 +1,18 @@
 ---
 title: Prefabs
-description: Save an entity tree as a template and spawn instances at runtime.
+description: The complete guide to prefabs — instantiating entity-tree templates, parenting, reaching children, and per-instance overrides via Res(Prefabs).
 ---
 
-A prefab is a saved entity tree — a template you author once in the editor and
-spawn many times (enemies, pickups, bullets). Instantiate one at runtime through
-the `Prefabs` resource.
+import { Aside } from '@astrojs/starlight/components';
+
+A prefab is a saved entity tree — a template you author once in the editor and spawn
+many times (enemies, pickups, bullets). Instantiate one at runtime through the
+`Prefabs` resource. The prefab asset stays the single source of truth; instances can
+layer their own values on top.
 
 ## Spawn a prefab
 
-`instantiate` loads the prefab and spawns it. It's async, and returns the spawned
+`instantiate` loads the prefab and spawns it. It's async and returns the spawned
 tree — `root` is the new root entity:
 
 ```typescript
@@ -21,10 +24,10 @@ const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
 });
 ```
 
-## Parent it and reach its children
+## Parent it & reach its children
 
-Nest the instance under another entity, and use the returned `entities` map to
-reach children by their prefab-local id:
+Nest the instance under another entity, and use the returned `entities` map to reach
+children by their prefab-local id:
 
 ```typescript
 const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', {
@@ -37,6 +40,46 @@ const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', 
 ## Per-instance overrides
 
 Pass `overrides` to change component values for **this instance only** without
-editing the prefab asset — for example, spawn the same enemy prefab with
-different health or tint. The prefab stays the single source of truth; each
-instance just layers its own values on top.
+editing the prefab asset — spawn the same enemy with different health or tint:
+
+```typescript
+const { root } = await prefabs.instantiate('prefabs/enemy.esprefab', {
+  overrides: [
+    { entity: 0, component: 'Health', field: 'value', value: 250 },
+  ],
+});
+```
+
+## `instantiate` reference
+
+| Option | Type | Description |
+|---|---|---|
+| `parent` | Entity | Nest the instance under this entity. |
+| `overrides` | override[] | Per-instance component-value changes. |
+| `baseUrl` | string | Base URL for resolving the prefab's assets. |
+
+| Result field | Description |
+|---|---|
+| `root` | The instance's root `Entity`. |
+| `entities` | `Map<prefab-local id, Entity>` for reaching children. |
+
+## Best practices
+
+- **One prefab, many instances** — keep shared data in the prefab and vary instances
+  with `overrides`, so a design change updates every instance.
+- **Reach children via the `entities` map**, not by walking the hierarchy by index.
+- **Parent at spawn** (`parent`) rather than re-parenting after, so transforms resolve
+  correctly on the first frame.
+- **Apply-to-prefab** in the editor to push an instance's tweaks back to the source
+  when a change should be global.
+
+<Aside type="tip">
+  Prefabs nest: a prefab can contain instances of other prefabs, and overrides layer
+  through the nesting. Instantiate is async because it may load the prefab asset (and
+  its dependencies) on first use.
+</Aside>
+
+## See also
+
+- [Scenes](/docs/guides/scene/) — scenes are where prefab instances live.
+- [Assets](/docs/guides/assets/) — prefabs are assets, loaded on first instantiate.
