@@ -1,26 +1,36 @@
 ---
 title: 相机
-description: 跟随目标、屏幕/世界坐标转换,以及震屏。
+description: 相机组件、跟随、缩放、屏幕/世界坐标、震屏与多相机。
 ---
 
-每个场景都通过一个相机来渲染——一个带 `Camera` 组件的实体。你控制它如何移动,以及它
-如何把屏幕映射到世界。
+import { Aside } from '@astrojs/starlight/components';
+
+每个场景都通过一个相机来渲染——一个带 `Camera` 组件的实体。你可以控制缩放、跟随目标、
+在屏幕与世界空间之间转换、震屏,以及在多个相机之间切换。
+
+## `Camera` 组件
+
+2D 游戏的关键字段:
+
+- `orthoSize` —— 以世界单位计的垂直半高:**这就是你的缩放**(越小越放大)。
+- `isActive` / `priority` —— 存在多个相机时哪个是活动相机(优先级最高的活动相机胜出)。
+- `viewport`(一个 `Vec4`,`x/y/w/h` 取 0–1)—— 相机绘制到的屏幕矩形,用于分屏或画中画。
+- `clearFlags`、`pixelPerfect`、`aspectRatio`。
 
 ## 跟随目标
 
-给相机加一个 `FollowTarget` 组件并指向某个实体。相机每帧向目标阻尼移动,带死区和平滑。
-通常你在编辑器里添加它并选择目标;用代码:
+给相机加一个 `FollowTarget` 并指向某个实体。通常在编辑器里设置;用代码:
 
 ```typescript
 import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
 
-const followPlayer = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
+const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
   for (const [cameraEntity] of cameras) {
     cmds.entity(cameraEntity).insert(FollowTarget, {
       target: playerEntity,   // 要跟随的实体(来自你的玩家 Query)
-      offsetY: 40,            // 稍微看它上方一点
-      deadzone: 24,           // 目标在此范围内游走时相机不动
-      damping: 0.25,          // 平滑时间常数(0 = 直接吸附)
+      offsetY: 40,
+      deadzone: 24,           // 游走超过这个距离相机才移动
+      damping: 0.25,          // 平滑(0 = 直接吸附)
     });
   }
 });
@@ -28,25 +38,22 @@ const followPlayer = defineSystem([Query(Camera), Commands()], (cameras, cmds) =
 
 ## 屏幕 ↔ 世界
 
-读 `CameraView` 在屏幕像素与世界坐标之间转换——用于把实体放到光标处,或判断什么在
-屏幕上:
+读 `CameraView` 转换坐标——用于把实体放到光标处,或判断什么在屏幕上:
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
 
 const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
-  const worldPos = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
-  const bounds = view.getWorldBounds();  // 可见范围 { left, right, bottom, top }
+  const world  = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
+  const screen = view.worldToScreen(x, y);                        // { x, y } | null
+  const mouse  = view.getWorldMousePosition();                    // { x, y } | null
+  const bounds = view.getWorldBounds();                           // { left, right, bottom, top }
 });
 ```
 
-若只是鼠标,`Res(UICameraInfo)` 已经直接给你 `worldMouseX` / `worldMouseY`——见
-[输入](/docs/zh-cn/guides/input/)。
-
 ## 震屏
 
-`shakeCamera` 给**渲染**视图加一个衰减扰动——它不碰相机的 Transform,所以总能恢复,
-也不会弄脏场景:
+`shakeCamera` 给**渲染**视图加一个衰减扰动(不碰 Transform,所以总能恢复):
 
 ```typescript
 import { shakeCamera } from 'esengine';
@@ -54,5 +61,13 @@ import { shakeCamera } from 'esengine';
 shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
 ```
 
-在你持有 `app` 的地方调用它——例如在受击或爆炸时。四个选项都是可选的(默认是一次短促
-有力的震动)。
+## 多相机
+
+存在多个 `Camera` 实体时,`isActive` + `priority` 决定哪个生效。相机导演器可以在两个相机
+之间随时间**混合**视图(而不是硬切)——用于电影化的镜头交接;`viewport` 则让两个相机
+共享屏幕做分屏。
+
+<Aside type="tip">
+  用[补间](/docs/zh-cn/guides/animation/)(`TweenTarget.CameraOrthoSize`)动画化
+  `orthoSize`,即可实现平滑的推近/拉远。
+</Aside>

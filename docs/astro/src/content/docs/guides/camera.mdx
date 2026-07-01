@@ -1,27 +1,41 @@
 ---
 title: Camera
-description: Follow a target, convert screen/world coordinates, and shake the view.
+description: The camera component, following, zoom, screen/world coordinates, shake, and multiple cameras.
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Every scene renders through a camera — an entity with a `Camera` component. You
-control how it moves and how it maps the screen to the world.
+control zoom, follow a target, convert between screen and world space, shake the
+view, and switch between multiple cameras.
+
+## The `Camera` component
+
+Key fields for a 2D game:
+
+- `orthoSize` — the vertical half-height in world units: **this is your zoom**
+  (smaller = zoomed in).
+- `isActive` / `priority` — which camera is the active one when several exist
+  (highest priority active camera wins).
+- `viewport` (a `Vec4`, `x/y/w/h` in 0–1) — the screen rectangle the camera draws
+  to, for split-screen or picture-in-picture.
+- `clearFlags`, `pixelPerfect`, `aspectRatio`.
 
 ## Follow a target
 
-Add a `FollowTarget` component to the camera and point it at an entity. The
-camera damps toward the target each frame, with a dead zone and smoothing.
-Usually you add it in the editor and pick the target; in code:
+Add a `FollowTarget` to the camera and point it at an entity. Usually you set this
+in the editor; in code:
 
 ```typescript
 import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
 
-const followPlayer = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
+const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
   for (const [cameraEntity] of cameras) {
     cmds.entity(cameraEntity).insert(FollowTarget, {
       target: playerEntity,   // the Entity to follow (from your player Query)
-      offsetY: 40,            // look a little above it
-      deadzone: 24,           // the target can roam this far before the camera moves
-      damping: 0.25,          // smoothing time-constant (0 = snap)
+      offsetY: 40,
+      deadzone: 24,           // roam this far before the camera moves
+      damping: 0.25,          // smoothing (0 = snap)
     });
   }
 });
@@ -29,26 +43,24 @@ const followPlayer = defineSystem([Query(Camera), Commands()], (cameras, cmds) =
 
 ## Screen ↔ world
 
-Read `CameraView` to convert between screen pixels and world coordinates — for
-placing entities under the cursor, or checking what's on screen:
+Read `CameraView` to convert coordinates — for placing entities under the cursor
+or checking what's on screen:
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
 
 const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
-  const worldPos = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
-  const bounds = view.getWorldBounds();  // visible { left, right, bottom, top }
+  const world  = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
+  const screen = view.worldToScreen(x, y);                        // { x, y } | null
+  const mouse  = view.getWorldMousePosition();                    // { x, y } | null
+  const bounds = view.getWorldBounds();                           // { left, right, bottom, top }
 });
 ```
 
-For the mouse specifically, `Res(UICameraInfo)` already gives you `worldMouseX` /
-`worldMouseY` — see [Input](/docs/guides/input/).
-
 ## Shake the camera
 
-`shakeCamera` adds a decaying perturbation to the **rendered** view — it never
-touches the camera's Transform, so it always recovers and never dirties the
-scene:
+`shakeCamera` adds a decaying perturbation to the **rendered** view (never to the
+Transform, so it always recovers):
 
 ```typescript
 import { shakeCamera } from 'esengine';
@@ -56,5 +68,14 @@ import { shakeCamera } from 'esengine';
 shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
 ```
 
-Call it wherever you hold the `app` — for example on a hit or an explosion. All
-four options are optional (they default to a short punchy shake).
+## Multiple cameras
+
+With several `Camera` entities, `isActive` + `priority` decide which is live. The
+camera director can **blend** the view from one camera to another over time
+(rather than cutting) — for cinematic hand-offs — and `viewport` lets two cameras
+share the screen for split-screen play.
+
+<Aside type="tip">
+  Animate `orthoSize` with a [tween](/docs/guides/animation/)
+  (`TweenTarget.CameraOrthoSize`) for a smooth zoom in/out.
+</Aside>
