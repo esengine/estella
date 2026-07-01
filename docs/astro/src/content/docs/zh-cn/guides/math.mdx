@@ -1,0 +1,77 @@
+---
+title: 数学辅助
+description: 在引擎的规范类型上做向量、颜色与标量运算。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+SDK 附带了几个小的数学命名空间——`v2` / `v3`(向量)、`col`(颜色)、`scalar`(数值)
+——它们操作的正是你组件里用的那套规范类型(`{x, y}` 向量、0..1 的 `{r, g, b, a}` 颜色)。
+每个辅助函数都是**纯函数**:返回新值,绝不修改入参。
+
+## 向量
+
+`v2` 覆盖 2D 向量运算;`v3` 为 3D 提供同样的核心运算。
+
+```typescript
+import { v2 } from 'esengine';
+
+// Move a point by a velocity over dt.
+const next = v2.add(pos, v2.scale(vel, dt));
+
+// Aim: unit direction from pos to target, then a step of length speed*dt.
+const dir  = v2.normalize(v2.sub(target, pos));
+const step = v2.scale(dir, speed * dt);
+
+v2.dist(pos, target);                 // distance (for a range check)
+v2.fromAngle(Math.PI / 2, 10);        // { x: 0, y: 10 }
+v2.rotate({ x: 1, y: 0 }, Math.PI);   // { x: -1, y: 0 }
+```
+
+- 四则:`add` / `sub` / `scale` / `mul`(逐分量)/ `neg`。
+- 点积/长度:`dot`、`cross`、`len` / `len2`、`dist` / `dist2`。
+- 方向:`normalize`、`angle`、`fromAngle`、`rotate`、`perp`(逆时针 90°)。
+- 还有:`create`、`clone`、`lerp`、`equals`(带 epsilon 的比较)。
+
+## 颜色
+
+`col` 在 `{r, g, b, a}`(0..1)约定上构造与混合颜色——白色是 `{1, 1, 1, 1}`。命名空间
+叫 `col` 是因为裸的 `color` 名字已经是一个 SDK 导出。
+
+```typescript
+import { col } from 'esengine';
+
+col.rgb(1, 0, 0);            // opaque red (0..1 channels)
+col.from255(255, 128, 0);   // from 0..255 channels
+col.fromHex('#ff8800');     // #rgb / #rgba / #rrggbb / #rrggbbaa
+
+col.lerp(red, blue, 0.5);   // blend halfway (e.g. a damage flash)
+col.withAlpha(white, 0.3);  // fade
+col.multiply(base, tint);   // per-channel tint
+```
+
+- 构造:`create`、`rgb`、`from255`、`fromHex`(格式非法时抛错)、`clone`。
+- 混合:`lerp`、`withAlpha`、`multiply`、`scaleRgb`;用 `toHex` 序列化。
+
+## 标量
+
+`scalar` 汇集了玩法与数值调校常用的数值辅助:
+
+```typescript
+import { scalar } from 'esengine';
+
+scalar.clamp01(hp / maxHp);      // 0..1
+scalar.lerp(a, b, 0.25);         // interpolate
+scalar.remap(x, 0, 100, 0, 1);   // rescale one range onto another
+scalar.smoothstep(0, 1, t);      // eased 0..1 ramp
+scalar.deg2rad(90);              // degrees -> radians
+```
+
+还有:`clamp`、`inverseLerp`、`rad2deg`、`approximately`、`mod`、`sign`。
+
+<Aside type="tip">
+  返回值用的是和组件一样的规范类型,可以直接落回去——例如
+  `transform.position = v2.add(transform.position, step)` 或
+  `sprite.color = col.withAlpha(sprite.color, a)`,无需转换。因为每次调用都会分配一个
+  新对象,在计较分配次数的热点内循环里请把它们提到循环外。
+</Aside>

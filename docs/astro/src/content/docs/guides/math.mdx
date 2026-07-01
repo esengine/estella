@@ -1,0 +1,80 @@
+---
+title: Math Helpers
+description: Vector, color, and scalar math on the engine's canonical types.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The SDK ships small math namespaces — `v2` / `v3` (vectors), `col` (colors), and
+`scalar` (numbers) — that operate on the same canonical types your components use
+(`{x, y}` vectors, `{r, g, b, a}` colors in 0..1). Every helper is **pure**: it
+returns a new value and never mutates its inputs.
+
+## Vectors
+
+`v2` covers 2D vector math; `v3` mirrors the core operations for 3D.
+
+```typescript
+import { v2 } from 'esengine';
+
+// Move a point by a velocity over dt.
+const next = v2.add(pos, v2.scale(vel, dt));
+
+// Aim: unit direction from pos to target, then a step of length speed*dt.
+const dir  = v2.normalize(v2.sub(target, pos));
+const step = v2.scale(dir, speed * dt);
+
+v2.dist(pos, target);                 // distance (for a range check)
+v2.fromAngle(Math.PI / 2, 10);        // { x: 0, y: 10 }
+v2.rotate({ x: 1, y: 0 }, Math.PI);   // { x: -1, y: 0 }
+```
+
+- Arithmetic: `add` / `sub` / `scale` / `mul` (component-wise) / `neg`.
+- Products & length: `dot`, `cross`, `len` / `len2`, `dist` / `dist2`.
+- Direction: `normalize`, `angle`, `fromAngle`, `rotate`, `perp` (90° CCW).
+- Also: `create`, `clone`, `lerp`, `equals` (epsilon compare).
+
+## Colors
+
+`col` builds and blends colors on the `{r, g, b, a}` (0..1) convention — white is
+`{1, 1, 1, 1}`. The namespace is `col` because the bare `color` name is already an
+SDK export.
+
+```typescript
+import { col } from 'esengine';
+
+col.rgb(1, 0, 0);            // opaque red (0..1 channels)
+col.from255(255, 128, 0);   // from 0..255 channels
+col.fromHex('#ff8800');     // #rgb / #rgba / #rrggbb / #rrggbbaa
+
+col.lerp(red, blue, 0.5);   // blend halfway (e.g. a damage flash)
+col.withAlpha(white, 0.3);  // fade
+col.multiply(base, tint);   // per-channel tint
+```
+
+- Build: `create`, `rgb`, `from255`, `fromHex` (throws on malformed input), `clone`.
+- Blend: `lerp`, `withAlpha`, `multiply`, `scaleRgb`; serialize with `toHex`.
+
+## Scalars
+
+`scalar` collects the common number helpers for gameplay and tuning:
+
+```typescript
+import { scalar } from 'esengine';
+
+scalar.clamp01(hp / maxHp);      // 0..1
+scalar.lerp(a, b, 0.25);         // interpolate
+scalar.remap(x, 0, 100, 0, 1);   // rescale one range onto another
+scalar.smoothstep(0, 1, t);      // eased 0..1 ramp
+scalar.deg2rad(90);              // degrees -> radians
+```
+
+Also: `clamp`, `inverseLerp`, `rad2deg`, `approximately`, `mod`, `sign`.
+
+<Aside type="tip">
+  Results use the same canonical types as components, so they drop straight in —
+  e.g. `transform.position = v2.add(transform.position, step)` or
+  `sprite.color = col.withAlpha(sprite.color, a)` — no conversion needed. Because
+  the helpers allocate a new object per call, hoist them out of hot inner loops
+  where you're counting allocations.
+</Aside>

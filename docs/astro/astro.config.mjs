@@ -83,6 +83,13 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Utilities',
+          translations: { 'zh-CN': '工具' },
+          items: [
+            { label: 'Math Helpers', translations: { 'zh-CN': '数学辅助' }, slug: 'guides/math' },
+          ],
+        },
+        {
           label: 'Reference',
           translations: { 'zh-CN': '参考' },
           items: [
