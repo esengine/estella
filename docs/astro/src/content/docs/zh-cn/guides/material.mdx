@@ -1,0 +1,64 @@
+---
+title: 材质与着色器
+description: 带 #pragma param 反射 uniform 的自定义 GLSL 着色器。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+材质就是**着色器 + 参数**。支持材质的渲染组件——`Sprite`、`SpineAnimation`、
+`ParticleEmitter`、瓦片图层——都有一个 `material` 句柄字段;把它设好就能用你自己的
+着色器绘制。
+
+## 用 `#pragma param` 声明参数
+
+`.esshader` 声明 CPU 可设置的参数。引擎把它们反射进一个 std140 uniform 块,于是它们能
+按名字到达 GPU:
+
+```glsl
+#pragma param u_tint      color   default(1, 1, 1, 1)
+#pragma param u_intensity float   default(1.0)
+#pragma param u_mask      texture default(white)
+
+// … 你的 GLSL 片段代码,读取 u_tint / u_intensity / u_mask …
+```
+
+参数类型有 `float`、`color`(rgba)和 `texture`。`#pragma switch` 选择在编译期烘焙进
+材质的静态着色器排列(permutation)。
+
+## 在代码里创建并应用
+
+编译着色器(它会反射出参数)并创建材质,然后把某个渲染组件的 `material` 句柄指向它:
+
+```typescript
+import { Material } from 'esengine';
+
+// 只编译一次(不要每帧)。
+const shader = Material.compileShader(tintShaderSource);
+const tintMat = Material.create({
+  shader,
+  uniforms: { u_tint: [1, 0.6, 0.2, 1], u_intensity: 1.5 },
+});
+```
+
+```typescript
+import { defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const applyMaterial = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [entity, sprite] of q) {
+    sprite.material = tintMat;   // 材质句柄
+  }
+});
+```
+
+## 运行时更新参数
+
+```typescript
+Material.setUniform(tintMat, 'u_intensity', 2.5);
+```
+
+<Aside type="note">
+  若是没有反射参数的原始着色器,用 `Material.createShader(vertexSrc, fragmentSrc)`
+  而不是 `compileShader`。大多数情况下你会在编辑器的**材质图(material graph)**里
+  编排材质——它会替你生成 `#pragma param` 着色器,并在那里把材质指派给渲染组件;上面
+  的代码 API 用于程序化材质。
+</Aside>

@@ -1,0 +1,66 @@
+---
+title: Materials & Shaders
+description: Custom GLSL shaders with reflected #pragma param uniforms.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A material is a **shader plus parameters**. Renderers that support materials —
+`Sprite`, `SpineAnimation`, `ParticleEmitter`, tilemap layers — have a `material`
+handle field; set it to draw with your own shader.
+
+## Declaring parameters with `#pragma param`
+
+An `.esshader` declares the parameters the CPU is allowed to set. The engine
+reflects them into a std140 uniform block, so they reach the GPU by name:
+
+```glsl
+#pragma param u_tint      color   default(1, 1, 1, 1)
+#pragma param u_intensity float   default(1.0)
+#pragma param u_mask      texture default(white)
+
+// … your GLSL fragment code, reading u_tint / u_intensity / u_mask …
+```
+
+Parameter types are `float`, `color` (rgba), and `texture`. A `#pragma switch`
+selects a static shader permutation baked into the material at compile time.
+
+## Create and apply in code
+
+Compile the shader (which reflects its params) and make a material, then point a
+renderer at it by setting its `material` handle:
+
+```typescript
+import { Material } from 'esengine';
+
+// Compile once (not per frame).
+const shader = Material.compileShader(tintShaderSource);
+const tintMat = Material.create({
+  shader,
+  uniforms: { u_tint: [1, 0.6, 0.2, 1], u_intensity: 1.5 },
+});
+```
+
+```typescript
+import { defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const applyMaterial = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [entity, sprite] of q) {
+    sprite.material = tintMat;   // the material handle
+  }
+});
+```
+
+## Update a parameter at runtime
+
+```typescript
+Material.setUniform(tintMat, 'u_intensity', 2.5);
+```
+
+<Aside type="note">
+  For raw shaders without reflected params, use `Material.createShader(vertexSrc,
+  fragmentSrc)` instead of `compileShader`. Most of the time you'll author
+  materials in the editor's **material graph** — it generates the `#pragma param`
+  shader for you and you assign the material to a renderer there; the code API
+  above is for procedural materials.
+</Aside>
