@@ -54,6 +54,7 @@ export default defineConfig({
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
             { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'guides/ui' },
             { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
+            { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'guides/particle' },
             { label: 'Assets', translations: { 'zh-CN': '资源' }, slug: 'guides/assets' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
           ],

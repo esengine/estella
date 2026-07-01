@@ -1,0 +1,38 @@
+---
+title: 粒子
+description: 用 ParticleEmitter 组件和 Res(Particle) 配置特效。
+---
+
+Estella 在 CPU 上模拟粒子,并用 GPU 实例化渲染。给实体加一个 `ParticleEmitter`
+组件——通常在编辑器里——再用 `Particle` 资源从系统里控制播放。
+
+## `ParticleEmitter` 组件
+
+一切都是数据驱动的,在检视面板里调。关键字段:
+
+- **发射** —— `rate`、`burstCount`、`burstInterval`、`duration`、`looping`、
+  `playOnStart`、`maxParticles`。
+- **生命周期与运动** —— `lifetimeMin` / `lifetimeMax`、`speedMin` / `speedMax`、
+  `gravity`、`damping`、`angleSpreadMin` / `angleSpreadMax`。
+- **外观** —— `startSize*` / `endSize*`(+ `sizeEasing`)、`startColor` /
+  `endColor`(+ `colorEasing`)、`blendMode`、`layer`。
+- **形状** —— `shape`、`shapeRadius`、`shapeSize`、`shapeAngle`(粒子从哪里生成)。
+- **贴图 / 精灵表** —— `texture`、`spriteColumns`、`spriteRows`、`spriteFPS`、
+  `spriteLoop`。
+
+设了 `playOnStart` 后,实体一激活发射器就运行。
+
+## 控制播放
+
+读取 `Particle` 资源来启动、停止或清空一个发射器,并读取它的存活粒子数:
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const control = defineSystem([Res(Particle)], (particle) => {
+  particle.play(entity);    // 开始发射
+  particle.stop(entity);    // 停止发射;已有粒子自然消亡
+  particle.reset(entity);   // 立即清空所有粒子
+  const alive = particle.getAliveCount(entity);
+});
+```

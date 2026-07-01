@@ -1,0 +1,41 @@
+---
+title: Particles
+description: Configure effects with the ParticleEmitter component and Res(Particle).
+---
+
+Estella simulates particles on the CPU and renders them GPU-instanced. Add a
+`ParticleEmitter` component to an entity — usually in the editor — and control
+playback from a system with the `Particle` resource.
+
+## The `ParticleEmitter` component
+
+Everything is data-driven; tune it in the inspector. Key fields:
+
+- **Emission** — `rate`, `burstCount`, `burstInterval`, `duration`, `looping`,
+  `playOnStart`, `maxParticles`.
+- **Lifetime & motion** — `lifetimeMin` / `lifetimeMax`, `speedMin` / `speedMax`,
+  `gravity`, `damping`, `angleSpreadMin` / `angleSpreadMax`.
+- **Appearance** — `startSize*` / `endSize*` (+ `sizeEasing`), `startColor` /
+  `endColor` (+ `colorEasing`), `blendMode`, `layer`.
+- **Shape** — `shape`, `shapeRadius`, `shapeSize`, `shapeAngle` (where particles
+  spawn from).
+- **Texture / sprite sheet** — `texture`, `spriteColumns`, `spriteRows`,
+  `spriteFPS`, `spriteLoop`.
+
+With `playOnStart` set, the emitter runs as soon as the entity is active.
+
+## Control playback
+
+Read the `Particle` resource to start, stop, or clear an emitter, and to read
+its live particle count:
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const control = defineSystem([Res(Particle)], (particle) => {
+  particle.play(entity);    // start emitting
+  particle.stop(entity);    // stop emitting; existing particles finish out
+  particle.reset(entity);   // clear all particles immediately
+  const alive = particle.getAliveCount(entity);
+});
+```
