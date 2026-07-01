@@ -1,26 +1,24 @@
 ---
 title: Spine Animation
-description: Play Spine skeletal animations with the SpineAnimation component and Res(Spine).
+description: Skeletal animation — play tracks, blend, swap skins and attachments, read events.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella has built-in [Spine](https://esotericsoftware.com/) skeletal animation,
 driven by the `SpineAnimation` component and controlled at runtime through the
-`Spine` resource.
+`Spine` resource (from the `esengine/spine` subpath).
 
 ## The `SpineAnimation` component
 
-Add it in the editor and point it at your Spine assets. Its fields (import the
-component from `esengine`):
+Add it in the editor and point it at your Spine assets. Fields (the component is
+in the main `esengine` package):
 
 - `skeletonPath`, `atlasPath` — the skeleton and atlas to load.
-- `animation`, `loop`, `playing` — the current track and its playback state.
+- `animation`, `loop`, `playing` — the current track.
 - `skin`, `timeScale`, `skeletonScale`, `flipX`, `flipY`, `color`, `layer`.
 
-## Control at runtime with `Res(Spine)`
-
-The `Spine` resource (from the `esengine/spine` subpath) is the imperative API:
+## Play and blend animations
 
 ```typescript
 import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
@@ -28,22 +26,36 @@ import { Spine } from 'esengine/spine';
 
 const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
   for (const [entity] of q) {
-    spine.setAnimation(entity, 'walk', true);      // play looped 'walk'
-    spine.setSkin(entity, 'armor');                // swap skin
-    spine.setMixDuration(entity, 'idle', 'walk', 0.2);  // 0.2s crossfade
+    spine.setAnimation(entity, 'run', true);            // play, looped
+    spine.setDefaultMix(entity, 0.15);                  // default crossfade
+    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // specific transition
+    spine.setTrackAlpha(entity, 0, 1.0);                // blend a track in/out
   }
 });
 ```
 
-Methods include `setAnimation`, `setSkin`, `setMixDuration`, `setDefaultMix`,
-`setTrackAlpha`, `setAttachment`, and the queries `getAnimations`, `getSkins`,
-`getBounds`. You can also just write the `SpineAnimation` component's fields from
-a `Query(Mut(SpineAnimation))` system for simple play/stop.
+## Skins and attachments
+
+```typescript
+spine.setSkin(entity, 'armored');
+spine.setAttachment(entity, 'weapon-slot', 'sword');   // swap a slot's attachment
+```
+
+## Query a skeleton
+
+```typescript
+const anims  = spine.getAnimations(entity);   // string[]
+const skins  = spine.getSkins(entity);        // string[]
+const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
+```
+
+`setEntityProps(entity, props)` updates several visual props (scale, flip, color,
+time scale) at once.
 
 ## Animation events
 
-The `SpineEvents` resource (also from `esengine/spine`) publishes track events
-once per frame — read it in the same frame:
+The `SpineEvents` resource publishes track events once per frame — read it in the
+same frame:
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -52,21 +64,20 @@ import { SpineEvents } from 'esengine/spine';
 const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   for (const e of spineEvents.events) {
     // e.type: 'start' | 'interrupt' | 'end' | 'complete' | 'event'
-    if (e.type === 'complete') { /* e.entity, e.animationName */ }
+    // e.entity, e.track, e.animationName; for 'event': e.eventName + values
   }
 });
 ```
 
 <Aside type="note">
-  The `SpineAnimation` **component** is in the main `esengine` package, but the
-  `Spine` and `SpineEvents` **runtime resources** live on the `esengine/spine`
-  subpath — spine is an optional side-module (loaded on demand per skeleton
-  version 3.8 / 4.1 / 4.2), kept off the base bundle. Entities sharing a
+  Estella supports Spine **3.8 / 4.1 / 4.2** — each skeleton version loads its own
+  WebAssembly backend on demand (pay-for-use), which is why the `Spine` and
+  `SpineEvents` resources live on the `esengine/spine` subpath. Entities sharing a
   skeleton + atlas share one ref-counted skeleton.
 </Aside>
 
 <Aside type="caution">
   The bundled Spine Runtimes are proprietary. Shipping a game that uses Spine
-  requires a valid Spine license from Esoteric Software — separate from
-  Estella's own license.
+  requires a valid Spine license from Esoteric Software — separate from Estella's
+  own license.
 </Aside>

@@ -1,24 +1,22 @@
 ---
 title: Spine 动画
-description: 用 SpineAnimation 组件和 Res(Spine) 播放 Spine 骨骼动画。
+description: 骨骼动画 —— 播放轨道、混合、切换皮肤与附件、读取事件。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella 内置 [Spine](https://esotericsoftware.com/) 骨骼动画,由 `SpineAnimation`
-组件驱动,并通过 `Spine` 资源在运行时控制。
+组件驱动,并通过 `Spine` 资源(来自 `esengine/spine` 子路径)在运行时控制。
 
 ## `SpineAnimation` 组件
 
-在编辑器里添加它并指向你的 Spine 资源。它的字段(组件从 `esengine` 导入):
+在编辑器里添加它并指向你的 Spine 资源。字段(组件在主 `esengine` 包里):
 
 - `skeletonPath`、`atlasPath` —— 要加载的骨骼与图集。
-- `animation`、`loop`、`playing` —— 当前轨道及其播放状态。
+- `animation`、`loop`、`playing` —— 当前轨道。
 - `skin`、`timeScale`、`skeletonScale`、`flipX`、`flipY`、`color`、`layer`。
 
-## 用 `Res(Spine)` 在运行时控制
-
-`Spine` 资源(来自 `esengine/spine` 子路径)是命令式 API:
+## 播放与混合动画
 
 ```typescript
 import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
@@ -26,22 +24,34 @@ import { Spine } from 'esengine/spine';
 
 const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
   for (const [entity] of q) {
-    spine.setAnimation(entity, 'walk', true);      // 循环播放 'walk'
-    spine.setSkin(entity, 'armor');                // 切换皮肤
-    spine.setMixDuration(entity, 'idle', 'walk', 0.2);  // 0.2 秒交叉淡入
+    spine.setAnimation(entity, 'run', true);            // 循环播放
+    spine.setDefaultMix(entity, 0.15);                  // 默认交叉淡入
+    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // 指定过渡
+    spine.setTrackAlpha(entity, 0, 1.0);                // 淡入/淡出某轨道
   }
 });
 ```
 
-方法包括 `setAnimation`、`setSkin`、`setMixDuration`、`setDefaultMix`、
-`setTrackAlpha`、`setAttachment`,以及查询 `getAnimations`、`getSkins`、
-`getBounds`。简单的播放/停止也可以直接在 `Query(Mut(SpineAnimation))` 系统里写
-组件字段。
+## 皮肤与附件
+
+```typescript
+spine.setSkin(entity, 'armored');
+spine.setAttachment(entity, 'weapon-slot', 'sword');   // 替换某槽位的附件
+```
+
+## 查询骨骼
+
+```typescript
+const anims  = spine.getAnimations(entity);   // string[]
+const skins  = spine.getSkins(entity);        // string[]
+const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
+```
+
+`setEntityProps(entity, props)` 可一次性更新多个视觉属性(缩放、翻转、颜色、时间缩放)。
 
 ## 动画事件
 
-`SpineEvents` 资源(同样来自 `esengine/spine`)每帧发布一次轨道事件——在同一帧里
-读取它:
+`SpineEvents` 资源每帧发布一次轨道事件——在同一帧里读取它:
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -50,16 +60,15 @@ import { SpineEvents } from 'esengine/spine';
 const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   for (const e of spineEvents.events) {
     // e.type: 'start' | 'interrupt' | 'end' | 'complete' | 'event'
-    if (e.type === 'complete') { /* e.entity, e.animationName */ }
+    // e.entity、e.track、e.animationName;对 'event':e.eventName + 各值
   }
 });
 ```
 
 <Aside type="note">
-  `SpineAnimation` **组件**在主 `esengine` 包里,但 `Spine` 和 `SpineEvents`
-  **运行时资源**位于 `esengine/spine` 子路径——spine 是可选 side-module(按骨骼
-  版本 3.8 / 4.1 / 4.2 **按需加载**),不占用基础包。共享同一套骨骼 + 图集的实体
-  共享同一份引用计数的骨骼。
+  Estella 支持 Spine **3.8 / 4.1 / 4.2** —— 每个骨骼版本按需加载各自的 WebAssembly
+  后端(用到才加载),这也是 `Spine` 和 `SpineEvents` 资源位于 `esengine/spine` 子路径
+  的原因。共享同一套骨骼 + 图集的实体共享同一份引用计数的骨骼。
 </Aside>
 
 <Aside type="caution">
