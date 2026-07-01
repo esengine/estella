@@ -48,6 +48,7 @@ export default defineConfig({
           label: 'Guides',
           translations: { 'zh-CN': '指南' },
           items: [
+            { label: 'Input', translations: { 'zh-CN': '输入' }, slug: 'guides/input' },
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },

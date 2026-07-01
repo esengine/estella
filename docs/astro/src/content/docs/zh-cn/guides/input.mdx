@@ -1,0 +1,66 @@
+---
+title: 输入
+description: 通过 Input 资源读取键盘、鼠标、触摸与手柄。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+在系统里通过 `Input` 资源读取输入。它既跟踪按住状态,也跟踪当前帧的边沿(按下 /
+松开),所以每帧查询它。
+
+## 键盘
+
+```typescript
+import { defineSystem, Res, Input } from 'esengine';
+
+const keys = defineSystem([Res(Input)], (input) => {
+  if (input.isKeyDown('KeyW'))       { /* 按住中 */ }
+  if (input.isKeyPressed('Space'))   { /* 本帧按下 */ }
+  if (input.isKeyReleased('Escape')) { /* 本帧松开 */ }
+});
+```
+
+按键用 DOM code 字符串:`KeyW`、`KeyA`、`ArrowUp`、`Space`、`Escape`、`Digit1`……
+
+## 鼠标
+
+```typescript
+const mouse = defineSystem([Res(Input)], (input) => {
+  if (input.isMouseButtonPressed(0)) { /* 本帧左键点击 */ }
+  // 按键:0 = 左键,1 = 中键,2 = 右键
+  const screenX = input.mouseX, screenY = input.mouseY;   // 屏幕像素
+  const wheel = input.scrollDeltaY;
+});
+```
+
+### 世界坐标下的鼠标
+
+`input.mouseX` / `input.mouseY` 是屏幕像素。要拿世界坐标——用于放置或命中实体——请读
+`UICameraInfo`,它已把光标投影到世界空间:
+
+```typescript
+import { defineSystem, Commands, Res, Input, UICameraInfo, Transform } from 'esengine';
+
+const spawnAtCursor = defineSystem(
+  [Res(Input), Res(UICameraInfo), Commands()],
+  (input, camera, cmds) => {
+    if (!camera.valid) return;
+    if (input.isMouseButtonPressed(0)) {
+      cmds.spawn().insert(Transform, {
+        position: { x: camera.worldMouseX, y: camera.worldMouseY, z: 0 },
+      });
+    }
+  }
+);
+```
+
+## 触摸与手柄
+
+- **触摸** —— `input.isTouchActive(id)`,以及记录活动触点的 `touches` map。
+- **手柄** —— `input.isGamepadConnected(pad)`、`input.isGamepadButtonDown(button, pad)`
+  (还有 `isGamepadButtonPressed` / `Released`),摇杆用 `GamepadAxis`。
+
+<Aside type="tip">
+  当光标位于某个 UI 元素之上时,`input.isPointerOverUI()` 为 `true` —— 在处理世界点击
+  前先检查它,这样点在按钮上的点击就不会同时命中游戏世界。
+</Aside>

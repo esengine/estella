@@ -1,0 +1,70 @@
+---
+title: Input
+description: Keyboard, mouse, touch, and gamepad via the Input resource.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Read input from a system through the `Input` resource. It tracks held state plus
+this-frame edges (pressed / released), so query it every frame.
+
+## Keyboard
+
+```typescript
+import { defineSystem, Res, Input } from 'esengine';
+
+const keys = defineSystem([Res(Input)], (input) => {
+  if (input.isKeyDown('KeyW'))       { /* held down */ }
+  if (input.isKeyPressed('Space'))   { /* pressed this frame */ }
+  if (input.isKeyReleased('Escape')) { /* released this frame */ }
+});
+```
+
+Keys use DOM code strings: `KeyW`, `KeyA`, `ArrowUp`, `Space`, `Escape`,
+`Digit1`, …
+
+## Mouse
+
+```typescript
+const mouse = defineSystem([Res(Input)], (input) => {
+  if (input.isMouseButtonPressed(0)) { /* left click this frame */ }
+  // buttons: 0 = left, 1 = middle, 2 = right
+  const screenX = input.mouseX, screenY = input.mouseY;   // screen pixels
+  const wheel = input.scrollDeltaY;
+});
+```
+
+### Mouse in world space
+
+`input.mouseX` / `input.mouseY` are screen pixels. For world coordinates — to
+place or hit entities — read `UICameraInfo`, which exposes the cursor already
+projected into the world:
+
+```typescript
+import { defineSystem, Commands, Res, Input, UICameraInfo, Transform } from 'esengine';
+
+const spawnAtCursor = defineSystem(
+  [Res(Input), Res(UICameraInfo), Commands()],
+  (input, camera, cmds) => {
+    if (!camera.valid) return;
+    if (input.isMouseButtonPressed(0)) {
+      cmds.spawn().insert(Transform, {
+        position: { x: camera.worldMouseX, y: camera.worldMouseY, z: 0 },
+      });
+    }
+  }
+);
+```
+
+## Touch and gamepad
+
+- **Touch** — `input.isTouchActive(id)`, plus the `touches` map of active points.
+- **Gamepad** — `input.isGamepadConnected(pad)`,
+  `input.isGamepadButtonDown(button, pad)` (and `isGamepadButtonPressed` /
+  `Released`), with `GamepadAxis` for the sticks.
+
+<Aside type="tip">
+  `input.isPointerOverUI()` is `true` when the cursor is over a UI element —
+  check it before acting on a world click so clicks on buttons don't also hit the
+  game world.
+</Aside>
