@@ -1,54 +1,73 @@
 ---
 title: 音频
-description: 播放音效与音乐、混音总线，以及空间音频。
+description: 音效、音乐、播放句柄、混音总线与空间音频。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-音频默认已注册。通过 `Audio` 资源播放一次性音效与音乐，或用 `AudioSource` 组件以声明
-方式驱动播放。
+音频默认已注册。通过 `Audio` 资源播放一次性音效和循环音乐,用句柄控制单个声音,用总线
+平衡整体混音,并用空间音频把声音定位到世界里。
 
-## 在系统里播放
+## 音效与音乐
 
 ```typescript
 import { defineSystem, Res, Audio } from 'esengine';
 
-defineSystem([Res(Audio)], (audio) => {
-  audio.playSFX('assets/audio/kick.wav', { volume: 1.0, pitch: 1.0 });
-  audio.playBGM('assets/audio/theme.ogg', { fadeIn: 0.5 });
+const play = defineSystem([Res(Audio)], (audio) => {
+  const sfx = audio.playSFX('assets/hit.wav', { volume: 1, pitch: 1, pan: 0 });
+  audio.playBGM('assets/theme.ogg', { fadeIn: 0.5, crossFade: 1.0 });
 });
 ```
 
-`AudioAPI` 还有 `stopBGM(fadeOut?)`、`stopAll()`、`preload(url)` /
-`preloadAll(urls)`，以及混音音量：`setMasterVolume`、`setMusicVolume`、
-`setSFXVolume`、`setUIVolume`（均为 `0–1`）。
+- `playSFX(url, { volume?, pitch?, pan?, priority? })` 返回一个 `AudioHandle`。
+- `playBGM(url, { volume?, fadeIn?, crossFade? })` 循环播放并替换当前曲目。
+- `stopBGM(fadeOut?)`、`stopAll()`。
+- `preload(url)` / `preloadAll(urls)` —— 提前加载缓冲,这样第一次播放不会是静音。
 
-`playSFX` 返回一个 `AudioHandle`，可 `stop()`、`pause()`、`resume()`、
-`setVolume()`、`setPan()`、`setLoop()`。
+## 控制正在播放的声音
 
-## 声明式播放：`AudioSource`
+`playSFX` 返回一个你可以保留并驱动的 `AudioHandle`:
 
-给实体挂上 `AudioSource`，无需写代码即可播放某个片段：`clip`、`bus`（默认 `"sfx"`）、
-`volume`、`pitch`、`loop`、`playOnAwake`，以及空间字段（`spatial`、`minDistance`、
-`maxDistance`、`attenuationModel`）。当 `playOnAwake` 且 `enabled` 时，音频系统会自动
-播放它。
+```typescript
+const shot = audio.playSFX('assets/laser.wav');
+shot.setVolume(0.6);
+shot.setPan(-0.5);            // -1 左 … +1 右
+shot.setPlaybackRate(1.2);   // 音高/速度
+shot.pause(); shot.resume(); shot.stop();
+shot.onEnd = () => { /* 声音播放完毕 */ };
+// 只读:shot.isPlaying、shot.currentTime、shot.duration
+```
+
+## 声明式播放:`AudioSource`
+
+给实体挂一个 `AudioSource`,无需写代码即可播放——设置 `clip`、`bus`(默认 `"sfx"`)、
+`volume`、`pitch`、`loop`、`playOnAwake`。当 `playOnAwake` 且 `enabled` 时,音频系统
+会自动播放它。
 
 ## 混音总线
 
-混音器是分层的：`master → { music, sfx, ui, voice }`。设置某个总线的音量会缩放它下面的
-一切：
+混音器是分层的——`master → { music, sfx, ui, voice }`。设置某总线的音量会缩放它下面的
+一切:
 
 ```typescript
-audio.setSFXVolume(0.5);   // 降低音效
 audio.setMasterVolume(0.8);
+audio.setMusicVolume(0.6);
+audio.setSFXVolume(1.0);
+audio.setUIVolume(0.9);
+audio.muteBus('music', true);
 ```
+
+用 `bus` 选项把声音路由到某个总线(`playSFX(url, { … })` 默认 `sfx`),或用
+`AudioSource.bus` 字段。
 
 ## 空间音频
 
-把 `AudioSource.spatial` 设为 `true`，并在相机/玩家实体上放一个启用的 `AudioListener`；
-距离衰减遵循音源的 `attenuationModel`。
+把 `AudioSource.spatial` 设为 `true`,并给相机/玩家一个启用的 `AudioListener`;音源会
+按距离衰减。用 `minDistance`、`maxDistance` 和 `attenuationModel`(一个
+`AttenuationModel`:inverse / linear / exponential)来调它。
 
 <Aside type="caution">
-  `playSFX` 会自动预加载未缓存的片段并在就绪后播放，因此第一次触发可能是静音的——请
-  提前调用 `preload(url)` 以保证时机。浏览器还要求先有一次用户手势才能开始播放音频。
+  `playSFX` 会自动预加载未缓存的片段并在就绪后播放,所以第一次触发可能是静音的——请
+  提前调用 `preload(url)`。浏览器还要求先有一次用户手势才能开始播放音频,所以在第一次
+  点击/按键时启动播放。
 </Aside>

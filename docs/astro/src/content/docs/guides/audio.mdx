@@ -1,57 +1,77 @@
 ---
 title: Audio
-description: Play sound effects and music, mix buses, and position spatial audio.
+description: Sound effects, music, playback handles, mixer buses, and spatial audio.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Audio is registered by default. Play one-shot effects and music through the
-`Audio` resource, or drive playback declaratively with an `AudioSource`
-component.
+Audio is registered by default. Play one-shot effects and looping music through
+the `Audio` resource, control individual sounds with a handle, balance the mix
+with buses, and position sounds in the world with spatial audio.
 
-## Play from a system
+## Sound effects and music
 
 ```typescript
 import { defineSystem, Res, Audio } from 'esengine';
 
-defineSystem([Res(Audio)], (audio) => {
-  audio.playSFX('assets/audio/kick.wav', { volume: 1.0, pitch: 1.0 });
-  audio.playBGM('assets/audio/theme.ogg', { fadeIn: 0.5 });
+const play = defineSystem([Res(Audio)], (audio) => {
+  const sfx = audio.playSFX('assets/hit.wav', { volume: 1, pitch: 1, pan: 0 });
+  audio.playBGM('assets/theme.ogg', { fadeIn: 0.5, crossFade: 1.0 });
 });
 ```
 
-`AudioAPI` also has `stopBGM(fadeOut?)`, `stopAll()`, `preload(url)` /
-`preloadAll(urls)`, and mixer volumes: `setMasterVolume`, `setMusicVolume`,
-`setSFXVolume`, `setUIVolume` (all `0–1`).
+- `playSFX(url, { volume?, pitch?, pan?, priority? })` returns an `AudioHandle`.
+- `playBGM(url, { volume?, fadeIn?, crossFade? })` loops and replaces the current
+  track.
+- `stopBGM(fadeOut?)`, `stopAll()`.
+- `preload(url)` / `preloadAll(urls)` — load buffers ahead of time so the first
+  play isn't silent.
 
-`playSFX` returns an `AudioHandle` you can `stop()`, `pause()`, `resume()`,
-`setVolume()`, `setPan()`, `setLoop()`.
+## Control a playing sound
+
+`playSFX` returns an `AudioHandle` you keep and drive:
+
+```typescript
+const shot = audio.playSFX('assets/laser.wav');
+shot.setVolume(0.6);
+shot.setPan(-0.5);            // -1 left … +1 right
+shot.setPlaybackRate(1.2);   // pitch/speed
+shot.pause(); shot.resume(); shot.stop();
+shot.onEnd = () => { /* the sound finished */ };
+// readonly: shot.isPlaying, shot.currentTime, shot.duration
+```
 
 ## Declarative playback: `AudioSource`
 
-Attach an `AudioSource` to an entity to play a clip without code: `clip`, `bus`
-(`"sfx"` by default), `volume`, `pitch`, `loop`, `playOnAwake`, and spatial
-fields (`spatial`, `minDistance`, `maxDistance`, `attenuationModel`). With
+Attach an `AudioSource` to an entity to play without code — set `clip`, `bus`
+(`"sfx"` by default), `volume`, `pitch`, `loop`, and `playOnAwake`. With
 `playOnAwake` + `enabled`, the audio system plays it automatically.
 
 ## Mixer buses
 
-The mixer is hierarchical: `master → { music, sfx, ui, voice }`. Setting a bus
+The mixer is hierarchical — `master → { music, sfx, ui, voice }`. Setting a bus
 volume scales everything under it:
 
 ```typescript
-audio.setSFXVolume(0.5);   // quieter effects
 audio.setMasterVolume(0.8);
+audio.setMusicVolume(0.6);
+audio.setSFXVolume(1.0);
+audio.setUIVolume(0.9);
+audio.muteBus('music', true);
 ```
+
+Route a sound to a bus with the `bus` option (`playSFX(url, { … })` defaults to
+`sfx`) or the `AudioSource.bus` field.
 
 ## Spatial audio
 
-Set `AudioSource.spatial = true` and put an enabled `AudioListener` on your
-camera/player entity; distance attenuation follows the source's
-`attenuationModel`.
+Set `AudioSource.spatial = true` and give your camera/player an enabled
+`AudioListener`; the source attenuates by distance. Tune it with `minDistance`,
+`maxDistance`, and `attenuationModel` (an `AttenuationModel`: inverse / linear /
+exponential).
 
 <Aside type="caution">
   `playSFX` auto-preloads an uncached clip and plays it once ready, so the very
-  first hit can be silent — call `preload(url)` up front for guaranteed timing.
-  Browsers also require a user gesture before audio can start.
+  first hit can be silent — call `preload(url)` up front. Browsers also require a
+  user gesture before audio can start, so kick playback off the first tap/key.
 </Aside>
