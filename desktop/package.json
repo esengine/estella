@@ -1,6 +1,6 @@
 {
   "name": "@estella/editor",
-  "version": "0.0.1",
+  "version": "0.14.0",
   "private": true,
   "license": "Apache-2.0",
   "description": "Estella Editor — visual scene editor for the Estella 2D WASM engine",

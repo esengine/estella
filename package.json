@@ -1,6 +1,5 @@
 {
   "name": "esengine",
-  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Estella - A fast 2D game engine powered by WebAssembly and ECS",
