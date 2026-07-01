@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-export { SpinePlugin, SpineEvents } from './SpinePlugin';
+export { SpinePlugin, SpineEvents, Spine } from './SpinePlugin';
 export type { SpineEvent, SpineEventType, SpineEventsData } from './SpinePlugin';
 export { SpineManager } from './SpineManager';
 export type { SpineVersion } from './SpineManager';

@@ -311,6 +311,7 @@ export {
     Tilemap,
     TilemapLayer,
     TilemapAPI,
+    Tilemaps,
     initTilemapAPI,
     shutdownTilemapAPI,
     TilemapPlugin,

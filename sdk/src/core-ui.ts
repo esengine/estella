@@ -87,3 +87,58 @@ export {
     type ThemeTokens,
     type ThemeColors,
 } from './ui';
+
+// ─── UI code-composition surface ─────────────────────────────────────────────
+// Promoted so UI can be built in code, not just authored in the editor:
+// flexbox config, dimension helpers, node/visual/text builders, and the widget
+// factories.
+export {
+    // Dimensions
+    px,
+    percent,
+    auto,
+    isAuto,
+    DimensionUnit,
+    type Dimension,
+    // UINode layout enums
+    UIPositionType,
+    AlignSelf,
+    // Flex container
+    FlexContainer,
+    FlexDirection,
+    FlexWrap,
+    JustifyContent,
+    AlignItems,
+    AlignContent,
+    type FlexContainerData,
+    // Builders
+    buildUINode,
+    buildUIVisual,
+    buildText,
+    spawnUIEntity,
+    setUIVisible,
+    type UINodeInit,
+    type UIVisualInit,
+    type TextInit,
+    type UIEntityInit,
+    // Widget factories
+    createButton,
+    setButtonState,
+    type ButtonOptions,
+    type ButtonStateVisual,
+    createToggle,
+    type ToggleOptions,
+    type ToggleHandle,
+    createSlider,
+    type SliderOptions,
+    type SliderHandle,
+    createProgress,
+    type ProgressOptions,
+    type ProgressHandle,
+    createDialog,
+    type DialogOptions,
+    type DialogHandle,
+    createDropdown,
+    type DropdownOptions,
+    type DropdownHandle,
+} from './ui';

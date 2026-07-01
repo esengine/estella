@@ -30,6 +30,13 @@ export interface SpineEventsData {
 
 export const SpineEvents = defineResource<SpineEventsData>({ events: [] }, 'SpineEvents');
 
+/**
+ * Public runtime spine API. Present once the app has a {@link SpineManager}
+ * (a realm with the spine side-module). Read it with `Res(Spine)` to control
+ * playback — `setAnimation` / `setSkin` / `setMixDuration` / `getAnimations` / etc.
+ */
+export const Spine = defineResource<SpineManager>(null!, 'Spine');
+
 const SPINE_TYPE_MAP: Record<number, SpineEventType | null> = {
     0: 'start',
     1: 'interrupt',
@@ -60,6 +67,7 @@ export class SpinePlugin implements Plugin {
         this.spineManager_ = manager;
         if (this.app_) {
             const app = this.app_;
+            app.insertResource(Spine, manager);
             const pipeline = app.pipeline;
             pipeline?.addPreFlushCallback((registry) => {
                 manager.submitMeshes(registry._cpp);
@@ -86,6 +94,10 @@ export class SpinePlugin implements Plugin {
         }
 
         app.insertResource(SpineEvents, { events: [] });
+
+        if (this.spineManager_) {
+            app.insertResource(Spine, this.spineManager_);
+        }
 
         this.despawnUnsub_ = app.world.onDespawn((entity: Entity) => {
             this.spineManager_?.removeEntity(entity);

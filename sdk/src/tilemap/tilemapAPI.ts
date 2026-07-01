@@ -3,6 +3,7 @@
 import type { ESEngineModule } from '../wasm';
 import { withMalloc } from '../wasmScratch';
 import { CoreApiBridge } from '../CoreApiBridge';
+import { defineResource } from '../resource';
 
 interface TilemapModule {
     tilemap_initLayer(entity: number, width: number, height: number,
@@ -274,3 +275,10 @@ export const TilemapAPI = {
         return module_?.tilemap_importChunks?.(entity, encoded) ?? false;
     },
 };
+
+/**
+ * Public runtime tilemap API as a resource, so it is reached the same way as
+ * the other subsystems — read it with `Res(Tilemaps)`. Wraps the
+ * {@link TilemapAPI} singleton (still exported for direct use).
+ */
+export const Tilemaps = defineResource<typeof TilemapAPI>(TilemapAPI, 'Tilemaps');
