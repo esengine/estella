@@ -15,7 +15,7 @@ Estella 构建在 **Entity-Component-System**（ECS，实体-组件-系统）架
 ## 为什么要数据导向
 
 组件存放在单一、缓存友好的存储层（稀疏集，sparse set）里，因此一个系统遍历
-「所有同时拥有 `LocalTransform` 与 `Speed` 的实体」时走的是连续内存。存储位于
+「所有同时拥有 `Transform` 与 `Speed` 的实体」时走的是连续内存。存储位于
 C++/WebAssembly 内核中，SDK 通过一份生成并经哈希校验的内存布局**零拷贝**读取它——
 于是同一个组件的 TypeScript 视图与 C++ 视图永远不会悄悄地对不上。
 

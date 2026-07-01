@@ -21,7 +21,7 @@ lives in [systems](/docs/core-concepts/systems/).
 
 The SDK ships engine components you query alongside your own, for example:
 
-- `LocalTransform` — position, rotation, and scale.
+- `Transform` — position, rotation, and scale.
 - `Sprite` — a textured quad.
 - `Camera` — a view into the world.
 
@@ -32,8 +32,8 @@ when a system writes to it, so change detection and the renderer know the data
 was touched:
 
 ```typescript
-Query(Mut(LocalTransform), Speed)
-// LocalTransform is written; Speed is read-only
+Query(Mut(Transform), Speed)
+// Transform is written; Speed is read-only
 ```
 
 <br />

@@ -14,7 +14,7 @@ with a system written in TypeScript.
    click **Create**. You get a default scene with a Camera entity.
 
 2. **Add an entity.** In the scene hierarchy, add an entity and give it a
-   `Sprite` and a `LocalTransform` component in the inspector.
+   `Sprite` and a `Transform` component in the inspector.
 
 3. **Write a system.** Add a TypeScript file to your project's scripts and
    register a system that moves everything with a `Speed` component:
@@ -22,13 +22,13 @@ with a system written in TypeScript.
    ```typescript
    import {
        defineComponent, defineSystem, addSystem,
-       Query, Mut, Res, Time, LocalTransform
+       Query, Mut, Res, Time, Transform
    } from 'esengine';
 
    const Speed = defineComponent('Speed', { value: 200 });
 
    addSystem(defineSystem(
-       [Res(Time), Query(Mut(LocalTransform), Speed)],
+       [Res(Time), Query(Mut(Transform), Speed)],
        (time, query) => {
            for (const [entity, transform, speed] of query) {
                transform.position.x += speed.value * time.delta;

@@ -17,7 +17,7 @@ lives in systems that run over that data.
 ## Why data-oriented
 
 Components are stored in a single cache-friendly layer (a sparse set) so that a
-system iterating "all entities with a `LocalTransform` and a `Speed`" walks
+system iterating "all entities with a `Transform` and a `Speed`" walks
 contiguous memory. Storage lives in the C++/WebAssembly core, and the SDK reads
 it with zero copies through a generated, hash-checked memory layout — so the
 TypeScript and C++ views of a component can never silently drift apart.
