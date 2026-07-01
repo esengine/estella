@@ -1,14 +1,17 @@
 ---
 title: 物理
-description: 刚体、碰撞体、力、查询与碰撞事件。
+description: 刚体、碰撞体、力与碰撞事件。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 的物理运行在 C++/WebAssembly 内核中。你添加物理插件，给实体挂上 `RigidBody`
-和一个碰撞体，再通过 `Physics` API 驱动或查询它。
+Estella 的物理运行在 C++/WebAssembly 内核中(Box2D)。你给实体挂上 `RigidBody` 和一个
+碰撞体,再通过物理资源来驱动或读取它。
 
 ## 启用物理
+
+物理是一个可加载模块。在编辑器和 Web 运行时中,当场景用到物理组件时它会**自动加载**
+——你无需接线。在自定义 App 里你也可以自己添加:
 
 ```typescript
 import { PhysicsPlugin } from 'esengine/physics';
@@ -18,36 +21,39 @@ app.addPlugin(new PhysicsPlugin('physics.js', {
 }));
 ```
 
-模块异步加载；初始化完成后物理即就绪。
-
 ## 刚体与碰撞体
 
-挂上一个 `RigidBody` 加一个碰撞体形状。**碰撞体尺寸的单位是米，不是像素**——把像素
-尺寸除以你的「每单位像素数」（PPU）：
+挂上一个 `RigidBody` 加一个碰撞体。**碰撞体尺寸的单位是米,不是像素**——把像素尺寸
+除以你的「每单位像素数」(PPU)。在带 `Commands()` 参数的系统里生成实体:
 
 ```typescript
-import { RigidBody, BodyType, CircleCollider, BoxCollider } from 'esengine';
+import {
+  defineSystem, Commands, Transform,
+  RigidBody, BodyType, CircleCollider,
+} from 'esengine';
 
 const PPU = 100;
 
-cmds.spawn()
-  .insert(Transform, { position: { x, y, z: 0 } })
-  .insert(RigidBody, { bodyType: BodyType.Dynamic })
-  .insert(CircleCollider, { radius: 24 / PPU, restitution: 0.4 });
+const spawnBall = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
+    .insert(RigidBody, { bodyType: BodyType.Dynamic })
+    .insert(CircleCollider, { radius: 24 / PPU, restitution: 0.4 });
+});
 ```
 
-- **`BodyType`** —— `Static`（不可移动）、`Kinematic`（由你移动）、`Dynamic`（由模拟
-  驱动）。
-- **碰撞体形状** —— `BoxCollider`、`CircleCollider`、`CapsuleCollider`、
-  `SegmentCollider`、`PolygonCollider`、`ChainCollider`。都带 `density`、`friction`、
-  `restitution`、`isSensor`、`categoryBits`、`maskBits`。
+- **`BodyType`** —— `Static`(不可移动)、`Kinematic`(由你移动)、`Dynamic`(由模拟
+  驱动)。
+- **碰撞体形状**(来自 `esengine`)—— `BoxCollider`、`CircleCollider`、
+  `CapsuleCollider`、`SegmentCollider`、`PolygonCollider`、`ChainCollider`。它们共享
+  `density`、`friction`、`restitution`、`isSensor`、`categoryBits`、`maskBits`。
 - **关节** —— `RevoluteJoint`、`DistanceJoint`、`PrismaticJoint`、`WeldJoint`、
   `WheelJoint`。
 
 ## 碰撞层
 
-`categoryBits`（该刚体所在的层）与 `maskBits`（它会与哪些层碰撞）是 16 位过滤器。
-两个刚体只有在各自的 category 都落在对方的 mask 里时才会碰撞：
+`categoryBits`(刚体所在的层)与 `maskBits`(它会与哪些层碰撞)是位过滤器。两个刚体
+只有在各自的 category 都落在对方的 mask 里时才会碰撞:
 
 ```typescript
 const LAYER_PLAYER = 0x0001;
@@ -60,37 +66,44 @@ const LAYER_GROUND = 0x0008;
 });
 ```
 
-## 力、速度与查询
+## 力与速度
 
-在系统里读取 `Physics` 资源，推动刚体并查询世界：
+在系统里读取 `PhysicsAPI` 资源来推动刚体:
 
 ```typescript
-import { defineSystem, Res, Physics } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { PhysicsAPI } from 'esengine/physics';
 
-defineSystem([Res(Physics)], (physics) => {
-  physics.applyImpulse(player, { x: 0, y: 5 });      // 跳跃
-  physics.setLinearVelocity(player, { x: 3, y: 0 });
-
-  // 查询以像素为单位，自动按 PPU 缩放。
-  const hits = physics.raycast(origin, direction, 200);
-  const inRange = physics.overlapCircle(center, 64);
+const push = defineSystem([Res(PhysicsAPI)], (physics) => {
+  physics.applyImpulse(entity, { x: 0, y: 5 });        // 跳跃
+  physics.setLinearVelocity(entity, { x: 3, y: 0 });
+  physics.applyTorque(entity, 2);
 });
 ```
 
+`PhysicsAPI` 还提供 `applyForce`、`getLinearVelocity`、`setGravity` / `getGravity`、
+角速度相关方法,以及空间查询(raycast / overlap)——查询接受像素单位参数,并按实时 PPU
+缩放。
+
 ## 碰撞事件
 
-`PhysicsEvents` 资源携带当前帧的接触信息：
+`PhysicsEvents` 资源携带当前帧的接触信息:
 
 ```typescript
-import { PhysicsEvents } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { PhysicsEvents } from 'esengine/physics';
 
-defineSystem([Res(PhysicsEvents)], (events) => {
-  for (const c of events.collisionEnters) { /* c.entityA, c.entityB */ }
-  for (const s of events.sensorEnters)   { /* 触发体 */ }
+const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
+  for (const c of events.collisionEnters) {
+    // c.entityA、c.entityB、c.normalX、c.normalY、c.contactX、c.contactY
+  }
+  for (const s of events.sensorEnters) {
+    // s.sensorEntity、s.visitorEntity
+  }
 });
 ```
 
 <Aside type="caution">
-  给碰撞体设 `isSensor: true`，可以在**没有物理响应**的情况下获得进入/离开事件
-  （触发区）。物理按固定时间步进，而不是帧间隔，所以每帧都要读 `PhysicsEvents`。
+  给碰撞体设 `isSensor: true`,可以在**没有物理响应**的情况下获得传感器进入/离开事件
+  (触发区)。物理按固定时间步进,而不是帧间隔,所以每帧都要读 `PhysicsEvents`。
 </Aside>

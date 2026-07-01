@@ -1,15 +1,19 @@
 ---
 title: Physics
-description: Rigid bodies, colliders, forces, queries, and collision events.
+description: Rigid bodies, colliders, forces, and collision events.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella's physics runs in the C++/WebAssembly core. You add the physics plugin,
-attach a `RigidBody` and a collider to an entity, and drive or query it through
-the `Physics` API.
+Estella's physics runs in the C++/WebAssembly core (Box2D). You attach a
+`RigidBody` and a collider to an entity, and drive or read it through the
+physics resources.
 
-## Enable physics
+## Enabling physics
+
+Physics is a loadable module. In the editor and the web runtime it loads
+automatically when a scene uses physics components — you don't wire anything up.
+In a custom app you can add it yourself:
 
 ```typescript
 import { PhysicsPlugin } from 'esengine/physics';
@@ -19,37 +23,42 @@ app.addPlugin(new PhysicsPlugin('physics.js', {
 }));
 ```
 
-The module loads asynchronously; physics is ready once its init settles.
-
 ## Bodies and colliders
 
-Attach a `RigidBody` plus one collider shape. **Collider dimensions are in
-meters, not pixels** — divide pixel sizes by your pixels-per-unit (PPU):
+Attach a `RigidBody` plus one collider. **Collider dimensions are in meters, not
+pixels** — divide pixel sizes by your pixels-per-unit (PPU). Spawn entities from
+a system that takes `Commands()`:
 
 ```typescript
-import { RigidBody, BodyType, CircleCollider, BoxCollider } from 'esengine';
+import {
+  defineSystem, Commands, Transform,
+  RigidBody, BodyType, CircleCollider,
+} from 'esengine';
 
 const PPU = 100;
 
-cmds.spawn()
-  .insert(Transform, { position: { x, y, z: 0 } })
-  .insert(RigidBody, { bodyType: BodyType.Dynamic })
-  .insert(CircleCollider, { radius: 24 / PPU, restitution: 0.4 });
+const spawnBall = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
+    .insert(RigidBody, { bodyType: BodyType.Dynamic })
+    .insert(CircleCollider, { radius: 24 / PPU, restitution: 0.4 });
+});
 ```
 
 - **`BodyType`** — `Static` (immovable), `Kinematic` (moved by you), `Dynamic`
   (moved by the simulation).
-- **Collider shapes** — `BoxCollider`, `CircleCollider`, `CapsuleCollider`,
-  `SegmentCollider`, `PolygonCollider`, `ChainCollider`. All share `density`,
-  `friction`, `restitution`, `isSensor`, `categoryBits`, `maskBits`.
+- **Collider shapes** (from `esengine`) — `BoxCollider`, `CircleCollider`,
+  `CapsuleCollider`, `SegmentCollider`, `PolygonCollider`, `ChainCollider`. They
+  share `density`, `friction`, `restitution`, `isSensor`, `categoryBits`,
+  `maskBits`.
 - **Joints** — `RevoluteJoint`, `DistanceJoint`, `PrismaticJoint`, `WeldJoint`,
   `WheelJoint`.
 
 ## Collision layers
 
-`categoryBits` (what layer this body is on) and `maskBits` (what it collides
-with) are 16-bit filters. Two bodies collide only if each one's category is in
-the other's mask:
+`categoryBits` (what layer a body is on) and `maskBits` (what it collides with)
+are bit filters. Two bodies collide only if each one's category is in the
+other's mask:
 
 ```typescript
 const LAYER_PLAYER = 0x0001;
@@ -62,38 +71,45 @@ const LAYER_GROUND = 0x0008;
 });
 ```
 
-## Forces, velocity, and queries
+## Forces and velocity
 
-Read the `Physics` resource in a system to push bodies and query the world:
+Read the `PhysicsAPI` resource in a system to push bodies around:
 
 ```typescript
-import { defineSystem, Res, Physics } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { PhysicsAPI } from 'esengine/physics';
 
-defineSystem([Res(Physics)], (physics) => {
-  physics.applyImpulse(player, { x: 0, y: 5 });      // jump
-  physics.setLinearVelocity(player, { x: 3, y: 0 });
-
-  // Queries take pixel-space and auto-scale by PPU.
-  const hits = physics.raycast(origin, direction, 200);
-  const inRange = physics.overlapCircle(center, 64);
+const push = defineSystem([Res(PhysicsAPI)], (physics) => {
+  physics.applyImpulse(entity, { x: 0, y: 5 });        // jump
+  physics.setLinearVelocity(entity, { x: 3, y: 0 });
+  physics.applyTorque(entity, 2);
 });
 ```
+
+`PhysicsAPI` also exposes `applyForce`, `getLinearVelocity`, `setGravity` /
+`getGravity`, angular variants, and spatial queries (raycast / overlap) that take
+pixel-space arguments and scale by the live PPU.
 
 ## Collision events
 
 The `PhysicsEvents` resource carries this frame's contacts:
 
 ```typescript
-import { PhysicsEvents } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { PhysicsEvents } from 'esengine/physics';
 
-defineSystem([Res(PhysicsEvents)], (events) => {
-  for (const c of events.collisionEnters) { /* c.entityA, c.entityB */ }
-  for (const s of events.sensorEnters)   { /* trigger volumes */ }
+const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
+  for (const c of events.collisionEnters) {
+    // c.entityA, c.entityB, c.normalX, c.normalY, c.contactX, c.contactY
+  }
+  for (const s of events.sensorEnters) {
+    // s.sensorEntity, s.visitorEntity
+  }
 });
 ```
 
 <Aside type="caution">
-  Set `isSensor: true` on a collider to get enter/exit events **without** a
-  physical response (trigger zones). Physics steps at a fixed timestep, not the
+  Set `isSensor: true` on a collider to get sensor enter/exit events **without**
+  a physical response (trigger zones). Physics steps at a fixed timestep, not the
   frame delta, so read `PhysicsEvents` every frame.
 </Aside>
