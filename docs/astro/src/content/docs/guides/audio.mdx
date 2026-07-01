@@ -1,0 +1,57 @@
+---
+title: Audio
+description: Play sound effects and music, mix buses, and position spatial audio.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Audio is registered by default. Play one-shot effects and music through the
+`Audio` resource, or drive playback declaratively with an `AudioSource`
+component.
+
+## Play from a system
+
+```typescript
+import { defineSystem, Res, Audio } from 'esengine';
+
+defineSystem([Res(Audio)], (audio) => {
+  audio.playSFX('assets/audio/kick.wav', { volume: 1.0, pitch: 1.0 });
+  audio.playBGM('assets/audio/theme.ogg', { fadeIn: 0.5 });
+});
+```
+
+`AudioAPI` also has `stopBGM(fadeOut?)`, `stopAll()`, `preload(url)` /
+`preloadAll(urls)`, and mixer volumes: `setMasterVolume`, `setMusicVolume`,
+`setSFXVolume`, `setUIVolume` (all `0–1`).
+
+`playSFX` returns an `AudioHandle` you can `stop()`, `pause()`, `resume()`,
+`setVolume()`, `setPan()`, `setLoop()`.
+
+## Declarative playback: `AudioSource`
+
+Attach an `AudioSource` to an entity to play a clip without code: `clip`, `bus`
+(`"sfx"` by default), `volume`, `pitch`, `loop`, `playOnAwake`, and spatial
+fields (`spatial`, `minDistance`, `maxDistance`, `attenuationModel`). With
+`playOnAwake` + `enabled`, the audio system plays it automatically.
+
+## Mixer buses
+
+The mixer is hierarchical: `master → { music, sfx, ui, voice }`. Setting a bus
+volume scales everything under it:
+
+```typescript
+audio.setSFXVolume(0.5);   // quieter effects
+audio.setMasterVolume(0.8);
+```
+
+## Spatial audio
+
+Set `AudioSource.spatial = true` and put an enabled `AudioListener` on your
+camera/player entity; distance attenuation follows the source's
+`attenuationModel`.
+
+<Aside type="caution">
+  `playSFX` auto-preloads an uncached clip and plays it once ready, so the very
+  first hit can be silent — call `preload(url)` up front for guaranteed timing.
+  Browsers also require a user gesture before audio can start.
+</Aside>

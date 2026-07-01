@@ -1,0 +1,60 @@
+---
+title: WeChat MiniGame
+description: Build and export a game for WeChat MiniGames, with subpackages.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Estella exports the same project to **WeChat MiniGames**. You build the engine
+for the WeChat target, export the game from the editor, and open the result in
+WeChat DevTools.
+
+## Build the engine for WeChat
+
+The WeChat target compiles the C++ core with WeChat's `WXWebAssembly` shims:
+
+```bash
+node build-tools/cli.js build -t wechat
+# optional side modules, only if your game uses them:
+node build-tools/cli.js build -t spine-wechat
+node build-tools/cli.js build -t physics-wechat
+```
+
+## Export from the editor
+
+<Steps>
+
+1. In **Project Settings → Packaging → WeChat**, set your AppID and orientation.
+
+2. Click **Export Game**. Estella cooks assets, bundles the SDK + your scripts
+   (as CommonJS, via esbuild), transforms scenes, and writes a standalone
+   MiniGame package.
+
+</Steps>
+
+The output directory contains `game.js` (entry), `game-bundle.js` (SDK +
+scripts), `game.json` / `project.config.json` (WeChat config), the
+`asset-manifest.json`, your scenes, and the `wasm/` engine + side modules. Open
+that directory in WeChat DevTools to compile, test, and submit.
+
+## Subpackages (分包)
+
+Lazy asset groups become WeChat **subPackages** in `game.json`. At runtime,
+`assets.loadGroup('level2')` triggers `wx.loadSubpackage` under the hood, so
+levels download on demand rather than bloating the initial package:
+
+```json
+{
+  "deviceOrientation": "landscape",
+  "subPackages": [
+    { "name": "level2", "root": "subpackages/level2" }
+  ]
+}
+```
+
+<Aside type="caution">
+  **Build the side modules your game needs.** If a scene uses Spine or physics
+  but you didn't build `spine-wechat` / `physics-wechat`, the export warns and
+  the game fails at runtime. The exporter only wires in the side modules the
+  entry scene actually requires, so unused ones add no weight.
+</Aside>

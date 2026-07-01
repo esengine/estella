@@ -1,0 +1,60 @@
+---
+title: Spine 动画
+description: 用 SpineAnimation 与 SpineManager 播放 Spine 骨骼动画。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 内置 [Spine](https://esotericsoftware.com/) 骨骼动画。给实体一个
+`SpineAnimation` 组件（通常在编辑器里配置），然后在运行时通过 `SpineManager` 控制它。
+
+## `SpineAnimation` 组件
+
+把实体指向一套骨骼 + 图集，以及它的播放状态：
+
+- `skeletonPath`、`atlasPath` —— 要加载的 Spine 资源。
+- `animation`、`loop`、`playing` —— 当前轨道。
+- `skin`、`skeletonScale`、`timeScale`、`flipX`、`flipY`、`color`、`layer`。
+
+## 运行时控制
+
+读取 `SpineManager`，驱动轨道、皮肤与混合：
+
+```typescript
+import { defineSystem, Res, SpineManager } from 'esengine';
+
+defineSystem([Res(SpineManager)], (spine) => {
+  spine.setAnimation(entity, 'walk', true);          // 循环播放 'walk'
+  spine.setSkin(entity, 'armor');                    // 切换皮肤
+  spine.setMixDuration(entity, 'idle', 'walk', 0.2); // 0.2 秒交叉淡入
+});
+```
+
+常用方法：`setAnimation`、`setSkin`、`setEntityProps`、`getAnimations`、
+`getSkins`、`getBounds`、`setAttachment`、`setMixDuration`、`setDefaultMix`。
+
+## 动画事件
+
+`SpineEvents` 资源每帧发布一次轨道事件——在同一帧里读取它：
+
+```typescript
+import { SpineEvents } from 'esengine';
+
+defineSystem([Res(SpineEvents)], (spineEvents) => {
+  for (const e of spineEvents.events) {
+    // e.type: 'start' | 'interrupt' | 'end' | 'complete' | 'event'
+    if (e.type === 'complete') { /* e.entity, e.animationName */ }
+  }
+});
+```
+
+<Aside type="note">
+  Estella 支持 Spine **3.8 / 4.1 / 4.2**——每个骨骼版本按需加载各自的 WebAssembly
+  后端（用到才加载；没有该版本的骨骼出现时不会加载）。使用同一套骨骼 + 图集的多个
+  实体共享同一份加载后、引用计数的骨骼。
+</Aside>
+
+<Aside type="caution">
+  随附的 Spine Runtimes 是专有软件。发布使用 Spine 的游戏需要 Esoteric Software 的
+  有效 Spine 授权——与 Estella 自身的许可证相互独立。
+</Aside>

@@ -45,6 +45,19 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Guides',
+          translations: { 'zh-CN': '指南' },
+          items: [
+            { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
+            { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
+            { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
+            { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'guides/ui' },
+            { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
+            { label: 'Assets', translations: { 'zh-CN': '资源' }, slug: 'guides/assets' },
+            { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
+          ],
+        },
+        {
           label: 'Reference',
           translations: { 'zh-CN': '参考' },
           items: [

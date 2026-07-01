@@ -1,0 +1,57 @@
+---
+title: 瓦片地图
+description: 加载 Tiled 地图，或通过 API 构建和编辑瓦片图层。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 在 C++/WebAssembly 内核中渲染瓦片图层。有两种用法：一个从文件加载整张地图的
+高层组件，以及一套自己构建、编辑图层的低层 API。
+
+## 高层：加载 Tiled 地图
+
+给实体一个 `Tilemap` 组件，指向 Tiled JSON（`.tmj`）文件。插件会加载它，为每个图层
+生成一个 `TilemapLayer` 实体，并在运行模式下应用瓦片碰撞：
+
+```typescript
+import { Tilemap, Transform } from 'esengine';
+
+world.spawn({
+  [Tilemap]: { source: 'assets/maps/level.tmj' },
+  [Transform]: { position: { x: 0, y: 0, z: 0 } },
+});
+```
+
+## 低层：用 `TilemapAPI` 构建图层
+
+每个图层是一个 `TilemapLayer` 组件（格子尺寸、图集贴图、列数、渲染层、着色、不透明度、
+视差）。通过 `TilemapAPI` 编辑瓦片：
+
+```typescript
+import { defineSystem, Res, TilemapAPI } from 'esengine';
+
+defineSystem([Res(TilemapAPI)], (tilemap) => {
+  tilemap.initLayer(entity, 32, 32, 16, 16);   // 32x32 格，16px 格子
+
+  const tiles = new Uint16Array(32 * 32);       // 瓦片 id（0 = 空）
+  tiles[0] = 1;
+  tilemap.setTiles(entity, tiles);
+
+  tilemap.setTile(entity, 5, 3, 7);             // 单个瓦片
+  tilemap.flipTile(entity, 5, 3, true, false, false);  // 水平翻转
+
+  tilemap.setTileAnimation(entity, 10, [        // 让瓦片 id 10 动起来
+    { tileId: 10, duration: 100 },
+    { tileId: 11, duration: 100 },
+  ]);
+});
+```
+
+其他方法：`getTile`、`fillRect`、`rotateTile`、`initInfiniteLayer`（分块的无限地图）、
+`setTilesets`、`tileToWorld` / `worldToTile`。
+
+<Aside type="note">
+  瓦片**碰撞仅在运行模式**存在——静态碰撞体在场景运行时由可碰撞瓦片（在 `.estileset`
+  图集里标记）生成；它们不存在于编辑世界中，也不会被序列化。瓦片动画一旦设置便自动
+  推进；`setTileAnimation` 只需调用一次。
+</Aside>

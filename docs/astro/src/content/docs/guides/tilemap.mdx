@@ -1,0 +1,60 @@
+---
+title: Tilemaps
+description: Load Tiled maps, or build and edit tile layers through the API.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella renders tile layers in the C++/WebAssembly core. There are two ways in:
+a high-level component that loads a whole map from a file, and a low-level API
+for building and editing layers yourself.
+
+## High-level: load a Tiled map
+
+Give an entity a `Tilemap` component pointing at a Tiled JSON (`.tmj`) file. The
+plugin loads it, spawns a `TilemapLayer` entity per layer, and (in play mode)
+applies tile collision:
+
+```typescript
+import { Tilemap, Transform } from 'esengine';
+
+world.spawn({
+  [Tilemap]: { source: 'assets/maps/level.tmj' },
+  [Transform]: { position: { x: 0, y: 0, z: 0 } },
+});
+```
+
+## Low-level: build layers with `TilemapAPI`
+
+Each layer is a `TilemapLayer` component (cell size, tileset texture, columns,
+render layer, tint, opacity, parallax). Edit tiles through `TilemapAPI`:
+
+```typescript
+import { defineSystem, Res, TilemapAPI } from 'esengine';
+
+defineSystem([Res(TilemapAPI)], (tilemap) => {
+  tilemap.initLayer(entity, 32, 32, 16, 16);   // 32x32 tiles, 16px cells
+
+  const tiles = new Uint16Array(32 * 32);       // tile ids (0 = empty)
+  tiles[0] = 1;
+  tilemap.setTiles(entity, tiles);
+
+  tilemap.setTile(entity, 5, 3, 7);             // single tile
+  tilemap.flipTile(entity, 5, 3, true, false, false);  // flip horizontally
+
+  tilemap.setTileAnimation(entity, 10, [        // animate tile id 10
+    { tileId: 10, duration: 100 },
+    { tileId: 11, duration: 100 },
+  ]);
+});
+```
+
+Other methods: `getTile`, `fillRect`, `rotateTile`, `initInfiniteLayer` (chunked
+infinite maps), `setTilesets`, `tileToWorld` / `worldToTile`.
+
+<Aside type="note">
+  Tile **collision is play-mode only** — static colliders are spawned from
+  collidable tiles (marked in the `.estileset` tileset) when the scene runs; they
+  are never in the edit world or serialized. Tile animations advance
+  automatically once set; you only call `setTileAnimation` once.
+</Aside>

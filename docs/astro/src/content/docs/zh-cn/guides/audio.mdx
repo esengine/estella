@@ -1,0 +1,54 @@
+---
+title: 音频
+description: 播放音效与音乐、混音总线，以及空间音频。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+音频默认已注册。通过 `Audio` 资源播放一次性音效与音乐，或用 `AudioSource` 组件以声明
+方式驱动播放。
+
+## 在系统里播放
+
+```typescript
+import { defineSystem, Res, Audio } from 'esengine';
+
+defineSystem([Res(Audio)], (audio) => {
+  audio.playSFX('assets/audio/kick.wav', { volume: 1.0, pitch: 1.0 });
+  audio.playBGM('assets/audio/theme.ogg', { fadeIn: 0.5 });
+});
+```
+
+`AudioAPI` 还有 `stopBGM(fadeOut?)`、`stopAll()`、`preload(url)` /
+`preloadAll(urls)`，以及混音音量：`setMasterVolume`、`setMusicVolume`、
+`setSFXVolume`、`setUIVolume`（均为 `0–1`）。
+
+`playSFX` 返回一个 `AudioHandle`，可 `stop()`、`pause()`、`resume()`、
+`setVolume()`、`setPan()`、`setLoop()`。
+
+## 声明式播放：`AudioSource`
+
+给实体挂上 `AudioSource`，无需写代码即可播放某个片段：`clip`、`bus`（默认 `"sfx"`）、
+`volume`、`pitch`、`loop`、`playOnAwake`，以及空间字段（`spatial`、`minDistance`、
+`maxDistance`、`attenuationModel`）。当 `playOnAwake` 且 `enabled` 时，音频系统会自动
+播放它。
+
+## 混音总线
+
+混音器是分层的：`master → { music, sfx, ui, voice }`。设置某个总线的音量会缩放它下面的
+一切：
+
+```typescript
+audio.setSFXVolume(0.5);   // 降低音效
+audio.setMasterVolume(0.8);
+```
+
+## 空间音频
+
+把 `AudioSource.spatial` 设为 `true`，并在相机/玩家实体上放一个启用的 `AudioListener`；
+距离衰减遵循音源的 `attenuationModel`。
+
+<Aside type="caution">
+  `playSFX` 会自动预加载未缓存的片段并在就绪后播放，因此第一次触发可能是静音的——请
+  提前调用 `preload(url)` 以保证时机。浏览器还要求先有一次用户手势才能开始播放音频。
+</Aside>

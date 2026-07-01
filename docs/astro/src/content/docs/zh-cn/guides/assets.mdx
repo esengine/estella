@@ -1,0 +1,49 @@
+---
+title: 资源
+description: 资源如何被引用、烘焙，以及在运行时加载。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+项目里每个资源都有一个稳定的 UUID。场景与预制体按 UUID 引用资源；构建时引擎只**烘焙**
+（cook）你的游戏真正能触达的资源，运行时再通过清单加载它们。
+
+## 引用资源
+
+资源以规范形式 `@uuid:<uuid>` 按 UUID 引用。编辑器会管理这些——你几乎不用手写。
+
+## 烘焙（cook）
+
+烘焙从入口场景出发遍历依赖图，**剔除一切触达不到的资源**，暂存可达文件，并写出
+`assets.manifest.json`（运行时消费的映射）。它还可选地压缩纹理：PNG 被编码为 GPU 就绪
+的 **KTX2**（Basis Universal），运行时再转码为设备支持的最佳格式（ASTC → ETC2 → S3TC，
+最后回退到 RGBA8）。
+
+## 运行时加载
+
+```typescript
+import { defineSystem, Res, Assets } from 'esengine';
+
+defineSystem([Res(Assets)], async (assets) => {
+  const texture = await assets.load('@uuid:a1234567-...');
+});
+```
+
+## 可寻址分组（分包）
+
+位于 `subpackages/<name>/…` 文件夹下的资源属于惰性分组 `<name>`；其余属于会被急切加载的
+`main` 分组。按需加载某个分组：
+
+```typescript
+const bundle = await assets.loadGroup('level2', (loaded, total) => {
+  console.log(`${loaded}/${total}`);
+});
+```
+
+正是这种分组映射到[微信分包](/docs/zh-cn/guides/wechat/)，实现按需下载。
+
+<Aside type="note">
+  内容哈希基于**暂存后**的字节（PNG→KTX2 编码之后）计算，因此清单里的哈希标识的是最终
+  发布的产物，相同文件会去重成一份。`subpackages/` 下的资源即使触达不到也总会被包含——
+  只是分组归属不同而已。
+</Aside>

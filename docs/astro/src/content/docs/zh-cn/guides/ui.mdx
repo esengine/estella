@@ -1,0 +1,65 @@
+---
+title: UI
+description: 弹性盒布局、文本与可交互控件。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 的 UI 是一套在 C++ 内核里求解的类 CSS 弹性盒（flexbox）系统。你用 `UINode`
+盒子组合界面，用 `FlexContainer` 布局，用 `Text` 和 `UIVisual` 渲染，再用
+`Interactable` 让元素可点击。
+
+## 用 `UINode` + `FlexContainer` 布局
+
+`UINode` 是盒模型原语。用 `px()`、`percent()` 或 `auto()` 构建尺寸：
+
+```typescript
+import { spawnUIEntity, buildUINode, px, percent } from 'esengine';
+
+spawnUIEntity({
+  node: buildUINode({ width: px(240), height: percent(100) }),
+});
+```
+
+`FlexContainer` 控制子元素如何排布（`direction`、`justifyContent`、`alignItems`、
+`gap`、`padding`）。布局每帧重新计算，因此改属性即刻生效。
+
+## 文本
+
+`Text` 组件通过 SDF 字形图集渲染：`content`、`fontSize`、`color`、`align`、`bold`、
+`italic`、`strokeColor`、`shadowColor`、`wordWrap`、`richText` 等。
+
+## 控件
+
+控件工厂把这些原语组合成开箱即用的控件——`createButton`、`createToggle`、
+`createSlider`、`createProgress`、`createDialog`、`createDropdown`：
+
+```typescript
+import { createButton } from 'esengine';
+
+createButton({
+  world: app.world,
+  events: uiPlugin.events,
+  parent: canvasEntity,
+  text: 'Play',
+  states: {
+    normal:  { color: { r: 1,   g: 1,   b: 1,   a: 1 } },
+    hover:   { color: { r: 0.8, g: 0.8, b: 0.8, a: 1 } },
+    pressed: { color: { r: 0.6, g: 0.6, b: 0.6, a: 1 } },
+  },
+  onClick: () => audio.playSFX('assets/audio/click.wav'),
+});
+```
+
+## 交互与事件
+
+`Interactable` 标记实体可点击；系统会把只读的指针状态写入 `UIInteraction`
+（`hovered`、`pressed`、`justPressed`、`justReleased`）。要处理输入，请订阅 UI 事件
+总线（`UIEvents`）——像 `click`、`hover_enter`、`change`、`submit`、`drag_move` 这些
+事件会沿父链冒泡。
+
+<Aside type="note">
+  这里没有 `RectTransform`——`UINode` 用真正的弹性盒取代它（`px`/`percent`/`auto`
+  以及通过 inset 的 `Absolute` 定位）。`UIInteraction` 由引擎写入；请用事件驱动逻辑，
+  而不是去修改它。
+</Aside>

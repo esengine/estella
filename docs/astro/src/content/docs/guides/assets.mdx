@@ -1,0 +1,54 @@
+---
+title: Assets
+description: How assets are referenced, cooked, and loaded at runtime.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Every asset in a project has a stable UUID. Scenes and prefabs reference assets
+by UUID; at build time the engine **cooks** only the assets your game actually
+reaches, and the runtime loads them through a manifest.
+
+## Referencing assets
+
+Assets are referenced by UUID in the canonical form `@uuid:<uuid>`. The editor
+manages these — you rarely type them by hand.
+
+## Cooking
+
+Cooking walks the dependency graph from your entry scene(s), **culls anything
+unreachable**, stages the reachable files, and writes `assets.manifest.json`
+(the map the runtime consumes). Optionally it compresses textures: PNGs are
+encoded to GPU-ready **KTX2** (Basis Universal), which the runtime transcodes to
+the best format the device supports (ASTC → ETC2 → S3TC, falling back to RGBA8).
+
+## Loading at runtime
+
+```typescript
+import { defineSystem, Res, Assets } from 'esengine';
+
+defineSystem([Res(Assets)], async (assets) => {
+  const texture = await assets.load('@uuid:a1234567-...');
+});
+```
+
+## Addressable groups (subpackages)
+
+Assets under a `subpackages/<name>/…` folder belong to a lazy group `<name>`;
+everything else is the eagerly-loaded `main` group. Load a group on demand:
+
+```typescript
+const bundle = await assets.loadGroup('level2', (loaded, total) => {
+  console.log(`${loaded}/${total}`);
+});
+```
+
+This grouping is what maps onto [WeChat subpackages](/docs/guides/wechat/) for
+on-demand download.
+
+<Aside type="note">
+  Content hashing runs on the **staged** bytes (after PNG→KTX2 encoding), so the
+  manifest hash identifies the shipped artifact and identical files dedupe to one
+  copy. Assets under `subpackages/` are always included even if unreachable —
+  only their group assignment differs.
+</Aside>

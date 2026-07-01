@@ -1,0 +1,56 @@
+---
+title: 微信小游戏
+description: 为微信小游戏构建和导出游戏，并使用分包。
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Estella 能把同一个项目导出为**微信小游戏**。你为微信目标构建引擎，从编辑器导出游戏，
+再用微信开发者工具打开结果。
+
+## 为微信构建引擎
+
+微信目标用微信的 `WXWebAssembly` 垫片编译 C++ 内核：
+
+```bash
+node build-tools/cli.js build -t wechat
+# 可选的侧模块，仅当你的游戏用到时：
+node build-tools/cli.js build -t spine-wechat
+node build-tools/cli.js build -t physics-wechat
+```
+
+## 从编辑器导出
+
+<Steps>
+
+1. 在**项目设置 → 打包 → 微信**中，填写 AppID 与横竖屏方向。
+
+2. 点击**导出游戏**。Estella 会烘焙资源，把 SDK 与你的脚本打包（用 esbuild 打成
+   CommonJS），转换场景，并写出一个独立的小游戏包。
+
+</Steps>
+
+输出目录包含 `game.js`（入口）、`game-bundle.js`（SDK + 脚本）、`game.json` /
+`project.config.json`（微信配置）、`asset-manifest.json`、你的场景，以及 `wasm/` 引擎
+和侧模块。用微信开发者工具打开该目录即可编译、测试、提交。
+
+## 分包（subpackages）
+
+惰性资源分组会成为 `game.json` 里的微信 **subPackages**。运行时，
+`assets.loadGroup('level2')` 底层会触发 `wx.loadSubpackage`，于是关卡按需下载，而不会
+撑大初始包：
+
+```json
+{
+  "deviceOrientation": "landscape",
+  "subPackages": [
+    { "name": "level2", "root": "subpackages/level2" }
+  ]
+}
+```
+
+<Aside type="caution">
+  **构建你的游戏需要的侧模块。** 如果某个场景用了 Spine 或物理，但你没构建
+  `spine-wechat` / `physics-wechat`，导出会警告且游戏在运行时失败。导出器只接入入口
+  场景实际需要的侧模块，未用到的不会增加体积。
+</Aside>

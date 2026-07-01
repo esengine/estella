@@ -1,0 +1,96 @@
+---
+title: 物理
+description: 刚体、碰撞体、力、查询与碰撞事件。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 的物理运行在 C++/WebAssembly 内核中。你添加物理插件，给实体挂上 `RigidBody`
+和一个碰撞体，再通过 `Physics` API 驱动或查询它。
+
+## 启用物理
+
+```typescript
+import { PhysicsPlugin } from 'esengine/physics';
+
+app.addPlugin(new PhysicsPlugin('physics.js', {
+  gravity: { x: 0, y: -9.81 },
+}));
+```
+
+模块异步加载；初始化完成后物理即就绪。
+
+## 刚体与碰撞体
+
+挂上一个 `RigidBody` 加一个碰撞体形状。**碰撞体尺寸的单位是米，不是像素**——把像素
+尺寸除以你的「每单位像素数」（PPU）：
+
+```typescript
+import { RigidBody, BodyType, CircleCollider, BoxCollider } from 'esengine';
+
+const PPU = 100;
+
+cmds.spawn()
+  .insert(Transform, { position: { x, y, z: 0 } })
+  .insert(RigidBody, { bodyType: BodyType.Dynamic })
+  .insert(CircleCollider, { radius: 24 / PPU, restitution: 0.4 });
+```
+
+- **`BodyType`** —— `Static`（不可移动）、`Kinematic`（由你移动）、`Dynamic`（由模拟
+  驱动）。
+- **碰撞体形状** —— `BoxCollider`、`CircleCollider`、`CapsuleCollider`、
+  `SegmentCollider`、`PolygonCollider`、`ChainCollider`。都带 `density`、`friction`、
+  `restitution`、`isSensor`、`categoryBits`、`maskBits`。
+- **关节** —— `RevoluteJoint`、`DistanceJoint`、`PrismaticJoint`、`WeldJoint`、
+  `WheelJoint`。
+
+## 碰撞层
+
+`categoryBits`（该刚体所在的层）与 `maskBits`（它会与哪些层碰撞）是 16 位过滤器。
+两个刚体只有在各自的 category 都落在对方的 mask 里时才会碰撞：
+
+```typescript
+const LAYER_PLAYER = 0x0001;
+const LAYER_GROUND = 0x0008;
+
+.insert(CircleCollider, {
+  radius: 16 / PPU,
+  categoryBits: LAYER_PLAYER,
+  maskBits: LAYER_PLAYER | LAYER_GROUND,
+});
+```
+
+## 力、速度与查询
+
+在系统里读取 `Physics` 资源，推动刚体并查询世界：
+
+```typescript
+import { defineSystem, Res, Physics } from 'esengine';
+
+defineSystem([Res(Physics)], (physics) => {
+  physics.applyImpulse(player, { x: 0, y: 5 });      // 跳跃
+  physics.setLinearVelocity(player, { x: 3, y: 0 });
+
+  // 查询以像素为单位，自动按 PPU 缩放。
+  const hits = physics.raycast(origin, direction, 200);
+  const inRange = physics.overlapCircle(center, 64);
+});
+```
+
+## 碰撞事件
+
+`PhysicsEvents` 资源携带当前帧的接触信息：
+
+```typescript
+import { PhysicsEvents } from 'esengine';
+
+defineSystem([Res(PhysicsEvents)], (events) => {
+  for (const c of events.collisionEnters) { /* c.entityA, c.entityB */ }
+  for (const s of events.sensorEnters)   { /* 触发体 */ }
+});
+```
+
+<Aside type="caution">
+  给碰撞体设 `isSensor: true`，可以在**没有物理响应**的情况下获得进入/离开事件
+  （触发区）。物理按固定时间步进，而不是帧间隔，所以每帧都要读 `PhysicsEvents`。
+</Aside>

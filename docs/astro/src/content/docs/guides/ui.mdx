@@ -1,0 +1,70 @@
+---
+title: UI
+description: Flexbox layout, text, and interactive widgets.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella's UI is a CSS-like flexbox system solved in the C++ core. You compose an
+interface from `UINode` boxes, lay them out with `FlexContainer`, render `Text`
+and `UIVisual`, and make things clickable with `Interactable`.
+
+## Layout with `UINode` + `FlexContainer`
+
+`UINode` is the box-model primitive. Build dimensions with `px()`, `percent()`,
+or `auto()`:
+
+```typescript
+import { spawnUIEntity, buildUINode, px, percent } from 'esengine';
+
+spawnUIEntity({
+  node: buildUINode({ width: px(240), height: percent(100) }),
+});
+```
+
+`FlexContainer` controls how children flow (`direction`, `justifyContent`,
+`alignItems`, `gap`, `padding`). Layout is recomputed each frame, so changing a
+property just works.
+
+## Text
+
+The `Text` component renders through an SDF glyph atlas: `content`, `fontSize`,
+`color`, `align`, `bold`, `italic`, `strokeColor`, `shadowColor`, `wordWrap`,
+`richText`, and more.
+
+## Widgets
+
+Widget factories compose the primitives into ready controls —
+`createButton`, `createToggle`, `createSlider`, `createProgress`,
+`createDialog`, `createDropdown`:
+
+```typescript
+import { createButton } from 'esengine';
+
+createButton({
+  world: app.world,
+  events: uiPlugin.events,
+  parent: canvasEntity,
+  text: 'Play',
+  states: {
+    normal:  { color: { r: 1,   g: 1,   b: 1,   a: 1 } },
+    hover:   { color: { r: 0.8, g: 0.8, b: 0.8, a: 1 } },
+    pressed: { color: { r: 0.6, g: 0.6, b: 0.6, a: 1 } },
+  },
+  onClick: () => audio.playSFX('assets/audio/click.wav'),
+});
+```
+
+## Interaction and events
+
+`Interactable` marks an entity clickable; the system writes read-only pointer
+state to `UIInteraction` (`hovered`, `pressed`, `justPressed`, `justReleased`).
+For input handling, subscribe to the UI event bus (`UIEvents`) — events like
+`click`, `hover_enter`, `change`, `submit`, `drag_move` bubble up the parent
+chain.
+
+<Aside type="note">
+  There is no `RectTransform` — `UINode` replaces it with real flexbox
+  (`px`/`percent`/`auto` and `Absolute` positioning via insets). `UIInteraction`
+  is written by the engine; drive your logic from events, not by mutating it.
+</Aside>

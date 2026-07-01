@@ -1,0 +1,64 @@
+---
+title: Spine Animation
+description: Play Spine skeletal animations with SpineAnimation and SpineManager.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella has built-in [Spine](https://esotericsoftware.com/) skeletal animation.
+Give an entity a `SpineAnimation` component (usually set up in the editor), then
+control it at runtime through the `SpineManager`.
+
+## The `SpineAnimation` component
+
+Points an entity at a skeleton + atlas and its playback state:
+
+- `skeletonPath`, `atlasPath` — the Spine assets to load.
+- `animation`, `loop`, `playing` — the current track.
+- `skin`, `skeletonScale`, `timeScale`, `flipX`, `flipY`, `color`, `layer`.
+
+## Control at runtime
+
+Read the `SpineManager` and drive tracks, skins, and mixing:
+
+```typescript
+import { defineSystem, Res, SpineManager } from 'esengine';
+
+defineSystem([Res(SpineManager)], (spine) => {
+  spine.setAnimation(entity, 'walk', true);          // play looped 'walk'
+  spine.setSkin(entity, 'armor');                    // swap skin
+  spine.setMixDuration(entity, 'idle', 'walk', 0.2); // 0.2s crossfade
+});
+```
+
+Useful methods: `setAnimation`, `setSkin`, `setEntityProps`, `getAnimations`,
+`getSkins`, `getBounds`, `setAttachment`, `setMixDuration`, `setDefaultMix`.
+
+## Animation events
+
+The `SpineEvents` resource publishes track events once per frame — read it in
+the same frame:
+
+```typescript
+import { SpineEvents } from 'esengine';
+
+defineSystem([Res(SpineEvents)], (spineEvents) => {
+  for (const e of spineEvents.events) {
+    // e.type: 'start' | 'interrupt' | 'end' | 'complete' | 'event'
+    if (e.type === 'complete') { /* e.entity, e.animationName */ }
+  }
+});
+```
+
+<Aside type="note">
+  Estella supports Spine **3.8 / 4.1 / 4.2** — each skeleton version loads its
+  own WebAssembly backend on demand (pay-for-use; nothing loads until a skeleton
+  of that version appears). Entities sharing the same skeleton + atlas share one
+  loaded, ref-counted skeleton.
+</Aside>
+
+<Aside type="caution">
+  The bundled Spine Runtimes are proprietary. Shipping a game that uses Spine
+  requires a valid Spine license from Esoteric Software — separate from
+  Estella's own license.
+</Aside>
