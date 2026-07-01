@@ -1,39 +1,65 @@
 ---
 title: 资源
-description: 资源如何被引用、烘焙，以及在运行时加载。
+description: 引用、按类型加载器、清单、寻址组,以及生命周期。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-项目里每个资源都有一个稳定的 UUID。场景与预制体按 UUID 引用资源；构建时引擎只**烘焙**
-（cook）你的游戏真正能触达的资源，运行时再通过清单加载它们。
+项目里每个资源都有稳定的 UUID。场景与预制体按 UUID 引用资源;构建时引擎只**烘焙**
+(cook)游戏能触达的部分,运行时通过**清单(manifest)**解析引用,按类型的**加载器**
+把引用变成可用句柄,**引用计数**再释放不再用的资源。本篇逐一讲清。
 
-## 引用资源
+## 资源引用
 
-资源以规范形式 `@uuid:<uuid>` 按 UUID 引用。编辑器会管理这些——你几乎不用手写。
+资源以规范形式 `@uuid:<uuid>` 按 UUID 引用。编辑器会管理它们——你几乎不用手写。运行时
+引用会通过清单解析为真实文件路径;需要时 `assets.resolveRef(ref)` 会给你那个路径。
 
-## 烘焙（cook）
+## 按类型加载
 
-烘焙从入口场景出发遍历依赖图，**剔除一切触达不到的资源**，暂存可达文件，并写出
-`assets.manifest.json`（运行时消费的映射）。它还可选地压缩纹理：PNG 被编码为 GPU 就绪
-的 **KTX2**（Basis Universal），运行时再转码为设备支持的最佳格式（ASTC → ETC2 → S3TC，
-最后回退到 RGBA8）。
-
-## 运行时加载
+`Assets` 资源为每种资源类型提供一个按类型的加载器。每个返回一个句柄或 id,你把它设到
+组件上。例如加载一张贴图并显示在 `Sprite` 上:
 
 ```typescript
-import { defineSystem, Res, Assets } from 'esengine';
+import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
 
-defineSystem([Res(Assets)], async (assets) => {
-  // load(type, ref):资源类型 + 它的 @uuid 引用
-  const texture = await assets.load('texture', '@uuid:a1234567-...');
+const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
+  const tex = await assets.loadTexture('@uuid:a1b2c3…');   // { handle, width, height }
+  for (const [entity, sprite] of q) {
+    sprite.texture = tex.handle;
+  }
 });
 ```
 
-## 可寻址分组（分包）
+| 加载器 | 返回 |
+|---|---|
+| `loadTexture(ref)` | `{ handle, width, height }` |
+| `loadAudio(ref)` | `{ bufferId }` |
+| `loadFont(ref)` | `{ handle }` |
+| `loadMaterial(ref)` | `{ handle, shaderHandle }` |
+| `loadSpine(skeletonRef, atlasRef?)` | `{ skeletonHandle }` |
+| `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
+| `loadTimeline(ref)` | `{ timelineId }` |
+| `loadPrefab(ref)` | `{ data }` |
 
-位于 `subpackages/<name>/…` 文件夹下的资源属于惰性分组 `<name>`；其余属于会被急切加载的
-`main` 分组。按需加载某个分组：
+还有一个通用的 `load<T>(type, ref)`,当类型是动态决定时用;以及 `register(loader)`
+为自定义资源类型添加加载器。
+
+## 清单(manifest)
+
+运行时通过清单把 `@uuid` 引用解析为文件路径:
+
+```typescript
+assets.setManifest(manifest);   // 通常运行时会替你设好
+```
+
+清单由烘焙(见下)产出。`getManifest()` 返回当前清单。不在清单里的引用会回退到直接
+路径查找。
+
+## 寻址组(懒加载)
+
+位于 `subpackages/<name>/…` 文件夹下的资源组成惰性分组 `<name>`;其余属于会被急切加载的
+`main` 分组。按需加载某个分组——带进度——它会先下载再加载其中的资源(在微信上会触发
+`wx.loadSubpackage`;在 Web 上下载是空操作):
 
 ```typescript
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
@@ -41,10 +67,25 @@ const bundle = await assets.loadGroup('level2', (loaded, total) => {
 });
 ```
 
-正是这种分组映射到[微信分包](/docs/zh-cn/guides/wechat/)，实现按需下载。
+`loadByLabel(...)` 按 label 标签加载资源,而不是按文件夹分组。正是这种分组映射到
+[微信分包](/docs/zh-cn/guides/wechat/),实现按需下载。
+
+## 烘焙、压缩与内容寻址
+
+构建时,**烘焙**从入口场景出发遍历依赖图,**剔除一切触达不到的资源**,暂存可达文件,
+并写出清单。过程中它还能:
+
+- **压缩纹理** —— PNG 被编码为 GPU 就绪的 **KTX2**(Basis Universal),运行时再转码为
+  设备支持的最佳格式(ASTC → ETC2 → S3TC,最后回退 RGBA8)。
+- **内容寻址** —— 每个发布文件按字节哈希命名,于是 URL 不可变,相同文件去重成一份。
+
+## 生命周期与引用计数
+
+加载的 GPU 资源是**引用计数**的。当使用某资源的实体被销毁(despawn)时,它的引用被释放;
+一个按字节预算的 LRU 会在常驻显存超过预算时逐出最旧的未引用纹理。你一般不用手动管理——
+正常引用和销毁实体即可。
 
 <Aside type="note">
-  内容哈希基于**暂存后**的字节（PNG→KTX2 编码之后）计算，因此清单里的哈希标识的是最终
-  发布的产物，相同文件会去重成一份。`subpackages/` 下的资源即使触达不到也总会被包含——
-  只是分组归属不同而已。
+  内容哈希基于**暂存后**的字节(PNG→KTX2 编码之后)计算,因此清单里的哈希标识的是最终
+  发布的产物。`subpackages/` 下的资源即使触达不到也总会被包含——只是分组归属不同。
 </Aside>

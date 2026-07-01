@@ -1,42 +1,70 @@
 ---
 title: Assets
-description: How assets are referenced, cooked, and loaded at runtime.
+description: References, typed loaders, the manifest, addressable groups, and lifetime.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Every asset in a project has a stable UUID. Scenes and prefabs reference assets
-by UUID; at build time the engine **cooks** only the assets your game actually
-reaches, and the runtime loads them through a manifest.
+by UUID; at build time the engine **cooks** only what your game reaches, the
+runtime resolves references through a **manifest**, typed **loaders** turn a
+reference into a usable handle, and **reference counting** frees what's no longer
+used. This guide covers each piece.
 
-## Referencing assets
+## Asset references
 
 Assets are referenced by UUID in the canonical form `@uuid:<uuid>`. The editor
-manages these — you rarely type them by hand.
+manages these — you rarely type them by hand. At runtime a reference is resolved
+to a real file path through the manifest; `assets.resolveRef(ref)` gives you that
+path if you need it.
 
-## Cooking
+## Loading by type
 
-Cooking walks the dependency graph from your entry scene(s), **culls anything
-unreachable**, stages the reachable files, and writes `assets.manifest.json`
-(the map the runtime consumes). Optionally it compresses textures: PNGs are
-encoded to GPU-ready **KTX2** (Basis Universal), which the runtime transcodes to
-the best format the device supports (ASTC → ETC2 → S3TC, falling back to RGBA8).
-
-## Loading at runtime
+The `Assets` resource has a typed loader per asset type. Each returns a handle or
+id you put on a component. For example, load a texture and show it on a `Sprite`:
 
 ```typescript
-import { defineSystem, Res, Assets } from 'esengine';
+import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
 
-defineSystem([Res(Assets)], async (assets) => {
-  // load(type, ref): the asset type plus its @uuid reference
-  const texture = await assets.load('texture', '@uuid:a1234567-...');
+const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
+  const tex = await assets.loadTexture('@uuid:a1b2c3…');   // { handle, width, height }
+  for (const [entity, sprite] of q) {
+    sprite.texture = tex.handle;
+  }
 });
 ```
 
-## Addressable groups (subpackages)
+| Loader | Returns |
+|---|---|
+| `loadTexture(ref)` | `{ handle, width, height }` |
+| `loadAudio(ref)` | `{ bufferId }` |
+| `loadFont(ref)` | `{ handle }` |
+| `loadMaterial(ref)` | `{ handle, shaderHandle }` |
+| `loadSpine(skeletonRef, atlasRef?)` | `{ skeletonHandle }` |
+| `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
+| `loadTimeline(ref)` | `{ timelineId }` |
+| `loadPrefab(ref)` | `{ data }` |
 
-Assets under a `subpackages/<name>/…` folder belong to a lazy group `<name>`;
-everything else is the eagerly-loaded `main` group. Load a group on demand:
+There's also a generic `load<T>(type, ref)` when you're driving the type
+dynamically, and `register(loader)` to add a loader for a custom asset type.
+
+## The manifest
+
+The runtime resolves `@uuid` references to file paths through a manifest:
+
+```typescript
+assets.setManifest(manifest);   // usually the runtime does this for you
+```
+
+The manifest is produced by the cook (below). `getManifest()` returns the active
+one. Refs that aren't in the manifest fall back to a direct path lookup.
+
+## Addressable groups (lazy loading)
+
+Assets under a `subpackages/<name>/…` folder form a lazy group `<name>`;
+everything else is the eagerly-loaded `main` group. Load a group on demand — with
+progress — and it downloads before its assets load (on WeChat this triggers
+`wx.loadSubpackage`; on the web it's a no-op download):
 
 ```typescript
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
@@ -44,12 +72,31 @@ const bundle = await assets.loadGroup('level2', (loaded, total) => {
 });
 ```
 
+`loadByLabel(...)` loads assets tagged with a label instead of a folder group.
 This grouping is what maps onto [WeChat subpackages](/docs/guides/wechat/) for
 on-demand download.
 
+## Cooking, compression & content addressing
+
+At build time the **cook** walks the dependency graph from your entry scene(s),
+**culls anything unreachable**, stages the reachable files, and writes the
+manifest. Along the way it can:
+
+- **Compress textures** — PNGs are encoded to GPU-ready **KTX2** (Basis
+  Universal), which the runtime transcodes to the best format the device supports
+  (ASTC → ETC2 → S3TC, falling back to RGBA8).
+- **Content-address** — name each shipped file by a hash of its bytes, so URLs
+  are immutable and identical files dedupe to a single copy.
+
+## Lifetime & reference counting
+
+Loaded GPU resources are **reference-counted**. When an entity that uses an asset
+is despawned, its references are released; a byte-budgeted LRU then evicts the
+oldest unreferenced textures when resident VRAM exceeds the budget. You generally
+don't manage this by hand — reference and despawn entities normally.
+
 <Aside type="note">
   Content hashing runs on the **staged** bytes (after PNG→KTX2 encoding), so the
-  manifest hash identifies the shipped artifact and identical files dedupe to one
-  copy. Assets under `subpackages/` are always included even if unreachable —
-  only their group assignment differs.
+  manifest hash identifies the shipped artifact. Assets under `subpackages/` are
+  always included even if unreachable — only their group assignment differs.
 </Aside>
