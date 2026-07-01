@@ -1,23 +1,20 @@
 ---
 title: Timeline
-description: Sequencer animations — attach a timeline and control playback.
+description: The complete guide to Sequencer timelines — the TimelinePlayer component, the Timeline playback API, and keyframe tracks.
 ---
 
-A timeline is a **Sequencer animation** — tracks of keyframes over time (moving a
-Transform, swapping sprites, firing audio, toggling entities, driving Spine). You
-author it in the editor's Sequencer, attach it to an entity with a
-`TimelinePlayer` component, and control playback through the `Timeline` resource.
+import { Aside } from '@astrojs/starlight/components';
+
+A timeline is a **Sequencer animation** — tracks of keyframes over time that move a
+Transform, swap sprites, fire audio, toggle entities, or drive Spine. You author it
+in the editor's Sequencer, attach it with a `TimelinePlayer` component, and control
+playback through the `Timeline` resource. Because one timeline drives many things at
+once, it's the tool for cutscenes and scripted sequences.
 
 ## Attach a timeline
 
-The `TimelinePlayer` component points an entity at a timeline asset:
-
-- `timeline` — the timeline asset path.
-- `playing` — whether it starts playing.
-- `speed` — playback rate (default `1.0`).
-- `wrapMode` — `'once'`, loop, etc.
-
-You usually set this in the editor; in code, insert it with `Commands`:
+The `TimelinePlayer` component points an entity at a timeline asset. Usually set in
+the editor; in code, insert it with `Commands`:
 
 ```typescript
 import { defineSystem, Commands, TimelinePlayer } from 'esengine';
@@ -31,6 +28,13 @@ const attach = defineSystem([Commands()], (cmds) => {
   });
 });
 ```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `timeline` | asset | `''` | The timeline asset (`.estimeline`). |
+| `playing` | boolean | `false` | Whether it starts playing on attach. |
+| `speed` | number | `1` | Playback rate multiplier. |
+| `wrapMode` | string | `'once'` | `'once'`, `'loop'`, or `'pingpong'`. |
 
 ## Control playback
 
@@ -51,5 +55,42 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 });
 ```
 
-Because one timeline can drive many things at once, it's the tool for cutscenes
-and scripted sequences.
+| Method | Description |
+|---|---|
+| `play(entity)` | Start or resume playback. |
+| `pause(entity)` | Pause, keeping the current time. |
+| `stop(entity)` | Stop and reset to the start. |
+| `setTime(entity, seconds)` | Seek to a time (scrubs all tracks). |
+| `getCurrentTime(entity)` | Current playhead time in seconds. |
+| `isPlaying(entity)` | Whether it's currently playing. |
+
+## Track types
+
+A timeline is a set of tracks evaluated together each frame:
+
+| Track | Drives |
+|---|---|
+| Transform | Position / rotation / scale keyframes (hermite / linear / step). |
+| Sprite frames | Swap sprite-sheet frames over time. |
+| Audio | Fire one-shot sounds at keyframes. |
+| Activation | Toggle entities on/off. |
+| Spine | Play Spine animations as clips. |
+
+## Best practices
+
+- **Author in the Sequencer** — the timeline asset holds the tracks; code just plays
+  and seeks it.
+- **`wrapMode: 'once'`** for cutscenes, `'loop'` for ambient/idle sequences.
+- **Scrub with `setTime`** to preview or sync a cutscene to gameplay state.
+- **Use a timeline (not tweens)** when many properties/entities animate in lockstep;
+  reach for [tweens](/docs/guides/animation/) for one-off single-property juice.
+
+<Aside type="note">
+  Timeline playback is gameplay — it advances in play mode and the standalone
+  runtime, and is frozen in the editor's edit mode.
+</Aside>
+
+## See also
+
+- [Animation](/docs/guides/animation/) — tweens and the animator state machine.
+- [Spine Animation](/docs/guides/spine/) — timelines can drive Spine clips.

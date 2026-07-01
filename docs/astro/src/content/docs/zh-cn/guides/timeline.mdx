@@ -1,22 +1,18 @@
 ---
 title: 时间轴
-description: Sequencer 动画 —— 附加时间轴并控制播放。
+description: Sequencer 时间轴的完整指南——TimelinePlayer 组件、Timeline 播放 API,以及关键帧轨道。
 ---
 
-时间轴是一段 **Sequencer 动画**——随时间排布的关键帧轨道(移动 Transform、切换精灵、
-触发音频、开关实体、驱动 Spine)。你在编辑器的 Sequencer 里编排它,用 `TimelinePlayer`
-组件把它附加到实体上,再通过 `Timeline` 资源控制播放。
+import { Aside } from '@astrojs/starlight/components';
+
+时间轴是一段 **Sequencer 动画**——随时间排布的关键帧轨道,可以移动 Transform、切换精灵、
+触发音频、开关实体或驱动 Spine。你在编辑器的 Sequencer 里编辑它,用 `TimelinePlayer` 组件
+附加,并通过 `Timeline` 资源控制播放。因为一条时间轴能同时驱动很多东西,它是过场与脚本化
+序列的工具。
 
 ## 附加时间轴
 
-`TimelinePlayer` 组件把实体指向一个时间轴资源:
-
-- `timeline` —— 时间轴资源路径。
-- `playing` —— 是否开始播放。
-- `speed` —— 播放速率(默认 `1.0`)。
-- `wrapMode` —— `'once'`、循环等。
-
-通常你在编辑器里设置它;用代码则用 `Commands` 插入:
+`TimelinePlayer` 组件把实体指向一个时间轴资源。通常在编辑器里设;用代码则以 `Commands` 插入:
 
 ```typescript
 import { defineSystem, Commands, TimelinePlayer } from 'esengine';
@@ -31,9 +27,16 @@ const attach = defineSystem([Commands()], (cmds) => {
 });
 ```
 
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `timeline` | asset | `''` | 时间轴资源(`.estimeline`)。 |
+| `playing` | boolean | `false` | 附加时是否开始播放。 |
+| `speed` | number | `1` | 播放速率倍率。 |
+| `wrapMode` | string | `'once'` | `'once'`、`'loop'` 或 `'pingpong'`。 |
+
 ## 控制播放
 
-读取 `Timeline` 资源来驱动某个实体的时间轴:
+读 `Timeline` 资源来驱动某个实体的时间轴:
 
 ```typescript
 import { defineSystem, Query, Res, TimelinePlayer, Timeline } from 'esengine';
@@ -43,11 +46,47 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
     timeline.play(entity);
     timeline.pause(entity);
     timeline.stop(entity);
-    timeline.setTime(entity, 1.5);                  // 跳到 1.5 秒
+    timeline.setTime(entity, 1.5);                  // seek to 1.5s
     const t = timeline.getCurrentTime(entity);
     const playing = timeline.isPlaying(entity);
   }
 });
 ```
 
-因为一条时间轴能同时驱动很多东西,它是做过场动画和脚本化序列的工具。
+| 方法 | 说明 |
+|---|---|
+| `play(entity)` | 开始或恢复播放。 |
+| `pause(entity)` | 暂停,保留当前时间。 |
+| `stop(entity)` | 停止并重置到开头。 |
+| `setTime(entity, seconds)` | 定位到某时间(scrub 所有轨道)。 |
+| `getCurrentTime(entity)` | 当前播放头时间(秒)。 |
+| `isPlaying(entity)` | 是否正在播放。 |
+
+## 轨道类型
+
+时间轴是一组每帧一起求值的轨道:
+
+| 轨道 | 驱动 |
+|---|---|
+| Transform | 位置 / 旋转 / 缩放关键帧(hermite / linear / step)。 |
+| 精灵帧 | 随时间切换精灵表帧。 |
+| 音频 | 在关键帧触发一次性声音。 |
+| 激活 | 开关实体。 |
+| Spine | 把 Spine 动画作为片段播放。 |
+
+## 最佳实践
+
+- **在 Sequencer 里编辑**——时间轴资源持有轨道,代码只负责播放与定位。
+- 过场用 **`wrapMode: 'once'`**,环境/待机序列用 `'loop'`。
+- **用 `setTime` scrub** 来预览,或把过场与玩法状态同步。
+- 当很多属性/实体需要同步动画时**用时间轴(而非补间)**;一次性的单属性手感用
+  [补间](/docs/zh-cn/guides/animation/)。
+
+<Aside type="note">
+  时间轴播放属于玩法——它在播放模式和独立运行时里推进,在编辑器编辑模式下冻结。
+</Aside>
+
+## 参见
+
+- [动画](/docs/zh-cn/guides/animation/) —— 补间与动画状态机。
+- [Spine 动画](/docs/zh-cn/guides/spine/) —— 时间轴可以驱动 Spine 片段。
