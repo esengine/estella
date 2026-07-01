@@ -4,12 +4,42 @@ description: Configure effects with the ParticleEmitter component and Res(Partic
 ---
 
 Estella simulates particles on the CPU and renders them GPU-instanced. Add a
-`ParticleEmitter` component to an entity — usually in the editor — and control
-playback from a system with the `Particle` resource.
+`ParticleEmitter` component to an entity — in the editor or in code — configure
+the emission, and control playback with the `Particle` resource.
 
-## The `ParticleEmitter` component
+## Create an emitter
 
-Everything is data-driven; tune it in the inspector. Key fields:
+This spawns a one-shot burst — a little puff of embers that fade from yellow to
+red and fall:
+
+```typescript
+import { defineSystem, Commands, Transform, ParticleEmitter } from 'esengine';
+
+const spawnBurst = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(ParticleEmitter, {
+      playOnStart: true,
+      looping: false,
+      burstCount: 60,                 // emit 60 particles at once
+      maxParticles: 128,
+      lifetimeMin: 0.4, lifetimeMax: 0.9,
+      speedMin: 120, speedMax: 260,   // world units / second
+      startSizeMin: 6, startSizeMax: 12,
+      endSizeMin: 0, endSizeMax: 0,   // shrink to nothing
+      startColor: { r: 1, g: 0.8, b: 0.2, a: 1 },
+      endColor: { r: 1, g: 0.2, b: 0.0, a: 0 },   // fade to transparent red
+      gravity: { x: 0, y: -200 },
+    });
+});
+```
+
+For a **continuous** effect (smoke, a fountain), set `looping: true` and drive it
+with `rate` (particles per second) instead of `burstCount`.
+
+## Key fields
+
+Everything is data-driven; tune it in the inspector or in the insert above:
 
 - **Emission** — `rate`, `burstCount`, `burstInterval`, `duration`, `looping`,
   `playOnStart`, `maxParticles`.
@@ -22,12 +52,10 @@ Everything is data-driven; tune it in the inspector. Key fields:
 - **Texture / sprite sheet** — `texture`, `spriteColumns`, `spriteRows`,
   `spriteFPS`, `spriteLoop`.
 
-With `playOnStart` set, the emitter runs as soon as the entity is active.
-
 ## Control playback
 
-Read the `Particle` resource to start, stop, or clear an emitter, and to read
-its live particle count:
+Read the `Particle` resource to start, stop, or clear an emitter, and to read its
+live particle count:
 
 ```typescript
 import { defineSystem, Query, Res, ParticleEmitter, Particle } from 'esengine';

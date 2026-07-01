@@ -4,11 +4,40 @@ description: 用 ParticleEmitter 组件和 Res(Particle) 配置特效。
 ---
 
 Estella 在 CPU 上模拟粒子,并用 GPU 实例化渲染。给实体加一个 `ParticleEmitter`
-组件——通常在编辑器里——再用 `Particle` 资源从系统里控制播放。
+组件——在编辑器里或用代码——配置发射,再用 `Particle` 资源控制播放。
 
-## `ParticleEmitter` 组件
+## 创建一个发射器
 
-一切都是数据驱动的,在检视面板里调。关键字段:
+下面生成一次性爆发——一小簇火星,从黄色渐变到红色并下落:
+
+```typescript
+import { defineSystem, Commands, Transform, ParticleEmitter } from 'esengine';
+
+const spawnBurst = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(ParticleEmitter, {
+      playOnStart: true,
+      looping: false,
+      burstCount: 60,                 // 一次性发射 60 个粒子
+      maxParticles: 128,
+      lifetimeMin: 0.4, lifetimeMax: 0.9,
+      speedMin: 120, speedMax: 260,   // 世界单位 / 秒
+      startSizeMin: 6, startSizeMax: 12,
+      endSizeMin: 0, endSizeMax: 0,   // 收缩到消失
+      startColor: { r: 1, g: 0.8, b: 0.2, a: 1 },
+      endColor: { r: 1, g: 0.2, b: 0.0, a: 0 },   // 渐隐为透明红
+      gravity: { x: 0, y: -200 },
+    });
+});
+```
+
+要做**持续**效果(烟雾、喷泉),把 `looping` 设为 `true`,并用 `rate`(每秒粒子数)
+驱动它,而不是 `burstCount`。
+
+## 关键字段
+
+一切都是数据驱动的,在检视面板里或上面的 insert 里调:
 
 - **发射** —— `rate`、`burstCount`、`burstInterval`、`duration`、`looping`、
   `playOnStart`、`maxParticles`。
@@ -19,8 +48,6 @@ Estella 在 CPU 上模拟粒子,并用 GPU 实例化渲染。给实体加一个 
 - **形状** —— `shape`、`shapeRadius`、`shapeSize`、`shapeAngle`(粒子从哪里生成)。
 - **贴图 / 精灵表** —— `texture`、`spriteColumns`、`spriteRows`、`spriteFPS`、
   `spriteLoop`。
-
-设了 `playOnStart` 后,实体一激活发射器就运行。
 
 ## 控制播放
 
