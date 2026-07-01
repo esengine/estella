@@ -1,41 +1,73 @@
 ---
 title: Localization
-description: Multi-language text with Res(Localization).
+description: The complete guide to i18n — translation catalogs, interpolation, plurals, and locale switching via Res(Localization).
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Register a translation catalog per locale, switch the active locale, and look up
-strings with `t()` — all through the `Localization` resource.
+strings with `t()` — all through the `Localization` resource. It's deliberately
+`Intl`-free so behavior is identical on the web and WeChat.
 
-## Catalogs and translation
+## Catalogs & translation
 
 ```typescript
 import { defineSystem, Res, Localization } from 'esengine';
 
 const setupI18n = defineSystem([Res(Localization)], (i18n) => {
   i18n.addCatalog('en',    { play: 'Play', score: 'Score: {n}' });
-  i18n.addCatalog('zh-CN', { play: '开始', score: '得分：{n}' });
+  i18n.addCatalog('zh-CN', { play: '开始', score: '得分:{n}' });
 
   i18n.setLocale('zh-CN');
-  const label = i18n.t('score', { n: 42 });   // "得分：42"
+  const label = i18n.t('score', { n: 42 });   // "得分:42"
 });
 ```
 
-- **`addCatalog(locale, entries)`** merges keys into a locale — call it again to
-  add more (later calls override).
-- **`t(key, params?)`** interpolates `{placeholder}` values. If the key is missing
-  it falls back to the fallback locale, then to the key itself.
-- Also: `setLocale`, `setFallbackLocale`, `availableLocales()`, `has(key)`.
+- **`addCatalog(locale, entries)`** merges keys into a locale — call it again to add
+  more (later calls override).
+- **`t(key, params?)`** interpolates `{placeholder}` values. Missing keys fall back to
+  the fallback locale, then to the key itself (a visible, greppable fallback).
 
 ## Plurals
 
 A catalog entry can carry plural forms (`zero` / `one` / `other`); `t` selects the
-right one from a `count` parameter, and you can register a per-locale plural
-selector for languages whose rules differ from the default.
+right one from a `count` param. Register a per-locale selector for languages whose
+rules differ from the default English-style one.
+
+```typescript
+i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });
+i18n.t('apples', { count: 3 });   // "3 apples"
+```
+
+## `Localization` reference
+
+| Method | Description |
+|---|---|
+| `addCatalog(locale, entries)` | Merge translation keys into a locale. |
+| `t(key, params?)` | Look up + interpolate a string. |
+| `setLocale(locale)` | Set the active locale. |
+| `setFallbackLocale(locale)` | Set the locale used when a key is missing. |
+| `setPluralSelector(locale, selector)` | Custom plural rule for a locale. |
+| `availableLocales()` | List registered locales. |
+| `has(key)` | Whether a key exists in the active/fallback locale. |
+
+## Best practices
+
+- **Key everything through `t()`** — never hard-code user-facing strings, even
+  placeholders.
+- **Interpolate, don't concatenate** (`'Score: {n}'`), so word order can differ per
+  language.
+- **Set a fallback locale** so a missing translation degrades to another language
+  rather than a raw key.
+- **Re-run text-building systems on locale change**, or read `t()` each frame where
+  text can change — switching the locale updates every subsequent lookup.
 
 <Aside type="tip">
-  Localization is a per-App service, so switching the locale updates every `t()`
-  lookup from that point on — re-run the systems that build your text (or read
-  `t()` each frame where the text can change).
+  Localization is a per-App service, so switching the locale updates every later
+  `t()` call. Bind UI `Text.content` to keys so a language switch re-flows the UI.
 </Aside>
+
+## See also
+
+- [UI](/docs/guides/ui/) — bind `Text` to translated keys.
+- [Assets](/docs/guides/assets/) — ship string tables as assets.

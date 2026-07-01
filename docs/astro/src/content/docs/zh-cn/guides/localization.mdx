@@ -1,12 +1,12 @@
 ---
 title: 本地化
-description: 用 Res(Localization) 做多语言文本。
+description: i18n 完整指南——翻译目录、插值、复数与语言切换,通过 Res(Localization)。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-为每个 locale 注册一份翻译目录(catalog),切换当前 locale,并用 `t()` 查字符串——都
-通过 `Localization` 资源完成。
+为每个 locale 注册一份翻译目录(catalog),切换当前 locale,并用 `t()` 查字符串——都通过
+`Localization` 资源完成。它刻意不依赖 `Intl`,所以在 Web 与微信上行为一致。
 
 ## 目录与翻译
 
@@ -15,25 +15,53 @@ import { defineSystem, Res, Localization } from 'esengine';
 
 const setupI18n = defineSystem([Res(Localization)], (i18n) => {
   i18n.addCatalog('en',    { play: 'Play', score: 'Score: {n}' });
-  i18n.addCatalog('zh-CN', { play: '开始', score: '得分：{n}' });
+  i18n.addCatalog('zh-CN', { play: '开始', score: '得分:{n}' });
 
   i18n.setLocale('zh-CN');
-  const label = i18n.t('score', { n: 42 });   // "得分：42"
+  const label = i18n.t('score', { n: 42 });   // "得分:42"
 });
 ```
 
-- **`addCatalog(locale, entries)`** 把 key 合并进某个 locale——可多次调用追加(后面的
-  会覆盖)。
-- **`t(key, params?)`** 会插值 `{placeholder}` 的值。若 key 缺失,则回退到 fallback
-  locale,再回退到 key 本身。
-- 还有:`setLocale`、`setFallbackLocale`、`availableLocales()`、`has(key)`。
+- **`addCatalog(locale, entries)`** 把 key 合并进某个 locale——可多次调用追加(后面的会覆盖)。
+- **`t(key, params?)`** 会插值 `{placeholder}` 的值。缺失的 key 回退到 fallback locale,再回退
+  到 key 本身(一个可见、可 grep 的兜底)。
 
 ## 复数
 
-目录条目可以携带复数形式(`zero` / `one` / `other`);`t` 会根据 `count` 参数选出正确的
-那个,你还能为规则不同的语言注册按 locale 的复数选择器。
+目录条目可以携带复数形式(`zero` / `one` / `other`);`t` 会根据 `count` 参数选出正确的那个。
+为规则与默认英语式不同的语言注册按 locale 的选择器。
+
+```typescript
+i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });
+i18n.t('apples', { count: 3 });   // "3 apples"
+```
+
+## `Localization` 参考
+
+| 方法 | 说明 |
+|---|---|
+| `addCatalog(locale, entries)` | 把翻译 key 合并进某个 locale。 |
+| `t(key, params?)` | 查找 + 插值一个字符串。 |
+| `setLocale(locale)` | 设置当前 locale。 |
+| `setFallbackLocale(locale)` | 设置 key 缺失时使用的 locale。 |
+| `setPluralSelector(locale, selector)` | 为某 locale 设自定义复数规则。 |
+| `availableLocales()` | 列出已注册的 locale。 |
+| `has(key)` | key 是否存在于当前/回退 locale。 |
+
+## 最佳实践
+
+- **一切都经 `t()`**——绝不硬编码面向用户的字符串,连占位符也不。
+- **插值,别拼接**(`'Score: {n}'`),这样语序能因语言而异。
+- **设一个回退 locale**,让缺失的翻译退化到另一种语言,而不是裸 key。
+- **locale 变化时重跑构建文本的系统**,或在文本会变的地方每帧读 `t()`——切换 locale 会更新
+  之后每一次查询。
 
 <Aside type="tip">
-  本地化是逐 App 的服务,所以切换 locale 后,从那一刻起每次 `t()` 查询都会更新——重新
-  运行搭建文本的系统(或在文本会变化的地方每帧读 `t()`)。
+  本地化是逐 App 的服务,所以切换 locale 会更新之后每一次 `t()` 调用。把 UI 的 `Text.content`
+  绑到 key,切换语言就会重排 UI。
 </Aside>
+
+## 参见
+
+- [UI](/docs/zh-cn/guides/ui/) —— 把 `Text` 绑到翻译 key。
+- [资源](/docs/zh-cn/guides/assets/) —— 把字符串表作为资源发布。
