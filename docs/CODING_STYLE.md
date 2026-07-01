@@ -1,6 +1,6 @@
-# ESEngine Coding Style Guide
+# Estella Coding Style Guide
 
-This document describes the coding conventions used in the ESEngine project.
+This document describes the coding conventions used in the Estella project.
 
 ## Naming Conventions
 

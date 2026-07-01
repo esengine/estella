@@ -1,5 +1,5 @@
 #!/bin/bash
-# ESEngine Documentation Build Script (Linux/macOS)
+# Estella Documentation Build Script (Linux/macOS)
 # Usage: ./build.sh [dev|build|all]
 
 set -e

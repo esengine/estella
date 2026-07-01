@@ -1,7 +1,7 @@
-# ESEngine Architecture
+# Estella Architecture
 
-This document describes the architecture and design decisions of the Estella /
-ESEngine 2D game engine. It is **descriptive of the current code**. For the
+This document describes the architecture and design decisions of the Estella 2D
+game engine. It is **descriptive of the current code**. For the
 *target* architecture, the root-cause rationale behind the current design, and
 the forward roadmap, see the architecture-of-record companions:
 

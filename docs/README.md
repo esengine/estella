@@ -1,180 +1,54 @@
-# ESEngine Documentation
+# Estella Documentation
 
-This directory contains the documentation system for ESEngine, built with **Astro Starlight** and **Doxygen**.
+A map of the docs in this folder — start here. Estella's documentation lives in
+three layers: the developer-facing guides below, the generated C++ API reference
+(Doxygen), and the published site at
+[estellaengine.com/docs](https://estellaengine.com/docs).
 
-## Structure
+## In this folder (`docs/`)
 
-```
-docs/
-├── astro/              # Astro Starlight documentation site
-│   ├── src/content/    # MDX documentation files
-│   ├── src/assets/     # Images and assets
-│   └── package.json    # Node dependencies
-├── api/                # Doxygen output (generated)
-├── Doxyfile            # Doxygen configuration
-├── build.sh            # Build script (Linux/macOS)
-├── build.ps1           # Build script (Windows)
-└── dist/               # Final merged output (generated)
-```
+### Architecture & design
 
-## Prerequisites
+| Document | What it is | Language |
+|---|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | The engine's architecture **as it exists today** — modules, data flow, the WASM boundary. | English |
+| [REARCHITECTURE.md](./REARCHITECTURE.md) | Architecture-of-record: the root-cause re-architecture plan (RC1–RC6, F1–F4) and the *target* design. | 中文 |
+| `REARCH_2D_PARITY.md` | Architecture-of-record: the 2D feature-parity & modernization roadmap. *Local only — gitignored.* | 中文 |
 
-- **Node.js** 18+ (for Astro)
-- **Doxygen** (for API docs)
+### Conventions
 
-### Installing Doxygen
+| Document | What it is | Language |
+|---|---|---|
+| [CODING_STYLE.md](./CODING_STYLE.md) | C++ and TypeScript naming & formatting rules. | English |
+| [CODE_COMMENTS.md](./CODE_COMMENTS.md) | The comment convention all source code follows (explain *why*, not *what*; English-only comments). | 中文 |
 
-**Windows:**
-```powershell
-choco install doxygen.install
-# or download from https://www.doxygen.nl/download.html
-```
+### Building & publishing
 
-**macOS:**
-```bash
-brew install doxygen
-```
+| Document | What it is |
+|---|---|
+| [SITE.md](./SITE.md) | How to build and publish the documentation site (Astro Starlight + Doxygen). |
+| [Doxyfile](./Doxyfile) | Doxygen config; the C++ API reference is generated from `@file`/`@brief` headers in the source. |
 
-**Linux:**
-```bash
-sudo apt install doxygen  # Debian/Ubuntu
-sudo dnf install doxygen  # Fedora
-```
+## Language policy
 
-## Quick Start
+Documentation language follows the **audience**, not the author:
 
-### Development (Hot Reload)
+- **English** — anything a user or external contributor reads: the root
+  [README](../README.md), [CONTRIBUTING](../CONTRIBUTING.md), `ARCHITECTURE.md`,
+  `CODING_STYLE.md`, and all governance docs.
+- **中文** — internal architecture-of-record and roadmap documents written for
+  maintainers: `REARCHITECTURE.md`, `REARCH_2D_PARITY.md`, and the comment
+  convention itself.
+- **Code comments (TypeScript / C++) are always English** —
+  [CODE_COMMENTS.md](./CODE_COMMENTS.md) is the authoritative rule.
 
-```bash
-# Windows
-.\build.ps1 dev
+## Elsewhere in the repo
 
-# Linux/macOS
-./build.sh dev
-```
-
-Opens http://localhost:4321 with live reload.
-
-### Full Build
-
-```bash
-# Windows
-.\build.ps1 build
-
-# Linux/macOS
-./build.sh build
-```
-
-This will:
-1. Build Doxygen API documentation → `docs/api/`
-2. Build Astro site → `docs/astro/dist/`
-3. Merge everything → `docs/dist/`
-
-## Writing Documentation
-
-### Adding a New Guide
-
-1. Create a new `.mdx` file in `astro/src/content/docs/guides/`
-2. Add frontmatter:
-   ```mdx
-   ---
-   title: My Guide
-   description: A brief description
-   ---
-
-   Your content here...
-   ```
-3. Add to sidebar in `astro/astro.config.mjs`
-
-### Available Components
-
-Starlight provides several built-in components:
-
-```mdx
-import { Tabs, TabItem, Card, CardGrid, Aside, Steps } from '@astrojs/starlight/components';
-
-<Aside type="tip">
-  Helpful tip here
-</Aside>
-
-<Tabs>
-  <TabItem label="Tab 1">Content 1</TabItem>
-  <TabItem label="Tab 2">Content 2</TabItem>
-</Tabs>
-
-<Steps>
-1. First step
-2. Second step
-</Steps>
-```
-
-### Code Blocks
-
-````mdx
-```cpp title="example.cpp" {3-5}
-int main() {
-    // This line is highlighted
-    Application app;
-    app.run();
-    return 0;
-}
-```
-````
-
-## Deployment
-
-### GitHub Actions (Automatic)
-
-Documentation is automatically built and deployed when:
-- Changes are pushed to `master` branch in `docs/`, `src/**/*.hpp`, or `include/**/*.hpp`
-- Workflow is manually triggered
-
-**Setup GitHub Pages:**
-1. Go to repository Settings → Pages
-2. Set Source to "GitHub Actions"
-3. Push changes to trigger deployment
-
-The workflow (`.github/workflows/docs.yml`) will:
-1. Build Doxygen API documentation
-2. Build Astro site
-3. Merge and deploy to GitHub Pages
-
-### Manual Deployment
-
-Build locally and deploy anywhere:
-
-```bash
-./build.sh build  # or .\build.ps1 build on Windows
-```
-
-Copy `docs/dist/` to any static hosting:
-- Vercel
-- Netlify
-- Cloudflare Pages
-- Any web server
-
-## Updating API Docs
-
-API documentation is automatically generated from source code comments. To update:
-
-1. Add/update Doxygen comments in source files
-2. Run `./build.sh doxygen`
-
-### Doxygen Comment Format
-
-```cpp
-/**
- * @brief Brief description
- * @details Longer description with more details.
- *
- * @param paramName Description of parameter
- * @return Description of return value
- *
- * @code
- * // Example usage
- * MyClass obj;
- * obj.method();
- * @endcode
- */
-void MyClass::method(int paramName);
-```
+- **Governance (root):** [README](../README.md) · [CONTRIBUTING](../CONTRIBUTING.md) ·
+  [CHANGELOG](../CHANGELOG.md) · [VERSIONING](../VERSIONING.md) ·
+  [SECURITY](../SECURITY.md) · [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md) ·
+  [BUSINESS_MODEL](../BUSINESS_MODEL.md) · [PROVENANCE](../PROVENANCE.md) ·
+  [LICENSE](../LICENSE) · [NOTICE](../NOTICE)
+- **Subsystem docs:** [`sdk/src/ui/ARCHITECTURE.md`](../sdk/src/ui/ARCHITECTURE.md)
+  (UI layer) · [`sdk/tests/README.md`](../sdk/tests/README.md) (SDK tests) ·
+  [`desktop/README.md`](../desktop/README.md) (editor)

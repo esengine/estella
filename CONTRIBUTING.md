@@ -8,15 +8,14 @@ Thank you for your interest in contributing to Estella! This guide will help you
 
 - **Node.js** >= 18
 - **pnpm** >= 8
-- **Emscripten** 3.1.51 (for C++/WASM builds, exact version required for CI compatibility)
-- **Rust** >= 1.75 (for Tauri editor)
+- **Emscripten** 5.0.0 (for C++/WASM builds, exact version required for CI compatibility)
 - **ccache** (optional, recommended for faster C++ rebuilds)
 
 ### Setup
 
 ```bash
 git clone https://github.com/esengine/estella.git
-cd microes
+cd estella
 ```
 
 ### Optional: Install ccache for Faster Builds

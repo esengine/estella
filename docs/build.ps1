@@ -1,4 +1,4 @@
-# ESEngine Documentation Build Script (Windows PowerShell)
+# Estella Documentation Build Script (Windows PowerShell)
 # Usage: .\build.ps1 [dev|build|all]
 
 param(

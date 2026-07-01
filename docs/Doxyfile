@@ -1,13 +1,13 @@
-# Doxyfile for ESEngine
+# Doxyfile for Estella
 # Documentation: https://www.doxygen.nl/manual/config.html
 
 #---------------------------------------------------------------------------
 # Project Configuration
 #---------------------------------------------------------------------------
 
-PROJECT_NAME           = "ESEngine"
+PROJECT_NAME           = "Estella"
 PROJECT_NUMBER         = "0.1.0"
-PROJECT_BRIEF          = "A lightweight C++17 game engine for WebAssembly"
+PROJECT_BRIEF          = "A fast 2D game engine powered by WebAssembly and ECS"
 PROJECT_LOGO           =
 
 OUTPUT_DIRECTORY       = ./api
