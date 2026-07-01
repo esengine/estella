@@ -1,0 +1,54 @@
+---
+title: Post-processing
+description: Full-screen effects via the PostProcessVolume component.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella runs full-screen post-processing through ping-pong framebuffers. Add a
+`PostProcessVolume` component — usually in the editor — enable the effects you
+want, and tune their parameters in the inspector.
+
+## Built-in effects
+
+| Effect | What it does |
+|--------|--------------|
+| `bloom` | Glow on bright areas (threshold + intensity) |
+| `tonemap` | ACES tonemapping |
+| `colorGrade` | Color grading |
+| `vignette` | Darkened screen edges |
+| `chromaticAberration` | RGB fringing |
+| `blur` | Gaussian blur |
+| `fxaa` | Fast anti-aliasing |
+| `lensDistortion` | Barrel / pincushion distortion |
+| `pixelate` | Pixelation |
+| `grayscale` | Desaturate |
+
+Each effect exposes tunable uniforms (for example bloom's `threshold` and
+`intensity`) in the inspector.
+
+## Using a volume
+
+Add a `PostProcessVolume`, enable the effects, and set their parameters. Volumes
+**blend where they overlap**, so you can drive effects by area or fade them in
+over a transition.
+
+## Programmatic control
+
+For a custom pipeline, read the `PostProcess` resource — create a stack and bind
+it to a camera:
+
+```typescript
+import { defineSystem, Res, PostProcess } from 'esengine';
+
+const setup = defineSystem([Res(PostProcess)], (pp) => {
+  const stack = pp.createStack();
+  pp.bind(cameraEntity, stack);   // pp.unbind(cameraEntity) to remove
+});
+```
+
+<Aside type="note">
+  Effects run in registration order and share the ping-pong buffers, so several
+  can stack in one frame (e.g. bloom → tonemap → vignette) at no extra target
+  cost beyond the passes themselves.
+</Aside>

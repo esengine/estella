@@ -1,0 +1,49 @@
+---
+title: 后处理
+description: 通过 PostProcessVolume 组件实现全屏效果。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcessVolume` 组件——通常
+在编辑器里——启用你想要的效果,并在检视面板里调参数。
+
+## 内置效果
+
+| 效果 | 作用 |
+|------|------|
+| `bloom` | 高亮区域泛光(阈值 + 强度)|
+| `tonemap` | ACES 色调映射 |
+| `colorGrade` | 调色 |
+| `vignette` | 屏幕边缘压暗 |
+| `chromaticAberration` | RGB 色散 |
+| `blur` | 高斯模糊 |
+| `fxaa` | 快速抗锯齿 |
+| `lensDistortion` | 桶形 / 枕形畸变 |
+| `pixelate` | 像素化 |
+| `grayscale` | 去色 |
+
+每个效果都在检视面板里暴露可调 uniform(例如 bloom 的 `threshold` 与 `intensity`)。
+
+## 使用体积(Volume)
+
+加一个 `PostProcessVolume`,启用效果并设定参数。多个体积**重叠时会混合**,因此你可以
+按区域驱动效果,或在过渡中淡入。
+
+## 代码控制
+
+要自定义管线,读取 `PostProcess` 资源——创建一个 stack 并绑定到相机:
+
+```typescript
+import { defineSystem, Res, PostProcess } from 'esengine';
+
+const setup = defineSystem([Res(PostProcess)], (pp) => {
+  const stack = pp.createStack();
+  pp.bind(cameraEntity, stack);   // pp.unbind(cameraEntity) 可移除
+});
+```
+
+<Aside type="note">
+  效果按注册顺序运行并共享 ping-pong 缓冲,所以多个效果可以在一帧里叠加(例如
+  bloom → tonemap → vignette),除了各自的 pass 之外不产生额外的渲染目标开销。
+</Aside>
