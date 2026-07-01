@@ -1,67 +1,290 @@
 ---
 title: 粒子
-description: 用 ParticleEmitter 组件和 Res(Particle) 配置特效。
+description: ParticleEmitter 组件与 Particle 运行时 API 的完整指南——发射、形状、随生命的颜色/尺寸、精灵表、混合模式与播放控制。
 ---
 
-Estella 在 CPU 上模拟粒子,并用 GPU 实例化渲染。给实体加一个 `ParticleEmitter`
-组件——在编辑器里或用代码——配置发射,再用 `Particle` 资源控制播放。
+import { Aside } from '@astrojs/starlight/components';
 
-## 创建一个发射器
+粒子用于火焰、烟雾、爆炸、火花、雨、魔法等特效。Estella 在 C++/WebAssembly 内核里用
+CPU 模拟粒子,并按发射器**GPU 实例化**为单次 draw call 渲染,所以一个场景可以廉价地
+跑上千个粒子。你用一个 `ParticleEmitter` 组件声明式地描述特效,再通过 `Particle` 资源
+控制播放。
 
-下面生成一次性爆发——一小簇火星,从黄色渐变到红色并下落:
+## 工作原理
+
+每个发射器拥有一个最多 `maxParticles` 的固定粒子池。它每帧按 `rate`(每秒个数)生成新
+粒子(外加可选的爆发),每个粒子:
+
+1. **生成**在发射器**形状**内的某处,初速度的大小和方向在配置的 min/max 之间随机取。
+2. **存活** `lifetimeMin…lifetimeMax` 秒(随机),期间它的**颜色**和**尺寸**从起始值
+   动画到结束值。
+3. **运动**受自身速度加上 `gravity` 和 `damping` 影响,并可选地自转(`angularVelocity`)。
+4. 生命耗尽时**消亡**,回到池中。
+
+一切都是**逐粒子**在 `…Min` 与 `…Max` 之间随机——两者设相等得到统一外观,拉开则得到
+变化。随生命的动画默认用 `startColor`/`endColor` + `startSize`/`endSize` 配一条缓动曲线,
+或用完整的**渐变/曲线**做精确控制(见下)。
+
+<Aside type="note">
+  粒子模拟属于**玩法**:它在播放模式和独立运行时里推进,在编辑器编辑模式下冻结(与物理、
+  动画、时间轴一致)。进入 Play 预览特效。
+</Aside>
+
+## 安装
+
+粒子系统在主包里。编辑器和 Web 运行时会自动安装插件。在自定义 `App` 里手动加一次:
 
 ```typescript
-import { defineSystem, Commands, Transform, ParticleEmitter } from 'esengine';
+import { particlePlugin } from 'esengine';
 
-const spawnBurst = defineSystem([Commands()], (cmds) => {
+app.addPlugin(particlePlugin);
+```
+
+## 快速上手
+
+给实体加一个 `ParticleEmitter` 它就开始发射(`playOnStart` 默认开)。下面做一个循环的
+火星喷泉,从黄色渐隐为透明红并在重力下抛出:
+
+```typescript
+import {
+  defineSystem, Commands, Transform, ParticleEmitter, EmitterShape,
+} from 'esengine';
+
+const spawnEmbers = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
-    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Transform, { position: { x: 0, y: -200, z: 0 } })
     .insert(ParticleEmitter, {
-      playOnStart: true,
-      looping: false,
-      burstCount: 60,                 // 一次性发射 60 个粒子
-      maxParticles: 128,
-      lifetimeMin: 0.4, lifetimeMax: 0.9,
-      speedMin: 120, speedMax: 260,   // 世界单位 / 秒
-      startSizeMin: 6, startSizeMax: 12,
-      endSizeMin: 0, endSizeMax: 0,   // 收缩到消失
-      startColor: { r: 1, g: 0.8, b: 0.2, a: 1 },
-      endColor: { r: 1, g: 0.2, b: 0.0, a: 0 },   // 渐隐为透明红
-      gravity: { x: 0, y: -200 },
+      rate: 120,
+      lifetimeMin: 1.2, lifetimeMax: 2.0,
+      shape: EmitterShape.Cone, shapeAngle: 20,
+      speedMin: 300, speedMax: 520,
+      startSizeMin: 12, startSizeMax: 20,
+      endSizeMin: 0,  endSizeMax: 0,
+      startColor: { r: 1, g: 0.9, b: 0.3, a: 1 },
+      endColor:   { r: 1, g: 0.2, b: 0.1, a: 0 },
+      gravity: { x: 0, y: -400 },
     });
 });
 ```
 
-要做**持续**效果(烟雾、喷泉),把 `looping` 设为 `true`,并用 `rate`(每秒粒子数)
-驱动它,而不是 `burstCount`。
+## `ParticleEmitter` 字段参考
 
-## 关键字段
+每个字段都是可选的——省略即取下方默认值。尺寸、距离、速度以世界单位计(默认 PPU 下即
+像素);角度以度计。
 
-一切都是数据驱动的,在检视面板里或上面的 insert 里调:
+### 发射 (Emission)
 
-- **发射** —— `rate`、`burstCount`、`burstInterval`、`duration`、`looping`、
-  `playOnStart`、`maxParticles`。
-- **生命周期与运动** —— `lifetimeMin` / `lifetimeMax`、`speedMin` / `speedMax`、
-  `gravity`、`damping`、`angleSpreadMin` / `angleSpreadMax`。
-- **外观** —— `startSize*` / `endSize*`(+ `sizeEasing`)、`startColor` /
-  `endColor`(+ `colorEasing`)、`blendMode`、`layer`。
-- **形状** —— `shape`、`shapeRadius`、`shapeSize`、`shapeAngle`(粒子从哪里生成)。
-- **贴图 / 精灵表** —— `texture`、`spriteColumns`、`spriteRows`、`spriteFPS`、
-  `spriteLoop`。
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `rate` | number | `10` | 持续发射,每秒粒子数。`0` = 只用爆发。 |
+| `burstCount` | number | `0` | 每次爆发释放的粒子数。`0` 禁用爆发。 |
+| `burstInterval` | number | `1` | 两次爆发之间的秒数。 |
+| `duration` | number | `5` | 发射器停止前运行的秒数(见 `looping`)。 |
+| `looping` | boolean | `true` | 到 `duration` 后重新开始,而不是停止。 |
+| `playOnStart` | boolean | `true` | 实体一存在就开始发射。 |
+| `maxParticles` | number | `1000` | 池大小——存活粒子的硬上限。 |
 
-## 控制播放
+### 生命周期 (Lifetime)
 
-读取 `Particle` 资源来启动、停止或清空一个发射器,并读取它的存活粒子数:
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `lifetimeMin` | number | `5` | 最短粒子寿命,秒。 |
+| `lifetimeMax` | number | `5` | 最长粒子寿命,秒。 |
+
+### 形状 (Shape)
+
+粒子从哪生成及其初始方向。见 [发射器形状](#发射器形状)。
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `shape` | `EmitterShape` | `Cone` | `Point` / `Circle` / `Rectangle` / `Cone`。 |
+| `shapeRadius` | number | `100` | `Circle` / `Cone` 的半径。 |
+| `shapeSize` | Vec2 | `{100, 100}` | `Rectangle` 的盒子范围。 |
+| `shapeAngle` | number | `25` | `Cone` 的锥半角(°)。 |
+
+### 速度与力 (Velocity & forces)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `speedMin` | number | `500` | 最慢初速度。 |
+| `speedMax` | number | `500` | 最快初速度。 |
+| `angleSpreadMin` | number | `0` | 发射方向弧的起始(°)。 |
+| `angleSpreadMax` | number | `360` | 发射方向弧的结束(°)。 |
+| `gravity` | Vec2 | `{0, 0}` | 施加到每个粒子的恒定加速度。 |
+| `damping` | number | `0` | 每秒速度阻尼(`0` = 无)。 |
+
+### 随生命的尺寸 (Size over life)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `startSizeMin` | number | `100` | 生成时的最小尺寸。 |
+| `startSizeMax` | number | `100` | 生成时的最大尺寸。 |
+| `endSizeMin` | number | `100` | 消亡时的最小尺寸。 |
+| `endSizeMax` | number | `100` | 消亡时的最大尺寸。 |
+| `sizeEasing` | `ParticleEasing` | `Linear` | 从起始到结束尺寸的插值。 |
+| `sizeCurve` | `Curve` | 无 | 完整的随生命尺寸曲线;覆盖 start/end(见[下](#随生命的颜色与尺寸))。 |
+
+### 随生命的颜色 (Color over life)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `startColor` | Color | `{1,1,1,1}` | 生成时的颜色(RGBA,0..1)。 |
+| `endColor` | Color | `{1,1,1,0}` | 消亡时的颜色——默认把 alpha 渐隐到 0。 |
+| `colorEasing` | `ParticleEasing` | `Linear` | 从起始到结束颜色的插值。 |
+| `colorGradient` | `Gradient` | 无 | 完整的随生命颜色渐变;覆盖 start/end。 |
+
+### 旋转 (Rotation)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `rotationMin` | number | `0` | 生成旋转的最小值(°)。 |
+| `rotationMax` | number | `0` | 生成旋转的最大值(°)。 |
+| `angularVelocityMin` | number | `0` | 最慢自转(°/s)。 |
+| `angularVelocityMax` | number | `0` | 最快自转(°/s)。 |
+
+### 贴图与精灵表 (Texture & sprite sheet)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `texture` | asset | 无 | 粒子贴图。无贴图的粒子是柔和的方块。 |
+| `spriteColumns` | number | `1` | 精灵表列数(`1` = 整张贴图)。 |
+| `spriteRows` | number | `1` | 精灵表行数。 |
+| `spriteFPS` | number | `10` | 播放精灵表时的每秒帧数。 |
+| `spriteLoop` | boolean | `true` | 循环精灵表 vs 停在最后一帧。 |
+
+### 渲染与状态 (Rendering & state)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `blendMode` | `BlendMode` | `Additive` | 粒子如何合成。见 [混合模式](#混合模式)。 |
+| `layer` | number | `0` | 决定绘制顺序的排序层。 |
+| `material` | asset | 无 | 可选的自定义材质/着色器。 |
+| `simulationSpace` | `SimulationSpace` | `World` | `World` 或 `Local`(见[下](#模拟空间))。 |
+| `enabled` | boolean | `true` | 关掉即冻结并隐藏,而不移除组件。 |
+
+## 发射器形状
+
+`EmitterShape` 设定生成区域与初始方向:
+
+| 形状 | 使用 | 行为 |
+|---|---|---|
+| `Point` | — | 所有粒子在实体原点生成。 |
+| `Circle` | `shapeRadius` | 在圆盘内生成;方向向外辐射。 |
+| `Rectangle` | `shapeSize` | 在矩形盒内生成。 |
+| `Cone` | `shapeRadius`、`shapeAngle` | 在锥内生成——一束有方向的喷射(喷泉、推进器)。 |
+
+`angleSpreadMin…Max` 弧进一步约束发射方向,所以任何形状都能定向(例如一个只向上发射的
+`Circle`,用 `0…180`)。
+
+## 随生命的颜色与尺寸
+
+多数特效用 `startColor` → `endColor` 和 `startSize` → `endSize` 加一条缓动曲线就够了
+——它们是普通字段,代码里和编辑器里都能用。`ParticleEasing` 取值为 `Linear`、`EaseIn`、
+`EaseOut`、`EaseInOut`。
+
+要精确控制,在 `ParticleEmitter` 检视面板里编辑一条**渐变**(颜色)或**曲线**(尺寸倍率)
+——一串在归一化生命 `t`(`0..1`)上的停靠点/关键点。引擎会把它们烘焙成一张查找表(LUT),
+模拟按粒子年龄采样。编辑出的数据形如:
 
 ```typescript
-import { defineSystem, Query, Res, ParticleEmitter, Particle } from 'esengine';
+// colorGradient: hot white -> orange -> smoke, fading out.
+{
+  stops: [
+    { t: 0.0, color: { r: 1, g: 1,   b: 0.8, a: 1 } },
+    { t: 0.4, color: { r: 1, g: 0.5, b: 0.1, a: 1 } },
+    { t: 1.0, color: { r: 0.2, g: 0.2, b: 0.2, a: 0 } },
+  ],
+}
+// sizeCurve: swell in, then shrink away (multiplies the particle's start size).
+{ keys: [{ t: 0, v: 0.2 }, { t: 0.3, v: 1 }, { t: 1, v: 0 }] }
+```
 
-const control = defineSystem([Query(ParticleEmitter), Res(Particle)], (q, particle) => {
-  for (const [entity] of q) {
-    particle.play(entity);    // 开始发射
-    particle.stop(entity);    // 停止发射;已有粒子自然消亡
-    particle.reset(entity);   // 立即清空所有粒子
-    const alive = particle.getAliveCount(entity);
-  }
+要在**运行时**程序化改变这条曲线,通过资源上传一张预烘焙的查找表——颜色是 `N×4` 的 RGBA
+`Float32Array`,尺寸是 `N` 个标量。传 `null` 清空并回退到 start/end + 缓动:
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const recolor = defineSystem([Res(Particle)], (particles) => {
+  const lut = new Float32Array([ /* r,g,b,a, r,g,b,a, … */ ]);
+  particles.setColorLut(entity, lut);   // or particles.setColorLut(entity, null)
 });
 ```
+
+## 精灵表动画
+
+把 `texture` 指向一张精灵表,并设 `spriteColumns` / `spriteRows`,让每个粒子按 `spriteFPS`
+在各帧间播放。一张 4×4 的爆炸表,在每个粒子的生命里只播一次:
+
+```typescript
+.insert(ParticleEmitter, {
+  texture: 'effects/explosion.png',
+  spriteColumns: 4, spriteRows: 4, spriteFPS: 24, spriteLoop: false,
+});
+```
+
+## 模拟空间
+
+| 取值 | 粒子跟随发射器吗? | 用于 |
+|---|---|---|
+| `World`(默认) | 否——它们留在出生的地方 | 拖尾、尾焰、移动物体身后留下的火花 |
+| `Local` | 是——它们随实体的 transform 移动 | 光环、护盾、刚性附着在移动体上的特效 |
+
+## 混合模式
+
+`BlendMode` 控制粒子如何叠加到场景上:
+
+| 模式 | 效果 |
+|---|---|
+| `Normal` | 标准 alpha 混合。 |
+| `Additive`(默认) | 颜色相加——辉光、火焰、魔法、光。 |
+| `Multiply` | 变暗——烟雾、阴影。 |
+| `Screen` | 提亮,比 additive 更柔和。 |
+| `PremultipliedAlpha` | 用于预乘 alpha 的贴图。 |
+
+## 控制播放 —— `Res(Particle)`
+
+在系统里读 `Particle` 资源(或在 ECS 之外用 `app.getResource(Particle)`)来命令式地
+驱动发射器:
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const control = defineSystem([Res(Particle)], (particles) => {
+  particles.play(entity);        // start / resume emitting
+  particles.stop(entity);        // stop emitting (live particles finish)
+  particles.reset(entity);       // clear all live particles immediately
+  const n = particles.getAliveCount(entity);   // live particle count
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `play(entity)` | 开始或恢复发射。 |
+| `stop(entity)` | 停止发射;已有粒子活完自己的寿命。 |
+| `reset(entity)` | 杀掉所有存活粒子并重置发射器。 |
+| `getAliveCount(entity)` | 当前存活的粒子数。 |
+| `setColorLut(entity, lut \| null)` | 上传烘焙好的颜色 LUT(见上),或清空。 |
+| `setSizeLut(entity, lut \| null)` | 上传烘焙好的尺寸 LUT,或清空。 |
+
+<Aside type="tip">
+  每帧的 `update` 由粒子系统自动驱动——你不用调它。对于一次性特效,留着一个已停止的发射器,
+  用 `reset` + `play` 重新触发(比如可复用的受击火花)——比每次都生成新实体更省。
+</Aside>
+
+## 性能与最佳实践
+
+- **控制 `maxParticles`。** 它是固定池;按最坏情况定大小,别更高。多个小发射器比一个巨大的
+  更利于剔除。
+- **辉光优先用 `Additive`**(火焰、火花、魔法)——它掩盖 overdraw 且无需排序。不透明的
+  烟尘留给 `Normal`/`Multiply`。
+- **把粒子贴图打成图集**并共享一个 `material`,让发射器合批。
+- **拉开 min/max** 得到自然的变化;min/max 相等看起来很机械。
+- **复用发射器**:用 `reset` + `play` 而不是生成/销毁。
+- 记住粒子只在**播放模式**推进——在 Play 里预览。
+
+## 参见
+
+- [材质与着色器](/docs/zh-cn/guides/material/) —— 自定义粒子材质。
+- [后处理](/docs/zh-cn/guides/postprocess/) —— 在 additive 粒子上叠加泛光。
+- [资源](/docs/zh-cn/guides/assets/) —— 加载粒子贴图与图集。
