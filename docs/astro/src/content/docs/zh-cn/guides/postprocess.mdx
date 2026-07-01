@@ -35,11 +35,13 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 要自定义管线,读取 `PostProcess` 资源——创建一个 stack 并绑定到相机:
 
 ```typescript
-import { defineSystem, Res, PostProcess } from 'esengine';
+import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
 
-const setup = defineSystem([Res(PostProcess)], (pp) => {
-  const stack = pp.createStack();
-  pp.bind(cameraEntity, stack);   // pp.unbind(cameraEntity) 可移除
+const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
+  for (const [camera] of q) {
+    const stack = pp.createStack();
+    pp.bind(camera, stack);   // pp.unbind(camera) 可移除
+  }
 });
 ```
 

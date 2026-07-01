@@ -27,12 +27,14 @@ Estella 在 CPU 上模拟粒子,并用 GPU 实例化渲染。给实体加一个 
 读取 `Particle` 资源来启动、停止或清空一个发射器,并读取它的存活粒子数:
 
 ```typescript
-import { defineSystem, Res, Particle } from 'esengine';
+import { defineSystem, Query, Res, ParticleEmitter, Particle } from 'esengine';
 
-const control = defineSystem([Res(Particle)], (particle) => {
-  particle.play(entity);    // 开始发射
-  particle.stop(entity);    // 停止发射;已有粒子自然消亡
-  particle.reset(entity);   // 立即清空所有粒子
-  const alive = particle.getAliveCount(entity);
+const control = defineSystem([Query(ParticleEmitter), Res(Particle)], (q, particle) => {
+  for (const [entity] of q) {
+    particle.play(entity);    // 开始发射
+    particle.stop(entity);    // 停止发射;已有粒子自然消亡
+    particle.reset(entity);   // 立即清空所有粒子
+    const alive = particle.getAliveCount(entity);
+  }
 });
 ```

@@ -71,13 +71,15 @@ const LAYER_GROUND = 0x0008;
 在系统里读取 `PhysicsAPI` 资源来推动刚体:
 
 ```typescript
-import { defineSystem, Res } from 'esengine';
+import { defineSystem, Query, Res, RigidBody } from 'esengine';
 import { PhysicsAPI } from 'esengine/physics';
 
-const push = defineSystem([Res(PhysicsAPI)], (physics) => {
-  physics.applyImpulse(entity, { x: 0, y: 5 });        // 跳跃
-  physics.setLinearVelocity(entity, { x: 3, y: 0 });
-  physics.applyTorque(entity, 2);
+const push = defineSystem([Query(RigidBody), Res(PhysicsAPI)], (q, physics) => {
+  for (const [entity] of q) {          // 实际中可缩小到你的玩家组件
+    physics.applyImpulse(entity, { x: 0, y: 5 });      // 跳跃
+    physics.setLinearVelocity(entity, { x: 3, y: 0 });
+    physics.applyTorque(entity, 2);
+  }
 });
 ```
 

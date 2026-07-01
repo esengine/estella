@@ -27,13 +27,15 @@ const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
 `Tween` 资源在一段时长内把某个属性从起始值插值到结束值:
 
 ```typescript
-import { defineSystem, Res, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
+import { defineSystem, Query, Res, Transform, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
 
-const animate = defineSystem([Res(Tween)], (tween) => {
-  tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
-    easing: EasingType.EaseInOutQuad,
-    loop: LoopMode.PingPong,
-  });
+const animate = defineSystem([Query(Transform), Res(Tween)], (q, tween) => {
+  for (const [entity] of q) {
+    tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
+      easing: EasingType.EaseInOutQuad,
+      loop: LoopMode.PingPong,
+    });
+  }
 });
 ```
 
@@ -47,12 +49,14 @@ const animate = defineSystem([Res(Tween)], (tween) => {
 树(blend tree)。运行时你通过 `Res(AnimatorController)` 设置这些参数:
 
 ```typescript
-import { defineSystem, Res, AnimatorController } from 'esengine';
+import { defineSystem, Query, Res, SpriteAnimator, AnimatorController } from 'esengine';
 
-const drive = defineSystem([Res(AnimatorController)], (animator) => {
-  animator.setFloat(entity, 'speed', 4.2);
-  animator.setBool(entity, 'grounded', true);
-  animator.setTrigger(entity, 'jump');
+const drive = defineSystem([Query(SpriteAnimator), Res(AnimatorController)], (q, animator) => {
+  for (const [entity] of q) {
+    animator.setFloat(entity, 'speed', 4.2);
+    animator.setBool(entity, 'grounded', true);
+    animator.setTrigger(entity, 'jump');
+  }
 });
 ```
 

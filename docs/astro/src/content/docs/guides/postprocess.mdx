@@ -39,11 +39,13 @@ For a custom pipeline, read the `PostProcess` resource — create a stack and bi
 it to a camera:
 
 ```typescript
-import { defineSystem, Res, PostProcess } from 'esengine';
+import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
 
-const setup = defineSystem([Res(PostProcess)], (pp) => {
-  const stack = pp.createStack();
-  pp.bind(cameraEntity, stack);   // pp.unbind(cameraEntity) to remove
+const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
+  for (const [camera] of q) {
+    const stack = pp.createStack();
+    pp.bind(camera, stack);   // pp.unbind(camera) to remove
+  }
 });
 ```
 
