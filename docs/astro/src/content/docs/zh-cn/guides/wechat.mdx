@@ -54,3 +54,17 @@ node build-tools/cli.js build -t physics-wechat
   `spine-wechat` / `physics-wechat`，导出会警告且游戏在运行时失败。导出器只接入入口
   场景实际需要的侧模块，未用到的不会增加体积。
 </Aside>
+
+## 最佳实践
+
+- **保持在主包限制以内**(微信对初始包有上限):把按需内容移到 `subpackages/<name>/`——见
+  [资源](/docs/zh-cn/guides/assets/)。
+- **压缩纹理**(cook 时 PNG→KTX2)以缩小包体、加快首屏加载。
+- **只构建你用到的侧模块**——每跳过一个未用的 `*-wechat` 模块就是少发的体积。
+- **在微信开发者工具里测试**,而不只是浏览器——文件系统、存储与套接字后端都与 Web 不同。
+- **在游玩中预加载下一关的分组**(`loadGroup`),让子包下载不卡过渡。
+
+## 参见
+
+- [资源](/docs/zh-cn/guides/assets/) —— 可寻址分组与 cook 映射到子包。
+- [联网](/docs/zh-cn/guides/networking/) —— 那里套接字用 `wx.connectSocket`。

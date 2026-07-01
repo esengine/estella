@@ -58,3 +58,21 @@ levels download on demand rather than bloating the initial package:
   the game fails at runtime. The exporter only wires in the side modules the
   entry scene actually requires, so unused ones add no weight.
 </Aside>
+
+## Best practices
+
+- **Stay under the main-package limit** (WeChat caps the initial package) by moving
+  on-demand content into `subpackages/<name>/` — see [Assets](/docs/guides/assets/).
+- **Compress textures** (PNG→KTX2 at cook time) to shrink the package and speed
+  first load.
+- **Build only the side modules you use** — each unused `*-wechat` module you skip is
+  weight you don't ship.
+- **Test in WeChat DevTools**, not just the browser — the file system, storage, and
+  socket backends differ from the web.
+- **Preload the next level's group** (`loadGroup`) during play so the subpackage
+  download doesn't stall the transition.
+
+## See also
+
+- [Assets](/docs/guides/assets/) — addressable groups and cooking map onto subpackages.
+- [Networking](/docs/guides/networking/) — sockets use `wx.connectSocket` here.
