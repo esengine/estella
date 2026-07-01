@@ -77,6 +77,7 @@ export default defineConfig({
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scene' },
             { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'guides/localization' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
+            { label: 'Networking', translations: { 'zh-CN': '联网' }, slug: 'guides/networking' },
           ],
         },
         {

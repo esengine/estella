@@ -1,0 +1,47 @@
+---
+title: Networking
+description: Cross-platform WebSocket with createSocket, plus NetChannel.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella ships a **cross-platform WebSocket**. `createSocket` returns the right
+implementation for the platform — a browser `WebSocket` on the web, and
+`wx.connectSocket` on WeChat MiniGames — behind one API.
+
+## Connect and exchange messages
+
+```typescript
+import { createSocket } from 'esengine';
+
+const socket = createSocket({ url: 'wss://example.com/game' });
+
+socket.onOpen = () => {
+  socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
+};
+socket.onMessage = (data) => {
+  const msg = JSON.parse(data as string);
+  // handle a message from the server
+};
+socket.onClose = (code, reason) => { /* reconnect? */ };
+socket.onError = (err) => { /* … */ };
+
+socket.connect();
+```
+
+- `send(data)` takes a `string` or `ArrayBuffer`; anything sent before the socket
+  is `open` is queued and flushed on connect.
+- `readyState` is `'connecting' | 'open' | 'closing' | 'closed'`.
+- `close(code?, reason?)` disconnects.
+
+## Higher-level channels
+
+`NetChannel` wraps a transport with **typed message handlers** and
+**request/response** (`MessageHandler` / `RequestHandler`) — reach for it when you
+want routed messages and RPC-style calls instead of a raw socket.
+
+<Aside type="note">
+  Networking is plain classes, not an ECS resource — create the socket wherever
+  it fits your app, and drive gameplay from its callbacks (for example, push
+  received state into components with `Commands`).
+</Aside>

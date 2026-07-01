@@ -1,0 +1,44 @@
+---
+title: 联网
+description: 用 createSocket 的跨平台 WebSocket,以及 NetChannel。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 自带一个**跨平台 WebSocket**。`createSocket` 会为当前平台返回正确的实现——Web
+上是浏览器的 `WebSocket`,微信小游戏上是 `wx.connectSocket`——都藏在同一套 API 后面。
+
+## 连接与收发消息
+
+```typescript
+import { createSocket } from 'esengine';
+
+const socket = createSocket({ url: 'wss://example.com/game' });
+
+socket.onOpen = () => {
+  socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
+};
+socket.onMessage = (data) => {
+  const msg = JSON.parse(data as string);
+  // 处理来自服务器的消息
+};
+socket.onClose = (code, reason) => { /* 重连? */ };
+socket.onError = (err) => { /* … */ };
+
+socket.connect();
+```
+
+- `send(data)` 接受 `string` 或 `ArrayBuffer`;在套接字 `open` 之前发送的内容会被排队,
+  连接后再一并发出。
+- `readyState` 为 `'connecting' | 'open' | 'closing' | 'closed'`。
+- `close(code?, reason?)` 断开连接。
+
+## 更高层的通道
+
+`NetChannel` 在传输之上封装了**带类型的消息处理**与**请求/响应**(`MessageHandler` /
+`RequestHandler`)——当你想要路由消息和 RPC 风格的调用、而不是裸套接字时,用它。
+
+<Aside type="note">
+  联网是普通类,不是 ECS 资源——在适合你 App 的地方创建套接字,并从它的回调驱动游戏
+  逻辑(例如用 `Commands` 把收到的状态写进组件)。
+</Aside>
