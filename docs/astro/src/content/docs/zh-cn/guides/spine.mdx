@@ -1,22 +1,37 @@
 ---
 title: Spine 动画
-description: 骨骼动画 —— 播放轨道、混合、切换皮肤与附件、读取事件。
+description: Spine 骨骼动画的完整指南——SpineAnimation 组件、Spine 的轨道/混合/皮肤/附件 API、查询与事件。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 内置 [Spine](https://esotericsoftware.com/) 骨骼动画,由 `SpineAnimation`
-组件驱动,并通过 `Spine` 资源(来自 `esengine/spine` 子路径)在运行时控制。
+Estella 内置 [Spine](https://esotericsoftware.com/) 骨骼动画:骨骼、网格、IK、皮肤与事件。
+它由 `SpineAnimation` 组件驱动,并在运行时通过 `Spine` 资源(来自 `esengine/spine` 子路径)
+控制。
 
 ## `SpineAnimation` 组件
 
-在编辑器里添加它并指向你的 Spine 资源。字段(组件在主 `esengine` 包里):
+在编辑器里添加并指向你的 Spine 资源。组件本身在主 `esengine` 包里。
 
-- `skeletonPath`、`atlasPath` —— 要加载的骨骼与图集。
-- `animation`、`loop`、`playing` —— 当前轨道。
-- `skin`、`timeScale`、`skeletonScale`、`flipX`、`flipY`、`color`、`layer`。
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `skeletonPath` | asset | `''` | 骨骼文件(`.json` / `.skel`)。 |
+| `atlasPath` | asset | `''` | 图集文件。 |
+| `skin` | string | `''` | 活动皮肤(空 = 默认)。 |
+| `animation` | string | `''` | 轨道 0 上的初始动画。 |
+| `loop` | boolean | `true` | 循环初始动画。 |
+| `playing` | boolean | `true` | 播放是否推进。 |
+| `timeScale` | number | `1` | 逐实体的播放速度。 |
+| `skeletonScale` | number | `1` | 骨骼统一缩放。 |
+| `flipX` / `flipY` | boolean | `false` | 水平 / 垂直镜像。 |
+| `color` | Color | `{1,1,1,1}` | 着色(RGBA,0..1)。 |
+| `layer` | number | `0` | 决定绘制顺序的排序层。 |
+| `material` | asset | 无 | 可选的自定义材质。 |
+| `enabled` | boolean | `true` | 关掉即冻结并隐藏。 |
 
-## 播放与混合动画
+## 播放与混合
+
+`Spine` 资源控制轨道、混合(crossfade)与逐轨道混合:
 
 ```typescript
 import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
@@ -24,20 +39,37 @@ import { Spine } from 'esengine/spine';
 
 const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
   for (const [entity] of q) {
-    spine.setAnimation(entity, 'run', true);            // 循环播放
-    spine.setDefaultMix(entity, 0.15);                  // 默认交叉淡入
-    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // 指定过渡
-    spine.setTrackAlpha(entity, 0, 1.0);                // 淡入/淡出某轨道
+    spine.setAnimation(entity, 'run', true);            // play on track 0, looped
+    spine.addAnimation(entity, 'jump', false, 0.5);     // queue after 0.5s
+    spine.setDefaultMix(entity, 0.15);                  // default crossfade
+    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // specific transition
+    spine.setTrackAlpha(entity, 0, 1.0);                // blend a track in/out
   }
 });
 ```
+
+| 方法 | 说明 |
+|---|---|
+| `setAnimation(entity, name, loop)` | 在轨道 0 播放一个动画。 |
+| `addAnimation(entity, name, loop, delay)` | 在当前动画之后排队一个动画。 |
+| `setDefaultMix(entity, seconds)` | 任意两个动画之间的默认交叉淡入。 |
+| `setMixDuration(entity, from, to, seconds)` | 特定转移的交叉淡入。 |
+| `setTrackAlpha(entity, track, alpha)` | 混合某轨道的贡献(0..1)。 |
+| `setEntityProps(entity, props)` | 一次性更新 缩放 / 翻转 / 颜色 / 时间缩放。 |
 
 ## 皮肤与附件
 
 ```typescript
 spine.setSkin(entity, 'armored');
-spine.setAttachment(entity, 'weapon-slot', 'sword');   // 替换某槽位的附件
+spine.setAttachment(entity, 'weapon-slot', 'sword');   // swap a slot's attachment
+spine.setSlotColor(entity, 'body', { r: 1, g: 0.5, b: 0.5, a: 1 });
 ```
+
+| 方法 | 说明 |
+|---|---|
+| `setSkin(entity, name)` | 切换活动皮肤。 |
+| `setAttachment(entity, slot, attachment)` | 替换某槽位的附件(换装/变体)。 |
+| `setSlotColor(entity, slot, color)` | 给单个槽位着色。 |
 
 ## 查询骨骼
 
@@ -47,11 +79,9 @@ const skins  = spine.getSkins(entity);        // string[]
 const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
 ```
 
-`setEntityProps(entity, props)` 可一次性更新多个视觉属性(缩放、翻转、颜色、时间缩放)。
-
 ## 动画事件
 
-`SpineEvents` 资源每帧发布一次轨道事件——在同一帧里读取它:
+`SpineEvents` 资源每帧发布一次轨道事件——在同一帧读取:
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -60,18 +90,37 @@ import { SpineEvents } from 'esengine/spine';
 const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   for (const e of spineEvents.events) {
     // e.type: 'start' | 'interrupt' | 'end' | 'complete' | 'event'
-    // e.entity、e.track、e.animationName;对 'event':e.eventName + 各值
+    // e.entity, e.track, e.animationName; for 'event': e.eventName + values
   }
 });
 ```
 
+| 事件 `type` | 触发时机 |
+|---|---|
+| `start` | 某轨道上开始一个动画。 |
+| `interrupt` | 一个动画被另一个打断。 |
+| `end` | 一个动画从轨道移除。 |
+| `complete` | 一个动画循环/播放完成。 |
+| `event` | 用户编辑的事件关键帧触发(`eventName` + 值)。 |
+
+## 最佳实践
+
+- **设一个默认混合**(`setDefaultMix`)让转移交叉淡入而非硬切;热点路径用 `setMixDuration` 覆盖。
+- **用轨道 + `setTrackAlpha` 分层**(例如在轨道 1 放一个瞄准/叠加,混合在轨道 0 的移动之上)。
+- **跨实体共享骨骼 + 图集**——它们引用计数同一份已加载骨骼。
+- **用 [Animator](/docs/zh-cn/guides/animation/) 状态机驱动整个角色**,它既能驱动 Spine 也能驱动精灵。
+
 <Aside type="note">
-  Estella 支持 Spine **3.8 / 4.1 / 4.2** —— 每个骨骼版本按需加载各自的 WebAssembly
-  后端(用到才加载),这也是 `Spine` 和 `SpineEvents` 资源位于 `esengine/spine` 子路径
-  的原因。共享同一套骨骼 + 图集的实体共享同一份引用计数的骨骼。
+  Estella 支持 Spine **3.8 / 4.1 / 4.2**——每个骨骼版本按需加载自己的 WebAssembly 后端
+  (按需付费),这也是 `Spine` 与 `SpineEvents` 位于 `esengine/spine` 子路径的原因。
 </Aside>
 
 <Aside type="caution">
-  随附的 Spine Runtimes 是专有软件。发布使用 Spine 的游戏需要 Esoteric Software 的
-  有效 Spine 授权——与 Estella 自身的许可证相互独立。
+  捆绑的 Spine Runtimes 是专有的。发布使用 Spine 的游戏需要 Esoteric Software 的有效 Spine
+  授权——与 Estella 自身的授权相互独立。
 </Aside>
+
+## 参见
+
+- [动画](/docs/zh-cn/guides/animation/) —— Animator 状态机可以驱动 Spine。
+- [资源](/docs/zh-cn/guides/assets/) —— 加载骨骼 + 图集资源。

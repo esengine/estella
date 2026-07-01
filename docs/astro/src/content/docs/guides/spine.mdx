@@ -1,24 +1,39 @@
 ---
 title: Spine Animation
-description: Skeletal animation — play tracks, blend, swap skins and attachments, read events.
+description: The complete guide to Spine skeletal animation — the SpineAnimation component, the Spine track/mix/skin/attachment API, queries, and events.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella has built-in [Spine](https://esotericsoftware.com/) skeletal animation,
-driven by the `SpineAnimation` component and controlled at runtime through the
-`Spine` resource (from the `esengine/spine` subpath).
+Estella has built-in [Spine](https://esotericsoftware.com/) skeletal animation:
+bones, meshes, IK, skins, and events. It's driven by the `SpineAnimation` component
+and controlled at runtime through the `Spine` resource (from the `esengine/spine`
+subpath).
 
 ## The `SpineAnimation` component
 
-Add it in the editor and point it at your Spine assets. Fields (the component is
-in the main `esengine` package):
+Add it in the editor and point it at your Spine assets. The component lives in the
+main `esengine` package.
 
-- `skeletonPath`, `atlasPath` — the skeleton and atlas to load.
-- `animation`, `loop`, `playing` — the current track.
-- `skin`, `timeScale`, `skeletonScale`, `flipX`, `flipY`, `color`, `layer`.
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `skeletonPath` | asset | `''` | Skeleton file (`.json` / `.skel`). |
+| `atlasPath` | asset | `''` | Atlas file. |
+| `skin` | string | `''` | Active skin (empty = default). |
+| `animation` | string | `''` | Initial animation on track 0. |
+| `loop` | boolean | `true` | Loop the initial animation. |
+| `playing` | boolean | `true` | Whether playback advances. |
+| `timeScale` | number | `1` | Per-entity playback speed. |
+| `skeletonScale` | number | `1` | Uniform skeleton scale. |
+| `flipX` / `flipY` | boolean | `false` | Mirror horizontally / vertically. |
+| `color` | Color | `{1,1,1,1}` | Tint (RGBA, 0..1). |
+| `layer` | number | `0` | Sorting layer for draw order. |
+| `material` | asset | none | Optional custom material. |
+| `enabled` | boolean | `true` | Disable to freeze and hide. |
 
-## Play and blend animations
+## Play & blend animations
+
+The `Spine` resource controls tracks, mixing (crossfade), and per-track blending:
 
 ```typescript
 import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
@@ -26,7 +41,8 @@ import { Spine } from 'esengine/spine';
 
 const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
   for (const [entity] of q) {
-    spine.setAnimation(entity, 'run', true);            // play, looped
+    spine.setAnimation(entity, 'run', true);            // play on track 0, looped
+    spine.addAnimation(entity, 'jump', false, 0.5);     // queue after 0.5s
     spine.setDefaultMix(entity, 0.15);                  // default crossfade
     spine.setMixDuration(entity, 'idle', 'run', 0.25);  // specific transition
     spine.setTrackAlpha(entity, 0, 1.0);                // blend a track in/out
@@ -34,12 +50,28 @@ const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => 
 });
 ```
 
-## Skins and attachments
+| Method | Description |
+|---|---|
+| `setAnimation(entity, name, loop)` | Play an animation on track 0. |
+| `addAnimation(entity, name, loop, delay)` | Queue an animation after the current one. |
+| `setDefaultMix(entity, seconds)` | Default crossfade between any two animations. |
+| `setMixDuration(entity, from, to, seconds)` | Crossfade for a specific transition. |
+| `setTrackAlpha(entity, track, alpha)` | Blend a track's contribution (0..1). |
+| `setEntityProps(entity, props)` | Update scale / flip / color / time scale at once. |
+
+## Skins & attachments
 
 ```typescript
 spine.setSkin(entity, 'armored');
 spine.setAttachment(entity, 'weapon-slot', 'sword');   // swap a slot's attachment
+spine.setSlotColor(entity, 'body', { r: 1, g: 0.5, b: 0.5, a: 1 });
 ```
+
+| Method | Description |
+|---|---|
+| `setSkin(entity, name)` | Switch the active skin. |
+| `setAttachment(entity, slot, attachment)` | Swap a slot's attachment (equip/variant). |
+| `setSlotColor(entity, slot, color)` | Tint an individual slot. |
 
 ## Query a skeleton
 
@@ -49,13 +81,10 @@ const skins  = spine.getSkins(entity);        // string[]
 const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
 ```
 
-`setEntityProps(entity, props)` updates several visual props (scale, flip, color,
-time scale) at once.
-
 ## Animation events
 
-The `SpineEvents` resource publishes track events once per frame — read it in the
-same frame:
+The `SpineEvents` resource publishes track events once per frame — read it the same
+frame:
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -69,11 +98,29 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 });
 ```
 
+| Event `type` | Fired when |
+|---|---|
+| `start` | An animation starts on a track. |
+| `interrupt` | An animation is interrupted by another. |
+| `end` | An animation is removed from a track. |
+| `complete` | An animation loop/playthrough completes. |
+| `event` | A user-authored event keyframe fires (`eventName` + values). |
+
+## Best practices
+
+- **Set a default mix** (`setDefaultMix`) so transitions crossfade instead of
+  snapping; override hot paths with `setMixDuration`.
+- **Layer with tracks + `setTrackAlpha`** (e.g. an aim/overlay on track 1 blended
+  over a locomotion track 0).
+- **Share skeleton + atlas** across entities — they ref-count a single loaded
+  skeleton.
+- **Drive whole characters from the [Animator](/docs/guides/animation/) state
+  machine**, which can target Spine as well as sprites.
+
 <Aside type="note">
   Estella supports Spine **3.8 / 4.1 / 4.2** — each skeleton version loads its own
-  WebAssembly backend on demand (pay-for-use), which is why the `Spine` and
-  `SpineEvents` resources live on the `esengine/spine` subpath. Entities sharing a
-  skeleton + atlas share one ref-counted skeleton.
+  WebAssembly backend on demand (pay-for-use), which is why `Spine` and
+  `SpineEvents` live on the `esengine/spine` subpath.
 </Aside>
 
 <Aside type="caution">
@@ -81,3 +128,8 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   requires a valid Spine license from Esoteric Software — separate from Estella's
   own license.
 </Aside>
+
+## See also
+
+- [Animation](/docs/guides/animation/) — the Animator state machine can drive Spine.
+- [Assets](/docs/guides/assets/) — loading skeleton + atlas assets.
