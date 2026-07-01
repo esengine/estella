@@ -1,48 +1,36 @@
 import {
     defineSystem, Query, Mut, Res, Time, Transform, Commands,
+    PhysicsEvents,
 } from 'esengine';
-import { Coin, Player, ScoreDisplay } from '../components';
+import { Coin, ScoreDisplay } from '../components';
 
-const COLLECT_DISTANCE = 30;
 const BOB_SPEED = 3;
 const BOB_AMOUNT = 6;
 
-export const coinSystem = defineSystem(
-    [
-        Query(Mut(Transform), Mut(Coin)),
-        Query(Transform, Player),
-        Query(Mut(ScoreDisplay)),
-        Res(Time),
-        Commands(),
-    ],
-    (coins, players, scores, time, cmds) => {
-        let playerX = 0;
-        let playerY = 0;
-        let hasPlayer = false;
-
-        for (const [_entity, t, _p] of players) {
-            playerX = t.position.x;
-            playerY = t.position.y;
-            hasPlayer = true;
-        }
-
-        for (const [entity, transform, coin] of coins) {
+export const coinBobSystem = defineSystem(
+    [Query(Mut(Transform), Mut(Coin)), Res(Time)],
+    (coins, time) => {
+        for (const [_entity, transform, coin] of coins) {
             coin.bobTimer += time.delta * BOB_SPEED;
             transform.position.y = coin.baseY + Math.sin(coin.bobTimer) * BOB_AMOUNT;
-
-            if (hasPlayer) {
-                const dx = transform.position.x - playerX;
-                const dy = transform.position.y - playerY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist < COLLECT_DISTANCE) {
-                    cmds.despawn(entity);
-                    for (const [_e, score] of scores) {
-                        score.score += 1;
-                    }
-                }
-            }
         }
     },
-    { name: 'CoinSystem' }
+    { name: 'CoinBobSystem' }
+);
+
+export const coinPickupSystem = defineSystem(
+    [Res(PhysicsEvents), Query(Coin), Query(Mut(ScoreDisplay)), Commands()],
+    (events, coins, scores, cmds) => {
+        for (const ev of events.sensorEnters) {
+            let isCoin = false;
+            for (const [coinEntity] of coins) {
+                if (coinEntity === ev.sensorEntity) { isCoin = true; break; }
+            }
+            if (!isCoin) continue;
+
+            cmds.despawn(ev.sensorEntity);
+            for (const [_entity, score] of scores) score.score += 1;
+        }
+    },
+    { name: 'CoinPickupSystem' }
 );

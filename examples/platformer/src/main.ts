@@ -2,7 +2,10 @@ import { addSystemToSchedule, Schedule } from 'esengine';
 
 import './components';
 import { playerSystem } from './systems/player';
-import { coinSystem } from './systems/coin';
+import { coinBobSystem, coinPickupSystem } from './systems/coin';
+import { scoreSystem } from './systems/score';
 
-addSystemToSchedule(Schedule.Update, playerSystem);
-addSystemToSchedule(Schedule.Update, coinSystem);
+addSystemToSchedule(Schedule.FixedPreUpdate, playerSystem);
+addSystemToSchedule(Schedule.FixedPostUpdate, coinPickupSystem);
+addSystemToSchedule(Schedule.Update, coinBobSystem);
+addSystemToSchedule(Schedule.Update, scoreSystem);

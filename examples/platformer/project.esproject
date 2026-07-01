@@ -9,5 +9,10 @@
     "width": 800,
     "height": 600
   },
-  "spineVersion": "none"
+  "spineVersion": "none",
+  "features": {
+    "physics": {
+      "enabled": true
+    }
+  }
 }
