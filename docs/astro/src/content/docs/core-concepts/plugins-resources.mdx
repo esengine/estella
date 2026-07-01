@@ -1,0 +1,77 @@
+---
+title: Plugins & Resources
+description: How subsystems are composed and reached — the Res(XxxAPI) pattern.
+---
+
+An Estella game is an `App` composed of **plugins**. Each subsystem — physics,
+audio, tilemaps, particles, UI, and so on — is a plugin that registers its
+systems and exposes a runtime API as a **resource**.
+
+## Reaching a subsystem: `Res(XxxAPI)`
+
+Inside a system, list the resource you need in the parameter array; the callback
+receives it in the same order:
+
+```typescript
+import { defineSystem, Res, Audio } from 'esengine';
+
+defineSystem([Res(Audio)], (audio) => {
+  audio.playSFX('assets/hit.wav');
+});
+```
+
+Every subsystem's imperative API is reached the same way:
+
+| Subsystem | Resource | Import from |
+|---|---|---|
+| Input | `Res(Input)` | `esengine` |
+| Audio | `Res(Audio)` | `esengine` |
+| Assets | `Res(Assets)` | `esengine` |
+| Tilemaps | `Res(Tilemaps)` | `esengine` |
+| Particles | `Res(Particle)` | `esengine` |
+| Post-processing | `Res(PostProcess)` | `esengine` |
+| Scenes | `Res(SceneManager)` | `esengine` |
+| Tweens | `Res(Tween)` | `esengine` |
+| Animator | `Res(AnimatorController)` | `esengine` |
+| Physics | `Res(PhysicsAPI)` | `esengine/physics` |
+| Spine | `Res(Spine)` | `esengine/spine` |
+
+Physics and Spine are **optional side-modules** loaded on demand, so their APIs
+live on subpaths to keep the base bundle small; everything else is in the main
+`esengine` package.
+
+## Components vs. resources
+
+- **Components** are per-entity data. You attach them (in the editor or with
+  `Commands`) and iterate them with `Query`.
+- **Resources** are per-app singletons — shared state and subsystem APIs — read
+  with `Res`.
+
+## Getting an entity
+
+Subsystem APIs act on an entity, and that entity comes from a `Query` (or a
+spawn). This is the shape you'll see throughout the guides:
+
+```typescript
+import { defineSystem, Query, Res, SpriteAnimator, Tween, TweenTarget } from 'esengine';
+
+defineSystem([Query(SpriteAnimator), Res(Tween)], (q, tween) => {
+  for (const [entity] of q) {
+    tween.to(entity, TweenTarget.PositionX, 0, 100, 1.0, {});
+  }
+});
+```
+
+## Spawning: `Commands`
+
+To create entities and attach components from a system, take `Commands()`:
+
+```typescript
+import { defineSystem, Commands, Transform, Sprite } from 'esengine';
+
+defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Sprite, { size: { x: 32, y: 32 } });
+});
+```

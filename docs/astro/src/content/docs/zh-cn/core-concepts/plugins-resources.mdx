@@ -1,0 +1,73 @@
+---
+title: 插件与资源
+description: 子系统如何组合与取用 —— Res(XxxAPI) 范式。
+---
+
+一个 Estella 游戏就是由**插件**组合成的 `App`。每个子系统——物理、音频、瓦片地图、
+粒子、UI 等等——都是一个插件,它注册自己的系统,并把运行时 API 暴露为一个**资源**。
+
+## 取用子系统:`Res(XxxAPI)`
+
+在系统里,把你需要的资源列进参数数组;回调会按同样的顺序收到它:
+
+```typescript
+import { defineSystem, Res, Audio } from 'esengine';
+
+defineSystem([Res(Audio)], (audio) => {
+  audio.playSFX('assets/hit.wav');
+});
+```
+
+每个子系统的命令式 API 都用同一种方式取用:
+
+| 子系统 | 资源 | 导入自 |
+|---|---|---|
+| 输入 | `Res(Input)` | `esengine` |
+| 音频 | `Res(Audio)` | `esengine` |
+| 资源 | `Res(Assets)` | `esengine` |
+| 瓦片地图 | `Res(Tilemaps)` | `esengine` |
+| 粒子 | `Res(Particle)` | `esengine` |
+| 后处理 | `Res(PostProcess)` | `esengine` |
+| 场景 | `Res(SceneManager)` | `esengine` |
+| 补间 | `Res(Tween)` | `esengine` |
+| 动画机 | `Res(AnimatorController)` | `esengine` |
+| 物理 | `Res(PhysicsAPI)` | `esengine/physics` |
+| Spine | `Res(Spine)` | `esengine/spine` |
+
+物理和 Spine 是**可选 side-module**,按需加载,因此它们的 API 放在子路径上以保持基础
+包精简;其余都在主 `esengine` 包里。
+
+## 组件 vs 资源
+
+- **组件**是逐实体的数据。你(在编辑器里或用 `Commands`)把它挂到实体上,用 `Query`
+  遍历它。
+- **资源**是逐 App 的单例——共享状态与子系统 API——用 `Res` 读取。
+
+## 获取实体
+
+子系统 API 作用于某个实体,而这个实体来自一个 `Query`(或一次 spawn)。这是你在各专题
+里会反复看到的写法:
+
+```typescript
+import { defineSystem, Query, Res, SpriteAnimator, Tween, TweenTarget } from 'esengine';
+
+defineSystem([Query(SpriteAnimator), Res(Tween)], (q, tween) => {
+  for (const [entity] of q) {
+    tween.to(entity, TweenTarget.PositionX, 0, 100, 1.0, {});
+  }
+});
+```
+
+## 生成实体:`Commands`
+
+要在系统里创建实体并挂组件,取一个 `Commands()`:
+
+```typescript
+import { defineSystem, Commands, Transform, Sprite } from 'esengine';
+
+defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Sprite, { size: { x: 32, y: 32 } });
+});
+```
