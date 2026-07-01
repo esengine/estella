@@ -103,8 +103,36 @@ is despawned, its references are released; a byte-budgeted LRU then evicts the
 oldest unreferenced textures when resident VRAM exceeds the budget. You generally
 don't manage this by hand — reference and despawn entities normally.
 
+Cap resident texture memory with `setTextureBudget` — the LRU evicts oldest
+unreferenced textures once resident VRAM crosses it:
+
+```typescript
+import { setTextureBudget } from 'esengine';
+
+setTextureBudget(256 * 1024 * 1024);   // 256 MB texture budget
+```
+
+## Best practices
+
+- **Reference by path in code, let the editor write `@uuid:`** — never hand-author
+  UUID refs.
+- **Preload with `loadGroup` / `loadByLabel`** at level boundaries so play doesn't
+  stall mid-scene.
+- **Put on-demand content under `subpackages/<name>/`** so it becomes a lazy group
+  (and a WeChat subpackage) instead of bloating the main bundle.
+- **Let cooking cull + compress** — reachable-only staging and PNG→KTX2 keep the
+  shipped bundle small; don't ship raw PNGs you can cook.
+- **Set a texture budget** on memory-constrained targets and trust reference
+  counting for the rest.
+
 <Aside type="note">
   Content hashing runs on the **staged** bytes (after PNG→KTX2 encoding), so the
   manifest hash identifies the shipped artifact. Assets under `subpackages/` are
   always included even if unreachable — only their group assignment differs.
 </Aside>
+
+## See also
+
+- [WeChat MiniGame](/docs/guides/wechat/) — how addressable groups map to subpackages.
+- [Scenes](/docs/guides/scene/) — scenes reference assets and are cooked as entry points.
+- [Materials & Shaders](/docs/guides/material/) — `loadMaterial` and shader handles.

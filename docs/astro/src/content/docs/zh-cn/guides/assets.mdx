@@ -92,7 +92,30 @@ const bundle = await assets.loadGroup('level2', (loaded, total) => {
 一个按字节预算的 LRU 会在常驻显存超过预算时逐出最旧的未引用纹理。你一般不用手动管理——
 正常引用和销毁实体即可。
 
+用 `setTextureBudget` 限制常驻纹理内存——常驻显存越过它后,LRU 会逐出最旧的未引用纹理:
+
+```typescript
+import { setTextureBudget } from 'esengine';
+
+setTextureBudget(256 * 1024 * 1024);   // 256 MB texture budget
+```
+
+## 最佳实践
+
+- **代码里按路径引用,让编辑器写 `@uuid:`**——绝不手写 UUID 引用。
+- **在关卡边界用 `loadGroup` / `loadByLabel` 预加载**,别让游戏在场景中途卡顿。
+- **把按需内容放到 `subpackages/<name>/` 下**,它就成为一个 lazy 组(以及微信子包),而不是
+  撑大主包。
+- **让 cook 去剔除 + 压缩**——只暂存可达资源、PNG→KTX2 让发布包更小;别发能被 cook 的裸 PNG。
+- **在内存受限的目标上设纹理预算**,其余交给引用计数。
+
 <Aside type="note">
   内容哈希基于**暂存后**的字节(PNG→KTX2 编码之后)计算,因此清单里的哈希标识的是最终
   发布的产物。`subpackages/` 下的资源即使触达不到也总会被包含——只是分组归属不同。
 </Aside>
+
+## 参见
+
+- [微信小游戏](/docs/zh-cn/guides/wechat/) —— 可寻址分组如何映射到子包。
+- [场景](/docs/zh-cn/guides/scene/) —— 场景引用资源,并作为入口点被 cook。
+- [材质与着色器](/docs/zh-cn/guides/material/) —— `loadMaterial` 与着色器句柄。
