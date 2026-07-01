@@ -1,18 +1,23 @@
 ---
 title: Materials & Shaders
-description: Custom GLSL shaders with reflected #pragma param uniforms.
+description: The complete guide to custom materials — authoring GLSL with reflected #pragma param uniforms, the Material API, and applying materials to renderers.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 A material is a **shader plus parameters**. Renderers that support materials —
-`Sprite`, `SpineAnimation`, `ParticleEmitter`, tilemap layers — have a `material`
-handle field; set it to draw with your own shader.
+`Sprite`, `SpineAnimation`, `ParticleEmitter`, and tilemap layers — expose a
+`material` handle field; set it to draw with your own shader instead of the default.
+
+## How it works
+
+You author an `.esshader` that declares its tunable parameters with `#pragma param`.
+The engine **reflects** those into a std140 uniform block, so the CPU can set them by
+name and they reach the GPU safely. A `Material` binds a compiled shader to a set of
+parameter values; assigning its handle to a renderer's `material` field draws that
+renderer with it.
 
 ## Declaring parameters with `#pragma param`
-
-An `.esshader` declares the parameters the CPU is allowed to set. The engine
-reflects them into a std140 uniform block, so they reach the GPU by name:
 
 ```glsl
 #pragma param u_tint      color   default(1, 1, 1, 1)
@@ -22,18 +27,23 @@ reflects them into a std140 uniform block, so they reach the GPU by name:
 // … your GLSL fragment code, reading u_tint / u_intensity / u_mask …
 ```
 
-Parameter types are `float`, `color` (rgba), and `texture`. A `#pragma switch`
-selects a static shader permutation baked into the material at compile time.
+| Param type | GLSL | Value shape | Notes |
+|---|---|---|---|
+| `float` | `float` | `number` | Scalar knob. |
+| `color` | `vec4` | `[r, g, b, a]` | RGBA, 0..1. |
+| `texture` | `sampler2D` | texture handle | `default(white)` etc. for a fallback. |
 
-## Create and apply in code
+A `#pragma switch` selects a static shader permutation baked into the material at
+compile time (via the `features` argument to `compileShader`).
 
-Compile the shader (which reflects its params) and make a material, then point a
-renderer at it by setting its `material` handle:
+## Create & apply in code
+
+Compile the shader **once** (not per frame), make a material, then point a renderer
+at it:
 
 ```typescript
 import { Material } from 'esengine';
 
-// Compile once (not per frame).
 const shader = Material.compileShader(tintShaderSource);
 const tintMat = Material.create({
   shader,
@@ -51,16 +61,43 @@ const applyMaterial = defineSystem([Query(Mut(Sprite))], (q) => {
 });
 ```
 
-## Update a parameter at runtime
+## Update parameters at runtime
 
 ```typescript
 Material.setUniform(tintMat, 'u_intensity', 2.5);
+const v = Material.getUniform(tintMat, 'u_intensity');
 ```
+
+## `Material` API reference
+
+| Method | Description |
+|---|---|
+| `compileShader(esshaderSource, features?)` | Compile an `.esshader` (reflects `#pragma param`); returns a shader handle. |
+| `createShader(vertexSrc, fragmentSrc)` | Compile a raw GLSL vertex/fragment pair (no reflected params). |
+| `create({ shader, uniforms })` | Build a material binding a shader to parameter values. |
+| `setUniform(material, name, value)` | Set a reflected parameter at runtime. |
+| `getUniform(material, name)` | Read a parameter's current value. |
+
+## Best practices
+
+- **Compile shaders once** at startup and reuse the handle — never in a per-frame
+  system.
+- **Share one material** across renderers that use the same shader + params so they
+  batch into fewer draw calls.
+- **Prefer the editor's material graph** for authoring; it generates the
+  `#pragma param` shader and lets you assign the material visually. The code API here
+  is for procedural materials.
+- **Drive animated effects via `setUniform`** on a shared material rather than
+  recreating materials.
 
 <Aside type="note">
   For raw shaders without reflected params, use `Material.createShader(vertexSrc,
-  fragmentSrc)` instead of `compileShader`. Most of the time you'll author
-  materials in the editor's **material graph** — it generates the `#pragma param`
-  shader for you and you assign the material to a renderer there; the code API
-  above is for procedural materials.
+  fragmentSrc)` instead of `compileShader`. `ShapeRenderer` has no `material` field —
+  only `Sprite`, `SpineAnimation`, `ParticleEmitter`, and tilemap layers do.
 </Aside>
+
+## See also
+
+- [Post-processing](/docs/guides/postprocess/) — full-screen effects (a separate pipeline).
+- [Assets](/docs/guides/assets/) — `loadMaterial` and shader handles.
+- [Particles](/docs/guides/particle/) — assign a custom `material` to an emitter.

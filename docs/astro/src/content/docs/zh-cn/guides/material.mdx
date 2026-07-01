@@ -1,38 +1,44 @@
 ---
 title: 材质与着色器
-description: 带 #pragma param 反射 uniform 的自定义 GLSL 着色器。
+description: 自定义材质完整指南——用 #pragma param 反射 uniform 编写 GLSL、Material API,以及把材质应用到渲染器。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-材质就是**着色器 + 参数**。支持材质的渲染组件——`Sprite`、`SpineAnimation`、
-`ParticleEmitter`、瓦片图层——都有一个 `material` 句柄字段;把它设好就能用你自己的
-着色器绘制。
+材质是**着色器加参数**。支持材质的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter`
+和瓦片图层——都暴露一个 `material` 句柄字段;设置它就用你自己的着色器绘制,而非默认。
+
+## 工作原理
+
+你编写一个 `.esshader`,用 `#pragma param` 声明它可调的参数。引擎把它们**反射**进一个
+std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一个 `Material` 把编译好的
+着色器绑定到一组参数值;把它的句柄赋给渲染器的 `material` 字段,就用它来绘制该渲染器。
 
 ## 用 `#pragma param` 声明参数
-
-`.esshader` 声明 CPU 可设置的参数。引擎把它们反射进一个 std140 uniform 块,于是它们能
-按名字到达 GPU:
 
 ```glsl
 #pragma param u_tint      color   default(1, 1, 1, 1)
 #pragma param u_intensity float   default(1.0)
 #pragma param u_mask      texture default(white)
 
-// … 你的 GLSL 片段代码,读取 u_tint / u_intensity / u_mask …
+// … your GLSL fragment code, reading u_tint / u_intensity / u_mask …
 ```
 
-参数类型有 `float`、`color`(rgba)和 `texture`。`#pragma switch` 选择在编译期烘焙进
-材质的静态着色器排列(permutation)。
+| 参数类型 | GLSL | 值的形状 | 备注 |
+|---|---|---|---|
+| `float` | `float` | `number` | 标量旋钮。 |
+| `color` | `vec4` | `[r, g, b, a]` | RGBA,0..1。 |
+| `texture` | `sampler2D` | 纹理句柄 | `default(white)` 等作为回退。 |
 
-## 在代码里创建并应用
+`#pragma switch` 选择编译期烘焙进材质的静态着色器排列(通过 `compileShader` 的 `features` 参数)。
 
-编译着色器(它会反射出参数)并创建材质,然后把某个渲染组件的 `material` 句柄指向它:
+## 用代码创建与应用
+
+**只编译一次**着色器(不要每帧),做一个材质,然后把渲染器指向它:
 
 ```typescript
 import { Material } from 'esengine';
 
-// 只编译一次(不要每帧)。
 const shader = Material.compileShader(tintShaderSource);
 const tintMat = Material.create({
   shader,
@@ -45,7 +51,7 @@ import { defineSystem, Query, Mut, Sprite } from 'esengine';
 
 const applyMaterial = defineSystem([Query(Mut(Sprite))], (q) => {
   for (const [entity, sprite] of q) {
-    sprite.material = tintMat;   // 材质句柄
+    sprite.material = tintMat;   // the material handle
   }
 });
 ```
@@ -54,11 +60,35 @@ const applyMaterial = defineSystem([Query(Mut(Sprite))], (q) => {
 
 ```typescript
 Material.setUniform(tintMat, 'u_intensity', 2.5);
+const v = Material.getUniform(tintMat, 'u_intensity');
 ```
 
+## `Material` API 参考
+
+| 方法 | 说明 |
+|---|---|
+| `compileShader(esshaderSource, features?)` | 编译一个 `.esshader`(反射 `#pragma param`);返回着色器句柄。 |
+| `createShader(vertexSrc, fragmentSrc)` | 编译一对原始 GLSL 顶点/片元(无反射参数)。 |
+| `create({ shader, uniforms })` | 构建一个把着色器绑定到参数值的材质。 |
+| `setUniform(material, name, value)` | 运行时设置一个反射参数。 |
+| `getUniform(material, name)` | 读取一个参数的当前值。 |
+
+## 最佳实践
+
+- 启动时**只编译一次**着色器并复用句柄——绝不在每帧系统里编译。
+- 让使用相同着色器 + 参数的渲染器**共享一个材质**,以合批成更少的 draw call。
+- **优先用编辑器的材质图(material graph)** 编写;它会生成 `#pragma param` 着色器并让你
+  可视化地赋材质。这里的代码 API 用于程序化材质。
+- **动画效果用 `setUniform`** 驱动共享材质,而不是重建材质。
+
 <Aside type="note">
-  若是没有反射参数的原始着色器,用 `Material.createShader(vertexSrc, fragmentSrc)`
-  而不是 `compileShader`。大多数情况下你会在编辑器的**材质图(material graph)**里
-  编排材质——它会替你生成 `#pragma param` 着色器,并在那里把材质指派给渲染组件;上面
-  的代码 API 用于程序化材质。
+  没有反射参数的原始着色器用 `Material.createShader(vertexSrc, fragmentSrc)` 而非
+  `compileShader`。`ShapeRenderer` 没有 `material` 字段——只有 `Sprite`、`SpineAnimation`、
+  `ParticleEmitter` 和瓦片图层有。
 </Aside>
+
+## 参见
+
+- [后处理](/docs/zh-cn/guides/postprocess/) —— 全屏效果(独立的管线)。
+- [资源](/docs/zh-cn/guides/assets/) —— `loadMaterial` 与着色器句柄。
+- [粒子](/docs/zh-cn/guides/particle/) —— 给发射器指定自定义 `material`。
