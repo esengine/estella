@@ -1,0 +1,41 @@
+---
+title: ECS Architecture
+description: Entities, components, and systems in Estella.
+---
+
+Estella is built on an **Entity-Component-System** (ECS) architecture. Instead
+of deep class hierarchies, game state is plain data in components, and behavior
+lives in systems that run over that data.
+
+- **Entity** — an identifier. It owns no data and no behavior; it is just a
+  handle that components attach to.
+- **Component** — a small, plain data struct (position, velocity, sprite). An
+  entity is defined by which components it has.
+- **System** — a function that runs each frame over every entity matching a
+  query, reading and writing components.
+
+## Why data-oriented
+
+Components are stored in a single cache-friendly layer (a sparse set) so that a
+system iterating "all entities with a `LocalTransform` and a `Speed`" walks
+contiguous memory. Storage lives in the C++/WebAssembly core, and the SDK reads
+it with zero copies through a generated, hash-checked memory layout — so the
+TypeScript and C++ views of a component can never silently drift apart.
+
+## The authored surface
+
+You compose a game from three SDK primitives:
+
+- [`defineComponent`](/docs/core-concepts/components/) — declare a component type.
+- [`defineSystem`](/docs/core-concepts/systems/) — declare a system and what it
+  queries.
+- `App` / plugins — assemble systems, resources, and subsystems (physics, spine,
+  tilemap, UI, audio, scene) into a running game.
+
+```typescript
+import { App } from 'esengine';
+
+const app = new App();
+// register components, systems, and plugins on the app…
+app.run();
+```

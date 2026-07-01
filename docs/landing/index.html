@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Estella — A fast 2D game engine powered by WebAssembly and ECS</title>
+  <meta name="description" content="Estella is a 2D game engine with a TypeScript SDK and a C++/WebAssembly backend. Build games for the web and WeChat MiniGames, with a visual editor." />
+  <link rel="canonical" href="https://estellaengine.com/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Estella — A fast 2D game engine" />
+  <meta property="og:description" content="A TypeScript SDK on a C++/WebAssembly backend. Web + WeChat MiniGames, with a visual editor." />
+  <meta property="og:image" content="https://estellaengine.com/og-image.png" />
+  <meta property="og:url" content="https://estellaengine.com/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    :root {
+      --bg: #0e121b;
+      --bg-soft: #151b28;
+      --border: #232c3d;
+      --fg: #e6ebf5;
+      --muted: #93a1bd;
+      --accent: #7c9cf5;
+      --accent-2: #a78bfa;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    header {
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: blur(10px);
+      background: color-mix(in srgb, var(--bg) 78%, transparent);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav { display: flex; align-items: center; gap: 20px; height: 64px; }
+    .brand { font-weight: 700; letter-spacing: -0.01em; font-size: 18px; }
+    .brand span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .nav .spacer { flex: 1; }
+    .nav a.link { color: var(--muted); font-size: 14px; }
+    .nav a.link:hover { color: var(--fg); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 14px;
+      border: 1px solid var(--border); background: var(--bg-soft); color: var(--fg);
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+    .btn.primary {
+      border-color: transparent;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      color: #0b1020;
+    }
+
+    .hero { padding: 96px 0 64px; text-align: center; }
+    .badge {
+      display: inline-block; padding: 5px 12px; margin-bottom: 22px;
+      border: 1px solid var(--border); border-radius: 999px;
+      color: var(--muted); font-size: 13px;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 60px); line-height: 1.05; margin: 0 0 18px;
+      letter-spacing: -0.03em; font-weight: 800;
+    }
+    .hero h1 .grad { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p.lead { max-width: 640px; margin: 0 auto 30px; color: var(--muted); font-size: 19px; }
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .shot { margin: 64px auto 0; max-width: 960px; }
+    .shot img {
+      width: 100%; height: auto; display: block; border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 30px 80px -30px rgba(124, 156, 245, .35);
+    }
+
+    section.features { padding: 96px 0 32px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+    .card {
+      padding: 22px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--bg-soft);
+    }
+    .card h3 { margin: 0 0 8px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    section.code { padding: 64px 0; }
+    section.code h2 { text-align: center; font-size: 28px; letter-spacing: -0.02em; margin: 0 0 8px; }
+    section.code p.sub { text-align: center; color: var(--muted); margin: 0 0 28px; }
+    pre {
+      margin: 0 auto; max-width: 720px; overflow: auto;
+      background: #0b0f17; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px 22px; font: 13.5px/1.7 "SFMono-Regular", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+      color: #cdd6e6;
+    }
+    .tok-k { color: #a78bfa; } .tok-s { color: #86e1a6; } .tok-f { color: #7c9cf5; } .tok-c { color: #5b6577; }
+
+    footer { border-top: 1px solid var(--border); padding: 40px 0 60px; color: var(--muted); font-size: 14px; }
+    .foot { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+    .foot .spacer { flex: 1; }
+    .foot a:hover { color: var(--fg); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <div class="brand"><span>Estella</span></div>
+      <div class="spacer"></div>
+      <a class="link" href="/docs/getting-started/introduction/">Docs</a>
+      <a class="link" href="https://github.com/esengine/estella">GitHub</a>
+      <a class="btn" href="https://github.com/esengine/estella/releases">Download</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <span class="badge">C++/WebAssembly · TypeScript SDK · ECS</span>
+      <h1>A fast <span class="grad">2D game engine</span><br />for the web</h1>
+      <p class="lead">
+        Estella pairs a first-class TypeScript SDK with a C++/WebAssembly
+        rendering core, and ships a visual editor. Build once, deploy to web
+        browsers and WeChat MiniGames.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="/docs/getting-started/quick-start/">Get Started →</a>
+        <a class="btn" href="https://github.com/esengine/estella">View on GitHub</a>
+      </div>
+      <div class="shot">
+        <img src="/editor-screenshot.png" alt="The Estella editor" loading="lazy" />
+      </div>
+    </section>
+
+    <section class="features wrap">
+      <div class="grid">
+        <div class="card"><h3>Fast</h3><p>A C++ rendering pipeline compiled to WebAssembly — not interpreted JavaScript.</p></div>
+        <div class="card"><h3>Type-safe SDK</h3><p><code>defineComponent</code>, <code>defineSystem</code>, <code>Query</code>, <code>Commands</code>, <code>Res</code>.</p></div>
+        <div class="card"><h3>Data-oriented</h3><p>An ECS core with a single cache-friendly component storage layer.</p></div>
+        <div class="card"><h3>Cross-platform</h3><p>One codebase, deployed to web browsers and WeChat MiniGames.</p></div>
+        <div class="card"><h3>Visual editor</h3><p>Scene hierarchy, inspector, and asset browser — no JSON editing.</p></div>
+        <div class="card"><h3>Spine &amp; Physics</h3><p>Built-in Spine skeletal animation and physics support.</p></div>
+      </div>
+    </section>
+
+    <section class="code wrap">
+      <h2>Write game logic in TypeScript</h2>
+      <p class="sub">Declare what a system needs; Estella runs it over matching entities each frame.</p>
+<pre><span class="tok-k">const</span> Speed = <span class="tok-f">defineComponent</span>(<span class="tok-s">'Speed'</span>, { value: <span class="tok-s">200</span> });
+
+<span class="tok-f">addSystem</span>(<span class="tok-f">defineSystem</span>(
+    [<span class="tok-f">Res</span>(Time), <span class="tok-f">Query</span>(<span class="tok-f">Mut</span>(LocalTransform), Speed)],
+    (time, query) => {
+        <span class="tok-k">for</span> (<span class="tok-k">const</span> [entity, transform, speed] <span class="tok-k">of</span> query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));</pre>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div class="brand"><span>Estella</span></div>
+      <div class="spacer"></div>
+      <a href="/docs/getting-started/introduction/">Documentation</a>
+      <a href="https://github.com/esengine/estella">GitHub</a>
+      <a href="https://discord.gg/sAX6PXZ9">Discord</a>
+      <a href="https://github.com/esengine/estella/blob/master/LICENSE">Apache-2.0</a>
+    </div>
+  </footer>
+</body>
+</html>

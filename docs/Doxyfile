@@ -6,7 +6,7 @@
 #---------------------------------------------------------------------------
 
 PROJECT_NAME           = "Estella"
-PROJECT_NUMBER         = "0.1.0"
+PROJECT_NUMBER         = $(ESTELLA_VERSION)
 PROJECT_BRIEF          = "A fast 2D game engine powered by WebAssembly and ECS"
 PROJECT_LOGO           =
 

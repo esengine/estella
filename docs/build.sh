@@ -27,6 +27,8 @@ build_doxygen() {
         exit 1
     fi
 
+    # PROJECT_NUMBER is injected from the single app-version source.
+    export ESTELLA_VERSION="$(node -p "require('../desktop/package.json').version" 2>/dev/null || echo '')"
     doxygen Doxyfile
 
     echo "Doxygen build complete: docs/api/html/"

@@ -27,6 +27,8 @@ function Build-Doxygen {
             exit 1
         }
 
+        # PROJECT_NUMBER is injected from the single app-version source.
+        $env:ESTELLA_VERSION = (node -p "require('../desktop/package.json').version")
         doxygen Doxyfile
 
         Write-Host "Doxygen build complete: docs/api/html/" -ForegroundColor Green

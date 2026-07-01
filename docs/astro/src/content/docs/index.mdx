@@ -1,0 +1,34 @@
+---
+title: Estella
+description: A fast 2D game engine powered by WebAssembly and ECS.
+template: splash
+hero:
+  tagline: A fast 2D game engine with a TypeScript SDK and a C++/WebAssembly backend. Build games for the web and WeChat MiniGames.
+  actions:
+    - text: Get Started
+      link: /docs/getting-started/introduction/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/esengine/estella
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Fast" icon="rocket">
+    A C++ rendering pipeline compiled to WebAssembly — not interpreted
+    JavaScript.
+  </Card>
+  <Card title="Type-safe" icon="seti:typescript">
+    A first-class TypeScript SDK: `defineComponent`, `defineSystem`, `Query`,
+    `Commands`, `Res`.
+  </Card>
+  <Card title="Data-oriented" icon="puzzle">
+    An Entity-Component-System core with a single cache-friendly storage layer.
+  </Card>
+  <Card title="Cross-platform" icon="laptop">
+    One codebase, deployed to web browsers and WeChat MiniGames.
+  </Card>
+</CardGrid>

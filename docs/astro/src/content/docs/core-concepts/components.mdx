@@ -1,0 +1,43 @@
+---
+title: Components
+description: Declaring and using components with defineComponent.
+---
+
+A **component** is a small, plain data struct attached to an entity. Declare one
+with `defineComponent`, giving it a name and its default values:
+
+```typescript
+import { defineComponent } from 'esengine';
+
+const Speed = defineComponent('Speed', { value: 200 });
+const Health = defineComponent('Health', { current: 100, max: 100 });
+```
+
+The defaults define both the shape (fields and types) and the initial values a
+new instance gets. Components are pure data — no methods, no behavior. Behavior
+lives in [systems](/docs/core-concepts/systems/).
+
+## Built-in components
+
+The SDK ships engine components you query alongside your own, for example:
+
+- `LocalTransform` — position, rotation, and scale.
+- `Sprite` — a textured quad.
+- `Camera` — a view into the world.
+
+## Reading and writing
+
+Systems receive component data through a query. Wrap a component in `Mut(...)`
+when a system writes to it, so change detection and the renderer know the data
+was touched:
+
+```typescript
+Query(Mut(LocalTransform), Speed)
+// LocalTransform is written; Speed is read-only
+```
+
+<br />
+
+Under the hood a component is a C++ struct annotated with `ES_COMPONENT` /
+`ES_PROPERTY`; the cross-boundary layout is generated, so the TypeScript
+component and the C++ struct are always in sync.

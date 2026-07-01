@@ -1,0 +1,41 @@
+---
+title: Introduction
+description: What Estella is and why it exists.
+---
+
+Estella is a **2D game engine** with a TypeScript SDK driven by a
+high-performance **C++/WebAssembly** backend. It ships with a visual editor for
+scene editing and project management, and outputs games that run in **web
+browsers** and **WeChat MiniGames**.
+
+## Why Estella?
+
+- **Fast** — the C++ rendering pipeline is compiled to WebAssembly, not
+  interpreted JavaScript.
+- **Type-safe** — a first-class TypeScript SDK with `defineSystem`,
+  `defineComponent`, and `Query`.
+- **Data-oriented** — an Entity-Component-System architecture for scalable game
+  logic.
+- **Visual editor** — scene hierarchy, inspector, and asset browser; no JSON
+  editing.
+- **Cross-platform** — one codebase, deployed to web browsers and WeChat
+  MiniGames.
+- **Spine & Physics** — built-in Spine animation and physics support.
+
+## How it fits together
+
+| Layer | What it does |
+|-------|--------------|
+| **TypeScript SDK** (`esengine`) | The authored surface: `App`, `World`, systems, components, queries, plugins. |
+| **WasmBridge** | The single boundary between the SDK and the engine, with a generated, hash-checked memory layout. |
+| **C++ / WebAssembly** | The engine core: ECS storage, the renderer (`GfxDevice`), resources, particles, tilemaps, text. |
+
+For the full architecture, see
+[`ARCHITECTURE.md`](https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md).
+
+## Next steps
+
+- [Installation](/docs/getting-started/installation/) — get the editor or build
+  from source.
+- [Quick Start](/docs/getting-started/quick-start/) — create a project and write
+  your first system.

@@ -4,11 +4,11 @@ The published documentation site ([estellaengine.com/docs](https://estellaengine
 is built with **Astro Starlight** (guides) and **Doxygen** (C++ API reference),
 merged into a single static bundle.
 
-> 🚧 **Status:** the site sources (`docs/astro/`, `docs/landing/`) are being
-> restored into this repository. The `docs.yml` workflow and the `build.sh` /
-> `build.ps1` scripts below reference those directories and only work once the
-> sources land. Until then this document describes the **target** build and
-> publish flow.
+The Starlight site lives in `docs/astro/` and the landing page in `docs/landing/`.
+The Doxygen API version (`PROJECT_NUMBER`) is injected at build time from
+`desktop/package.json` (the single app-version source) via the `ESTELLA_VERSION`
+environment variable — see `build.sh`, `build.ps1`, and
+`.github/workflows/docs.yml`.
 
 ## Structure
 

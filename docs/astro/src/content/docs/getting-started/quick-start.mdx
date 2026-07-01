@@ -1,0 +1,49 @@
+---
+title: Quick Start
+description: Create a project and write your first system.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This walks through a first moving entity: add it in the editor, then drive it
+with a system written in TypeScript.
+
+<Steps>
+
+1. **Create a project.** In the editor, click **New Project**, name it, and
+   click **Create**. You get a default scene with a Camera entity.
+
+2. **Add an entity.** In the scene hierarchy, add an entity and give it a
+   `Sprite` and a `LocalTransform` component in the inspector.
+
+3. **Write a system.** Add a TypeScript file to your project's scripts and
+   register a system that moves everything with a `Speed` component:
+
+   ```typescript
+   import {
+       defineComponent, defineSystem, addSystem,
+       Query, Mut, Res, Time, LocalTransform
+   } from 'esengine';
+
+   const Speed = defineComponent('Speed', { value: 200 });
+
+   addSystem(defineSystem(
+       [Res(Time), Query(Mut(LocalTransform), Speed)],
+       (time, query) => {
+           for (const [entity, transform, speed] of query) {
+               transform.position.x += speed.value * time.delta;
+           }
+       }
+   ));
+   ```
+
+4. **Preview.** Add the `Speed` component to your entity, then press **F5** to
+   run the scene. The sprite moves.
+
+</Steps>
+
+<Aside type="tip">
+  `Res(Time)` gives you frame timing, `Query(...)` iterates entities that have
+  every listed component, and `Mut(...)` marks a component you intend to write.
+  See [Systems](/docs/core-concepts/systems/) for the full query vocabulary.
+</Aside>

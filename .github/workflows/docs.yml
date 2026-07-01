@@ -32,7 +32,9 @@ jobs:
 
       - name: Build Doxygen API Docs
         working-directory: docs
-        run: doxygen Doxyfile
+        run: |
+          export ESTELLA_VERSION=$(node -p "require('../desktop/package.json').version")
+          doxygen Doxyfile
 
       - name: Install Astro Dependencies
         working-directory: docs/astro

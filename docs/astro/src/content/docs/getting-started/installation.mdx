@@ -1,0 +1,62 @@
+---
+title: Installation
+description: Install the Estella editor, or build the engine from source.
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+<Tabs>
+  <TabItem label="Use the editor">
+    <Steps>
+
+    1. Download the latest editor from the
+       [releases page](https://github.com/esengine/estella/releases).
+
+    2. Install and open it, then click **New Project**.
+
+    3. Enter a project name and location, and click **Create**. The editor opens
+       a default scene with a Camera entity.
+
+    </Steps>
+
+    <Aside type="note">
+      Installers are currently unsigned, so on first launch Windows SmartScreen
+      or macOS Gatekeeper may warn about an unknown developer — choose **Run
+      anyway** / allow it in **System Settings → Privacy & Security**.
+    </Aside>
+  </TabItem>
+
+  <TabItem label="Build from source">
+    Prerequisites:
+
+    - **Node.js** ≥ 18 and **pnpm** ≥ 8
+    - **Emscripten** 5.0.0 (exact version, for CI parity)
+
+    <Steps>
+
+    1. Clone and install:
+
+       ```bash
+       git clone https://github.com/esengine/estella.git
+       cd estella
+       pnpm install
+       ```
+
+    2. Build the engine, SDK, and sync to the editor:
+
+       ```bash
+       node build-tools/cli.js build -t all
+       ```
+
+    3. Run the editor:
+
+       ```bash
+       cd desktop && pnpm dev
+       ```
+
+    </Steps>
+
+    See [CONTRIBUTING.md](https://github.com/esengine/estella/blob/master/CONTRIBUTING.md)
+    for the full build reference.
+  </TabItem>
+</Tabs>

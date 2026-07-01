@@ -1,0 +1,51 @@
+---
+title: Systems
+description: Declaring systems with defineSystem, Query, Res, and Mut.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A **system** is a function that runs each frame. You declare what it needs — a
+query over components, plus resources and events — and Estella calls it with
+exactly those, in the schedule.
+
+```typescript
+import {
+    defineComponent, defineSystem, addSystem,
+    Query, Mut, Res, Time, LocalTransform
+} from 'esengine';
+
+const Speed = defineComponent('Speed', { value: 200 });
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));
+```
+
+## Parameters
+
+A system's first argument is its **parameter list** — the data it will receive,
+in order:
+
+- **`Query(...)`** — iterate every entity that has all listed components. Each
+  iteration yields `[entity, ...components]`.
+- **`Mut(Component)`** — a component the system writes. Unwrapped components are
+  read-only.
+- **`Res(Resource)`** — a shared resource, such as `Time` for frame timing.
+
+<Aside type="caution">
+  Only wrap a component in `Mut` when you actually write it. Read-only queries
+  let the engine skip needless change-detection and let more systems run in
+  parallel.
+</Aside>
+
+## Running order
+
+Systems are organized by a **schedule**. Register a system with `addSystem`, or
+add it through a plugin on your `App`. Scene systems only run while their scene
+is active, so multiple scenes can coexist in one world without interfering.

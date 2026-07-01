@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://estellaengine.com/docs/sitemap-index.xml
