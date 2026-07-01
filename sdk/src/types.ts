@@ -10,11 +10,12 @@
 // =============================================================================
 
 /**
- * Entity identifier — a packed u32 with layout `[generation(12) | index(20)]`,
- * matching the C++ `Entity` type in `src/esengine/core/Types.hpp`.
+ * Entity identifier — a packed u32 with layout `[generation(10) | index(22)]`,
+ * matching the C++ `Entity` type in `src/esengine/core/Types.hpp`
+ * (`PackedId<22, 10>`).
  *
- * The 20-bit index is the slot in the registry (up to 1,048,575 live entities);
- * the 12-bit generation is bumped each time an index is recycled (up to 4,095
+ * The 22-bit index is the slot in the registry (up to 4,194,303 live entities);
+ * the 10-bit generation is bumped each time an index is recycled (up to 1,023
  * generations per slot before wrap). Comparing two raw Entity values thus
  * detects stale handles: a handle from a despawned entity will have a
  * different (generation, index) pair than any current live entity that reuses
