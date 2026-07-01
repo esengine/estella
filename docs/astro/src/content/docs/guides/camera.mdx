@@ -1,30 +1,89 @@
 ---
 title: Camera
-description: The camera component, following, zoom, screen/world coordinates, shake, and multiple cameras.
+description: The complete guide to the Camera component — zoom, projection, following a target, screen/world coordinates, shake, blending, and split-screen.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Every scene renders through a camera — an entity with a `Camera` component. You
-control zoom, follow a target, convert between screen and world space, shake the
-view, and switch between multiple cameras.
+Every scene is rendered through a camera: an entity with a `Camera` component. A
+camera controls zoom, projection, and which slice of the world reaches the screen.
+This guide covers configuring a camera, following a target, converting between
+screen and world space, shaking and blending the view, and running several cameras
+at once.
+
+## How it works
+
+You can have many camera entities, but one is **active** at a time. The engine
+picks the active camera by `isActive` + `priority` (the highest-priority active
+camera wins), and renders the world through it into its `viewport` (a screen
+rectangle). For a 2D game the projection is **Orthographic**, where `orthoSize` —
+the visible half-height in world units — *is your zoom*: smaller means zoomed in.
+
+<Aside type="note">
+  A camera is just an entity with a `Camera` component — nothing to install. The
+  follow, blend, and shake systems below run in the editor and the standard
+  runtime automatically.
+</Aside>
+
+## Quick start
+
+Spawn an orthographic camera and make it active:
+
+```typescript
+import { defineSystem, Commands, Transform, Camera, ProjectionType } from 'esengine';
+
+const spawnCamera = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Camera, {
+      projectionType: ProjectionType.Orthographic,
+      orthoSize: 540,        // half-height in world units → zoom
+      isActive: true,
+    });
+});
+```
 
 ## The `Camera` component
 
-Key fields for a 2D game:
+The SDK defaults are tuned for 2D (Orthographic, active, `orthoSize` 540). Move
+the camera by moving its entity's `Transform`.
 
-- `orthoSize` — the vertical half-height in world units: **this is your zoom**
-  (smaller = zoomed in).
-- `isActive` / `priority` — which camera is the active one when several exist
-  (highest priority active camera wins).
-- `viewport` (a `Vec4`, `x/y/w/h` in 0–1) — the screen rectangle the camera draws
-  to, for split-screen or picture-in-picture.
-- `clearFlags`, `pixelPerfect`, `aspectRatio`.
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `projectionType` | `ProjectionType` | `Orthographic` | `Orthographic` (2D) or `Perspective`. |
+| `orthoSize` | number | `540` | Visible half-height in world units (Orthographic) — your **zoom**. Animatable. |
+| `fov` | number | `60` | Field of view in degrees (Perspective only; 1–179). |
+| `nearPlane` | number | `0.1` | Near clip distance. |
+| `farPlane` | number | `1000` | Far clip distance. |
+| `aspectRatio` | number | `1.77` | Width / height. `0` = auto from the viewport. |
+| `isActive` | boolean | `true` | Whether this camera is eligible to be the active one. |
+| `priority` | number | `0` | Tie-breaker among active cameras (higher wins). |
+| `viewport` | Vec4 | `{0,0,1,1}` | Screen rect `x, y, w, h` in 0–1 (split-screen / PiP). |
+| `clearFlags` | `ClearFlags` | `ColorAndDepth` | What to clear first: `Nothing` / `Color` / `Depth` / `ColorAndDepth`. |
+| `pixelPerfect` | boolean | `false` | Snap to the world pixel grid for crisp pixel art (Orthographic). |
+| `showFrustum` | boolean | `false` | Editor-only: draw the camera's frustum gizmo. |
+
+## Zoom & projection
+
+`orthoSize` is the zoom control — halve it to double the on-screen scale. Because
+it's `animatable`, the smoothest way to zoom is a [tween](/docs/guides/animation/):
+
+```typescript
+import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
+
+const zoomIn = defineSystem([Res(Tween)], (tween) => {
+  tween.to(cameraEntity, TweenTarget.CameraOrthoSize, 270, 0.5);   // zoom to 2×
+});
+```
+
+Use `Perspective` only for pseudo-3D layered scenes; leave 2D games on
+`Orthographic` so sizes stay constant with depth.
 
 ## Follow a target
 
-Add a `FollowTarget` to the camera and point it at an entity. Usually you set this
-in the editor; in code:
+Add a `FollowTarget` to the camera and point it at an entity. The follow is a
+frame-rate-independent damped move with a dead zone, so the camera drifts smoothly
+and ignores tiny movements:
 
 ```typescript
 import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
@@ -32,19 +91,28 @@ import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
 const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
   for (const [cameraEntity] of cameras) {
     cmds.entity(cameraEntity).insert(FollowTarget, {
-      target: playerEntity,   // the Entity to follow (from your player Query)
+      target: playerEntity,   // the Entity to follow
       offsetY: 40,
-      deadzone: 24,           // roam this far before the camera moves
-      damping: 0.25,          // smoothing (0 = snap)
+      deadzone: 24,
+      damping: 0.25,
     });
   }
 });
 ```
 
-## Screen ↔ world
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `target` | Entity | `-1` | Entity to follow (`-1` = none). |
+| `offsetX` | number | `0` | World-space X offset from the target. |
+| `offsetY` | number | `0` | World-space Y offset from the target. |
+| `deadzone` | number | `0` | Radius (world units) the target may roam before the camera moves. |
+| `damping` | number | `0.25` | Smoothing time-constant in seconds (larger = slower; `0` = snap). |
 
-Read `CameraView` to convert coordinates — for placing entities under the cursor
-or checking what's on screen:
+## Screen ↔ world coordinates
+
+Read the `CameraView` resource to convert between the two spaces — for placing
+entities under the cursor, or testing what's visible. Each method returns `null`
+when there is no active camera:
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
@@ -53,14 +121,21 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
   const world  = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
   const screen = view.worldToScreen(x, y);                        // { x, y } | null
   const mouse  = view.getWorldMousePosition();                    // { x, y } | null
-  const bounds = view.getWorldBounds();                           // { left, right, bottom, top }
+  const bounds = view.getWorldBounds();  // { left, right, bottom, top } | null
 });
 ```
 
-## Shake the camera
+| Method | Returns | Description |
+|---|---|---|
+| `screenToWorld(sx, sy)` | `{x, y} \| null` | Screen pixel → world position. |
+| `worldToScreen(wx, wy)` | `{x, y} \| null` | World position → screen pixel. |
+| `getWorldMousePosition()` | `{x, y} \| null` | The cursor in world space. |
+| `getWorldBounds()` | `{left, right, bottom, top} \| null` | The visible world rectangle. |
 
-`shakeCamera` adds a decaying perturbation to the **rendered** view (never to the
-Transform, so it always recovers):
+## Camera shake
+
+`shakeCamera` adds a decaying perturbation to the **rendered** view only — never to
+a Transform, so the camera always recovers and the scene stays clean:
 
 ```typescript
 import { shakeCamera } from 'esengine';
@@ -68,14 +143,55 @@ import { shakeCamera } from 'esengine';
 shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
 ```
 
-## Multiple cameras
+| Option | Default | Description |
+|---|---|---|
+| `amplitude` | `12` | Peak positional offset (world units). |
+| `rotation` | `0` | Peak rotational shake (radians). |
+| `frequency` | `22` | Oscillations per second. |
+| `duration` | `0.4` | Seconds to decay to zero. |
 
-With several `Camera` entities, `isActive` + `priority` decide which is live. The
-camera director can **blend** the view from one camera to another over time
-(rather than cutting) — for cinematic hand-offs — and `viewport` lets two cameras
-share the screen for split-screen play.
+## Blending between cameras
 
-<Aside type="tip">
-  Animate `orthoSize` with a [tween](/docs/guides/animation/)
-  (`TweenTarget.CameraOrthoSize`) for a smooth zoom in/out.
-</Aside>
+`setViewTarget` switches the active view to another camera entity, optionally
+**blending** over `time` seconds instead of cutting — for cinematic hand-offs:
+
+```typescript
+import { setViewTarget, BlendCurve } from 'esengine';
+
+// Cut instantly:
+setViewTarget(app, cutsceneCamera);
+// Or ease over 1.5s:
+setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
+```
+
+`BlendCurve` values are `Linear`, `EaseIn`, `EaseOut`, and `EaseInOut`. `time <= 0`
+(or no prior view) is an instant cut. Position, zoom, and rotation interpolate;
+discrete fields (projection, viewport) snap at the midpoint.
+
+## Multiple cameras & split-screen
+
+With several `Camera` entities, `isActive` + `priority` decide which is live. Give
+each camera a sub-rectangle via `viewport` to share the screen — e.g. two-player
+split-screen, left and right halves:
+
+```typescript
+.insert(Camera, { viewport: { x: 0,   y: 0, w: 0.5, h: 1 }, isActive: true }); // left
+.insert(Camera, { viewport: { x: 0.5, y: 0, w: 0.5, h: 1 }, isActive: true }); // right
+```
+
+## Best practices
+
+- **Drive zoom through `orthoSize`**, not Transform scale — scaling the camera
+  entity distorts rendering.
+- **Follow with a dead zone** so the camera doesn't jitter on small movements;
+  raise `damping` for a lazier, cinematic feel.
+- **Shake, don't move**: use `shakeCamera` for impacts so the view always recovers.
+- **Enable `pixelPerfect`** for pixel-art games to kill sub-pixel shimmer.
+- **Prefer blending** (`setViewTarget` with `time`) over teleporting the camera for
+  scene and cutscene transitions.
+
+## See also
+
+- [Animation](/docs/guides/animation/) — tween `orthoSize` for smooth zooms.
+- [Input](/docs/guides/input/) — `screenToWorld` with the mouse for picking.
+- [UI](/docs/guides/ui/) — UI renders in screen space, independent of the camera.

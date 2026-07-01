@@ -1,25 +1,82 @@
 ---
 title: 相机
-description: 相机组件、跟随、缩放、屏幕/世界坐标、震屏与多相机。
+description: Camera 组件的完整指南——缩放、投影、跟随目标、屏幕/世界坐标、震屏、混合与分屏。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-每个场景都通过一个相机来渲染——一个带 `Camera` 组件的实体。你可以控制缩放、跟随目标、
-在屏幕与世界空间之间转换、震屏,以及在多个相机之间切换。
+每个场景都通过一个相机渲染:一个带 `Camera` 组件的实体。相机控制缩放、投影,以及世界里
+哪一片会到达屏幕。本指南涵盖配置相机、跟随目标、在屏幕与世界空间之间转换、震屏与混合视图,
+以及同时运行多个相机。
+
+## 工作原理
+
+你可以有很多相机实体,但同一时刻只有一个是**活动**的。引擎按 `isActive` + `priority`
+选出活动相机(优先级最高的活动相机胜出),并把世界渲染到它的 `viewport`(一个屏幕矩形)里。
+2D 游戏用**正交(Orthographic)**投影,此时 `orthoSize`——可见半高(世界单位)——*就是缩放*:
+越小越放大。
+
+<Aside type="note">
+  相机只是一个带 `Camera` 组件的实体——无需安装。下面的跟随、混合、震屏系统会在编辑器和
+  标准运行时里自动运行。
+</Aside>
+
+## 快速上手
+
+生成一个正交相机并设为活动:
+
+```typescript
+import { defineSystem, Commands, Transform, Camera, ProjectionType } from 'esengine';
+
+const spawnCamera = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Camera, {
+      projectionType: ProjectionType.Orthographic,
+      orthoSize: 540,        // half-height in world units → zoom
+      isActive: true,
+    });
+});
+```
 
 ## `Camera` 组件
 
-2D 游戏的关键字段:
+SDK 默认值为 2D 调好(正交、活动、`orthoSize` 540)。移动相机就是移动它实体的 `Transform`。
 
-- `orthoSize` —— 以世界单位计的垂直半高:**这就是你的缩放**(越小越放大)。
-- `isActive` / `priority` —— 存在多个相机时哪个是活动相机(优先级最高的活动相机胜出)。
-- `viewport`(一个 `Vec4`,`x/y/w/h` 取 0–1)—— 相机绘制到的屏幕矩形,用于分屏或画中画。
-- `clearFlags`、`pixelPerfect`、`aspectRatio`。
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `projectionType` | `ProjectionType` | `Orthographic` | `Orthographic`(2D)或 `Perspective`。 |
+| `orthoSize` | number | `540` | 可见半高(世界单位,正交)——你的**缩放**。可动画。 |
+| `fov` | number | `60` | 视场角(度,仅透视;1–179)。 |
+| `nearPlane` | number | `0.1` | 近裁剪距离。 |
+| `farPlane` | number | `1000` | 远裁剪距离。 |
+| `aspectRatio` | number | `1.77` | 宽 / 高。`0` = 从视口自动推算。 |
+| `isActive` | boolean | `true` | 该相机是否有资格成为活动相机。 |
+| `priority` | number | `0` | 活动相机之间的优先级(高者胜)。 |
+| `viewport` | Vec4 | `{0,0,1,1}` | 屏幕矩形 `x, y, w, h`(0–1,分屏/画中画)。 |
+| `clearFlags` | `ClearFlags` | `ColorAndDepth` | 渲染前清什么:`Nothing` / `Color` / `Depth` / `ColorAndDepth`。 |
+| `pixelPerfect` | boolean | `false` | 吸附到世界像素网格,让像素画清晰(正交)。 |
+| `showFrustum` | boolean | `false` | 仅编辑器:绘制相机的视锥 gizmo。 |
+
+## 缩放与投影
+
+`orthoSize` 是缩放控制——减半即让屏上尺寸翻倍。因为它是 `animatable` 的,最平滑的缩放方式
+是用一个 [tween](/docs/zh-cn/guides/animation/):
+
+```typescript
+import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
+
+const zoomIn = defineSystem([Res(Tween)], (tween) => {
+  tween.to(cameraEntity, TweenTarget.CameraOrthoSize, 270, 0.5);   // zoom to 2×
+});
+```
+
+`Perspective` 只用于伪 3D 的分层场景;2D 游戏保持 `Orthographic`,尺寸才不随深度变化。
 
 ## 跟随目标
 
-给相机加一个 `FollowTarget` 并指向某个实体。通常在编辑器里设置;用代码:
+给相机加一个 `FollowTarget` 并指向一个实体。跟随是帧率无关的阻尼移动,带一个死区,所以相机
+平滑漂移并忽略细小移动:
 
 ```typescript
 import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
@@ -27,18 +84,27 @@ import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
 const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
   for (const [cameraEntity] of cameras) {
     cmds.entity(cameraEntity).insert(FollowTarget, {
-      target: playerEntity,   // 要跟随的实体(来自你的玩家 Query)
+      target: playerEntity,   // the Entity to follow
       offsetY: 40,
-      deadzone: 24,           // 游走超过这个距离相机才移动
-      damping: 0.25,          // 平滑(0 = 直接吸附)
+      deadzone: 24,
+      damping: 0.25,
     });
   }
 });
 ```
 
-## 屏幕 ↔ 世界
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `-1` | 要跟随的实体(`-1` = 无)。 |
+| `offsetX` | number | `0` | 相对目标的世界空间 X 偏移。 |
+| `offsetY` | number | `0` | 相对目标的世界空间 Y 偏移。 |
+| `deadzone` | number | `0` | 目标可漫游而相机不动的半径(世界单位)。 |
+| `damping` | number | `0.25` | 平滑时间常数(秒,越大越慢;`0` = 立即吸附)。 |
 
-读 `CameraView` 转换坐标——用于把实体放到光标处,或判断什么在屏幕上:
+## 屏幕 ↔ 世界坐标
+
+读 `CameraView` 资源在两个空间之间转换——用于把实体放到光标下,或检测什么可见。无活动相机
+时每个方法返回 `null`:
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
@@ -47,13 +113,21 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
   const world  = view.screenToWorld(input.mouseX, input.mouseY);  // { x, y } | null
   const screen = view.worldToScreen(x, y);                        // { x, y } | null
   const mouse  = view.getWorldMousePosition();                    // { x, y } | null
-  const bounds = view.getWorldBounds();                           // { left, right, bottom, top }
+  const bounds = view.getWorldBounds();  // { left, right, bottom, top } | null
 });
 ```
 
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `screenToWorld(sx, sy)` | `{x, y} \| null` | 屏幕像素 → 世界位置。 |
+| `worldToScreen(wx, wy)` | `{x, y} \| null` | 世界位置 → 屏幕像素。 |
+| `getWorldMousePosition()` | `{x, y} \| null` | 世界空间里的光标。 |
+| `getWorldBounds()` | `{left, right, bottom, top} \| null` | 可见的世界矩形。 |
+
 ## 震屏
 
-`shakeCamera` 给**渲染**视图加一个衰减扰动(不碰 Transform,所以总能恢复):
+`shakeCamera` 只给**渲染的**视图加一个衰减扰动——绝不碰 Transform,所以相机总会恢复,场景
+保持干净:
 
 ```typescript
 import { shakeCamera } from 'esengine';
@@ -61,13 +135,50 @@ import { shakeCamera } from 'esengine';
 shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
 ```
 
-## 多相机
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `amplitude` | `12` | 峰值位置偏移(世界单位)。 |
+| `rotation` | `0` | 峰值旋转震动(弧度)。 |
+| `frequency` | `22` | 每秒振荡次数。 |
+| `duration` | `0.4` | 衰减到零的秒数。 |
 
-存在多个 `Camera` 实体时,`isActive` + `priority` 决定哪个生效。相机导演器可以在两个相机
-之间随时间**混合**视图(而不是硬切)——用于电影化的镜头交接;`viewport` 则让两个相机
-共享屏幕做分屏。
+## 相机间混合
 
-<Aside type="tip">
-  用[补间](/docs/zh-cn/guides/animation/)(`TweenTarget.CameraOrthoSize`)动画化
-  `orthoSize`,即可实现平滑的推近/拉远。
-</Aside>
+`setViewTarget` 把活动视图切到另一个相机实体,可选地在 `time` 秒里**混合**而非硬切——用于
+电影化的镜头交接:
+
+```typescript
+import { setViewTarget, BlendCurve } from 'esengine';
+
+// Cut instantly:
+setViewTarget(app, cutsceneCamera);
+// Or ease over 1.5s:
+setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
+```
+
+`BlendCurve` 取值为 `Linear`、`EaseIn`、`EaseOut`、`EaseInOut`。`time <= 0`(或没有先前视图)
+即硬切。位置、缩放、旋转会插值;离散字段(投影、视口)在中点翻转。
+
+## 多相机与分屏
+
+有多个 `Camera` 实体时,`isActive` + `priority` 决定谁是活动的。用 `viewport` 给每个相机一个
+子矩形来共享屏幕——例如双人分屏,左右各半:
+
+```typescript
+.insert(Camera, { viewport: { x: 0,   y: 0, w: 0.5, h: 1 }, isActive: true }); // left
+.insert(Camera, { viewport: { x: 0.5, y: 0, w: 0.5, h: 1 }, isActive: true }); // right
+```
+
+## 最佳实践
+
+- **用 `orthoSize` 驱动缩放**,别用 Transform 缩放——缩放相机实体会扭曲渲染。
+- **跟随带死区**,相机才不会因细小移动抖动;调大 `damping` 得到更慵懒、电影化的感觉。
+- **震屏而非移动**:冲击用 `shakeCamera`,视图总能恢复。
+- **像素画开 `pixelPerfect`** 消除亚像素抖动。
+- 场景与过场切换**优先用混合**(带 `time` 的 `setViewTarget`),而不是瞬移相机。
+
+## 参见
+
+- [动画](/docs/zh-cn/guides/animation/) —— 用 tween 缩放 `orthoSize`。
+- [输入](/docs/zh-cn/guides/input/) —— 用鼠标配 `screenToWorld` 做拾取。
+- [UI](/docs/zh-cn/guides/ui/) —— UI 在屏幕空间渲染,与相机无关。
