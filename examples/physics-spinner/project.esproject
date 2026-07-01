@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Physics Spinner",
+  "description": "Revolute joints and continuous rotation with the physics engine.",
+  "tag": "Physics",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

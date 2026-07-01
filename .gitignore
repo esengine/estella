@@ -102,3 +102,10 @@ docs/REARCH_*.md
 
 # Editor-local workspace cache (last scene, panel layout) — never commit
 **/.esengine/workspace.json
+
+# Generated per-project engine artifacts (cache, play realm, staged SDK) — never commit.
+# Tracked config such as .esengine/asset-export.json is kept.
+**/.esengine/cache/
+**/.esengine/play/
+**/.esengine/sdk/
+**/.esengine/editor/

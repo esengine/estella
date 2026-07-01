@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Sprite Animation",
+  "description": "Frame-based sprite animation driven by .esanim clips and a state switcher.",
+  "tag": "Animation",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

@@ -20,7 +20,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": -240, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
         { "type": "SpriteAnimator", "data": {
           "clip": "assets/animations/walk.esanim",
           "speed": 0.8
@@ -36,7 +36,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": -120, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
         { "type": "SpriteAnimator", "data": {
           "clip": "assets/animations/idle.esanim"
         }},
@@ -51,7 +51,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
         { "type": "SpriteAnimator", "data": {
           "clip": "assets/animations/walk.esanim",
           "speed": 1.2
@@ -67,7 +67,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 120, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
         { "type": "SpriteAnimator", "data": {
           "clip": "assets/animations/idle.esanim",
           "speed": 1.4
@@ -83,7 +83,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 240, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
         { "type": "SpriteAnimator", "data": {
           "clip": "assets/animations/walk.esanim",
           "speed": 1.6

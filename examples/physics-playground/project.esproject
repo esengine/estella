@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Physics Playground",
+  "description": "Drop balls and crates into a rigid-body sandbox.",
+  "tag": "Physics",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

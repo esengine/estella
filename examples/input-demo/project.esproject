@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Input Demo",
+  "description": "Keyboard, mouse and pointer input driving a ship with a motion trail.",
+  "tag": "Input",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

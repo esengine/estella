@@ -1,8 +1,8 @@
 {
   "formatVersion": "1",
-  "name": "Post-Processing",
-  "description": "Full-screen post-processing: bloom, vignette and color grading.",
-  "tag": "Effects",
+  "name": "Tilemap Demo",
+  "description": "A tile-based level painted from a Kenney tileset atlas and rendered by the tilemap layer.",
+  "tag": "Tilemap",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

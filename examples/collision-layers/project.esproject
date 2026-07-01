@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Collision Layers",
+  "description": "Layer-based collision filtering between groups of bodies.",
+  "tag": "Physics",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

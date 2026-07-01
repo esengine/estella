@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Event System",
+  "description": "Decoupled gameplay with typed events: collect, score and react.",
+  "tag": "ECS",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

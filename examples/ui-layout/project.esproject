@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "UI Layout",
+  "description": "Flexbox-style responsive UI layout.",
+  "tag": "UI",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

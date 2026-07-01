@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "ECS Basics",
+  "description": "Spawn, move, bounce and expire entities to learn the core ECS loop.",
+  "tag": "ECS",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

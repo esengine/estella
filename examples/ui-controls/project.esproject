@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "UI Controls",
+  "description": "Buttons, sliders, toggles and other interactive widgets.",
+  "tag": "UI",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

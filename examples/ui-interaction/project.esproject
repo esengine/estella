@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "UI Interaction",
+  "description": "Dragging, focus and pointer interaction in the UI system.",
+  "tag": "UI",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

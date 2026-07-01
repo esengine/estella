@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Tween Animation",
+  "description": "Ease positions, scales and colors over time with the tween system.",
+  "tag": "Animation",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

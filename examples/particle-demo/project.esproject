@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Particle Effects",
+  "description": "A configurable particle emitter with additive blending.",
+  "tag": "Effects",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Space Shooter",
+  "description": "A vertical shmup with prefabs, a HUD and a difficulty ramp.",
+  "tag": "Game",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

@@ -1,6 +1,8 @@
 {
   "formatVersion": "1",
   "name": "Platformer",
+  "description": "A tiny platformer — run, jump and collect coins.",
+  "tag": "Game",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {
