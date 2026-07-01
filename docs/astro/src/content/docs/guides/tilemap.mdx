@@ -1,20 +1,20 @@
 ---
 title: Tilemaps
-description: Load Tiled maps, or build tile layers with Res(Tilemaps).
+description: Load Tiled maps or build, edit, and animate tile layers in code.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella renders tile layers in the C++/WebAssembly core. There are two ways in:
-a high-level component that loads a whole map from a file, and a low-level API
-for building and editing layers yourself.
+Estella renders tile layers in the C++/WebAssembly core. Load a whole map from a
+Tiled file, or build and edit layers yourself with the `Tilemaps` resource —
+including multi-tileset layers, per-tile animation, and infinite chunked maps.
 
 ## High-level: load a Tiled map
 
 The `Tilemap` component points an entity at a Tiled JSON (`.tmj`) file via its
-one field, `source`. You usually add it in the editor and pick the file; the
-runtime then loads the map and spawns a `TilemapLayer` per layer. To do it
-procedurally, spawn from a system that takes `Commands()`:
+one field, `source`. You usually add it in the editor; the runtime loads the map
+and spawns a `TilemapLayer` per layer (with `cellSize`, tileset texture,
+`renderLayer`, `tintColor`, `opacity`, `parallaxFactor`). In code:
 
 ```typescript
 import { defineSystem, Commands, Tilemap } from 'esengine';
@@ -24,45 +24,72 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 });
 ```
 
-## Low-level: build layers with `Res(Tilemaps)`
+## Build a layer in code
 
-The `Tilemaps` resource is the tilemap runtime API — read it with `Res(Tilemaps)`
-and call it with a layer entity. Spawn an entity, initialise a layer on it, then
-write tiles:
+`Tilemaps` is the runtime API. Spawn an entity, initialise a layer, then fill it —
+tile ids are `1`-based (`0` = empty):
 
 ```typescript
 import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
 
-const buildLayer = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
-  const layer = cmds
-    .spawn()
-    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-    .id();                                    // the layer entity
+const build = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
+  const layer = cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } }).id();
 
-  tilemap.initLayer(layer, 32, 32, 16, 16);   // 32x32 tiles, 16px cells
-
-  const tiles = new Uint16Array(32 * 32);      // tile ids (0 = empty)
-  tiles[0] = 1;
-  tilemap.setTiles(layer, tiles);
-
+  tilemap.initLayer(layer, 32, 32, 16, 16);    // 32×32 tiles, 16px cells
+  tilemap.setTiles(layer, new Uint16Array(32 * 32));   // bulk load
   tilemap.setTile(layer, 5, 3, 7);             // one tile
-  tilemap.flipTile(layer, 5, 3, true, false, false);   // flip horizontally
-
-  tilemap.setTileAnimation(layer, 10, [        // animate tile id 10
-    { tileId: 10, duration: 100 },
-    { tileId: 11, duration: 100 },
-  ]);
+  tilemap.fillRect(layer, 0, 0, 32, 1, 2);     // a row of tile 2
 });
 ```
 
-Other methods: `getTile`, `fillRect`, `rotateTile`, `initInfiniteLayer` (chunked
-infinite maps), `setTilesets`, `setTint`, `setVisible`, and `tileToWorld` /
-`worldToTile`. (The same object is also exported directly as `TilemapAPI` for use
-outside a system.)
+## Edit and transform tiles
+
+```typescript
+tilemap.getTile(layer, 5, 3);                       // read a tile id
+tilemap.flipTile(layer, 5, 3, true, false, false);  // flipH, flipV, flipDiagonal
+tilemap.rotateTile(layer, 5, 3, 90);                // degrees
+tilemap.tileToWorld(layer, 5, 3, 0, 0);             // → { x, y }
+tilemap.worldToTile(layer, wx, wy, 0, 0);           // → { x, y }
+```
+
+## Multiple tilesets
+
+One layer can draw from several tilesets. Give it a slot table — each slot maps a
+`firstId` range to a texture and its column count:
+
+```typescript
+tilemap.setTilesets(layer, [
+  { firstId: 1,   textureHandle: grassTex, columns: 8 },
+  { firstId: 256, textureHandle: propsTex, columns: 8 },
+]);
+```
+
+## Tile animation
+
+Set an animation on a tile id once — the plugin advances it every frame:
+
+```typescript
+tilemap.setTileAnimation(layer, 10, [
+  { tileId: 10, duration: 100 },
+  { tileId: 11, duration: 100 },
+]);
+```
+
+## Infinite (chunked) maps
+
+For large or streaming worlds, use an infinite layer and write chunk by chunk:
+
+```typescript
+tilemap.initInfiniteLayer(layer, 16, 16);
+tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
+```
+
+`exportChunks` / `importChunks` serialize the sparse chunk data.
 
 <Aside type="note">
   Tile **collision is play-mode only** — static colliders are spawned from
-  collidable tiles (marked in the `.estileset` tileset) when the scene runs; they
-  are never in the edit world or serialized. Tile animations advance
-  automatically once set — you call `setTileAnimation` once.
+  collidable tiles (marked in the `.estileset` tileset, which also carries
+  per-tile animation and terrain/auto-tile data) when the scene runs; they are
+  never in the edit world or serialized. Other methods: `setTint`, `setVisible`,
+  `setRenderProps`, `rotateTile`.
 </Aside>
