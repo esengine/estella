@@ -1,17 +1,22 @@
 ---
 title: 动画
-description: 精灵表、补间(含序列)与动画状态机。
+description: Estella 三套动画系统的完整指南——精灵表播放、带序列的补间(tween),以及参数驱动的动画状态机。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 有三套动画系统,各司其职:**精灵动画**做逐帧美术,**补间**做属性插值,
-**动画状态机**做由参数驱动的角色动画。
+Estella 有三套动画系统,各司其职:
+
+- **精灵动画** —— 逐帧的精灵表播放(`SpriteAnimator`)。
+- **补间(Tween)** —— 用缓动随时间插值任意属性(`Tween`)。
+- **动画状态机** —— 参数驱动的角色动画(`Animator`)。
+
+它们可以组合:状态机可以驱动精灵片段,补间可以在精灵循环的同时给 UI 元素加"手感"。
 
 ## 精灵动画
 
-`SpriteAnimator` 组件播放精灵表片段。它的字段有 `clip`(当前片段名)、`speed`、
-`playing`、`loop`,以及只读的 `currentFrame` 和 `frameTimer`。写这个组件即可切换片段:
+`SpriteAnimator` 组件播放命名的精灵表片段(作为 `anim-clip` 资源编辑)。通过 `Mut` 查询
+写组件来切换片段:
 
 ```typescript
 import { defineSystem, Query, Mut, SpriteAnimator } from 'esengine';
@@ -25,24 +30,42 @@ const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
 });
 ```
 
-想更精细,`SpriteAnimation` 资源可以跳到指定帧或命名 label,并在运行时注册片段:
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `clip` | asset | `''` | 当前片段(一个 `anim-clip` 资源名)。 |
+| `speed` | number | `1` | 播放速度倍率。 |
+| `playing` | boolean | `true` | 播放是否在推进。 |
+| `loop` | boolean | `true` | 循环片段 vs 停在最后一帧。 |
+| `enabled` | boolean | `true` | 关掉即冻结动画器。 |
+| `currentFrame` | number | `0` | 只读:正在显示的帧索引。 |
+| `frameTimer` | number | `0` | 只读:当前帧已累积的时间。 |
+
+要更精细地控制,`SpriteAnimation` 资源可跳到指定帧或命名标签,并在运行时注册片段:
 
 ```typescript
 import { defineSystem, Query, Mut, Res, SpriteAnimator, SpriteAnimation } from 'esengine';
 
 const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q, sprites) => {
   for (const [entity, animator] of q) {
-    sprites.gotoFrame(animator, 0, true);      // 帧索引,并播放
-    sprites.gotoLabel(animator, 'attack', true);
+    sprites.gotoFrame(animator, 0, true);         // frame index, and play
+    sprites.gotoLabel(animator, 'attack', true);  // named label, and play
   }
 });
 ```
+
+| 方法 | 说明 |
+|---|---|
+| `gotoFrame(animator, index, andPlay?)` | 跳到某帧索引(可选是否开始播放)。 |
+| `gotoLabel(animator, label, andPlay?)` | 跳到片段里的命名标签。 |
+| `registerClip(clip)` | 在运行时注册一个 `SpriteAnimClip`。 |
+| `getClip(name)` | 查找一个已注册的片段。 |
 
 片段可以携带**帧事件**(`SpriteAnimEvent`),播放到某帧时触发——用于脚步声或命中帧。
 
 ## 补间(Tween)
 
-`Tween` 资源在一段时长内把某个属性从起始值插值到结束值:
+`Tween` 资源在一段时长内把属性从一个值插值到另一个值。`to(entity, target, from, to,
+duration, options?)` 返回一个句柄:
 
 ```typescript
 import { defineSystem, Res, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
@@ -52,57 +75,111 @@ const animate = defineSystem([Res(Tween)], (tween) => {
     easing: EasingType.EaseInOutQuad,
     delay: 0.2,
     loop: LoopMode.PingPong,
-    loopCount: 3,          // -1 = 永远
+    loopCount: 3,          // -1 = forever
   });
 });
 ```
 
-**目标**(`TweenTarget`):`PositionX` / `PositionY` / `PositionZ`、`ScaleX` /
-`ScaleY`、`RotationZ`、`ColorR` / `ColorG` / `ColorB` / `ColorA`、`SizeX` /
-`SizeY`,以及 `CameraOrthoSize`。`EasingType` 提供常见曲线,句柄还可以用
-`.bezier(p1x, p1y, p2x, p2y)` 自定义三次贝塞尔。
+### 目标
+
+`TweenTarget` 选择要驱动的属性:
+
+| 分组 | 取值 |
+|---|---|
+| 位置 | `PositionX`、`PositionY`、`PositionZ` |
+| 缩放 | `ScaleX`、`ScaleY` |
+| 旋转 | `RotationZ` |
+| 颜色 | `ColorR`、`ColorG`、`ColorB`、`ColorA` |
+| 尺寸 | `SizeX`、`SizeY` |
+| 相机 | `CameraOrthoSize` |
+
+### 选项
+
+| 选项 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `easing` | `EasingType` | `Linear` | 缓动曲线(见下)。 |
+| `delay` | number | `0` | 开始前等待的秒数。 |
+| `loop` | `LoopMode` | `None` | `None` / `Restart` / `PingPong`。 |
+| `loopCount` | number | `0` | 循环次数;`-1` = 永远。 |
+
+`EasingType` 覆盖 `Linear`、quad/cubic/back/elastic 系列(`EaseIn*` / `EaseOut*` /
+`EaseInOut*`)、`EaseOutBounce`、`Step` 和 `CubicBezier`——自定义贝塞尔用句柄的
+`.bezier(p1x, p1y, p2x, p2y)`。
 
 ### 序列与控制
 
-组合补间,并取消或暂停:
+返回的 `TweenHandle` 可链式串接并控制播放:
 
 ```typescript
-// 链式:一个接一个。
-tween.to(e, TweenTarget.ScaleX, 1, 1.4, 0.15).then(
-  tween.to(e, TweenTarget.ScaleX, 1.4, 1, 0.15)
-);
+// Chain: run one after another (a squash-and-stretch pop).
+tween.to(e, TweenTarget.ScaleX, 1, 1.4, 0.15)
+  .then(tween.to(e, TweenTarget.ScaleX, 1.4, 1, 0.15))
+  .bezier(0.2, 0, 0, 1);
 
-tween.parallel([...]);      // 同时运行多个(一个组)
-tween.sequence([...]);      // 按顺序运行(工厂函数)
-tween.delay(0.5);           // 一段定时间隔
+tween.parallel([...]);      // run several at once (a group)
+tween.sequence([...]);      // run tween factories in order
+tween.delay(0.5);           // a timed gap
 
-tween.cancel(handle);       // 停止一个
-tween.cancelAll(entity);    // 停止某实体上的全部
+tween.cancel(handle);       // stop one
+tween.cancelAll(entity);    // stop everything on an entity
 ```
 
-`tween.value(...)` 补间一个普通数字(而非组件目标)——用于通过回调驱动自定义逻辑。
+| 方法 | 说明 |
+|---|---|
+| `to(entity, target, from, to, duration, opts?)` | 补间一个组件属性;返回 `TweenHandle`。 |
+| `value(from, to, duration, cb, opts?)` | 补间一个普通数值,每帧交给 `cb`。 |
+| `parallel(tweens)` | 把多个补间作为一组同时运行。 |
+| `sequence(factories)` | 依次运行补间工厂。 |
+| `delay(seconds)` | 一段空的计时间隔(用于序列)。 |
+| `cancel(handle)` / `cancelAll(entity)` | 停止一个补间,或某实体上的全部。 |
+
+`TweenHandle` 有 `.then(next)`、`.bezier(...)`、`.pause()`、`.resume()` 和 `.cancel()`。
 
 ## 动画状态机
 
-对于角色动画,动画控制器(在编辑器里编排)持有状态、过渡和由**参数**驱动的 1D 混合树。
-运行时你通过 `Res(AnimatorController)` 设置参数;控制器解析出当前状态、片段与混合:
+角色动画用一个**动画控制器**:它持有状态、转移和由命名**参数**驱动的 1D 混合树。在编辑器
+里编辑它(或用代码注册),给实体加一个指明控制器名的 `Animator` 组件,然后每帧通过
+`Res(AnimatorController)` 设置参数——控制器会解析出当前状态、片段与混合:
 
 ```typescript
-import { defineSystem, Query, Res, SpriteAnimator, AnimatorController } from 'esengine';
+import { defineSystem, Query, Res, Animator, AnimatorController } from 'esengine';
 
-const drive = defineSystem([Query(SpriteAnimator), Res(AnimatorController)], (q, animator) => {
+const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim) => {
   for (const [entity] of q) {
-    animator.setFloat(entity, 'speed', 4.2);     // 驱动 1D 混合 / 过渡
-    animator.setBool(entity, 'grounded', true);
-    animator.setTrigger(entity, 'jump');         // 一次性;用 resetTrigger 清除
-    const speed = animator.getFloat(entity, 'speed');
+    anim.setFloat(entity, 'speed', 4.2);     // drives a 1D blend / transition
+    anim.setBool(entity, 'grounded', true);
+    anim.setTrigger(entity, 'jump');         // one-shot; resetTrigger to clear
+    const speed = anim.getFloat(entity, 'speed');
   }
 });
 ```
 
-控制器可以同时驱动精灵动画和 Spine 动画,因此一个状态机就能管一整个角色。
+| `Animator` 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `controller` | string | `''` | 已注册的控制器名。 |
+| `currentState` | string | `''` | 活动状态(从控制器的初始状态种入)。 |
+| `enabled` | boolean | `true` | 关掉即冻结状态机。 |
+
+| `AnimatorController` 方法 | 说明 |
+|---|---|
+| `setFloat(entity, name, value)` | 设置 float 参数(混合 / 转移条件)。 |
+| `setBool(entity, name, value)` | 设置 bool 参数。 |
+| `setTrigger(entity, name)` | 触发一次性 trigger。 |
+| `resetTrigger(entity, name)` | 在被消费前清除一个 trigger。 |
+| `getFloat(entity, name)` / `getBool(entity, name)` | 读回一个参数。 |
+
+控制器可以同时驱动精灵**和** [Spine](/docs/zh-cn/guides/spine/) 动画,所以一套状态机就能
+管一整个角色。
+
+## 如何选择
 
 <Aside type="tip">
-  一次性的 UI/手感(按钮弹跳、淡入淡出)用**补间**;循环的美术用**精灵动画**;当多个
-  片段之间的过渡取决于游戏参数时,用**状态机**。
+  一次性的 UI/手感(按钮弹跳、淡入淡出)用**补间**,循环美术用**精灵动画**,当多个片段之间的
+  转移依赖玩法参数时用**状态机**。
 </Aside>
+
+## 参见
+
+- [Spine 动画](/docs/zh-cn/guides/spine/) —— 骨骼动画,也能被状态机驱动。
+- [时间轴](/docs/zh-cn/guides/timeline/) —— 关键帧过场与序列化事件。
+- [相机](/docs/zh-cn/guides/camera/) —— 补间 `CameraOrthoSize` 做平滑缩放。
