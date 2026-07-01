@@ -1,0 +1,48 @@
+---
+title: Scenes
+description: Load, switch, and stack scenes with Res(SceneManager).
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A project is organized into scenes. They all share one ECS world; the
+`SceneManager` resource loads, switches, and unloads them, and gates each
+scene's systems to run only while it's active.
+
+## Switch scenes
+
+`switchTo` replaces the active scene (with an optional transition). It's async —
+`await` it:
+
+```typescript
+import { defineSystem, Res, SceneManager } from 'esengine';
+
+const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
+  await scenes.switchTo('level2');
+});
+```
+
+## Additive scenes
+
+Load a scene **on top** of the current one — a HUD, a pause menu, a streamed
+region — without unloading what's underneath:
+
+```typescript
+await scenes.loadAdditive('pause-menu');
+// …later
+await scenes.unload('pause-menu');
+```
+
+## Query scene state
+
+- `scenes.getActive()` — the active scene name; `scenes.getActiveScenes()` for
+  all active (additive) scenes.
+- `scenes.isLoaded(name)`, `scenes.isActive(name)`.
+- `scenes.isTransitioning()` — true during a `switchTo` transition.
+
+<Aside type="note">
+  Because scenes share one world, an entity can outlive a scene switch if you
+  don't tag it to the scene. Systems declared in a scene only run while that
+  scene is active, so an additive HUD scene and the gameplay scene update
+  independently.
+</Aside>

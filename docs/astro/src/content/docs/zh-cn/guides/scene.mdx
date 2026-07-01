@@ -1,0 +1,43 @@
+---
+title: 场景
+description: 用 Res(SceneManager) 加载、切换和叠加场景。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+一个项目由若干场景组成。它们共享同一个 ECS 世界;`SceneManager` 资源负责加载、切换、
+卸载它们,并把每个场景的系统限制为只在该场景激活时运行。
+
+## 切换场景
+
+`switchTo` 会替换当前活动场景(可带过渡)。它是异步的——用 `await`:
+
+```typescript
+import { defineSystem, Res, SceneManager } from 'esengine';
+
+const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
+  await scenes.switchTo('level2');
+});
+```
+
+## 叠加场景
+
+把一个场景加载到当前场景**之上**——HUD、暂停菜单、流式加载的区域——而不卸载下面的:
+
+```typescript
+await scenes.loadAdditive('pause-menu');
+// ……稍后
+await scenes.unload('pause-menu');
+```
+
+## 查询场景状态
+
+- `scenes.getActive()` —— 活动场景名;`scenes.getActiveScenes()` 返回所有活动
+  (叠加)场景。
+- `scenes.isLoaded(name)`、`scenes.isActive(name)`。
+- `scenes.isTransitioning()` —— `switchTo` 过渡期间为 true。
+
+<Aside type="note">
+  由于场景共享同一个世界,如果你不把实体标记到场景上,它可能在场景切换后仍然存在。
+  场景里声明的系统只在该场景激活时运行,所以叠加的 HUD 场景和游戏场景各自独立更新。
+</Aside>

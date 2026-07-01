@@ -57,6 +57,7 @@ export default defineConfig({
             { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'guides/particle' },
             { label: 'Post-processing', translations: { 'zh-CN': '后处理' }, slug: 'guides/postprocess' },
             { label: 'Assets', translations: { 'zh-CN': '资源' }, slug: 'guides/assets' },
+            { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scene' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
           ],
         },
