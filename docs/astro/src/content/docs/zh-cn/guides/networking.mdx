@@ -1,12 +1,13 @@
 ---
 title: 联网
-description: 用 createSocket 的跨平台 WebSocket,以及 NetChannel。
+description: 联网完整指南——跨平台 WebSocket(createSocket)与类型化的 NetChannel 消息/RPC 层。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 自带一个**跨平台 WebSocket**。`createSocket` 会为当前平台返回正确的实现——Web
-上是浏览器的 `WebSocket`,微信小游戏上是 `wx.connectSocket`——都藏在同一套 API 后面。
+Estella 附带一个**跨平台 WebSocket**。`createSocket` 为平台返回正确的实现——Web 上是浏览器
+`WebSocket`,微信小游戏上是 `wx.connectSocket`——都在一套 API 之后。在它之上,`NetChannel`
+增加类型化消息与请求/响应。
 
 ## 连接与收发消息
 
@@ -19,26 +20,64 @@ socket.onOpen = () => {
   socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
 };
 socket.onMessage = (data) => {
-  const msg = JSON.parse(data as string);
-  // 处理来自服务器的消息
+  const msg = JSON.parse(data as string);   // a message from the server
 };
-socket.onClose = (code, reason) => { /* 重连? */ };
+socket.onClose = (code, reason) => { /* reconnect? */ };
 socket.onError = (err) => { /* … */ };
 
 socket.connect();
 ```
 
-- `send(data)` 接受 `string` 或 `ArrayBuffer`;在套接字 `open` 之前发送的内容会被排队,
-  连接后再一并发出。
-- `readyState` 为 `'connecting' | 'open' | 'closing' | 'closed'`。
-- `close(code?, reason?)` 断开连接。
+| 成员 | 说明 |
+|---|---|
+| `connect()` | 打开连接。 |
+| `send(data)` | 发送 `string` 或 `ArrayBuffer`;`open` 之前发送的数据会排队并在连接时冲刷。 |
+| `close(code?, reason?)` | 断开连接。 |
+| `readyState` | `'connecting' \| 'open' \| 'closing' \| 'closed'`。 |
+| `onOpen` / `onMessage` / `onClose` / `onError` | 生命周期回调。 |
 
-## 更高层的通道
+## 类型化消息与 RPC —— `NetChannel`
 
-`NetChannel` 在传输之上封装了**带类型的消息处理**与**请求/响应**(`MessageHandler` /
-`RequestHandler`)——当你想要路由消息和 RPC 风格的调用、而不是裸套接字时,用它。
+`NetChannel` 用**按类型路由的类型化消息**与**请求/响应**包裹一个传输,于是你按消息 `type`
+发送,而不必每帧手动解析:
+
+```typescript
+import { NetChannel } from 'esengine';
+
+const channel = new NetChannel(socket);
+
+// Fire-and-forget events, routed by type.
+const off = channel.on<{ x: number; y: number }>('move', (p) => { /* … */ });
+channel.send('move', { x: 3, y: 5 });
+
+// Request/response (RPC): resolves with the reply, rejects on timeout/remote error.
+channel.handle<{ id: string }, { hp: number }>('getStats', async (req) => {
+  return { hp: 100 };
+});
+const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 5000);
+```
+
+| 方法 | 说明 |
+|---|---|
+| `on(type, handler)` | 订阅一个消息类型;返回取消订阅函数。 |
+| `send(type, payload)` | 发送一个类型化事件。 |
+| `handle(type, handler)` | 注册一个 RPC 处理器;返回取消订阅函数。 |
+| `request(type, payload, timeoutMs?)` | 发送一个 RPC;以回复 resolve。 |
+| `dispose(reason?)` | 拆除通道并 reject 挂起的请求。 |
+
+## 最佳实践
+
+- 超出简单套接字的场景**用 `NetChannel`**——按类型路由和 RPC 胜过一个巨大的 `onMessage` switch。
+- **设置 RPC 超时**,让丢失的回复 reject 而不是永远挂起。
+- **把收到的状态推入组件**(用 `Commands`),让玩法留在 ECS。
+- **连接前排队是自动的**——`connect()` 之后就能立即 `send`。
 
 <Aside type="note">
-  联网是普通类,不是 ECS 资源——在适合你 App 的地方创建套接字,并从它的回调驱动游戏
-  逻辑(例如用 `Commands` 把收到的状态写进组件)。
+  联网是普通类,而非 ECS 资源——在适合你应用的地方创建套接字/通道,并从它的回调驱动玩法。
+  实体同步 / 回滚是你在 `NetChannel` 之上构建的更大一层。
 </Aside>
+
+## 参见
+
+- [微信小游戏](/docs/zh-cn/guides/wechat/) —— 那里套接字用 `wx.connectSocket`。
+- [存档与读档](/docs/zh-cn/guides/save/) —— 在会话之间本地持久化状态。

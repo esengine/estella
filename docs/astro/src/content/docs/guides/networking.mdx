@@ -1,15 +1,16 @@
 ---
 title: Networking
-description: Cross-platform WebSocket with createSocket, plus NetChannel.
+description: The complete networking guide — the cross-platform WebSocket (createSocket) and the typed NetChannel message/RPC layer.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella ships a **cross-platform WebSocket**. `createSocket` returns the right
-implementation for the platform — a browser `WebSocket` on the web, and
-`wx.connectSocket` on WeChat MiniGames — behind one API.
+implementation for the platform — a browser `WebSocket` on the web, `wx.connectSocket`
+on WeChat MiniGames — behind one API. On top of it, `NetChannel` adds typed messages
+and request/response.
 
-## Connect and exchange messages
+## Connect & exchange messages
 
 ```typescript
 import { createSocket } from 'esengine';
@@ -20,8 +21,7 @@ socket.onOpen = () => {
   socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
 };
 socket.onMessage = (data) => {
-  const msg = JSON.parse(data as string);
-  // handle a message from the server
+  const msg = JSON.parse(data as string);   // a message from the server
 };
 socket.onClose = (code, reason) => { /* reconnect? */ };
 socket.onError = (err) => { /* … */ };
@@ -29,19 +29,58 @@ socket.onError = (err) => { /* … */ };
 socket.connect();
 ```
 
-- `send(data)` takes a `string` or `ArrayBuffer`; anything sent before the socket
-  is `open` is queued and flushed on connect.
-- `readyState` is `'connecting' | 'open' | 'closing' | 'closed'`.
-- `close(code?, reason?)` disconnects.
+| Member | Description |
+|---|---|
+| `connect()` | Open the connection. |
+| `send(data)` | Send a `string` or `ArrayBuffer`; data sent before `open` is queued and flushed on connect. |
+| `close(code?, reason?)` | Disconnect. |
+| `readyState` | `'connecting' \| 'open' \| 'closing' \| 'closed'`. |
+| `onOpen` / `onMessage` / `onClose` / `onError` | Lifecycle callbacks. |
 
-## Higher-level channels
+## Typed messages & RPC — `NetChannel`
 
-`NetChannel` wraps a transport with **typed message handlers** and
-**request/response** (`MessageHandler` / `RequestHandler`) — reach for it when you
-want routed messages and RPC-style calls instead of a raw socket.
+`NetChannel` wraps a transport with **routed, typed messages** and **request/response**,
+so you send by message `type` instead of hand-parsing every frame:
+
+```typescript
+import { NetChannel } from 'esengine';
+
+const channel = new NetChannel(socket);
+
+// Fire-and-forget events, routed by type.
+const off = channel.on<{ x: number; y: number }>('move', (p) => { /* … */ });
+channel.send('move', { x: 3, y: 5 });
+
+// Request/response (RPC): resolves with the reply, rejects on timeout/remote error.
+channel.handle<{ id: string }, { hp: number }>('getStats', async (req) => {
+  return { hp: 100 };
+});
+const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 5000);
+```
+
+| Method | Description |
+|---|---|
+| `on(type, handler)` | Subscribe to a message type; returns an unsubscribe fn. |
+| `send(type, payload)` | Send a typed event. |
+| `handle(type, handler)` | Register an RPC handler; returns an unsubscribe fn. |
+| `request(type, payload, timeoutMs?)` | Send an RPC; resolves with the reply. |
+| `dispose(reason?)` | Tear down the channel and reject pending requests. |
+
+## Best practices
+
+- **Use `NetChannel`** for anything beyond a trivial socket — routed types and RPC
+  beat a giant `onMessage` switch.
+- **Set an RPC timeout** so a lost reply rejects instead of hanging forever.
+- **Push received state into components** via `Commands` so gameplay stays in ECS.
+- **Queue-before-open is automatic** — you can `send` right after `connect()`.
 
 <Aside type="note">
-  Networking is plain classes, not an ECS resource — create the socket wherever
-  it fits your app, and drive gameplay from its callbacks (for example, push
-  received state into components with `Commands`).
+  Networking is plain classes, not an ECS resource — create the socket/channel
+  wherever it fits your app, and drive gameplay from its callbacks. Entity sync /
+  rollback is a larger layer you build on top of `NetChannel`.
 </Aside>
+
+## See also
+
+- [WeChat MiniGame](/docs/guides/wechat/) — sockets use `wx.connectSocket` there.
+- [Saving & Loading](/docs/guides/save/) — persist state locally between sessions.
