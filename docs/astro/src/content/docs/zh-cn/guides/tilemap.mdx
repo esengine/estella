@@ -1,6 +1,6 @@
 ---
 title: 瓦片地图
-description: 加载 Tiled 地图,或用 TilemapAPI 构建瓦片图层。
+description: 加载 Tiled 地图,或用 Res(Tilemaps) 构建瓦片图层。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -22,39 +22,39 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 });
 ```
 
-## 低层:用 `TilemapAPI` 构建图层
+## 低层:用 `Res(Tilemaps)` 构建图层
 
-`TilemapAPI` 是一个从 `esengine` 导入的单例,直接传入图层实体来调用。先生成一个实体,
-在它上面初始化图层,再写入瓦片:
+`Tilemaps` 资源就是瓦片地图运行时 API——用 `Res(Tilemaps)` 读取它,传入图层实体来
+调用。先生成一个实体,在它上面初始化图层,再写入瓦片:
 
 ```typescript
-import { defineSystem, Commands, Transform, TilemapAPI } from 'esengine';
+import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
 
-const buildLayer = defineSystem([Commands()], (cmds) => {
+const buildLayer = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
   const layer = cmds
     .spawn()
     .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
     .id();                                    // 图层实体
 
-  TilemapAPI.initLayer(layer, 32, 32, 16, 16);   // 32x32 格,16px 格子
+  tilemap.initLayer(layer, 32, 32, 16, 16);   // 32x32 格,16px 格子
 
-  const tiles = new Uint16Array(32 * 32);         // 瓦片 id(0 = 空)
+  const tiles = new Uint16Array(32 * 32);      // 瓦片 id(0 = 空)
   tiles[0] = 1;
-  TilemapAPI.setTiles(layer, tiles);
+  tilemap.setTiles(layer, tiles);
 
-  TilemapAPI.setTile(layer, 5, 3, 7);             // 单个瓦片
-  TilemapAPI.flipTile(layer, 5, 3, true, false, false);  // 水平翻转
+  tilemap.setTile(layer, 5, 3, 7);             // 单个瓦片
+  tilemap.flipTile(layer, 5, 3, true, false, false);   // 水平翻转
 
-  TilemapAPI.setTileAnimation(layer, 10, [        // 让瓦片 id 10 动起来
+  tilemap.setTileAnimation(layer, 10, [        // 让瓦片 id 10 动起来
     { tileId: 10, duration: 100 },
     { tileId: 11, duration: 100 },
   ]);
 });
 ```
 
-`TilemapAPI` 的其他方法:`getTile`、`fillRect`、`rotateTile`、`initInfiniteLayer`
-(分块的无限地图)、`setTilesets`、`setTint`、`setVisible`,以及 `tileToWorld` /
-`worldToTile`。
+其他方法:`getTile`、`fillRect`、`rotateTile`、`initInfiniteLayer`(分块的无限地图)、
+`setTilesets`、`setTint`、`setVisible`,以及 `tileToWorld` / `worldToTile`。(同一个
+对象也以 `TilemapAPI` 直接导出,供在系统之外使用。)
 
 <Aside type="note">
   瓦片**碰撞仅在运行模式**存在——静态碰撞体在场景运行时由可碰撞瓦片(在 `.estileset`

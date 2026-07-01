@@ -1,6 +1,6 @@
 ---
 title: Tilemaps
-description: Load Tiled maps, or build tile layers with the TilemapAPI.
+description: Load Tiled maps, or build tile layers with Res(Tilemaps).
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -24,39 +24,41 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 });
 ```
 
-## Low-level: build layers with `TilemapAPI`
+## Low-level: build layers with `Res(Tilemaps)`
 
-`TilemapAPI` is a singleton you import from `esengine` and call directly with a
-layer entity. Spawn an entity, initialise a layer on it, then write tiles:
+The `Tilemaps` resource is the tilemap runtime API — read it with `Res(Tilemaps)`
+and call it with a layer entity. Spawn an entity, initialise a layer on it, then
+write tiles:
 
 ```typescript
-import { defineSystem, Commands, Transform, TilemapAPI } from 'esengine';
+import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
 
-const buildLayer = defineSystem([Commands()], (cmds) => {
+const buildLayer = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
   const layer = cmds
     .spawn()
     .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
     .id();                                    // the layer entity
 
-  TilemapAPI.initLayer(layer, 32, 32, 16, 16);   // 32x32 tiles, 16px cells
+  tilemap.initLayer(layer, 32, 32, 16, 16);   // 32x32 tiles, 16px cells
 
-  const tiles = new Uint16Array(32 * 32);         // tile ids (0 = empty)
+  const tiles = new Uint16Array(32 * 32);      // tile ids (0 = empty)
   tiles[0] = 1;
-  TilemapAPI.setTiles(layer, tiles);
+  tilemap.setTiles(layer, tiles);
 
-  TilemapAPI.setTile(layer, 5, 3, 7);             // one tile
-  TilemapAPI.flipTile(layer, 5, 3, true, false, false);  // flip horizontally
+  tilemap.setTile(layer, 5, 3, 7);             // one tile
+  tilemap.flipTile(layer, 5, 3, true, false, false);   // flip horizontally
 
-  TilemapAPI.setTileAnimation(layer, 10, [        // animate tile id 10
+  tilemap.setTileAnimation(layer, 10, [        // animate tile id 10
     { tileId: 10, duration: 100 },
     { tileId: 11, duration: 100 },
   ]);
 });
 ```
 
-Other `TilemapAPI` methods: `getTile`, `fillRect`, `rotateTile`,
-`initInfiniteLayer` (chunked infinite maps), `setTilesets`, `setTint`,
-`setVisible`, and `tileToWorld` / `worldToTile`.
+Other methods: `getTile`, `fillRect`, `rotateTile`, `initInfiniteLayer` (chunked
+infinite maps), `setTilesets`, `setTint`, `setVisible`, and `tileToWorld` /
+`worldToTile`. (The same object is also exported directly as `TilemapAPI` for use
+outside a system.)
 
 <Aside type="note">
   Tile **collision is play-mode only** — static colliders are spawned from

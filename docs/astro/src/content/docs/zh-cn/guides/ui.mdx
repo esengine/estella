@@ -1,16 +1,14 @@
 ---
 title: UI
-description: 弹性盒布局、文本与指针交互。
+description: 弹性盒布局、文本与交互 —— 在编辑器里或用代码。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 的 UI 是一套在 C++ 内核里求解的类 CSS 弹性盒(flexbox)系统。你在编辑器里用
-UI 组件组合界面,再从系统里读取交互状态。
+Estella 的 UI 是一套在 C++ 内核里求解的类 CSS 弹性盒(flexbox)系统。你用 UI 组件
+组合界面——在编辑器里或用代码——再从系统里读取交互状态。
 
 ## UI 组件
-
-在编辑器里把这些加到实体上来搭建界面:
 
 - **`UINode`** —— 布局盒。弹性盒字段直接在它身上:`width`、`height`(以及 min/max)、
   `flexGrow`、`flexShrink`、`flexBasis`、`alignSelf`、`margin*`,以及用于绝对定位的
@@ -21,6 +19,30 @@ UI 组件组合界面,再从系统里读取交互状态。
 - **`UIMask`** —— 裁剪其子元素。
 - **`Interactable`** —— 标记实体可命中测试(`enabled`、`blockRaycast`、
   `raycastTarget`)。
+
+## 用代码构建 UI
+
+组合助手都是公开的。用 `spawnUIEntity` + `buildUINode` 生成节点,并用尺寸助手
+`px` / `percent` / `auto` 设定大小:
+
+```typescript
+import {
+  defineSystem, GetWorld,
+  spawnUIEntity, buildUINode, px, percent,
+} from 'esengine';
+
+const buildHUD = defineSystem([GetWorld()], (world) => {
+  spawnUIEntity({
+    world,
+    node: buildUINode({ width: px(220), height: percent(100) }),
+    text: { content: 'Score: 0', fontSize: 18 },
+  });
+});
+```
+
+用 **`FlexContainer`**(配合 `FlexDirection` / `JustifyContent` / `AlignItems`)
+做弹性布局;用控件工厂——**`createButton`**、`createToggle`、`createSlider`、
+`createProgress`、`createDialog`、`createDropdown`——做开箱即用的控件。
 
 ## 处理交互
 
@@ -46,7 +68,7 @@ const handleClicks = defineSystem(
 `drag` 等事件——请读取 `UIEvents` 资源,即 UI 事件总线。
 
 <Aside type="note">
-  这里没有 `RectTransform`:`UINode` 是真正的弹性盒,用 `px`、`percent`、`auto` 尺寸
-  (在检视面板里设置)加上通过 inset 的 `Absolute` 定位。`UIInteraction` 由引擎每帧
-  写入——请用它或 `UIEvents` 驱动逻辑,不要去修改它。
+  这里没有 `RectTransform`:`UINode` 是真正的弹性盒,用 `px`、`percent`、`auto` 设定
+  尺寸,加上通过 inset 的 `Absolute` 定位。`UIInteraction` 由引擎每帧写入——请用它或
+  `UIEvents` 驱动逻辑,不要去修改它。
 </Aside>

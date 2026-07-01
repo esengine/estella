@@ -1,17 +1,15 @@
 ---
 title: UI
-description: Flexbox layout, text, and pointer interaction.
+description: Flexbox layout, text, and interaction — in the editor or in code.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella's UI is a CSS-like flexbox system solved in the C++ core. You compose an
-interface in the editor from UI components, then read interaction state from
-your systems.
+Estella's UI is a CSS-like flexbox system solved in the C++ core. Compose an
+interface from UI components — in the editor or in code — and read interaction
+state from your systems.
 
 ## UI components
-
-Add these to entities in the editor to build an interface:
 
 - **`UINode`** — the layout box. Flexbox fields live on it directly: `width`,
   `height` (and min/max), `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`,
@@ -23,6 +21,31 @@ Add these to entities in the editor to build an interface:
 - **`UIMask`** — clips its children.
 - **`Interactable`** — marks an entity hit-testable (`enabled`, `blockRaycast`,
   `raycastTarget`).
+
+## Build UI in code
+
+The composition helpers are public. Spawn a node with `spawnUIEntity` +
+`buildUINode`, sized with the dimension helpers `px` / `percent` / `auto`:
+
+```typescript
+import {
+  defineSystem, GetWorld,
+  spawnUIEntity, buildUINode, px, percent,
+} from 'esengine';
+
+const buildHUD = defineSystem([GetWorld()], (world) => {
+  spawnUIEntity({
+    world,
+    node: buildUINode({ width: px(220), height: percent(100) }),
+    text: { content: 'Score: 0', fontSize: 18 },
+  });
+});
+```
+
+Use **`FlexContainer`** (with `FlexDirection` / `JustifyContent` / `AlignItems`)
+for flex layout, and the widget factories — **`createButton`**, `createToggle`,
+`createSlider`, `createProgress`, `createDialog`, `createDropdown` — for
+ready-made controls.
 
 ## Handling interaction
 
@@ -51,7 +74,7 @@ event bus.
 
 <Aside type="note">
   There is no `RectTransform`: `UINode` is real flexbox, sized with `px`,
-  `percent`, and `auto` dimensions (set in the inspector), plus `Absolute`
-  positioning via insets. `UIInteraction` is written by the engine each frame —
-  drive your logic from it or from `UIEvents`, don't mutate it.
+  `percent`, and `auto`, plus `Absolute` positioning via insets. `UIInteraction`
+  is written by the engine each frame — drive your logic from it or from
+  `UIEvents`, don't mutate it.
 </Aside>

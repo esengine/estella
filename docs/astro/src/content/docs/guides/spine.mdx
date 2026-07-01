@@ -1,45 +1,53 @@
 ---
 title: Spine Animation
-description: Play Spine skeletal animations with the SpineAnimation component.
+description: Play Spine skeletal animations with the SpineAnimation component and Res(Spine).
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella has built-in [Spine](https://esotericsoftware.com/) skeletal animation,
-driven by the `SpineAnimation` component.
+driven by the `SpineAnimation` component and controlled at runtime through the
+`Spine` resource.
 
 ## The `SpineAnimation` component
 
-You usually add it in the editor and point it at your Spine assets. Its fields:
+Add it in the editor and point it at your Spine assets. Its fields (import the
+component from `esengine`):
 
 - `skeletonPath`, `atlasPath` — the skeleton and atlas to load.
 - `animation`, `loop`, `playing` — the current track and its playback state.
 - `skin`, `timeScale`, `skeletonScale`, `flipX`, `flipY`, `color`, `layer`.
 
-## Control it at runtime
+## Control at runtime with `Res(Spine)`
 
-Because it's a normal component, you change playback by writing its fields from
-a system — query it with `Mut`:
+The `Spine` resource (from the `esengine/spine` subpath) is the imperative API:
 
 ```typescript
-import { defineSystem, Query, Mut, SpineAnimation } from 'esengine';
+import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
+import { Spine } from 'esengine/spine';
 
-const play = defineSystem([Query(Mut(SpineAnimation))], (q) => {
-  for (const [entity, spine] of q) {
-    spine.animation = 'walk';
-    spine.loop = true;
-    spine.playing = true;
+const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
+  for (const [entity] of q) {
+    spine.setAnimation(entity, 'walk', true);      // play looped 'walk'
+    spine.setSkin(entity, 'armor');                // swap skin
+    spine.setMixDuration(entity, 'idle', 'walk', 0.2);  // 0.2s crossfade
   }
 });
 ```
 
+Methods include `setAnimation`, `setSkin`, `setMixDuration`, `setDefaultMix`,
+`setTrackAlpha`, `setAttachment`, and the queries `getAnimations`, `getSkins`,
+`getBounds`. You can also just write the `SpineAnimation` component's fields from
+a `Query(Mut(SpineAnimation))` system for simple play/stop.
+
 ## Animation events
 
-The `SpineEvents` resource publishes track events once per frame — read it in
-the same frame:
+The `SpineEvents` resource (also from `esengine/spine`) publishes track events
+once per frame — read it in the same frame:
 
 ```typescript
-import { defineSystem, Res, SpineEvents } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { SpineEvents } from 'esengine/spine';
 
 const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   for (const e of spineEvents.events) {
@@ -50,9 +58,11 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 ```
 
 <Aside type="note">
-  Estella supports Spine **3.8 / 4.1 / 4.2** — each skeleton version loads its
-  own WebAssembly backend on demand (pay-for-use). Entities that share the same
-  skeleton + atlas share one loaded, ref-counted skeleton.
+  The `SpineAnimation` **component** is in the main `esengine` package, but the
+  `Spine` and `SpineEvents` **runtime resources** live on the `esengine/spine`
+  subpath — spine is an optional side-module (loaded on demand per skeleton
+  version 3.8 / 4.1 / 4.2), kept off the base bundle. Entities sharing a
+  skeleton + atlas share one ref-counted skeleton.
 </Aside>
 
 <Aside type="caution">

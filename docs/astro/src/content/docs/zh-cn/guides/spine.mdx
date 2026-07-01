@@ -1,43 +1,51 @@
 ---
 title: Spine 动画
-description: 用 SpineAnimation 组件播放 Spine 骨骼动画。
+description: 用 SpineAnimation 组件和 Res(Spine) 播放 Spine 骨骼动画。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella 内置 [Spine](https://esotericsoftware.com/) 骨骼动画,由 `SpineAnimation`
-组件驱动。
+组件驱动,并通过 `Spine` 资源在运行时控制。
 
 ## `SpineAnimation` 组件
 
-通常你在编辑器里添加它并指向你的 Spine 资源。它的字段:
+在编辑器里添加它并指向你的 Spine 资源。它的字段(组件从 `esengine` 导入):
 
 - `skeletonPath`、`atlasPath` —— 要加载的骨骼与图集。
 - `animation`、`loop`、`playing` —— 当前轨道及其播放状态。
 - `skin`、`timeScale`、`skeletonScale`、`flipX`、`flipY`、`color`、`layer`。
 
-## 运行时控制
+## 用 `Res(Spine)` 在运行时控制
 
-因为它就是个普通组件,你在系统里写它的字段即可改变播放——用 `Mut` 查询它:
+`Spine` 资源(来自 `esengine/spine` 子路径)是命令式 API:
 
 ```typescript
-import { defineSystem, Query, Mut, SpineAnimation } from 'esengine';
+import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
+import { Spine } from 'esengine/spine';
 
-const play = defineSystem([Query(Mut(SpineAnimation))], (q) => {
-  for (const [entity, spine] of q) {
-    spine.animation = 'walk';
-    spine.loop = true;
-    spine.playing = true;
+const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
+  for (const [entity] of q) {
+    spine.setAnimation(entity, 'walk', true);      // 循环播放 'walk'
+    spine.setSkin(entity, 'armor');                // 切换皮肤
+    spine.setMixDuration(entity, 'idle', 'walk', 0.2);  // 0.2 秒交叉淡入
   }
 });
 ```
 
+方法包括 `setAnimation`、`setSkin`、`setMixDuration`、`setDefaultMix`、
+`setTrackAlpha`、`setAttachment`,以及查询 `getAnimations`、`getSkins`、
+`getBounds`。简单的播放/停止也可以直接在 `Query(Mut(SpineAnimation))` 系统里写
+组件字段。
+
 ## 动画事件
 
-`SpineEvents` 资源每帧发布一次轨道事件——在同一帧里读取它:
+`SpineEvents` 资源(同样来自 `esengine/spine`)每帧发布一次轨道事件——在同一帧里
+读取它:
 
 ```typescript
-import { defineSystem, Res, SpineEvents } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { SpineEvents } from 'esengine/spine';
 
 const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   for (const e of spineEvents.events) {
@@ -48,8 +56,10 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 ```
 
 <Aside type="note">
-  Estella 支持 Spine **3.8 / 4.1 / 4.2** —— 每个骨骼版本按需加载各自的 WebAssembly
-  后端(用到才加载)。共享同一套骨骼 + 图集的实体共享同一份加载后、引用计数的骨骼。
+  `SpineAnimation` **组件**在主 `esengine` 包里,但 `Spine` 和 `SpineEvents`
+  **运行时资源**位于 `esengine/spine` 子路径——spine 是可选 side-module(按骨骼
+  版本 3.8 / 4.1 / 4.2 **按需加载**),不占用基础包。共享同一套骨骼 + 图集的实体
+  共享同一份引用计数的骨骼。
 </Aside>
 
 <Aside type="caution">
