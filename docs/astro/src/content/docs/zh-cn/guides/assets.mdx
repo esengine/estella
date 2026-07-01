@@ -25,7 +25,8 @@ import { Aside } from '@astrojs/starlight/components';
 import { defineSystem, Res, Assets } from 'esengine';
 
 defineSystem([Res(Assets)], async (assets) => {
-  const texture = await assets.load('@uuid:a1234567-...');
+  // load(type, ref):资源类型 + 它的 @uuid 引用
+  const texture = await assets.load('texture', '@uuid:a1234567-...');
 });
 ```
 

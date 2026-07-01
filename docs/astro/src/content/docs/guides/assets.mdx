@@ -28,7 +28,8 @@ the best format the device supports (ASTC → ETC2 → S3TC, falling back to RGB
 import { defineSystem, Res, Assets } from 'esengine';
 
 defineSystem([Res(Assets)], async (assets) => {
-  const texture = await assets.load('@uuid:a1234567-...');
+  // load(type, ref): the asset type plus its @uuid reference
+  const texture = await assets.load('texture', '@uuid:a1234567-...');
 });
 ```
 
