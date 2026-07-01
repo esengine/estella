@@ -1,13 +1,13 @@
 ---
 title: Scenes
-description: Load, switch, and stack scenes with Res(SceneManager).
+description: The complete guide to scenes — switching, additive loading, querying state, and how systems are gated per scene, via Res(SceneManager).
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 A project is organized into scenes. They all share one ECS world; the
-`SceneManager` resource loads, switches, and unloads them, and gates each
-scene's systems to run only while it's active.
+`SceneManager` resource loads, switches, and unloads them, and gates each scene's
+systems to run only while that scene is active.
 
 ## Switch scenes
 
@@ -24,25 +24,48 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 
 ## Additive scenes
 
-Load a scene **on top** of the current one — a HUD, a pause menu, a streamed
-region — without unloading what's underneath:
+Load a scene **on top** of the current one — a HUD, a pause menu, a streamed region
+— without unloading what's underneath. `loadAdditive` takes an optional progress
+callback and returns the scene context:
 
 ```typescript
-await scenes.loadAdditive('pause-menu');
+await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
 // …later
 await scenes.unload('pause-menu');
 ```
 
-## Query scene state
+## `SceneManager` reference
 
-- `scenes.getActive()` — the active scene name; `scenes.getActiveScenes()` for
-  all active (additive) scenes.
-- `scenes.isLoaded(name)`, `scenes.isActive(name)`.
-- `scenes.isTransitioning()` — true during a `switchTo` transition.
+| Method | Description |
+|---|---|
+| `switchTo(name, options?)` | Replace the active scene (async; optional transition). |
+| `loadAdditive(name, onProgress?)` | Load a scene on top; returns its context (async). |
+| `unload(name, options?)` | Unload a scene (async; optional transition). |
+| `getActive()` | The active scene name, or `null`. |
+| `getActiveScenes()` | All active (additive) scene names. |
+| `isLoaded(name)` | Whether a scene is loaded. |
+| `isActive(name)` | Whether a scene is active. |
+| `isTransitioning()` | `true` during a `switchTo` transition. |
+
+## Best practices
+
+- **`await` scene calls** — they're async; a switch that isn't awaited races with the
+  rest of your frame.
+- **Additive for overlays** (HUD, pause, dialogs) so gameplay stays loaded underneath.
+- **Gate logic with systems, not flags** — systems declared in a scene only run while
+  it's active, so an additive HUD and the gameplay scene update independently.
+- **Tag long-lived entities** deliberately: because scenes share one world, an
+  untagged entity can outlive a scene switch.
+- **Persist across scenes with [saves](/docs/guides/save/)**, not by leaking entities.
 
 <Aside type="note">
-  Because scenes share one world, an entity can outlive a scene switch if you
-  don't tag it to the scene. Systems declared in a scene only run while that
-  scene is active, so an additive HUD scene and the gameplay scene update
-  independently.
+  Scenes share one world, so a scene switch doesn't wipe the world — the manager
+  loads/unloads each scene's entities and gates its systems. Entities you want to
+  survive a switch must be owned outside the scene.
 </Aside>
+
+## See also
+
+- [Prefabs](/docs/guides/prefab/) — spawn reusable entity trees within a scene.
+- [Saving & Loading](/docs/guides/save/) — persist state across scene switches.
+- [Assets](/docs/guides/assets/) — scenes are cook entry points.

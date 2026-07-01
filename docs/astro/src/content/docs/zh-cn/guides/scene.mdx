@@ -1,16 +1,16 @@
 ---
 title: 场景
-description: 用 Res(SceneManager) 加载、切换和叠加场景。
+description: 场景的完整指南——切换、叠加加载、查询状态,以及系统如何按场景门控,通过 Res(SceneManager)。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-一个项目由若干场景组成。它们共享同一个 ECS 世界;`SceneManager` 资源负责加载、切换、
-卸载它们,并把每个场景的系统限制为只在该场景激活时运行。
+项目由场景组织。它们共享同一个 ECS 世界;`SceneManager` 资源加载、切换和卸载它们,并门控
+每个场景的系统,使其只在该场景活动时运行。
 
 ## 切换场景
 
-`switchTo` 会替换当前活动场景(可带过渡)。它是异步的——用 `await`:
+`switchTo` 替换活动场景(可带过渡)。它是异步的——`await` 它:
 
 ```typescript
 import { defineSystem, Res, SceneManager } from 'esengine';
@@ -22,22 +22,44 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 
 ## 叠加场景
 
-把一个场景加载到当前场景**之上**——HUD、暂停菜单、流式加载的区域——而不卸载下面的:
+把一个场景加载到当前场景**之上**——HUD、暂停菜单、流式区域——而不卸载下面的内容。
+`loadAdditive` 接受一个可选的进度回调,并返回场景上下文:
 
 ```typescript
-await scenes.loadAdditive('pause-menu');
-// ……稍后
+await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
+// …later
 await scenes.unload('pause-menu');
 ```
 
-## 查询场景状态
+## `SceneManager` 参考
 
-- `scenes.getActive()` —— 活动场景名;`scenes.getActiveScenes()` 返回所有活动
-  (叠加)场景。
-- `scenes.isLoaded(name)`、`scenes.isActive(name)`。
-- `scenes.isTransitioning()` —— `switchTo` 过渡期间为 true。
+| 方法 | 说明 |
+|---|---|
+| `switchTo(name, options?)` | 替换活动场景(异步;可选过渡)。 |
+| `loadAdditive(name, onProgress?)` | 在顶部加载一个场景;返回其上下文(异步)。 |
+| `unload(name, options?)` | 卸载一个场景(异步;可选过渡)。 |
+| `getActive()` | 活动场景名,或 `null`。 |
+| `getActiveScenes()` | 所有活动(叠加)场景名。 |
+| `isLoaded(name)` | 场景是否已加载。 |
+| `isActive(name)` | 场景是否活动。 |
+| `isTransitioning()` | `switchTo` 过渡期间为 `true`。 |
+
+## 最佳实践
+
+- **`await` 场景调用**——它们是异步的;未 await 的切换会与本帧其余逻辑竞态。
+- 浮层(HUD、暂停、对话框)**用叠加**,让玩法留在下面。
+- **用系统而非标志门控逻辑**——场景里声明的系统只在它活动时运行,所以叠加 HUD 与玩法场景
+  独立更新。
+- **有意地给长生命实体打标签**:因为场景共享一个世界,未打标签的实体可能在切换后存活。
+- **跨场景持久化用[存档](/docs/zh-cn/guides/save/)**,而不是泄漏实体。
 
 <Aside type="note">
-  由于场景共享同一个世界,如果你不把实体标记到场景上,它可能在场景切换后仍然存在。
-  场景里声明的系统只在该场景激活时运行,所以叠加的 HUD 场景和游戏场景各自独立更新。
+  场景共享一个世界,所以切换场景不会清空世界——管理器加载/卸载每个场景的实体并门控它的系统。
+  想跨切换存活的实体必须归属在场景之外。
 </Aside>
+
+## 参见
+
+- [预制体](/docs/zh-cn/guides/prefab/) —— 在场景内生成可复用的实体树。
+- [存档与读档](/docs/zh-cn/guides/save/) —— 跨场景切换持久化状态。
+- [资源](/docs/zh-cn/guides/assets/) —— 场景是 cook 入口点。
