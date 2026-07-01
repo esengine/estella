@@ -171,6 +171,11 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Perspective", esengine::ecs::ProjectionType::Perspective)
         .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
 
+    enum_<esengine::ecs::ShapeType>("ShapeType")
+        .value("Circle", esengine::ecs::ShapeType::Circle)
+        .value("Capsule", esengine::ecs::ShapeType::Capsule)
+        .value("RoundedRect", esengine::ecs::ShapeType::RoundedRect);
+
     enum_<esengine::ecs::SimulationSpace>("SimulationSpace")
         .value("World", esengine::ecs::SimulationSpace::World)
         .value("Local", esengine::ecs::SimulationSpace::Local);
@@ -1943,7 +1948,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "b129a05be7804b7f";
+static const char* kEsAbiLayoutHash = "b5571b685cb3643f";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

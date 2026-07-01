@@ -8,9 +8,16 @@
 
 namespace esengine::ecs {
 
+ES_ENUM()
+enum class ShapeType : u8 {
+    Circle = 0,
+    Capsule = 1,
+    RoundedRect = 2,
+};
+
 ES_COMPONENT()
 struct ShapeRenderer {
-    ES_PROPERTY()
+    ES_PROPERTY(enum=ShapeType)
     u8 shapeType{0};
 
     ES_PROPERTY()

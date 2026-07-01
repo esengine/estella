@@ -114,6 +114,12 @@ export enum ProjectionType {
     Orthographic = 1,
 }
 
+export enum ShapeType {
+    Circle = 0,
+    Capsule = 1,
+    RoundedRect = 2,
+}
+
 export enum SimulationSpace {
     World = 0,
     Local = 1,

@@ -21,10 +21,10 @@ import type {
 // Builtin enums whose values come from C++ ES_ENUMs — imported from the generated
 // module (single source) and re-exported below, so a TS const cannot drift from the
 // C++ enum and the editor dropdowns (enumOptions) derive from the same values. The
-// remaining hand-written enums (ShapeType, ParticleEasing) have no matching C++ enum
-// yet, so they stay local; ScaleMode's canonical values come from CanvasScaleMode
+// one remaining hand-written enum (ParticleEasing) has no matching C++ enum yet, so
+// it stays local; ScaleMode's canonical values come from CanvasScaleMode
 // (only its Cocos-compat aliases ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, CanvasScaleMode } from './wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, CanvasScaleMode, ShapeType } from './wasm.generated';
 import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
@@ -504,9 +504,10 @@ export function ensureBuiltinComponentsRegistered(): void {
 // =============================================================================
 
 // Single-sourced from C++ ES_ENUMs (see import above). ProjectionType, ClearFlags,
-// EmitterShape, SimulationSpace and Light2DType are re-exported from the generated
-// module; their values and the editor dropdowns built from them now have one source.
-export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType };
+// EmitterShape, SimulationSpace, Light2DType and ShapeType are re-exported from the
+// generated module; their values and the editor dropdowns built from them now have
+// one source.
+export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, ShapeType };
 
 // Canonical values single-sourced from the C++ CanvasScaleMode enum (generated);
 // ShowAll/NoBorder are Cocos-compat aliases with no C++ member.
@@ -537,14 +538,6 @@ export type {
 
 export type LocalTransformData = TransformData;
 export type WorldTransformData = TransformData;
-
-export const ShapeType = {
-    Circle: 0,
-    Capsule: 1,
-    RoundedRect: 2,
-} as const;
-
-export type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
 
 // Camera = the generated C++ field shape + one editor-only field. `showFrustum`
 // drives gizmo rendering and has no C++ Camera member, so it is added here rather
@@ -588,9 +581,9 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite',
     })
 );
 
+// shapeType's dropdown is generated from the C++ ShapeType enum (ES_PROPERTY enum=).
 export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
-    metaDefaults<ShapeRendererData>('ShapeRenderer'),
-    { fields: { shapeType: { enum: enumOptions(ShapeType) } } }
+    metaDefaults<ShapeRendererData>('ShapeRenderer')
 );
 
 // type's dropdown is generated from the C++ Light2DType enum (ES_PROPERTY enum=).
