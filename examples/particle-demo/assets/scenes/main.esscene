@@ -67,7 +67,459 @@
     },
     {
       "id": 2,
-      "name": "Follow",
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        3,
+        4,
+        5,
+        7
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1280,
+              "y": 720
+            },
+            "scaleMode": 2,
+            "backgroundColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Title",
+      "parent": 2,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 600,
+              "unit": 0
+            },
+            "height": {
+              "value": 52,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 340,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 26,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Campfire",
+            "fontSize": 34,
+            "color": {
+              "r": 0.95,
+              "g": 0.95,
+              "b": 1,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "TitleLabel",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Hint",
+      "parent": 2,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 760,
+              "unit": 0
+            },
+            "height": {
+              "value": 24,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 260,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 690,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Prev / Next  |  arrow keys or Space  |  click empty space for a firework",
+            "fontSize": 16,
+            "color": {
+              "r": 0.72,
+              "g": 0.76,
+              "b": 0.86,
+              "a": 0.9
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "PrevButton",
+      "parent": 2,
+      "children": [
+        6
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 140,
+              "unit": 0
+            },
+            "height": {
+              "value": 54,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 480,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 626,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.18,
+              "g": 0.2,
+              "b": 0.28,
+              "a": 0.92
+            }
+          }
+        },
+        {
+          "type": "Button",
+          "data": {
+            "state": 0,
+            "transition": {
+              "normalColor": {
+                "r": 0.18,
+                "g": 0.2,
+                "b": 0.28,
+                "a": 0.92
+              },
+              "hoveredColor": {
+                "r": 0.28,
+                "g": 0.32,
+                "b": 0.44,
+                "a": 1
+              },
+              "pressedColor": {
+                "r": 0.12,
+                "g": 0.14,
+                "b": 0.2,
+                "a": 1
+              },
+              "disabledColor": {
+                "r": 0.2,
+                "g": 0.2,
+                "b": 0.2,
+                "a": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {}
+        },
+        {
+          "type": "PrevButton",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "PrevLabel",
+      "parent": 5,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 1
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Prev",
+            "fontSize": 22,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "NextButton",
+      "parent": 2,
+      "children": [
+        8
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 140,
+              "unit": 0
+            },
+            "height": {
+              "value": 54,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 660,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 1
+            },
+            "marginTop": {
+              "value": 626,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.18,
+              "g": 0.2,
+              "b": 0.28,
+              "a": 0.92
+            }
+          }
+        },
+        {
+          "type": "Button",
+          "data": {
+            "state": 0,
+            "transition": {
+              "normalColor": {
+                "r": 0.18,
+                "g": 0.2,
+                "b": 0.28,
+                "a": 0.92
+              },
+              "hoveredColor": {
+                "r": 0.28,
+                "g": 0.32,
+                "b": 0.44,
+                "a": 1
+              },
+              "pressedColor": {
+                "r": 0.12,
+                "g": 0.14,
+                "b": 0.2,
+                "a": 1
+              },
+              "disabledColor": {
+                "r": 0.2,
+                "g": 0.2,
+                "b": 0.2,
+                "a": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {}
+        },
+        {
+          "type": "NextButton",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "NextLabel",
+      "parent": 7,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 1
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Next",
+            "fontSize": 22,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "TexHolder",
       "parent": null,
       "children": [],
       "visible": true,
@@ -78,55 +530,29 @@
             "position": {
               "x": 0,
               "y": 0,
-              "z": 0
+              "z": -5
             }
           }
         },
         {
-          "type": "ParticleEmitter",
+          "type": "Sprite",
           "data": {
-            "rate": 90,
-            "maxParticles": 600,
-            "looping": true,
-            "playOnStart": true,
-            "simulationSpace": 0,
-            "lifetimeMin": 0.7,
-            "lifetimeMax": 1.4,
-            "shape": 1,
-            "shapeRadius": 14,
-            "speedMin": 90,
-            "speedMax": 190,
-            "angleSpreadMin": 75,
-            "angleSpreadMax": 105,
-            "startSizeMin": 16,
-            "startSizeMax": 26,
-            "endSizeMin": 3,
-            "endSizeMax": 6,
-            "sizeEasing": 2,
-            "startColor": {
-              "r": 1,
-              "g": 0.65,
-              "b": 0.15,
-              "a": 1
+            "size": {
+              "x": 1,
+              "y": 1
             },
-            "endColor": {
+            "color": {
               "r": 1,
-              "g": 0.12,
-              "b": 0.02,
+              "g": 1,
+              "b": 1,
               "a": 0
             },
-            "colorEasing": 1,
-            "gravity": {
-              "x": 0,
-              "y": 60
-            },
-            "blendMode": 1,
-            "layer": 5,
-            "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+            "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0",
+            "layer": 0
           }
         },
         {
-          "type": "Follow",
+          "type": "TexHolder",
           "data": {}
         }
       ]

@@ -1,15 +1,17 @@
-import { defineSystem, Query, Mut, ParticleEmitter } from 'esengine';
-import { Follow } from '../components';
-import { PRESETS, applyPreset } from '../config';
+import { defineSystem, Query, Mut, Commands, Sprite, Text } from 'esengine';
+import { TexHolder, TitleLabel } from '../components';
+import { SHOWCASES, spawnShowcase } from '../config';
+import { state } from '../state';
 
-// Give the scene's follow emitter its starting look (the first preset) once at
-// startup, so config.ts is the single source of truth for how a preset looks.
+// At startup: read the particle texture handle off the invisible TexHolder
+// sprite, spawn the first showcase's emitters, and set the title.
 export const setupSystem = defineSystem(
-    [Query(Mut(ParticleEmitter), Follow)],
-    (follows) => {
-        for (const [, emitter] of follows) {
-            applyPreset(emitter, PRESETS[0]);
-        }
+    [Query(Sprite, TexHolder), Query(Mut(Text), TitleLabel), Commands()],
+    (holders, titles, cmds) => {
+        let texture = 0;
+        for (const [, sprite] of holders) texture = sprite.texture;
+        spawnShowcase(cmds, state.current, texture);
+        for (const [, text] of titles) text.content = SHOWCASES[state.current].name;
     },
     { name: 'SetupSystem' },
 );

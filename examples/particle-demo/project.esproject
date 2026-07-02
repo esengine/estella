@@ -1,7 +1,7 @@
 {
   "formatVersion": "1",
   "name": "Particle Effects",
-  "description": "An interactive particle playground: a mouse-follow emitter with six switchable presets and click-to-burst fireworks.",
+  "description": "A gallery of particle effects — page through Campfire, Fireworks, Magic Portal, Fountain, Snowfall and Sparkles with on-screen buttons, and click to throw fireworks.",
   "tag": "Effects",
   "version": "0.2.0",
   "defaultScene": "assets/scenes/main.esscene",
