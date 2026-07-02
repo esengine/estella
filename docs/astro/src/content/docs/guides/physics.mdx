@@ -104,6 +104,13 @@ const LAYER_GROUND = 0x0008;
 });
 ```
 
+The layer filter is the **single** control for what interacts — collisions, hit
+events, and **sensor detection** all use it. Colliders don't need to opt in to be
+seen by a sensor: any collider whose layers pass the sensor's filter is detected.
+To keep something out of a sensor, exclude it by layer (not a per-collider flag);
+to keep sensor work cheap in a busy world, put sensors and their targets on
+dedicated layers so the mask narrows what each sensor considers.
+
 ## Moving bodies — forces & velocity
 
 Read the `PhysicsAPI` resource to drive bodies. Every method takes the world entity:
