@@ -2,16 +2,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    CharacterController.ts
- * @brief   Kinematic move-and-slide character controller (Godot CharacterBody2D
- *          semantics) built on the existing Box2D shape-cast queries.
+ * @brief   Kinematic character controller (Godot CharacterBody2D semantics) on top
+ *          of Box2D v3's native kinematic mover.
  *
- * The controller is gameplay logic, so it lives entirely in the SDK and never
- * touches C++: it reads the entity's own collider for the cast shape, sweeps it
- * through the world with `Physics.shapeCast*`, and resolves collisions by sliding
- * along surfaces. It writes the resolved pose to `Transform`; if the entity also
- * carries a Kinematic `RigidBody`, `PhysicsStepSystem` then pushes that Transform
- * into Box2D so dynamic bodies see the character. Movement itself is query-driven,
- * so a body is recommended (for others to collide with) but not required.
+ * The controller reads the entity's own collider, derives a capsule mover from it,
+ * and advances one step via `Physics.moveCharacter` — Box2D's `b2World_CollideMover`
+ * + `b2SolvePlanes`, which collides the capsule into contact *planes* and solves a
+ * depenetrating slide. That resolves a character resting on the ground with valid
+ * normals (a generic shape cast reports the resting contact as a zero-normal
+ * fraction-0 hit and wedges). It writes the resolved pose to `Transform`; if the
+ * entity also carries a Kinematic `RigidBody`, `PhysicsStepSystem` then pushes that
+ * Transform into Box2D so dynamic bodies see the character.
+ *
+ * `moveAndSlide` below is the earlier pure JS resolver, kept as a standalone utility
+ * (and for its tests); the live system uses the native mover.
  *
  * Units: `velocity`/positions are world pixels (matching `Transform`); collider
  * dimensions are meters and are scaled to pixels via `Physics.getPixelsPerUnit()`.
@@ -249,33 +253,32 @@ function resolveCastShape(world: World, entity: Entity, ppu: number): CastShape 
     return null;
 }
 
-/**
- * Build the nearest-blocking-hit cast for one character: sweep its shape, drop the
- * character's own body, and keep the lowest-fraction hit.
- */
-function makeCast(physics: Physics, self: Entity, shape: CastShape, maskBits: number): SlideCast {
-    const t: Vec2 = { x: 0, y: 0 };
-    const c: Vec2 = { x: 0, y: 0 };
-    return (ox, oy, dx, dy) => {
-        c.x = ox + shape.ox; c.y = oy + shape.oy;
-        t.x = dx; t.y = dy;
-        let hits;
-        if (shape.kind === 'box') hits = physics.shapeCastBox(c, { x: shape.hx, y: shape.hy }, 0, t, maskBits);
-        else if (shape.kind === 'circle') hits = physics.shapeCastCircle(c, shape.r, t, maskBits);
-        else hits = physics.shapeCastCapsule({ x: c.x, y: c.y + shape.halfH }, { x: c.x, y: c.y - shape.halfH }, shape.r, t, maskBits);
+/** The capsule the native mover sweeps, derived from the collider (pixels). A box
+ *  becomes a capsule inscribed along its longer axis; a circle a zero-length capsule. */
+interface MoverCapsule { c1: Vec2; c2: Vec2; radius: number }
 
-        let best: SlideHit | null = null;
-        for (const h of hits) {
-            if (h.entity === self) continue;
-            if (best === null || h.fraction < best.fraction) best = { nx: h.normal.x, ny: h.normal.y, fraction: h.fraction };
-        }
-        return best;
-    };
+function moverCapsuleFromShape(s: CastShape): MoverCapsule {
+    if (s.kind === 'circle') {
+        return { c1: { x: s.ox, y: s.oy }, c2: { x: s.ox, y: s.oy }, radius: s.r };
+    }
+    if (s.kind === 'capsule') {
+        return { c1: { x: s.ox, y: s.oy + s.halfH }, c2: { x: s.ox, y: s.oy - s.halfH }, radius: s.r };
+    }
+    // Box: place the capsule spine along the longer axis, radius = shorter half-extent.
+    if (s.hy >= s.hx) {
+        const half = s.hy - s.hx;
+        return { c1: { x: s.ox, y: s.oy + half }, c2: { x: s.ox, y: s.oy - half }, radius: s.hx };
+    }
+    const half = s.hx - s.hy;
+    return { c1: { x: s.ox + half, y: s.oy }, c2: { x: s.ox - half, y: s.oy }, radius: s.hy };
 }
 
 /**
- * Register the move-and-slide system. Runs in FixedUpdate ahead of the physics
- * step so the resolved Transform is what gets pushed into a kinematic body.
+ * Register the character-controller system. Runs in FixedUpdate ahead of the
+ * physics step so the resolved Transform is what gets pushed into a kinematic body.
+ * Movement is delegated to Box2D's native kinematic mover (collide-into-planes +
+ * depenetrating slide), which — unlike a generic shape cast — resolves a character
+ * resting on the ground with valid contact normals instead of wedging on it.
  */
 export function registerCharacterControllerSystem(app: App): void {
     app.addSystemToSchedule(
@@ -296,6 +299,7 @@ export function registerCharacterControllerSystem(app: App): void {
                 for (const [entity, cc] of query) {
                     const shape = resolveCastShape(world, entity, ppu);
                     if (!shape) continue;
+                    const mover = moverCapsuleFromShape(shape);
 
                     // Transform is C++-backed: get() yields a converted copy, so the
                     // resolved pose must be written back with set() (mutating the copy
@@ -303,30 +307,21 @@ export function registerCharacterControllerSystem(app: App): void {
                     const transform = world.get(entity, Transform) as TransformData;
                     const startX = transform.position.x;
                     const startY = transform.position.y;
-                    const cast = makeCast(physics, entity, shape, cc.maskBits);
 
-                    const r = moveAndSlide({
-                        startX, startY,
-                        motionX: cc.velocity.x * dt,
-                        motionY: cc.velocity.y * dt,
-                        velX: cc.velocity.x,
-                        velY: cc.velocity.y,
-                        upX: cc.up.x, upY: cc.up.y,
-                        floorMaxAngle: cc.floorMaxAngle,
-                        maxSlides: cc.maxSlides,
-                        skinWidth: cc.skinWidth,
-                        snapLength: cc.snapLength,
-                        slideOnCeiling: cc.slideOnCeiling,
-                        wasOnFloor: cc.isOnFloor,
-                    }, cast);
+                    const r = physics.moveCharacter(
+                        transform.position, mover.c1, mover.c2, mover.radius,
+                        cc.velocity, dt, cc.up, Math.cos(cc.floorMaxAngle),
+                        cc.maskBits, entity, ppu,
+                    );
+                    if (!r) continue;
 
                     // Write both local and world position: PhysicsStepSystem runs next
                     // in this same FixedUpdate and pushes worldPosition into a kinematic
                     // body, before TransformSystem re-derives world from local.
-                    transform.position.x = r.x;
-                    transform.position.y = r.y;
-                    transform.worldPosition.x = r.x;
-                    transform.worldPosition.y = r.y;
+                    transform.position.x = startX + r.dx;
+                    transform.position.y = startY + r.dy;
+                    transform.worldPosition.x = transform.position.x;
+                    transform.worldPosition.y = transform.position.y;
                     world.set(entity, Transform, transform);
 
                     cc.velocity.x = r.velX;
@@ -336,8 +331,8 @@ export function registerCharacterControllerSystem(app: App): void {
                     cc.isOnCeiling = r.isOnCeiling;
                     cc.floorNormal.x = r.floorNormalX;
                     cc.floorNormal.y = r.floorNormalY;
-                    cc.realVelocity.x = (r.x - startX) * invDt;
-                    cc.realVelocity.y = (r.y - startY) * invDt;
+                    cc.realVelocity.x = r.dx * invDt;
+                    cc.realVelocity.y = r.dy * invDt;
                 }
             },
             { name: 'CharacterControllerSystem', runBefore: ['PhysicsStepSystem'] },

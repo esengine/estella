@@ -21,6 +21,7 @@ import {
     type RaycastHit,
     type ShapeCastHit,
     type MassData,
+    type MoverResult,
 } from './PhysicsTypes';
 
 // =============================================================================
@@ -240,6 +241,37 @@ export class Physics {
             translation.x * invPpu, translation.y * invPpu, maskBits,
         );
         return this.readShapeCastBuffer_(count, ppu);
+    }
+
+    /**
+     * Advance a kinematic capsule character one step against the world using Box2D's
+     * native mover (collide-into-planes + depenetrating slide). Unlike a raw shape
+     * cast this resolves resting/touching contacts with valid normals, so a grounded
+     * character slides instead of wedging. Capsule endpoints/radius and `pos`/`velocity`
+     * are world pixels; `dt` seconds; `up` a unit vector; `floorCos = cos(floorMaxAngle)`.
+     * `self` is excluded from the collision. Returns null if the module isn't ready.
+     */
+    moveCharacter(
+        pos: Vec2, c1: Vec2, c2: Vec2, radius: number,
+        velocity: Vec2, dt: number, up: Vec2, floorCos: number,
+        maskBits: number, self: Entity, ppu = this.ppu_,
+    ): MoverResult | null {
+        const invPpu = 1 / ppu;
+        const ok = this.module_._physics_moveCharacter(
+            pos.x * invPpu, pos.y * invPpu,
+            c1.x * invPpu, c1.y * invPpu, c2.x * invPpu, c2.y * invPpu, radius * invPpu,
+            velocity.x * invPpu, velocity.y * invPpu, dt,
+            up.x, up.y, floorCos, maskBits, self >>> 0,
+        );
+        if (!ok) return null;
+        const base = this.module_._physics_getMoveCharacterBuffer() >> 2;
+        const h = this.module_.HEAPF32;
+        return {
+            dx: h[base] * ppu, dy: h[base + 1] * ppu,
+            velX: h[base + 2] * ppu, velY: h[base + 3] * ppu,
+            isOnFloor: h[base + 4] !== 0, isOnWall: h[base + 5] !== 0, isOnCeiling: h[base + 6] !== 0,
+            floorNormalX: h[base + 7], floorNormalY: h[base + 8],
+        };
     }
 
     overlapAABB(min: Vec2, max: Vec2, maskBits = 0xFFFF, ppu = this.ppu_): Entity[] {

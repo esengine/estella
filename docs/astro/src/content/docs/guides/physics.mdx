@@ -212,8 +212,11 @@ Destroy any joint with `destroyJoint(bodyA)`.
 ## Character controller
 
 For a player that walks along surfaces instead of tumbling like a dynamic body, add
-a `CharacterController`. Set its `velocity` from gameplay each step; the system
-resolves a kinematic move-and-slide, writes the result back, and reports what it
+a `CharacterController`. Set its `velocity` from gameplay each step; the controller
+advances it one step with Box2D's **native kinematic mover** (`b2World_CollideMover`
++ `b2SolvePlanes`) — it collides the body into contact *planes* and solves a
+depenetrating slide, so a character resting on the ground slides and jumps cleanly
+instead of sticking to it. It writes the resolved pose back and reports what it
 touched:
 
 ```typescript
@@ -227,19 +230,28 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 });
 ```
 
+Give the entity a collider (the mover shape is derived from it — a box becomes a
+capsule inscribed along its longer axis) and, if other bodies should collide with
+the character, a **Kinematic** `RigidBody`. The mover excludes the character's own
+body automatically, so its `maskBits` need not avoid its own collision layer. Drive
+`velocity` from a fixed-timestep system so motion is frame-rate independent; read the
+`isOnFloor` edge for jumps (delivered correctly to `FixedUpdate` — see
+[Input](/docs/guides/input/#fixed-timestep-physics)).
+
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `velocity` | Vec2 | `{0, 0}` | Desired velocity in world pixels/second (set each step). |
 | `up` | Vec2 | `{0, 1}` | Up direction for floor/ceiling classification. |
 | `floorMaxAngle` | number | `0.785` | Max walkable slope from `up`, radians (45°). |
-| `maxSlides` | number | `4` | Slide iterations per move (corners need more). |
-| `skinWidth` | number | `1` | Gap kept from surfaces (px) to avoid sticking. |
-| `snapLength` | number | `0` | Down-probe (px) to stay glued to slopes/stairs; `0` = off. |
-| `slideOnCeiling` | boolean | `true` | Slide along a ceiling vs. stop the move. |
 | `maskBits` | number | `0xFFFF` | Layers that block the character. |
 | `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **Output**: what was touched this move. |
 | `floorNormal` | Vec2 | — | **Output**: normal of the last floor touched. |
 | `realVelocity` | Vec2 | — | **Output**: actual displacement / dt after collisions. |
+
+<Aside type="note">`maxSlides`, `skinWidth`, `snapLength`, and `slideOnCeiling` remain on
+the component for the standalone `moveAndSlide` resolver (`esengine/physics`); the
+native mover the live controller uses does its own iteration and gap handling, so it
+ignores them. Stair/slope floor-snap (`snapLength`) is a planned mover addition.</Aside>
 
 ## Best practices
 

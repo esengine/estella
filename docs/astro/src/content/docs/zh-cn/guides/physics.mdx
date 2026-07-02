@@ -205,7 +205,9 @@ physics.destroyJoint(bodyA);
 ## 角色控制器
 
 想让玩家沿着表面行走、而不是像动态刚体那样翻滚,加一个 `CharacterController`。每步从玩法设它
-的 `velocity`;系统会解析一次运动学 move-and-slide,把结果写回,并报告它碰到了什么:
+的 `velocity`;控制器用 Box2D 的**原生运动学 mover**(`b2World_CollideMover` +
+`b2SolvePlanes`)推进一步——把身体碰撞成接触*平面*,再解出一次去穿插的滑动,所以贴地的角色能
+干净地移动和起跳,而不是粘在地面上。它把结果写回,并报告碰到了什么:
 
 ```typescript
 import { defineSystem, Query, Mut, CharacterController } from 'esengine';
@@ -218,19 +220,24 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 });
 ```
 
+给实体加一个碰撞体(mover 形状由它推导——盒子会内接成沿长轴的胶囊);若希望别的刚体能撞到角色,
+再加一个**运动学(Kinematic)** `RigidBody`。mover 会自动排除角色自身的刚体,所以它的 `maskBits`
+不必刻意避开自身的碰撞层。用固定步长的系统驱动 `velocity` 让运动与帧率无关;跳跃读 `isOnFloor`
+边沿(会正确投递到 `FixedUpdate`——见 [输入](/docs/zh-cn/guides/input/#固定步长物理))。
+
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `velocity` | Vec2 | `{0, 0}` | 期望速度(世界像素/秒,每步设置)。 |
 | `up` | Vec2 | `{0, 1}` | 用于地面/天花板分类的上方向。 |
 | `floorMaxAngle` | number | `0.785` | 相对 `up` 的最大可行走坡度,弧度(45°)。 |
-| `maxSlides` | number | `4` | 每次移动的滑动迭代次数(拐角需要更多)。 |
-| `skinWidth` | number | `1` | 与表面保持的间隙(px),避免粘住。 |
-| `snapLength` | number | `0` | 向下探测(px)以贴住斜坡/台阶;`0` = 关。 |
-| `slideOnCeiling` | boolean | `true` | 沿天花板滑动 vs 停止移动。 |
 | `maskBits` | number | `0xFFFF` | 阻挡角色的层。 |
 | `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **输出**:这次移动碰到了什么。 |
 | `floorNormal` | Vec2 | — | **输出**:最后接触地面的法线。 |
 | `realVelocity` | Vec2 | — | **输出**:碰撞后的实际位移 / dt。 |
+
+<Aside type="note">`maxSlides`、`skinWidth`、`snapLength`、`slideOnCeiling` 仍保留在组件上,
+供独立的 `moveAndSlide` 解析器(`esengine/physics`)使用;实际控制器用的原生 mover 自带迭代与
+间隙处理,会忽略它们。斜坡/台阶的地面吸附(`snapLength`)是 mover 计划中的补充。</Aside>
 
 ## 最佳实践
 

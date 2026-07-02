@@ -97,6 +97,20 @@ export interface RaycastHit {
 
 export type ShapeCastHit = RaycastHit;
 
+/** One step of the native kinematic mover: resolved displacement (pixels), slid
+ *  velocity (pixels/s), and the surface contact classification. */
+export interface MoverResult {
+    dx: number;
+    dy: number;
+    velX: number;
+    velY: number;
+    isOnFloor: boolean;
+    isOnWall: boolean;
+    isOnCeiling: boolean;
+    floorNormalX: number;
+    floorNormalY: number;
+}
+
 export interface MassData {
     mass: number;
     inertia: number;
