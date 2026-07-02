@@ -15,7 +15,7 @@ starting point for a real game. This credit is a courtesy, not an obligation.
 | [Particle Pack](https://kenney.nl/assets/particle-pack) | CC0 | particle-demo, space-shooter (explosion) |
 | [Physics Assets](https://kenney.nl/assets/physics-assets) | CC0 | physics-playground (ball) |
 | [UI Pack](https://kenney.nl/assets/ui-pack) | CC0 | sprite-rendering (arrow) |
-| [Pixel Platformer](https://kenney.nl/assets/pixel-platformer) | CC0 | tilemap-demo (tileset atlas) |
+| [Pixel Platformer](https://kenney.nl/assets/pixel-platformer) | CC0 | tilemap-demo (`tileset.png` terrain atlas; `props.png` is a handful of its tiles repacked into a second tileset) |
 
 ## Audio
 

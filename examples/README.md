@@ -25,7 +25,7 @@ for your own game.
 | **physics-spinner** | Physics | Revolute joints and continuous rotation. |
 | **particle-demo** | Effects | A configurable particle emitter with additive blending. |
 | **postprocess-effects** | Effects | Full-screen post-processing: bloom, vignette, color grading. |
-| **tilemap-demo** | Tilemap | A tile level painted from a tileset atlas, drawn by the tilemap layer. |
+| **tilemap-demo** | Tilemap | Two scenes: a Tiled `.tmj` import and an engine-native `.estileset` — multi-tileset, parallax, animated water, per-tile collision. |
 | **ui-controls** | UI | Buttons, sliders, toggles and progress bars. |
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |
 | **ui-layout** | UI | Flexbox-style responsive UI layout. |

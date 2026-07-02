@@ -1,13 +1,13 @@
 {
   "formatVersion": "1",
   "name": "Tilemap Demo",
-  "description": "A tile-based level painted from a Kenney tileset atlas and rendered by the tilemap layer.",
+  "description": "A Tiled (.tmj) level and an engine-native (.estileset) level — the same tileset, two authoring paths, one runtime model. Shows multi-tileset rendering, parallax, animated tiles, and per-tile collision.",
   "tag": "Tilemap",
-  "version": "0.1.0",
-  "defaultScene": "assets/scenes/main.esscene",
+  "version": "0.2.0",
+  "defaultScene": "assets/scenes/tiled-map.esscene",
   "designResolution": {
     "width": 800,
-    "height": 600
+    "height": 450
   },
   "spineVersion": "none"
 }

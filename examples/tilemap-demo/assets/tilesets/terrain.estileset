@@ -1,0 +1,44 @@
+{
+  "version": "1",
+  "texture": "@uuid:11111111-2222-3333-4444-555555555555",
+  "tileWidth": 18,
+  "tileHeight": 18,
+  "columns": 20,
+  "margin": 0,
+  "spacing": 0,
+  "tileCount": 180,
+  "tiles": {
+    "1": {
+      "collision": {
+        "type": "box"
+      }
+    },
+    "2": {
+      "collision": {
+        "type": "box"
+      }
+    },
+    "3": {
+      "collision": {
+        "type": "box"
+      }
+    },
+    "4": {
+      "collision": {
+        "type": "box"
+      }
+    },
+    "34": {
+      "animation": [
+        {
+          "tile": 34,
+          "durationMs": 500
+        },
+        {
+          "tile": 54,
+          "durationMs": 500
+        }
+      ]
+    }
+  }
+}
