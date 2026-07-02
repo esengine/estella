@@ -57,6 +57,28 @@ const spawnAtCursor = defineSystem(
 );
 ```
 
+## Fixed timestep (physics)
+
+Systems in the `FixedUpdate` family run at a fixed cadence — zero times on a frame
+shorter than the timestep, several times when catching up. The `*Pressed` /
+`*Released` edges account for this: an edge is delivered to **exactly one** fixed
+step (the first at or after it arrived), so a jump read from a physics character
+controller is never dropped on a fast frame nor fired twice on a slow one — no
+buffering on your side.
+
+```typescript
+// Schedule.FixedPreUpdate — the edge is delivered reliably.
+const jump = defineSystem([Query(Mut(CharacterController)), Res(Input)], (players, input) => {
+  for (const [, cc] of players) {
+    if (cc.isOnFloor && input.isKeyPressed('Space')) cc.velocity.y = JUMP_FORCE;
+  }
+});
+```
+
+<Aside type="note">Held state (`isKeyDown`) is level-triggered and already reads
+correctly from any schedule. Step-accurate edge delivery covers keyboard and mouse
+buttons; gamepad edges are frame-granular.</Aside>
+
 ## Reference
 
 | Group | Methods |
@@ -71,7 +93,8 @@ Each `*Down` reads held state; `*Pressed` / `*Released` are the this-frame edges
 
 ## Best practices
 
-- **Poll every frame** — edges (`*Pressed` / `*Released`) are only set for one frame.
+- **Poll every frame** — edges (`*Pressed` / `*Released`) last one render frame, or
+  one fixed step inside `FixedUpdate` (see above).
 - **Guard world clicks with `isPointerOverUI()`** so clicking a button doesn't also
   hit the game world.
 - **Use `UICameraInfo` for world coordinates**, not raw `mouseX/Y`, so picking

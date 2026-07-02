@@ -12,7 +12,7 @@ import { EventRegistry, type EventDef } from './event';
 import type { ESEngineModule, CppRegistry } from './wasm';
 import type { BridgeConnectOptions } from './ecs/BuiltinBridge';
 import { UICameraInfo } from './ui/core/ui-camera-info';
-import { inputPlugin } from './input';
+import { inputPlugin, Input } from './input';
 import { assetPlugin } from './asset';
 import { prefabsPlugin } from './prefabServer';
 import { setWasmErrorHandler } from './wasmError';
@@ -699,6 +699,11 @@ export class App {
 
             this.fixedAccumulator_ += delta;
             let fixedSteps = 0;
+            // Fixed steps read the input edge mirrors (which persist across frames
+            // until a step consumes them) so a press on a sub-timestep frame isn't
+            // lost and a catch-up frame doesn't replay it. Null when no input plugin
+            // is installed (headless / bare App).
+            const input = this.resources_.has(Input) ? this.resources_.get(Input) : null;
             // Direct performance.now() (not platformNow) so the budget guard needs
             // no platform init (unit tests call tick() without it) and degrades to a
             // no-op where performance is absent — the maxFixedSteps cap still applies.
@@ -706,9 +711,11 @@ export class App {
             const fixedStart = perf ? perf.now() : 0;
             while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
                 this.fixedAccumulator_ -= this.fixedTimestep_;
+                input?.beginFixedStep();
                 await this.runSchedule(Schedule.FixedPreUpdate);
                 await this.runSchedule(Schedule.FixedUpdate);
                 await this.runSchedule(Schedule.FixedPostUpdate);
+                input?.endFixedStep();
                 fixedSteps++;
                 // Stop catching up once this frame's fixed steps blow the time
                 // budget — drop the backlog below so we don't spiral.

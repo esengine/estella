@@ -55,6 +55,25 @@ const spawnAtCursor = defineSystem(
 );
 ```
 
+## 固定步长(物理)
+
+`FixedUpdate` 系列的系统以固定节奏运行——比步长短的帧运行零次,追赶时运行多次。
+`*Pressed` / `*Released` 边沿已考虑这点:一个边沿只会被**恰好一个**固定步(第一个
+在它到达之后的步)消费,所以在物理角色控制器里读的跳跃,不会在快帧里丢失、也不会
+在慢帧里触发两次——你无需自己缓冲。
+
+```typescript
+// Schedule.FixedPreUpdate —— 边沿被可靠地投递。
+const jump = defineSystem([Query(Mut(CharacterController)), Res(Input)], (players, input) => {
+  for (const [, cc] of players) {
+    if (cc.isOnFloor && input.isKeyPressed('Space')) cc.velocity.y = JUMP_FORCE;
+  }
+});
+```
+
+<Aside type="note">按住状态(`isKeyDown`)是电平触发,本就能在任意 schedule 正确读取。
+按步精确的边沿投递覆盖键盘与鼠标按键;手柄边沿是按帧粒度的。</Aside>
+
 ## 参考
 
 | 分组 | 方法 |
@@ -69,7 +88,8 @@ const spawnAtCursor = defineSystem(
 
 ## 最佳实践
 
-- **每帧轮询**——边沿(`*Pressed` / `*Released`)只在一帧被设置。
+- **每帧轮询**——边沿(`*Pressed` / `*Released`)在渲染帧里持续一帧,在 `FixedUpdate`
+  里持续一个固定步(见上)。
 - **用 `isPointerOverUI()` 守卫世界点击**,点按钮时不要也命中游戏世界。
 - **世界坐标用 `UICameraInfo`**,而非裸 `mouseX/Y`,让拾取尊重相机。
 - **手柄 `pad` 默认 0**——本地多人传索引。

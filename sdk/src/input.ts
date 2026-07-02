@@ -70,16 +70,32 @@ export class InputState {
     touchesStarted = new Map<number, TouchPoint>();
     touchesEnded = new Set<number>();
 
+    // — Fixed-timestep edge mirrors —
+    // The render edges above are cleared once per rendered frame (Schedule.Last),
+    // but FixedUpdate runs a variable number of steps per frame (0 on a frame
+    // shorter than the timestep, 2+ when catching up). Reading a render edge from
+    // a fixed system therefore drops presses on sub-timestep frames and doubles
+    // them on catch-up frames. These mirrors are populated alongside the render
+    // edges but cleared per *step* (see endFixedStep), so a press/release reaches
+    // exactly one fixed step — the first one at or after it arrived. While a fixed
+    // step is running, the keyboard/mouse edge queries read these instead.
+    // (Godot's idle- vs physics-frame `just_pressed` split.)
+    keysPressedFixed = new Set<string>();
+    keysReleasedFixed = new Set<string>();
+    mouseButtonsPressedFixed = new Set<number>();
+    mouseButtonsReleasedFixed = new Set<number>();
+    private fixedContext_ = false;
+
     isKeyDown(key: string): boolean {
         return this.keysDown.has(key);
     }
 
     isKeyPressed(key: string): boolean {
-        return this.keysPressed.has(key);
+        return (this.fixedContext_ ? this.keysPressedFixed : this.keysPressed).has(key);
     }
 
     isKeyReleased(key: string): boolean {
-        return this.keysReleased.has(key);
+        return (this.fixedContext_ ? this.keysReleasedFixed : this.keysReleased).has(key);
     }
 
     getMousePosition(): { x: number; y: number } {
@@ -91,11 +107,42 @@ export class InputState {
     }
 
     isMouseButtonPressed(button: number): boolean {
-        return this.mouseButtonsPressed.has(button);
+        return (this.fixedContext_ ? this.mouseButtonsPressedFixed : this.mouseButtonsPressed).has(button);
     }
 
     isMouseButtonReleased(button: number): boolean {
-        return this.mouseButtonsReleased.has(button);
+        return (this.fixedContext_ ? this.mouseButtonsReleasedFixed : this.mouseButtonsReleased).has(button);
+    }
+
+    // — Edge intake (called by the platform binding for every raw event) —
+    // Centralised here so the render and fixed mirrors can never drift apart.
+
+    /** Record a key-down. The pressed edge only fires on the transition, so a
+     *  browser's auto-repeat keydown for a held key doesn't re-trigger it. */
+    noteKeyDown(code: string): void {
+        if (!this.keysDown.has(code)) {
+            this.keysPressed.add(code);
+            this.keysPressedFixed.add(code);
+        }
+        this.keysDown.add(code);
+    }
+
+    noteKeyUp(code: string): void {
+        this.keysDown.delete(code);
+        this.keysReleased.add(code);
+        this.keysReleasedFixed.add(code);
+    }
+
+    noteMouseDown(button: number): void {
+        this.mouseButtons.add(button);
+        this.mouseButtonsPressed.add(button);
+        this.mouseButtonsPressedFixed.add(button);
+    }
+
+    noteMouseUp(button: number): void {
+        this.mouseButtons.delete(button);
+        this.mouseButtonsReleased.add(button);
+        this.mouseButtonsReleasedFixed.add(button);
     }
 
     getScrollDelta(): { x: number; y: number } {
@@ -211,6 +258,24 @@ export class InputState {
         this.touchesStarted.clear();
         this.touchesEnded.clear();
     }
+
+    /** Enter a fixed-timestep step: keyboard/mouse edge queries now read the fixed
+     *  mirrors. Called by App before each FixedUpdate step. */
+    beginFixedStep(): void {
+        this.fixedContext_ = true;
+    }
+
+    /** Leave a fixed step: drop the consumed edges (so a later step this frame
+     *  doesn't see them again) and restore the render context. Edges that arrived
+     *  on a frame with no fixed step are never cleared here, so they survive to the
+     *  next frame's first step instead of being lost. */
+    endFixedStep(): void {
+        this.keysPressedFixed.clear();
+        this.keysReleasedFixed.clear();
+        this.mouseButtonsPressedFixed.clear();
+        this.mouseButtonsReleasedFixed.clear();
+        this.fixedContext_ = false;
+    }
 }
 
 export const Input = defineResource<InputState>(new InputState(), 'Input');
@@ -231,15 +296,11 @@ export class InputPlugin implements Plugin {
         getPlatform().bindInputEvents({
             onKeyDown(code) {
                 if (inputRouter.dispatchKeyDown(code)) return;
-                if (!state.keysDown.has(code)) {
-                    state.keysPressed.add(code);
-                }
-                state.keysDown.add(code);
+                state.noteKeyDown(code);
             },
             onKeyUp(code) {
                 if (inputRouter.dispatchKeyUp(code)) return;
-                state.keysDown.delete(code);
-                state.keysReleased.add(code);
+                state.noteKeyUp(code);
             },
             onPointerMove(x, y) {
                 // Pointer position tracks the cursor even when consumed so
@@ -254,13 +315,11 @@ export class InputPlugin implements Plugin {
                 state.mouseX = x;
                 state.mouseY = y;
                 if (inputRouter.dispatchPointerDown(button, x, y)) return;
-                state.mouseButtons.add(button);
-                state.mouseButtonsPressed.add(button);
+                state.noteMouseDown(button);
             },
             onPointerUp(button) {
                 if (inputRouter.dispatchPointerUp(button)) return;
-                state.mouseButtons.delete(button);
-                state.mouseButtonsReleased.add(button);
+                state.noteMouseUp(button);
             },
             onWheel(deltaX, deltaY) {
                 if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
