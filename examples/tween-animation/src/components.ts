@@ -1,17 +1,13 @@
-import { defineComponent } from 'esengine';
+import { defineComponent, defineTag } from 'esengine';
 
-export const EasingDemo = defineComponent('EasingDemo', {
-    easingIndex: 0,
+// One racing dot in the easing gallery. `index` selects its curve from
+// EASINGS in config.ts (the scene assigns one index per row).
+export const GalleryDot = defineComponent('GalleryDot', {
+    index: 0,
 });
 
-export const ScaleDemo = defineComponent('ScaleDemo', {
-    dummy: 0,
-});
+// The hero that runs the looping sequence + parallel choreography.
+export const Hero = defineTag('Hero');
 
-export const RotationDemo = defineComponent('RotationDemo', {
-    dummy: 0,
-});
-
-export const ColorDemo = defineComponent('ColorDemo', {
-    dummy: 0,
-});
+// The comet that tweens to wherever you click.
+export const Comet = defineTag('Comet');

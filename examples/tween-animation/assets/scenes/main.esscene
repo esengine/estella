@@ -11,14 +11,18 @@
         {
           "type": "Transform",
           "data": {
-            "position": { "x": 0, "y": 0, "z": 10 }
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
           }
         },
         {
           "type": "Camera",
           "data": {
             "projectionType": 1,
-            "orthoSize": 300,
+            "orthoSize": 360,
             "isActive": true,
             "priority": 0
           }
@@ -27,110 +31,992 @@
       "visible": true
     },
     {
-      "id": 1,
-      "name": "EasingLinear",
+      "id": 100,
+      "name": "Rail_0",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -250, "y": 175, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 0.93, "g": 0.17, "b": 0.17, "a": 1 } } },
-        { "type": "EasingDemo", "data": {} }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 2,
-      "name": "EasingInQuad",
+      "id": 200,
+      "name": "Dot_0",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -250, "y": 105, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 0.93, "g": 0.93, "b": 0.17, "a": 1 } } },
-        { "type": "EasingDemo", "data": { "easingIndex": 1 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 1,
+              "g": 0.28,
+              "b": 0.28,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 0
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 3,
-      "name": "EasingOutQuad",
+      "id": 101,
+      "name": "Rail_1",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -250, "y": 35, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 0.17, "g": 0.93, "b": 0.17, "a": 1 } } },
-        { "type": "EasingDemo", "data": { "easingIndex": 2 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": 248,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 4,
-      "name": "EasingInOutQuad",
+      "id": 201,
+      "name": "Dot_1",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -250, "y": -35, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 0.17, "g": 0.93, "b": 0.93, "a": 1 } } },
-        { "type": "EasingDemo", "data": { "easingIndex": 3 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": 248,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 1,
+              "g": 0.579,
+              "b": 0.28,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 1
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 5,
-      "name": "EasingInCubic",
+      "id": 102,
+      "name": "Rail_2",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -250, "y": -105, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 0.17, "g": 0.17, "b": 0.93, "a": 1 } } },
-        { "type": "EasingDemo", "data": { "easingIndex": 4 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": 196,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 6,
-      "name": "EasingOutBounce",
+      "id": 202,
+      "name": "Dot_2",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -250, "y": -175, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 0.93, "g": 0.17, "b": 0.93, "a": 1 } } },
-        { "type": "EasingDemo", "data": { "easingIndex": 5 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": 196,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 1,
+              "g": 0.878,
+              "b": 0.28,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 2
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 7,
-      "name": "ScaleDemo",
+      "id": 103,
+      "name": "Rail_3",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": -200, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 } } },
-        { "type": "ScaleDemo", "data": {} }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": 144,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 8,
-      "name": "RotationDemo",
+      "id": 203,
+      "name": "Dot_3",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 250, "y": -200, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 40, "y": 40 }, "color": { "r": 0.5, "g": 1, "b": 0.8, "a": 1 } } },
-        { "type": "RotationDemo", "data": {} }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": 144,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.824,
+              "g": 1,
+              "b": 0.28,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 3
+          }
+        }
       ],
       "visible": true
     },
     {
-      "id": 9,
-      "name": "ColorDemo",
+      "id": 104,
+      "name": "Rail_4",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -250, "y": -200, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 40, "y": 40 }, "color": { "r": 1, "g": 0, "b": 0, "a": 1 } } },
-        { "type": "ColorDemo", "data": {} }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": 92,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 204,
+      "name": "Dot_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": 92,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.525,
+              "g": 1,
+              "b": 0.28,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 4
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 105,
+      "name": "Rail_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": 40,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 205,
+      "name": "Dot_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": 40,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.28,
+              "g": 1,
+              "b": 0.334,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 5
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 106,
+      "name": "Rail_6",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": -12,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 206,
+      "name": "Dot_6",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": -12,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.28,
+              "g": 1,
+              "b": 0.633,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 6
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 107,
+      "name": "Rail_7",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": -64,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 207,
+      "name": "Dot_7",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": -64,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.28,
+              "g": 1,
+              "b": 0.932,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 7
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 108,
+      "name": "Rail_8",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": -116,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 208,
+      "name": "Dot_8",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": -116,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.28,
+              "g": 0.77,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 8
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 109,
+      "name": "Rail_9",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": -168,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 209,
+      "name": "Dot_9",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": -168,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.28,
+              "g": 0.471,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 9
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 110,
+      "name": "Rail_10",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": -220,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 210,
+      "name": "Dot_10",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": -220,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.388,
+              "g": 0.28,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 10
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 111,
+      "name": "Rail_11",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -370,
+              "y": -272,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 500,
+              "y": 3
+            },
+            "color": {
+              "r": 0.24,
+              "g": 0.25,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 211,
+      "name": "Dot_11",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -620,
+              "y": -272,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": {
+              "r": 0.687,
+              "g": 0.28,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "GalleryDot",
+          "data": {
+            "index": 11
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 300,
+      "name": "Hero",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 175,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.35,
+              "g": 0.7,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "Hero",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 301,
+      "name": "Comet",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": -175,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 30,
+              "y": 30
+            },
+            "color": {
+              "r": 1,
+              "g": 0.85,
+              "b": 0.35,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Comet",
+          "data": {}
+        }
       ],
       "visible": true
     }

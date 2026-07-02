@@ -1,13 +1,13 @@
 {
   "formatVersion": "1",
   "name": "Tween Animation",
-  "description": "Ease positions, scales and colors over time with the tween system.",
+  "description": "A tour of the built-in tween system: an easing gallery, a sequence + parallel choreography, and click-to-fling interaction.",
   "tag": "Animation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {
-    "width": 800,
-    "height": 600
+    "width": 1280,
+    "height": 720
   },
   "spineVersion": "none"
 }
