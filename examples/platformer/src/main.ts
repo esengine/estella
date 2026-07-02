@@ -6,6 +6,6 @@ import { coinBobSystem, coinPickupSystem } from './systems/coin';
 import { scoreSystem } from './systems/score';
 
 addSystemToSchedule(Schedule.FixedPreUpdate, playerSystem);
-addSystemToSchedule(Schedule.FixedPostUpdate, coinPickupSystem);
+addSystemToSchedule(Schedule.Update, coinPickupSystem);
 addSystemToSchedule(Schedule.Update, coinBobSystem);
 addSystemToSchedule(Schedule.Update, scoreSystem);

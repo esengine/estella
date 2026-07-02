@@ -15,7 +15,6 @@ export const playerSystem = defineSystem(
             if (input.isKeyDown('ArrowRight') || input.isKeyDown('KeyD')) moveX += 1;
             cc.velocity.x = moveX * player.speed;
 
-            // Gravity accumulates every fixed step; move-and-slide zeroes it on landing.
             cc.velocity.y += GRAVITY * time.fixedDelta;
 
             const jump = input.isKeyPressed('Space')
