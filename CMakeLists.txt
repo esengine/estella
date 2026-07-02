@@ -18,6 +18,11 @@ option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
 option(ES_ENABLE_BASIS "Build the Basis Universal KTX2 transcoder module" OFF)
 option(ES_BUILD_MAIN_MODULE "Build as MAIN_MODULE for dynamic linking" OFF)
 option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
+# The physics standalone module ships in two JS-glue flavours from the same wasm:
+# the default require()-style module (WeChat host) and an ES6 variant imported like
+# esengine.js (web editor's estella:// import-map host). They share OUTPUT_NAME
+# "physics", so exactly one may exist per configure — pick the ESM flavour here.
+option(ES_PHYSICS_ESM "Emit the physics module as an ES6 module (web) instead of require()-style (WeChat)" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)
@@ -499,44 +504,43 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
     endif()
 
-    # Physics standalone WASM module
+    # Physics standalone WASM module. The require()-style and ES6 flavours both emit
+    # sdk/physics.{js,wasm} from identical sources, so only one may be defined per
+    # configure (ES_PHYSICS_ESM selects which) — defining both makes Ninja error with
+    # "multiple rules generate sdk/physics.js".
     if(ES_ENABLE_BOX2D)
-        add_executable(physics_module
+        set(ES_PHYSICS_SOURCES
             src/esengine/bindings/PhysicsModuleEntry.cpp
             src/esengine/bindings/PhysicsContext.cpp
             src/esengine/bindings/PhysicsShapes.cpp
             src/esengine/bindings/PhysicsJoints.cpp
             src/esengine/bindings/PhysicsQueries.cpp
         )
-        target_link_libraries(physics_module PRIVATE box2d)
-        target_include_directories(physics_module PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
-        )
-        es_apply_physics_module_settings(physics_module)
-
-        set_target_properties(physics_module PROPERTIES
-            OUTPUT_NAME "physics"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
-
-        # ESM variant (EXPORT_ES6=1) for the web editor's estella:// ESM host —
-        # imported like esengine.js. Same sources/wasm, no dynamic linking.
-        add_executable(physics_module_esm
-            src/esengine/bindings/PhysicsModuleEntry.cpp
-            src/esengine/bindings/PhysicsContext.cpp
-            src/esengine/bindings/PhysicsShapes.cpp
-            src/esengine/bindings/PhysicsJoints.cpp
-            src/esengine/bindings/PhysicsQueries.cpp
-        )
-        target_link_libraries(physics_module_esm PRIVATE box2d)
-        target_include_directories(physics_module_esm PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
-        )
-        es_apply_physics_esm_module_settings(physics_module_esm)
-        set_target_properties(physics_module_esm PROPERTIES
-            OUTPUT_NAME "physics"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
+        if(ES_PHYSICS_ESM)
+            # ESM variant (EXPORT_ES6=1) for the web editor's estella:// ESM host —
+            # imported like esengine.js. Same sources/wasm, no dynamic linking.
+            add_executable(physics_module_esm ${ES_PHYSICS_SOURCES})
+            target_link_libraries(physics_module_esm PRIVATE box2d)
+            target_include_directories(physics_module_esm PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
+            )
+            es_apply_physics_esm_module_settings(physics_module_esm)
+            set_target_properties(physics_module_esm PROPERTIES
+                OUTPUT_NAME "physics"
+                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+            )
+        else()
+            add_executable(physics_module ${ES_PHYSICS_SOURCES})
+            target_link_libraries(physics_module PRIVATE box2d)
+            target_include_directories(physics_module PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
+            )
+            es_apply_physics_module_settings(physics_module)
+            set_target_properties(physics_module PROPERTIES
+                OUTPUT_NAME "physics"
+                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+            )
+        endif()
     endif()
 
     # Main module SDK (MAIN_MODULE=2, supports loading side modules)

@@ -49,7 +49,7 @@ export default {
         },
         physics: {
             buildDir: 'build-physics',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON', '-DES_PHYSICS_ESM=ON'],
             // ESM variant (EXPORT_ES6=1, `export default`) — the ONE physics build
             // for every realm. The SideModuleHost loader resolves the factory the
             // same way everywhere (fetch / inlined base64 / WeChat require), so
