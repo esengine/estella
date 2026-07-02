@@ -78,6 +78,7 @@ const EXT_TO_TYPE = Object.freeze({
     // Tilemap
     '.tmx': 'tilemap',
     '.tmj': 'tilemap',
+    '.estileset': 'tileset',
     // Spine (skel / atlas — .png pair handled by the texture entry)
     '.skel': 'spine',
     '.atlas': 'spine',
@@ -111,6 +112,7 @@ function getImporterDefaults(type) {
         case 'bitmapFont':
         case 'font':
         case 'tilemap':
+        case 'tileset':
             return {};
         default:
             return {};

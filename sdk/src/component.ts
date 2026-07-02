@@ -645,7 +645,18 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
 );
 
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
-    metaDefaults<TilemapLayerData>('TilemapLayer')
+    metaDefaults<TilemapLayerData>('TilemapLayer'),
+    {
+        // The `.estileset` reference is carried out-of-band (see tilemapPlugin's scene
+        // codec), but it's a real asset dependency: surface it here so the scene asset
+        // preloader loads it up front. Then the tilemap sync derives the render table,
+        // collision AND animation live from the tileset on the FIRST frame — no lazy-load
+        // gap, no baked `collidableTileIds` snapshot needed. This is the single-source model.
+        discoverAssets: (data) => {
+            const ref = data.tilesetAsset;
+            return typeof ref === 'string' && ref ? [{ type: 'tileset', path: ref }] : [];
+        },
+    },
 );
 
 // =============================================================================

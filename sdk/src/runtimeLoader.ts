@@ -16,6 +16,7 @@ import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin
 import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
 import { Assets as AssetsClass } from './asset/Assets';
+import { Assets as AssetsResource } from './asset/AssetPlugin';
 import { initBuiltinAssetFields } from './asset/AssetFieldRegistry';
 import type { TextureImportSettings } from './asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from './sceneManager';
@@ -177,6 +178,12 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // loader implementation, shared with the editor — driven by this realm's
     // provider. Spine stays a two-phase load+apply below (skipSpine).
     const sceneAssets = createSceneAssets(app, module, source, sceneData);
+    // Expose the realm's Assets (with its manifest ref-resolver) as the app resource
+    // so plugins that resolve `@uuid:` refs at runtime — the tilemap plugin looks up
+    // its `Tilemap.source` / `.estileset` refs each frame — find the SAME resolver the
+    // preload keyed the caches with. Without this the shipping runtime app has no
+    // Assets resource, so those refs resolve to nothing and tilemaps never render.
+    app.insertResource(AssetsResource, sceneAssets);
     const assetResult = await sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true });
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));

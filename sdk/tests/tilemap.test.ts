@@ -212,6 +212,15 @@ describe('resolveRelativePath', () => {
     it('should handle base path without directory', () => {
         expect(resolveRelativePath('level1.tmj', 'tileset.png')).toBe('tileset.png');
     });
+
+    it('should preserve a URL scheme+authority in the base (editor Play realm)', () => {
+        // The "//" after the scheme must survive; otherwise the fetch breaks
+        // ("estella://" collapsing to "estella:/" produced a 404 in play mode).
+        expect(resolveRelativePath('estella://project/assets/maps/level.tmj', '../textures/tileset.png'))
+            .toBe('estella://project/assets/textures/tileset.png');
+        expect(resolveRelativePath('http://127.0.0.1:5173/assets/maps/level.tmj', '../textures/props.png'))
+            .toBe('http://127.0.0.1:5173/assets/textures/props.png');
+    });
 });
 
 describe('TilemapAPI', () => {
@@ -1029,27 +1038,28 @@ describe('generateLayerCollision (B2-1 runtime tile collision)', () => {
 
         expect(ents).toHaveLength(1);
         const e = store.get(ents[0])!;
-        expect(e.Transform.position).toEqual({ x: 16, y: 16, z: 0 });
+        // y-DOWN (matches the renderer): row 0 top edge at origin y=0, centre below.
+        expect(e.Transform.position).toEqual({ x: 16, y: -16, z: 0 });
         expect(e.BoxCollider.halfExtents).toEqual({ x: 16, y: 16 });
         expect(e.RigidBody.bodyType).toBe(BodyType.Static);
     });
 
-    it('flips rows to y-up so the bottom row sits at low world-Y', () => {
+    it('places rows y-down so lower rows sit at more-negative world-Y', () => {
         const { world, store } = createMockWorld();
         // 1 column × 3 rows, only the BOTTOM row (row index 2, stored last) is collidable.
         const tiles = new Uint16Array([0, 0, 1]);
         const ents = generateLayerCollision(world, tiles, 1, 3, 10, 10, new Set([1]), 0, 0);
 
         expect(ents).toHaveLength(1);
-        // pixelH=30; row2 → worldY = (30 - 20) - 5 = 5 (near the bottom of a y-up world).
-        expect(store.get(ents[0])!.Transform.position).toEqual({ x: 5, y: 5, z: 0 });
+        // row2 → worldY = -(2*10) - 5 = -25 (matches renderer `origin - ty*th - hh`).
+        expect(store.get(ents[0])!.Transform.position).toEqual({ x: 5, y: -25, z: 0 });
     });
 
     it('offsets colliders by the tilemap entity world origin', () => {
         const { world, store } = createMockWorld();
         const tiles = new Uint16Array([1, 1, 1, 1]);
         const ents = generateLayerCollision(world, tiles, 2, 2, 16, 16, new Set([1]), 100, 200);
-        expect(store.get(ents[0])!.Transform.position).toEqual({ x: 116, y: 216, z: 0 });
+        expect(store.get(ents[0])!.Transform.position).toEqual({ x: 116, y: 184, z: 0 });
     });
 
     it('ignores non-collidable and empty tiles', () => {

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
 import type { ESEngineModule } from '../wasm';
-import { Transform, TilemapLayer, type TilemapLayerData } from '../component';
+import { Transform, TilemapLayer, Canvas, type TilemapLayerData } from '../component';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
@@ -15,6 +15,7 @@ import { decodeTilemapChunks } from './chunkCodec';
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import { Time } from '../resource';
 import { playModeOnly } from '../env';
+import { log } from '../logger';
 import type { Entity } from '../types';
 
 const SYNTHETIC_KEY_BASE = 0x40000000;
@@ -49,6 +50,8 @@ export class TilemapPlugin implements Plugin {
     private tilesetRefs_ = new Map<number, string>();
     /** Entities whose `.estileset` has been resolved+applied (so we do it once per load). */
     private liveResolved_ = new Set<number>();
+    /** Resolved `.estileset` paths a load has already been kicked off for (de-dupes the lazy load). */
+    private requestedTilesetLoads_ = new Set<string>();
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -61,6 +64,7 @@ export class TilemapPlugin implements Plugin {
         const nativePolygonShapes = this.nativePolygonShapes_;
         const tilesetRefs = this.tilesetRefs_;
         const liveResolved = this.liveResolved_;
+        const requestedTilesetLoads = this.requestedTilesetLoads_;
         registerSceneComponentCodec('TilemapLayer', {
             exportData: (entity, data) => {
                 const blob = TilemapAPI.exportChunks(entity);
@@ -112,6 +116,13 @@ export class TilemapPlugin implements Plugin {
                 // next Play regenerates from the current tiles.
                 const playMode = playModeOnly();
                 const assets = app.getResource(Assets);
+                // Physics half-extents are metres; tile sizes are pixels. Divide by the
+                // scene's pixelsPerUnit (Canvas, default 100) when spawning tile colliders.
+                let pixelsPerUnit = 100;
+                for (const ce of world.getEntitiesWithComponents([Canvas])) {
+                    const c = world.tryGet(ce, Canvas) as { pixelsPerUnit?: number } | null;
+                    if (c?.pixelsPerUnit) { pixelsPerUnit = c.pixelsPerUnit; break; }
+                }
                 if (!playMode && collisionEntities.size > 0) {
                     for (const [, ents] of collisionEntities) {
                         for (const e of ents) world.despawn(e);
@@ -182,6 +193,15 @@ export class TilemapPlugin implements Plugin {
                                 nativePolygonShapes.set(entity, model.polygonShapes);
                             }
                             liveResolved.add(entity);
+                        } else if (path && assets && !requestedTilesetLoads.has(path)) {
+                            // The `.estileset` is referenced but not loaded. It's an
+                            // out-of-band ref (invisible to scene asset discovery), so
+                            // nothing preloads it — kick the load off here. Once it lands
+                            // getResolvedTileset() hits next frame and we resolve live.
+                            requestedTilesetLoads.add(path);
+                            assets.load('tileset', path).catch((e) => {
+                                log.warn('tilemap', `failed to load tileset asset '${path}'`, e);
+                            });
                         }
                     }
 
@@ -201,7 +221,7 @@ export class TilemapPlugin implements Plugin {
                         if (hasBox) {
                             spawned.push(...generateChunkCollision(
                                 world, chunks, new Set(collIds),
-                                layerData.cellSize.x, layerData.cellSize.y, ox, oy,
+                                layerData.cellSize.x, layerData.cellSize.y, ox, oy, pixelsPerUnit,
                             ));
                         }
                         if (hasPoly) {
@@ -223,7 +243,13 @@ export class TilemapPlugin implements Plugin {
                     const tilemap = world.tryGet(entity, Tilemap) as { source: string } | null;
                     if (!tilemap?.source) continue;
 
-                    const cached = getTilemapSource(tilemap.source);
+                    // `source` may be a `@uuid:` ref (how the editor serializes asset
+                    // fields) or a plain path. The loader keys the source cache by the
+                    // RESOLVED path (Assets.resolveRef → path), and `resolveSceneAssetPaths`
+                    // does NOT rewrite tilemap fields, so resolve here too or a `@uuid:`
+                    // scene would never find its cached source.
+                    const sourcePath = resolveTilesetPath(assets, tilemap.source);
+                    const cached = sourcePath ? getTilemapSource(sourcePath) : undefined;
                     if (!cached) continue;
 
                     if (!sourceEntityKeys.has(entity)) {
@@ -314,7 +340,7 @@ export class TilemapPlugin implements Plugin {
                             if (layer.infinite || layer.tiles.length === 0) continue;
                             spawned.push(...generateLayerCollision(
                                 world, layer.tiles, layer.width, layer.height,
-                                cached.tileWidth, cached.tileHeight, ids, ox, oy,
+                                cached.tileWidth, cached.tileHeight, ids, ox, oy, pixelsPerUnit,
                             ));
                         }
                         collisionEntities.set(entity, spawned);
@@ -364,6 +390,7 @@ export class TilemapPlugin implements Plugin {
         this.nativePolygonShapes_.clear();
         this.tilesetRefs_.clear();
         this.liveResolved_.clear();
+        this.requestedTilesetLoads_.clear();
     }
 
     cleanup(): void {

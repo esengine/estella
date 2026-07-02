@@ -334,8 +334,18 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
 }
 
 export function resolveRelativePath(basePath: string, relativePath: string): string {
-    const lastSlash = basePath.lastIndexOf('/');
-    const baseDir = lastSlash >= 0 ? basePath.substring(0, lastSlash + 1) : '';
+    // Preserve a URL scheme+authority (e.g. "estella://project", "http://host")
+    // before normalizing: the "//" after the scheme must survive, but the segment
+    // walk below drops empty parts — which would collapse "estella://" to
+    // "estella:/" and break the fetch. The editor Play realm resolves assets to
+    // absolute estella:// URLs, so a Tiled map's relative tileset image ("../x.png")
+    // is joined against such a base.
+    const schemeMatch = /^([a-z][a-z0-9+.-]*:\/\/[^/]*)(\/.*|)$/i.exec(basePath);
+    const prefix = schemeMatch ? schemeMatch[1] : '';
+    const pathPart = schemeMatch ? schemeMatch[2] : basePath;
+
+    const lastSlash = pathPart.lastIndexOf('/');
+    const baseDir = lastSlash >= 0 ? pathPart.substring(0, lastSlash + 1) : '';
     const parts = (baseDir + relativePath).split('/');
     const resolved: string[] = [];
     for (const part of parts) {
@@ -345,7 +355,7 @@ export function resolveRelativePath(basePath: string, relativePath: string): str
             resolved.push(part);
         }
     }
-    return resolved.join('/');
+    return prefix ? `${prefix}/${resolved.join('/')}` : resolved.join('/');
 }
 
 export async function parseTiledMap(
@@ -553,13 +563,9 @@ export function loadTiledCollisionObjects(
  * @brief Greedy-merge a tile grid's collidable cells into static box colliders.
  *
  * Grid-agnostic core shared by the Tiled-import (`generateTileCollision`) and the runtime
- * asset (`TilemapSyncSystem`) paths. Tiles are stored top-down (row 0 = top) while the
- * world is y-up, so rows flip within `flipHeight` tile-rows of pixel height; each merged
- * rect becomes one static `BoxCollider` body placed relative to (originX, originY) — the
- * tilemap entity's world origin.
- *
- * @param flipHeight Tile-rows used for the y-flip (defaults to the grid height; the Tiled
- *        path passes the MAP height so a sub-sized layer flips against the map box).
+ * asset (`TilemapSyncSystem`) paths. Row 0 (top of the grid) maps to the highest world-Y
+ * and rows descend (y-down), matching the renderer; each merged rect becomes one static
+ * `BoxCollider` body placed relative to (originX, originY) — the tilemap entity's origin.
  */
 export function generateLayerCollision(
     world: World,
@@ -571,25 +577,31 @@ export function generateLayerCollision(
     collisionIds: Set<number>,
     originX: number,
     originY: number,
-    flipHeight: number = gridHeight,
+    pixelsPerUnit: number = 1,
 ): Entity[] {
     const merged = mergeCollisionTiles(tiles, gridWidth, gridHeight, collisionIds);
     const entities: Entity[] = [];
-    const pixelH = flipHeight * tileH;
 
     for (const rect of merged) {
         const mergedW = rect.width * tileW;
         const mergedH = rect.height * tileH;
+        // y-DOWN, matching the renderer (`worldY = origin - row*tileH - hh`,
+        // TilemapRenderPlugin.cpp) and generateChunkCollision — so colliders land
+        // exactly on the visible tiles. (Was y-up/flipped, which put them a full
+        // map-height off; never caught because no example ran tilemap physics in play.)
         const worldX = originX + rect.col * tileW + mergedW * 0.5;
-        const worldY = originY + (pixelH - rect.row * tileH) - mergedH * 0.5;
+        const worldY = originY - rect.row * tileH - mergedH * 0.5;
 
         const entity = world.spawn();
         world.insert(entity, Transform, {
             position: { x: worldX, y: worldY, z: 0 },
         });
         world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+        // Position is in pixels (physics scales it by pixelsPerUnit); halfExtents are
+        // PHYSICS units (metres), so divide the pixel size — otherwise a tile collider
+        // is pixelsPerUnit× too big (the default 100 → 100× oversized).
         world.insert(entity, BoxCollider, {
-            halfExtents: { x: mergedW * 0.5, y: mergedH * 0.5 },
+            halfExtents: { x: mergedW * 0.5 / pixelsPerUnit, y: mergedH * 0.5 / pixelsPerUnit },
         });
         entities.push(entity);
     }
@@ -607,7 +619,7 @@ export function generateTileCollision(
     return generateLayerCollision(
         world, layer.tiles, layer.width, layer.height,
         mapData.tileWidth, mapData.tileHeight, collisionIds,
-        originX, originY, mapData.height,
+        originX, originY,
     );
 }
 
@@ -629,6 +641,7 @@ export function generateChunkCollision(
     tileH: number,
     originX: number,
     originY: number,
+    pixelsPerUnit: number = 1,
 ): Entity[] {
     const entities: Entity[] = [];
     for (const chunk of chunks) {
@@ -649,8 +662,9 @@ export function generateChunkCollision(
                 },
             });
             world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+            // halfExtents in physics units (metres); divide the pixel size by ppu.
             world.insert(entity, BoxCollider, {
-                halfExtents: { x: rect.width * tileW * 0.5, y: rect.height * tileH * 0.5 },
+                halfExtents: { x: rect.width * tileW * 0.5 / pixelsPerUnit, y: rect.height * tileH * 0.5 / pixelsPerUnit },
             });
             entities.push(entity);
         }
