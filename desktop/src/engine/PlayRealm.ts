@@ -52,6 +52,18 @@ class PlayRealmImpl {
   attach(container: HTMLElement): void {
     container.appendChild(this.ensureIframe());
   }
+
+  /** Give the running game keyboard focus. Focusing the frame element routes key
+   *  events into its document (where the game listens); focusing the contentWindow
+   *  as well is belt-and-suspenders and is one of the few cross-origin-allowed calls. */
+  focusGame(): void {
+    this.iframe?.focus();
+    try {
+      this.iframe?.contentWindow?.focus();
+    } catch {
+      /* cross-origin contentWindow.focus can throw in some engines — element focus suffices */
+    }
+  }
   detach(): void {
     this.iframe?.parentElement?.removeChild(this.iframe);
   }
@@ -166,6 +178,11 @@ class PlayRealmImpl {
         break;
       case 'estella:play:ready':
         this.set({ ready: true });
+        // Hand the running game keyboard focus so it's playable immediately — the
+        // realm's InputPlugin listens on the iframe's own document, which receives
+        // key events only while the iframe is focused. Without this the user has to
+        // click the game first and WASD/arrows do nothing until they do.
+        this.focusGame();
         break;
       case 'estella:play:error':
         this.set({ error: data.message ?? 'play realm error' });
