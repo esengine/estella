@@ -19,7 +19,7 @@ void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableHitEvents = true;
-    shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.enableSensorEvents = true; // Box2D v3: a sensor only detects a visitor whose shape also enables sensor events.
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
@@ -50,7 +50,7 @@ void physics_addCircleShape(uint32_t entityId, float radius,
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableHitEvents = true;
-    shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.enableSensorEvents = true; // Box2D v3: a sensor only detects a visitor whose shape also enables sensor events.
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
@@ -77,7 +77,7 @@ void physics_addCapsuleShape(uint32_t entityId, float radius, float halfHeight,
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableHitEvents = true;
-    shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.enableSensorEvents = true; // Box2D v3: a sensor only detects a visitor whose shape also enables sensor events.
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
@@ -104,7 +104,7 @@ void physics_addSegmentShape(uint32_t entityId, float x1, float y1, float x2, fl
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableHitEvents = true;
-    shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.enableSensorEvents = true; // Box2D v3: a sensor only detects a visitor whose shape also enables sensor events.
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
@@ -131,7 +131,7 @@ void physics_addPolygonShape(uint32_t entityId, uintptr_t verticesPtr, int verte
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableHitEvents = true;
-    shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.enableSensorEvents = true; // Box2D v3: a sensor only detects a visitor whose shape also enables sensor events.
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
