@@ -15,7 +15,8 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../world';
 import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
-import { ProjectionType, ScaleMode, SceneOwner, ClearFlags } from '../component';
+import { ProjectionType, SceneOwner, ClearFlags } from '../component';
+import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY } from './uiLayoutRect';
 import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../renderPipeline';
@@ -69,28 +70,9 @@ function findCanvasData(module: ESEngineModule, registry: CppRegistry) {
     return registry.getCanvas(entity);
 }
 
-function computeEffectiveOrthoSize(
-    baseOrthoSize: number,
-    designAspect: number,
-    actualAspect: number,
-    scaleMode: number,
-    matchWidthOrHeight: number,
-): number {
-    const orthoForWidth = baseOrthoSize * designAspect / actualAspect;
-    const orthoForHeight = baseOrthoSize;
-
-    switch (scaleMode) {
-        case ScaleMode.FixedWidth: return orthoForWidth;
-        case ScaleMode.FixedHeight: return orthoForHeight;
-        case ScaleMode.Expand: return Math.max(orthoForWidth, orthoForHeight);
-        case ScaleMode.Shrink: return Math.min(orthoForWidth, orthoForHeight);
-        case ScaleMode.Match: {
-            const t = matchWidthOrHeight;
-            return Math.pow(orthoForWidth, 1 - t) * Math.pow(orthoForHeight, t);
-        }
-        default: return orthoForHeight;
-    }
-}
+// computeEffectiveOrthoSize + the UI layout box math live in ./uiLayoutRect
+// (pure, unit-tested). buildCameraInfo applies the former for design-resolution
+// scaling; syncUICameraInfo uses the latter for the UI layout rect.
 
 // =============================================================================
 // Camera POV (authored view parameters, decoupled from the baked matrix)
@@ -291,10 +273,11 @@ export function editorCameraInfo(
     height: number,
     pool: CameraInfo[],
 ): CameraInfo {
-    // The editor view is just another POV (synthetic entity -1, full-frame).
-    // null canvas → raw orthoSize (no design-resolution scaling) for predictable zoom.
+    // The editor view is just another POV (synthetic entity, full-frame).
+    // null canvas → raw orthoSize (no design-resolution scaling) for predictable
+    // world-zoom; UI layout gets the fixed design box separately (see uiLayoutRect).
     const pov: CameraPOV = {
-        entity: -1,
+        entity: EDITOR_VIEW_ENTITY,
         isActive: true,
         x: view.x,
         y: view.y,
@@ -392,10 +375,14 @@ function syncUICameraInfo(
         uiCam.vpH = Math.round(vr.h * height);
         uiCam.screenW = width;
         uiCam.screenH = height;
-        uiCam.worldLeft = cam.cameraX - cam.halfW;
-        uiCam.worldRight = cam.cameraX + cam.halfW;
-        uiCam.worldBottom = cam.cameraY - cam.halfH;
-        uiCam.worldTop = cam.cameraY + cam.halfH;
+        // The box UI lays out within. Scene cameras carry design-scaled extents;
+        // the free-zoom editor view gets the fixed design box from the canvas so UI
+        // doesn't reflow with the zoom (see uiLayoutRect).
+        const rect = uiLayoutRect(cam, findCanvasData(module, cppRegistry), width, height);
+        uiCam.worldLeft = rect.left;
+        uiCam.worldRight = rect.right;
+        uiCam.worldBottom = rect.bottom;
+        uiCam.worldTop = rect.top;
         uiCam.valid = true;
     } else {
         uiCam.valid = false;
