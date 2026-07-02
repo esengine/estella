@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "2D Lighting",
+  "description": "A near-dark room lit by a mouse torch — left-click drops colored lights, right-click drops obstacles that cast real-time soft shadows.",
+  "tag": "Rendering",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "spineVersion": "none"
+}

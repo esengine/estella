@@ -1,0 +1,2506 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 360,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Ambient",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 2,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 0.06,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Torch",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 1,
+              "g": 0.92,
+              "b": 0.78,
+              "a": 1
+            },
+            "intensity": 1.4,
+            "radius": 320,
+            "shadowSoftness": 18,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 22,
+              "y": 22
+            },
+            "color": {
+              "r": 1,
+              "g": 0.95,
+              "b": 0.82,
+              "a": 1
+            },
+            "layer": 6
+          }
+        },
+        {
+          "type": "Torch",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 100,
+      "name": "Tile_0_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -576,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 101,
+      "name": "Tile_1_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -448,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 102,
+      "name": "Tile_2_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -320,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 103,
+      "name": "Tile_3_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -192,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 104,
+      "name": "Tile_4_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -64,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 105,
+      "name": "Tile_5_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 64,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 106,
+      "name": "Tile_6_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 192,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 107,
+      "name": "Tile_7_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 320,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 108,
+      "name": "Tile_8_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 448,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 109,
+      "name": "Tile_9_0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 576,
+              "y": -310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 110,
+      "name": "Tile_0_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -576,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 111,
+      "name": "Tile_1_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -448,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 112,
+      "name": "Tile_2_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -320,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 113,
+      "name": "Tile_3_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -192,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 114,
+      "name": "Tile_4_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -64,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 115,
+      "name": "Tile_5_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 64,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 116,
+      "name": "Tile_6_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 192,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 117,
+      "name": "Tile_7_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 320,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 118,
+      "name": "Tile_8_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 448,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 119,
+      "name": "Tile_9_1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 576,
+              "y": -186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 120,
+      "name": "Tile_0_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -576,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 121,
+      "name": "Tile_1_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -448,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 122,
+      "name": "Tile_2_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -320,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 123,
+      "name": "Tile_3_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -192,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 124,
+      "name": "Tile_4_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -64,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 125,
+      "name": "Tile_5_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 64,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 126,
+      "name": "Tile_6_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 192,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 127,
+      "name": "Tile_7_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 320,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 128,
+      "name": "Tile_8_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 448,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 129,
+      "name": "Tile_9_2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 576,
+              "y": -62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 130,
+      "name": "Tile_0_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -576,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 131,
+      "name": "Tile_1_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -448,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 132,
+      "name": "Tile_2_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -320,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 133,
+      "name": "Tile_3_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -192,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 134,
+      "name": "Tile_4_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -64,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 135,
+      "name": "Tile_5_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 64,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 136,
+      "name": "Tile_6_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 192,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 137,
+      "name": "Tile_7_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 320,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 138,
+      "name": "Tile_8_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 448,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 139,
+      "name": "Tile_9_3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 576,
+              "y": 62,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 140,
+      "name": "Tile_0_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -576,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 141,
+      "name": "Tile_1_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -448,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 142,
+      "name": "Tile_2_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -320,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 143,
+      "name": "Tile_3_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -192,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 144,
+      "name": "Tile_4_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -64,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 145,
+      "name": "Tile_5_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 64,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 146,
+      "name": "Tile_6_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 192,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 147,
+      "name": "Tile_7_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 320,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 148,
+      "name": "Tile_8_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 448,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 149,
+      "name": "Tile_9_4",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 576,
+              "y": 186,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 150,
+      "name": "Tile_0_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -576,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 151,
+      "name": "Tile_1_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -448,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 152,
+      "name": "Tile_2_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -320,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 153,
+      "name": "Tile_3_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -192,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 154,
+      "name": "Tile_4_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -64,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 155,
+      "name": "Tile_5_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 64,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 156,
+      "name": "Tile_6_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 192,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 157,
+      "name": "Tile_7_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 320,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 158,
+      "name": "Tile_8_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 448,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.56,
+              "g": 0.58,
+              "b": 0.62,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 159,
+      "name": "Tile_9_5",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 576,
+              "y": 310,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 116,
+              "y": 116
+            },
+            "color": {
+              "r": 0.68,
+              "g": 0.7,
+              "b": 0.74,
+              "a": 1
+            },
+            "layer": 0,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 200,
+      "name": "Crate",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -330,
+              "y": -150,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 120,
+              "y": 120
+            },
+            "color": {
+              "r": 0.8,
+              "g": 0.55,
+              "b": 0.32,
+              "a": 1
+            },
+            "layer": 1,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 201,
+      "name": "Crystal",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 170,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 96,
+              "y": 96
+            },
+            "color": {
+              "r": 0.45,
+              "g": 0.85,
+              "b": 0.95,
+              "a": 1
+            },
+            "layer": 1,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 202,
+      "name": "Ruby",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 170,
+              "y": -195,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 104,
+              "y": 104
+            },
+            "color": {
+              "r": 0.85,
+              "g": 0.3,
+              "b": 0.42,
+              "a": 1
+            },
+            "layer": 1,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 203,
+      "name": "Emerald",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -270,
+              "y": 185,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 92,
+              "y": 92
+            },
+            "color": {
+              "r": 0.4,
+              "g": 0.8,
+              "b": 0.45,
+              "a": 1
+            },
+            "layer": 1,
+            "material": "@uuid:7f3a9c12-4d5e-4b6a-9c8d-1e2f3a4b5c6d"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 300,
+      "name": "PillarA",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -90,
+              "y": 20,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 64,
+              "y": 180
+            },
+            "color": {
+              "r": 0.22,
+              "g": 0.24,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 64,
+              "y": 180
+            },
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 301,
+      "name": "PillarB",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 260,
+              "y": -40,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 90,
+              "y": 90
+            },
+            "color": {
+              "r": 0.22,
+              "g": 0.24,
+              "b": 0.3,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 90,
+              "y": 90
+            },
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}
