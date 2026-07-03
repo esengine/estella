@@ -185,38 +185,6 @@
           }
         },
         {
-          "type": "Button",
-          "data": {
-            "state": 0,
-            "transition": {
-              "normalColor": {
-                "r": 0.2,
-                "g": 0.6,
-                "b": 1,
-                "a": 1
-              },
-              "hoveredColor": {
-                "r": 0.2,
-                "g": 0.6,
-                "b": 1,
-                "a": 0.8
-              },
-              "pressedColor": {
-                "r": 0.2,
-                "g": 0.6,
-                "b": 1,
-                "a": 0.6
-              },
-              "disabledColor": {
-                "r": 0.3,
-                "g": 0.3,
-                "b": 0.3,
-                "a": 1
-              }
-            }
-          }
-        },
-        {
           "type": "Interactable",
           "data": {}
         }
@@ -328,38 +296,6 @@
           }
         },
         {
-          "type": "Button",
-          "data": {
-            "state": 0,
-            "transition": {
-              "normalColor": {
-                "r": 0.2,
-                "g": 0.8,
-                "b": 0.4,
-                "a": 1
-              },
-              "hoveredColor": {
-                "r": 0.2,
-                "g": 0.8,
-                "b": 0.4,
-                "a": 0.8
-              },
-              "pressedColor": {
-                "r": 0.2,
-                "g": 0.8,
-                "b": 0.4,
-                "a": 0.6
-              },
-              "disabledColor": {
-                "r": 0.3,
-                "g": 0.3,
-                "b": 0.3,
-                "a": 1
-              }
-            }
-          }
-        },
-        {
           "type": "Interactable",
           "data": {}
         }
@@ -467,38 +403,6 @@
               "g": 0.3,
               "b": 0.3,
               "a": 1
-            }
-          }
-        },
-        {
-          "type": "Button",
-          "data": {
-            "state": 0,
-            "transition": {
-              "normalColor": {
-                "r": 0.9,
-                "g": 0.3,
-                "b": 0.3,
-                "a": 1
-              },
-              "hoveredColor": {
-                "r": 0.9,
-                "g": 0.3,
-                "b": 0.3,
-                "a": 0.8
-              },
-              "pressedColor": {
-                "r": 0.9,
-                "g": 0.3,
-                "b": 0.3,
-                "a": 0.6
-              },
-              "disabledColor": {
-                "r": 0.3,
-                "g": 0.3,
-                "b": 0.3,
-                "a": 1
-              }
             }
           }
         },

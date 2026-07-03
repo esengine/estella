@@ -279,38 +279,6 @@
           }
         },
         {
-          "type": "Button",
-          "data": {
-            "state": 0,
-            "transition": {
-              "normalColor": {
-                "r": 0.18,
-                "g": 0.2,
-                "b": 0.28,
-                "a": 0.92
-              },
-              "hoveredColor": {
-                "r": 0.28,
-                "g": 0.32,
-                "b": 0.44,
-                "a": 1
-              },
-              "pressedColor": {
-                "r": 0.12,
-                "g": 0.14,
-                "b": 0.2,
-                "a": 1
-              },
-              "disabledColor": {
-                "r": 0.2,
-                "g": 0.2,
-                "b": 0.2,
-                "a": 1
-              }
-            }
-          }
-        },
-        {
           "type": "Interactable",
           "data": {}
         },
@@ -422,38 +390,6 @@
               "g": 0.2,
               "b": 0.28,
               "a": 0.92
-            }
-          }
-        },
-        {
-          "type": "Button",
-          "data": {
-            "state": 0,
-            "transition": {
-              "normalColor": {
-                "r": 0.18,
-                "g": 0.2,
-                "b": 0.28,
-                "a": 0.92
-              },
-              "hoveredColor": {
-                "r": 0.28,
-                "g": 0.32,
-                "b": 0.44,
-                "a": 1
-              },
-              "pressedColor": {
-                "r": 0.12,
-                "g": 0.14,
-                "b": 0.2,
-                "a": 1
-              },
-              "disabledColor": {
-                "r": 0.2,
-                "g": 0.2,
-                "b": 0.2,
-                "a": 1
-              }
             }
           }
         },

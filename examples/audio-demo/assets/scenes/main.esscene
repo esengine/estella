@@ -194,12 +194,6 @@
           }
         },
         {
-          "type": "Button",
-          "data": {
-            "state": 0
-          }
-        },
-        {
           "type": "Interactable",
           "data": {}
         },
@@ -320,12 +314,6 @@
               "b": 0.9,
               "a": 1
             }
-          }
-        },
-        {
-          "type": "Button",
-          "data": {
-            "state": 0
           }
         },
         {
@@ -452,12 +440,6 @@
           }
         },
         {
-          "type": "Button",
-          "data": {
-            "state": 0
-          }
-        },
-        {
           "type": "Interactable",
           "data": {}
         },
@@ -578,12 +560,6 @@
               "b": 0.2,
               "a": 1
             }
-          }
-        },
-        {
-          "type": "Button",
-          "data": {
-            "state": 0
           }
         },
         {
