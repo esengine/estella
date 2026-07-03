@@ -196,6 +196,54 @@ function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: 
   );
 }
 
+// The corner HUD (perf + coordinates). Owns the StatsStore subscription so the
+// high-frequency cursor updates re-render ONLY this leaf — not the whole,
+// gizmo-heavy Viewport, which otherwise re-rendered on every mouse-move (visible
+// as pan/hover stutter).
+function ViewportHud({ ready, selCount, zoomPct, tool }: {
+  ready: boolean;
+  selCount: number;
+  zoomPct: number;
+  tool: ToolMode;
+}) {
+  const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
+  return (
+    <>
+      {ready && (
+        <div className="vp-perf" aria-hidden="true">
+          <div className="pr h">
+            <span className="k">FPS</span>
+            <span className="v">{stats.fps}</span>
+          </div>
+          <div className="ps" />
+          <div className="pr">
+            <span className="k">Frame</span>
+            <span className="v">{stats.fps > 0 ? (1000 / stats.fps).toFixed(1) : '—'} ms</span>
+          </div>
+          <div className="pr">
+            <span className="k">Entities</span>
+            <span className="v">{stats.entities}</span>
+          </div>
+        </div>
+      )}
+      <div className="vp-coord">
+        <div className="ro">
+          {stats.cursor && (
+            <>
+              <strong>
+                {stats.cursor.x}, {stats.cursor.y}
+              </strong>{' '}
+              ·{' '}
+            </>
+          )}
+          Sel <strong>{selCount}</strong> · {zoomPct}%
+        </div>
+        <div className="hint">{TOOL_HINT[tool]}</div>
+      </div>
+    </>
+  );
+}
+
 export function Viewport() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const playTarget = useEditorStore((s) => s.playTarget);
@@ -238,8 +286,6 @@ export function Viewport() {
   const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const realm = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
-  // Sampled a few times a second (not per frame) — drives the corner HUD.
-  const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
 
   // Scene cameras don't render in edit mode (the viewport is the editor camera),
   // so draw each as a gizmo (icon + authored view rect). The id set updates on
@@ -830,38 +876,7 @@ export function Viewport() {
         </div>
       )}
 
-      {engine.status === 'ready' && (
-        <div className="vp-perf" aria-hidden="true">
-          <div className="pr h">
-            <span className="k">FPS</span>
-            <span className="v">{stats.fps}</span>
-          </div>
-          <div className="ps" />
-          <div className="pr">
-            <span className="k">Frame</span>
-            <span className="v">{stats.fps > 0 ? (1000 / stats.fps).toFixed(1) : '—'} ms</span>
-          </div>
-          <div className="pr">
-            <span className="k">Entities</span>
-            <span className="v">{stats.entities}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="vp-coord">
-        <div className="ro">
-          {stats.cursor && (
-            <>
-              <strong>
-                {stats.cursor.x}, {stats.cursor.y}
-              </strong>{' '}
-              ·{' '}
-            </>
-          )}
-          Sel <strong>{selCount}</strong> · {zoomPct}%
-        </div>
-        <div className="hint">{TOOL_HINT[tool]}</div>
-      </div>
+      <ViewportHud ready={engine.status === 'ready'} selCount={selCount} zoomPct={zoomPct} tool={tool} />
 
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>
