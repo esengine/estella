@@ -119,6 +119,7 @@ class EngineHostImpl {
     gpuMs: number;
     cppScopes: Record<string, number>;
     cppCounters: Record<string, number>;
+    gpuScopes: Record<string, number>;
     wasmBytes: number;
     vramBytes: number;
   } | null {
@@ -137,6 +138,11 @@ class EngineHostImpl {
     if (countersJson) {
       try { cppCounters = JSON.parse(countersJson) as Record<string, number>; } catch { /* ignore */ }
     }
+    let gpuScopes: Record<string, number> = {};
+    const gpuJson = m?.engine_getGpuScopes?.();
+    if (gpuJson) {
+      try { gpuScopes = JSON.parse(gpuJson) as Record<string, number>; } catch { /* ignore */ }
+    }
     return {
       phaseMs: phases ? Object.fromEntries(phases) : {},
       systemMs: systems ? Object.fromEntries(systems) : {},
@@ -147,6 +153,7 @@ class EngineHostImpl {
       gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
       cppScopes,
       cppCounters,
+      gpuScopes,
       wasmBytes: m?.HEAPU8?.byteLength ?? 0,
       vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
     };

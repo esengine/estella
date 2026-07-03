@@ -51,6 +51,8 @@ export interface EngineFrame {
   cppScopes: Record<string, number>;
   /** Per-frame C++ named counters (culled, cache hits, …). */
   cppCounters: Record<string, number>;
+  /** Per-frame per-pass GPU times (submit, postprocess), name → ms. */
+  gpuScopes: Record<string, number>;
   /** Total wasm linear memory (bytes) — the engine's heap. */
   wasmBytes: number;
   /** Resident texture VRAM (bytes, estimate). */
@@ -70,6 +72,7 @@ export interface FrameSample {
   editorPhases: Record<string, number>;
   enginePhases: Record<string, number>;
   cppScopes: Record<string, number>;
+  gpuScopes: Record<string, number>;
   counters: Record<string, number>;
   systems: Array<{ name: string; ms: number }>;
   drawCalls: number;
@@ -328,11 +331,13 @@ class PerfMonitorImpl {
       let engineFrameMs = 0;
       let enginePhases: Record<string, number> = {};
       let cppScopes: Record<string, number> = {};
+      let gpuScopes: Record<string, number> = {};
       let engineCounters: Record<string, number> = {};
       let systemsFrame: Array<{ name: string; ms: number }> = [];
       if (ef) {
         enginePhases = ef.phaseMs;
         cppScopes = ef.cppScopes;
+        gpuScopes = ef.gpuScopes;
         engineCounters = ef.cppCounters;
         engineFrameMs = sumMs(enginePhases);
         this.engineSum += engineFrameMs;
@@ -357,6 +362,7 @@ class PerfMonitorImpl {
         editorPhases: { ...editorPhases },
         enginePhases: { ...enginePhases },
         cppScopes: { ...cppScopes },
+        gpuScopes: { ...gpuScopes },
         counters: { ...engineCounters, ...editorCounters },
         systems: systemsFrame,
         drawCalls: this.counters.drawCalls,

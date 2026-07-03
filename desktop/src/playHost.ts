@@ -347,6 +347,7 @@ window.addEventListener('message', (e: MessageEvent) => {
             gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
             cppScopes: jsonMap(m?.engine_getCpuScopes?.()),
             cppCounters: jsonMap(m?.engine_getCounters?.()),
+            gpuScopes: jsonMap(m?.engine_getGpuScopes?.()),
             wasmBytes: m?.HEAPU8?.byteLength ?? 0,
             vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
           },

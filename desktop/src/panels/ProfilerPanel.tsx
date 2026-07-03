@@ -202,6 +202,7 @@ export function ProfilerPanel() {
         ...Object.entries(pinned.editorPhases),
         ...Object.entries(pinned.enginePhases).map(([n, m]) => [`engine.${n}`, m] as [string, number]),
         ...Object.entries(pinned.cppScopes).map(([n, m]) => [`cpp.${n}`, m] as [string, number]),
+        ...Object.entries(pinned.gpuScopes).map(([n, m]) => [`gpu.${n}`, m] as [string, number]),
       ]
         .filter(([, ms]) => ms >= 0.1)
         .sort((a, b) => b[1] - a[1])
