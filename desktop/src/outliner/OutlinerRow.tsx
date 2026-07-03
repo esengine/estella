@@ -12,7 +12,7 @@
  * read-only column set and no edit handlers.
  */
 import type React from 'react';
-import { Fragment } from 'react';
+import { Fragment, memo } from 'react';
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { NodeIcon } from '@/components/icons';
 import type { ReactNode } from 'react';
@@ -64,7 +64,10 @@ export interface OutlinerRowProps {
   onDragEnd?: (e: React.DragEvent) => void;
 }
 
-export function OutlinerRow(props: OutlinerRowProps) {
+// Memoized: shared by the virtualized editor + game trees. A selection change
+// re-renders only the rows whose props actually changed (the old/new selected
+// row), not the whole visible window — provided the parent passes stable handlers.
+function OutlinerRowInner(props: OutlinerRowProps) {
   const { item, selected, renaming, dropPos, prefab, columns, columnCtx } = props;
   const isFolder = item.kind === 'folder';
   const { depth, hasChildren, expanded } = item;
@@ -154,3 +157,5 @@ export function OutlinerRow(props: OutlinerRowProps) {
     </div>
   );
 }
+
+export const OutlinerRow = memo(OutlinerRowInner);

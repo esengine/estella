@@ -24,6 +24,14 @@ import { CreatePopover } from '@/components/CreatePopover';
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
 const NO_EXPANSION: ReadonlySet<string> = new Set();
+// Stable references for the read-only game tree, so its memoized rows re-render
+// only on a selection change of the affected row (not the whole window).
+const GAME_COLUMNS = [TYPE_COLUMN];
+const EMPTY_COL_CTX: OutlinerColumnContext = {};
+const NOOP = () => {};
+const gameOnClick = (item: OutlinerItem) => {
+  if (item.kind === 'entity') PlayInspect.select(item.id);
+};
 
 const entityIds = (items: OutlinerItem[]): EntityId[] =>
   items.filter((i): i is Extract<OutlinerItem, { kind: 'entity' }> => i.kind === 'entity').map((i) => i.id);
@@ -55,12 +63,10 @@ function GameTree() {
           item={it}
           selected={it.kind === 'entity' && selection === it.id}
           collapsible={false}
-          columns={[TYPE_COLUMN]}
-          columnCtx={{}}
-          onToggle={() => {}}
-          onClick={(item) => {
-            if (item.kind === 'entity') PlayInspect.select(item.id);
-          }}
+          columns={GAME_COLUMNS}
+          columnCtx={EMPTY_COL_CTX}
+          onToggle={NOOP}
+          onClick={gameOnClick}
         />
       )}
     />
@@ -529,6 +535,31 @@ export function Outliner() {
   // between the edit scene and the live running game.
   const gameMode = inspectWorld === 'game';
 
+  // OutlinerRow is memoized, so it must get referentially-stable handlers or every
+  // visible row re-renders on any parent render (e.g. a selection change → the whole
+  // window rebuilds, ~38ms). These wrappers never change identity yet always call the
+  // latest closure (latest-ref), so a selection change re-renders ONLY the rows whose
+  // `selected`/`cursored` actually flipped.
+  const rowFns = {
+    onRowClick, onContextMenu, onStartRename, commitRename, onDragStartRow, onDragOverRow, onDropRow,
+    onDragEnd: () => { dragIds.current = null; dragFolder.current = null; setDrop(null); },
+  };
+  const rowFnsRef = useRef(rowFns);
+  rowFnsRef.current = rowFns;
+  const H = useMemo(
+    () => ({
+      onClick: (item: OutlinerItem, e: React.MouseEvent) => rowFnsRef.current.onRowClick(item, e),
+      onContextMenu: (e: React.MouseEvent, item: OutlinerItem) => rowFnsRef.current.onContextMenu(e, item),
+      onStartRename: (item: OutlinerItem) => rowFnsRef.current.onStartRename(item),
+      onCommitRename: (item: OutlinerItem, name: string) => rowFnsRef.current.commitRename(item, name),
+      onDragStart: (item: OutlinerItem, e: React.DragEvent) => rowFnsRef.current.onDragStartRow(item, e),
+      onDragOver: (item: OutlinerItem, e: React.DragEvent) => rowFnsRef.current.onDragOverRow(item, e),
+      onDrop: (item: OutlinerItem, e: React.DragEvent) => rowFnsRef.current.onDropRow(item, e),
+      onDragEnd: () => rowFnsRef.current.onDragEnd(),
+    }),
+    [],
+  );
+
   const renderRow = (it: OutlinerItem) => (
     <OutlinerRow
       item={it}
@@ -542,18 +573,14 @@ export function Outliner() {
       columnCtx={columnCtx}
       draggable
       onToggle={toggleExpanded}
-      onClick={onRowClick}
-      onContextMenu={onContextMenu}
-      onStartRename={onStartRename}
-      onCommitRename={commitRename}
-      onDragStart={onDragStartRow}
-      onDragOver={onDragOverRow}
-      onDrop={onDropRow}
-      onDragEnd={() => {
-        dragIds.current = null;
-        dragFolder.current = null;
-        setDrop(null);
-      }}
+      onClick={H.onClick}
+      onContextMenu={H.onContextMenu}
+      onStartRename={H.onStartRename}
+      onCommitRename={H.onCommitRename}
+      onDragStart={H.onDragStart}
+      onDragOver={H.onDragOver}
+      onDrop={H.onDrop}
+      onDragEnd={H.onDragEnd}
     />
   );
 
