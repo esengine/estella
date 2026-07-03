@@ -9,6 +9,7 @@
 #include "../ecs/components/ShadowCaster2D.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
+#include "../core/FrameProfiler.hpp"
 #include "OpenGLHeaders.hpp"
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
@@ -248,17 +249,23 @@ void RenderFrame::flush() {
 
     // finalize() sorts + coalesces and rewrites per-vertex texIndex into the staging, so it
     // must run before upload() ships that staging to the GPU.
-    draw_list_.finalize(pool_);
-    pool_.upload();
+    {
+        ES_PROFILE_SCOPE("render.finalize");
+        draw_list_.finalize(pool_);
+        pool_.upload();
+    }
 
     context_.updateFrameConstants(view_projection_);
     context_.lights().uploadAndBind();
 
     // GPU time for the scene draw: read back prior frames, then bracket this one.
     gpu_timer_.poll();
-    gpu_timer_.begin();
-    draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
-    gpu_timer_.end();
+    {
+        ES_PROFILE_SCOPE("render.submit"); // CPU cost of issuing the draw calls
+        gpu_timer_.begin();
+        draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
+        gpu_timer_.end();
+    }
     stats_.gpu_time_ms = gpu_timer_.lastMs();
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
@@ -301,6 +308,7 @@ void RenderFrame::end() {
 
     if (usePostProcess) {
 #ifdef ES_ENABLE_POSTPROCESS
+        ES_PROFILE_SCOPE("render.postprocess");
         post_process_->end();
 #endif
     } else if (current_target_ != RenderTargetManager::INVALID_HANDLE) {
@@ -313,6 +321,10 @@ void RenderFrame::end() {
     frame_capture_.endCapture();
     in_frame_ = false;
     flushed_ = false;
+
+    // Render is the last C++ work in a frame; physics/animation/… scopes ran
+    // earlier this frame and are already accumulated. Snapshot them all now.
+    FrameProfiler::get().commit();
 }
 
 void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
@@ -547,6 +559,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
 }
 
 void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
+    ES_PROFILE_SCOPE("render.collect"); // cull + build the draw list from the ECS
     buildClipState();
     collectLights(registry);
 

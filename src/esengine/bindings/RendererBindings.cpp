@@ -6,6 +6,7 @@
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/RenderContext.hpp"
+#include "../core/FrameProfiler.hpp"
 #include "../renderer/RenderStage.hpp"
 #include "../renderer/ImmediateDraw.hpp"
 #include "../renderer/CustomGeometry.hpp"
@@ -416,6 +417,16 @@ u32 renderer_getCulled() {
 f32 renderer_getGpuTimeMs() {
     if (!g_renderFrame) return -1.0f;
     return g_renderFrame->stats().gpu_time_ms;
+}
+
+// Per-frame CPU scope profiling (FrameProfiler): the editor turns it on and reads
+// the last frame's `cpp.*` scopes as a JSON object to fold into its breakdown.
+void engine_setCpuProfiling(bool on) {
+    FrameProfiler::get().setEnabled(on);
+}
+
+std::string engine_getCpuScopes() {
+    return FrameProfiler::get().lastJson();
 }
 
 void renderer_setDeltaTime(f32 dt) {
