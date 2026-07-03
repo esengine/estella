@@ -294,6 +294,8 @@ export interface ESEngineModule {
     engine_setCpuProfiling?(on: boolean): void;
     /** Last frame's CPU scopes as a JSON object {"render.submit": ms, …}. */
     engine_getCpuScopes?(): string;
+    /** Resident texture VRAM (RGBA8 estimate, bytes) for the profiler's memory pillar. */
+    renderer_getTextureBytes?(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
     renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;

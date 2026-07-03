@@ -34,8 +34,8 @@ namespace esengine {
 void GpuTimer::ensureInit() {
     if (state_ != 0) return;
 #ifdef __EMSCRIPTEN__
-    // The extension must be ENABLED (not just present) for emscripten to route the
-    // TIME_ELAPSED query entry points; enable returns false when it's unavailable.
+    // Must ENABLE the extension (not just check presence) so emscripten routes the
+    // TIME_ELAPSED query entry points.
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
     if (ctx && emscripten_webgl_enable_extension(ctx, "EXT_disjoint_timer_query_webgl2")) {
         glGenQueries(kRing, queries_);
@@ -43,12 +43,12 @@ void GpuTimer::ensureInit() {
         return;
     }
 #endif
-    state_ = 2; // unavailable — stays -1ms
+    state_ = 2;
 }
 
 void GpuTimer::begin() {
     ensureInit();
-    if (state_ != 1 || inflight_[write_]) return; // unavailable or ring full → skip
+    if (state_ != 1 || inflight_[write_]) return;
     glBeginQuery(GL_TIME_ELAPSED_EXT, queries_[write_]);
     active_ = true;
 }
@@ -65,7 +65,7 @@ void GpuTimer::poll() {
     if (state_ != 1) return;
     GLint disjoint = 0;
     glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
-    if (disjoint) { // GPU timing was disturbed this window — drop everything in flight
+    if (disjoint) { // timing disturbed — drop everything in flight
         for (int i = 0; i < kRing; ++i) inflight_[i] = false;
         read_ = write_;
         return;
@@ -73,7 +73,7 @@ void GpuTimer::poll() {
     while (inflight_[read_]) {
         GLuint avail = 0;
         glGetQueryObjectuiv(queries_[read_], GL_QUERY_RESULT_AVAILABLE, &avail);
-        if (!avail) break; // oldest not ready yet — try again next frame
+        if (!avail) break;
         GLuint ns = 0;
         glGetQueryObjectuiv(queries_[read_], GL_QUERY_RESULT, &ns);
         last_ms_ = static_cast<f32>(ns) / 1.0e6f;
@@ -258,10 +258,9 @@ void RenderFrame::flush() {
     context_.updateFrameConstants(view_projection_);
     context_.lights().uploadAndBind();
 
-    // GPU time for the scene draw: read back prior frames, then bracket this one.
     gpu_timer_.poll();
     {
-        ES_PROFILE_SCOPE("render.submit"); // CPU cost of issuing the draw calls
+        ES_PROFILE_SCOPE("render.submit");
         gpu_timer_.begin();
         draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
         gpu_timer_.end();
@@ -322,8 +321,7 @@ void RenderFrame::end() {
     in_frame_ = false;
     flushed_ = false;
 
-    // Render is the last C++ work in a frame; physics/animation/… scopes ran
-    // earlier this frame and are already accumulated. Snapshot them all now.
+    // Render is the frame's last C++ work: earlier scopes are already accumulated.
     FrameProfiler::get().commit();
 }
 
@@ -559,7 +557,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
 }
 
 void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
-    ES_PROFILE_SCOPE("render.collect"); // cull + build the draw list from the ECS
+    ES_PROFILE_SCOPE("render.collect");
     buildClipState();
     collectLights(registry);
 

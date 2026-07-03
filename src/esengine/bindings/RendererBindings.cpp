@@ -419,14 +419,19 @@ f32 renderer_getGpuTimeMs() {
     return g_renderFrame->stats().gpu_time_ms;
 }
 
-// Per-frame CPU scope profiling (FrameProfiler): the editor turns it on and reads
-// the last frame's `cpp.*` scopes as a JSON object to fold into its breakdown.
 void engine_setCpuProfiling(bool on) {
     FrameProfiler::get().setEnabled(on);
 }
 
 std::string engine_getCpuScopes() {
     return FrameProfiler::get().lastJson();
+}
+
+f64 renderer_getTextureBytes() {
+    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
+        return static_cast<f64>(rm->getStats().textureBytes);
+    }
+    return 0.0;
 }
 
 void renderer_setDeltaTime(f32 dt) {

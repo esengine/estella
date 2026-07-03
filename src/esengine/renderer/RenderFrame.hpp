@@ -38,16 +38,13 @@ struct Frustum {
     bool intersectsAABB(const glm::vec3& center, const glm::vec3& halfExtents) const;
 };
 
-// Per-frame GPU timer over EXT_disjoint_timer_query_webgl2 (GL_TIME_ELAPSED). A
-// small ring of query objects so readback never stalls the CPU; reports the most
-// recent completed frame's GPU ms, or -1 when unavailable. Only POD state lives
-// here — the methods (which touch GL / emscripten) are defined in RenderFrame.cpp
-// so no GL headers leak through this widely-included header.
+// GPU frame timer (EXT_disjoint_timer_query). POD state only; the GL methods live
+// in RenderFrame.cpp so no GL headers leak through this header.
 class GpuTimer {
 public:
-    void begin();      // bracket the frame's draw submission (no-op if unavailable)
+    void begin();
     void end();
-    void poll();       // read back finished queries → last_ms_
+    void poll();
     f32 lastMs() const { return last_ms_; }
 
 private:
@@ -76,9 +73,7 @@ public:
         u32 particles = 0;
         u32 shapes = 0;
         u32 culled = 0;
-        // Last completed frame's GPU time (ms) via EXT_disjoint_timer_query, or -1
-        // when the timer isn't available (extension missing / driver disjoint).
-        f32 gpu_time_ms = -1.0f;
+        f32 gpu_time_ms = -1.0f; // -1 when the timer is unavailable
     };
 
     RenderFrame(GfxDevice& device, RenderContext& context,
