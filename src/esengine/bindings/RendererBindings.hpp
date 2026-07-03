@@ -106,6 +106,7 @@ u32 renderer_getSpine();
 u32 renderer_getText();
 u32 renderer_getMeshes();
 u32 renderer_getCulled();
+f32 renderer_getGpuTimeMs();
 void renderer_setDeltaTime(f32 dt);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);

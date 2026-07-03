@@ -413,6 +413,11 @@ u32 renderer_getCulled() {
     return g_renderFrame->stats().culled;
 }
 
+f32 renderer_getGpuTimeMs() {
+    if (!g_renderFrame) return -1.0f;
+    return g_renderFrame->stats().gpu_time_ms;
+}
+
 void renderer_setDeltaTime(f32 dt) {
     ctx().state().delta_time = dt;
 }

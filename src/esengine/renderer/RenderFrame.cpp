@@ -9,6 +9,10 @@
 #include "../ecs/components/ShadowCaster2D.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
+#include "OpenGLHeaders.hpp"
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -17,6 +21,65 @@
 #include <vector>
 
 namespace esengine {
+
+// EXT_disjoint_timer_query_webgl2 enums — not guaranteed in <GLES3/gl3.h>.
+#ifndef GL_TIME_ELAPSED_EXT
+#define GL_TIME_ELAPSED_EXT 0x88BF
+#endif
+#ifndef GL_GPU_DISJOINT_EXT
+#define GL_GPU_DISJOINT_EXT 0x8FBB
+#endif
+
+void GpuTimer::ensureInit() {
+    if (state_ != 0) return;
+#ifdef __EMSCRIPTEN__
+    // The extension must be ENABLED (not just present) for emscripten to route the
+    // TIME_ELAPSED query entry points; enable returns false when it's unavailable.
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+    if (ctx && emscripten_webgl_enable_extension(ctx, "EXT_disjoint_timer_query_webgl2")) {
+        glGenQueries(kRing, queries_);
+        state_ = 1;
+        return;
+    }
+#endif
+    state_ = 2; // unavailable — stays -1ms
+}
+
+void GpuTimer::begin() {
+    ensureInit();
+    if (state_ != 1 || inflight_[write_]) return; // unavailable or ring full → skip
+    glBeginQuery(GL_TIME_ELAPSED_EXT, queries_[write_]);
+    active_ = true;
+}
+
+void GpuTimer::end() {
+    if (!active_) return;
+    glEndQuery(GL_TIME_ELAPSED_EXT);
+    inflight_[write_] = true;
+    write_ = (write_ + 1) % kRing;
+    active_ = false;
+}
+
+void GpuTimer::poll() {
+    if (state_ != 1) return;
+    GLint disjoint = 0;
+    glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
+    if (disjoint) { // GPU timing was disturbed this window — drop everything in flight
+        for (int i = 0; i < kRing; ++i) inflight_[i] = false;
+        read_ = write_;
+        return;
+    }
+    while (inflight_[read_]) {
+        GLuint avail = 0;
+        glGetQueryObjectuiv(queries_[read_], GL_QUERY_RESULT_AVAILABLE, &avail);
+        if (!avail) break; // oldest not ready yet — try again next frame
+        GLuint ns = 0;
+        glGetQueryObjectuiv(queries_[read_], GL_QUERY_RESULT, &ns);
+        last_ms_ = static_cast<f32>(ns) / 1.0e6f;
+        inflight_[read_] = false;
+        read_ = (read_ + 1) % kRing;
+    }
+}
 
 f32 Plane::signedDistance(const glm::vec3& point) const {
     return glm::dot(normal, point) + distance;
@@ -190,7 +253,13 @@ void RenderFrame::flush() {
 
     context_.updateFrameConstants(view_projection_);
     context_.lights().uploadAndBind();
+
+    // GPU time for the scene draw: read back prior frames, then bracket this one.
+    gpu_timer_.poll();
+    gpu_timer_.begin();
     draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
+    gpu_timer_.end();
+    stats_.gpu_time_ms = gpu_timer_.lastMs();
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {

@@ -38,6 +38,30 @@ struct Frustum {
     bool intersectsAABB(const glm::vec3& center, const glm::vec3& halfExtents) const;
 };
 
+// Per-frame GPU timer over EXT_disjoint_timer_query_webgl2 (GL_TIME_ELAPSED). A
+// small ring of query objects so readback never stalls the CPU; reports the most
+// recent completed frame's GPU ms, or -1 when unavailable. Only POD state lives
+// here — the methods (which touch GL / emscripten) are defined in RenderFrame.cpp
+// so no GL headers leak through this widely-included header.
+class GpuTimer {
+public:
+    void begin();      // bracket the frame's draw submission (no-op if unavailable)
+    void end();
+    void poll();       // read back finished queries → last_ms_
+    f32 lastMs() const { return last_ms_; }
+
+private:
+    void ensureInit(); // lazy: enable the extension + gen queries on first use
+    static constexpr int kRing = 3;
+    unsigned queries_[kRing] = {0, 0, 0};
+    bool inflight_[kRing] = {false, false, false};
+    int write_ = 0;
+    int read_ = 0;
+    int state_ = 0; // 0 = uninit, 1 = available, 2 = unavailable
+    bool active_ = false;
+    f32 last_ms_ = -1.0f;
+};
+
 class RenderFrame {
 public:
     struct Stats {
@@ -52,6 +76,9 @@ public:
         u32 particles = 0;
         u32 shapes = 0;
         u32 culled = 0;
+        // Last completed frame's GPU time (ms) via EXT_disjoint_timer_query, or -1
+        // when the timer isn't available (extension missing / driver disjoint).
+        f32 gpu_time_ms = -1.0f;
     };
 
     RenderFrame(GfxDevice& device, RenderContext& context,
@@ -169,6 +196,7 @@ private:
     RenderStage current_stage_ = RenderStage::Transparent;
 
     Stats stats_;
+    GpuTimer gpu_timer_;
     FrameCapture frame_capture_;
     std::vector<u8> snapshot_pixels_;
     RenderTargetManager::Handle replay_rt_ = 0;

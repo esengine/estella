@@ -288,6 +288,8 @@ export interface ESEngineModule {
     renderer_getSpine?(): number;
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
+    /** Last frame's GPU time (ms) via EXT_disjoint_timer_query, or -1 if unavailable. */
+    renderer_getGpuTimeMs?(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
     renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
