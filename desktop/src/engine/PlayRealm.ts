@@ -79,6 +79,7 @@ class PlayRealmImpl {
     this.payload = payload;
     this.set({ playing: true, ready: false, error: null });
     const frame = this.ensureIframe();
+    frame.style.visibility = 'hidden';
     try {
       const realm = await window.estella.project.preparePlayRealm();
       if (!realm.ok) {
@@ -94,7 +95,10 @@ class PlayRealmImpl {
   /** Tear the realm down (releases its wasm + GL by navigating to a blank page). */
   stop(): void {
     this.payload = null;
-    if (this.iframe) this.iframe.src = 'about:blank';
+    if (this.iframe) {
+      this.iframe.style.visibility = 'hidden';
+      this.iframe.src = 'about:blank';
+    }
     this.set({ playing: false, ready: false, error: null });
   }
 
@@ -178,6 +182,7 @@ class PlayRealmImpl {
         break;
       case 'estella:play:ready':
         this.set({ ready: true });
+        if (this.iframe) this.iframe.style.visibility = 'visible';
         // Hand the running game keyboard focus so it's playable immediately — the
         // realm's InputPlugin listens on the iframe's own document, which receives
         // key events only while the iframe is focused. Without this the user has to
