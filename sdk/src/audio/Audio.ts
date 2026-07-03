@@ -202,6 +202,13 @@ export class AudioAPI {
         return this.bufferCache_.get(url);
     }
 
+    /** Fill `out` with the master output's frequency spectrum (0-255 per bin,
+     *  low→high) for visualizers. Returns false on backends without analysis
+     *  (e.g. WeChat) — callers should treat that as silence. */
+    getSpectrum(out: Uint8Array): boolean {
+        return this.backend_.getFrequencyData?.(out) ?? false;
+    }
+
     dispose(): void {
         this.disposed_ = true;
         for (const id of this.fadeAnimIds_) {

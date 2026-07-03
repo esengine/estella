@@ -144,6 +144,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
     private nextBufferId_ = 0;
     private nextHandleId_ = 0;
     private resumeHandler_: (() => void) | null = null;
+    private analyser_: AnalyserNode | null = null;
 
     get mixer(): AudioMixer | null {
         return this.mixer_;
@@ -157,6 +158,13 @@ export class WebAudioBackend implements PlatformAudioBackend {
         this.context_ = new AudioContext();
         this.mixer_ = new AudioMixer(this.context_, options.mixerConfig);
         this.pool_ = new AudioPool(this.context_, options.initialPoolSize);
+
+        // Tap the master bus for spectrum analysis (a side branch — the analyser
+        // is a sink, so it never alters the audio reaching the destination).
+        this.analyser_ = this.context_.createAnalyser();
+        this.analyser_.fftSize = 128;
+        this.analyser_.smoothingTimeConstant = 0.7;
+        this.mixer_.master.node.connect(this.analyser_);
 
         if (this.context_.state === 'suspended') {
             const resume = () => {
@@ -272,6 +280,12 @@ export class WebAudioBackend implements PlatformAudioBackend {
         return handle;
     }
 
+    getFrequencyData(out: Uint8Array): boolean {
+        if (!this.analyser_) return false;
+        this.analyser_.getByteFrequencyData(out);
+        return true;
+    }
+
     suspend(): void {
         this.context_?.suspend();
     }
@@ -287,6 +301,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
             document.removeEventListener('keydown', this.resumeHandler_);
             this.resumeHandler_ = null;
         }
+        this.analyser_ = null;
         this.pool_ = null;
         this.mixer_ = null;
         this.buffers_.clear();

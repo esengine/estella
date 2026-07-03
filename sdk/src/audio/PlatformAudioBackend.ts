@@ -51,4 +51,8 @@ export interface PlatformAudioBackend {
     suspend(): void;
     resume(): void;
     dispose(): void;
+    /** Fill `out` with the master output's frequency magnitudes (0-255 per bin,
+     *  low→high), returning true. Optional: backends without analysis (e.g.
+     *  WeChat) omit it, and callers treat a missing method as silence. */
+    getFrequencyData?(out: Uint8Array): boolean;
 }

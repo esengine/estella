@@ -195,6 +195,24 @@ describe('AudioAPI', () => {
         });
     });
 
+    describe('getSpectrum', () => {
+        it('returns false on a backend without analysis (silent fallback)', () => {
+            // the default mock backend omits getFrequencyData (like WeChat)
+            expect(audio.getSpectrum(new Uint8Array(8))).toBe(false);
+        });
+
+        it('forwards to the backend analyser and fills the array', () => {
+            const withAnalyser = createMockBackend();
+            withAnalyser.getFrequencyData = vi.fn((o: Uint8Array) => { o.fill(200); return true; });
+            const a = new AudioAPI(withAnalyser, createMockMixer());
+
+            const out = new Uint8Array(8);
+            expect(a.getSpectrum(out)).toBe(true);
+            expect(withAnalyser.getFrequencyData).toHaveBeenCalledWith(out);
+            expect(out.every(v => v === 200)).toBe(true);
+        });
+    });
+
     describe('dispose', () => {
         it('should stop BGM and dispose backend', async () => {
             await audio.preload('bgm.mp3');
