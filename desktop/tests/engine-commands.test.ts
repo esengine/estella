@@ -32,6 +32,7 @@ vi.mock('@/engine/EngineHost', () => ({
 }));
 
 import { EditorSession } from '@/engine/EditorSession';
+import { flattenCatalog } from '@/engine/entityTemplates';
 import type { SceneData } from 'esengine';
 
 const emptyScene = (): SceneData =>
@@ -206,5 +207,12 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
         S.history.undo();
         expect(host.world.valid(e)).toBe(false);
         expect(host.world.valid(ce)).toBe(false);
+    });
+
+    it('a non-UI catalog preset (Sprite) instantiates into the World', () => {
+        const sprite = flattenCatalog().find((c) => c.template.label === 'Sprite')!;
+        const id = S.commands.createFromTemplate(sprite.template.prefab, null)!;
+        expect(id).not.toBeNull();
+        expect(host.world.has(rt(id), Sprite)).toBe(true);
     });
 });
