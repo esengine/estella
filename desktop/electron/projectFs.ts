@@ -22,6 +22,9 @@ import {
   type WorkspaceState,
   type DirEntry,
 } from '../src/project/format';
+import { META_EXT, isContentDir, isContentFile } from './contentPolicy';
+
+export { META_EXT };
 
 /**
  * Resolve a project-relative path, refusing anything that escapes `root`.
@@ -72,13 +75,13 @@ export async function writeInRoot(root: string, relPath: string, contents: strin
   await writeFile(abs, contents, 'utf8');
 }
 
+/** Browsable entries only (contentPolicy) — the Content Browser's folder view. */
 export async function readDirInRoot(root: string, relPath: string): Promise<DirEntry[]> {
   const entries = await readdir(resolveInRoot(root, relPath), { withFileTypes: true });
-  return entries.map((e) => ({ name: e.name, isDir: e.isDirectory() }));
+  return entries
+    .filter((e) => (e.isDirectory() ? isContentDir(e.name) : isContentFile(e.name)))
+    .map((e) => ({ name: e.name, isDir: e.isDirectory() }));
 }
-
-/** Sidecar suffix carrying an asset's uuid/type/importer (see assetDb). */
-export const META_EXT = '.meta';
 
 /** Project-relative, forward-slashed form of an absolute path under `root`. */
 const toRel = (root: string, abs: string): string => path.relative(root, abs).split(path.sep).join('/');
@@ -92,14 +95,15 @@ async function* walkFiles(absDir: string): AsyncGenerator<string> {
   }
 }
 
-// Recursively yield project-relative paths of visible files (skips dot dirs/files —
-// `.esengine`, `.meta` sidecars — that aren't browsable assets).
+// Recursively yield project-relative paths of browsable files (contentPolicy).
 async function* walkVisible(absDir: string, root: string): AsyncGenerator<string> {
   for (const e of await readdir(absDir, { withFileTypes: true })) {
-    if (e.name.startsWith('.')) continue;
     const p = path.join(absDir, e.name);
-    if (e.isDirectory()) yield* walkVisible(p, root);
-    else if (!e.name.endsWith(META_EXT)) yield toRel(root, p);
+    if (e.isDirectory()) {
+      if (isContentDir(e.name)) yield* walkVisible(p, root);
+    } else if (isContentFile(e.name)) {
+      yield toRel(root, p);
+    }
   }
 }
 

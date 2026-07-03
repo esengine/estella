@@ -16,17 +16,13 @@
  */
 import { watch, type FSWatcher } from 'node:fs';
 import type { WebContents } from 'electron';
+import { isNonContentPath } from './contentPolicy';
 
 // Our own cache writes (assets.json / schemas.json / scripts.mjs under
-// `.esengine`) MUST be ignored — refreshing on them would loop. Plus the usual
-// heavy/irrelevant noise dirs.
-const IGNORED = ['.esengine', 'node_modules', '.git', 'dist', 'build'];
-
-/** True if a project-relative path is watcher noise (an ignored dir or its tree). */
-export function isIgnoredPath(rel: string): boolean {
-  const norm = rel.replace(/\\/g, '/');
-  return IGNORED.some((d) => norm === d || norm.startsWith(`${d}/`));
-}
+// `.esengine`) MUST be ignored — refreshing on them would loop; contentPolicy's
+// dot rule covers that plus the usual heavy noise dirs.
+/** True if a project-relative path is watcher noise (outside content space). */
+export const isIgnoredPath = isNonContentPath;
 
 const DEBOUNCE_MS = 180;
 

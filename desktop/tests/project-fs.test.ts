@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   resolveInRoot,
+  readDirInRoot,
+  listFilesInRoot,
   renameInRoot,
   mkdirInRoot,
   duplicateInRoot,
@@ -62,6 +64,25 @@ describe('importAssets', () => {
     ]);
     expect(res.skipped).toEqual(['notes.xyz']);
     expect(res.imported).toEqual(['assets/logo.png', 'assets/logo 2.png']);
+  });
+});
+
+describe('content visibility (contentPolicy)', () => {
+  beforeEach(() => {
+    // Pipeline internals + non-content dirs that must never surface as entries.
+    writeFileSync(path.join(root, 'assets', '.DS_Store'), '');
+    mkdirSync(path.join(root, '.esengine'));
+    mkdirSync(path.join(root, 'node_modules', 'pkg'), { recursive: true });
+    writeFileSync(path.join(root, 'node_modules', 'pkg', 'icon.png'), 'PNG');
+  });
+
+  it('readDir hides .meta sidecars, dot entries and non-content dirs', async () => {
+    expect((await readDirInRoot(root, '')).map((e) => e.name)).toEqual(['assets']);
+    expect((await readDirInRoot(root, 'assets')).map((e) => e.name)).toEqual(['hero.png']);
+  });
+
+  it('subtree search agrees with readDir (same policy)', async () => {
+    expect(await listFilesInRoot(root, '')).toEqual(['assets/hero.png']);
   });
 });
 

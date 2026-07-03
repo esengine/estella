@@ -18,14 +18,11 @@
  */
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { META_EXT, isContentDir } from './contentPolicy';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
 const OUTPUT = 'assets.json';
-/** Dirs never scanned for assets — code/build/vcs, not content. */
-const SKIP_DIRS = new Set([
-  'node_modules', '.git', '.esengine', 'dist', 'dist-electron', 'build', '.vscode', '.cache',
-]);
 const UUID_PREFIX = '@uuid:';
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -67,9 +64,9 @@ async function* walkMeta(root: string, rel = ''): AsyncGenerator<string> {
   }
   for (const e of entries) {
     if (e.isDirectory()) {
-      if (SKIP_DIRS.has(e.name)) continue;
+      if (!isContentDir(e.name)) continue;
       yield* walkMeta(root, rel ? `${rel}/${e.name}` : e.name);
-    } else if (e.name.endsWith('.meta')) {
+    } else if (e.name.endsWith(META_EXT)) {
       yield rel ? `${rel}/${e.name}` : e.name;
     }
   }
