@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  PerfOverlay.tsx — the viewport fps glance (View ▸ Perf).
- *
- * A deliberately TINY corner readout — the UE `stat fps` analog — so it never
- * obstructs the scene: just fps + frame percentiles, dropped frames, and any
- * long task. The detailed `stat unit` breakdown / render counters / systems live
- * in the dockable Profiler panel, not on top of the scene. A leaf subscriber, so
- * its twice-a-second updates never re-render the viewport.
+ * @file  PerfOverlay.tsx — a tiny fps glance in the viewport corner; the detail
+ *        lives in the dockable Profiler panel. Leaf subscriber (no viewport re-render).
  */
 import { useSyncExternalStore } from 'react';
 import { PerfMonitor } from '@/engine/PerfMonitor';

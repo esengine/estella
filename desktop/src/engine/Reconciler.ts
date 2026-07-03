@@ -78,8 +78,6 @@ export class ReconcilerImpl {
   /** Begin projecting model changes to the World. Idempotent. */
   attach(): void {
     if (this.unsubscribe) return;
-    // Time model→World projection as a profiler zone, so an edit that stalls a
-    // frame (a big reconcile) attributes to 'reconcile' instead of the void.
     this.unsubscribe = this.model.subscribe((ev) => PerfMonitor.measure('reconcile', () => this.onEvent(ev)));
   }
 

@@ -55,9 +55,7 @@ export function createSelectionStore(model: SceneModelImpl) {
     selectedIds: new Set<EntityId>(),
     selectedAsset: null,
 
-    // Selecting an entity clears the asset selection (unified inspector).
-    // Wrapped in a 'select' profiler zone: zustand notifies subscribers synchronously,
-    // so any non-React work a selection triggers is attributed here, not to the void.
+    // 'select' zone captures the synchronous subscriber work a selection triggers.
     select: (selectedId) =>
       PerfMonitor.measure('select', () =>
         set({

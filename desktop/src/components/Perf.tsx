@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Perf.tsx — one React-commit instrumentation wrapper.
- *
- * `<Perf id="x">…</Perf>` reports its subtree's commit time to the profiler as
- * `react.x`, so a panel/chrome region that stalls a frame is named, not lumped
- * into an unattributed spike. Use it around each independently-committing region
- * (dock panels, menu/tool/status bars) — siblings never nest, so no double-count.
+ * @file  Perf.tsx — `<Perf id="x">` reports its subtree's React commit time as
+ *        `react.x`. Wrap each independently-committing region (never nest siblings).
  */
 import { Profiler, type ReactNode } from 'react';
 import { PerfMonitor } from '@/engine/PerfMonitor';

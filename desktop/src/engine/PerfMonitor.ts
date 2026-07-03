@@ -1,17 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  PerfMonitor.ts — the editor's frame instrumentation.
- *
- * One place every per-frame phase reports into, so viewport jank is an
- * ATTRIBUTED measurement, not a guess:
- *  - measure(phase, fn) / mark(phase, t0) time a phase, accumulate it per frame,
- *    and emit a User Timing measure (labeled tracks in the DevTools Performance
- *    panel).
- *  - a rAF samples the real frame interval → p50/p95/p99 + dropped-frame count,
- *    and attributes each long frame to its dominant phase.
- *  - a PerformanceObserver surfaces main-thread long tasks (GC / long JS).
- * Near-free when disabled (the timers short-circuit). Drives the Perf overlay.
+ * @file  PerfMonitor.ts — the editor's per-frame instrumentation hub.
  */
 import { createStore } from 'zustand/vanilla';
 
@@ -33,14 +23,12 @@ export function dominantPhase(phases: Record<string, number>): { phase: string; 
   return best;
 }
 
-/** Sum a phase/system timing map (ms). */
 export function sumMs(rec: Record<string, number>): number {
   let s = 0;
   for (const k in rec) s += rec[k];
   return s;
 }
 
-/** The n costliest entries of a timing map, descending — for the systems table. */
 export function topSystems(rec: Record<string, number>, n: number): Array<{ name: string; ms: number }> {
   return Object.entries(rec)
     .map(([name, ms]) => ({ name, ms }))
@@ -48,11 +36,8 @@ export function topSystems(rec: Record<string, number>, n: number): Array<{ name
     .slice(0, n);
 }
 
-/**
- * The engine's last-frame telemetry the profiler folds into a frame: per-phase /
- * per-system wall-clock (ms) + render counters. Supplied by a source callback so
- * PerfMonitor stays decoupled from the engine host (and unit-testable).
- */
+/** The engine's last-frame telemetry, supplied by a source callback so PerfMonitor
+ *  stays decoupled from the engine host. */
 export interface EngineFrame {
   phaseMs: Record<string, number>;
   systemMs: Record<string, number>;
@@ -64,26 +49,24 @@ export interface EngineFrame {
   gpuMs: number;
   /** Per-frame C++ CPU scopes (render passes etc.), name → ms — the `cpp.*` rows. */
   cppScopes: Record<string, number>;
+  /** Total wasm linear memory (bytes) — the engine's heap. */
+  wasmBytes: number;
+  /** Resident texture VRAM (bytes, estimate). */
+  vramBytes: number;
 }
 
-/**
- * One frame's FULL breakdown, captured every frame into a ring so any past frame
- * (especially a hitch) can be inspected after the fact — the trace/scrub model
- * Unreal Insights uses, rather than pausing the app. Values are per-frame, not
- * windowed averages, so a spike's real attribution survives.
- */
+/** One frame's full per-frame breakdown, kept in a ring so any past frame can be
+ *  inspected after the fact. */
 export interface FrameSample {
-  id: number; // monotonic frame id (stable across ring scroll)
+  id: number;
   dt: number;
-  /** Frame window on the performance timeline, for correlating long tasks. */
-  t0: number;
+  t0: number; // frame window on the performance timeline (for long-task overlap)
   t1: number;
   engineMs: number;
   editorMs: number;
   gpuMs: number;
   editorPhases: Record<string, number>;
   enginePhases: Record<string, number>;
-  /** C++ CPU scopes for this frame (render.collect/submit/…), name → ms. */
   cppScopes: Record<string, number>;
   systems: Array<{ name: string; ms: number }>;
   drawCalls: number;
@@ -91,9 +74,6 @@ export interface FrameSample {
   entities: number;
 }
 
-/** A main-thread long task overlapping a frame (GC / long JS the profiler can't
- *  name from inside), captured from the Long Tasks API — the usual cause of a
- *  spike that the instrumented phases don't account for. */
 export interface FrameLongTask {
   ms: number;
   name: string;
@@ -112,12 +92,8 @@ export interface PerfSnapshot {
   longTaskMs: number;
   visible: boolean;
   enabled: boolean;
-  // stat-unit breakdown (windowed avg ms): Frame ≈ engine + editor + idle/present.
-  /** Engine CPU per frame (sum of app.run phase timings) — the "Game" analog. */
   engineMs: number;
-  /** Editor CPU per frame (gizmo.update + react.commit + …) — the "Draw" analog. */
   editorMs: number;
-  // Render counters (last sampled frame), UE `stat scenerendering` analog.
   drawCalls: number;
   triangles: number;
   entities: number;
@@ -129,16 +105,18 @@ export interface PerfSnapshot {
   gpuMs: number;
   /** Recent frame intervals (ms, oldest→newest) for the history graph. */
   frames: number[];
-  // Frame capture (PP6): freeze the rolling capture and inspect one frame.
-  /** True when the capture is frozen (graph static; sections show the pinned frame). */
   frozen: boolean;
   /** The inspected frame's id, or null for the live rolling window. */
   pinnedId: number | null;
-  /** Auto-freeze + pin the next frame that exceeds the hitch threshold. */
   autoHitch: boolean;
-  /** Bumps when a long task is observed — a refresh trigger so the pinned frame's
-   *  long-task list updates even while the capture is frozen. */
+  /** Bumps when a long task arrives, so a frozen pinned view refreshes to include it. */
   longTaskRev: number;
+  wasmMB: number;
+  jsHeapMB: number;
+  jsHeapLimitMB: number;
+  vramMB: number;
+  /** Recent memory samples (oldest→newest) for the memory graph. */
+  memHist: Array<{ wasm: number; js: number; vram: number }>;
 }
 
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
@@ -152,6 +130,7 @@ class PerfMonitorImpl {
     fps: 0, p50: 0, p95: 0, p99: 0, longFrames: 0, worstMs: 0, worstPhase: null, longTaskMs: 0, visible: false, enabled: true,
     engineMs: 0, editorMs: 0, drawCalls: 0, triangles: 0, entities: 0, systemsTop: [], realm: 'edit', gpuMs: -1, frames: [],
     frozen: false, pinnedId: null, autoHitch: false, longTaskRev: 0,
+    wasmMB: 0, jsHeapMB: 0, jsHeapLimitMB: 0, vramMB: 0, memHist: [],
   }));
   private enabled = true;
   private running = false;
@@ -165,21 +144,19 @@ class PerfMonitorImpl {
   private worstMs = 0;
   private worstPhase: string | null = null;
   private longTaskMs = 0;
-  // Engine-frame ingest (PP1): a source the host wires so PerfMonitor stays
-  // decoupled. Accumulated per frame, averaged/reduced at the window flush.
   private engineSource: (() => EngineFrame | null) | null = null;
   private engineSum = 0;
   private editorSum = 0;
   private winFrames = 0;
   private systemMax: Record<string, number> = {};
   private counters = { drawCalls: 0, triangles: 0, entities: 0, gpuMs: -1 };
+  private mem = { wasmBytes: 0, vramBytes: 0 };
+  private readonly memHist: Array<{ wasm: number; js: number; vram: number }> = [];
   private realm: 'edit' | 'play' = 'edit';
-  // Frame capture ring (PP6): full per-frame breakdown for pin-a-frame inspection.
   private readonly samples: FrameSample[] = [];
   private sampleSeq = 0;
   private frozen = false;
   private autoHitch = false;
-  // Long-task ring (PP7): correlate GC / long-JS spikes to the frame they hit.
   private readonly longTasks: Array<{ start: number; ms: number; name: string }> = [];
   private longTaskRev = 0;
 
@@ -215,9 +192,7 @@ class PerfMonitorImpl {
   setEnabled(on: boolean): void { this.enabled = on; this.patch({ enabled: on }); }
   toggleOverlay(): void { this.patch({ visible: !this.store.getState().visible }); }
 
-  // — Frame capture (PP6): freeze + inspect a specific frame —
-
-  /** Freeze the rolling capture and pin a frame for inspection (clicking a bar). */
+  /** Freeze the rolling capture and pin a frame for inspection. */
   pin(id: number): void {
     this.frozen = true;
     // Snapshot the static ring's dt into `frames` so the graph holds at this moment.
@@ -276,7 +251,7 @@ class PerfMonitorImpl {
     this.realm = realm;
   }
 
-  /** Time `fn` as a named frame phase (accumulates + emits a User Timing measure). */
+  /** Time `fn` as a named frame phase. */
   measure<T>(phase: string, fn: () => T): T {
     if (!this.enabled) return fn();
     const t0 = performance.now();
@@ -287,7 +262,7 @@ class PerfMonitorImpl {
     }
   }
 
-  /** Record a phase that ran from `startMs` to now (accumulate + User Timing). */
+  /** Record a phase that ran from `startMs` to now. */
   mark(phase: string, startMs: number): void {
     if (!this.enabled) return;
     const end = performance.now();
@@ -333,7 +308,6 @@ class PerfMonitorImpl {
     }
 
     if (this.enabled) {
-      // stat-unit ingest: editor phases + the engine's last frame.
       const editorFrameMs = sumMs(editorPhases);
       this.editorSum += editorFrameMs;
       const ef = this.engineSource?.();
@@ -351,6 +325,7 @@ class PerfMonitorImpl {
         }
         systemsFrame = topSystems(ef.systemMs, 8).map((s) => ({ name: s.name, ms: r1(s.ms) }));
         this.counters = { drawCalls: ef.drawCalls, triangles: ef.triangles, entities: ef.entities, gpuMs: ef.gpuMs };
+        this.mem = { wasmBytes: ef.wasmBytes, vramBytes: ef.vramBytes };
       }
       this.winFrames += 1;
 
@@ -385,6 +360,14 @@ class PerfMonitorImpl {
     if (now - this.windowStart >= WINDOW_MS) {
       const p50 = percentile(this.frames, 50);
       const wf = this.winFrames || 1;
+      const MB = 1 / (1024 * 1024);
+      const jsMem = (performance as Performance & { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+      const wasmMB = r1(this.mem.wasmBytes * MB);
+      const vramMB = r1(this.mem.vramBytes * MB);
+      const jsHeapMB = jsMem ? r1(jsMem.usedJSHeapSize * MB) : 0;
+      const jsHeapLimitMB = jsMem ? Math.round(jsMem.jsHeapSizeLimit * MB) : 0;
+      this.memHist.push({ wasm: wasmMB, js: jsHeapMB, vram: vramMB });
+      if (this.memHist.length > CAP) this.memHist.shift();
       this.patch({
         fps: p50 > 0 ? Math.round(1000 / p50) : 0,
         p50: r1(p50), p95: r1(percentile(this.frames, 95)), p99: r1(percentile(this.frames, 99)),
@@ -395,6 +378,7 @@ class PerfMonitorImpl {
         realm: this.realm,
         gpuMs: this.counters.gpuMs >= 0 ? r1(this.counters.gpuMs) : -1,
         frames: this.samples.map((s) => s.dt),
+        wasmMB, jsHeapMB, jsHeapLimitMB, vramMB, memHist: this.memHist.slice(),
       });
       this.windowStart = now;
       this.longFrames = 0; this.worstMs = 0; this.worstPhase = null; this.longTaskMs = 0;

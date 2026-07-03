@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0
-   Profiler panel — the docked frame readout (Unreal Insights analog). Derives
-   from tokens.css; kept visually quiet so it reads as instrumentation. */
+   Profiler panel styles. Derives from tokens.css. */
 
 .prof {
   height: 100%;
@@ -27,7 +26,7 @@
 }
 .prof-realm { text-transform: none; letter-spacing: 0; color: var(--text-faint); }
 
-/* Frame-time history graph (Insights timeline analog). */
+/* Frame-time history graph. */
 .prof-graph {
   display: block;
   width: 100%;
@@ -63,6 +62,26 @@
 .prof-check input { accent-color: var(--star); }
 .prof-live { color: var(--run, #46a04a); }
 .prof-pinned { color: var(--star-hi, var(--star)); }
+
+/* Stat-group toggle chips. */
+.prof-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-line);
+}
+.prof-chip {
+  font: var(--fs-xs, 11px) var(--mono, ui-monospace, monospace);
+  color: var(--text-faint);
+  background: transparent;
+  border: 1px solid var(--border-line);
+  border-radius: 999px;
+  padding: 1px 9px;
+  cursor: pointer;
+}
+.prof-chip:hover { color: var(--text); }
+.prof-chip.on { color: var(--text-hi); border-color: var(--star-line, var(--star)); background: var(--star-dim, rgba(47, 136, 214, 0.18)); }
 .prof-link {
   background: none; border: 0; padding: 0; cursor: pointer;
   color: var(--star-hi, var(--star)); font: inherit; text-decoration: underline;

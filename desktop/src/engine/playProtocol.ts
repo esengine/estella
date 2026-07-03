@@ -66,6 +66,8 @@ export interface PlayStatsReply {
   entities: number;
   gpuMs: number;
   cppScopes: Record<string, number>;
+  wasmBytes: number;
+  vramBytes: number;
 }
 
 /** editor → realm. Discriminated by `type`. */

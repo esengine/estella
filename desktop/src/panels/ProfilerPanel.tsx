@@ -1,15 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  ProfilerPanel.tsx — the dockable profiler (Unreal Insights analog).
- *
- * The full frame readout lives in a docked panel, not an overlay on the scene.
- * Beyond the live window it captures every frame's full breakdown into a ring, so
- * a hitch is inspectable AFTER the fact (the Insights scrub model, not pausing the
- * app): click any bar in the history graph to freeze + pin that frame and see what
- * cost it that frame; "Pause on hitch" auto-freezes the culprit when it happens.
+ * @file  ProfilerPanel.tsx — the dockable profiler panel.
  */
-import { useSyncExternalStore, useRef, useEffect, useCallback } from 'react';
+import { useSyncExternalStore, useRef, useEffect, useCallback, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 
@@ -23,11 +17,71 @@ function kfmt(n: number): string {
 const cssVar = (el: Element, name: string, fallback: string): string =>
   getComputedStyle(el).getPropertyValue(name).trim() || fallback;
 
-/**
- * Frame-time history — the Insights timeline analog: each recent frame as a bar,
- * 60/30 Hz budgets as reference lines, hitches amber→red, the pinned frame marked.
- * Click a bar to pin it. Canvas (not 240 DOM nodes) so the profiler never janks.
- */
+const GROUPS = [
+  { id: 'frame', label: 'Frame' },
+  { id: 'unit', label: 'CPU/GPU' },
+  { id: 'render', label: 'Render' },
+  { id: 'memory', label: 'Memory' },
+  { id: 'systems', label: 'Systems' },
+] as const;
+const GROUPS_KEY = 'estella.profiler.hiddenGroups';
+
+function useHiddenGroups(): [Set<string>, (id: string) => void] {
+  const [hidden, setHidden] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(GROUPS_KEY) ?? '[]') as string[]); } catch { return new Set(); }
+  });
+  const toggle = useCallback((id: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem(GROUPS_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+  return [hidden, toggle];
+}
+
+/** Memory over time — wasm heap / JS heap / texture VRAM as autoscaled lines. */
+function MemGraph({ hist }: { hist: Array<{ wasm: number; js: number; vram: number }> }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv) return;
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    if (!w || !h) return;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    const n = hist.length;
+    if (!n) return;
+    let max = 1;
+    for (const m of hist) max = Math.max(max, m.wasm, m.js, m.vram);
+    const colors = { wasm: cssVar(cv, '--warn', '#d3a23c'), js: cssVar(cv, '--star', '#2f88d6'), vram: '#3fb2b2' };
+    const line = (key: 'wasm' | 'js' | 'vram') => {
+      ctx.strokeStyle = colors[key];
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1 || 1)) * w;
+        const y = h - (hist[i][key] / max) * h;
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    };
+    line('wasm');
+    line('vram');
+    line('js');
+  }, [hist]);
+  return <canvas ref={ref} className="prof-graph" />;
+}
+
+/** Frame-time history: each recent frame as a bar with 60/30 Hz budget lines,
+ *  hitches amber→red, the pinned frame marked. Click a bar to pin it. */
 function FrameGraph({ frames, pinnedId }: { frames: number[]; pinnedId: number | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -116,6 +170,8 @@ function Seg({ label, ms, frame, color }: { label: string; ms: number; frame: nu
 export function ProfilerPanel() {
   const s = useSyncExternalStore(PerfMonitor.subscribe, PerfMonitor.getSnapshot);
   const pinned = s.pinnedId != null ? PerfMonitor.getSample(s.pinnedId) : null;
+  const [hidden, toggleGroup] = useHiddenGroups();
+  const show = (id: string) => !hidden.has(id);
 
   // Sections read the pinned frame when one is inspected, else the live window.
   const v = pinned
@@ -135,9 +191,7 @@ export function ProfilerPanel() {
   const isIdle = v.frameMs <= BUDGET_MS * 1.25;
   const presentLabel = isIdle ? 'idle' : 'present';
 
-  // Pinned-frame attribution (PP7): the long tasks that hit this frame (the usual
-  // cause of an un-instrumented spike) + every measured phase, ranked. `longTaskRev`
-  // on the snapshot re-runs this when a task arrives after the frame froze.
+  // The long tasks that hit the pinned frame + its measured phases, ranked.
   const longTasks = pinned ? PerfMonitor.getFrameLongTasks(pinned.id) : [];
   const measuredMs = pinned ? pinned.engineMs + pinned.editorMs : 0;
   const unattributedMs = pinned ? Math.max(0, pinned.dt - measuredMs) : 0;
@@ -175,7 +229,21 @@ export function ProfilerPanel() {
         )}
       </div>
 
+      <div className="prof-groups">
+        {GROUPS.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            className={`prof-chip${hidden.has(g.id) ? '' : ' on'}`}
+            onClick={() => toggleGroup(g.id)}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
       {/* Frame timing — history graph + percentiles (live) or the pinned frame. */}
+      {show('frame') && (
       <section className="prof-sec">
         <h4>Frame</h4>
         <FrameGraph frames={s.frames} pinnedId={s.pinnedId} />
@@ -201,9 +269,10 @@ export function ProfilerPanel() {
           </>
         )}
       </section>
+      )}
 
-      {/* stat unit: Frame = engine (app.run) + editor (gizmo/react) + present/idle.
-          GPU is a parallel track (overlaps CPU), shown separately. */}
+      {/* Frame = engine + editor + present; GPU is a parallel track. */}
+      {show('unit') && (
       <section className="prof-sec">
         <h4>Unit <span className="prof-realm">· {s.realm}</span></h4>
         <Seg label="engine" ms={v.engineMs} frame={frame} color="var(--run, #46a04a)" />
@@ -219,8 +288,9 @@ export function ProfilerPanel() {
           </div>
         )}
       </section>
+      )}
 
-      {/* Render counters — UE `stat scenerendering` analog. */}
+      {show('render') && (
       <section className="prof-sec">
         <h4>Render</h4>
         <div className="prof-stat-grid">
@@ -229,6 +299,20 @@ export function ProfilerPanel() {
           <div><span>entities</span><b>{v.entities}</b></div>
         </div>
       </section>
+      )}
+
+      {show('memory') && (
+      <section className="prof-sec">
+        <h4>Memory</h4>
+        <MemGraph hist={s.memHist} />
+        <div className="prof-stat-grid">
+          <div><span style={{ color: 'var(--warn, #d3a23c)' }}>wasm</span><b>{s.wasmMB}<i>MB</i></b></div>
+          <div><span style={{ color: 'var(--star, #2f88d6)' }}>js heap</span><b>{s.jsHeapMB || '—'}<i>{s.jsHeapMB ? 'MB' : ''}</i></b></div>
+          <div><span style={{ color: '#3fb2b2' }}>vram</span><b>{s.vramMB}<i>MB</i></b></div>
+        </div>
+        {s.jsHeapLimitMB ? <div className="prof-budget">js heap limit {s.jsHeapLimitMB}MB</div> : null}
+      </section>
+      )}
 
       {/* Pinned-frame attribution: the long task that hit it (the usual spike
           cause the phases can't name) + every measured phase, ranked. */}
@@ -262,8 +346,8 @@ export function ProfilerPanel() {
         </section>
       ) : null}
 
-      {/* Costliest engine systems — windowed max (live) or this frame's actual cost
-          (pinned), so a hitch names the system that caused it. UE `stat game`. */}
+      {/* Costliest engine systems — windowed max (live) or this frame's cost (pinned). */}
+      {show('systems') && (
       <section className="prof-sec">
         <h4>Systems{pinned ? ' · this frame' : ''}</h4>
         {v.systems.length ? (
@@ -281,6 +365,7 @@ export function ProfilerPanel() {
           <p className="prof-empty">No system timings yet.</p>
         )}
       </section>
+      )}
     </div>
   );
 }

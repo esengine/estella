@@ -108,12 +108,7 @@ class EngineHostImpl {
     return this.canvas_;
   }
 
-  /**
-   * The engine's last-frame telemetry for the profiler: per-phase / per-system
-   * wall-clock (ms, requires the boot-time `enableStats()`) plus render counters.
-   * Null until booted. Reads the live values without allocating beyond the two
-   * timing maps, so PerfMonitor can fold it into a frame once per rAF.
-   */
+  /** The engine's last-frame telemetry for the profiler; null until booted. */
   readEngineFrame(): {
     phaseMs: Record<string, number>;
     systemMs: Record<string, number>;
@@ -123,6 +118,8 @@ class EngineHostImpl {
     entities: number;
     gpuMs: number;
     cppScopes: Record<string, number>;
+    wasmBytes: number;
+    vramBytes: number;
   } | null {
     const app = this.app_;
     if (!app) return null;
@@ -143,6 +140,8 @@ class EngineHostImpl {
       entities: this.world?.getAllEntities().length ?? 0,
       gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
       cppScopes,
+      wasmBytes: m?.HEAPU8?.byteLength ?? 0,
+      vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
     };
   }
 
@@ -432,11 +431,7 @@ class EngineHostImpl {
     });
     this.app_ = app;
 
-    // Per-phase / per-system wall-clock timing for the editor profiler
-    // (PerfMonitor reads it each frame). Cheap — a couple performance.now() per
-    // system — so left on in edit; the Perf overlay decides what to surface.
     app.enableStats();
-    // Per-frame C++ CPU scope profiling (render passes → `cpp.*` in the breakdown).
     module.engine_setCpuProfiling?.(true);
 
     // Subsystem observability: phase changes push immediately; the sampler

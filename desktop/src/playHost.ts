@@ -155,7 +155,7 @@ async function ensureEngine(): Promise<void> {
   }) as WebGL2RenderingContext | null;
   if (!gl) throw new Error('WebGL2 is not available in this realm.');
   glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
-  module.engine_setCpuProfiling?.(true); // C++ scope profiling for the editor profiler
+  module.engine_setCpuProfiling?.(true);
   engineModule = module;
 }
 
@@ -348,6 +348,8 @@ window.addEventListener('message', (e: MessageEvent) => {
             entities: app?.world.getAllEntities().length ?? 0,
             gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
             cppScopes: parseCppScopes(m),
+            wasmBytes: m?.HEAPU8?.byteLength ?? 0,
+            vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
           },
         });
       } else if (data.kind === 'subsystems') {

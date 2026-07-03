@@ -24,8 +24,7 @@ import { CreatePopover } from '@/components/CreatePopover';
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
 const NO_EXPANSION: ReadonlySet<string> = new Set();
-// Stable references for the read-only game tree, so its memoized rows re-render
-// only on a selection change of the affected row (not the whole window).
+// Stable props so the memoized game-tree rows don't all re-render on selection.
 const GAME_COLUMNS = [TYPE_COLUMN];
 const EMPTY_COL_CTX: OutlinerColumnContext = {};
 const NOOP = () => {};
@@ -535,11 +534,7 @@ export function Outliner() {
   // between the edit scene and the live running game.
   const gameMode = inspectWorld === 'game';
 
-  // OutlinerRow is memoized, so it must get referentially-stable handlers or every
-  // visible row re-renders on any parent render (e.g. a selection change → the whole
-  // window rebuilds, ~38ms). These wrappers never change identity yet always call the
-  // latest closure (latest-ref), so a selection change re-renders ONLY the rows whose
-  // `selected`/`cursored` actually flipped.
+  // Stable handlers (latest-ref) so the memoized rows skip on a selection change.
   const rowFns = {
     onRowClick, onContextMenu, onStartRename, commitRename, onDragStartRow, onDragOverRow, onDropRow,
     onDragEnd: () => { dragIds.current = null; dragFolder.current = null; setDrop(null); },

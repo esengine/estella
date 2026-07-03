@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  PerfRealmBridge.tsx — feeds the profiler the RIGHT engine each realm.
- *
- * The sole owner of PerfMonitor's engine source: the edit App in edit mode, and
- * the running game (play iframe) while playing — so the Profiler panel shows the
- * game's real per-system / draw-call cost during Play, not the frozen edit App.
- * One profiling surface across both realms, mirroring the Modules indicator.
- *
- * Renderless. The cross-iframe stats query is async, so it polls into a cache the
- * synchronous engine source reads (the profiler samples once per frame).
+ * @file  PerfRealmBridge.tsx — routes PerfMonitor's engine source to the edit App
+ *        or, while playing, the play iframe (polled into a cache read synchronously).
  */
 import { useSyncExternalStore, useEffect } from 'react';
 import { EngineHost } from '@/engine/EngineHost';
@@ -32,7 +25,7 @@ export function PerfRealmBridge() {
       const s = await PlayRealm.stats();
       if (!alive) return;
       cache = s
-        ? { phaseMs: s.phases, systemMs: s.systems, drawCalls: s.drawCalls, triangles: s.triangles, sprites: s.sprites, entities: s.entities, gpuMs: s.gpuMs, cppScopes: s.cppScopes }
+        ? { phaseMs: s.phases, systemMs: s.systems, drawCalls: s.drawCalls, triangles: s.triangles, sprites: s.sprites, entities: s.entities, gpuMs: s.gpuMs, cppScopes: s.cppScopes, wasmBytes: s.wasmBytes, vramBytes: s.vramBytes }
         : null;
     };
     void poll();

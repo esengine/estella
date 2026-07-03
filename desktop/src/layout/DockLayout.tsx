@@ -22,9 +22,6 @@ import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
 import { dockApi } from '@/layout/dockApi';
 
-// Each dock panel is wrapped so its commit time attributes to `react.<id>` — a
-// spike from one panel rebuilding (e.g. Details on selection) is named by panel,
-// not lumped into an unattributed frame.
 const panel = (id: string, node: ReactNode) => <Perf id={id}>{node}</Perf>;
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
