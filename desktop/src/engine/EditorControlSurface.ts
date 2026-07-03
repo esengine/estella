@@ -26,6 +26,7 @@ import type {
 import type { SceneData, SubsystemStatus } from 'esengine';
 import { Material, Sprite } from 'esengine';
 import { EngineHost } from './EngineHost';
+import { PerfMonitor, type PerfSnapshot, type FrameSample } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
@@ -309,6 +310,21 @@ export class EditorControlSurfaceImpl {
       entities: EngineHost.world?.getAllEntities().length ?? 0,
       drawCalls: EngineHost.module?.renderer_getDrawCalls?.() ?? 0,
     };
+  }
+
+  /** The current profiler snapshot: frame timing, stat-unit segments, per-system
+   *  timings, counters, memory, and GPU — the full per-frame telemetry. */
+  getFrameStats(): PerfSnapshot {
+    return PerfMonitor.getSnapshot();
+  }
+  /** Subscribe to profiler snapshot changes. Returns an unsubscribe. */
+  subscribeFrameStats(fn: () => void): () => void {
+    return PerfMonitor.subscribe(fn);
+  }
+  /** A captured frame's full breakdown by id (phases, cpp/gpu scopes, long tasks),
+   *  or null if it scrolled out of the ring. */
+  getFrameSample(id: number): FrameSample | null {
+    return PerfMonitor.getSample(id);
   }
 
   /**
