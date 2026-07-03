@@ -920,7 +920,7 @@ TEST_CASE("shape_circle_direction_radial_outward") {
     CHECK(allRadial);
 }
 
-TEST_CASE("shape_rectangle_direction_upward") {
+TEST_CASE("shape_rectangle_direction_follows_angle_spread") {
     ecs::Registry registry;
     ParticleSystem system;
 
@@ -935,6 +935,10 @@ TEST_CASE("shape_rectangle_direction_upward") {
     emitter.maxParticles = 200;
     emitter.speedMin = 10.0f;
     emitter.speedMax = 10.0f;
+    // A rectangle is an area emitter: the shape spreads only WHERE particles
+    // spawn; direction comes from angleSpread, exactly like a point. Aim down.
+    emitter.angleSpreadMin = 260.0f;
+    emitter.angleSpreadMax = 280.0f;
     emitter.gravity = glm::vec2(0.0f);
     emitter.damping = 0.0f;
     emitter.enabled = true;
@@ -943,15 +947,18 @@ TEST_CASE("shape_rectangle_direction_upward") {
     system.update(registry, 0.01f);
     CHECK(system.aliveCount(e) > 0u);
 
-    bool allUpward = true;
+    bool allDownward = true;
+    int checked = 0;
     system.forEachParticle(e, [&](const Particle& p) {
         if (glm::length(p.velocity) < 0.001f) return;
         glm::vec2 dir = glm::normalize(p.velocity);
-        if (dir.y < 0.95f) {
-            allUpward = false;
+        if (dir.y > -0.9f) {
+            allDownward = false;
         }
+        checked++;
     });
-    CHECK(allUpward);
+    CHECK(checked > 0);
+    CHECK(allDownward);
 }
 
 TEST_CASE("shape_cone_direction_within_angle") {

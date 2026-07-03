@@ -216,15 +216,17 @@ void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
                 }
                 break;
             }
-            case ecs::EmitterShape::Rectangle:
-                dir = glm::vec2(0.0f, 1.0f);
-                break;
             case ecs::EmitterShape::Cone: {
                 f32 halfAngle = emitter.shapeAngle * 0.5f * math::DEG_TO_RAD;
                 f32 angle = randomRange(-halfAngle, halfAngle);
                 dir = glm::vec2(std::sin(angle), std::cos(angle));
                 break;
             }
+            // Point and Rectangle share one aiming rule: the shape decides WHERE a
+            // particle spawns (a single point vs. a filled box), while angleSpread
+            // decides which way it flies. Circle and Cone override this with their
+            // own radial / conic aim, which is intrinsic to those shapes.
+            case ecs::EmitterShape::Rectangle:
             case ecs::EmitterShape::Point:
             default:
                 dir = randomDirection(emitter.angleSpreadMin, emitter.angleSpreadMax);
