@@ -43,7 +43,7 @@ void RenderFrame::submitTextBatch(
     const f32* vertices, i32 vertexCount,
     const u16* indices, i32 indexCount,
     u32 textureId, const f32* transform16,
-    Entity entity, i32 layer, f32 depth
+    Entity entity, i32 layer, f32 depth, bool sdf
 ) {
     if (vertexCount <= 0 || indexCount <= 0) return;
 
@@ -61,13 +61,13 @@ void RenderFrame::submitTextBatch(
         dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]} };
     }
 
-    // Glyph atlas is SDF — route through the SDF batch variant. Text uses normal
-    // alpha blending; coverage comes from the shader, not the source alpha curve.
+    // sdf: the SDF variant derives coverage from the distance field; otherwise the
+    // featureless batch multiplies the atlas alpha (native-AA bitmap coverage) directly.
     pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
                      static_cast<u32>(indexCount), BatchDrawKey{
         .stage = current_stage_,
         .layer = layer,
-        .shaderId = batchProgram({"SDF"}),
+        .shaderId = sdf ? batchProgram({"SDF"}) : batchProgram({}),
         .blend = BlendMode::Normal,
         .textureId = textureId,
         .depth = depth,

@@ -28,6 +28,7 @@ export function submitTextBatch(
     entity: number,
     layer: number,
     depth: number,
+    sdf: boolean,
 ): void {
     if (!module.renderer_submitTextBatch) return;
     const vertexCount = (vertices.length / TEXT_VERTEX_FLOATS) | 0;
@@ -46,7 +47,7 @@ export function submitTextBatch(
         module.HEAPU8.set(iBytes, iPtr);
         module.HEAPU8.set(tBytes, tPtr);
         module.renderer_submitTextBatch!(
-            vPtr, vertexCount, iPtr, indices.length, textureId, tPtr, entity, layer, depth,
+            vPtr, vertexCount, iPtr, indices.length, textureId, tPtr, entity, layer, depth, sdf ? 1 : 0,
         );
     });
 }

@@ -76,7 +76,7 @@ void renderer_submitTextBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, uintptr_t transformPtr,
-    u32 entity, i32 layer, f32 depth
+    u32 entity, i32 layer, f32 depth, i32 sdf
 );
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);

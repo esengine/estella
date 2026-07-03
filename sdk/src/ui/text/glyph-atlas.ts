@@ -37,9 +37,11 @@ export interface GlyphRasterizer {
     readonly renderSize: number;
     /**
      * Render one glyph to an upload-ready bitmap + metrics, or null if the glyph
-     * cannot be produced (unknown codepoint / no font).
+     * cannot be produced (unknown codepoint / no font). `pixelSize` overrides the
+     * rasterization size (bitmap mode rasterizes per display size); omitted → the
+     * rasterizer's default renderSize.
      */
-    rasterize(codepoint: number, fontFamily: string, style: number): RasterGlyph | null;
+    rasterize(codepoint: number, fontFamily: string, style: number, pixelSize?: number): RasterGlyph | null;
 }
 
 export interface AtlasPageStore {
@@ -68,6 +70,10 @@ export interface GlyphAtlasOptions {
     pageSize?: number;
     /** Gutter between glyphs to prevent bilinear bleed. Default 1. */
     padding?: number;
+    /** SDF (one fixed source, scalable) vs bitmap (per-size, device density). Default true. */
+    sdf?: boolean;
+    /** Device pixel ratio for bitmap per-size rasterization. Default 1. */
+    dpr?: number;
 }
 
 const STYLE_COUNT_HINT = 4;  // plain / bold / italic / bold-italic — for key spread only
@@ -78,6 +84,8 @@ const STYLE_COUNT_HINT = 4;  // plain / bold / italic / bold-italic — for key 
 export class GlyphAtlas {
     private readonly pageSize: number;
     private readonly padding: number;
+    private readonly sdf: boolean;
+    private readonly dpr: number;
     private readonly cache = new Map<string, GlyphEntry | null>();
     private readonly pages: number[] = [];
     private readonly packers: Packer[] = [];
@@ -89,6 +97,8 @@ export class GlyphAtlas {
     ) {
         this.pageSize = opts.pageSize ?? 1024;
         this.padding = opts.padding ?? 1;
+        this.sdf = opts.sdf ?? true;
+        this.dpr = opts.dpr ?? 1;
     }
 
     /** Number of atlas pages currently allocated. */
@@ -97,8 +107,14 @@ export class GlyphAtlas {
     /** The px size glyphs are rasterized at; layout scales by displaySize/renderSize. */
     get renderSize(): number { return this.rasterizer.renderSize; }
 
-    private key(codepoint: number, fontFamily: string, style: number): string {
-        return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}`;
+    /** Rasterization size for a display size: SDF uses one fixed resolution-independent
+     *  source; bitmap rasterizes per size at device density for a crisp 1:1 blit. */
+    pixelSizeFor(displaySize: number): number {
+        return this.sdf ? this.renderSize : Math.max(1, Math.round(displaySize * this.dpr));
+    }
+
+    private key(codepoint: number, fontFamily: string, style: number, pixelSize: number): string {
+        return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}|${pixelSize}`;
     }
 
     /**
@@ -106,12 +122,12 @@ export class GlyphAtlas {
      * null for glyphs the rasterizer cannot produce (caller skips / uses fallback).
      * The result is cached (including the null), so a miss is paid once.
      */
-    getGlyph(codepoint: number, fontFamily: string, style = 0): GlyphEntry | null {
-        const k = this.key(codepoint, fontFamily, style);
+    getGlyph(codepoint: number, fontFamily: string, style = 0, pixelSize = this.renderSize): GlyphEntry | null {
+        const k = this.key(codepoint, fontFamily, style, pixelSize);
         const hit = this.cache.get(k);
         if (hit !== undefined) return hit;
 
-        const raster = this.rasterizer.rasterize(codepoint, fontFamily, style);
+        const raster = this.rasterizer.rasterize(codepoint, fontFamily, style, pixelSize);
         if (!raster) {
             this.cache.set(k, null);
             return null;

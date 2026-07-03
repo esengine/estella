@@ -88,16 +88,17 @@ public:
     );
 
     /**
-     * Submit a batch of pre-laid-out glyph quads from TS (the dynamic SDF glyph
-     * atlas). Same vertex format as submitSpineBatch
-     * (x,y,u,v,r,g,b,a per vertex) but routed through the SDF batch variant
-     * (batchProgram({"SDF"})) with RenderType::Text. The atlas page is `textureId`.
+     * Submit a batch of pre-laid-out glyph quads from TS. Same vertex format as
+     * submitSpineBatch (x,y,u,v,r,g,b,a per vertex), RenderType::Text, atlas page
+     * = `textureId`. `sdf` picks the shader: true → the SDF variant (scalable SDF
+     * atlas); false → the plain textured batch (device-resolution bitmap atlas
+     * carrying native-AA coverage in alpha).
      */
     void submitTextBatch(
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
         u32 textureId, const f32* transform16,
-        Entity entity, i32 layer, f32 depth
+        Entity entity, i32 layer, f32 depth, bool sdf
     );
 
 #ifdef ES_ENABLE_SPINE

@@ -20,6 +20,11 @@ import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-tr
 import { Text, type TextData } from '../core/text';
 import { UINode } from '../core/ui-node';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
+import { platformDevicePixelRatio } from '../../platform';
+
+// Base glyph rasterization size in CSS px; the real source is this × DPR so text
+// stays crisp on HiDPI displays. 64 covers common UI sizes at 1:1 or finer.
+const GLYPH_BASE_SIZE = 64;
 
 // Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
 const UI_BASE_LAYER = 1000;
@@ -58,7 +63,13 @@ export class TextPlugin implements Plugin {
                 if (!t.content) continue;
 
                 if (!this.renderer_) {
-                    this.renderer_ = new SdfTextRenderer(app.wasmModule as ESEngineModule);
+                    // Device-resolution bitmap text: glyphs rasterize per size at DPR
+                    // and blit 1:1, keeping Canvas's native AA — crisp like the DOM.
+                    // (SDF stays available via sdf:true for scalable / world text.)
+                    const dpr = platformDevicePixelRatio();
+                    this.renderer_ = new SdfTextRenderer(app.wasmModule as ESEngineModule, {
+                        sdf: false, dpr, renderSize: Math.round(GLYPH_BASE_SIZE * dpr),
+                    });
                 }
                 const tr = world.get(entity, Transform) as TransformData;
                 composeTRS(this.matrix_, tr.worldPosition, tr.worldRotation, tr.worldScale);

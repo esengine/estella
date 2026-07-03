@@ -150,14 +150,14 @@ export interface ESEngineModule {
         layer: number, depth: number
     ): void;
     /**
-     * Submit pre-laid-out glyph quads against the dynamic SDF atlas.
-     * Vertex format x,y,u,v,r,g,b,a; routed through the SDF batch variant.
+     * Submit pre-laid-out glyph quads. Vertex format x,y,u,v,r,g,b,a; `sdf` (1/0)
+     * selects the SDF variant vs the plain textured batch (device bitmap atlas).
      */
     renderer_submitTextBatch?(
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,
         textureId: number, transformPtr: number,
-        entity: number, layer: number, depth: number
+        entity: number, layer: number, depth: number, sdf: number
     ): void;
 
     // Material store (engine-side resolved render state, keyed by material handle).

@@ -117,16 +117,20 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
 export interface TextRendererOptions extends CanvasGlyphRasterizerOptions {
     /** Atlas page size in texels. Default 1024. */
     pageSize?: number;
+    /** Device pixel ratio for bitmap-mode per-size rasterization. Default 1. */
+    dpr?: number;
 }
 
 export class SdfTextRenderer {
     readonly atlas: GlyphAtlas;
+    private readonly sdf: boolean;
 
     constructor(private readonly module: ESEngineModule, opts: TextRendererOptions = {}) {
+        this.sdf = opts.sdf ?? true;
         this.atlas = new GlyphAtlas(
             new CanvasGlyphRasterizer(module, opts),
             new EngineAtlasPageStore(module),
-            { pageSize: opts.pageSize },
+            { pageSize: opts.pageSize, sdf: this.sdf, dpr: opts.dpr },
         );
     }
 
@@ -142,7 +146,7 @@ export class SdfTextRenderer {
         depth: number,
     ): void {
         drawTextWith(this.atlas, (vertices, indices, pageId) => {
-            submitTextBatch(this.module, vertices, indices, pageId, transform, entity, layer, depth);
+            submitTextBatch(this.module, vertices, indices, pageId, transform, entity, layer, depth, this.sdf);
         }, p);
     }
 }

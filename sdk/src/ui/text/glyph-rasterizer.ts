@@ -44,6 +44,8 @@ export interface CanvasGlyphRasterizerOptions {
     renderSize?: number;
     /** SDF spread / padding around the glyph ink, in px. Default 6. */
     padding?: number;
+    /** Produce an SDF (scalable) vs a plain-alpha bitmap (native AA). Default true. */
+    sdf?: boolean;
 }
 
 type Canvas2D = HTMLCanvasElement | OffscreenCanvas;
@@ -53,6 +55,7 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
     readonly renderSize: number;
     private readonly module: ESEngineModule;
     private readonly pad: number;
+    private readonly sdf: boolean;
     private readonly canvas: Canvas2D;
     private readonly ctx: Ctx2D | null;
 
@@ -60,20 +63,21 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         this.module = module;
         this.renderSize = opts.renderSize ?? 48;
         this.pad = opts.padding ?? 6;
+        this.sdf = opts.sdf ?? true;
         // Scratch canvas sized for the largest glyph (em + ascenders + padding).
         const dim = Math.ceil(this.renderSize * 2 + this.pad * 2);
         this.canvas = platformCreateCanvas(dim, dim);
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true }) as Ctx2D | null;
     }
 
-    rasterize(codepoint: number, fontFamily: string, style: number): RasterGlyph | null {
+    rasterize(codepoint: number, fontFamily: string, style: number, pixelSize = this.renderSize): RasterGlyph | null {
         const ctx = this.ctx;
         if (!ctx) return null;
         const ch = String.fromCodePoint(codepoint);
 
         const weight = (style & FONT_STYLE_BOLD) ? 'bold ' : '';
         const italic = (style & FONT_STYLE_ITALIC) ? 'italic ' : '';
-        ctx.font = `${italic}${weight}${this.renderSize}px ${fontFamily}`;
+        ctx.font = `${italic}${weight}${pixelSize}px ${fontFamily}`;
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
 
@@ -81,8 +85,8 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         const advance = m.width;
         const left = m.actualBoundingBoxLeft ?? 0;
         const right = m.actualBoundingBoxRight ?? advance;
-        const ascent = m.actualBoundingBoxAscent ?? this.renderSize * 0.8;
-        const descent = m.actualBoundingBoxDescent ?? this.renderSize * 0.2;
+        const ascent = m.actualBoundingBoxAscent ?? pixelSize * 0.8;
+        const descent = m.actualBoundingBoxDescent ?? pixelSize * 0.2;
 
         const inkW = Math.ceil(left + right);
         const inkH = Math.ceil(ascent + descent);
@@ -102,11 +106,17 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
 
         const img = ctx.getImageData(0, 0, w, h);
         const alpha = extractAlpha(img.data, w, h);
-        const sdf = sdfFromAlpha(this.module, alpha, w, h, pad);
-        if (!sdf) return null;
+        // SDF: convert to a distance field (scalable). Bitmap: keep the native-AA
+        // coverage as-is for a crisp 1:1 blit. Both pack as (RGB=255, A=coverage).
+        let coverage = alpha;
+        if (this.sdf) {
+            const sdf = sdfFromAlpha(this.module, alpha, w, h, pad);
+            if (!sdf) return null;
+            coverage = sdf;
+        }
 
         return {
-            pixels: sdfToAtlasRgba(sdf, w, h),
+            pixels: sdfToAtlasRgba(coverage, w, h),
             width: w,
             height: h,
             advance,

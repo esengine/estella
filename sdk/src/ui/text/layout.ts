@@ -57,7 +57,8 @@ export function layoutLine(
     opts: TextLayoutOptions,
     style = 0,
 ): TextLayout {
-    const scale = opts.fontSizePx / atlas.renderSize;
+    const pixelSize = atlas.pixelSizeFor(opts.fontSizePx);
+    const scale = opts.fontSizePx / pixelSize;
     const spacing = opts.letterSpacing ?? 0;
     const glyphs: LaidGlyph[] = [];
     let penX = 0;
@@ -65,7 +66,7 @@ export function layoutLine(
     for (const ch of text) {
         const cp = ch.codePointAt(0);
         if (cp === undefined) continue;
-        const g = atlas.getGlyph(cp, fontFamily, style);
+        const g = atlas.getGlyph(cp, fontFamily, style, pixelSize);
         if (!g) continue;
 
         if (g.width > 0 && g.height > 0) {
@@ -159,12 +160,13 @@ export interface MultilineTextOptions extends TextLayoutOptions {
 export function measureWidth(
     text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number, style: number, letterSpacing = 0,
 ): number {
-    const scale = fontSizePx / atlas.renderSize;
+    const pixelSize = atlas.pixelSizeFor(fontSizePx);
+    const scale = fontSizePx / pixelSize;
     let w = 0;
     for (const ch of text) {
         const cp = ch.codePointAt(0);
         if (cp === undefined) continue;
-        const g = atlas.getGlyph(cp, fontFamily, style);
+        const g = atlas.getGlyph(cp, fontFamily, style, pixelSize);
         if (g) w += g.advance * scale + letterSpacing;
     }
     return w;
@@ -275,7 +277,8 @@ export function layoutRichLine(
     for (const run of parseRichText(content)) {
         if (run.type !== 'text') continue; // embedded images: deferred
         const runSize = run.fontSize ?? opts.fontSizePx;
-        const scale = runSize / atlas.renderSize;
+        const pixelSize = atlas.pixelSizeFor(runSize);
+        const scale = runSize / pixelSize;
         const style = baseStyle | (run.bold ? UI_TEXT_BOLD : 0) | (run.italic ? UI_TEXT_ITALIC : 0);
         const color: RGBA = run.color
             ? [run.color.r, run.color.g, run.color.b, run.color.a]
@@ -285,7 +288,7 @@ export function layoutRichLine(
         for (const ch of run.text) {
             const cp = ch.codePointAt(0);
             if (cp === undefined) continue;
-            const gph = atlas.getGlyph(cp, fontFamily, style);
+            const gph = atlas.getGlyph(cp, fontFamily, style, pixelSize);
             if (!gph) continue;
             if (gph.width > 0 && gph.height > 0) {
                 const x0 = penX + gph.bearingX * scale;
