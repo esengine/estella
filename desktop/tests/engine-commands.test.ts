@@ -14,7 +14,7 @@
  * ids; the World is asserted via session.model.runtimeFor.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { App, Transform, Parent, Sprite } from 'esengine';
+import { App, Transform, Parent, Sprite, Interactable, BUILTIN_UI_PREFABS } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -176,5 +176,35 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
 
         S.commands.removeComponent(id, 'Transform');
         expect(host.world.has(e, Transform)).toBe(true);
+    });
+
+    it('createFromTemplate expands a widget prefab into plain, owned entities', () => {
+        const root = S.commands.createFromTemplate(BUILTIN_UI_PREFABS.Button, null)!;
+        expect(root).not.toBeNull();
+
+        // Model: button root + one Text label child, and NO prefab-instance link.
+        const rootEnt = S.model.entityBySource(root)!;
+        expect(rootEnt.components.map((c) => c.type)).toEqual(
+            expect.arrayContaining(['UINode', 'Interactable', 'StateMachine', 'StateVisuals']),
+        );
+        expect(rootEnt.children.length).toBe(1);
+        const label = S.model.entityBySource(rootEnt.children[0])!;
+        expect(label.components.map((c) => c.type)).toContain('Text');
+        expect(S.model.prefabTag(root)).toBeFalsy();
+
+        // World: the Reconciler projected the subtree (Interactable is core-registered
+        // in the bare test App; the rest is asserted on the model above).
+        expect(host.world.has(rt(root), Interactable)).toBe(true);
+        expect(host.world.valid(rt(rootEnt.children[0]))).toBe(true);
+    });
+
+    it('createFromTemplate is undoable — tears the whole subtree back down', () => {
+        const root = S.commands.createFromTemplate(BUILTIN_UI_PREFABS.Button, null)!;
+        const child = S.model.entityBySource(root)!.children[0];
+        const [e, ce] = [rt(root), rt(child)];
+        expect(host.world.valid(e)).toBe(true);
+        S.history.undo();
+        expect(host.world.valid(e)).toBe(false);
+        expect(host.world.valid(ce)).toBe(false);
     });
 });

@@ -18,6 +18,7 @@ import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { OUTLINER_COLUMNS, TYPE_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
 import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
+import { ENTITY_TEMPLATE_CATALOG, type EntityTemplate } from '@/engine/entityTemplates';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
@@ -303,6 +304,20 @@ export function Outliner() {
     const id = SceneCommands.addEntity();
     if (id != null) select(id);
   };
+  // Create a ready-made entity from a catalog template (no add-component dance).
+  // UI controls land under `parent`, or the Canvas when created from empty space.
+  const createTemplate = (t: EntityTemplate, parent: EntityId | null) => {
+    const under = t.underCanvas ? (parent ?? SceneCommands.findCanvas()) : parent;
+    const id = SceneCommands.createFromTemplate(t.prefab, under);
+    if (id != null) select(id);
+  };
+  const createMenu = (parent: EntityId | null): MenuItem => ({
+    label: 'Create',
+    submenu: ENTITY_TEMPLATE_CATALOG.map((cat) => ({
+      label: cat.label,
+      submenu: cat.items.map((t) => ({ label: t.label, onClick: () => createTemplate(t, parent) })),
+    })),
+  });
   const selectionOrTarget = (id: EntityId): EntityId[] => {
     const ids = useSelection.getState().selectedIds;
     return ids.has(id) ? [...ids] : [id];
@@ -456,6 +471,7 @@ export function Outliner() {
       // Empty-space (scene) menu.
       return [
         { label: 'Add Entity', onClick: addEntity },
+        createMenu(null),
         { label: 'New Folder', onClick: () => newFolder('', null) },
         { sep: true },
         { label: 'Expand All', onClick: expandAll },
@@ -507,7 +523,9 @@ export function Outliner() {
       { label: 'New Folder from Selection', onClick: () => newFolder('', selectionOrTarget(id)) },
       { label: 'Move to Root', onClick: () => SceneCommands.moveToFolder(selectionOrTarget(id), null) },
       { label: 'Unparent', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setParent(i, null)) },
+      { sep: true },
       { label: 'Add Entity', onClick: addEntity },
+      createMenu(id),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);

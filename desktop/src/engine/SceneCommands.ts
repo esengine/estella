@@ -508,6 +508,43 @@ export class SceneCommandsImpl {
     return rootId;
   }
 
+  /**
+   * Create plain, user-owned entities from a template prefab — the widget's
+   * structure + styling expanded into ordinary entities with NO prefab-instance
+   * link (the "Create → UI → Button" flow, à la Unity). Undoable; returns the
+   * root's source id.
+   */
+  createFromTemplate(prefab: PrefabData, parent: EntityId | null): EntityId | null {
+    if (!this.model.current) return null;
+    const { entities, rootId } = expandInstance(
+      prefab,
+      { prefab: '', overrides: [], added: [], removed: [] },
+      () => this.model.allocateSourceId(),
+    );
+    const root = entities.find((e) => e.id === rootId);
+    if (!root) return null;
+    root.parent = parent;
+
+    const scene = entities.map((e): SceneEntity =>
+      ({
+        id: e.id, name: e.name, parent: e.parent, children: e.children,
+        components: structuredClone(e.components), visible: e.visible,
+      }) as unknown as SceneEntity,
+    );
+    const apply = (): void => { this.model.insertSubtree(scene); };
+    apply();
+    this.history.record(`Create ${prefab.name || 'Entity'}`, apply, () => {
+      for (const id of this.model.collectSubtree(rootId)) this.model.removeEntityBySource(id);
+    });
+    return rootId;
+  }
+
+  /** The scene's Canvas entity (UI layout root), or null — the default parent for new UI. */
+  findCanvas(): EntityId | null {
+    const e = this.model.current?.entities.find((x) => x.components.some((c) => c.type === 'Canvas'));
+    return e ? (e.id as EntityId) : null;
+  }
+
   /** Rename an entity (undoable). */
   renameEntity(sourceId: EntityId, name: string): void {
     const before = this.model.entityBySource(sourceId)?.name;
