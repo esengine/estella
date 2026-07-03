@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Profiler, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
@@ -18,6 +18,8 @@ import { IMAGE_RE } from '@/project/assetMeta';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
+import { PerfMonitor } from '@/engine/PerfMonitor';
+import { PerfOverlay } from '@/components/PerfOverlay';
 import type { ToolMode } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
@@ -286,6 +288,9 @@ export function Viewport() {
   const [zoomPct, setZoomPct] = useState(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const realm = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
+  // Selector snapshot: re-renders only when the Perf overlay is toggled, not on
+  // its twice-a-second stat updates (those re-render only <PerfOverlay>).
+  const perfVisible = useSyncExternalStore(PerfMonitor.subscribe, () => PerfMonitor.getSnapshot().visible);
 
   // Scene cameras don't render in edit mode (the viewport is the editor camera),
   // so draw each as a gizmo (icon + authored view rect). The id set updates on
@@ -317,6 +322,7 @@ export function Viewport() {
     if (!stage) return;
     EngineHost.attach(stage);
     StatsStore.start();
+    PerfMonitor.start();
     return () => EngineHost.detach();
   }, []);
 
@@ -358,6 +364,7 @@ export function Viewport() {
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
+      const perfT0 = performance.now();
       const g = gizmoRef.current;
       if (!g) return;
       const ready = EngineHost.getSnapshot().status === 'ready';
@@ -554,6 +561,7 @@ export function Viewport() {
           wrap.style.opacity = '0';
         }
       }
+      PerfMonitor.mark('gizmo.update', perfT0);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -662,6 +670,7 @@ export function Viewport() {
   };
 
   return (
+    <Profiler id="viewport" onRender={(_id, _phase, actual) => PerfMonitor.reactCommit(actual)}>
     <div className="viewport">
       {/* Top-left: view menus (UE5 layout) — Show Flags dropdown + Frame. */}
       <div className="ov ov-tl">
@@ -671,6 +680,7 @@ export function Viewport() {
             <DdCheck on={showGrid} label="Grid" onClick={() => commands.run('view.toggleGrid')} />
             <DdCheck on={showGizmos} label="Gizmos" onClick={() => commands.run('view.toggleGizmos')} />
             <DdCheck on={showColliders} label="Colliders" onClick={() => commands.run('view.toggleColliders')} />
+            <DdCheck on={perfVisible} label="Perf" onClick={() => PerfMonitor.toggleOverlay()} />
           </OvDropdown>
           <span className="ov-divider" />
           <OvTool icon={Frame} label="Frame Selected  (F)" kbd="F" onClick={() => commands.run('view.frameSelected')} />
@@ -877,8 +887,10 @@ export function Viewport() {
       )}
 
       <ViewportHud ready={engine.status === 'ready'} selCount={selCount} zoomPct={zoomPct} tool={tool} />
+      {perfVisible && <PerfOverlay />}
 
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>
+    </Profiler>
   );
 }
