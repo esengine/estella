@@ -29,6 +29,7 @@ import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
 import { buildPlayRealm } from './buildPlayRealm';
+import { syncSdkTypes } from './syncSdkTypes';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -250,10 +251,16 @@ const requireRoot = (): string => {
 };
 
 // Adopt a freshly opened project as the active root + (re)start the fs watcher
-// so on-disk changes push to the renderer.
-function adoptRoot(root: string): void {
+// so on-disk changes push to the renderer, and mirror the SDK types into
+// .esengine/sdk so the project's tsconfig resolves `esengine` in the IDE.
+async function adoptRoot(root: string): Promise<void> {
   projectRoot = root;
   if (win) startProjectWatch(root, win.webContents);
+  try {
+    await syncSdkTypes(root, path.join(process.env.APP_ROOT!, 'node_modules', 'esengine', 'dist'));
+  } catch (err) {
+    console.warn('[sdk-types] mirror failed:', err);
+  }
 }
 
 ipcMain.handle('project:openDialog', async () => {
@@ -264,13 +271,13 @@ ipcMain.handle('project:openDialog', async () => {
   });
   if (res.canceled || res.filePaths.length === 0) return null;
   const opened = await openProject(res.filePaths[0]);
-  adoptRoot(opened.root);
+  await adoptRoot(opened.root);
   return opened;
 });
 
 ipcMain.handle('project:open', async (_e, root: string) => {
   const opened = await openProject(root);
-  adoptRoot(opened.root);
+  await adoptRoot(opened.root);
   return opened;
 });
 
