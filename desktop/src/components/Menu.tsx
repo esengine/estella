@@ -7,9 +7,10 @@
  *          (labels, shortcuts, checkmarks, disabled state, separators, nested
  *          submenus) and the context-menu dismiss behaviour live in one place.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronRight } from 'lucide-react';
+import { submenuPlacement } from './menuPlacement';
 
 export type MenuItem =
   | { sep: true }
@@ -30,6 +31,22 @@ const cls = (v: Variant, ctx: string, bar: string) => (v === 'ctx' ? ctx : bar);
 /** One menu row: separator, a flyout submenu, or a leaf action. */
 function MenuNode({ item, variant, close }: { item: MenuItem; variant: Variant; close: () => void }) {
   const [open, setOpen] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const flyRef = useRef<HTMLDivElement>(null);
+  // Hidden until measured, so the flip/shift is the first thing painted (no flash).
+  const [flyStyle, setFlyStyle] = useState<CSSProperties>({ position: 'absolute', left: '100%', top: 0, visibility: 'hidden' });
+
+  // Keep the flyout inside the Electron window: open left when it would overflow the
+  // right edge, and shift up when it would run past the bottom (measured before paint).
+  useLayoutEffect(() => {
+    if (!open) return;
+    const row = rowRef.current;
+    const fly = flyRef.current;
+    if (!row || !fly) return;
+    const r = row.getBoundingClientRect();
+    const f = fly.getBoundingClientRect();
+    setFlyStyle(submenuPlacement(r, f, window.innerWidth, window.innerHeight));
+  }, [open]);
 
   if ('sep' in item) return <div className={cls(variant, 'ctx-sep', 'menu-dropdown__sep')} />;
 
@@ -41,6 +58,7 @@ function MenuNode({ item, variant, close }: { item: MenuItem; variant: Variant; 
   if ('submenu' in item) {
     return (
       <div
+        ref={rowRef}
         style={{ position: 'relative' }}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
@@ -52,9 +70,10 @@ function MenuNode({ item, variant, close }: { item: MenuItem; variant: Variant; 
         </button>
         {open ? (
           <div
+            ref={flyRef}
             className={cls(variant, 'ctx', 'menu-dropdown')}
             role="menu"
-            style={{ position: 'absolute', left: '100%', top: 0 }}
+            style={flyStyle}
             onMouseDown={(e) => e.stopPropagation()}
           >
             {item.submenu.map((sub, j) => <MenuNode key={j} item={sub} variant={variant} close={close} />)}
