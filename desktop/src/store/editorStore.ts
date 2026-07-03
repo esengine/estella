@@ -104,8 +104,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setInspectWorld: (inspectWorld) => set({ inspectWorld }),
 
   showLauncher: true,
-  enterEditor: () => set({ showLauncher: false }),
-  openLauncher: () => set({ showLauncher: true }),
+  enterEditor: () => set({ showLauncher: false, isPlaying: false, isPaused: false }),
+  openLauncher: () => set({ showLauncher: true, isPlaying: false, isPaused: false }),
 
   showGrid: true,
   showGizmos: true,
