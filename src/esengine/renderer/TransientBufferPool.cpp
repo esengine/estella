@@ -104,6 +104,16 @@ void TransientBufferPool::upload() {
         if (!s.vbo) continue;
         if (s.vertex_write_pos == 0 && s.index_write_pos == 0) continue;
 
+        // Bind THIS stream's own VAO before touching its EBO below. GL_ELEMENT_ARRAY_BUFFER
+        // is VAO state, so binding/growing the index buffer mutates the currently-bound VAO;
+        // without this, upload() edits whichever VAO a prior draw left bound and rebinds its
+        // element buffer to this stream's EBO. That VAO's next draw then runs against a
+        // wrong-sized EBO → "glDrawElements: insufficient buffer size" on strict GL / real
+        // GPUs (SwiftShader silently tolerates it). The VBO (GL_ARRAY_BUFFER) is global state,
+        // so it's unaffected either way — but scoping everything to the stream's VAO keeps the
+        // per-stream upload self-contained.
+        device_.bindVertexArray(s.vao);
+
         device_.bindVertexBuffer(s.vbo);
         if (s.vertex_write_pos > s.vbo_capacity) {
             s.vbo_capacity = s.vertex_write_pos;
@@ -123,6 +133,9 @@ void TransientBufferPool::upload() {
             device_.bufferSubData(GfxBufferTarget::Index, 0, s.index_staging.data(), eboBytes);
         }
     }
+    // Leave a neutral VAO bound so execute()'s bindLayout starts from a known state and no
+    // stream VAO is left mid-upload.
+    device_.bindVertexArray(0);
 }
 
 void TransientBufferPool::bindLayout(LayoutId layout) {
