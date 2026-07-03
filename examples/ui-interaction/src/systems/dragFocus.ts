@@ -1,172 +1,175 @@
 import {
-    defineSystem, Query, Mut, Res,
-    UIEvents, UIRect, Image, Text, Name, Draggable, Focusable,
+    defineSystem, Query, Mut, Res, GetWorld,
+    UIEvents, UINode, UIVisual, Text, Name, Draggable, Focusable, px,
 } from 'esengine';
 import type {
-    UIEventQueue, UIRectData, ImageData, TextData, NameData,
-    FocusableData, Entity,
+    World, UIEventQueue, Dimension, UIVisualData, TextData, NameData, FocusableData, Entity, Color,
 } from 'esengine';
 
+// UINodeData isn't on the public surface; we only read/write these box fields.
+interface CardNode {
+    position: number;
+    insetLeft: Dimension;
+    insetTop: Dimension;
+    marginLeft: Dimension;
+    marginTop: Dimension;
+}
+
+// Six draggable cards rest in a row. Drag one into the drop zone to file it
+// there (the zone lists what it holds); drop it back over the row to snap into
+// the nearest slot, swapping whoever sat there. Focused cards brighten.
+//
+// The engine drives the actual dragging (Draggable + DragPlugin nudges the
+// card's absolute UINode insets) and focus (Focusable); this system owns the
+// resting layout and the drop/snap logic. Everything is in the canvas's y-down
+// pixel-inset space (design resolution 800×600), the same space DragPlugin
+// writes while a card is held.
 const CARD_COUNT = 6;
-const SLOT_SPACING = 120;
-const FIRST_SLOT_X = -350;
-const CARD_ROW_Y = -40;
+const CANVAS_W = 800;
+const CARD_W = 100;
+const CARD_H = 80;
+
+const SLOT_SPACING = 116;
+const ROW_W = (CARD_COUNT - 1) * SLOT_SPACING + CARD_W;
+const FIRST_SLOT_LEFT = (CANVAS_W - ROW_W) / 2;
+const CARD_ROW_TOP = 168;
 const FOCUS_BRIGHTNESS = 0.3;
-const DROP_ZONE_SPACING = 110;
-const CANVAS_HEIGHT = 600;
-const DROP_ZONE_OFFSET_Y = 40;
-const DROP_ZONE_SIZE_Y = 120;
-const DROP_ZONE_MIN_Y = -CANVAS_HEIGHT / 2 + DROP_ZONE_OFFSET_Y;
-const DROP_ZONE_MAX_Y = DROP_ZONE_MIN_Y + DROP_ZONE_SIZE_Y;
-const DROP_ZONE_CENTER_Y = (DROP_ZONE_MIN_Y + DROP_ZONE_MAX_Y) / 2;
-const DROP_ZONE_SNAP_Y = DROP_ZONE_CENTER_Y;
+
+// Matches the DropZone entity in the scene (percent+margin centring → y[440,560]).
+const DZ_TOP = 440;
+const DZ_H = 120;
+const DROP_TOP = DZ_TOP + (DZ_H - CARD_H) / 2;
+const DROP_SPACING = 112;
 
 interface CardInfo {
     entity: Entity;
-    originalColor: { r: number; g: number; b: number; a: number };
-    cardNumber: number;
-    slotIndex: number;
+    base: Color;
+    num: number;
+    slot: number;
 }
 
 const cards: CardInfo[] = [];
 let initialized = false;
-const droppedEntities = new Set<Entity>();
+const dropped = new Set<Entity>();
 
-function getSlotX(index: number): number {
-    return FIRST_SLOT_X + index * SLOT_SPACING;
+function slotLeft(index: number): number {
+    return FIRST_SLOT_LEFT + index * SLOT_SPACING;
 }
 
-function getDropX(dropIndex: number, totalDropped: number): number {
-    const totalWidth = (totalDropped - 1) * DROP_ZONE_SPACING;
-    return -totalWidth / 2 + dropIndex * DROP_ZONE_SPACING;
+function dropLeft(dropIndex: number, total: number): number {
+    const centersW = (total - 1) * DROP_SPACING;
+    return CANVAS_W / 2 - centersW / 2 - CARD_W / 2 + dropIndex * DROP_SPACING;
+}
+
+function place(world: World, entity: Entity, left: number, top: number): void {
+    if (!world.has(entity, UINode)) return;
+    const node = world.get(entity, UINode) as unknown as CardNode;
+    node.position = 1; // Absolute
+    // Clear the scene's percent-centring margins so our px insets are the
+    // absolute top-left (the same space DragPlugin nudges while held).
+    node.marginLeft = px(0);
+    node.marginTop = px(0);
+    node.insetLeft = px(left);
+    node.insetTop = px(top);
+    world.insert(entity, UINode, node);
+}
+
+function tint(world: World, entity: Entity, base: Color, focused: boolean): void {
+    if (!world.has(entity, UIVisual)) return;
+    const k = focused ? FOCUS_BRIGHTNESS : 0;
+    const v = world.get(entity, UIVisual) as UIVisualData;
+    v.color = { r: Math.min(1, base.r + k), g: Math.min(1, base.g + k), b: Math.min(1, base.b + k), a: base.a };
+    world.insert(entity, UIVisual, v);
 }
 
 export const dragFocusSystem = defineSystem(
     [
-        Query(Mut(UIRect), Mut(Image), Focusable, Draggable, Name),
+        Query(Focusable, Draggable, Name),
         Query(Mut(Text), Name),
         Res(UIEvents),
+        GetWorld(),
     ],
-    (cardQuery, textQuery, events: UIEventQueue) => {
+    (cardQuery, textQuery, events: UIEventQueue, world: World) => {
         if (!initialized) {
             cards.length = 0;
-            droppedEntities.clear();
-            for (const [entity, _rect, image, _foc, _drag, name] of cardQuery) {
+            dropped.clear();
+            for (const [entity, , , name] of cardQuery) {
                 const n = (name as NameData).value;
                 if (!n.startsWith('Card') || n.includes('Label')) continue;
                 const num = parseInt(n.replace('Card', ''), 10);
                 if (isNaN(num) || num < 1 || num > CARD_COUNT) continue;
-                cards.push({
-                    entity,
-                    originalColor: { r: image.color.r, g: image.color.g, b: image.color.b, a: image.color.a },
-                    cardNumber: num,
-                    slotIndex: num - 1,
-                });
+                if (!world.has(entity, UIVisual)) continue;
+                const color = (world.get(entity, UIVisual) as UIVisualData).color;
+                cards.push({ entity, base: { ...color }, num, slot: num - 1 });
             }
-            if (cards.length === CARD_COUNT) {
-                cards.sort((a, b) => a.cardNumber - b.cardNumber);
-                initialized = true;
-            } else {
-                cards.length = 0;
-            }
+            if (cards.length !== CARD_COUNT) { cards.length = 0; return; }
+            cards.sort((a, b) => a.num - b.num);
+            for (const card of cards) place(world, card.entity, slotLeft(card.slot), CARD_ROW_TOP);
+            initialized = true;
             return;
         }
 
-        const dragStartEntities = new Set(events.query('drag_start').map(e => e.target));
-        const dragEndEntities = new Set(events.query('drag_end').map(e => e.target));
+        const dragStart = new Set(events.query('drag_start').map((e) => e.target));
+        const dragEnd = new Set(events.query('drag_end').map((e) => e.target));
+        for (const e of dragStart) dropped.delete(e);
 
-        for (const e of dragStartEntities) {
-            droppedEntities.delete(e);
-        }
-
-        const snapQueue: Array<{ card: CardInfo; ox: number; oy: number }> = [];
-
-        for (const [entity, rect, image, focusable] of cardQuery) {
-            const card = cards.find(c => c.entity === entity);
+        // Focus brightening (every card, every frame).
+        for (const [entity, focusable] of cardQuery) {
+            const card = cards.find((c) => c.entity === entity);
             if (!card) continue;
-
-            const base = card.originalColor;
-            if ((focusable as FocusableData).isFocused) {
-                image.color.r = Math.min(1, base.r + FOCUS_BRIGHTNESS);
-                image.color.g = Math.min(1, base.g + FOCUS_BRIGHTNESS);
-                image.color.b = Math.min(1, base.b + FOCUS_BRIGHTNESS);
-            } else {
-                image.color.r = base.r;
-                image.color.g = base.g;
-                image.color.b = base.b;
-            }
-
-            if (dragEndEntities.has(entity)) {
-                snapQueue.push({ card, ox: rect.offsetMin.x, oy: rect.offsetMin.y });
-            }
+            tint(world, entity, card.base, (focusable as FocusableData).isFocused);
         }
 
-        let layoutDirty = dragStartEntities.size > 0;
+        // Resolve each just-dropped card to a slot or into the drop zone.
+        let layoutDirty = dragStart.size > 0;
+        for (const card of cards) {
+            if (!dragEnd.has(card.entity) || !world.has(card.entity, UINode)) continue;
+            const node = world.get(card.entity, UINode) as unknown as CardNode;
+            const left = node.insetLeft.value;
+            const centerY = node.insetTop.value + CARD_H / 2;
 
-        for (const { card, ox, oy } of snapQueue) {
-            const inDropZone = oy >= DROP_ZONE_MIN_Y && oy <= DROP_ZONE_MAX_Y;
-
-            if (inDropZone) {
-                droppedEntities.add(card.entity);
+            if (centerY >= DZ_TOP && centerY <= DZ_TOP + DZ_H) {
+                dropped.add(card.entity);
                 layoutDirty = true;
                 continue;
             }
+            if (dropped.delete(card.entity)) layoutDirty = true;
 
-            if (droppedEntities.delete(card.entity)) {
-                layoutDirty = true;
-            }
-
-            let targetSlot = card.slotIndex;
-            let bestDist = Infinity;
+            let target = card.slot;
+            let best = Infinity;
             for (let i = 0; i < CARD_COUNT; i++) {
-                const d = Math.abs(ox - getSlotX(i));
-                if (d < bestDist) {
-                    bestDist = d;
-                    targetSlot = i;
-                }
+                const d = Math.abs(left - slotLeft(i));
+                if (d < best) { best = d; target = i; }
             }
-
-            const occupant = cards.find(
-                c => c !== card && c.slotIndex === targetSlot && !droppedEntities.has(c.entity)
-            );
-            if (occupant) {
-                occupant.slotIndex = card.slotIndex;
-            }
-            card.slotIndex = targetSlot;
+            const occupant = cards.find((c) => c !== card && c.slot === target && !dropped.has(c.entity));
+            if (occupant) occupant.slot = card.slot;
+            card.slot = target;
             layoutDirty = true;
         }
 
-        if (layoutDirty) {
-            const droppedList = cards.filter(c => droppedEntities.has(c.entity));
-            const droppedCount = droppedList.length;
+        if (!layoutDirty) return;
 
-            for (const [entity, rect] of cardQuery) {
-                if (dragStartEntities.has(entity)) continue;
-                const card = cards.find(c => c.entity === entity);
-                if (!card) continue;
-
-                if (droppedEntities.has(entity)) {
-                    const dropIdx = droppedList.indexOf(card);
-                    rect.offsetMin.x = getDropX(dropIdx, droppedCount);
-                    rect.offsetMin.y = DROP_ZONE_SNAP_Y;
-                } else {
-                    rect.offsetMin.x = getSlotX(card.slotIndex);
-                    rect.offsetMin.y = CARD_ROW_Y;
-                }
+        const droppedList = cards.filter((c) => dropped.has(c.entity));
+        for (const card of cards) {
+            if (dragStart.has(card.entity)) continue; // don't fight an active drag
+            if (dropped.has(card.entity)) {
+                place(world, card.entity, dropLeft(droppedList.indexOf(card), droppedList.length), DROP_TOP);
+            } else {
+                place(world, card.entity, slotLeft(card.slot), CARD_ROW_TOP);
             }
+        }
 
-            for (const [, text, name] of textQuery) {
-                if ((name as NameData).value !== 'DropZoneLabel') continue;
-                if (droppedCount === 0) {
-                    (text as TextData).content = 'Drop Zone';
-                    (text as TextData).color = { r: 0.4, g: 0.4, b: 0.4, a: 1 };
-                } else {
-                    const labels = droppedList.map(c => `Card ${c.cardNumber}`);
-                    (text as TextData).content = `Dropped: ${labels.join(', ')}`;
-                    (text as TextData).color = { r: 0.2, g: 1, b: 0.4, a: 1 };
-                }
+        for (const [, text, name] of textQuery) {
+            if ((name as NameData).value !== 'DropZoneLabel') continue;
+            const t = text as TextData;
+            if (droppedList.length === 0) {
+                t.content = 'Drop cards here';
+                t.color = { r: 0.5, g: 0.5, b: 0.52, a: 1 };
+            } else {
+                t.content = 'Holding: ' + droppedList.map((c) => 'Card ' + c.num).join(', ');
+                t.color = { r: 0.25, g: 0.56, b: 0.96, a: 1 };
             }
         }
     },
-    { name: 'DragFocusSystem' }
+    { name: 'DragFocusSystem' },
 );
