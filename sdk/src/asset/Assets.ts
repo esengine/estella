@@ -26,6 +26,7 @@ import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
 import { getAssetFields } from './AssetFieldRegistry';
+import { getComponentDefaults } from '../component';
 import { discoverSceneAssets } from './discoverAssets';
 import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
@@ -590,7 +591,7 @@ export class Assets {
                     // (caller's getter returns 0 when the key is missing).
                     const path = this.resolveRef(ref);
                     if (path == null) {
-                        comp.data[field] = 0;
+                        comp.data[field] = getComponentDefaults(comp.type)?.[field] ?? 0;
                         continue;
                     }
 
