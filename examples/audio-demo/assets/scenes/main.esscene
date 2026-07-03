@@ -3,1579 +3,334 @@
   "name": "Main",
   "entities": [
     {
-      "id": 0,
-      "name": "Camera",
-      "parent": null,
-      "children": [],
+      "id": 0, "name": "Camera", "parent": null, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 10
-            }
-          }
-        },
-        {
-          "type": "Camera",
-          "data": {
-            "projectionType": 1,
-            "orthoSize": 300,
-            "isActive": true,
-            "priority": 0
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ]
     },
     {
-      "id": 1,
-      "name": "Canvas",
-      "parent": null,
-      "children": [
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26
-      ],
+      "id": 1, "name": "Canvas", "parent": null,
+      "children": [2, 3, 5, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35],
+      "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "Canvas",
-          "data": {
-            "designResolution": {
-              "x": 800,
-              "y": 600
-            },
-            "scaleMode": 2
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2, "backgroundColor": { "r": 0, "g": 0, "b": 0, "a": 0 } } },
+        { "type": "UINode", "data": {} }
+      ]
     },
     {
-      "id": 2,
-      "name": "Title",
-      "parent": 1,
-      "children": [],
+      "id": 2, "name": "Title", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 400.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -200.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 45.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 0.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 45.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Audio Demo",
-            "fontSize": 32,
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 500, "unit": 0 }, "height": { "value": 40, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -250, "unit": 0 }, "insetTop": { "value": 0, "unit": 1 }, "marginTop": { "value": 26, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "Audio — Drum Machine", "fontSize": 28, "color": { "r": 0.95, "g": 0.95, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+
+    {
+      "id": 3, "name": "Pad0", "parent": 1, "children": [4], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 100, "unit": 0 }, "height": { "value": 60, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -245, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -150, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.9, "g": 0.3, "b": 0.3, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "Pad", "data": { "index": 0 } }
+      ]
     },
     {
-      "id": 3,
-      "name": "KickBtn",
-      "parent": 1,
-      "children": [],
+      "id": 4, "name": "Pad0Label", "parent": 3, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -335.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.9,
-              "g": 0.3,
-              "b": 0.3,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {}
-        },
-        {
-          "type": "SFXTrigger",
-          "data": {
-            "cooldown": 0
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "Kick\n1", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
     },
     {
-      "id": 4,
-      "name": "KickLabel",
-      "parent": 1,
-      "children": [],
+      "id": 5, "name": "Pad1", "parent": 1, "children": [6], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -335.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Kick",
-            "fontSize": 20,
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 100, "unit": 0 }, "height": { "value": 60, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -115, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -150, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.3, "g": 0.7, "b": 0.9, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "Pad", "data": { "index": 1 } }
+      ]
     },
     {
-      "id": 5,
-      "name": "SnareBtn",
-      "parent": 1,
-      "children": [],
+      "id": 6, "name": "Pad1Label", "parent": 5, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -185.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.3,
-              "g": 0.7,
-              "b": 0.9,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {}
-        },
-        {
-          "type": "SFXTrigger",
-          "data": {
-            "cooldown": 0
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "Snare\n2", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
     },
     {
-      "id": 6,
-      "name": "SnareLabel",
-      "parent": 1,
-      "children": [],
+      "id": 7, "name": "Pad2", "parent": 1, "children": [8], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -185.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Snare",
-            "fontSize": 20,
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 100, "unit": 0 }, "height": { "value": 60, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 15, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -150, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.3, "g": 0.9, "b": 0.4, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "Pad", "data": { "index": 2 } }
+      ]
     },
     {
-      "id": 7,
-      "name": "HiHatBtn",
-      "parent": 1,
-      "children": [],
+      "id": 8, "name": "Pad2Label", "parent": 7, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -35.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.3,
-              "g": 0.9,
-              "b": 0.4,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {}
-        },
-        {
-          "type": "SFXTrigger",
-          "data": {
-            "cooldown": 0
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "Hi-Hat\n3", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
     },
     {
-      "id": 8,
-      "name": "HiHatLabel",
-      "parent": 1,
-      "children": [],
+      "id": 9, "name": "Pad3", "parent": 1, "children": [10], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -35.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Hi-Hat",
-            "fontSize": 20,
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 100, "unit": 0 }, "height": { "value": 60, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 145, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -150, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.9, "g": 0.7, "b": 0.2, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "Pad", "data": { "index": 3 } }
+      ]
     },
     {
-      "id": 9,
-      "name": "ClapBtn",
-      "parent": 1,
-      "children": [],
+      "id": 10, "name": "Pad3Label", "parent": 9, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 115.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.9,
-              "g": 0.7,
-              "b": 0.2,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {}
-        },
-        {
-          "type": "SFXTrigger",
-          "data": {
-            "cooldown": 0
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "Clap\n4", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+
+    {
+      "id": 11, "name": "BeatBtn", "parent": 1, "children": [12], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 170, "unit": 0 }, "height": { "value": 44, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -85, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -74, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.55, "g": 0.35, "b": 0.85, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "BeatToggle", "data": {} }
+      ]
     },
     {
-      "id": 10,
-      "name": "ClapLabel",
-      "parent": 1,
-      "children": [],
+      "id": 12, "name": "BeatLabel", "parent": 11, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 110.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 115.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 50.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": -105.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Clap",
-            "fontSize": 20,
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "Beat: Off", "fontSize": 20, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } },
+        { "type": "BeatLabel", "data": {} }
+      ]
+    },
+
+    {
+      "id": 13, "name": "MasterKnob", "parent": 1, "children": [14], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 150, "unit": 0 }, "height": { "value": 40, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -255, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -12, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.3, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "VolumeKnob", "data": { "bus": "master", "volume": 1 } }
+      ]
     },
     {
-      "id": 11,
-      "name": "VisualizerBar0",
-      "parent": 1,
-      "children": [],
+      "id": 14, "name": "MasterLabel", "parent": 13, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -205.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.91,
-              "g": 0.19,
-              "b": 0.19,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "Master  100%", "fontSize": 16, "color": { "r": 0.9, "g": 0.92, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } },
+        { "type": "VolumeLabel", "data": { "bus": "master" } }
+      ]
     },
     {
-      "id": 12,
-      "name": "VisualizerBar1",
-      "parent": 1,
-      "children": [],
+      "id": 15, "name": "MusicKnob", "parent": 1, "children": [16], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -179.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.91,
-              "g": 0.46,
-              "b": 0.19,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 150, "unit": 0 }, "height": { "value": 40, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -75, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -12, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.3, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "VolumeKnob", "data": { "bus": "music", "volume": 0.8 } }
+      ]
     },
     {
-      "id": 13,
-      "name": "VisualizerBar2",
-      "parent": 1,
-      "children": [],
+      "id": 16, "name": "MusicLabel", "parent": 15, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -153.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.91,
-              "g": 0.73,
-              "b": 0.19,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "Music  80%", "fontSize": 16, "color": { "r": 0.9, "g": 0.92, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } },
+        { "type": "VolumeLabel", "data": { "bus": "music" } }
+      ]
     },
     {
-      "id": 14,
-      "name": "VisualizerBar3",
-      "parent": 1,
-      "children": [],
+      "id": 17, "name": "SFXKnob", "parent": 1, "children": [18], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -127.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.82,
-              "g": 0.91,
-              "b": 0.19,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 150, "unit": 0 }, "height": { "value": 40, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 105, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": -12, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.3, "a": 1 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "VolumeKnob", "data": { "bus": "sfx", "volume": 1 } }
+      ]
     },
     {
-      "id": 15,
-      "name": "VisualizerBar4",
-      "parent": 1,
-      "children": [],
+      "id": 18, "name": "SFXLabel", "parent": 17, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -101.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.55,
-              "g": 0.91,
-              "b": 0.19,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 }, "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 } } },
+        { "type": "Text", "data": { "content": "SFX  100%", "fontSize": 16, "color": { "r": 0.9, "g": 0.92, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } },
+        { "type": "VolumeLabel", "data": { "bus": "sfx" } }
+      ]
+    },
+
+    {
+      "id": 19, "name": "Bar0", "parent": 1, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -204, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.91, "g": 0.19, "b": 0.19, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 0 } }
+      ]
     },
     {
-      "id": 16,
-      "name": "VisualizerBar5",
-      "parent": 1,
-      "children": [],
+      "id": 20, "name": "Bar1", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -75.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.28,
-              "g": 0.91,
-              "b": 0.19,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -178, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.91, "g": 0.42, "b": 0.19, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 1 } }
+      ]
     },
     {
-      "id": 17,
-      "name": "VisualizerBar6",
-      "parent": 1,
-      "children": [],
+      "id": 21, "name": "Bar2", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -49.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.19,
-              "g": 0.91,
-              "b": 0.37,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -152, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.91, "g": 0.65, "b": 0.19, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 2 } }
+      ]
     },
     {
-      "id": 18,
-      "name": "VisualizerBar7",
-      "parent": 1,
-      "children": [],
+      "id": 22, "name": "Bar3", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": -23.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.19,
-              "g": 0.91,
-              "b": 0.64,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -126, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.88, "g": 0.91, "b": 0.19, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 3 } }
+      ]
     },
     {
-      "id": 19,
-      "name": "VisualizerBar8",
-      "parent": 1,
-      "children": [],
+      "id": 23, "name": "Bar4", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 3.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.19,
-              "g": 0.91,
-              "b": 0.91,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -100, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.62, "g": 0.91, "b": 0.19, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 4 } }
+      ]
     },
     {
-      "id": 20,
-      "name": "VisualizerBar9",
-      "parent": 1,
-      "children": [],
+      "id": 24, "name": "Bar5", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 29.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.19,
-              "g": 0.64,
-              "b": 0.91,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -74, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.36, "g": 0.91, "b": 0.19, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 5 } }
+      ]
     },
     {
-      "id": 21,
-      "name": "VisualizerBar10",
-      "parent": 1,
-      "children": [],
+      "id": 25, "name": "Bar6", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 55.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.19,
-              "g": 0.37,
-              "b": 0.91,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -48, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.91, "b": 0.29, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 6 } }
+      ]
     },
     {
-      "id": 22,
-      "name": "VisualizerBar11",
-      "parent": 1,
-      "children": [],
+      "id": 26, "name": "Bar7", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 81.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.28,
-              "g": 0.19,
-              "b": 0.91,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -22, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.91, "b": 0.55, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 7 } }
+      ]
     },
     {
-      "id": 23,
-      "name": "VisualizerBar12",
-      "parent": 1,
-      "children": [],
+      "id": 27, "name": "Bar8", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 107.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.55,
-              "g": 0.19,
-              "b": 0.91,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 4, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.91, "b": 0.82, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 8 } }
+      ]
     },
     {
-      "id": 24,
-      "name": "VisualizerBar13",
-      "parent": 1,
-      "children": [],
+      "id": 28, "name": "Bar9", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 133.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.82,
-              "g": 0.19,
-              "b": 0.91,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 30, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.65, "b": 0.91, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 9 } }
+      ]
     },
     {
-      "id": 25,
-      "name": "VisualizerBar14",
-      "parent": 1,
-      "children": [],
+      "id": 29, "name": "Bar10", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 159.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.91,
-              "g": 0.19,
-              "b": 0.73,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 56, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.4, "b": 0.91, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 10 } }
+      ]
     },
     {
-      "id": 26,
-      "name": "VisualizerBar15",
-      "parent": 1,
-      "children": [],
+      "id": 30, "name": "Bar11", "parent": 1, "children": [], "visible": true,
       "components": [
-        {
-          "type": "Transform",
-          "data": {}
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "width": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginLeft": {
-              "value": 185.0,
-              "unit": 0
-            },
-            "height": {
-              "value": 20.0,
-              "unit": 0
-            },
-            "insetTop": {
-              "value": 50.0,
-              "unit": 1
-            },
-            "marginTop": {
-              "value": 180.0,
-              "unit": 0
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.91,
-              "g": 0.19,
-              "b": 0.46,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Visualizer",
-          "data": {}
-        }
-      ],
-      "visible": true
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 82, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.36, "g": 0.19, "b": 0.91, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 11 } }
+      ]
+    },
+    {
+      "id": 31, "name": "Bar12", "parent": 1, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 108, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.62, "g": 0.19, "b": 0.91, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 12 } }
+      ]
+    },
+    {
+      "id": 32, "name": "Bar13", "parent": 1, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 134, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.88, "g": 0.19, "b": 0.91, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 13 } }
+      ]
+    },
+    {
+      "id": 33, "name": "Bar14", "parent": 1, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 160, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.91, "g": 0.19, "b": 0.73, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 14 } }
+      ]
+    },
+    {
+      "id": 34, "name": "Bar15", "parent": 1, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 18, "unit": 0 }, "height": { "value": 6, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": 186, "unit": 0 }, "insetTop": { "value": 50, "unit": 1 }, "marginTop": { "value": 60, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.91, "g": 0.19, "b": 0.46, "a": 1 } } },
+        { "type": "VisualizerBar", "data": { "index": 15 } }
+      ]
+    },
+
+    {
+      "id": 35, "name": "Hint", "parent": 1, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "width": { "value": 640, "unit": 0 }, "height": { "value": 22, "unit": 0 }, "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -320, "unit": 0 }, "insetTop": { "value": 100, "unit": 1 }, "marginTop": { "value": -34, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "keys 1-4 or click the pads · Beat toggles the loop · click a bus to change its volume", "fontSize": 14, "color": { "r": 0.72, "g": 0.76, "b": 0.86, "a": 0.9 }, "align": 1, "verticalAlign": 1 } }
+      ]
     }
   ]
 }
