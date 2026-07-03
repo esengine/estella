@@ -14,6 +14,7 @@ import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
+import { confirmDiscard } from './discardGuard';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
 import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState } from './format';
@@ -112,6 +113,8 @@ class ProjectStoreImpl {
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
+  private knownSceneText: string | null = null;
+  private knownScenePath: string | null = null;
   constructor() {
     // The inspector's override-aware reset reads prefab base data from the loaded
     // `.esprefab` cache this store owns. Non-variant prefabs resolve their base
@@ -225,18 +228,14 @@ class ProjectStoreImpl {
     });
   }
 
-  /** Read + parse a project-relative `.esscene` (raw — refs unresolved). */
-  async readScene(relPath: string): Promise<SceneData> {
-    return JSON.parse(await window.estella.fs.read(relPath)) as SceneData;
-  }
-
   /** Load the project's last-opened scene (or `<scenes>/main.esscene`) into the world. */
   async loadCurrentScene(): Promise<void> {
     const st = this.state;
     if (!st) return;
     const rel =
       st.workspace.lastOpenedScene ?? st.defaultScene ?? `${st.layout.scenes}/main.esscene`;
-    const raw = await this.readScene(rel);
+    const text = await window.estella.fs.read(rel);
+    const raw = JSON.parse(text) as SceneData;
     const dropped = unknownComponentTypes(raw);
     if (dropped.length > 0) {
       console.warn(
@@ -304,6 +303,8 @@ class ProjectStoreImpl {
 
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: rel } });
+    this.knownSceneText = text;
+    this.knownScenePath = rel;
   }
 
   /** A fresh, untitled scene document: a single orthographic Camera at the origin. */
@@ -884,7 +885,10 @@ class ProjectStoreImpl {
   }
 
   private async writeScene(relPath: string, data: SceneData): Promise<void> {
-    await window.estella.fs.write(relPath, JSON.stringify(data, null, 2) + '\n');
+    const body = JSON.stringify(data, null, 2) + '\n';
+    await window.estella.fs.write(relPath, body);
+    this.knownSceneText = body;
+    this.knownScenePath = relPath;
   }
 
   /**
@@ -897,6 +901,37 @@ class ProjectStoreImpl {
     await this.persistLastScene(relPath);
     await this.loadCurrentScene();
     Toasts.push(`Opened ${relPath.split('/').pop() ?? relPath}`, 'info', 1600);
+  }
+
+  /** True if the changed paths include the open scene document. */
+  isOpenScenePath(paths: readonly string[]): boolean {
+    const cur = this.state?.currentScene;
+    if (!cur) return false;
+    const norm = cur.replace(/\\/g, '/');
+    return paths.some((p) => p.replace(/\\/g, '/') === norm);
+  }
+
+  /**
+   * Reconcile the open scene with an on-disk change made outside the editor —
+   * seamless when clean, discard-guarded when there are unsaved edits. A change
+   * matching our own last write (or save) is a no-op.
+   */
+  async reloadOpenSceneFromDisk(): Promise<void> {
+    const st = this.state;
+    if (!st || !st.currentScene) return;
+    let text: string;
+    try { text = await window.estella.fs.read(st.currentScene); }
+    catch { return; }
+    if (text === this.knownSceneText && st.currentScene === this.knownScenePath) return;
+    const name = st.currentScene.split('/').pop() ?? st.currentScene;
+    if (EditorHistory.isDirty() &&
+        !confirmDiscard(`"${name}" changed on disk. Reloading discards your unsaved edits`)) {
+      this.knownSceneText = text;
+      this.knownScenePath = st.currentScene;
+      return;
+    }
+    await this.loadCurrentScene();
+    Toasts.push(`Reloaded ${name} from disk`, 'info', 1600);
   }
 
   private async persistLastScene(relPath: string): Promise<void> {

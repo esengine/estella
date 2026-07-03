@@ -33,6 +33,7 @@ let inited = false;
 let debounce: ReturnType<typeof setTimeout> | null = null;
 let schemaDebounce: ReturnType<typeof setTimeout> | null = null;
 let scriptsDebounce: ReturnType<typeof setTimeout> | null = null;
+let sceneDebounce: ReturnType<typeof setTimeout> | null = null;
 
 // A project source module under src/ — a change here can alter a project
 // component's field schema, so the inspector must re-extract (esbuild, ~100ms).
@@ -67,6 +68,12 @@ export function initFsWatch(): void {
       void ProjectStore.refreshAssets();
       fsRefresh.bump();
     }, 60);
+
+    // The open scene changed on disk (external edit, git, build output) → reload it.
+    if (ProjectStore.isOpenScenePath(paths)) {
+      if (sceneDebounce) clearTimeout(sceneDebounce);
+      sceneDebounce = setTimeout(() => void ProjectStore.reloadOpenSceneFromDisk(), 120);
+    }
 
     // A component-source edit → re-extract schemas so the inspector reflects the
     // new fields live (separate, longer window: extraction bundles with esbuild).
