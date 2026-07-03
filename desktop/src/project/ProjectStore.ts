@@ -370,19 +370,21 @@ class ProjectStoreImpl {
    * fetches `estella://project/<path>`.
    */
   private async buildAssetRegistry(): Promise<void> {
+    if (!this.state) return;
+    let entries: { uuid: string; path: string }[];
+    try {
+      ({ entries } = (await window.estella.project.scanAssets()).index);
+    } catch (err) {
+      console.warn('[project] asset scan failed', err);
+      return;
+    }
     this.uuidToPath.clear();
     this.pathToUuid.clear();
     this.prefabCache.clear();
-    if (!this.state) return;
-    try {
-      const { index } = await window.estella.project.scanAssets();
-      for (const e of index.entries) {
-        const uuid = e.uuid.toLowerCase();
-        this.uuidToPath.set(uuid, e.path);
-        this.pathToUuid.set(e.path, uuid);
-      }
-    } catch (err) {
-      console.warn('[project] asset scan failed', err);
+    for (const e of entries) {
+      const uuid = e.uuid.toLowerCase();
+      this.uuidToPath.set(uuid, e.path);
+      this.pathToUuid.set(e.path, uuid);
     }
 
     const assets = EngineHost.getResource(Assets);
