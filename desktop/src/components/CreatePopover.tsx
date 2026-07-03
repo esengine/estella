@@ -3,124 +3,135 @@
 /**
  * @file  CreatePopover.tsx — the "Create entity" picker.
  *
- * One anchored popover (search box + grouped, keyboard-navigable list) in place
- * of cascading Create submenus: no flyout geometry, so nothing zigzags or folds
- * over an earlier level near the window edge, and it scales as the template
- * catalog grows. Mirrors Godot's "Create Node" / Unity's "Add Component".
+ * A centered command-palette modal (search + category-grouped, keyboard-navigable
+ * list) for creating entities from the template catalog. Shares the UE5-aligned
+ * `.ac` picker shell + behaviour with AddComponentMenu, so the two read as one
+ * design and the scrim/scroll dismissal is consistent: clicks inside stay open,
+ * the wheel scrolls the list (never dismisses), only the scrim / Esc close it.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search } from 'lucide-react';
-import { flattenCatalog, matchCatalog, type EntityTemplate } from '@/engine/entityTemplates';
+import { Search, Box, Image, Video, Lightbulb, Sparkles, LayoutDashboard, ToggleLeft, SlidersHorizontal } from 'lucide-react';
+import { flattenCatalog, matchCatalog, type CatalogEntry, type EntityTemplate } from '@/engine/entityTemplates';
+
+const ICONS: Record<string, typeof Box> = {
+  Empty: Box,
+  Sprite: Image,
+  Camera: Video,
+  Light: Lightbulb,
+  Particles: Sparkles,
+  Canvas: LayoutDashboard,
+  Toggle: ToggleLeft,
+  Slider: SlidersHorizontal,
+};
+
+/** Group consecutive entries by category (the catalog is already category-ordered). */
+function groupByCategory(entries: CatalogEntry[]) {
+  const groups: { category: string; items: CatalogEntry[] }[] = [];
+  for (const e of entries) {
+    let g = groups[groups.length - 1];
+    if (!g || g.category !== e.category) {
+      g = { category: e.category, items: [] };
+      groups.push(g);
+    }
+    g.items.push(e);
+  }
+  return groups;
+}
 
 export function CreatePopover({
-  x,
-  y,
   onPick,
   onClose,
 }: {
-  x: number;
-  y: number;
   onPick: (t: EntityTemplate) => void;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: x, top: y });
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
 
   const all = useMemo(() => flattenCatalog(), []);
   const results = useMemo(() => matchCatalog(all, query), [all, query]);
+  const groups = useMemo(() => groupByCategory(results), [results]);
 
-  // Keep the active row in range as the filter narrows.
-  useEffect(() => setActive((i) => Math.min(i, Math.max(0, results.length - 1))), [results.length]);
+  useEffect(() => inputRef.current?.focus(), []);
+  useEffect(() => setActive(0), [query]);
+  useEffect(() => activeRef.current?.scrollIntoView({ block: 'nearest' }), [active]);
 
-  // Clamp to the viewport once, before paint (as the context menu does).
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const pad = 8;
-    const left = x + r.width > window.innerWidth - pad ? Math.max(pad, window.innerWidth - r.width - pad) : x;
-    const top = y + r.height > window.innerHeight - pad ? Math.max(pad, window.innerHeight - r.height - pad) : y;
-    setPos({ left, top });
-  }, [x, y]);
-
+  // Dismiss on an outside press (inside clicks stopPropagation below) or Esc.
+  // Deliberately NOT on scroll — the picker owns a scrollable list.
   useEffect(() => {
     const close = () => onClose();
-    const onEsc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('mousedown', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('keydown', onEsc);
+    window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('mousedown', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('keydown', onEsc);
+      window.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
 
-  const pick = (i: number) => {
-    const e = results[i];
-    if (!e) return;
+  const commit = (t: EntityTemplate) => {
     onClose();
-    onPick(e.template);
+    onPick(t);
   };
 
-  const onKey = (ev: KeyboardEvent<HTMLDivElement>) => {
-    if (ev.key === 'ArrowDown') { ev.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
-    else if (ev.key === 'ArrowUp') { ev.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-    else if (ev.key === 'Enter') { ev.preventDefault(); pick(active); }
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(results.length - 1, a + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
+    else if (e.key === 'Enter') { e.preventDefault(); const it = results[active]; if (it) commit(it.template); }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
   };
-
-  // `results` is already in display order, so the flat `active` index lines up
-  // with the rendered rows; category headers are drawn on each change.
-  let lastCategory = '';
 
   return createPortal(
-    <div
-      ref={ref}
-      className="ctx"
-      role="dialog"
-      style={{ left: pos.left, top: pos.top, width: 240, maxHeight: 320, display: 'flex', flexDirection: 'column' }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onKeyDown={onKey}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <Search size={13} style={{ opacity: 0.5, flex: '0 0 auto' }} />
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Create…"
-          style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: 'inherit', font: 'inherit' }}
-        />
-      </div>
-      <div style={{ overflowY: 'auto', padding: '4px 0' }}>
-        {results.length === 0 ? (
-          <div style={{ padding: '6px 10px', opacity: 0.5 }}>No matches</div>
-        ) : (
-          results.map((e, idx) => {
-            const header = e.category !== lastCategory ? e.category : null;
-            lastCategory = e.category;
-            return (
-              <div key={`${e.category}/${e.template.label}`}>
-                {header ? (
-                  <div style={{ padding: '4px 10px 2px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4, opacity: 0.45 }}>{header}</div>
-                ) : null}
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="ctx-item"
-                  style={idx === active ? { background: 'rgba(255,255,255,0.10)' } : undefined}
-                  onMouseEnter={() => setActive(idx)}
-                  onClick={() => pick(idx)}
-                >
-                  <span className="cl">{e.template.label}</span>
-                </button>
+    <div className="ac-scrim open" onMouseDown={onClose}>
+      <div className="ac" role="dialog" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="ac-search">
+          <Search size={15} strokeWidth={1.9} />
+          <input
+            ref={inputRef}
+            placeholder="Create entity…"
+            value={query}
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <kbd className="esc">Esc</kbd>
+        </div>
+
+        <div className="ac-body">
+          {results.length === 0 ? (
+            <div className="ac-empty">No matching templates</div>
+          ) : (
+            groups.map((g) => (
+              <div key={g.category}>
+                <div className="ac-sec">{g.category}</div>
+                {g.items.map((it) => {
+                  const idx = results.indexOf(it);
+                  const isActive = idx === active;
+                  const Icon = ICONS[it.template.label] ?? Box;
+                  return (
+                    <button
+                      key={`${it.category}/${it.template.label}`}
+                      ref={isActive ? activeRef : undefined}
+                      type="button"
+                      className={`ac-item${isActive ? ' sel' : ''}`}
+                      onMouseEnter={() => setActive(idx)}
+                      onClick={() => commit(it.template)}
+                    >
+                      <span className="ai"><Icon size={16} /></span>
+                      <span className="at">
+                        <div className="an">{it.template.label}</div>
+                      </span>
+                      <span className="ak">↵</span>
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>,
     document.body,

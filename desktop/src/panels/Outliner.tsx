@@ -91,7 +91,7 @@ export function Outliner() {
   const [renaming, setRenaming] = useState<string | null>(null); // item key
   const [drop, setDrop] = useState<{ key: string; pos: 'before' | 'on' | 'after' } | null>(null);
   const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem | null } | null>(null); // item null = empty-space menu
-  const [createAt, setCreateAt] = useState<{ x: number; y: number; parent: EntityId | null } | null>(null);
+  const [createFor, setCreateFor] = useState<{ parent: EntityId | null } | null>(null);
   const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
   const [colsMenu, setColsMenu] = useState<{ x: number; y: number } | null>(null);
   // Controlled scroll for reveal-on-select + keyboard nav (nonce re-fires same index).
@@ -466,7 +466,7 @@ export function Outliner() {
       // Empty-space (scene) menu.
       return [
         { label: 'Add Entity', onClick: addEntity },
-        { label: 'Create…', onClick: () => setCreateAt({ x: ctx.x, y: ctx.y, parent: null }) },
+        { label: 'Create…', onClick: () => setCreateFor({ parent: null }) },
         { label: 'New Folder', onClick: () => newFolder('', null) },
         { sep: true },
         { label: 'Expand All', onClick: expandAll },
@@ -520,7 +520,7 @@ export function Outliner() {
       { label: 'Unparent', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setParent(i, null)) },
       { sep: true },
       { label: 'Add Entity', onClick: addEntity },
-      { label: 'Create…', onClick: () => setCreateAt({ x: ctx.x, y: ctx.y, parent: id }) },
+      { label: 'Create…', onClick: () => setCreateFor({ parent: id }) },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
@@ -652,12 +652,10 @@ export function Outliner() {
       )}
 
       {ctx && !gameMode && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
-      {createAt && (
+      {createFor && (
         <CreatePopover
-          x={createAt.x}
-          y={createAt.y}
-          onClose={() => setCreateAt(null)}
-          onPick={(t) => createTemplate(t, createAt.parent)}
+          onClose={() => setCreateFor(null)}
+          onPick={(t) => createTemplate(t, createFor.parent)}
         />
       )}
       {sortMenu && !gameMode && (
