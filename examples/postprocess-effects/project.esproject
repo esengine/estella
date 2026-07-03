@@ -1,13 +1,13 @@
 {
   "formatVersion": "1",
   "name": "Post-Processing",
-  "description": "Full-screen post-processing: bloom, vignette and color grading.",
+  "description": "An interactive gallery of the engine's post-process effects, plus a camera-relative local volume.",
   "tag": "Effects",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {
-    "width": 800,
-    "height": 600
+    "width": 1280,
+    "height": 720
   },
   "spineVersion": "none"
 }

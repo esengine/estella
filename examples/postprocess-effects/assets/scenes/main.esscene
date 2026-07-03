@@ -7,152 +7,259 @@
       "name": "Camera",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
-      ],
-      "visible": true
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 360, "isActive": true, "priority": 0 } }
+      ]
     },
     {
       "id": 1,
-      "name": "OrbitSprite0",
+      "name": "Background",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 100, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.24, "b": 0.24, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 0.5, "radius": 80 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1400, "y": 820 }, "color": { "r": 0.04, "g": 0.04, "b": 0.06, "a": 1 }, "layer": 0 } }
+      ]
     },
     {
       "id": 2,
-      "name": "OrbitSprite1",
+      "name": "GlowCore",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 70.71, "y": 70.71, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.78, "b": 0.24, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 0.6, "radius": 110, "angle": 0.79 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 84, "y": 84 }, "color": { "r": 1, "g": 0.96, "b": 0.78, "a": 1 }, "layer": 2 } }
+      ]
     },
     {
       "id": 3,
-      "name": "OrbitSprite2",
+      "name": "OrbitSprite0",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 100, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.6, "g": 0.96, "b": 0.24, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 0.7, "radius": 140, "angle": 1.57 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": 100, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.24, "b": 0.24, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 0.5, "radius": 80 } }
+      ]
     },
     {
       "id": 4,
-      "name": "OrbitSprite3",
+      "name": "OrbitSprite1",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -70.71, "y": 70.71, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.96, "b": 0.42, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 0.8, "radius": 80, "angle": 2.36 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": 70.71, "y": 70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.78, "b": 0.24, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 0.6, "radius": 110, "angle": 0.79 } }
+      ]
     },
     {
       "id": 5,
-      "name": "OrbitSprite4",
+      "name": "OrbitSprite2",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -100, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.96, "b": 0.96, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 0.9, "radius": 110, "angle": 3.14 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 100, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.6, "g": 0.96, "b": 0.24, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 0.7, "radius": 140, "angle": 1.57 } }
+      ]
     },
     {
       "id": 6,
-      "name": "OrbitSprite5",
+      "name": "OrbitSprite3",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -70.71, "y": -70.71, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.42, "b": 0.96, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 1.0, "radius": 140, "angle": 3.93 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": -70.71, "y": 70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.96, "b": 0.42, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 0.8, "radius": 80, "angle": 2.36 } }
+      ]
     },
     {
       "id": 7,
-      "name": "OrbitSprite6",
+      "name": "OrbitSprite4",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": -100, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.6, "g": 0.24, "b": 0.96, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 1.1, "radius": 80, "angle": 4.71 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": -100, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.96, "b": 0.96, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 0.9, "radius": 110, "angle": 3.14 } }
+      ]
     },
     {
       "id": 8,
-      "name": "OrbitSprite7",
+      "name": "OrbitSprite5",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 70.71, "y": -70.71, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.24, "b": 0.78, "a": 1 } } },
-        { "type": "Orbit", "data": { "speed": 1.2, "radius": 110, "angle": 5.50 } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": -70.71, "y": -70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.42, "b": 0.96, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 1.0, "radius": 140, "angle": 3.93 } }
+      ]
     },
     {
       "id": 9,
-      "name": "CenterSprite",
+      "name": "OrbitSprite6",
       "parent": null,
       "children": [],
+      "visible": true,
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 } } }
-      ],
-      "visible": true
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -100, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.6, "g": 0.24, "b": 0.96, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 1.1, "radius": 80, "angle": 4.71 } }
+      ]
     },
     {
       "id": 10,
-      "name": "PostProcess",
+      "name": "OrbitSprite7",
       "parent": null,
       "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 70.71, "y": -70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.24, "b": 0.78, "a": 1 }, "layer": 1 } },
+        { "type": "Orbit", "data": { "speed": 1.2, "radius": 110, "angle": 5.50 } }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "SceneVolume",
+      "parent": null,
+      "children": [],
+      "visible": true,
       "components": [
         { "type": "Transform", "data": {} },
-        { "type": "PostProcessVolume", "data": {
-          "isGlobal": true,
-          "priority": 0,
-          "weight": 1,
-          "effects": [
-            {
-              "type": "bloom",
-              "enabled": true,
-              "uniforms": {
-                "u_threshold": 0.3,
-                "u_intensity": 1.5,
-                "u_radius": 6
-              }
-            },
-            {
-              "type": "vignette",
-              "enabled": true,
-              "uniforms": {
-                "u_intensity": 0.8,
-                "u_softness": 0.5
-              }
-            }
-          ]
-        }}
-      ],
-      "visible": true
+        { "type": "PostProcessVolume", "data": { "isGlobal": true, "priority": 0, "weight": 1, "effects": [] } },
+        { "type": "SceneVolume", "data": {} }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Canvas",
+      "parent": null,
+      "children": [13, 14, 15, 17],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 1280, "y": 720 }, "scaleMode": 2, "backgroundColor": { "r": 0, "g": 0, "b": 0, "a": 0 } } },
+        { "type": "UINode", "data": {} }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Title",
+      "parent": 12,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1,
+          "width": { "value": 600, "unit": 0 }, "height": { "value": 52, "unit": 0 },
+          "insetLeft": { "value": 0, "unit": 1 }, "marginLeft": { "value": 340, "unit": 0 },
+          "insetTop": { "value": 0, "unit": 1 }, "marginTop": { "value": 26, "unit": 0 }
+        } },
+        { "type": "Text", "data": { "content": "Bloom", "fontSize": 34, "color": { "r": 0.95, "g": 0.95, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } },
+        { "type": "TitleLabel", "data": {} }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Hint",
+      "parent": 12,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1,
+          "width": { "value": 900, "unit": 0 }, "height": { "value": 24, "unit": 0 },
+          "insetLeft": { "value": 0, "unit": 1 }, "marginLeft": { "value": 190, "unit": 0 },
+          "insetTop": { "value": 0, "unit": 1 }, "marginTop": { "value": 84, "unit": 0 }
+        } },
+        { "type": "Text", "data": { "content": "", "fontSize": 17, "color": { "r": 0.72, "g": 0.76, "b": 0.86, "a": 0.9 }, "align": 1, "verticalAlign": 1 } },
+        { "type": "HintLabel", "data": {} }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "PrevButton",
+      "parent": 12,
+      "children": [16],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1,
+          "width": { "value": 140, "unit": 0 }, "height": { "value": 54, "unit": 0 },
+          "insetLeft": { "value": 0, "unit": 1 }, "marginLeft": { "value": 480, "unit": 0 },
+          "insetTop": { "value": 0, "unit": 1 }, "marginTop": { "value": 626, "unit": 0 }
+        } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.18, "g": 0.2, "b": 0.28, "a": 0.92 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "PrevButton", "data": {} }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "PrevLabel",
+      "parent": 15,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1,
+          "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 },
+          "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 }
+        } },
+        { "type": "Text", "data": { "content": "Prev", "fontSize": 22, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "NextButton",
+      "parent": 12,
+      "children": [18],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1,
+          "width": { "value": 140, "unit": 0 }, "height": { "value": 54, "unit": 0 },
+          "insetLeft": { "value": 0, "unit": 1 }, "marginLeft": { "value": 660, "unit": 0 },
+          "insetTop": { "value": 0, "unit": 1 }, "marginTop": { "value": 626, "unit": 0 }
+        } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.18, "g": 0.2, "b": 0.28, "a": 0.92 } } },
+        { "type": "Interactable", "data": {} },
+        { "type": "NextButton", "data": {} }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "NextLabel",
+      "parent": 17,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1,
+          "insetLeft": { "value": 0, "unit": 1 }, "insetRight": { "value": 0, "unit": 1 },
+          "insetTop": { "value": 0, "unit": 1 }, "insetBottom": { "value": 0, "unit": 1 }
+        } },
+        { "type": "Text", "data": { "content": "Next", "fontSize": 22, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
     }
   ]
 }
