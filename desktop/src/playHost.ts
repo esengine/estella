@@ -159,9 +159,7 @@ async function ensureEngine(): Promise<void> {
   engineModule = module;
 }
 
-/** The running game's last-frame C++ CPU scopes (render passes → `cpp.*`). */
-function parseCppScopes(m: ESEngineModule | null): Record<string, number> {
-  const json = m?.engine_getCpuScopes?.();
+function jsonMap(json: string | undefined): Record<string, number> {
   if (!json) return {};
   try { return JSON.parse(json) as Record<string, number>; } catch { return {}; }
 }
@@ -347,7 +345,8 @@ window.addEventListener('message', (e: MessageEvent) => {
             sprites: m?.renderer_getSprites?.() ?? 0,
             entities: app?.world.getAllEntities().length ?? 0,
             gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
-            cppScopes: parseCppScopes(m),
+            cppScopes: jsonMap(m?.engine_getCpuScopes?.()),
+            cppCounters: jsonMap(m?.engine_getCounters?.()),
             wasmBytes: m?.HEAPU8?.byteLength ?? 0,
             vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
           },

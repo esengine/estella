@@ -21,6 +21,7 @@ const GROUPS = [
   { id: 'frame', label: 'Frame' },
   { id: 'unit', label: 'CPU/GPU' },
   { id: 'render', label: 'Render' },
+  { id: 'counters', label: 'Counters' },
   { id: 'memory', label: 'Memory' },
   { id: 'systems', label: 'Systems' },
 ] as const;
@@ -177,12 +178,13 @@ export function ProfilerPanel() {
   const v = pinned
     ? {
         frameMs: pinned.dt, engineMs: pinned.engineMs, editorMs: pinned.editorMs, gpuMs: pinned.gpuMs,
-        drawCalls: pinned.drawCalls, triangles: pinned.triangles, entities: pinned.entities, systems: pinned.systems,
+        drawCalls: pinned.drawCalls, triangles: pinned.triangles, entities: pinned.entities, systems: pinned.systems, counters: pinned.counters,
       }
     : {
         frameMs: s.p50, engineMs: s.engineMs, editorMs: s.editorMs, gpuMs: s.gpuMs,
-        drawCalls: s.drawCalls, triangles: s.triangles, entities: s.entities, systems: s.systemsTop,
+        drawCalls: s.drawCalls, triangles: s.triangles, entities: s.entities, systems: s.systemsTop, counters: s.counters,
       };
+  const counterRows = Object.entries(v.counters).sort((a, b) => a[0].localeCompare(b[0]));
   const frame = Math.max(v.frameMs, v.engineMs + v.editorMs);
   const other = Math.max(0, frame - v.engineMs - v.editorMs);
   const p99Bad = s.p99 >= BUDGET_MS * 1.5;
@@ -298,6 +300,18 @@ export function ProfilerPanel() {
           <div><span>triangles</span><b>{kfmt(v.triangles)}</b></div>
           <div><span>entities</span><b>{v.entities}</b></div>
         </div>
+      </section>
+      )}
+
+      {show('counters') && counterRows.length > 0 && (
+      <section className="prof-sec">
+        <h4>Counters</h4>
+        {counterRows.map(([name, val]) => (
+          <div className="prof-brk" key={name}>
+            <span className="prof-brk-name" title={name}>{name}</span>
+            <span className="prof-brk-val">{kfmt(val)}</span>
+          </div>
+        ))}
       </section>
       )}
 

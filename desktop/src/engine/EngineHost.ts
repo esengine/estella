@@ -118,6 +118,7 @@ class EngineHostImpl {
     entities: number;
     gpuMs: number;
     cppScopes: Record<string, number>;
+    cppCounters: Record<string, number>;
     wasmBytes: number;
     vramBytes: number;
   } | null {
@@ -131,6 +132,11 @@ class EngineHostImpl {
     if (scopesJson) {
       try { cppScopes = JSON.parse(scopesJson) as Record<string, number>; } catch { /* ignore */ }
     }
+    let cppCounters: Record<string, number> = {};
+    const countersJson = m?.engine_getCounters?.();
+    if (countersJson) {
+      try { cppCounters = JSON.parse(countersJson) as Record<string, number>; } catch { /* ignore */ }
+    }
     return {
       phaseMs: phases ? Object.fromEntries(phases) : {},
       systemMs: systems ? Object.fromEntries(systems) : {},
@@ -140,6 +146,7 @@ class EngineHostImpl {
       entities: this.world?.getAllEntities().length ?? 0,
       gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
       cppScopes,
+      cppCounters,
       wasmBytes: m?.HEAPU8?.byteLength ?? 0,
       vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
     };

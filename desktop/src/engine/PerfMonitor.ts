@@ -49,6 +49,8 @@ export interface EngineFrame {
   gpuMs: number;
   /** Per-frame C++ CPU scopes (render passes etc.), name → ms — the `cpp.*` rows. */
   cppScopes: Record<string, number>;
+  /** Per-frame C++ named counters (culled, cache hits, …). */
+  cppCounters: Record<string, number>;
   /** Total wasm linear memory (bytes) — the engine's heap. */
   wasmBytes: number;
   /** Resident texture VRAM (bytes, estimate). */
@@ -68,6 +70,7 @@ export interface FrameSample {
   editorPhases: Record<string, number>;
   enginePhases: Record<string, number>;
   cppScopes: Record<string, number>;
+  counters: Record<string, number>;
   systems: Array<{ name: string; ms: number }>;
   drawCalls: number;
   triangles: number;
@@ -117,6 +120,8 @@ export interface PerfSnapshot {
   vramMB: number;
   /** Recent memory samples (oldest→newest) for the memory graph. */
   memHist: Array<{ wasm: number; js: number; vram: number }>;
+  /** Latest frame's merged named counters (engine + editor). */
+  counters: Record<string, number>;
 }
 
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
@@ -130,7 +135,7 @@ class PerfMonitorImpl {
     fps: 0, p50: 0, p95: 0, p99: 0, longFrames: 0, worstMs: 0, worstPhase: null, longTaskMs: 0, visible: false, enabled: true,
     engineMs: 0, editorMs: 0, drawCalls: 0, triangles: 0, entities: 0, systemsTop: [], realm: 'edit', gpuMs: -1, frames: [],
     frozen: false, pinnedId: null, autoHitch: false, longTaskRev: 0,
-    wasmMB: 0, jsHeapMB: 0, jsHeapLimitMB: 0, vramMB: 0, memHist: [],
+    wasmMB: 0, jsHeapMB: 0, jsHeapLimitMB: 0, vramMB: 0, memHist: [], counters: {},
   }));
   private enabled = true;
   private running = false;
@@ -140,6 +145,8 @@ class PerfMonitorImpl {
   private windowStart = 0;
   private readonly frames: number[] = [];
   private phase: Record<string, number> = {};
+  private frameCounters: Record<string, number> = {};
+  private lastCounters: Record<string, number> = {};
   private longFrames = 0;
   private worstMs = 0;
   private worstPhase: string | null = null;
@@ -270,6 +277,11 @@ class PerfMonitorImpl {
     try { performance.measure(`perf:${phase}`, { start: startMs, end }); } catch { /* ignore */ }
   }
 
+  /** Publish a named counter for the current frame (gauge; last write wins). */
+  counter(name: string, value: number): void {
+    if (this.enabled) this.frameCounters[name] = value;
+  }
+
   /** Report a React commit's duration, attributed to its panel (from a per-panel
    *  <Profiler onRender>). So a panel that stalls a frame (e.g. the Details tree
    *  rebuilding on selection) shows as `react.<id>` instead of the void. */
@@ -291,6 +303,8 @@ class PerfMonitorImpl {
     this.last = now;
     const editorPhases = this.phase;
     this.phase = {};
+    const editorCounters = this.frameCounters;
+    this.frameCounters = {};
 
     // Frozen: hold the capture completely so the pinned frame stays put (the graph
     // and sections read a static ring). First frame: no interval yet.
@@ -314,10 +328,12 @@ class PerfMonitorImpl {
       let engineFrameMs = 0;
       let enginePhases: Record<string, number> = {};
       let cppScopes: Record<string, number> = {};
+      let engineCounters: Record<string, number> = {};
       let systemsFrame: Array<{ name: string; ms: number }> = [];
       if (ef) {
         enginePhases = ef.phaseMs;
         cppScopes = ef.cppScopes;
+        engineCounters = ef.cppCounters;
         engineFrameMs = sumMs(enginePhases);
         this.engineSum += engineFrameMs;
         for (const k in ef.systemMs) {
@@ -341,11 +357,13 @@ class PerfMonitorImpl {
         editorPhases: { ...editorPhases },
         enginePhases: { ...enginePhases },
         cppScopes: { ...cppScopes },
+        counters: { ...engineCounters, ...editorCounters },
         systems: systemsFrame,
         drawCalls: this.counters.drawCalls,
         triangles: this.counters.triangles,
         entities: this.counters.entities,
       };
+      this.lastCounters = sample.counters;
       this.samples.push(sample);
       if (this.samples.length > CAP) this.samples.shift();
 
@@ -379,6 +397,7 @@ class PerfMonitorImpl {
         gpuMs: this.counters.gpuMs >= 0 ? r1(this.counters.gpuMs) : -1,
         frames: this.samples.map((s) => s.dt),
         wasmMB, jsHeapMB, jsHeapLimitMB, vramMB, memHist: this.memHist.slice(),
+        counters: this.lastCounters,
       });
       this.windowStart = now;
       this.longFrames = 0; this.worstMs = 0; this.worstPhase = null; this.longTaskMs = 0;

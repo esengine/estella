@@ -66,6 +66,7 @@ export interface PlayStatsReply {
   entities: number;
   gpuMs: number;
   cppScopes: Record<string, number>;
+  cppCounters: Record<string, number>;
   wasmBytes: number;
   vramBytes: number;
 }
