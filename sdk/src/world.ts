@@ -5,7 +5,7 @@
  * @brief   ECS World with C++ Registry integration
  */
 
-import { Entity, entityGeneration, entityIndex, makeEntity } from './types';
+import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from './types';
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getUserComponents, Name } from './component';
 import type { CppRegistry, ESEngineModule } from './wasm';
 import { handleWasmError } from './wasmError';
@@ -208,6 +208,32 @@ export class World {
                 'Use Commands to defer entity destruction until after iteration completes.'
             );
         }
+        if (!this.valid(entity)) return; // already gone (e.g. despawned as part of a subtree)
+
+        // Unlink from the parent (setParent-to-INVALID clears both sides), then
+        // tear down the whole subtree so no children are left orphaned + rendering.
+        const cppRegistry = this.builtin_.getCppRegistry();
+        if (cppRegistry && cppRegistry.hasParent(entity)) {
+            try { cppRegistry.setParent(entity, INVALID_ENTITY); }
+            catch (e) { handleWasmError(e, `despawn(detach ${entity})`); }
+        }
+        this.despawnSubtree_(entity, cppRegistry);
+    }
+
+    /** Depth-first teardown of `entity` and its descendants (children before parent). */
+    private despawnSubtree_(entity: Entity, cppRegistry: CppRegistry | null): void {
+        if (cppRegistry && cppRegistry.hasChildren(entity)) {
+            const children: Entity[] = [];
+            try {
+                // Snapshot then free the wasm VectorEntity (it leaks if left alive).
+                const vec = cppRegistry.getChildren(entity).entities;
+                for (let i = 0; i < vec.size(); i++) children.push(vec.get(i) as Entity);
+                vec.delete();
+            } catch (e) { handleWasmError(e, `despawn(children of ${entity})`); }
+            for (const child of children) {
+                if (this.valid(child)) this.despawnSubtree_(child, cppRegistry);
+            }
+        }
 
         notifyBridge('onEntityDespawned', entity);
 
@@ -217,7 +243,6 @@ export class World {
 
         this.names_.remove(entity);
 
-        const cppRegistry = this.builtin_.getCppRegistry();
         if (cppRegistry) {
             try {
                 cppRegistry.destroy(entity);

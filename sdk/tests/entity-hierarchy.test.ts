@@ -110,6 +110,31 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
             disposeWorld(world, registry);
         });
 
+        it('despawn cascades to descendants and detaches from the parent', () => {
+            const { world, registry } = createWorld();
+
+            const root = world.spawn();
+            const mid = world.spawn();
+            const leaf = world.spawn();
+            const sibling = world.spawn();
+
+            world.setParent(mid, root);
+            world.setParent(leaf, mid);
+            world.setParent(sibling, root);
+
+            world.despawn(mid);
+
+            expect(world.valid(mid)).toBe(false);
+            expect(world.valid(leaf)).toBe(false);   // cascaded
+            expect(world.valid(root)).toBe(true);
+            expect(world.valid(sibling)).toBe(true);
+
+            // root no longer references the despawned mid, only sibling.
+            expect(module.getChildEntities(registry, root)).toEqual([sibling]);
+
+            disposeWorld(world, registry);
+        });
+
         it('should remove parent relationship via removeParent', () => {
             const { world, registry } = createWorld();
 
