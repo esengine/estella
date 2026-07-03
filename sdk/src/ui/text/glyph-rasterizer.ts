@@ -120,14 +120,10 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
             width: w,
             height: h,
             advance,
-            // The glyph is drawn at pen x = pad + left, so its ink left edge lands
-            // at tile x = pad; mapping the pen origin back to the tile's left edge
-            // (tile x = 0) is therefore -(left + pad). (The earlier `left - pad`
-            // mirrored the left bearing, shifting each glyph by 2·left — visible as
-            // uneven spacing / overlap, worst at small sizes where the browser
-            // rounds actualBoundingBoxLeft to whole pixels.)
-            bearingX: -(left + pad),  // pen origin → bitmap left edge
-            bearingY: ascent + pad,   // bitmap top above the baseline
+            // Drawn at pen x = pad + left (ink lands at tile x = pad), so the pen
+            // origin maps back to tile x = 0 at -(left + pad).
+            bearingX: -(left + pad),
+            bearingY: ascent + pad,
         };
     }
 }

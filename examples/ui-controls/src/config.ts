@@ -1,9 +1,7 @@
 import type { Color } from 'esengine';
 
-// Panel + row geometry. The panel is a fixed box centred on the canvas (the
-// dialog-widget centring trick: 50% inset shifted back by half its size), laid
-// out internally with a flex column. Rows are fixed-height flex items; inside a
-// row the label and the widget slot are placed by absolute insets.
+// Panel + row geometry (a canvas-centred panel laid out as a flex column; each
+// row places its label + widget slot by absolute insets).
 export const PANEL_W = 460;
 export const PANEL_H = 452;
 export const PANEL_PAD = 24;

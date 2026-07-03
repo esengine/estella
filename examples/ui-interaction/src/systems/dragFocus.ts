@@ -15,15 +15,10 @@ interface CardNode {
     marginTop: Dimension;
 }
 
-// Six draggable cards rest in a row. Drag one into the drop zone to file it
-// there (the zone lists what it holds); drop it back over the row to snap into
-// the nearest slot, swapping whoever sat there. Focused cards brighten.
-//
-// The engine drives the actual dragging (Draggable + DragPlugin nudges the
-// card's absolute UINode insets) and focus (Focusable); this system owns the
-// resting layout and the drop/snap logic. Everything is in the canvas's y-down
-// pixel-inset space (design resolution 800×600), the same space DragPlugin
-// writes while a card is held.
+// Cards rest in a row; drag one into the drop zone to file it, or back onto the
+// row to snap into the nearest slot (swapping the occupant). Focused cards brighten.
+// The engine owns dragging (Draggable) + focus; this system owns the resting layout
+// and drop/snap, working in the canvas's y-down pixel-inset space (the DragPlugin's).
 const CARD_COUNT = 6;
 const CANVAS_W = 800;
 const CARD_W = 100;

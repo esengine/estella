@@ -7,12 +7,8 @@ import type { TransformData, UIInteractionData } from 'esengine';
 import { SLIDER_W, PROGRESS_SPEED } from '../config';
 import { state } from '../state';
 
-// Per-frame wiring for the two widgets the factories don't self-drive:
-//   • Slider — createSlider ships no input, so we drag it here. The engine's
-//     hit-test already sets UIInteraction.hovered on the track; we only map the
-//     pointer's world x (same space as the track's laid-out worldPosition) back
-//     to a 0..100 value.
-//   • Progress — a simple time-driven ping-pong, pausable via the toggle.
+// Per-frame wiring the factories don't self-drive: drag the slider (mapping the
+// pointer's world x onto the track) and animate the progress bar (pausable).
 export const controlsSystem = defineSystem(
     [Res(Time), Res(Input), Res(UICameraInfo), GetWorld()],
     (time, input, camera, world) => {

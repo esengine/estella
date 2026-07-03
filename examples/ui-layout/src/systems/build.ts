@@ -16,11 +16,7 @@ import {
 } from '../config';
 import { state } from '../state';
 
-// A live flexbox playground: control buttons cycle a real FlexContainer's
-// flex-direction / justify-content / align-items / flex-wrap / item-count, and
-// the Yoga layout pass re-flows the item boxes next frame. Built imperatively
-// from the widget factories + design tokens — the same modern path as
-// ui-controls.
+// Builds the demo FlexContainer, item boxes, and the cycle-buttons that drive it.
 export const buildSystem = defineSystem(
     [Query(Canvas), Res(UIEvents), GetWorld()],
     (canvases: Iterable<[Entity, unknown]>, events: UIEventQueue, world: World) => {
@@ -72,7 +68,7 @@ export const buildSystem = defineSystem(
             text: { content: '', fontSize: 13, color: { r: 0.55, g: 0.55, b: 0.58, a: 1 } },
         });
 
-        // ── inner helpers (close over world / c / events / state) ─────────────
+        // inner helpers (close over world / c / events / state)
 
         function spawnItem(i: number): Entity {
             const box = spawnUIEntity({
@@ -143,7 +139,7 @@ export const buildSystem = defineSystem(
     { name: 'BuildSystem' },
 );
 
-// ── shared helpers ─────────────────────────────────────────────────────────
+// shared helpers
 
 interface TextInit {
     content: string;

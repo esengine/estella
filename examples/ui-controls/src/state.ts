@@ -1,9 +1,7 @@
 import type { Entity, SliderHandle, ProgressHandle } from 'esengine';
 
-// Handles the build system hands to the per-frame controls system. Widget
-// callbacks (button/toggle/dropdown/dialog) are self-wired at build time and
-// need nothing here; only the slider (pointer drag) and the progress bar
-// (time-driven animation) are ticked each frame.
+// What buildSystem hands to the per-frame controls system (only the slider and
+// progress bar are ticked; the other widgets self-wire their callbacks).
 export const state = {
     slider: null as SliderHandle | null,
     progress: null as ProgressHandle | null,

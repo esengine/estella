@@ -18,11 +18,7 @@ import {
 } from '../config';
 import { state } from '../state';
 
-// One startup system builds the whole screen imperatively from the widget
-// factories (createButton/…/createDialog), styled entirely from the design
-// tokens (themeColors) — no literal RGBA. Each widget wires its own interaction;
-// only the slider (pointer) and progress bar (time) are ticked per-frame by
-// systems/controls.ts.
+// Builds the panel and every widget once, at startup, from the widget factories + theme.
 export const buildSystem = defineSystem(
     [Query(Canvas), Res(UIEvents), GetWorld()],
     (canvases: Iterable<[Entity, unknown]>, events: UIEventQueue, world: World) => {
@@ -34,7 +30,7 @@ export const buildSystem = defineSystem(
 
         const c = themeColors();
 
-        // Centered panel (dialog-centring trick), laid out as a flex column.
+        // Centred panel, laid out as a flex column.
         const panel = spawnUIEntity({
             world, parent: canvas,
             node: {
@@ -62,8 +58,7 @@ export const buildSystem = defineSystem(
                 align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle },
         });
 
-        // Modal dialog: an overlay on the canvas, hidden until "Open…". Populated
-        // with its own title/body/Close children.
+        // Modal dialog overlay (hidden until "Open…"), populated with its own children.
         const dialog = createDialog({
             world, parent: canvas, startHidden: true,
             panelNode: {
@@ -97,7 +92,7 @@ export const buildSystem = defineSystem(
             onClick: () => dialog.close(),
         });
 
-        // ── Button — increments a click counter shown in the row label. ───────
+        // Button: a click counter in the row label.
         {
             const { row, label } = makeRow(world, panel, c, 'Clicks: 0');
             let clicks = 0;
@@ -110,7 +105,7 @@ export const buildSystem = defineSystem(
             });
         }
 
-        // ── Toggle — pauses / resumes the progress animation. ─────────────────
+        // Toggle: pause/resume the progress animation.
         {
             const { row } = makeRow(world, panel, c, 'Animate');
             createToggle({
@@ -125,7 +120,7 @@ export const buildSystem = defineSystem(
             });
         }
 
-        // ── Slider — 0..100 volume, live in the row label; dragged in controls. ─
+        // Slider: 0..100 volume; drag handled in controls.ts.
         {
             const { row, label } = makeRow(world, panel, c, 'Volume  60%');
             state.volumeLabel = label;
@@ -135,8 +130,7 @@ export const buildSystem = defineSystem(
                 min: 0, max: 100, step: 1, value: 60, handleWidth: 14,
                 onChange: (v) => setText(world, label, `Volume  ${Math.round(v)}%`),
             });
-            // createSlider ships no input; make the track hit-testable so the
-            // controls system can read hover + drag it.
+            // createSlider ships no input — make the track hit-testable for controls.ts.
             world.insert(slider.trackEntity, Interactable,
                 { enabled: true, blockRaycast: true, raycastTarget: true });
             world.insert(slider.trackEntity, UIInteraction,
@@ -144,7 +138,7 @@ export const buildSystem = defineSystem(
             state.slider = slider;
         }
 
-        // ── Progress — auto-animates (ping-pong) in the controls system. ──────
+        // Progress: auto-animated in controls.ts.
         {
             const { row } = makeRow(world, panel, c, 'Loading');
             state.progress = createProgress({
@@ -155,7 +149,7 @@ export const buildSystem = defineSystem(
             });
         }
 
-        // ── Dialog opener. ────────────────────────────────────────────────────
+        // Dialog opener.
         {
             const { row } = makeRow(world, panel, c, 'Modal');
             createButton({
@@ -167,8 +161,7 @@ export const buildSystem = defineSystem(
             });
         }
 
-        // ── Dropdown — re-tints the slider + progress fills. Last row so its
-        //    popup opens into the space below the panel. ─────────────────────
+        // Dropdown: re-tints the fills. Last row so its popup opens below the panel.
         {
             const { row } = makeRow(world, panel, c, 'Accent');
             createDropdown<Accent>({
@@ -187,13 +180,11 @@ export const buildSystem = defineSystem(
     { name: 'BuildSystem' },
 );
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// helpers
 
 interface RowRefs { row: Entity; label: Entity; }
 
-// A row is a fixed-height flex item (its width stretches to the panel content
-// box); inside it the descriptor label sits at the left and the widget slot is
-// pinned to the right by absolute insets.
+// A row: fixed-height flex item; label pinned left, widget slot pinned right.
 function makeRow(world: World, panel: Entity, c: ThemeColors, labelText: string): RowRefs {
     const row = spawnUIEntity({ world, parent: panel, node: { height: px(ROW_H) } });
     const label = spawnUIEntity({
