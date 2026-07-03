@@ -59,6 +59,13 @@ if (new URLSearchParams(location.search).has('automation')) {
   };
 }
 
+// Tag the OS so the title bar renders the right chrome on first paint (macOS
+// reserves space for the native traffic lights; Windows/Linux draw our controls).
+const plat = window.estella?.platform;
+document.documentElement.classList.add(
+  plat === 'darwin' ? 'platform-mac' : plat === 'win32' ? 'platform-win' : 'platform-linux',
+);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

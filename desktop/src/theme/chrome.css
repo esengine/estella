@@ -43,6 +43,24 @@
 .menubar-title .sep { opacity: 0.5; }
 .menubar-title .dirty { color: var(--sel); font-size: 0.7em; line-height: 1; margin-left: -2px; }
 
+/* The 72px traffic-light gutter is macOS-only; Windows/Linux draw their own
+   controls, so reclaim the left edge and let the controls reach the right corner. */
+.platform-win .menubar,
+.platform-linux .menubar { padding-left: 0; padding-right: 0; }
+
+/* ── Custom window controls (frameless Windows/Linux; macOS = native traffic lights) ── */
+.winctl { display: flex; align-items: stretch; height: 100%; margin-left: 6px; -webkit-app-region: no-drag; }
+.winctl__btn {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.winctl__btn:hover { color: var(--text); background: var(--srf-3); }
+.winctl__btn--close:hover { color: #fff; background: var(--error); }
+
 /* ── Toolbar (modes left · play center · actions right) ── */
 .toolbar {
   height: var(--h-toolbar);

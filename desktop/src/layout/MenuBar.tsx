@@ -2,9 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Top menu bar — functional dropdowns wired to the real editor commands
 // (project open/save, history, entity ops, view toggles), in a classic menu idiom.
-// The window is frameless (titleBarStyle: hiddenInset) so this strip doubles as
-// the drag region; the menus + dropdowns opt out of dragging.
+// The window is frameless (macOS: hiddenInset with native traffic lights;
+// Windows/Linux: our own WindowControls), so this strip doubles as the drag
+// region; the menus, dropdowns, and window controls opt out of dragging.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { WindowControls } from '@/layout/WindowControls';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
@@ -209,6 +211,7 @@ export function MenuBar() {
           {dirty && <span className="dirty" title="Unsaved changes">●</span>}
         </div>
       ) : null}
+      <WindowControls />
     </div>
   );
 }

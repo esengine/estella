@@ -15,8 +15,24 @@ import type { PlayRealmResult } from './buildPlayRealm';
 const api = {
   getVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
   getPlatform: (): Promise<NodeJS.Platform> => ipcRenderer.invoke('app:platform'),
+  /** Synchronous platform, so chrome (drag padding, window controls) renders right on first paint. */
+  platform: process.platform,
   // Surfaces engine lifecycle in the main-process log (useful for headless checks).
   reportEngineStatus: (status: string): void => ipcRenderer.send('engine:status', status),
+
+  // — Custom window controls (frameless Windows/Linux; macOS has native traffic lights) —
+  win: {
+    minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
+    toggleMaximize: (): Promise<void> => ipcRenderer.invoke('window:toggleMaximize'),
+    close: (): Promise<void> => ipcRenderer.invoke('window:close'),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:isMaximized'),
+    /** Subscribe to maximize/restore; returns an unsubscribe. */
+    onMaximizeChange: (cb: (maximized: boolean) => void): (() => void) => {
+      const h = (_e: unknown, maximized: boolean) => cb(maximized);
+      ipcRenderer.on('window:maximized', h);
+      return () => ipcRenderer.removeListener('window:maximized', h);
+    },
+  },
 
   // — App lifecycle: the unsaved-changes quit guard. The renderer pushes its dirty
   // state so main can prompt (Save / Don't Save / Cancel) on window close; on Save

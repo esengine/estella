@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { app, BrowserWindow, shell, ipcMain, dialog, protocol } from 'electron';
+import { app, BrowserWindow, Menu, shell, ipcMain, dialog, protocol } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -167,6 +167,11 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
 }
 
 function createWindow() {
+  const isMac = process.platform === 'darwin';
+  // The app draws its own menu + title bar, so drop the native application menu
+  // (on Windows/Linux that's the extra menu row under the title bar).
+  if (!isMac) Menu.setApplicationMenu(null);
+
   win = new BrowserWindow({
     width: 1480,
     height: 920,
@@ -174,9 +179,12 @@ function createWindow() {
     minHeight: 680,
     title: 'Estella Editor',
     backgroundColor: '#0E121B',
-    // Frameless-ish chrome: the app draws its own menu/title bar.
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 14 },
+    // macOS keeps the native traffic lights (hiddenInset); Windows/Linux go fully
+    // frameless — which also removes the native menu row — and get our own window
+    // controls in the title bar.
+    ...(isMac
+      ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 14 } }
+      : { frame: false }),
     icon: path.join(VITE_PUBLIC, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
@@ -191,6 +199,12 @@ function createWindow() {
     if (url.startsWith('http')) shell.openExternal(url);
     return { action: 'deny' };
   });
+
+  // Mirror maximize state to the renderer so the custom window controls show the
+  // correct maximize/restore glyph.
+  const emitMax = () => win?.webContents.send('window:maximized', win?.isMaximized() ?? false);
+  win.on('maximize', emitMax);
+  win.on('unmaximize', emitMax);
 
   // Screenshot/visual-regression mode (ESTELLA_SHOT=out.png): open ?automation=1 so
   // the renderer hook is live, then drive the launcher→editor flow and capturePage.
@@ -240,6 +254,16 @@ ipcMain.on('app:dirty', (_e, dirty: boolean) => { sceneDirty = !!dirty; });
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:platform', () => process.platform);
 ipcMain.on('engine:status', (_e, status: string) => console.log('[engine]', status));
+
+// — Custom window controls (frameless Windows/Linux; macOS uses native traffic lights) —
+ipcMain.handle('window:minimize', () => win?.minimize());
+ipcMain.handle('window:toggleMaximize', () => {
+  if (!win) return;
+  if (win.isMaximized()) win.unmaximize();
+  else win.maximize();
+});
+ipcMain.handle('window:close', () => win?.close());
+ipcMain.handle('window:isMaximized', () => win?.isMaximized() ?? false);
 
 // — Project / filesystem (RC12 §E7). The open project root lives here in main;
 //   every fs op is sandboxed to it (projectFs.resolveInRoot), so the renderer
