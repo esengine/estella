@@ -1,0 +1,463 @@
+{
+  "version": "2",
+  "name": "Slider",
+  "rootEntityId": "0",
+  "entities": [
+    {
+      "prefabEntityId": "0",
+      "name": "Slider",
+      "parent": null,
+      "children": [
+        "2",
+        "1"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "worldPosition": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldRotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldScale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "width": {
+              "value": 200,
+              "unit": 0
+            },
+            "height": {
+              "value": 18,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.15,
+              "g": 0.15,
+              "b": 0.15,
+              "a": 1
+            },
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "prefabEntityId": "1",
+      "name": "Node",
+      "parent": "0",
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "worldPosition": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldRotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldScale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 14,
+              "unit": 0
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": -7,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "prefabEntityId": "2",
+      "name": "Node",
+      "parent": "0",
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "worldPosition": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldRotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldScale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 50,
+              "unit": 1
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.25,
+              "g": 0.56,
+              "b": 0.96,
+              "a": 1
+            },
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

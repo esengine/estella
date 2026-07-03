@@ -141,4 +141,7 @@ export {
     createDropdown,
     type DropdownOptions,
     type DropdownHandle,
+    widgetToPrefab,
+    BUILTIN_UI_PREFABS,
+    BUILTIN_UI_WIDGET_NAMES,
 } from './ui';

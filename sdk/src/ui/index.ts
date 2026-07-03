@@ -229,6 +229,9 @@ export {
     type DropdownHandle,
 } from './widgets/dropdown';
 
+export { widgetToPrefab } from './widgets/toPrefab';
+export { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES } from './widgets/prefabs/generated';
+
 // ─── Rendering / text helpers ───────────────────────────────────────────────
 
 // All text — display (Text) and editable (TextInput) — now renders through the
