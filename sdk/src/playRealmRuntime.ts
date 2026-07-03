@@ -17,6 +17,7 @@
  */
 import type { App } from './app';
 import type { ESEngineModule } from './wasm';
+import { Audio } from './audio/Audio';
 import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from './asset/Backend';
@@ -39,6 +40,11 @@ export interface PlayRealmRuntimeConfig {
     /** Base URL the engine side-modules (physics.wasm, …) are served from — same
      *  dir as esengine.wasm. When set, the realm can load physics on demand. */
     wasmBaseUrl?: string;
+    /** Project-root URL for path-addressed runtime assets. Textures resolve
+     *  through the uuid manifest, but the audio channel takes plain project-relative
+     *  paths (`audio.playSFX('assets/…')`), so it needs this base to fetch from the
+     *  project rather than the play-realm subdir. */
+    assetBaseUrl?: string;
     /** Project-declared physics enable (`.uproject` features analog) — installs
      *  physics even for runtime-spawned bodies the static scene doesn't show. */
     physicsEnabled?: boolean;
@@ -79,8 +85,14 @@ function createPlayRealmSource(manifest: Record<string, string>): RuntimeAssetSo
  * register the snapshot as the sole scene, wire a fetch-backed source, and run.
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
-    const { app, module, canvas, sceneData, assetManifest } = config;
+    const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
     const source = createPlayRealmSource(assetManifest);
+    // Point the audio channel at the project root: playSFX/playBGM take project-
+    // relative paths, not uuid refs, so without this they resolve against the
+    // play-realm subdir and 404.
+    if (assetBaseUrl && app.hasResource(Audio)) {
+        app.getResource(Audio).baseUrl = assetBaseUrl;
+    }
     await initRuntime({
         app,
         module,

@@ -82,6 +82,7 @@ type InitMessage = Extract<PlayOutbound, { type: 'estella:play:init' }>;
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const wasmBase = new URL('./wasm/', import.meta.url).href; // sibling of host.js
 const bundleUrl = new URL('../cache/scripts.mjs', import.meta.url).href; // project bundle
+const projectBase = new URL('../../', import.meta.url).href.replace(/\/$/, ''); // project root — assets live here
 
 function resize(): void {
   const dpr = window.devicePixelRatio || 1;
@@ -179,6 +180,8 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     canvas,
     sceneData: msg.sceneData,
     assetManifest: msg.assetManifest,
+    // playSFX/playBGM take project-relative paths — resolve them against the project root.
+    assetBaseUrl: projectBase,
     // physics.wasm is served next to esengine.wasm; load it on demand.
     wasmBaseUrl: wasmBase.replace(/\/$/, ''),
     physicsEnabled: msg.physicsEnabled,
