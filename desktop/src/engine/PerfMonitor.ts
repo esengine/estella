@@ -125,12 +125,27 @@ export interface PerfSnapshot {
   memHist: Array<{ wasm: number; js: number; vram: number }>;
   /** Latest frame's merged named counters (engine + editor). */
   counters: Record<string, number>;
+  /** True while a session is being recorded for export. */
+  recording: boolean;
+  /** Frames accumulated in the recording buffer. */
+  recordedFrames: number;
+}
+
+/** A recorded profiling session, serialized to JSON for offline analysis. */
+export interface SessionCapture {
+  version: number;
+  generatedAt: string;
+  realm: 'edit' | 'play';
+  budgetMs: number;
+  frameCount: number;
+  frames: FrameSample[];
 }
 
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
 const HITCH_MS = 50; // auto-freeze threshold — a real hitch (below 20fps)
 const WINDOW_MS = 500;
 const CAP = 240;
+const REC_CAP = 3600; // ~60s of recording, bounded
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
 class PerfMonitorImpl {
@@ -139,6 +154,7 @@ class PerfMonitorImpl {
     engineMs: 0, editorMs: 0, drawCalls: 0, triangles: 0, entities: 0, systemsTop: [], realm: 'edit', gpuMs: -1, frames: [],
     frozen: false, pinnedId: null, autoHitch: false, longTaskRev: 0,
     wasmMB: 0, jsHeapMB: 0, jsHeapLimitMB: 0, vramMB: 0, memHist: [], counters: {},
+    recording: false, recordedFrames: 0,
   }));
   private enabled = true;
   private running = false;
@@ -169,6 +185,8 @@ class PerfMonitorImpl {
   private autoHitch = false;
   private readonly longTasks: Array<{ start: number; ms: number; name: string }> = [];
   private longTaskRev = 0;
+  private recording = false;
+  private readonly recordBuffer: FrameSample[] = [];
 
   start(): void {
     if (this.running) return;
@@ -229,6 +247,34 @@ class PerfMonitorImpl {
   setAutoHitch(on: boolean): void {
     this.autoHitch = on;
     this.patch({ autoHitch: on });
+  }
+
+  startRecording(): void {
+    this.recordBuffer.length = 0;
+    this.recording = true;
+    this.patch({ recording: true, recordedFrames: 0 });
+  }
+
+  stopRecording(): void {
+    this.recording = false;
+    this.patch({ recording: false });
+  }
+
+  toggleRecording(): void {
+    if (this.recording) this.stopRecording(); else this.startRecording();
+  }
+
+  /** The recorded session (or the live ring if nothing was recorded), for export. */
+  exportSession(): SessionCapture {
+    const frames = this.recordBuffer.length ? this.recordBuffer.slice() : this.samples.slice();
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      realm: this.realm,
+      budgetMs: 1000 / 60,
+      frameCount: frames.length,
+      frames,
+    };
   }
 
   /** The capture ring (oldest→newest). Aligned 1:1 with the snapshot's `frames`. */
@@ -372,6 +418,10 @@ class PerfMonitorImpl {
       this.lastCounters = sample.counters;
       this.samples.push(sample);
       if (this.samples.length > CAP) this.samples.shift();
+      if (this.recording) {
+        this.recordBuffer.push(sample);
+        if (this.recordBuffer.length > REC_CAP) this.recordBuffer.shift();
+      }
 
       // A hitch catches itself: freeze + pin so the culprit is right there.
       if (this.autoHitch && dt >= HITCH_MS) {
@@ -404,6 +454,7 @@ class PerfMonitorImpl {
         frames: this.samples.map((s) => s.dt),
         wasmMB, jsHeapMB, jsHeapLimitMB, vramMB, memHist: this.memHist.slice(),
         counters: this.lastCounters,
+        recordedFrames: this.recordBuffer.length,
       });
       this.windowStart = now;
       this.longFrames = 0; this.worstMs = 0; this.worstPhase = null; this.longTaskMs = 0;

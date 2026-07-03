@@ -26,7 +26,7 @@ import type {
 import type { SceneData, SubsystemStatus } from 'esengine';
 import { Material, Sprite } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { PerfMonitor, type PerfSnapshot, type FrameSample } from './PerfMonitor';
+import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
@@ -325,6 +325,17 @@ export class EditorControlSurfaceImpl {
    *  or null if it scrolled out of the ring. */
   getFrameSample(id: number): FrameSample | null {
     return PerfMonitor.getSample(id);
+  }
+  /** Start/stop recording a session; exportProfileSession() returns the captured
+   *  frames (or the live ring) for offline analysis. */
+  startProfileRecording(): void {
+    PerfMonitor.startRecording();
+  }
+  stopProfileRecording(): void {
+    PerfMonitor.stopRecording();
+  }
+  exportProfileSession(): SessionCapture {
+    return PerfMonitor.exportSession();
   }
 
   /**

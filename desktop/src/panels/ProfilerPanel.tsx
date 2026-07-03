@@ -17,6 +17,17 @@ function kfmt(n: number): string {
 const cssVar = (el: Element, name: string, fallback: string): string =>
   getComputedStyle(el).getPropertyValue(name).trim() || fallback;
 
+function downloadSession(): void {
+  const cap = PerfMonitor.exportSession();
+  const blob = new Blob([JSON.stringify(cap)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `profile-${cap.generatedAt.replace(/[:.]/g, '-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const GROUPS = [
   { id: 'frame', label: 'Frame' },
   { id: 'unit', label: 'CPU/GPU' },
@@ -224,6 +235,17 @@ export function ProfilerPanel() {
           <input type="checkbox" checked={s.autoHitch} onChange={(e) => PerfMonitor.setAutoHitch(e.target.checked)} />
           Pause on hitch
         </label>
+        <button
+          type="button"
+          className={`prof-btn${s.recording ? ' rec' : ''}`}
+          onClick={() => PerfMonitor.toggleRecording()}
+          title={s.recording ? 'Stop recording' : 'Record a session for export'}
+        >
+          {s.recording ? `● ${s.recordedFrames}` : 'Rec'}
+        </button>
+        <button type="button" className="prof-btn" onClick={downloadSession} title="Export the recorded session (or the live window) as JSON">
+          Export
+        </button>
         <span className="prof-spacer" />
         {pinned ? (
           <span className="prof-pinned">frame #{pinned.id} · {pinned.dt}ms</span>

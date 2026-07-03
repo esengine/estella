@@ -58,6 +58,7 @@
 }
 .prof-btn:hover { color: var(--text-hi); border-color: var(--star-line, var(--star)); }
 .prof-btn.on { color: var(--star-hi, var(--star)); border-color: var(--star); } /* frozen → "Live" is armed */
+.prof-btn.rec { color: var(--error, #d3564b); border-color: var(--error, #d3564b); }
 .prof-check { display: flex; align-items: center; gap: 4px; color: var(--text-mute); cursor: pointer; }
 .prof-check input { accent-color: var(--star); }
 .prof-live { color: var(--run, #46a04a); }
