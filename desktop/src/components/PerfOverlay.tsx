@@ -17,19 +17,23 @@ export function PerfOverlay() {
   return (
     <div
       style={{
+        // Bottom-right, above the FPS HUD (.vp-perf) — telemetry grouped together
+        // and clear of the interactive tool clusters in the top corners.
         position: 'absolute',
-        top: 8,
-        left: 8,
-        zIndex: 60,
+        bottom: 88,
+        right: 10,
+        zIndex: 4,
         pointerEvents: 'none',
-        font: '11px var(--font-mono, ui-monospace, monospace)',
+        font: 'var(--fs-xs, 11px) var(--mono, ui-monospace, monospace)',
         lineHeight: 1.55,
         color: 'var(--text-dim, #cfcfcf)',
-        background: 'var(--srf-3, #17171b)',
+        background: 'rgba(18, 18, 21, 0.72)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
         border: '1px solid var(--border-line, #333)',
-        borderRadius: 6,
-        padding: '6px 9px',
-        boxShadow: 'var(--shadow-3, 0 6px 18px rgba(0,0,0,0.4))',
+        borderRadius: 'var(--r-lg, 10px)',
+        padding: '7px 9px',
+        boxShadow: 'var(--shadow-2, 0 4px 14px rgba(0,0,0,0.35))',
       }}
     >
       <div>
