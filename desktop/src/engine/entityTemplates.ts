@@ -34,3 +34,22 @@ export const ENTITY_TEMPLATE_CATALOG: TemplateCategory[] = [
     })),
   },
 ];
+
+export interface CatalogEntry {
+  category: string;
+  template: EntityTemplate;
+}
+
+/** Flatten the catalog to a single searchable list (display order preserved). */
+export function flattenCatalog(catalog: TemplateCategory[] = ENTITY_TEMPLATE_CATALOG): CatalogEntry[] {
+  return catalog.flatMap((c) => c.items.map((template) => ({ category: c.label, template })));
+}
+
+/** Case-insensitive filter over item + category labels, for the Create popover. */
+export function matchCatalog(entries: CatalogEntry[], query: string): CatalogEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return entries;
+  return entries.filter(
+    (e) => e.template.label.toLowerCase().includes(q) || e.category.toLowerCase().includes(q),
+  );
+}

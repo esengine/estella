@@ -4,13 +4,12 @@
  * @file    Menu.tsx
  * @brief   Shared menu primitives — one implementation behind the menu-bar
  *          dropdowns and every right-click context menu, so item rendering
- *          (labels, shortcuts, checkmarks, disabled state, separators, nested
- *          submenus) and the context-menu dismiss behaviour live in one place.
+ *          (labels, shortcuts, checkmarks, disabled state, separators) and the
+ *          context-menu dismiss behaviour live in a single place.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronRight } from 'lucide-react';
-import { submenuPlacement } from './menuPlacement';
+import { Check } from 'lucide-react';
 
 export type MenuItem =
   | { sep: true }
@@ -22,96 +21,39 @@ export type MenuItem =
       checked?: boolean;
       icon?: ReactNode;
       danger?: boolean;
-    }
-  | { label: string; submenu: MenuItem[]; icon?: ReactNode; disabled?: boolean };
-
-type Variant = 'bar' | 'ctx';
-const cls = (v: Variant, ctx: string, bar: string) => (v === 'ctx' ? ctx : bar);
-
-/** One menu row: separator, a flyout submenu, or a leaf action. */
-function MenuNode({ item, variant, close }: { item: MenuItem; variant: Variant; close: () => void }) {
-  const [open, setOpen] = useState(false);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const flyRef = useRef<HTMLDivElement>(null);
-  // Hidden until measured, so the flip/shift is the first thing painted (no flash).
-  const [flyStyle, setFlyStyle] = useState<CSSProperties>({ position: 'absolute', left: '100%', top: 0, visibility: 'hidden' });
-
-  // Keep the flyout inside the Electron window: open left when it would overflow the
-  // right edge, and shift up when it would run past the bottom (measured before paint).
-  useLayoutEffect(() => {
-    if (!open) return;
-    const row = rowRef.current;
-    const fly = flyRef.current;
-    if (!row || !fly) return;
-    const r = row.getBoundingClientRect();
-    const f = fly.getBoundingClientRect();
-    setFlyStyle(submenuPlacement(r, f, window.innerWidth, window.innerHeight));
-  }, [open]);
-
-  if ('sep' in item) return <div className={cls(variant, 'ctx-sep', 'menu-dropdown__sep')} />;
-
-  const itemClass = cls(variant, 'ctx-item', 'menu-dropdown__item');
-  const leadClass = cls(variant, 'ci', 'menu-dropdown__check');
-  const labelClass = cls(variant, 'cl', 'menu-dropdown__label');
-  const trailClass = cls(variant, 'ck', 'menu-dropdown__shortcut');
-
-  if ('submenu' in item) {
-    return (
-      <div
-        ref={rowRef}
-        style={{ position: 'relative' }}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-      >
-        <button type="button" role="menuitem" className={itemClass} disabled={item.disabled} aria-haspopup="true" aria-expanded={open}>
-          <span className={leadClass}>{item.icon}</span>
-          <span className={labelClass}>{item.label}</span>
-          <span className={trailClass}><ChevronRight size={13} strokeWidth={2.2} /></span>
-        </button>
-        {open ? (
-          <div
-            ref={flyRef}
-            className={cls(variant, 'ctx', 'menu-dropdown')}
-            role="menu"
-            style={flyStyle}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            {item.submenu.map((sub, j) => <MenuNode key={j} item={sub} variant={variant} close={close} />)}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  const danger = variant === 'ctx' && item.danger ? ' danger' : '';
-  const checkSize = variant === 'ctx' ? 2.4 : 2.2;
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      className={itemClass + danger}
-      disabled={item.disabled}
-      onClick={() => {
-        close();
-        item.onClick();
-      }}
-    >
-      <span className={leadClass}>{item.checked ? <Check size={13} strokeWidth={checkSize} /> : item.icon}</span>
-      <span className={labelClass}>{item.label}</span>
-      {item.shortcut ? <span className={trailClass}>{item.shortcut}</span> : null}
-    </button>
-  );
-}
+    };
 
 /**
- * The contents of a menu — separators, submenus and item buttons. Renders inside a
+ * The contents of a menu — separators and item buttons. Renders inside a
  * positioned `.menu-dropdown` container (the menu-bar provides one; ContextMenu
  * provides its own). Closes the menu via `onSelect` before running the action.
  */
 export function MenuItems({ items, onSelect }: { items: MenuItem[]; onSelect: () => void }) {
   return (
     <>
-      {items.map((it, i) => <MenuNode key={i} item={it} variant="bar" close={onSelect} />)}
+      {items.map((it, i) =>
+        'sep' in it ? (
+          <div key={i} className="menu-dropdown__sep" />
+        ) : (
+          <button
+            key={i}
+            type="button"
+            role="menuitem"
+            className="menu-dropdown__item"
+            disabled={it.disabled}
+            onClick={() => {
+              onSelect();
+              it.onClick();
+            }}
+          >
+            <span className="menu-dropdown__check">
+              {it.checked ? <Check size={13} strokeWidth={2.2} /> : null}
+            </span>
+            <span className="menu-dropdown__label">{it.label}</span>
+            {it.shortcut ? <span className="menu-dropdown__shortcut">{it.shortcut}</span> : null}
+          </button>
+        ),
+      )}
     </>
   );
 }
@@ -172,7 +114,27 @@ export function ContextMenu({
       style={{ left: pos.left, top: pos.top }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {items.map((it, i) => <MenuNode key={i} item={it} variant="ctx" close={onClose} />)}
+      {items.map((it, i) =>
+        'sep' in it ? (
+          <div key={i} className="ctx-sep" />
+        ) : (
+          <button
+            key={i}
+            type="button"
+            role="menuitem"
+            className={`ctx-item${it.danger ? ' danger' : ''}`}
+            disabled={it.disabled}
+            onClick={() => {
+              onClose();
+              it.onClick();
+            }}
+          >
+            <span className="ci">{it.checked ? <Check size={13} strokeWidth={2.4} /> : it.icon}</span>
+            <span className="cl">{it.label}</span>
+            {it.shortcut ? <span className="ck">{it.shortcut}</span> : null}
+          </button>
+        ),
+      )}
     </div>,
     document.body,
   );

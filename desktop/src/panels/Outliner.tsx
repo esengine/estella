@@ -18,7 +18,8 @@ import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { OUTLINER_COLUMNS, TYPE_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
 import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
-import { ENTITY_TEMPLATE_CATALOG, type EntityTemplate } from '@/engine/entityTemplates';
+import { type EntityTemplate } from '@/engine/entityTemplates';
+import { CreatePopover } from '@/components/CreatePopover';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
@@ -90,6 +91,7 @@ export function Outliner() {
   const [renaming, setRenaming] = useState<string | null>(null); // item key
   const [drop, setDrop] = useState<{ key: string; pos: 'before' | 'on' | 'after' } | null>(null);
   const [ctx, setCtx] = useState<{ x: number; y: number; item: OutlinerItem | null } | null>(null); // item null = empty-space menu
+  const [createAt, setCreateAt] = useState<{ x: number; y: number; parent: EntityId | null } | null>(null);
   const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
   const [colsMenu, setColsMenu] = useState<{ x: number; y: number } | null>(null);
   // Controlled scroll for reveal-on-select + keyboard nav (nonce re-fires same index).
@@ -311,13 +313,6 @@ export function Outliner() {
     const id = SceneCommands.createFromTemplate(t.prefab, under);
     if (id != null) select(id);
   };
-  const createMenu = (parent: EntityId | null): MenuItem => ({
-    label: 'Create',
-    submenu: ENTITY_TEMPLATE_CATALOG.map((cat) => ({
-      label: cat.label,
-      submenu: cat.items.map((t) => ({ label: t.label, onClick: () => createTemplate(t, parent) })),
-    })),
-  });
   const selectionOrTarget = (id: EntityId): EntityId[] => {
     const ids = useSelection.getState().selectedIds;
     return ids.has(id) ? [...ids] : [id];
@@ -471,7 +466,7 @@ export function Outliner() {
       // Empty-space (scene) menu.
       return [
         { label: 'Add Entity', onClick: addEntity },
-        createMenu(null),
+        { label: 'Create…', onClick: () => setCreateAt({ x: ctx.x, y: ctx.y, parent: null }) },
         { label: 'New Folder', onClick: () => newFolder('', null) },
         { sep: true },
         { label: 'Expand All', onClick: expandAll },
@@ -525,7 +520,7 @@ export function Outliner() {
       { label: 'Unparent', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setParent(i, null)) },
       { sep: true },
       { label: 'Add Entity', onClick: addEntity },
-      createMenu(id),
+      { label: 'Create…', onClick: () => setCreateAt({ x: ctx.x, y: ctx.y, parent: id }) },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
@@ -657,6 +652,14 @@ export function Outliner() {
       )}
 
       {ctx && !gameMode && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
+      {createAt && (
+        <CreatePopover
+          x={createAt.x}
+          y={createAt.y}
+          onClose={() => setCreateAt(null)}
+          onPick={(t) => createTemplate(t, createAt.parent)}
+        />
+      )}
       {sortMenu && !gameMode && (
         <ContextMenu
           x={sortMenu.x}
