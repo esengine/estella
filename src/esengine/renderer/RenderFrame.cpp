@@ -289,6 +289,14 @@ void RenderFrame::flush() {
         default: break;
         }
     }
+
+    ES_PROFILE_COUNTER("render.culled", stats_.culled);
+    ES_PROFILE_COUNTER("render.sprites", stats_.sprites);
+    ES_PROFILE_COUNTER("render.text", stats_.text);
+    ES_PROFILE_COUNTER("render.shapes", stats_.shapes);
+#ifdef ES_ENABLE_PARTICLES
+    ES_PROFILE_COUNTER("render.particles", stats_.particles);
+#endif
 }
 
 void RenderFrame::end() {

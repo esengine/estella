@@ -132,6 +132,10 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
 
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         rm->update();
+        const auto st = rm->getStats();
+        ES_PROFILE_COUNTER("res.textures", st.textureCount);
+        ES_PROFILE_COUNTER("res.cacheHits", st.cacheHits);
+        ES_PROFILE_COUNTER("res.cacheMisses", st.cacheMisses);
     }
 
     if (g_transformSystem) {
@@ -191,6 +195,10 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         rm->update();
+        const auto st = rm->getStats();
+        ES_PROFILE_COUNTER("res.textures", st.textureCount);
+        ES_PROFILE_COUNTER("res.cacheHits", st.cacheHits);
+        ES_PROFILE_COUNTER("res.cacheMisses", st.cacheMisses);
     }
 
     if (g_transformSystem) {
@@ -425,6 +433,10 @@ void engine_setCpuProfiling(bool on) {
 
 std::string engine_getCpuScopes() {
     return FrameProfiler::get().lastJson();
+}
+
+std::string engine_getCounters() {
+    return FrameProfiler::get().lastCountersJson();
 }
 
 f64 renderer_getTextureBytes() {

@@ -40,19 +40,34 @@ public:
         cur_.push_back({name, ms});
     }
 
+    void counter(const char* name, double value) {
+        for (auto& e : counters_cur_) {
+            if (std::strcmp(e.name, name) == 0) { e.ms = value; return; }
+        }
+        counters_cur_.push_back({name, value});
+    }
+
     void commit() {
         last_.swap(cur_);
         cur_.clear();
+        counters_last_.swap(counters_cur_);
+        counters_cur_.clear();
     }
 
-    std::string lastJson() const {
+    std::string lastJson() const { return toJson(last_); }
+    std::string lastCountersJson() const { return toJson(counters_last_); }
+
+private:
+    struct Entry { const char* name; double ms; };
+
+    static std::string toJson(const std::vector<Entry>& v) {
         std::string s = "{";
-        for (std::size_t i = 0; i < last_.size(); ++i) {
+        for (std::size_t i = 0; i < v.size(); ++i) {
             if (i) s += ',';
             char buf[32];
-            std::snprintf(buf, sizeof(buf), "%.4f", last_[i].ms);
+            std::snprintf(buf, sizeof(buf), "%.4f", v[i].ms);
             s += '"';
-            s += last_[i].name;
+            s += v[i].name;
             s += "\":";
             s += buf;
         }
@@ -60,10 +75,10 @@ public:
         return s;
     }
 
-private:
-    struct Entry { const char* name; double ms; };
     std::vector<Entry> cur_;
     std::vector<Entry> last_;
+    std::vector<Entry> counters_cur_;
+    std::vector<Entry> counters_last_;
     bool enabled_ = false;
 };
 
@@ -88,5 +103,7 @@ private:
 #define ES_PROFILE_CONCAT_(a, b) a##b
 #define ES_PROFILE_CONCAT(a, b) ES_PROFILE_CONCAT_(a, b)
 #define ES_PROFILE_SCOPE(name) ::esengine::ScopeTimer ES_PROFILE_CONCAT(es_scope_, __LINE__)(name)
+#define ES_PROFILE_COUNTER(name, value) \
+    do { if (::esengine::FrameProfiler::get().enabled()) ::esengine::FrameProfiler::get().counter(name, static_cast<double>(value)); } while (0)
 
 } // namespace esengine

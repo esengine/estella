@@ -109,6 +109,7 @@ u32 renderer_getCulled();
 f32 renderer_getGpuTimeMs();
 void engine_setCpuProfiling(bool on);
 std::string engine_getCpuScopes();
+std::string engine_getCounters();
 f64 renderer_getTextureBytes();
 void renderer_setDeltaTime(f32 dt);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
