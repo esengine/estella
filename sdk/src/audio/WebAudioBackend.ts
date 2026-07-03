@@ -282,7 +282,9 @@ export class WebAudioBackend implements PlatformAudioBackend {
 
     getFrequencyData(out: Uint8Array): boolean {
         if (!this.analyser_) return false;
-        this.analyser_.getByteFrequencyData(out);
+        // lib.dom narrowed getByteFrequencyData to Uint8Array<ArrayBuffer> in TS 5.7;
+        // out is a plain Uint8Array (ArrayBufferLike) — safe to cast.
+        this.analyser_.getByteFrequencyData(out as Uint8Array<ArrayBuffer>);
         return true;
     }
 
