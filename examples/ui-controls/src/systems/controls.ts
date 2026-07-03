@@ -7,8 +7,6 @@ import type { TransformData, UIInteractionData } from 'esengine';
 import { SLIDER_W, PROGRESS_SPEED } from '../config';
 import { state } from '../state';
 
-// Per-frame wiring the factories don't self-drive: drag the slider (mapping the
-// pointer's world x onto the track) and animate the progress bar (pausable).
 export const controlsSystem = defineSystem(
     [Res(Time), Res(Input), Res(UICameraInfo), GetWorld()],
     (time, input, camera, world) => {

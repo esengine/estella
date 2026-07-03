@@ -34,7 +34,9 @@
       "id": 1,
       "name": "Canvas",
       "parent": null,
-      "children": [],
+      "children": [
+        2
+      ],
       "components": [
         {
           "type": "Transform",
@@ -53,6 +55,346 @@
         {
           "type": "UINode",
           "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Panel",
+      "parent": 1,
+      "children": [
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 460, "unit": 0 },
+            "height": { "value": 414, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -230, "unit": 0 },
+            "marginTop": { "value": -207, "unit": 0 }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 0,
+            "alignItems": 3,
+            "gap": { "x": 0, "y": 16 },
+            "padding": { "left": 24, "top": 24, "right": 24, "bottom": 24 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": { "r": 0.16, "g": 0.16, "b": 0.18, "a": 1 },
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Title",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "height": { "value": 30, "unit": 0 } }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "UI Controls",
+            "fontSize": 20,
+            "bold": true,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "ClicksRow",
+      "parent": 2,
+      "children": [
+        5
+      ],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "height": { "value": 40, "unit": 0 } }
+        },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "ClicksLabel",
+      "parent": 4,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Clicks: 0",
+            "fontSize": 14,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "AnimateRow",
+      "parent": 2,
+      "children": [
+        7
+      ],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "height": { "value": 40, "unit": 0 } }
+        },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "AnimateLabel",
+      "parent": 6,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Animate",
+            "fontSize": 14,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "VolumeRow",
+      "parent": 2,
+      "children": [
+        9
+      ],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "height": { "value": 40, "unit": 0 } }
+        },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "VolumeLabel",
+      "parent": 8,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Volume  60%",
+            "fontSize": 14,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "LoadingRow",
+      "parent": 2,
+      "children": [
+        11
+      ],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "height": { "value": 40, "unit": 0 } }
+        },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "name": "LoadingLabel",
+      "parent": 10,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Loading",
+            "fontSize": 14,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "name": "ModalRow",
+      "parent": 2,
+      "children": [
+        13
+      ],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "height": { "value": 40, "unit": 0 } }
+        },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 13,
+      "name": "ModalLabel",
+      "parent": 12,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Modal",
+            "fontSize": 14,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 14,
+      "name": "AccentRow",
+      "parent": 2,
+      "children": [
+        15
+      ],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "height": { "value": 40, "unit": 0 } }
+        },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 15,
+      "name": "AccentLabel",
+      "parent": 14,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Accent",
+            "fontSize": 14,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
         }
       ],
       "visible": true
