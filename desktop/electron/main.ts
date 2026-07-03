@@ -481,6 +481,7 @@ async function handleEstella(request: Request): Promise<Response> {
         // <img crossorigin> + fetch; allow it. estella:// is only reachable inside
         // the Electron app, so there is no untrusted-web exposure.
         'access-control-allow-origin': '*',
+        'cache-control': 'no-store',
       },
     });
   } catch (err) {
@@ -506,7 +507,7 @@ async function handleApp(request: Request): Promise<Response> {
       const bytes = await readFile(abs);
       const ext = path.extname(abs).slice(1).toLowerCase();
       return new Response(new Uint8Array(bytes), {
-        headers: { 'content-type': ASSET_MIME[ext] ?? 'application/octet-stream', 'access-control-allow-origin': '*' },
+        headers: { 'content-type': ASSET_MIME[ext] ?? 'application/octet-stream', 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
       });
     }
     const abs = path.join(RENDERER_DIST, rel);
