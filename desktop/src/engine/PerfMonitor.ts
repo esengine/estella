@@ -62,6 +62,8 @@ export interface EngineFrame {
   entities: number;
   /** GPU time (ms) via EXT_disjoint_timer_query, or -1 when unavailable. */
   gpuMs: number;
+  /** Per-frame C++ CPU scopes (render passes etc.), name → ms — the `cpp.*` rows. */
+  cppScopes: Record<string, number>;
 }
 
 /**
@@ -81,6 +83,8 @@ export interface FrameSample {
   gpuMs: number;
   editorPhases: Record<string, number>;
   enginePhases: Record<string, number>;
+  /** C++ CPU scopes for this frame (render.collect/submit/…), name → ms. */
+  cppScopes: Record<string, number>;
   systems: Array<{ name: string; ms: number }>;
   drawCalls: number;
   triangles: number;
@@ -335,9 +339,11 @@ class PerfMonitorImpl {
       const ef = this.engineSource?.();
       let engineFrameMs = 0;
       let enginePhases: Record<string, number> = {};
+      let cppScopes: Record<string, number> = {};
       let systemsFrame: Array<{ name: string; ms: number }> = [];
       if (ef) {
         enginePhases = ef.phaseMs;
+        cppScopes = ef.cppScopes;
         engineFrameMs = sumMs(enginePhases);
         this.engineSum += engineFrameMs;
         for (const k in ef.systemMs) {
@@ -359,6 +365,7 @@ class PerfMonitorImpl {
         gpuMs: this.counters.gpuMs >= 0 ? r1(this.counters.gpuMs) : -1,
         editorPhases: { ...editorPhases },
         enginePhases: { ...enginePhases },
+        cppScopes: { ...cppScopes },
         systems: systemsFrame,
         drawCalls: this.counters.drawCalls,
         triangles: this.counters.triangles,

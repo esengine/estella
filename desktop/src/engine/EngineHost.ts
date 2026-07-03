@@ -122,12 +122,18 @@ class EngineHostImpl {
     sprites: number;
     entities: number;
     gpuMs: number;
+    cppScopes: Record<string, number>;
   } | null {
     const app = this.app_;
     if (!app) return null;
     const m = this.module_;
     const phases = app.getPhaseTimings();
     const systems = app.getSystemTimings();
+    let cppScopes: Record<string, number> = {};
+    const scopesJson = m?.engine_getCpuScopes?.();
+    if (scopesJson) {
+      try { cppScopes = JSON.parse(scopesJson) as Record<string, number>; } catch { /* ignore */ }
+    }
     return {
       phaseMs: phases ? Object.fromEntries(phases) : {},
       systemMs: systems ? Object.fromEntries(systems) : {},
@@ -136,6 +142,7 @@ class EngineHostImpl {
       sprites: m?.renderer_getSprites?.() ?? 0,
       entities: this.world?.getAllEntities().length ?? 0,
       gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
+      cppScopes,
     };
   }
 
@@ -429,6 +436,8 @@ class EngineHostImpl {
     // (PerfMonitor reads it each frame). Cheap — a couple performance.now() per
     // system — so left on in edit; the Perf overlay decides what to surface.
     app.enableStats();
+    // Per-frame C++ CPU scope profiling (render passes → `cpp.*` in the breakdown).
+    module.engine_setCpuProfiling?.(true);
 
     // Subsystem observability: phase changes push immediately; the sampler
     // refreshes derived liveness (stepping↔idle) a couple of times a second.

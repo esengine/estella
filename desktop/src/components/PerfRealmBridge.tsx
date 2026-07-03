@@ -32,7 +32,7 @@ export function PerfRealmBridge() {
       const s = await PlayRealm.stats();
       if (!alive) return;
       cache = s
-        ? { phaseMs: s.phases, systemMs: s.systems, drawCalls: s.drawCalls, triangles: s.triangles, sprites: s.sprites, entities: s.entities, gpuMs: s.gpuMs }
+        ? { phaseMs: s.phases, systemMs: s.systems, drawCalls: s.drawCalls, triangles: s.triangles, sprites: s.sprites, entities: s.entities, gpuMs: s.gpuMs, cppScopes: s.cppScopes }
         : null;
     };
     void poll();

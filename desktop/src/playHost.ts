@@ -155,7 +155,15 @@ async function ensureEngine(): Promise<void> {
   }) as WebGL2RenderingContext | null;
   if (!gl) throw new Error('WebGL2 is not available in this realm.');
   glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
+  module.engine_setCpuProfiling?.(true); // C++ scope profiling for the editor profiler
   engineModule = module;
+}
+
+/** The running game's last-frame C++ CPU scopes (render passes → `cpp.*`). */
+function parseCppScopes(m: ESEngineModule | null): Record<string, number> {
+  const json = m?.engine_getCpuScopes?.();
+  if (!json) return {};
+  try { return JSON.parse(json) as Record<string, number>; } catch { return {}; }
 }
 
 /** Build a fresh App on the (preserved) module + GL and run `msg`'s scene. The
@@ -339,6 +347,7 @@ window.addEventListener('message', (e: MessageEvent) => {
             sprites: m?.renderer_getSprites?.() ?? 0,
             entities: app?.world.getAllEntities().length ?? 0,
             gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
+            cppScopes: parseCppScopes(m),
           },
         });
       } else if (data.kind === 'subsystems') {

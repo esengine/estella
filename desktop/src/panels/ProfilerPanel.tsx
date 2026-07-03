@@ -130,6 +130,10 @@ export function ProfilerPanel() {
   const frame = Math.max(v.frameMs, v.engineMs + v.editorMs);
   const other = Math.max(0, frame - v.engineMs - v.editorMs);
   const p99Bad = s.p99 >= BUDGET_MS * 1.5;
+  // A near-budget frame's leftover is just the browser idle-waiting for vsync — not
+  // a hot spot. Only on a spike is the leftover genuinely unattributed work.
+  const isIdle = v.frameMs <= BUDGET_MS * 1.25;
+  const presentLabel = isIdle ? 'idle' : 'present';
 
   // Pinned-frame attribution (PP7): the long tasks that hit this frame (the usual
   // cause of an un-instrumented spike) + every measured phase, ranked. `longTaskRev`
@@ -141,6 +145,7 @@ export function ProfilerPanel() {
     ? [
         ...Object.entries(pinned.editorPhases),
         ...Object.entries(pinned.enginePhases).map(([n, m]) => [`engine.${n}`, m] as [string, number]),
+        ...Object.entries(pinned.cppScopes).map(([n, m]) => [`cpp.${n}`, m] as [string, number]),
       ]
         .filter(([, ms]) => ms >= 0.1)
         .sort((a, b) => b[1] - a[1])
@@ -203,7 +208,7 @@ export function ProfilerPanel() {
         <h4>Unit <span className="prof-realm">· {s.realm}</span></h4>
         <Seg label="engine" ms={v.engineMs} frame={frame} color="var(--run, #46a04a)" />
         <Seg label="editor" ms={v.editorMs} frame={frame} color="var(--star, #2f88d6)" />
-        <Seg label="present" ms={other} frame={frame} color="var(--text-mute, #888)" />
+        <Seg label={presentLabel} ms={other} frame={frame} color="var(--text-mute, #888)" />
         {v.gpuMs >= 0 ? (
           <Seg label="gpu" ms={v.gpuMs} frame={frame} color="#3fb2b2" />
         ) : (
