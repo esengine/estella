@@ -310,27 +310,30 @@ void particle_update(ecs::Registry& registry, f32 dt) {
     g_particleSystem->update(registry, dt);
 }
 
-void particle_play(ecs::Registry& registry, Entity entity) {
+// The entity crosses the wasm boundary as a raw u32 (Embind has no registered
+// binding for esengine::Entity — calling with it throws "unbound types"). Rebuild
+// the Entity C++-side, matching particle_set_color_lut/set_size_lut below.
+void particle_play(ecs::Registry& registry, u32 entity) {
     if (!g_particleSystem) return;
     (void)registry;
-    g_particleSystem->play(entity);
+    g_particleSystem->play(Entity::fromRaw(entity));
 }
 
-void particle_stop(ecs::Registry& registry, Entity entity) {
+void particle_stop(ecs::Registry& registry, u32 entity) {
     if (!g_particleSystem) return;
     (void)registry;
-    g_particleSystem->stop(entity);
+    g_particleSystem->stop(Entity::fromRaw(entity));
 }
 
-void particle_reset(ecs::Registry& registry, Entity entity) {
+void particle_reset(ecs::Registry& registry, u32 entity) {
     if (!g_particleSystem) return;
     (void)registry;
-    g_particleSystem->reset(entity);
+    g_particleSystem->reset(Entity::fromRaw(entity));
 }
 
-u32 particle_getAliveCount(Entity entity) {
+u32 particle_getAliveCount(u32 entity) {
     if (!g_particleSystem) return 0;
-    return g_particleSystem->aliveCount(entity);
+    return g_particleSystem->aliveCount(Entity::fromRaw(entity));
 }
 
 void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count) {

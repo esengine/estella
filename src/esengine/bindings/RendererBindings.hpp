@@ -85,10 +85,10 @@ void renderer_updateTransforms(ecs::Registry& registry);
 void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
 #ifdef ES_ENABLE_PARTICLES
 void particle_update(ecs::Registry& registry, f32 dt);
-void particle_play(ecs::Registry& registry, Entity entity);
-void particle_stop(ecs::Registry& registry, Entity entity);
-void particle_reset(ecs::Registry& registry, Entity entity);
-u32 particle_getAliveCount(Entity entity);
+void particle_play(ecs::Registry& registry, u32 entity);
+void particle_stop(ecs::Registry& registry, u32 entity);
+void particle_reset(ecs::Registry& registry, u32 entity);
+u32 particle_getAliveCount(u32 entity);
 void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count);
 void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count);
 #endif
