@@ -10,6 +10,8 @@ import { ContentDrawer } from '@/layout/ContentDrawer';
 import '@/engine/EditorSession'; // side effect: constructs defaultSession → wires the editor engine
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
+import { Perf } from '@/components/Perf';
+import { PerfRealmBridge } from '@/components/PerfRealmBridge';
 import { BuildDialog } from '@/components/BuildDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { useEditorStore } from '@/store/editorStore';
@@ -116,14 +118,15 @@ export function App() {
 
   return (
     <div className="shell">
-      <MenuBar />
-      <Toolbar />
+      <Perf id="menubar"><MenuBar /></Perf>
+      <Perf id="toolbar"><Toolbar /></Perf>
       <main className="shell__workspace">
-        <ActivityBar />
+        <Perf id="activitybar"><ActivityBar /></Perf>
         <DockLayout />
       </main>
-      <StatusBar />
-      <ContentDrawer />
+      <Perf id="statusbar"><StatusBar /></Perf>
+      <Perf id="contentdrawer"><ContentDrawer /></Perf>
+      <PerfRealmBridge />
       {buildOpen && <BuildDialog />}
       {settingsOpen && <SettingsDialog />}
       <Toaster />

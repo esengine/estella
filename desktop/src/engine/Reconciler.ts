@@ -4,6 +4,7 @@ import { Name, Parent, getComponent, resetWorldTo } from 'esengine';
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
+import { PerfMonitor } from './PerfMonitor';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
 import { componentByName, componentDefaults, isRenderComponent, componentEnable, type AnyComp, type WorldT } from './schema';
 
@@ -77,7 +78,9 @@ export class ReconcilerImpl {
   /** Begin projecting model changes to the World. Idempotent. */
   attach(): void {
     if (this.unsubscribe) return;
-    this.unsubscribe = this.model.subscribe((ev) => this.onEvent(ev));
+    // Time model→World projection as a profiler zone, so an edit that stalls a
+    // frame (a big reconcile) attributes to 'reconcile' instead of the void.
+    this.unsubscribe = this.model.subscribe((ev) => PerfMonitor.measure('reconcile', () => this.onEvent(ev)));
   }
 
   detach(): void {
@@ -118,9 +121,11 @@ export class ReconcilerImpl {
     const world = EngineHost.mutableWorld();
     const data = this.model.current;
     if (!world || !data) return;
-    const resolved = this.resolveRefs(data) as SceneData;
-    const map = resetWorldTo(world, worldProjection(resolved) as never) as Map<number, EntityId>;
-    this.model.adopt(data, map);
+    PerfMonitor.measure('world.rebuild', () => {
+      const resolved = this.resolveRefs(data) as SceneData;
+      const map = resetWorldTo(world, worldProjection(resolved) as never) as Map<number, EntityId>;
+      this.model.adopt(data, map);
+    });
   }
 
   // ── Event projection ──────────────────────────────────────────────────────

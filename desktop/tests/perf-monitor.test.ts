@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { percentile, dominantPhase } from '@/engine/PerfMonitor';
+import { percentile, dominantPhase, sumMs, topSystems } from '@/engine/PerfMonitor';
 
 describe('percentile', () => {
   const v = Array.from({ length: 100 }, (_, i) => i + 1); // 1..100
@@ -25,4 +25,19 @@ describe('dominantPhase', () => {
     expect(dominantPhase({ 'gizmo.update': 3, 'react.commit': 7, other: 1 })).toEqual({ phase: 'react.commit', ms: 7 });
   });
   it('is null for no phases', () => expect(dominantPhase({})).toBeNull());
+});
+
+describe('sumMs', () => {
+  it('sums a timing map', () => expect(sumMs({ a: 1.5, b: 2, c: 0.5 })).toBe(4));
+  it('is 0 for an empty map', () => expect(sumMs({})).toBe(0));
+});
+
+describe('topSystems', () => {
+  it('returns the n costliest, descending', () => {
+    const got = topSystems({ Render: 3, Physics: 8, Animation: 1, UI: 5 }, 2);
+    expect(got).toEqual([{ name: 'Physics', ms: 8 }, { name: 'UI', ms: 5 }]);
+  });
+  it('caps at the map size', () => {
+    expect(topSystems({ a: 1 }, 5)).toEqual([{ name: 'a', ms: 1 }]);
+  });
 });

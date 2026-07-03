@@ -323,10 +323,24 @@ window.addEventListener('message', (e: MessageEvent) => {
         const reply = app ? liveSnapshot(app.world, data.selectedId ?? null) : null;
         post({ type: 'estella:play:reply', reqId: data.reqId, data: reply });
       } else if (data.kind === 'stats') {
-        // Per-phase + per-system frame timing for the editor profiler panel.
+        // Per-phase + per-system timing + render counters — the running game's
+        // engine segment for the editor profiler (PerfMonitor, realm 'play').
         const phases = app ? Object.fromEntries(app.getPhaseTimings() ?? []) : {};
         const systems = app ? Object.fromEntries(app.getSystemTimings() ?? []) : {};
-        post({ type: 'estella:play:reply', reqId: data.reqId, data: { phases, systems } });
+        const m = engineModule;
+        post({
+          type: 'estella:play:reply',
+          reqId: data.reqId,
+          data: {
+            phases,
+            systems,
+            drawCalls: m?.renderer_getDrawCalls?.() ?? 0,
+            triangles: m?.renderer_getTriangles?.() ?? 0,
+            sprites: m?.renderer_getSprites?.() ?? 0,
+            entities: app?.world.getAllEntities().length ?? 0,
+            gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
+          },
+        });
       } else if (data.kind === 'subsystems') {
         // The running game's module health (for the editor's Modules indicator).
         post({ type: 'estella:play:reply', reqId: data.reqId, data: app ? app.subsystems.getStatuses() : [] });

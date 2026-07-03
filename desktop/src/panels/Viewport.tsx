@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Profiler, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
@@ -670,7 +670,6 @@ export function Viewport() {
   };
 
   return (
-    <Profiler id="viewport" onRender={(_id, _phase, actual) => PerfMonitor.reactCommit(actual)}>
     <div className="viewport">
       {/* Top-left: view menus (UE5 layout) — Show Flags dropdown + Frame. */}
       <div className="ov ov-tl">
@@ -891,6 +890,5 @@ export function Viewport() {
 
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>
-    </Profiler>
   );
 }

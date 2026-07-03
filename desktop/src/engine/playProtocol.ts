@@ -55,6 +55,18 @@ export interface PlaySnapshot {
 
 export type PlayQueryKind = 'snapshot' | 'subsystems' | 'stats';
 
+/** The running game's frame telemetry — reply payload of `query { kind: 'stats' }`.
+ *  Feeds the editor profiler's engine segment while playing (PerfMonitor). */
+export interface PlayStatsReply {
+  phases: Record<string, number>;
+  systems: Record<string, number>;
+  drawCalls: number;
+  triangles: number;
+  sprites: number;
+  entities: number;
+  gpuMs: number;
+}
+
 /** editor → realm. Discriminated by `type`. */
 export type PlayOutbound =
   | ({ type: 'estella:play:init' } & PlayPayload)

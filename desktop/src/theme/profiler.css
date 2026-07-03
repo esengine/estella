@@ -1,0 +1,123 @@
+/* SPDX-License-Identifier: Apache-2.0
+   Profiler panel — the docked frame readout (Unreal Insights analog). Derives
+   from tokens.css; kept visually quiet so it reads as instrumentation. */
+
+.prof {
+  height: 100%;
+  overflow: auto;
+  padding: 10px 12px;
+  font: var(--fs-xs, 11px) var(--mono, ui-monospace, monospace);
+  color: var(--text-dim);
+  background: var(--panel);
+}
+
+.prof-sec {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-line);
+}
+.prof-sec:last-child { border-bottom: 0; }
+
+.prof-sec h4 {
+  margin: 0 0 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.prof-realm { text-transform: none; letter-spacing: 0; color: var(--text-faint); }
+
+/* Frame-time history graph (Insights timeline analog). */
+.prof-graph {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-bottom: 8px;
+  border-radius: var(--r-md, 4px);
+  background: var(--srf-1, rgba(0, 0, 0, 0.22));
+  border: 1px solid var(--border-line);
+  cursor: crosshair; /* click a frame to inspect it */
+}
+
+/* Capture controls (freeze / live / pause-on-hitch). */
+.prof-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-line);
+}
+.prof-spacer { flex: 1; }
+.prof-btn {
+  font: 600 var(--fs-xs, 11px) var(--mono, ui-monospace, monospace);
+  color: var(--text);
+  background: var(--srf-1, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-md, 4px);
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.prof-btn:hover { color: var(--text-hi); border-color: var(--star-line, var(--star)); }
+.prof-btn.on { color: var(--star-hi, var(--star)); border-color: var(--star); } /* frozen → "Live" is armed */
+.prof-check { display: flex; align-items: center; gap: 4px; color: var(--text-mute); cursor: pointer; }
+.prof-check input { accent-color: var(--star); }
+.prof-live { color: var(--run, #46a04a); }
+.prof-pinned { color: var(--star-hi, var(--star)); }
+.prof-link {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--star-hi, var(--star)); font: inherit; text-decoration: underline;
+}
+
+/* fps / p50 / p95 / p99 and render counters — a compact label-over-value grid. */
+.prof-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px 10px;
+}
+.prof-stat-grid > div { display: flex; flex-direction: column; gap: 1px; }
+.prof-stat-grid span { color: var(--text-mute); font-size: 10px; }
+.prof-stat-grid b { color: var(--text-hi); font-weight: 600; font-size: 13px; }
+.prof-stat-grid i { color: var(--text-faint); font-style: normal; font-size: 10px; margin-left: 1px; }
+
+/* stat-unit bars: label · value · proportional fill. */
+.prof-row { display: grid; grid-template-columns: 4.5em 4em 1fr; align-items: center; gap: 8px; margin: 3px 0; }
+.prof-key { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prof-val { color: var(--text-hi); text-align: right; }
+.prof-na { color: var(--text-faint); }
+.prof-unit { color: var(--text-faint); margin-left: 1px; }
+.prof-bar { height: 6px; border-radius: 3px; background: var(--srf-1, rgba(255, 255, 255, 0.05)); overflow: hidden; }
+.prof-fill { display: block; height: 100%; border-radius: 3px; transition: width 0.25s var(--e-out, ease-out); }
+
+/* Pinned-frame breakdown rows — name (ellipsis) + right-aligned value, so the two
+   never collide however long the zone/system name is. */
+.prof-brk {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  margin: 2px 0;
+}
+.prof-brk-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.prof-brk-val { color: var(--text-hi); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.prof-brk.prof-lt .prof-brk-name,
+.prof-brk.prof-lt .prof-brk-val { color: var(--warn); }
+.prof-brk-name b { color: var(--text-hi); font-weight: 600; }
+
+.prof-budget { margin-top: 7px; color: var(--text-mute); }
+.prof-budget em { font-style: normal; color: var(--text-faint); }
+.prof-warn { color: var(--warn); }
+
+.prof-sys { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.prof-sys td { padding: 2px 0; color: var(--text-dim); }
+.prof-sys td:first-child {
+  color: var(--text);
+  max-width: 0; /* with table-layout:fixed, lets the name cell ellipsize */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 10px;
+}
+.prof-sys-ms { width: 5em; text-align: right; color: var(--text-hi); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.prof-sys-ms i { color: var(--text-faint); font-style: normal; margin-left: 1px; }
+
+.prof-empty { color: var(--text-faint); margin: 2px 0 0; }

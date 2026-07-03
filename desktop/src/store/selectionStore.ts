@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { create } from 'zustand';
 import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
+import { PerfMonitor } from '@/engine/PerfMonitor';
 import type { EntityId } from '@/types';
 
 /**
@@ -55,32 +56,38 @@ export function createSelectionStore(model: SceneModelImpl) {
     selectedAsset: null,
 
     // Selecting an entity clears the asset selection (unified inspector).
+    // Wrapped in a 'select' profiler zone: zustand notifies subscribers synchronously,
+    // so any non-React work a selection triggers is attributed here, not to the void.
     select: (selectedId) =>
-      set({
-        selectedId,
-        selectedIds: selectedId != null ? new Set([selectedId]) : new Set(),
-        selectedAsset: null,
-      }),
+      PerfMonitor.measure('select', () =>
+        set({
+          selectedId,
+          selectedIds: selectedId != null ? new Set([selectedId]) : new Set(),
+          selectedAsset: null,
+        }),
+      ),
 
     toggleSelect: (id) =>
-      set((s) => {
-        const next = new Set(s.selectedIds);
-        if (next.has(id)) {
-          next.delete(id);
-          const primary =
-            s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
-          return { selectedIds: next, selectedId: primary, selectedAsset: null };
-        }
-        next.add(id);
-        return { selectedIds: next, selectedId: id, selectedAsset: null };
-      }),
+      PerfMonitor.measure('select', () =>
+        set((s) => {
+          const next = new Set(s.selectedIds);
+          if (next.has(id)) {
+            next.delete(id);
+            const primary =
+              s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
+            return { selectedIds: next, selectedId: primary, selectedAsset: null };
+          }
+          next.add(id);
+          return { selectedIds: next, selectedId: id, selectedAsset: null };
+        }),
+      ),
 
     selectMany: (ids, primary) =>
-      set({ selectedIds: new Set(ids), selectedId: primary, selectedAsset: null }),
+      PerfMonitor.measure('select', () => set({ selectedIds: new Set(ids), selectedId: primary, selectedAsset: null })),
 
     // Selecting an asset clears any entity selection (mutually exclusive).
     selectAsset: (selectedAsset) =>
-      set({ selectedAsset, selectedId: null, selectedIds: new Set() }),
+      PerfMonitor.measure('select', () => set({ selectedAsset, selectedId: null, selectedIds: new Set() })),
 
     dropId: (id) =>
       set((s) => {

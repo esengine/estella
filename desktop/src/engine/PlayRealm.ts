@@ -15,7 +15,7 @@ import { createStore } from 'zustand/vanilla';
 import type { SubsystemStatus } from 'esengine';
 import { LogStore } from '@/store/LogStore';
 import { playProtocolMismatch } from './playProtocol';
-import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot } from './playProtocol';
+import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply } from './playProtocol';
 
 export type { PlayPayload, PlaySnapshot } from './playProtocol';
 
@@ -144,6 +144,18 @@ class PlayRealmImpl {
     return new Promise((resolve) => {
       this.pending.set(reqId, (data) => resolve((data as SubsystemStatus[]) ?? null));
       this.post({ type: 'estella:play:query', kind: 'subsystems', reqId });
+      setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 2000);
+    });
+  }
+
+  /** The running game's frame telemetry (phases/systems/counters) for the editor
+   *  profiler's engine segment while playing. Null if not ready. */
+  stats(): Promise<PlayStatsReply | null> {
+    if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
+    const reqId = ++this.reqSeq;
+    return new Promise((resolve) => {
+      this.pending.set(reqId, (data) => resolve((data as PlayStatsReply) ?? null));
+      this.post({ type: 'estella:play:query', kind: 'stats', reqId });
       setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 2000);
     });
   }

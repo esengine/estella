@@ -10,6 +10,7 @@
  */
 import type { Command, Keybinding } from './types';
 import { chordMatches } from './keybinding';
+import { PerfMonitor } from '@/engine/PerfMonitor';
 
 const OVERRIDE_KEY = 'estella.keybindings';
 
@@ -87,7 +88,7 @@ class CommandRegistry {
   /** Run a command by id (no-op if missing or currently disabled). */
   run(id: string): void {
     const c = this.map.get(id);
-    if (c && (c.isEnabled?.() ?? true)) c.run();
+    if (c && (c.isEnabled?.() ?? true)) PerfMonitor.measure(`cmd.${id}`, () => c.run());
   }
 
   /** The enabled command bound to a key event, if any (honors overrides). */

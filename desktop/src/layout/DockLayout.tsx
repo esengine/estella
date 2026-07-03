@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useState, type FC } from 'react';
+import { useEffect, useState, type FC, type ReactNode } from 'react';
 import {
   DockviewReact,
   type DockviewReadyEvent,
@@ -18,21 +18,29 @@ import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
 import { TilemapPainter } from '@/panels/TilemapPainter';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
+import { ProfilerPanel } from '@/panels/ProfilerPanel';
+import { Perf } from '@/components/Perf';
 import { dockApi } from '@/layout/dockApi';
+
+// Each dock panel is wrapped so its commit time attributes to `react.<id>` — a
+// spike from one panel rebuilding (e.g. Details on selection) is named by panel,
+// not lumped into an unattributed frame.
+const panel = (id: string, node: ReactNode) => <Perf id={id}>{node}</Perf>;
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
 const components: Record<string, FC<IDockviewPanelProps>> = {
-  outliner: () => <Outliner />,
-  viewport: () => <Viewport />,
-  details: () => <Details />,
-  content: () => <ContentBrowser />,
-  log: () => <OutputLog />,
-  sequencer: () => <Sequencer />,
-  tileset: () => <TilesetEditor />,
-  tilemap: () => <TilemapPainter />,
-  materialgraph: () => <MaterialGraphEditor />,
+  outliner: () => panel('outliner', <Outliner />),
+  viewport: () => panel('viewport', <Viewport />),
+  details: () => panel('details', <Details />),
+  content: () => panel('content', <ContentBrowser />),
+  log: () => panel('log', <OutputLog />),
+  sequencer: () => panel('sequencer', <Sequencer />),
+  tileset: () => panel('tileset', <TilesetEditor />),
+  tilemap: () => panel('tilemap', <TilemapPainter />),
+  materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
+  profiler: () => <ProfilerPanel />,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
-  game: () => <GamePanel />,
+  game: () => panel('game', <GamePanel />),
 };
 
 // Bumped to v6 (document-area editors): Viewport center, right column Outliner-
@@ -86,6 +94,7 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
 // Sequencer belongs in the bottom utility row (UE convention).
 const BOTTOM_TABS: { id: string; component: string; title: string; refs: string[] }[] = [
   { id: 'sequencer', component: 'sequencer', title: 'Sequencer', refs: ['content', 'log'] },
+  { id: 'profiler', component: 'profiler', title: 'Profiler', refs: ['log', 'content'] },
 ];
 
 function ensureBottomTabs(api: DockviewReadyEvent['api']) {

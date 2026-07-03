@@ -108,6 +108,37 @@ class EngineHostImpl {
     return this.canvas_;
   }
 
+  /**
+   * The engine's last-frame telemetry for the profiler: per-phase / per-system
+   * wall-clock (ms, requires the boot-time `enableStats()`) plus render counters.
+   * Null until booted. Reads the live values without allocating beyond the two
+   * timing maps, so PerfMonitor can fold it into a frame once per rAF.
+   */
+  readEngineFrame(): {
+    phaseMs: Record<string, number>;
+    systemMs: Record<string, number>;
+    drawCalls: number;
+    triangles: number;
+    sprites: number;
+    entities: number;
+    gpuMs: number;
+  } | null {
+    const app = this.app_;
+    if (!app) return null;
+    const m = this.module_;
+    const phases = app.getPhaseTimings();
+    const systems = app.getSystemTimings();
+    return {
+      phaseMs: phases ? Object.fromEntries(phases) : {},
+      systemMs: systems ? Object.fromEntries(systems) : {},
+      drawCalls: m?.renderer_getDrawCalls?.() ?? 0,
+      triangles: m?.renderer_getTriangles?.() ?? 0,
+      sprites: m?.renderer_getSprites?.() ?? 0,
+      entities: this.world?.getAllEntities().length ?? 0,
+      gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
+    };
+  }
+
   // — Status as an external store (for useSyncExternalStore) —
   subscribe = (fn: () => void): (() => void) => this.statusStore.subscribe(fn);
   getSnapshot = (): EngineSnapshot => this.statusStore.getState();
@@ -393,6 +424,11 @@ class EngineHostImpl {
       wasmBaseUrl: '/wasm',
     });
     this.app_ = app;
+
+    // Per-phase / per-system wall-clock timing for the editor profiler
+    // (PerfMonitor reads it each frame). Cheap — a couple performance.now() per
+    // system — so left on in edit; the Perf overlay decides what to surface.
+    app.enableStats();
 
     // Subsystem observability: phase changes push immediately; the sampler
     // refreshes derived liveness (stepping↔idle) a couple of times a second.

@@ -22,6 +22,7 @@ import './theme/log.css';
 import './theme/viewport.css';
 import './theme/content.css';
 import './theme/sequencer.css';
+import './theme/profiler.css';
 import './theme/tileset.css';
 import './theme/tilemap.css';
 import './theme/material.css';

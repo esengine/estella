@@ -5,6 +5,7 @@ import type { App, SceneData } from 'esengine';
 import { SceneModel } from './SceneModel';
 import { Reconciler } from './Reconciler';
 import { EditorHistory } from './EditorHistory';
+import { PerfMonitor } from './PerfMonitor';
 import { loadEditorSpine } from './spineLoad';
 
 type SceneDataArg = Parameters<typeof loadSceneData>[1];
@@ -49,7 +50,7 @@ export const SceneLoader = {
       Reconciler.setAssetResolver((uuid) => assets.getTexture(UUID_PREFIX + uuid)?.handle ?? 0);
     }
 
-    const map = loadSceneData(app.world, resolved as SceneDataArg);
+    const map = PerfMonitor.measure('scene.load', () => loadSceneData(app.world, resolved as SceneDataArg));
     // Spine renders through its side modules, loaded separately from Assets (skel
     // /atlas/textures + per-entity instances). Refs are the scene's own paths or
     // @uuid: (resolved via the manifest).

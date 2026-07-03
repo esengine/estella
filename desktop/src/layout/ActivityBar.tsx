@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Far-left icon rail (activity bar). Reveals docked panels and toggles the
 // Content Drawer — the summoned quick-access surface.
-import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Clapperboard, Grid3x3, Settings } from 'lucide-react';
+import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Clapperboard, Grid3x3, Gauge, Settings } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { dockApi } from '@/layout/dockApi';
 import { commands } from '@/commands';
@@ -60,6 +60,14 @@ export function ActivityBar() {
         onClick={() => dockApi.openSidePanel('tilemap', 'tilemap', 'Tilemap', 'left', 300)}
       >
         <Grid3x3 size={19} strokeWidth={1.7} />
+      </button>
+      <button
+        type="button"
+        className="act"
+        title="Profiler"
+        onClick={() => dockApi.revealAndExpand('profiler')}
+      >
+        <Gauge size={19} strokeWidth={1.7} />
       </button>
 
       <span className="act-spacer" />
