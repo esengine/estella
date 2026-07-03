@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Clock, FolderOpen, LayoutGrid, Plus, Rows3, Search } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
+import { WindowControls } from '@/layout/WindowControls';
 import type { RecentEntry, TemplateEntry } from '@/project/format';
 
 // Project browser shown before a project is open. A hub layout — persistent top
@@ -329,6 +330,7 @@ export function Launcher() {
             <FolderOpen size={14} strokeWidth={2} /> Open folder…
           </button>
         </div>
+        <WindowControls />
       </header>
 
       <div className="launcher__body">

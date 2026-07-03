@@ -19,16 +19,21 @@
 .launcher__bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   height: 54px;
   flex-shrink: 0;
   padding: 0 20px 0 78px;
   border-bottom: 1px solid var(--line-soft);
   -webkit-app-region: drag;
 }
+/* macOS-only traffic-light gutter; Windows/Linux draw their own controls (which
+   reach the right corner, so drop the right padding too). */
+.platform-win .launcher__bar,
+.platform-linux .launcher__bar { padding-left: 20px; padding-right: 0; }
 .launcher__bar-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
+  margin-left: auto; /* push actions (+ window controls) to the right */
   -webkit-app-region: no-drag;
 }
 
