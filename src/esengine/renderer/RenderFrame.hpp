@@ -192,6 +192,7 @@ private:
 
     Stats stats_;
     GpuTimer gpu_timer_;
+    GpuTimer gpu_timer_pp_;
     FrameCapture frame_capture_;
     std::vector<u8> snapshot_pixels_;
     RenderTargetManager::Handle replay_rt_ = 0;

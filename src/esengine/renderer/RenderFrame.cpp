@@ -265,7 +265,7 @@ void RenderFrame::flush() {
         draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
         gpu_timer_.end();
     }
-    stats_.gpu_time_ms = gpu_timer_.lastMs();
+    FrameProfiler::get().gpuScope("submit", gpu_timer_.lastMs());
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
@@ -316,7 +316,11 @@ void RenderFrame::end() {
     if (usePostProcess) {
 #ifdef ES_ENABLE_POSTPROCESS
         ES_PROFILE_SCOPE("render.postprocess");
+        gpu_timer_pp_.poll();
+        gpu_timer_pp_.begin();
         post_process_->end();
+        gpu_timer_pp_.end();
+        FrameProfiler::get().gpuScope("postprocess", gpu_timer_pp_.lastMs());
 #endif
     } else if (current_target_ != RenderTargetManager::INVALID_HANDLE) {
         auto* rt = target_manager_.get(current_target_);
@@ -324,6 +328,10 @@ void RenderFrame::end() {
             rt->unbind();
         }
     }
+
+    const f32 submitMs = gpu_timer_.lastMs();
+    const f32 ppMs = usePostProcess ? gpu_timer_pp_.lastMs() : 0.0f;
+    stats_.gpu_time_ms = submitMs < 0.0f ? -1.0f : submitMs + (ppMs > 0.0f ? ppMs : 0.0f);
 
     frame_capture_.endCapture();
     in_frame_ = false;

@@ -439,6 +439,10 @@ std::string engine_getCounters() {
     return FrameProfiler::get().lastCountersJson();
 }
 
+std::string engine_getGpuScopes() {
+    return FrameProfiler::get().lastGpuJson();
+}
+
 f64 renderer_getTextureBytes() {
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         return static_cast<f64>(rm->getStats().textureBytes);

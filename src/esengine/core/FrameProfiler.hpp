@@ -40,25 +40,31 @@ public:
         cur_.push_back({name, ms});
     }
 
-    void counter(const char* name, double value) {
-        for (auto& e : counters_cur_) {
-            if (std::strcmp(e.name, name) == 0) { e.ms = value; return; }
-        }
-        counters_cur_.push_back({name, value});
-    }
+    void counter(const char* name, double value) { setEntry(counters_cur_, name, value); }
+    void gpuScope(const char* name, double ms) { setEntry(gpu_cur_, name, ms); }
 
     void commit() {
         last_.swap(cur_);
         cur_.clear();
         counters_last_.swap(counters_cur_);
         counters_cur_.clear();
+        gpu_last_.swap(gpu_cur_);
+        gpu_cur_.clear();
     }
 
     std::string lastJson() const { return toJson(last_); }
     std::string lastCountersJson() const { return toJson(counters_last_); }
+    std::string lastGpuJson() const { return toJson(gpu_last_); }
 
 private:
     struct Entry { const char* name; double ms; };
+
+    static void setEntry(std::vector<Entry>& v, const char* name, double value) {
+        for (auto& e : v) {
+            if (std::strcmp(e.name, name) == 0) { e.ms = value; return; }
+        }
+        v.push_back({name, value});
+    }
 
     static std::string toJson(const std::vector<Entry>& v) {
         std::string s = "{";
@@ -79,6 +85,8 @@ private:
     std::vector<Entry> last_;
     std::vector<Entry> counters_cur_;
     std::vector<Entry> counters_last_;
+    std::vector<Entry> gpu_cur_;
+    std::vector<Entry> gpu_last_;
     bool enabled_ = false;
 };
 

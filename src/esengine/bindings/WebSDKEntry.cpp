@@ -522,6 +522,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("engine_setCpuProfiling", &esengine::engine_setCpuProfiling);
     emscripten::function("engine_getCpuScopes", &esengine::engine_getCpuScopes);
     emscripten::function("engine_getCounters", &esengine::engine_getCounters);
+    emscripten::function("engine_getGpuScopes", &esengine::engine_getGpuScopes);
     emscripten::function("renderer_getTextureBytes", &esengine::renderer_getTextureBytes);
     emscripten::function("renderer_setDeltaTime", &esengine::renderer_setDeltaTime);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);

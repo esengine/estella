@@ -296,6 +296,8 @@ export interface ESEngineModule {
     engine_getCpuScopes?(): string;
     /** Last frame's named counters as a JSON object {"render.culled": n, …}. */
     engine_getCounters?(): string;
+    /** Last frame's per-pass GPU times as a JSON object {"submit": ms, …}. */
+    engine_getGpuScopes?(): string;
     /** Resident texture VRAM (RGBA8 estimate, bytes) for the profiler's memory pillar. */
     renderer_getTextureBytes?(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
