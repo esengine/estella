@@ -335,4 +335,35 @@ describe('volumeBlending', () => {
             expect(result.size).toBe(0);
         });
     });
+
+    describe('local volume gating (per-camera integration shape)', () => {
+        const localBlur = {
+            effects: [{ type: 'blur', enabled: true, uniforms: { u_intensity: 5 } }],
+            isGlobal: false,
+            shape: 'box' as const,
+            size: { x: 100, y: 100 },
+            priority: 0,
+            weight: 1,
+            blendDistance: 0,
+        };
+
+        it('camera inside the volume applies its effect', () => {
+            const factor = computeVolumeFactor(localBlur, { x: 0, y: 0 }, 0, 0);
+            const blended = blendVolumeEffects([{ data: localBlur, factor }]);
+            expect(blended.get('blur')?.uniforms.get('u_intensity')).toBeCloseTo(5, 5);
+        });
+
+        it('camera outside the volume applies nothing', () => {
+            const factor = computeVolumeFactor(localBlur, { x: 0, y: 0 }, 500, 0);
+            const active = factor > 0 ? [{ data: localBlur, factor }] : [];
+            expect(blendVolumeEffects(active).size).toBe(0);
+        });
+
+        it('camera in the blend band applies a partial effect', () => {
+            const feathered = { ...localBlur, blendDistance: 50 };
+            const factor = computeVolumeFactor(feathered, { x: 0, y: 0 }, 125, 0);
+            const blended = blendVolumeEffects([{ data: feathered, factor }]);
+            expect(blended.get('blur')?.uniforms.get('u_intensity')).toBeCloseTo(2.5, 5);
+        });
+    });
 });

@@ -7,7 +7,7 @@ import type { Entity } from '../types';
 import { PostProcessVolume, Transform, Camera, type PostProcessVolumeData, type TransformData, type CameraData } from '../component';
 import { PostProcess, type PostProcessApi } from './PostProcessAPI';
 import { getEffectDef } from './effects';
-import { blendVolumeEffects, type ActiveVolume } from './volumeBlending';
+import { blendVolumeEffects, computeVolumeFactor, type ActiveVolume, type VolumeTransform } from './volumeBlending';
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
 
@@ -83,32 +83,35 @@ function applyBlendedEffects(
 }
 
 export const postProcessVolumeSystem = defineSystem(
-    [Res(PostProcess), Query(PostProcessVolume, Transform), Query(Camera)],
+    [Res(PostProcess), Query(PostProcessVolume, Transform), Query(Camera, Transform)],
     (
         api: PostProcessApi,
         volumeQuery: Iterable<[Entity, PostProcessVolumeData, TransformData]>,
-        cameraQuery: Iterable<[Entity, CameraData]>,
+        cameraQuery: Iterable<[Entity, CameraData, TransformData]>,
     ) => {
-        const volumes: { data: PostProcessVolumeData; tx: { x: number; y: number } }[] = [];
+        const volumes: { data: PostProcessVolumeData; tx: VolumeTransform }[] = [];
         for (const [_entity, volumeData, transform] of volumeQuery) {
             volumes.push({ data: volumeData, tx: { x: transform.position.x, y: transform.position.y } });
         }
 
-        const activeVolumes: ActiveVolume[] = [];
-        for (const { data } of volumes) {
-            if (data.isGlobal) {
-                activeVolumes.push({ data, factor: 1 });
-            }
-        }
+        // Recomputed per camera: a local volume's weight depends on the camera position.
+        for (const [cameraEntity, cameraData, cameraTransform] of cameraQuery) {
+            if (!cameraData.isActive) continue;
 
-        const blended = activeVolumes.length > 0
-            ? blendVolumeEffects(activeVolumes)
-            : new Map<string, { enabled: boolean; uniforms: Map<string, number> }>();
+            const cx = cameraTransform.position.x;
+            const cy = cameraTransform.position.y;
 
-        for (const [cameraEntity, cameraData] of cameraQuery) {
-            if (cameraData.isActive) {
-                applyBlendedEffects(api, cameraEntity, blended);
+            const activeVolumes: ActiveVolume[] = [];
+            for (const { data, tx } of volumes) {
+                const factor = computeVolumeFactor(data, tx, cx, cy);
+                if (factor > 0) activeVolumes.push({ data, factor });
             }
+
+            const blended = activeVolumes.length > 0
+                ? blendVolumeEffects(activeVolumes)
+                : new Map<string, { enabled: boolean; uniforms: Map<string, number> }>();
+
+            applyBlendedEffects(api, cameraEntity, blended);
         }
     },
     { name: 'PostProcessVolumeSystem' }
