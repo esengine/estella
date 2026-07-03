@@ -359,15 +359,24 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTextu
 
     shader->bind();
     shader->setUniform("u_texture", 0);
-    shader->setUniform("u_sceneTexture", 1);
-    shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(width_), static_cast<f32>(height_)));
+    // u_sceneTexture and u_resolution are engine-provided builtins that only some
+    // passes use (bloom's composite taps the untouched scene; kawase/pixelate/fxaa
+    // need the resolution). Supply them only where declared so passes that omit
+    // them don't log a spurious "uniform not found".
+    if (shader->hasUniform("u_sceneTexture")) shader->setUniform("u_sceneTexture", 1);
+    if (shader->hasUniform("u_resolution")) {
+        shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(width_), static_cast<f32>(height_)));
+    }
 
+    // A multi-pass effect (e.g. bloom) applies its full uniform set to every one
+    // of its sub-pass shaders, each of which declares only a subset — upload each
+    // uniform only to the passes that actually use it.
     for (const auto& [name, value] : pass.floatUniforms) {
-        shader->setUniform(name, value);
+        if (shader->hasUniform(name)) shader->setUniform(name, value);
     }
 
     for (const auto& [name, value] : pass.vec4Uniforms) {
-        shader->setUniform(name, value);
+        if (shader->hasUniform(name)) shader->setUniform(name, value);
     }
 
     drawScreenQuad();

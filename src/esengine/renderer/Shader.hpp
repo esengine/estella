@@ -186,6 +186,15 @@ public:
 
     i32 getUniformLocation(const std::string& name) const;
 
+    /**
+     * @brief True if the linked program declares this uniform.
+     * @details Silent probe (no "not found" warning), for call sites that
+     *          intentionally supply a superset of uniforms — e.g. the
+     *          post-process pipeline applies a whole effect's uniform set to
+     *          each of its sub-pass shaders, which each use only a subset.
+     */
+    bool hasUniform(const std::string& name) const;
+
     /** @brief Returns reflected metadata for every active uniform, populated at link time */
     const std::vector<GfxUniformInfo>& getActiveUniforms() const { return activeUniforms_; }
 
@@ -218,6 +227,9 @@ private:
                  ShaderStageFailure* outFailedStage = nullptr);
 
     void reflectActiveUniforms();
+
+    /** @brief Resolve + cache a uniform location; warns on miss only when asked. */
+    i32 cacheUniformLocation(const std::string& name, bool warnOnMiss) const;
 
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     u32 programId_ = 0;

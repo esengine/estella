@@ -202,16 +202,24 @@ void Shader::reflectActiveUniforms() {
     activeUniforms_ = device_->getActiveUniforms(programId_);
 }
 
-i32 Shader::getUniformLocation(const std::string& name) const {
+i32 Shader::cacheUniformLocation(const std::string& name, bool warnOnMiss) const {
     auto [it, inserted] = uniformCache_.emplace(name, -1);
     if (inserted) {
         it->second = device_->getUniformLocation(programId_, name.c_str());
-        if (it->second < 0) {
+        if (it->second < 0 && warnOnMiss) {
             ES_LOG_WARN("Shader {}: uniform '{}' not found (typo or optimized out)",
                         programId_, name);
         }
     }
     return it->second;
+}
+
+i32 Shader::getUniformLocation(const std::string& name) const {
+    return cacheUniformLocation(name, /*warnOnMiss=*/true);
+}
+
+bool Shader::hasUniform(const std::string& name) const {
+    return cacheUniformLocation(name, /*warnOnMiss=*/false) >= 0;
 }
 
 void Shader::setUniform(const std::string& name, i32 value) const {
