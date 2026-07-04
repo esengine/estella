@@ -16,6 +16,8 @@ import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
+import { ProjectStore } from '@/project/ProjectStore';
+import { baseName } from '@/project/assetMeta';
 
 export async function openAnimationClip(path: string): Promise<void> {
   try {
@@ -29,4 +31,28 @@ export async function openAnimationClip(path: string): Promise<void> {
   } catch (e) {
     Toasts.push(`无法打开动画：${String(e)}`, 'error');
   }
+}
+
+// A blank multi-track timeline, in the canonical serialized shape parseAnimationClip
+// reads (the Sequencer fills it by recording keys on a selected entity).
+const BLANK_CLIP = { version: '1.1', type: 'timeline', duration: 5, wrapMode: 'loop', tracks: [] };
+
+/** Create an empty `.esanim` timeline in @p dir and open it in the Sequencer. */
+export async function createAnimationClip(dir: string): Promise<void> {
+  const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
+  let rel = `${folder}NewAnimation.esanim`;
+  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${folder}NewAnimation-${n}.esanim`;
+  try {
+    await window.estella.fs.write(rel, JSON.stringify(BLANK_CLIP, null, 2) + '\n');
+    await window.estella.fs.write(
+      rel + '.meta',
+      JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'animation', importer: { autoMigrate: true } }, null, 2) + '\n',
+    );
+  } catch (e) {
+    Toasts.push(`创建动画失败：${String(e)}`, 'error');
+    return;
+  }
+  await ProjectStore.refreshAssets();
+  Toasts.push(`已创建动画：${baseName(rel)}`, 'info');
+  await openAnimationClip(rel);
 }

@@ -193,6 +193,10 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       if (err) console.log('[play] error:', err);
       await settleFrames(30); // let the game loop run so animation/assets settle
     }
+    if (process.env.ESTELLA_SHOT_EVAL) {
+      await exec(process.env.ESTELLA_SHOT_EVAL);
+      await settleFrames(8);
+    }
     await settleFrames(12); // was sleep(2500) — let the engine loop spin up + fully paint the WebGL viewport
     const img = await w.webContents.capturePage();
     await writeFile(out, img.toPNG());

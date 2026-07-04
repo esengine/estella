@@ -16,6 +16,7 @@ import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
 import { createMaterialGraph } from '@/material/openMaterialGraph';
+import { createAnimationClip } from '@/timeline/openClip';
 import { fsRefresh } from '@/project/fsWatch';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';
@@ -553,6 +554,7 @@ export function ContentBrowser() {
         { label: 'New Folder', icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
         { sep: true },
         { label: 'New Scene', onClick: () => void newScene() },
+        { label: 'New Animation', onClick: () => void createAnimationClip(cwd) },
         { label: 'New Input Map', onClick: () => void newInputMap() },
         { label: 'New Material', onClick: () => void createMaterial(cwd) },
         { label: 'New Material Graph', onClick: () => void createMaterialGraph(cwd) },

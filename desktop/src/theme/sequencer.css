@@ -230,3 +230,13 @@
 }
 .seq-empty__title { color: var(--text-dim); font-size: 13px; }
 .seq-empty__hint { font-size: var(--fs-xs); }
+.seq-empty__steps {
+  margin: 6px 0 0; padding: 0; list-style: none; counter-reset: step;
+  text-align: left; font-size: var(--fs-xs); line-height: 1.7; max-width: 300px;
+}
+.seq-empty__steps li { counter-increment: step; }
+.seq-empty__steps li::before {
+  content: counter(step); display: inline-grid; place-items: center;
+  width: 15px; height: 15px; margin-right: 7px; border-radius: 50%;
+  background: var(--srf-3); color: var(--text-dim); font-size: 9px; vertical-align: middle;
+}

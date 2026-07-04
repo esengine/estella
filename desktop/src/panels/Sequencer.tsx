@@ -20,6 +20,7 @@ import {
 import { evaluateChannel, InterpType, WrapMode } from 'esengine';
 import { animatableFieldsFor } from '@/engine/schema';
 import { TimelineDocument } from '@/timeline/TimelineDocument';
+import { createAnimationClip } from '@/timeline/openClip';
 import { TimelineCommands } from '@/timeline/TimelineCommands';
 import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
@@ -85,7 +86,15 @@ function EmptyState() {
     <div className="seq-empty">
       <Film size={30} strokeWidth={1.3} />
       <div className="seq-empty__title">没有打开的动画</div>
-      <div className="seq-empty__hint">在内容浏览器双击 .esanim / .estimeline 打开动画片段</div>
+      <div className="seq-empty__hint">新建一段动画,或在内容浏览器双击已有的 .esanim 打开。</div>
+      <button type="button" className="seq-btn seq-btn--text on" onClick={() => void createAnimationClip('')}>
+        <Plus size={14} /><span>新建动画</span>
+      </button>
+      <ol className="seq-empty__steps">
+        <li>在场景里选中一个物体,点工具栏「绑定」把预览绑到它</li>
+        <li>开「录制」,然后移动/旋转它或改属性 — 关键帧自动记录</li>
+        <li>拖动播放头预览,点「保存」写回文件</li>
+      </ol>
     </div>
   );
 }
