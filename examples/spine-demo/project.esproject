@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Spine Animation",
+  "description": "A Spine skeleton that cycles idle/walk/run/jump/shoot — press 1-5 to switch.",
+  "tag": "Animation",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "4.2"
+}

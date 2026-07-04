@@ -17,6 +17,7 @@ for your own game.
 | **event-system** | ECS | Decoupled gameplay with typed events — collect, score, react. |
 | **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. |
 | **sprite-animation** | Animation | Frame animation via `.esanim` clips with an idle/walk switcher. |
+| **spine-demo** | Animation | A Spine skeleton cycling idle/walk/run/jump/shoot (1-5 to switch). |
 | **tween-animation** | Animation | Ease positions, scales and colors over time. |
 | **input-demo** | Input | Keyboard, mouse and pointer input with a motion trail. |
 | **audio-demo** | Audio | One-shot SFX and a beat visualizer driven by playback. |
@@ -44,6 +45,10 @@ The concept demos (ECS, events, tweens, collision, spinner) intentionally render
 **colored primitives** rather than art — a plain colored square is the clearest way to
 show *what the system is doing*, and it's the same convention most engine examples use.
 The UI examples use the engine's built-in UI theme.
+
+**Exception — `spine-demo`.** It ships Esoteric Software's *Spineboy* under the **Spine
+Runtimes License** (not CC0). Using Spine at all requires your own Spine Editor license,
+so this asset is not free to reuse the way the CC0 art is — see [ASSETS.md](./ASSETS.md).
 
 ## Structure & conventions
 

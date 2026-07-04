@@ -16,6 +16,15 @@ starting point for a real game. This credit is a courtesy, not an obligation.
 | [UI Pack](https://kenney.nl/assets/ui-pack) | CC0 | sprite-rendering (arrow) |
 | [Pixel Platformer](https://kenney.nl/assets/pixel-platformer) | CC0 | tilemap-demo (`tileset.png` terrain atlas; `props.png` is a handful of its tiles repacked into a second tileset) |
 
+## Spine
+
+`spine-demo` uses **Spineboy**, Esoteric Software's official Spine example skeleton
+(`spineboy-pro.skel` / `spineboy.atlas` / `spineboy.png`), © Esoteric Software LLC. Unlike
+the CC0 art above it is licensed under the **[Spine Runtimes License](https://esotericsoftware.com/spine-runtimes-license)**:
+using the Spine runtime (and this asset) requires your own Spine Editor license, and any
+redistribution must keep the copyright notice. It is **not** CC0 and not free to reuse the
+way the Kenney art is.
+
 ## Audio
 
 `audio-demo` uses short synthesized drum one-shots (`assets/audio/*.wav`) generated for
