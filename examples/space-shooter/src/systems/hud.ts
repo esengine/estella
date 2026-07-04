@@ -1,12 +1,12 @@
 import {
     defineSystem, Query, Mut, Res, ResMut, Commands,
-    Input, Text, Image, Transform,
+    Input, Text, UIVisual, Transform,
 } from 'esengine';
 import { Player, Health, ScoreDisplay, HealthHeart, GameOverScreen, Enemy, Bullet, Explosion } from '../components';
 import { GameState, PLAYER_START_Y } from '../resources';
 
 export const hudSystem = defineSystem(
-    [Res(GameState), Query(Mut(Text), ScoreDisplay), Query(Health, Player), Query(Mut(Image), HealthHeart)],
+    [Res(GameState), Query(Mut(Text), ScoreDisplay), Query(Health, Player), Query(Mut(UIVisual), HealthHeart)],
     (state, scoreQuery, playerQuery, heartQuery) => {
         for (const [_entity, text] of scoreQuery) {
             text.content = `SCORE: ${state.score}`;
@@ -14,8 +14,8 @@ export const hudSystem = defineSystem(
 
         for (const [_entity, health] of playerQuery) {
             let heartIndex = 0;
-            for (const [_hEntity, image] of heartQuery) {
-                image.color = heartIndex < health.value
+            for (const [_hEntity, visual] of heartQuery) {
+                visual.color = heartIndex < health.value
                     ? { r: 1, g: 1, b: 1, a: 1 }
                     : { r: 0.3, g: 0.3, b: 0.3, a: 0.4 };
                 heartIndex++;

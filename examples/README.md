@@ -12,7 +12,7 @@ for your own game.
 
 | Example | Tag | What it shows |
 | --- | --- | --- |
-| **hello-world** | Basics | The smallest project — one rotating, color-pulsing sprite. |
+| **hello-world** | Basics | A minimal project — rotating, color-pulsing sprites. |
 | **ecs-basics** | ECS | Spawn, move, bounce and expire entities: the core ECS loop. |
 | **event-system** | ECS | Decoupled gameplay with typed events — collect, score, react. |
 | **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. |
@@ -25,6 +25,7 @@ for your own game.
 | **physics-spinner** | Physics | Revolute joints and continuous rotation. |
 | **particle-demo** | Effects | A configurable particle emitter with additive blending. |
 | **postprocess-effects** | Effects | Full-screen post-processing: bloom, vignette, color grading. |
+| **lighting-2d** | Rendering | 2D lights and shadow casters with a normal-mapped, Lit-2D material. |
 | **tilemap-demo** | Tilemap | Two scenes: a Tiled `.tmj` import and an engine-native `.estileset` — multi-tileset, parallax, animated water, per-tile collision. |
 | **ui-controls** | UI | Buttons, sliders, toggles and progress bars. |
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |

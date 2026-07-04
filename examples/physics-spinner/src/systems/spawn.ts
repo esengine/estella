@@ -5,7 +5,7 @@ import {
 } from 'esengine';
 import { SpawnMarker } from '../components';
 
-const BODY_COUNT = 6076;
+const BODY_COUNT = 150;
 const PPU = 100;
 const GRID_LEFT = -23;
 const GRID_RIGHT = 23;

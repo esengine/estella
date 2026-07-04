@@ -14,4 +14,4 @@ export const Orbit = defineComponent('Orbit', {
     angle: 0,
 });
 
-export const FlipDemo = defineTag('FlipDemo');
+export const Spin = defineTag('Spin');

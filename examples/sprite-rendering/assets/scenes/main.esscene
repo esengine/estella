@@ -213,7 +213,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": -90, "y": -200, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "layer": 5, "texture": "@uuid:d7cfc683-b474-4c6a-bedf-c5149593510a" } },
-        { "type": "FlipDemo", "data": {} }
+        { "type": "Spin", "data": {} }
       ],
       "visible": true
     },
@@ -225,7 +225,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": -10, "y": -200, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "flipX": true, "layer": 5, "texture": "@uuid:d7cfc683-b474-4c6a-bedf-c5149593510a" } },
-        { "type": "FlipDemo", "data": {} }
+        { "type": "Spin", "data": {} }
       ],
       "visible": true
     },
@@ -237,7 +237,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 70, "y": -200, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "flipY": true, "layer": 5, "texture": "@uuid:d7cfc683-b474-4c6a-bedf-c5149593510a" } },
-        { "type": "FlipDemo", "data": {} }
+        { "type": "Spin", "data": {} }
       ],
       "visible": true
     },
@@ -249,7 +249,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 150, "y": -200, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "flipX": true, "flipY": true, "layer": 5, "texture": "@uuid:d7cfc683-b474-4c6a-bedf-c5149593510a" } },
-        { "type": "FlipDemo", "data": {} }
+        { "type": "Spin", "data": {} }
       ],
       "visible": true
     }

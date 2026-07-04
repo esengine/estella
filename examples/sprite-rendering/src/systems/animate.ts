@@ -2,7 +2,7 @@ import {
     defineSystem, Query, Mut, Res, Time,
     Transform, Sprite,
 } from 'esengine';
-import { Wave, Orbit, FlipDemo } from '../components';
+import { Wave, Orbit, Spin } from '../components';
 
 export const waveSystem = defineSystem(
     [Query(Mut(Transform), Wave), Res(Time)],
@@ -26,13 +26,13 @@ export const orbitSystem = defineSystem(
     { name: 'OrbitSystem' }
 );
 
-export const flipSystem = defineSystem(
-    [Query(Mut(Transform), FlipDemo), Res(Time)],
+export const spinSystem = defineSystem(
+    [Query(Mut(Transform), Spin), Res(Time)],
     (query, time) => {
         for (const [_entity, transform] of query) {
-            const bounce = Math.sin(time.elapsed * 2) * 5;
-            transform.position.y += bounce * time.delta;
+            const angle = time.elapsed * 1.5;
+            transform.rotation = { w: Math.cos(angle), x: 0, y: 0, z: Math.sin(angle) };
         }
     },
-    { name: 'FlipSystem' }
+    { name: 'SpinSystem' }
 );
