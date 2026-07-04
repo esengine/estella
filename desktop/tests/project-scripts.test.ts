@@ -62,7 +62,7 @@ describe('extraction against real examples (declaration/startup separation)', ()
     });
 
     it('a component-less example (no src/components.ts) yields an empty schema set', async () => {
-        const res = await extractExample('particle-demo');
+        const res = await extractExample('ui-controls');
         expect(res.ok).toBe(true);
         expect(res.schemas).toEqual([]);
     });
