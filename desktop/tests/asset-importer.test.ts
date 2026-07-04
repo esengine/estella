@@ -13,6 +13,7 @@ import {
   buildImporterComponent,
   applyImporterEdit,
   hasImporterSettings,
+  readTextureImportSettings,
 } from '../src/project/assetImporter';
 
 describe('importerDefaults (import-time .meta)', () => {
@@ -57,6 +58,18 @@ describe('buildImporterComponent (inspector fields)', () => {
   });
   it('returns null for types without settings', () => {
     expect(buildImporterComponent('audio', {})).toBeNull();
+  });
+});
+
+describe('readTextureImportSettings (edit-viewport = runtime)', () => {
+  it('maps filterMode/wrapMode to the loader filter/wrap shape', () => {
+    expect(readTextureImportSettings({ filterMode: 'nearest', wrapMode: 'clamp' })).toEqual({ filter: 'nearest', wrap: 'clamp' });
+    expect(readTextureImportSettings({ filterMode: 'linear' })).toEqual({ filter: 'linear', wrap: undefined });
+  });
+  it('is undefined when neither is present (loader defaults) or no importer', () => {
+    expect(readTextureImportSettings({ maxSize: 2048 })).toBeUndefined();
+    expect(readTextureImportSettings(undefined)).toBeUndefined();
+    expect(readTextureImportSettings({})).toBeUndefined();
   });
 });
 

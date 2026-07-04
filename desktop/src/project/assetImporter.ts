@@ -115,6 +115,18 @@ export function buildImporterComponent(type: string, importer: Record<string, un
   return { name: 'Import Settings', label: 'Import Settings', fields };
 }
 
+/** A texture's sampler settings, in the string shape the engine's TextureLoader
+ *  and the runtime importer-resolver consume (filterMode/wrapMode → filter/wrap).
+ *  Undefined when the `.meta` carries neither ⇒ loader defaults. */
+export function readTextureImportSettings(
+  importer: Record<string, unknown> | undefined,
+): { filter?: 'linear' | 'nearest'; wrap?: 'repeat' | 'clamp' | 'mirror' } | undefined {
+  if (!importer) return undefined;
+  const filter = importer.filterMode as 'linear' | 'nearest' | undefined;
+  const wrap = importer.wrapMode as 'repeat' | 'clamp' | 'mirror' | undefined;
+  return filter || wrap ? { filter, wrap } : undefined;
+}
+
 /** Apply one inspector edit to a copy of the `importer` block (dotted keys →
  *  nested), returning the new block. Pure — the caller owns dirty/save. */
 export function applyImporterEdit(

@@ -1791,6 +1791,9 @@ function GenericAssetInspector({ path }: { path: string }) {
       await window.estella.fs.write(path + '.meta', JSON.stringify(meta, null, 2) + '\n');
       setDirty(false);
       await ProjectStore.refreshAssets();
+      // Push filter/wrap to the live gl handle so the edit viewport updates now
+      // (no scene reload); a no-op for types/assets without a live texture.
+      if (type === 'texture' || type === 'sprite') ProjectStore.applyLiveTextureSettings(path);
       Toasts.push('Import settings saved', 'info', 1400);
     } catch (e) {
       Toasts.push(`保存导入设置失败：${String(e)}`, 'error');

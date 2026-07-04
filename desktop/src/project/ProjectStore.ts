@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource } from 'esengine';
+import { getComponent, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap } from 'esengine';
+import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
@@ -108,6 +109,10 @@ class ProjectStoreImpl {
   /** path → uuid (reverse), so a Content Browser drag (which carries a path) can
    *  be turned into a portable `@uuid:` ref for the model. */
   private readonly pathToUuid = new Map<string, string>();
+  /** uuid → the asset's `.meta` importer block, so the edit viewport applies the
+   *  same texture filter/wrap the runtime does (edit == play), and the asset
+   *  inspector's Save can push a live sampler update. */
+  private readonly uuidToImporter = new Map<string, Record<string, unknown>>();
   /** ref → loaded `.esprefab` (PrefabData), for scene load-expand / save-collapse. */
   private readonly prefabCache = new Map<string, PrefabData>();
   /** The latest scene preload result; the Reconciler resolver reads handles from
@@ -372,7 +377,7 @@ class ProjectStoreImpl {
    */
   private async buildAssetRegistry(): Promise<void> {
     if (!this.state) return;
-    let entries: { uuid: string; path: string }[];
+    let entries: { uuid: string; path: string; importer?: Record<string, unknown> }[];
     try {
       ({ entries } = (await window.estella.project.scanAssets()).index);
     } catch (err) {
@@ -381,18 +386,47 @@ class ProjectStoreImpl {
     }
     this.uuidToPath.clear();
     this.pathToUuid.clear();
+    this.uuidToImporter.clear();
     this.prefabCache.clear();
     for (const e of entries) {
       const uuid = e.uuid.toLowerCase();
       this.uuidToPath.set(uuid, e.path);
       this.pathToUuid.set(e.path, uuid);
+      if (e.importer) this.uuidToImporter.set(uuid, e.importer);
     }
 
     const assets = EngineHost.getResource(Assets);
     if (assets) {
       assets.baseUrl = 'estella://project';
       assets.setAssetRefResolver((ref) => this.resolveRef(ref));
+      // Edit viewport honors each texture's `.meta` filter/wrap at load — the same
+      // settings the runtime applies (was runtime-only, so edit ≠ play before).
+      assets.setTextureImportSettingsResolver((ref) => this.textureImportFor(ref));
     }
+  }
+
+  /** The texture filter/wrap for a ref (`@uuid:` or path), from its `.meta`
+   *  importer — the shape `Assets`'s TextureLoader consumes. Undefined ⇒ defaults. */
+  private textureImportFor(ref: string): ReturnType<typeof readTextureImportSettings> {
+    const uuid = ref.startsWith(UUID_PREFIX)
+      ? ref.slice(UUID_PREFIX.length).toLowerCase()
+      : this.pathToUuid.get(ref);
+    return readTextureImportSettings(uuid ? this.uuidToImporter.get(uuid) : undefined);
+  }
+
+  /** Push a texture's just-saved import settings to its LIVE gl handle so the edit
+   *  viewport reflects a filter/wrap change immediately — no scene reload / sprite
+   *  repoint (the handle is updated in place; sprites keep referencing it). Call
+   *  after the asset inspector writes the `.meta` + refreshAssets. */
+  applyLiveTextureSettings(path: string): void {
+    const uuid = this.pathToUuid.get(path);
+    const s = readTextureImportSettings(uuid ? this.uuidToImporter.get(uuid) : undefined);
+    const handle = uuid ? EngineHost.getResource(Assets)?.getTexture(UUID_PREFIX + uuid)?.handle : undefined;
+    if (!s || !handle) return;
+    const filter = s.filter === 'nearest' ? TextureFilter.Nearest : TextureFilter.Linear;
+    const wrap =
+      s.wrap === 'clamp' ? TextureWrap.ClampToEdge : s.wrap === 'mirror' ? TextureWrap.MirroredRepeat : TextureWrap.Repeat;
+    setTextureParams(handle, filter, filter, wrap, wrap);
   }
 
   /** Resolve a serialized asset ref to a project-relative path for the engine
