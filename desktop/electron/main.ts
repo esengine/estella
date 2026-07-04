@@ -186,7 +186,7 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
         await settleFrames(2); // was sleep(400)
       }
     }
-    await settleFrames(4); // was sleep(2500) — dockview + the WebGL viewport paint
+    await settleFrames(12); // was sleep(2500) — let the engine loop spin up + fully paint the WebGL viewport
     const img = await w.webContents.capturePage();
     await writeFile(out, img.toPNG());
     console.log('[screenshot] wrote', out);
