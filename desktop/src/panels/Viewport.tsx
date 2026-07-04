@@ -38,6 +38,13 @@ const toInput = (e: ReactPointerEvent): PointerInput => ({
 // gizmo.ts (GIZMO constants) so the handles a user aims at are the handles the tool
 // hit-tests. Screen y is down, so the world +Y handle points up (negative y). Only
 // move/rotate/scale render a gizmo; the select tool shows just the selection outline.
+// The SVG spans a fixed square centered on the pivot (viewBox origin = 0,0 =
+// pivot), sized to contain the longest handle. A real coordinate space beats the
+// old width/height=0 + overflow:visible trick, which Chromium won't paint outside
+// a zero-size SVG viewport (the gizmo was drawn but invisible).
+const GIZMO_SVG = 180;
+const gizmoViewBox = `${-GIZMO_SVG / 2} ${-GIZMO_SVG / 2} ${GIZMO_SVG} ${GIZMO_SVG}`;
+
 function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | null }) {
   const L = GIZMO.axisLen;
   const B = GIZMO.boxSize;
@@ -52,7 +59,7 @@ function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | nu
   const planeOp = (on: boolean) => (on ? 1 : 0.85);
   if (tool === 'rotate') {
     return (
-      <svg className="gizmo-svg" width="0" height="0" overflow="visible">
+      <svg className="gizmo-svg" width={GIZMO_SVG} height={GIZMO_SVG} viewBox={gizmoViewBox}>
         <circle cx="0" cy="0" r={GIZMO.ringRadius} fill="none" stroke="var(--run)" strokeWidth={active ? 3.5 : 2} />
         <circle cx="0" cy="0" r="2.5" fill="var(--star)" />
       </svg>
@@ -60,7 +67,7 @@ function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | nu
   }
   if (tool === 'scale') {
     return (
-      <svg className="gizmo-svg" width="0" height="0" overflow="visible">
+      <svg className="gizmo-svg" width={GIZMO_SVG} height={GIZMO_SVG} viewBox={gizmoViewBox}>
         <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth={axW(onX)} />
         <rect x={L - B / 2} y={-B / 2} width={B} height={B} fill="var(--error)" opacity={onX ? 1 : 0.95} />
         <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth={axW(onY)} />
@@ -71,7 +78,7 @@ function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | nu
   }
   // move (and any other) → axis arrows + a center plane square
   return (
-    <svg className="gizmo-svg" width="0" height="0" overflow="visible">
+    <svg className="gizmo-svg" width={GIZMO_SVG} height={GIZMO_SVG} viewBox={gizmoViewBox}>
       <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth={axW(onX)} />
       <path d={`M${L} 0 L${L - 9} -4 L${L - 9} 4 Z`} fill="var(--error)" opacity={onX ? 1 : 0.95} />
       <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth={axW(onY)} />
