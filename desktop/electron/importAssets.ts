@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { resolveInRoot, META_EXT } from './projectFs';
+import { importerDefaults } from '../src/project/assetImporter';
 
 const META_VERSION = '2.0';
 
@@ -31,20 +32,6 @@ const EXT_TO_TYPE: Record<string, string> = {
 
 /** The supported import extensions (no leading dot) — used by the file dialog filter. */
 export const IMPORT_EXTENSIONS = Object.keys(EXT_TO_TYPE).map((e) => e.slice(1));
-
-function importerDefaults(type: string): Record<string, unknown> {
-  switch (type) {
-    case 'texture':
-      return { maxSize: 2048, filterMode: 'linear', wrapMode: 'repeat', premultiplyAlpha: false, sliceBorder: { left: 0, right: 0, top: 0, bottom: 0 } };
-    case 'prefab':
-    case 'scene':
-      return { autoMigrate: true };
-    case 'spine':
-      return { defaultSkin: 'default', premultiplyAlpha: false, scale: 1 };
-    default:
-      return {};
-  }
-}
 
 /** A unique destination name in `absDir`: "hero.png" → "hero 2.png" if taken. */
 function uniqueName(absDir: string, name: string): string {

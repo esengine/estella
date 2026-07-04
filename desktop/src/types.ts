@@ -36,6 +36,7 @@ export type InspectorFieldType =
   | 'angle' // 2D rotation: a quaternion shown/edited as Z degrees
   | 'color'
   | 'enum' // an int field with named options, shown as a dropdown
+  | 'select' // a string field with a fixed choice set, shown as a dropdown
   | 'flags' // an int bitmask, shown as a multi-select of its bits
   | 'gradient' // a color-over-life gradient ({ stops: [...] })
   | 'curve' // a scalar over-life curve ({ keys: [...] })
@@ -86,6 +87,8 @@ export interface InspectorField {
   assetType?: string;
   /** For `type: 'enum'` — the selectable options (label + stored int). */
   options?: EnumOption[];
+  /** For `type: 'select'` — the selectable string values. */
+  selectOptions?: string[];
   /**
    * The value this field resets to — the prefab-instance base if the entity is a
    * prefab instance, else the component's registered default. Absent when no base

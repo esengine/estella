@@ -28,9 +28,9 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { AssetIcon, assetTint } from '@/components/icons';
+import { AssetIcon } from '@/components/icons';
 import { Toasts } from '@/store/Toasts';
-import { baseName, assetTypeOf, TYPE_CODE, IMAGE_RE } from '@/project/assetMeta';
+import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
 import { useOutliner } from '@/outliner/OutlinerController';
@@ -45,6 +45,8 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
+import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';
+import { referencingPaths } from '@/project/assetRefs';
 import { ProjectStore } from '@/project/ProjectStore';
 import { confirmDiscard } from '@/project/discardGuard';
 import { MaterialDocument } from '@/material/MaterialDocument';
@@ -1056,7 +1058,12 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   // A string field whose choices depend on the entity's runtime state (e.g. a spine
   // animation/skin name) renders as a dropdown of the live options, falling back to
   // the text field when none are available (no skeleton loaded).
-  const dynOpts = !mixed && !write && field.type === 'string' ? dynamicEnumOptions(comp, field.key, entities[0]) : null;
+  const dynOpts =
+    field.type === 'select'
+      ? field.selectOptions ?? []
+      : !mixed && !write && field.type === 'string'
+        ? dynamicEnumOptions(comp, field.key, entities[0])
+        : null;
   let control;
   if (dynOpts) {
     const cur = String(field.value);
@@ -1684,18 +1691,139 @@ function InputMapAssetInspector({ path }: { path: string }) {
 
 // rows); other assets show their fs metadata + the image/type glyph preview.
 function AssetInspector({ path }: { path: string }) {
-  const name = baseName(path);
-  const type = assetTypeOf(name);
-  const isImage = IMAGE_RE.test(name);
+  const type = assetTypeOf(baseName(path));
   if (isMaterialAsset(path)) {
     return <MaterialAssetInspector path={path} />;
   }
   if (type === 'inputmap') {
     return <InputMapAssetInspector path={path} />;
   }
+  return <GenericAssetInspector path={path} />;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let v = n;
+  let i = -1;
+  do {
+    v /= 1024;
+    i++;
+  } while (v >= 1024 && i < units.length - 1);
+  return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
+}
+
+function MetaRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="cb-mr">
+      <span className="k">{k}</span>
+      <span className="v" style={mono ? undefined : { fontFamily: 'inherit' }} title={v}>
+        {v}
+      </span>
+    </div>
+  );
+}
+
+// The unified asset inspector for every type without a bespoke editor (textures,
+// prefabs, scenes, spine, audio, fonts…). Same chrome + reflection-driven
+// ComponentSection engine as the entity inspector and the Material/InputMap
+// editors: read-only metadata (dimensions / size / uuid / references) plus, for
+// types with an importer schema, editable Import Settings written to the `.meta`
+// sidecar — the UE/Unity "select an asset → edit its import settings" model.
+function GenericAssetInspector({ path }: { path: string }) {
+  const name = baseName(path);
+  const type = assetTypeOf(name);
+  const isImage = IMAGE_RE.test(name);
+
+  const [importer, setImporter] = useState<Record<string, unknown> | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [stat, setStat] = useState<{ size: number; mtimeMs: number } | null>(null);
+  const [dims, setDims] = useState<string | null>(null);
+  const [refCount, setRefCount] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Load the `.meta` importer block on (re)selection.
+  useEffect(() => {
+    let alive = true;
+    setImporter(null);
+    setDirty(false);
+    void window.estella.fs
+      .read(path + '.meta')
+      .then((t) => alive && setImporter(((JSON.parse(t).importer as Record<string, unknown>) ?? {})))
+      .catch(() => alive && setImporter({}));
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+
+  // Metadata: disk stat, image dimensions, and how many assets reference this one.
+  useEffect(() => {
+    let alive = true;
+    setStat(null);
+    setDims(null);
+    setRefCount(null);
+    void window.estella?.fs?.stat(path).then((s) => alive && setStat(s)).catch(() => {});
+    if (isImage) {
+      const img = new Image();
+      img.onload = () => alive && setDims(`${img.naturalWidth} × ${img.naturalHeight}`);
+      img.src = `estella://project/${path}`;
+    }
+    void window.estella.project
+      .scanAssets()
+      .then((r) => alive && setRefCount(referencingPaths(r.index, path).length))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [path, isImage]);
+
+  const assetRef = ProjectStore.assetRef(path);
+  const comp = importer ? buildImporterComponent(type, importer) : null;
+  const write: FieldWrite = (key, _t, value) => {
+    setImporter((cur) => (cur ? applyImporterEdit(cur, key, value as InspectorFieldValue) : cur));
+    setDirty(true);
+  };
+
+  const save = async () => {
+    try {
+      const meta = JSON.parse(await window.estella.fs.read(path + '.meta'));
+      meta.importer = importer;
+      await window.estella.fs.write(path + '.meta', JSON.stringify(meta, null, 2) + '\n');
+      setDirty(false);
+      await ProjectStore.refreshAssets();
+      Toasts.push('Import settings saved', 'info', 1400);
+    } catch (e) {
+      Toasts.push(`保存导入设置失败：${String(e)}`, 'error');
+    }
+  };
+
   return (
     <div className="insp">
-      <div className="cb-detail-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <div className="ent-head">
+        <div className="ent-row1">
+          <div className="ent-name">{name}</div>
+          {comp && (
+            <button
+              type="button"
+              className="primary"
+              disabled={!dirty}
+              onClick={() => void save()}
+              title="Save import settings"
+            >
+              <Save size={13} strokeWidth={1.9} /> Save
+            </button>
+          )}
+        </div>
+        <div className="ent-meta">
+          <span className="pill">
+            <span className="pk">Type</span>
+            {type}
+          </span>
+          {dirty && <span className="pill">Unsaved</span>}
+        </div>
+      </div>
+
+      <div className="insp-body">
         <div className="cb-prev">
           <div className="pv">
             {isImage ? (
@@ -1705,24 +1833,27 @@ function AssetInspector({ path }: { path: string }) {
             )}
           </div>
         </div>
-        <div className="cb-dt">
-          <div className="an">
-            {name}
-            {TYPE_CODE[type] && (
-              <span className="tg" style={{ background: assetTint(type) }}>
-                {TYPE_CODE[type]}
-              </span>
-            )}
-          </div>
-          <div className="ap">{path}</div>
-          <div className="cb-meta">
-            <div className="cb-mr">
-              <span className="k">Type</span>
-              <span className="v">{type}</span>
-            </div>
-          </div>
+
+        <div className="cb-meta" style={{ padding: '4px 10px 0' }}>
+          <MetaRow k="Path" v={path} mono />
+          {dims && <MetaRow k="Dimensions" v={dims} />}
+          {stat && <MetaRow k="Size" v={formatBytes(stat.size)} />}
+          {stat && <MetaRow k="Modified" v={new Date(stat.mtimeMs).toLocaleString()} />}
+          {assetRef && <MetaRow k="UUID" v={assetRef} mono />}
+          {refCount != null && <MetaRow k="References" v={String(refCount)} />}
         </div>
+
+        {comp && (
+          <ComponentSection
+            entities={[]}
+            comp={comp}
+            collapsed={collapsed}
+            onToggle={() => setCollapsed((c) => !c)}
+            write={write}
+          />
+        )}
       </div>
+
       <div className="cb-act">
         {type === 'scene' && (
           <button

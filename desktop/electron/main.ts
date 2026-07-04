@@ -155,6 +155,15 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       })()`);
       await sleep(800);
     }
+    const selectAsset = process.env.ESTELLA_SHOT_ASSET;
+    if (selectAsset) {
+      await exec(`window.__estellaEditor.selectAsset(${JSON.stringify(selectAsset)})`);
+      await sleep(1000);
+      if (process.env.ESTELLA_SHOT_ASSET_SCROLL) {
+        await exec(`(() => { const b = document.querySelector('.insp .insp-body'); if (b) b.scrollTop = b.scrollHeight; })()`);
+        await sleep(400);
+      }
+    }
     await sleep(2500); // dockview panels + the WebGL viewport settle
     const img = await w.webContents.capturePage();
     await writeFile(out, img.toPNG());
