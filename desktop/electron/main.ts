@@ -128,43 +128,65 @@ let win: BrowserWindow | null = null;
 async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
   const exec = (code: string): Promise<unknown> =>
     w.webContents.executeJavaScript(code, true).catch(() => undefined);
-  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-  try {
-    let ready = false;
-    for (let i = 0; i < 100; i++) {
-      if (await exec('!!window.__estellaEditor')) { ready = true; break; }
-      await sleep(100);
+
+  // Deterministic waits — poll a real in-page condition instead of guessing at a
+  // wall-clock delay (the delay is either flaky-short on a slow machine or wasted
+  // on a fast one). Returns false + warns on timeout so a screenshot of a
+  // degraded state still gets captured rather than hanging.
+  const waitFor = async (expr: string, label: string, timeoutMs = 12000): Promise<boolean> => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (await exec(expr)) return true;
+      await new Promise((r) => setTimeout(r, 50));
     }
-    if (!ready) throw new Error('automation hook never attached');
+    console.warn(`[screenshot] waitFor timed out: ${label}`);
+    return false;
+  };
+  // Settle N painted frames — frame-deterministic across machines (replaces the
+  // "let the WebGL viewport + dockview settle" blind sleep).
+  const settleFrames = (n: number): Promise<unknown> =>
+    exec(`new Promise((r) => { let k = ${n}; const t = () => (--k <= 0 ? r(true) : requestAnimationFrame(t)); requestAnimationFrame(t); })`);
+
+  const sceneReady = '(window.__estellaEditor.surface.getSceneTree() || []).length > 0';
+
+  try {
+    if (!(await waitFor('!!window.__estellaEditor', 'automation hook'))) {
+      throw new Error('automation hook never attached');
+    }
 
     const project = process.env.ESTELLA_SHOT_PROJECT;
     const scene = process.env.ESTELLA_SHOT_SCENE;
     if (project) {
       const ok = await exec(`window.__estellaEditor.open(${JSON.stringify(project)})`);
       if (ok) await exec('window.__estellaEditor.enterEditor()');
-      await sleep(1500);
-      if (scene) { await exec(`window.__estellaEditor.openScene(${JSON.stringify(scene)})`); await sleep(1500); }
+      await waitFor(sceneReady, 'editor mounted + scene projected'); // was sleep(1500)
+      if (scene) {
+        await exec(`window.__estellaEditor.openScene(${JSON.stringify(scene)})`);
+        await waitFor(sceneReady, 'scene loaded'); // was sleep(1500)
+      }
     }
     const selectName = process.env.ESTELLA_SHOT_SELECT;
     if (selectName) {
-      await exec(`(async () => {
+      await exec(`(() => {
         const s = window.__estellaEditor.surface;
-        const tree = await s.getSceneTree();
-        const hit = (tree || []).find((n) => n.name === ${JSON.stringify(selectName)});
+        const hit = (s.getSceneTree() || []).find((n) => n.name === ${JSON.stringify(selectName)});
         if (hit) s.select(hit.id);
       })()`);
-      await sleep(800);
+      await waitFor('window.__estellaEditor.surface.getSelection() != null', 'entity selected'); // was sleep(800)
     }
     const selectAsset = process.env.ESTELLA_SHOT_ASSET;
     if (selectAsset) {
       await exec(`window.__estellaEditor.selectAsset(${JSON.stringify(selectAsset)})`);
-      await sleep(1000);
+      // The asset inspector mounts its metadata rows once selected, and (for a
+      // type with importer settings) its ComponentSection once the `.meta` loads.
+      await waitFor('!!document.querySelector(".insp .cb-meta")', 'asset inspector mounted'); // was sleep(1000)
       if (process.env.ESTELLA_SHOT_ASSET_SCROLL) {
+        await waitFor('!!document.querySelector(".insp .comp")', 'import settings rendered', 4000);
         await exec(`(() => { const b = document.querySelector('.insp .insp-body'); if (b) b.scrollTop = b.scrollHeight; })()`);
-        await sleep(400);
+        await settleFrames(2); // was sleep(400)
       }
     }
-    await sleep(2500); // dockview panels + the WebGL viewport settle
+    await settleFrames(4); // was sleep(2500) — dockview + the WebGL viewport paint
     const img = await w.webContents.capturePage();
     await writeFile(out, img.toPNG());
     console.log('[screenshot] wrote', out);
