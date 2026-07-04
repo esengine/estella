@@ -34,6 +34,7 @@ import { App } from './App';
 import { ProjectStore } from './project/ProjectStore';
 import { useEditorStore } from './store/editorStore';
 import { useSelection } from './store/selectionStore';
+import { PlayRealm } from './engine/PlayRealm';
 import { EditorControlSurface } from './engine/EditorSession';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
@@ -58,6 +59,8 @@ if (new URLSearchParams(location.search).has('automation')) {
     enterEditor: () => useEditorStore.getState().enterEditor(),
     openScene: (rel: string) => ProjectStore.openScene(rel),
     selectAsset: (path: string | null) => useSelection.getState().selectAsset(path),
+    play: () => useEditorStore.getState().togglePlay(),
+    playState: () => PlayRealm.getSnapshot(),
     surface: EditorControlSurface,
   };
 }

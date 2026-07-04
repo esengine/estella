@@ -64,18 +64,28 @@ export interface PlayRealmRuntimeConfig {
  * `estella://` is fetchable because it's a privileged supportFetchAPI scheme; the
  * editor returns `access-control-allow-origin: *`.
  */
-function createPlayRealmSource(manifest: Record<string, string>): RuntimeAssetSource {
-    const backend = new HttpBackend({ baseUrl: '' });
-    const resolveRef = (ref: string): string => {
-        if (!ref.startsWith(UUID_PREFIX)) return ref;
+/**
+ * Resolve a play-realm asset ref to a fetchable URL: `@uuid:` refs go through the
+ * editor-supplied manifest; any other ref is a project-relative path (spine
+ * skel/atlas, …) and resolves against the project root, not the `.esengine/play/`
+ * subdir the realm runs from. Pure.
+ */
+export function resolvePlayAssetRef(ref: string, manifest: Record<string, string>, assetBaseUrl?: string): string {
+    if (ref.startsWith(UUID_PREFIX)) {
         const url = manifest[ref.slice(UUID_PREFIX.length).toLowerCase()];
         if (!url) throw new Error(`asset not in play manifest: ${ref}`);
         return url;
-    };
+    }
+    const base = (assetBaseUrl ?? '').replace(/\/$/, '');
+    return base ? `${base}/${ref.replace(/^\//, '')}` : ref;
+}
+
+function createPlayRealmSource(manifest: Record<string, string>, assetBaseUrl?: string): RuntimeAssetSource {
+    const backend = new HttpBackend({ baseUrl: '' });
     return {
         backend,
         decodePixels: (path) => fetchDecodePixels(backend.resolveUrl(path)),
-        resolveRef,
+        resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl),
     };
 }
 
@@ -86,10 +96,9 @@ function createPlayRealmSource(manifest: Record<string, string>): RuntimeAssetSo
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
-    const source = createPlayRealmSource(assetManifest);
-    // Point the audio channel at the project root: playSFX/playBGM take project-
-    // relative paths, not uuid refs, so without this they resolve against the
-    // play-realm subdir and 404.
+    const source = createPlayRealmSource(assetManifest, assetBaseUrl);
+    // Audio has its own loader (not the asset source), so point it at the project
+    // root too: playSFX/playBGM take project-relative paths, not uuid refs.
     if (assetBaseUrl && app.hasResource(Audio)) {
         app.getResource(Audio).baseUrl = assetBaseUrl;
     }

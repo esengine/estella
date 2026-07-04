@@ -186,6 +186,13 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
         await settleFrames(2); // was sleep(400)
       }
     }
+    if (process.env.ESTELLA_SHOT_PLAY) {
+      await exec('window.__estellaEditor.play()');
+      await waitFor('window.__estellaEditor.playState().ready || !!window.__estellaEditor.playState().error', 'play realm ready', 20000);
+      const err = await exec('window.__estellaEditor.playState().error');
+      if (err) console.log('[play] error:', err);
+      await settleFrames(30); // let the game loop run so animation/assets settle
+    }
     await settleFrames(12); // was sleep(2500) — let the engine loop spin up + fully paint the WebGL viewport
     const img = await w.webContents.capturePage();
     await writeFile(out, img.toPNG());
