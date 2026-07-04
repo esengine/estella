@@ -148,10 +148,15 @@ export class SceneModelImpl {
     if (!e) return;
     let comp = e.components.find((c) => c.type === compType);
     if (!comp) {
+      if (value === undefined) return;
       comp = { type: compType, data: {} } as SceneComponent;
       e.components.push(comp);
     }
-    (comp.data as Record<string, unknown>)[key] = value;
+    const data = comp.data as Record<string, unknown>;
+    // Never store `undefined` (undo of an edit to an omitted field): a key present
+    // but undefined drops from the inspector and crashes the wasm projection.
+    if (value === undefined) delete data[key];
+    else data[key] = value;
     this.emit({ kind: 'componentChanged', sourceId, type: compType });
   }
 

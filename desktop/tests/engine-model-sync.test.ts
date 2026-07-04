@@ -27,6 +27,7 @@ vi.mock('@/engine/EngineHost', () => ({
 }));
 
 import { EditorSession } from '@/engine/EditorSession';
+import { inspectorFields } from '@/engine/schema';
 
 function sceneWithUnknown(): SceneData {
     return {
@@ -104,15 +105,19 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         expect(t.position.x).toBe(0);
     });
 
-    it('undo of an edit to a field the Transform omitted restores the default, not undefined (was a wasm crash)', () => {
-        // Authored scenes routinely omit rotation (it defaults to identity). Editing it
-        // records before=undefined, so undo used to project rotation:undefined → the
-        // wasm bindings threw "Cannot use 'in' operator to search for 'w' in undefined".
+    it('undo of an edit to a field the Transform omitted restores the default (no wasm crash, field stays in the inspector)', () => {
+        // A Transform that omits rotation (defaults to identity); editing it records
+        // before=undefined, which used to crash wasm + drop rotation from the inspector.
         const src = S.model.addEntity('Partial', [{ type: 'Transform', data: { position: { x: 1, y: 2, z: 0 } } }] as never);
         const rt = S.model.runtimeFor(src)!;
         S.commands.setField(src, 'Transform', 'rotation', 'angle', 45);
+
         expect(() => S.history.undo()).not.toThrow();
-        expect((host.world.get(rt, Transform).rotation as { w: number }).w).toBe(1); // identity, not undefined
+        expect((host.world.get(rt, Transform).rotation as { w: number }).w).toBe(1);
+
+        const tData = S.model.entityBySource(src)!.components.find((c) => c.type === 'Transform')!.data as Record<string, unknown>;
+        expect('rotation' in tData).toBe(false); // absent, not present-and-undefined
+        expect(inspectorFields('Transform', tData).some((f) => f.key === 'rotation')).toBe(true);
     });
 
     it('addEntity / undo is reflected in the model', () => {

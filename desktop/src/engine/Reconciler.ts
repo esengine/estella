@@ -258,10 +258,7 @@ export class ReconcilerImpl {
     const defaults = componentDefaults(def);
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(defaults)) {
-      // A field that is absent OR explicitly undefined (e.g. undo restoring a
-      // partial component's untouched field) falls back to the default — the wasm
-      // bindings reject an undefined POD field (`'w' in undefined`).
-      out[key] = data[key] !== undefined ? this.resolveRefs(data[key]) : defaults[key];
+      out[key] = key in data ? this.resolveRefs(data[key]) : defaults[key];
     }
     return out;
   }
