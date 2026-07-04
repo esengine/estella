@@ -1827,26 +1827,21 @@ function GenericAssetInspector({ path }: { path: string }) {
       </div>
 
       <div className="insp-body">
-        <div className="cb-prev">
+        {/* A compact preview for a quick visual ID — kept short so the editable
+            Import Settings sit above the fold (the reason to open an asset). */}
+        <div className="cb-prev" style={{ height: 108 }}>
           <div className="pv">
             {isImage ? (
               <img src={`estella://project/${path}`} alt="" draggable={false} />
             ) : (
-              <AssetIcon type={type} size={48} />
+              <AssetIcon type={type} size={44} />
             )}
           </div>
         </div>
 
-        <div className="cb-meta" style={{ padding: '4px 10px 0' }}>
-          <MetaRow k="Path" v={path} mono />
-          {dims && <MetaRow k="Dimensions" v={dims} />}
-          {stat && <MetaRow k="Size" v={formatBytes(stat.size)} />}
-          {stat && <MetaRow k="Modified" v={new Date(stat.mtimeMs).toLocaleString()} />}
-          {assetRef && <MetaRow k="UUID" v={assetRef} mono />}
-          {refCount != null && <MetaRow k="References" v={String(refCount)} />}
-        </div>
-
-        {comp && (
+        {/* Editable import settings first (the primary reason to select an asset),
+            then read-only metadata — mirrors Unity's importer inspector. */}
+        {comp ? (
           <ComponentSection
             entities={[]}
             comp={comp}
@@ -1854,7 +1849,20 @@ function GenericAssetInspector({ path }: { path: string }) {
             onToggle={() => setCollapsed((c) => !c)}
             write={write}
           />
+        ) : (
+          <div className="insp-empty" style={{ padding: '14px 12px' }}>
+            <div className="es">This asset type has no import settings.</div>
+          </div>
         )}
+
+        <div className="cb-meta" style={{ padding: '8px 10px 0' }}>
+          <MetaRow k="Path" v={path} mono />
+          {dims && <MetaRow k="Dimensions" v={dims} />}
+          {stat && <MetaRow k="Size" v={formatBytes(stat.size)} />}
+          {stat && <MetaRow k="Modified" v={new Date(stat.mtimeMs).toLocaleString()} />}
+          {assetRef && <MetaRow k="UUID" v={assetRef} mono />}
+          {refCount != null && <MetaRow k="References" v={String(refCount)} />}
+        </div>
       </div>
 
       <div className="cb-act">
