@@ -104,6 +104,17 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         expect(t.position.x).toBe(0);
     });
 
+    it('undo of an edit to a field the Transform omitted restores the default, not undefined (was a wasm crash)', () => {
+        // Authored scenes routinely omit rotation (it defaults to identity). Editing it
+        // records before=undefined, so undo used to project rotation:undefined → the
+        // wasm bindings threw "Cannot use 'in' operator to search for 'w' in undefined".
+        const src = S.model.addEntity('Partial', [{ type: 'Transform', data: { position: { x: 1, y: 2, z: 0 } } }] as never);
+        const rt = S.model.runtimeFor(src)!;
+        S.commands.setField(src, 'Transform', 'rotation', 'angle', 45);
+        expect(() => S.history.undo()).not.toThrow();
+        expect((host.world.get(rt, Transform).rotation as { w: number }).w).toBe(1); // identity, not undefined
+    });
+
     it('addEntity / undo is reflected in the model', () => {
         const before = S.model.serialize()!.entities.length;
         S.commands.addEntity();
