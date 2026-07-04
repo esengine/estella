@@ -11,7 +11,7 @@ import { GIZMO } from '@/tools/gizmo';
 
 // Shared mutable test state the module mocks read (hoisted above the vi.mock calls).
 const h = vi.hoisted(() => ({
-  pick: { entity: null as number | null, rect: [] as number[] },
+  pick: { entity: null as number | null, rect: [] as number[], stack: undefined as number[] | undefined },
   pos: new Map<number, { x: number; y: number }>(),
   calls: { setXY: [] as Array<[number, number, number]>, dup: [] as number[], commit: 0, abort: 0 },
 }));
@@ -25,6 +25,7 @@ vi.mock('@/engine/ViewportController', () => ({
     worldToClient: (x: number, y: number) => ({ x, y }),
     getEntityXY: (rt: number) => h.pos.get(rt) ?? { x: 0, y: 0 },
     pickEntity: () => h.pick.entity,
+    pickEntitiesAt: () => (h.pick.stack ?? (h.pick.entity != null ? [h.pick.entity] : [])),
     pickInRect: () => h.pick.rect,
   },
 }));
@@ -58,6 +59,7 @@ const ev = (x: number, y: number, mod: Partial<{ shift: boolean; alt: boolean }>
 beforeEach(() => {
   h.pick.entity = null;
   h.pick.rect = [];
+  h.pick.stack = undefined;
   h.pos.clear();
   h.calls.setXY = [];
   h.calls.dup = [];
@@ -122,6 +124,31 @@ describe('entity pick → select + move', () => {
     t.onPointerMove(ev(140, 100), ctx);
     t.onPointerUp(ev(140, 100), ctx);
     expect(h.calls.setXY.at(-1)).toEqual([107, 140, 100]); // copy tracks the cursor from the original's start
+  });
+
+  it('repeated clicks at the same spot cycle through the overlapping stack', () => {
+    h.pick.stack = [7, 8, 9]; // topmost-first, all under (100,100)
+    for (const id of [7, 8, 9]) h.pos.set(id, { x: 100, y: 100 });
+    const t = TRANSFORM_TOOLS.select;
+    const click = () => {
+      t.onPointerDown(ev(100, 100), ctx);
+      t.onPointerUp(ev(100, 100), ctx);
+      return useSelection.getState().selectedId;
+    };
+    expect([click(), click(), click(), click()]).toEqual([7, 8, 9, 7]);
+  });
+
+  it('a drag grabs the selected object instead of cycling', () => {
+    h.pick.stack = [7, 8];
+    h.pos.set(7, { x: 100, y: 100 });
+    const t = TRANSFORM_TOOLS.move;
+    t.onPointerDown(ev(100, 100), ctx);
+    t.onPointerUp(ev(100, 100), ctx); // click 1 → 7
+    t.onPointerDown(ev(100, 100), ctx);
+    t.onPointerMove(ev(140, 100), ctx); // drag past the slop
+    t.onPointerUp(ev(140, 100), ctx);
+    expect(useSelection.getState().selectedId).toBe(7); // stayed on 7, moved it
+    expect(h.calls.setXY.at(-1)).toEqual([7, 140, 100]);
   });
 });
 

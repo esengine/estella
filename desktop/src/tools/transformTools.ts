@@ -10,7 +10,7 @@
  *             (Alt duplicates first);
  *          3. empty space → a marquee box-select.
  *        A stroke is one undo transaction; group rotate/scale orbit the selection's
- *        shared pivot, so multi-select transforms behave like UE's.
+ *        shared pivot, so a multi-selection transforms as one rigid group.
  */
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands, type EditorTransaction } from '@/engine/SceneCommands';
@@ -193,7 +193,7 @@ function applyMove(d: Drag, curWorld: Pt): void {
   const ed = useEditorStore.getState();
   if (ed.snapping && d.targets.length) {
     // Snap the primary's resulting position to the grid, apply that delta to all,
-    // so the group keeps its relative layout (UE-style group grid snap).
+    // so the group keeps its relative layout.
     const p0 = d.targets[0].start;
     if (d.axis !== 'y') dx = snapTo(p0.x + dx, ed.snapStep) - p0.x;
     if (d.axis !== 'x') dy = snapTo(p0.y + dy, ed.snapStep) - p0.y;
@@ -231,9 +231,38 @@ function applyScale(d: Drag, cur: Pt): void {
   }
 }
 
+/** Repeated clicks within this pixel radius count as the same spot; a press that
+ *  travels farther is a drag, not a click. */
+const CLICK_SLOP = 4;
+
+export interface CycleState {
+  x: number;
+  y: number;
+  key: string;
+  idx: number;
+}
+
+const stackKey = (stack: readonly EntityId[]) => stack.join(',');
+
+/** True when a click at (x,y) continues the click-through walk stored in `c`. */
+export function sameCycleSpot(c: CycleState | null, key: string, x: number, y: number): boolean {
+  return c != null && c.key === key && Math.abs(c.x - x) <= CLICK_SLOP && Math.abs(c.y - y) <= CLICK_SLOP;
+}
+
+/** Next click-through pick: the topmost, or the next one down when the same spot on
+ *  the same stack is re-clicked (wrapping). Null when there's nothing to cycle. */
+export function stepCycle(stack: readonly EntityId[], c: CycleState | null, x: number, y: number): { pick: EntityId; cycle: CycleState } | null {
+  if (stack.length < 2) return null;
+  const key = stackKey(stack);
+  const idx = sameCycleSpot(c, key, x, y) ? (c!.idx + 1) % stack.length : 0;
+  return { pick: stack[idx], cycle: { x, y, key, idx } };
+}
+
 function makeTransformTool(mode: ToolMode): EditorTool {
   let drag: Drag | null = null;
   let marquee: MarqueeState | null = null;
+  let pendingClick: { downX: number; downY: number; stack: EntityId[] } | null = null;
+  let cycle: CycleState | null = null;
   // The select tool shares the move drag (click selects, drag moves) but shows no
   // transform gizmo; move/rotate/scale do. kind === the tool's transform.
   const kind: Kind = mode === 'rotate' ? 'rotate' : mode === 'scale' ? 'scale' : 'move';
@@ -266,16 +295,22 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       }
 
       // 2) Pick an entity → select + free transform (Shift toggles, Alt duplicates).
-      const rtId = ViewportController.pickEntity(p.clientX, p.clientY);
-      const hitSource = rtId != null ? SceneModel.sourceFor(rtId) ?? null : null;
+      const stack = ViewportController.pickEntitiesAt(p.clientX, p.clientY)
+        .map((rt) => SceneModel.sourceFor(rt))
+        .filter((s): s is EntityId => s != null);
+      const hitSource = stack[0] ?? null;
       if (hitSource != null) {
         if (p.shift) {
-          sel.toggleSelect(hitSource); // selection edit only; no drag
+          sel.toggleSelect(hitSource);
+          cycle = null;
           return false;
         }
-        const inSel = sel.selectedIds.has(hitSource);
-        if (!inSel) sel.select(hitSource);
-        const ids = inSel ? [...sel.selectedIds] : [hitSource];
+        // Fresh click selects the topmost; mid-cycle keeps the current pick so
+        // pointer-up can advance it (and a drag still grabs the selected object).
+        const cycling = sameCycleSpot(cycle, stack.join(','), p.clientX, p.clientY);
+        if (!cycling && !sel.selectedIds.has(hitSource)) sel.select(hitSource);
+        pendingClick = { downX: p.clientX, downY: p.clientY, stack };
+        const ids = [...useSelection.getState().selectedIds];
 
         let targets: Target[];
         let pivotWorld: Pt | null;
@@ -295,12 +330,19 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       }
 
       // 3) Empty space → marquee box-select (Shift = additive).
+      cycle = null;
       marquee = { downX: p.clientX, downY: p.clientY, additive: p.shift, base: new Set(sel.selectedIds) };
       ctx.capture(p.pointerId);
       return true;
     },
 
     onPointerMove(p) {
+      // A press that travels past the slop is a drag, not a click — disarm the
+      // click-through cycle so releasing won't advance the selection.
+      if (pendingClick && (Math.abs(p.clientX - pendingClick.downX) > CLICK_SLOP || Math.abs(p.clientY - pendingClick.downY) > CLICK_SLOP)) {
+        pendingClick = null;
+        cycle = null;
+      }
       if (drag) {
         const origin = canvasOrigin();
         const cur: Pt = origin
@@ -332,6 +374,15 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         drag.tx.commit();
         drag = null;
         useEditorStore.getState().setActiveGizmoAxis(null);
+        // A bare click (no drag) on overlapping entities walks to the next one down.
+        const stepped = pendingClick && stepCycle(pendingClick.stack, cycle, p.clientX, p.clientY);
+        pendingClick = null;
+        if (stepped) {
+          useSelection.getState().select(stepped.pick);
+          cycle = stepped.cycle;
+        } else {
+          cycle = null;
+        }
         return;
       }
       if (marquee) {
@@ -368,6 +419,8 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       }
       Marquee.set(null);
       marquee = null;
+      pendingClick = null;
+      cycle = null;
     },
   };
 }

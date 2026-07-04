@@ -135,31 +135,37 @@ export const ViewportController = {
     return hit;
   },
 
-  /** Topmost entity under the pointer — UI (screen-space) first, then a world OBB. */
-  pickEntity(clientX: number, clientY: number): EntityId | null {
+  /** Selectable entities under the pointer, topmost-first (UI, then world by
+   *  descending layer, later-drawn winning ties). `pickEntity` is its head;
+   *  click-through cycling walks the rest. */
+  pickEntitiesAt(clientX: number, clientY: number): EntityId[] {
+    const out: EntityId[] = [];
     const ui = this.pickUIEntity(clientX, clientY);
-    if (ui != null) return ui;
+    if (ui != null) out.push(ui);
 
     const world = EngineHost.world;
     const wp = this.canvasToWorld(clientX, clientY);
-    if (!world || !wp) return null;
-
-    let best: EntityId | null = null;
-    let bestLayer = -Infinity;
-    for (const e of world.getAllEntities()) {
-      if (!world.has(e, Transform)) continue;
-      // Locked / editor-hidden entities aren't click-selectable in the viewport.
-      const src = SceneModel.sourceFor(e);
-      if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) continue;
-      const b = this.entityBounds(e);
-      if (!b || !pointInOBB(wp.x, wp.y, b)) continue;
-      const layer = world.has(e, Sprite) ? world.get(e, Sprite).layer : ICON_PICK_LAYER;
-      if (layer >= bestLayer) {
-        bestLayer = layer;
-        best = e;
+    if (world && wp) {
+      const hits: { e: EntityId; layer: number; i: number }[] = [];
+      for (const e of world.getAllEntities()) {
+        if (!world.has(e, Transform)) continue;
+        // Locked / editor-hidden entities aren't click-selectable in the viewport.
+        const src = SceneModel.sourceFor(e);
+        if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) continue;
+        const b = this.entityBounds(e);
+        if (!b || !pointInOBB(wp.x, wp.y, b)) continue;
+        const layer = world.has(e, Sprite) ? world.get(e, Sprite).layer : ICON_PICK_LAYER;
+        hits.push({ e, layer, i: hits.length });
       }
+      hits.sort((a, b) => b.layer - a.layer || b.i - a.i);
+      for (const h of hits) out.push(h.e);
     }
-    return best;
+    return out;
+  },
+
+  /** Topmost entity under the pointer — UI (screen-space) first, then a world OBB. */
+  pickEntity(clientX: number, clientY: number): EntityId | null {
+    return this.pickEntitiesAt(clientX, clientY)[0] ?? null;
   },
 
   /** Entities whose screen bounds intersect a client-space rect (marquee box-select). */
