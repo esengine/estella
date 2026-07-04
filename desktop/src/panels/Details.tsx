@@ -1724,12 +1724,9 @@ function MetaRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   );
 }
 
-// The unified asset inspector for every type without a bespoke editor (textures,
-// prefabs, scenes, spine, audio, fonts…). Same chrome + reflection-driven
-// ComponentSection engine as the entity inspector and the Material/InputMap
-// editors: read-only metadata (dimensions / size / uuid / references) plus, for
-// types with an importer schema, editable Import Settings written to the `.meta`
-// sidecar — the UE/Unity "select an asset → edit its import settings" model.
+// The asset inspector for every type without a bespoke editor. Renders read-only
+// metadata plus, for types with an importer schema, editable Import Settings
+// (written to the `.meta` sidecar) through the shared ComponentSection engine.
 function GenericAssetInspector({ path }: { path: string }) {
   const name = baseName(path);
   const type = assetTypeOf(name);
@@ -1839,8 +1836,8 @@ function GenericAssetInspector({ path }: { path: string }) {
           </div>
         </div>
 
-        {/* Editable import settings first (the primary reason to select an asset),
-            then read-only metadata — mirrors Unity's importer inspector. */}
+        {/* Editable import settings first (the reason to select an asset), then
+            read-only metadata. */}
         {comp ? (
           <ComponentSection
             entities={[]}

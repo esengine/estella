@@ -2,18 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  assetImporter.ts
- * @brief Single source of truth for per-type asset IMPORT SETTINGS — the fields
- *        an asset carries in its `.meta` `importer` block (a texture's filter /
- *        wrap / max-size, a spine's scale, …). One registry drives BOTH the
- *        import-time defaults (electron/importAssets writes them into a fresh
- *        `.meta`) AND the editor's asset inspector (which renders + edits them
- *        through the same reflection-driven ComponentSection as ECS components).
- *        Deriving defaults from the same specs means import and inspector can't
- *        drift. The runtime consumers of these settings live in the SDK
- *        (runtimeLoader / runtimeAssets — filter/wrap/sliceBorder) and the cook.
- *
- * DOM/engine-free so it unit-tests and is importable from the Electron main
- * process (the type import is erased at build).
+ * @brief Single source of truth for per-type asset import settings (the `.meta`
+ *        `importer` block). One registry produces both the import-time defaults and
+ *        the inspector's editable fields, so the two can't drift. DOM/engine-free
+ *        (importable from the Electron main process; the type import is erased).
  */
 import type { InspectorField, InspectorComponent, InspectorFieldValue } from '@/types';
 

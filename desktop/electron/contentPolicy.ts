@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Single authority on what counts as browsable project CONTENT.
- *
- * Four enumerators walk the project — the Content Browser's readDir, its
- * subtree search, the AssetDatabase scan, and the fs watcher — and must agree
- * on what is visible: `.meta` sidecars are asset-pipeline internals (identity
- * travels with its asset through rename/duplicate/trash, never shown as its
- * own entry), dot entries are editor/VCS plumbing, and code/build output dirs
- * are not content. Any divergence is a user-visible bug (e.g. `.meta` files
- * appearing in the Content Browser). Pure (no I/O) → unit-testable.
+ * @file  Single authority on what counts as browsable project content, shared by
+ *        every enumerator (readDir, subtree search, asset scan, fs watcher) so they
+ *        can't disagree. `.meta` sidecars and dot entries are pipeline/plumbing, not
+ *        content. Pure (no I/O) → unit-testable.
  */
 
 /** Sidecar suffix carrying an asset's uuid/type/importer (see assetDb). */
@@ -25,11 +20,8 @@ export const isContentDir = (name: string): boolean =>
 export const isContentFile = (name: string): boolean =>
   !name.startsWith('.') && !name.endsWith(META_EXT);
 
-/**
- * True when any segment of a project-relative path leaves content space —
- * the watcher's noise filter. Note `.meta` files themselves ARE watched:
- * an external sidecar edit (git pull) must re-scan the asset registry.
- */
+/** True when any path segment leaves content space (the watcher's noise filter).
+ *  `.meta` files themselves stay watched — an external edit must re-scan. */
 export function isNonContentPath(rel: string): boolean {
   return rel
     .replace(/\\/g, '/')
