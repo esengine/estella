@@ -54,7 +54,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
 // editing canvases (Material Graph / Tilemap / Tileset) are NOT bottom tabs — they
 // open on-demand as document tabs beside the Viewport (dockApi.openDocument),
 // matching UE/Unity. The Content Drawer (Ctrl+Space) is a separate overlay.
-const LAYOUT_KEY = 'estella.editor.layout.v6';
+export const LAYOUT_KEY = 'estella.editor.layout.v6';
 
 function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   // Viewport is the anchor; the right column stacks Outliner over Details.

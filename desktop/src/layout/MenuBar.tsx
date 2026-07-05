@@ -7,14 +7,13 @@
 // region; the menus, dropdowns, and window controls opt out of dragging.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { WindowControls } from '@/layout/WindowControls';
+import { LAYOUT_KEY } from '@/layout/DockLayout';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { Toasts } from '@/store/Toasts';
 import { MenuItems, type MenuItem } from '@/components/Menu';
 import { commands, formatKeybinding } from '@/commands';
-
-const LAYOUT_KEY = 'estella.editor.layout.v1';
 
 interface MenuDef {
   title: string;
