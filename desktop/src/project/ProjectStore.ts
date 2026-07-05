@@ -150,18 +150,30 @@ class ProjectStoreImpl {
       console.warn('[project] fs bridge unavailable (not running under Electron)');
       return false;
     }
-    const opened = await bridge.project.openDialog();
-    if (!opened) return false;
-    await this.adopted(opened);
-    return true;
+    // Picking a folder without a project.esproject rejects in the main process;
+    // surface it as a toast instead of an unhandled rejection.
+    try {
+      const opened = await bridge.project.openDialog();
+      if (!opened) return false;
+      await this.adopted(opened);
+      return true;
+    } catch (e) {
+      Toasts.push(`Could not open project: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      return false;
+    }
   }
 
   /** Open a project by absolute root path (e.g. a recent / dev default). */
   async open(root: string): Promise<boolean> {
     const bridge = window.estella;
     if (!bridge?.project) return false;
-    await this.adopted(await bridge.project.open(root));
-    return true;
+    try {
+      await this.adopted(await bridge.project.open(root));
+      return true;
+    } catch (e) {
+      Toasts.push(`Could not open project: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      return false;
+    }
   }
 
   /** Create a project from a template at `<location>/<name>`, then open it. */
@@ -244,9 +256,12 @@ class ProjectStoreImpl {
     const dropped = unknownComponentTypes(raw);
     if (dropped.length > 0) {
       console.warn(
-        `[project] scene "${rel}" uses components this editor's engine hasn't ` +
-        `loaded (${dropped.join(', ')}); they don't render in the viewport, but ` +
-        `are preserved verbatim in the source-of-truth model and on save (JSON-first).`,
+        `[project] scene "${rel}" references components the editor doesn't know ` +
+        `(${dropped.join(', ')}). Their entities still render, but the inspector ` +
+        `can't show or edit these components' fields until they're declared in the ` +
+        `project's script-register entry (src/components.ts) — the editor extracts ` +
+        `schemas from there without running project code. They're preserved verbatim ` +
+        `in the source-of-truth model and on save (JSON-first).`,
       );
     }
     // Build the uuid→path registry first (prefab + texture refs resolve through it).
