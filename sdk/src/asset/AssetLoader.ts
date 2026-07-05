@@ -50,6 +50,10 @@ export interface TimelineResult {
     timelineId: string;
 }
 
+export interface FsmResult {
+    fsmId: string;
+}
+
 export interface PrefabResult {
     data: unknown;
 }

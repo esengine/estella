@@ -24,6 +24,7 @@ import { TilemapAssetLoader } from './loaders/TilemapAssetLoader';
 import { TilesetAssetLoader } from './loaders/TilesetAssetLoader';
 import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
+import { FsmAssetLoader } from './loaders/FsmAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
 import { getAssetFields } from './AssetFieldRegistry';
 import { getComponentDefaults } from '../component';
@@ -878,6 +879,7 @@ export class Assets {
         this.register(new TilesetAssetLoader());
         this.register(new TimelineAssetLoader());
         this.register(new PrefabAssetLoader());
+        this.register(new FsmAssetLoader());
     }
 
     private textureCacheKey_(path: string, flip: boolean): string {

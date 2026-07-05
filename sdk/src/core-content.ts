@@ -394,3 +394,76 @@ export type {
     CollisionHitEvent,
     SensorEvent,
 } from './physics';
+
+// =============================================================================
+// AI — Navigation (grid A* today; state machines / behavior trees to come)
+// =============================================================================
+
+export {
+    NavGrid,
+    findPath,
+    pathToWorld,
+    navGridFromTiles,
+    navGridFromTilemapLayer,
+    Navigation,
+    Nav,
+    NavAgent,
+    setNavDestination,
+    stopNavAgent,
+    NavPlugin,
+    navPlugin,
+    type NavGridOptions,
+    type Cell,
+    type PathfindOptions,
+    type BuildNavGridOptions,
+    type NavAgentData,
+} from './ai';
+
+// =============================================================================
+// AI — State machines (pure-TS interpreter, .esfsm data + named registry)
+// =============================================================================
+
+export {
+    Blackboard,
+    evalGuard,
+    evalGuards,
+    AiRegistry,
+    compileFsm,
+    createFsmRunState,
+    stepFsm,
+    aiRegistry,
+    registerAction,
+    registerCondition,
+    StateMachineAgent,
+    registerFsm,
+    getFsm,
+    clearFsmStore,
+    FsmPlugin,
+    fsmPlugin,
+    StateMachines,
+    AiFsm,
+    agentBlackboard,
+    fsmEdges,
+    emptyFsm,
+    addState,
+    removeState,
+    moveState,
+    renameState,
+    setStateHook,
+    setInitial,
+    addTransition,
+    removeTransition,
+    updateTransition,
+    type FsmEdge,
+    type CompareOp,
+    type BlackboardGuard,
+    type FsmTransition,
+    type FsmState,
+    type FsmDefinition,
+    type CompiledFsm,
+    type FsmRunState,
+    type AiAction,
+    type AiCondition,
+    type AiContext,
+    type StateMachineAgentData,
+} from './ai';

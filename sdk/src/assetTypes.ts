@@ -45,6 +45,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', addressableType: null, wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['tmj'], contentType: 'json', editorType: 'tilemap', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['estimeline'], contentType: 'json', editorType: 'timeline', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
+    // State machine (registerFsm / FsmAssetLoader) — data-driven FSM definition.
+    { extensions: ['esfsm'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
 ];
 
 const MIME_MAP: Record<string, string> = {
@@ -70,6 +72,7 @@ const MIME_MAP: Record<string, string> = {
     esprefab: 'application/json',
     esanim: 'application/json',
     estimeline: 'application/json',
+    esfsm: 'application/json',
     bmfont: 'application/json',
     fnt: 'text/plain',
 };
