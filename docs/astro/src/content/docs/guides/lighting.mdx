@@ -1,0 +1,174 @@
+---
+title: 2D Lighting & Shadows
+description: Light a 2D scene with directional, point, spot, and ambient Light2D sources — color and intensity, normal-mapped surfaces, and soft shadows cast by ShadowCaster2D — all through the Lit-2D material domain.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella lights 2D scenes with **`Light2D`** sources and **`ShadowCaster2D`** occluders.
+A light is just an entity with a `Light2D` component; a renderer receives light only
+when it's drawn with a **Lit-2D material**. This keeps lighting opt-in and cheap — most
+sprites stay unlit, and the ones you want lit get a lit material.
+
+<Aside type="note">
+  Lighting is built into the renderer (no plugin to add). `Light2D` and
+  `ShadowCaster2D` are built-in components — attach them from code or in the editor's
+  Details panel like any other.
+</Aside>
+
+## Adding a light
+
+Give an entity a `Light2D` component and pick a type:
+
+```typescript
+import { defineSystem, Commands, Transform, Light2D, Light2DType } from 'esengine';
+
+const addSun = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Light2D, {
+      type: Light2DType.Directional,
+      color: { r: 1, g: 0.95, b: 0.8, a: 1 },
+      intensity: 1.2,
+      direction: { x: -1, y: -1 },
+    });
+});
+```
+
+`Light2D` fields (with defaults):
+
+| Field | Default | Description |
+|---|---|---|
+| `type` | `Point` | `Light2DType`: `Point`, `Directional`, `Ambient`, or `Spot`. |
+| `color` | `{1,1,1,1}` | Light color, RGBA 0..1. |
+| `intensity` | `1` | Brightness multiplier. |
+| `radius` | `200` | Falloff reach in world units (Point / Spot). |
+| `direction` | `{0,0}` | Aim direction (Directional / Spot). |
+| `innerAngle` | `30` | Spot cone inner angle, degrees (full brightness inside). |
+| `outerAngle` | `45` | Spot cone outer angle, degrees (falls to zero by here). |
+| `shadowSoftness` | `0` | Shadow edge softness (light-source size); `0` = hard edge. |
+| `shadowDistance` | `0` | Directional shadow reach; `0` = no directional shadow. |
+| `enabled` | `true` | Turn the light off without removing it. |
+
+## Light types
+
+| Type | Behavior |
+|---|---|
+| **Directional** | A uniform light from one `direction`, like the sun — position doesn't matter, only the aim. |
+| **Point** | Radiates from the entity's position and falls off to nothing at `radius`. |
+| **Spot** | A cone from the position along `direction`, full-bright within `innerAngle` and fading to the edge at `outerAngle`, out to `radius`. |
+| **Ambient** | A flat base light added everywhere, regardless of position — use a low `intensity` so shaded areas aren't pure black. |
+
+```typescript
+// A warm point light
+.insert(Light2D, { type: Light2DType.Point, radius: 320, intensity: 1.5,
+                   color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
+
+// A flashlight cone
+.insert(Light2D, { type: Light2DType.Spot, direction: { x: 0, y: -1 },
+                   innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
+
+// A dim ambient fill so nothing is fully black
+.insert(Light2D, { type: Light2DType.Ambient, intensity: 0.25 });
+```
+
+## Making a renderer receive light
+
+By default a `Sprite` draws with an **unlit** material and ignores every light. To make
+it respond, give it a material whose shader declares the **Lit-2D domain**. In an
+`.esshader`, that's one pragma plus a call to the injected lighting helper:
+
+```glsl
+#pragma shader "MyLit"
+#pragma version 300 es
+#pragma domain Lit2D
+
+#pragma vertex
+// … pass the world-space position out as v_worldPos …
+#pragma end
+
+#pragma fragment
+precision mediump float;
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+uniform sampler2D u_textures[8];
+out vec4 fragColor;
+
+// #pragma domain Lit2D makes the engine inject the LightConstants block and the
+// es_applyLighting2D() helper — you just call it with your base color and a normal.
+void main() {
+  vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+  vec3 N = vec3(0.0, 0.0, 1.0);                 // flat normal, facing the camera
+  vec3 lit = es_applyLighting2D(base.rgb, N, v_worldPos);
+  fragColor = vec4(lit, base.a);
+}
+#pragma end
+```
+
+Compile it and assign the material to the renderer exactly as in
+[Materials & Shaders](/docs/guides/material/):
+
+```typescript
+import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const litMat = Material.create({ shader: Material.compileShader(myLitSource) });
+
+const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [, sprite] of q) sprite.material = litMat;
+});
+```
+
+You can also build a lit material visually — set the **Material Graph**'s domain to
+`Lit2D` — see the [material graph](/docs/guides/material/) section.
+
+<Aside type="tip">
+  Every renderer that takes a `material` — `Sprite`, `SpineAnimation`,
+  `ParticleEmitter`, and tilemap layers — can be lit the same way: give it a Lit-2D
+  material.
+</Aside>
+
+### Normal maps
+
+The `N` you pass to `es_applyLighting2D` is the surface normal. Passing a constant
+`vec3(0, 0, 1)` gives flat, evenly-lit surfaces. For per-pixel relief, sample a
+**normal map** in the shader and use that as `N` instead — the same base color then
+catches highlights and shadow from each light's direction. Add the normal texture as a
+`#pragma param … texture` on your lit material (see [Materials & Shaders](/docs/guides/material/)).
+
+## Casting shadows
+
+Add a **`ShadowCaster2D`** to an entity to make it block light and cast a shadow:
+
+```typescript
+import { ShadowCaster2D } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(Sprite, { /* … a lit material … */ })
+  .insert(ShadowCaster2D, { size: { x: 64, y: 64 } });
+```
+
+| `ShadowCaster2D` field | Default | Description |
+|---|---|---|
+| `size` | `{32,32}` | The occluder's size in world units. |
+| `enabled` | `true` | Toggle shadow casting. |
+
+Shadow **quality** is controlled on the light, not the caster:
+
+- **`shadowSoftness`** — the light-source size. `0` is a crisp hard edge; larger values
+  give a soft penumbra (a bigger, closer light casts softer shadows).
+- **`shadowDistance`** — for a **Directional** light, how far its shadows extend; `0`
+  leaves a directional light shadow-free.
+
+## In the editor
+
+- **Add a light** via **Create… → Light**, or add a `Light2D` component to an existing
+  entity in the Details panel.
+- Lights are drawn as **gizmos** in edit mode — an icon plus the reach circle and the
+  direction / cone — so you can aim and size them by eye. See [The Editor](/docs/guides/editor/).
+- Tune `color` (a color picker), `intensity`, `radius`, and the spot angles live in
+  Details; the results update in the viewport immediately.
+- All of a light's visual fields (`color`, `intensity`, `radius`, the angles, and the
+  shadow settings) are **animatable** — key them in the [Sequencer](/docs/guides/timeline/)
+  for flickering torches, day/night cycles, or a pulsing beacon.

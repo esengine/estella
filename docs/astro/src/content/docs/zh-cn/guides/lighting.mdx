@@ -1,0 +1,164 @@
+---
+title: 2D 光照与阴影
+description: 用方向光、点光、聚光和环境光 Light2D 光源照亮 2D 场景——颜色与强度、法线贴图表面、以及 ShadowCaster2D 投出的柔和阴影,全部经由 Lit-2D 材质域实现。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 用 **`Light2D`** 光源和 **`ShadowCaster2D`** 遮挡体照亮 2D 场景。一个光源就是一个带
+`Light2D` 组件的实体;而一个渲染器只有在用 **Lit-2D 材质**绘制时才会被照亮。这让光照是可选的、
+且开销低——大多数精灵保持不受光,你想照亮的那些才配一个受光材质。
+
+<Aside type="note">
+  光照内建于渲染器(无需加插件)。`Light2D` 和 `ShadowCaster2D` 是内建组件——像其他组件一样,
+  从代码或在编辑器 Details 面板里挂上它们。
+</Aside>
+
+## 添加光源
+
+给一个实体加 `Light2D` 组件并选一个类型:
+
+```typescript
+import { defineSystem, Commands, Transform, Light2D, Light2DType } from 'esengine';
+
+const addSun = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Light2D, {
+      type: Light2DType.Directional,
+      color: { r: 1, g: 0.95, b: 0.8, a: 1 },
+      intensity: 1.2,
+      direction: { x: -1, y: -1 },
+    });
+});
+```
+
+`Light2D` 字段(含默认值):
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `type` | `Point` | `Light2DType`:`Point`、`Directional`、`Ambient` 或 `Spot`。 |
+| `color` | `{1,1,1,1}` | 光颜色,RGBA 0..1。 |
+| `intensity` | `1` | 亮度倍数。 |
+| `radius` | `200` | 衰减半径,世界单位(Point / Spot)。 |
+| `direction` | `{0,0}` | 朝向(Directional / Spot)。 |
+| `innerAngle` | `30` | 聚光锥内角,度(内部全亮)。 |
+| `outerAngle` | `45` | 聚光锥外角,度(到这里衰减为零)。 |
+| `shadowSoftness` | `0` | 阴影边缘柔和度(光源尺寸);`0` = 硬边。 |
+| `shadowDistance` | `0` | 方向光阴影延伸距离;`0` = 无方向光阴影。 |
+| `enabled` | `true` | 不移除也能关掉光源。 |
+
+## 光源类型
+
+| 类型 | 行为 |
+|---|---|
+| **Directional(方向光)** | 来自单一 `direction` 的均匀光,像太阳——位置无关,只看朝向。 |
+| **Point(点光)** | 从实体位置向外辐射,到 `radius` 处衰减为零。 |
+| **Spot(聚光)** | 从位置沿 `direction` 的一个锥,在 `innerAngle` 内全亮、到 `outerAngle` 衰减到边缘,直到 `radius`。 |
+| **Ambient(环境光)** | 处处叠加的平坦底光,与位置无关——用较低的 `intensity`,让阴影区不至于纯黑。 |
+
+```typescript
+// 一盏暖色点光
+.insert(Light2D, { type: Light2DType.Point, radius: 320, intensity: 1.5,
+                   color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
+
+// 一束手电锥
+.insert(Light2D, { type: Light2DType.Spot, direction: { x: 0, y: -1 },
+                   innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
+
+// 一点微弱环境光,让画面不至于全黑
+.insert(Light2D, { type: Light2DType.Ambient, intensity: 0.25 });
+```
+
+## 让渲染器接受光照
+
+默认情况下,一个 `Sprite` 用**不受光**材质绘制,会忽略每一盏灯。要让它响应光照,给它一个着色器
+声明了 **Lit-2D 域**的材质。在 `.esshader` 里,就是一个 pragma 加一次对注入的光照 helper 的调用:
+
+```glsl
+#pragma shader "MyLit"
+#pragma version 300 es
+#pragma domain Lit2D
+
+#pragma vertex
+// …把世界空间位置作为 v_worldPos 输出…
+#pragma end
+
+#pragma fragment
+precision mediump float;
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+uniform sampler2D u_textures[8];
+out vec4 fragColor;
+
+// #pragma domain Lit2D 让引擎注入 LightConstants 块和 es_applyLighting2D() helper——
+// 你只需用你的基础色和一个法线调用它。
+void main() {
+  vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+  vec3 N = vec3(0.0, 0.0, 1.0);                 // 平法线,朝向相机
+  vec3 lit = es_applyLighting2D(base.rgb, N, v_worldPos);
+  fragColor = vec4(lit, base.a);
+}
+#pragma end
+```
+
+编译它并把材质赋给渲染器,方式与[材质与着色器](/docs/zh-cn/guides/material/)里完全一致:
+
+```typescript
+import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const litMat = Material.create({ shader: Material.compileShader(myLitSource) });
+
+const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [, sprite] of q) sprite.material = litMat;
+});
+```
+
+你也能可视化地做一个受光材质——把 **材质图** 的域设为 `Lit2D`——见
+[材质图](/docs/zh-cn/guides/material/)一节。
+
+<Aside type="tip">
+  每个接受 `material` 的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter` 和瓦片图层——
+  都能用同样方式受光:给它一个 Lit-2D 材质。
+</Aside>
+
+### 法线贴图
+
+你传给 `es_applyLighting2D` 的 `N` 是表面法线。传一个常量 `vec3(0, 0, 1)` 得到平坦、均匀受光的
+表面。要有逐像素的凹凸感,就在着色器里采样一张**法线贴图**并用它作 `N`——同一张基础色便会随每盏
+灯的方向产生高光和阴影。把法线纹理作为一个 `#pragma param … texture` 加到你的受光材质上
+(见[材质与着色器](/docs/zh-cn/guides/material/))。
+
+## 投射阴影
+
+给一个实体加 **`ShadowCaster2D`**,让它遮挡光并投出阴影:
+
+```typescript
+import { ShadowCaster2D } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(Sprite, { /* …一个受光材质… */ })
+  .insert(ShadowCaster2D, { size: { x: 64, y: 64 } });
+```
+
+| `ShadowCaster2D` 字段 | 默认 | 说明 |
+|---|---|---|
+| `size` | `{32,32}` | 遮挡体尺寸,世界单位。 |
+| `enabled` | `true` | 开关阴影投射。 |
+
+阴影**质量**在光源上控制,而非遮挡体:
+
+- **`shadowSoftness`** — 光源尺寸。`0` 是锐利硬边;更大的值给出柔和半影(更大、更近的光投出更软的
+  阴影)。
+- **`shadowDistance`** — 对 **Directional** 光,阴影延伸多远;`0` 让方向光不产生阴影。
+
+## 在编辑器里
+
+- 通过 **创建… → 光** 添加光源,或在 Details 面板里给已有实体加一个 `Light2D` 组件。
+- 光源在编辑模式下画成 **gizmo**——图标加上其范围圈和朝向/锥——所以你能凭眼睛瞄准和调尺寸。见
+  [编辑器](/docs/zh-cn/guides/editor/)。
+- 在 Details 里实时调 `color`(取色器)、`intensity`、`radius` 和聚光角度;结果在视口里即时更新。
+- 一盏灯的全部视觉字段(`color`、`intensity`、`radius`、各角度、阴影设置)都**可动画**——在
+  [Sequencer](/docs/zh-cn/guides/timeline/)里给它们打关键帧,做闪烁的火把、昼夜循环或脉动的信标。
