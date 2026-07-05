@@ -229,6 +229,14 @@ export {
     type DropdownHandle,
 } from './widgets/dropdown';
 
+export {
+    createListView,
+    type CreateListViewOptions,
+    type ListViewHandle,
+    type ListItemTemplate,
+    type ListLayoutSpec,
+} from './widgets/list-view';
+
 export { widgetToPrefab } from './widgets/toPrefab';
 export { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES } from './widgets/prefabs/generated';
 
