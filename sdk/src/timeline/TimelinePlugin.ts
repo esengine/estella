@@ -6,6 +6,8 @@ import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import { defineComponent, getComponent } from '../component';
 import { playModeOnly } from '../env';
+import { Assets } from '../asset/AssetPlugin';
+import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { wrapModeFromName, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { Timeline, TimelineApi } from './TimelineControl';
@@ -97,6 +99,7 @@ export class TimelinePlugin implements Plugin {
             (time: TimeData) => {
                 const tl = app.getResource(Timeline);
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
+                const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
                 const deps: SampleDeps = {
                     world,
                     getComponent,
@@ -106,7 +109,10 @@ export class TimelinePlugin implements Plugin {
                 for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
                     if (!player.timeline) continue;
-                    const asset = this.loadedAssets_.get(player.timeline);
+                    // The loader keys loadedAssets_/textureHandles_ by the RESOLVED
+                    // path; the component holds the authored ref (see resolveAssetKey).
+                    const timelineKey = resolveAssetKey(assets, player.timeline);
+                    const asset = this.loadedAssets_.get(timelineKey) ?? this.loadedAssets_.get(player.timeline);
                     if (!asset) continue;
 
                     const wrapMode = wrapModeFromName(player.wrapMode);
@@ -118,7 +124,7 @@ export class TimelinePlugin implements Plugin {
                     this.ensureAnimFrames(entity, asset);
 
                     advanceTimelineTS(asset, entity, state, time.delta, { deps, audio });
-                    this.processAnimFrames(world, entity, state.time, player.timeline);
+                    this.processAnimFrames(world, entity, state.time, timelineKey);
 
                     // A clip that hit its end (Once) clears the component's play flag.
                     if (!state.playing && player.playing) {

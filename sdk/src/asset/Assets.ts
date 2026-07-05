@@ -494,6 +494,8 @@ export class Assets {
         const tilemapPaths = discovered.byType.get('tilemap') ?? new Set<string>();
         const tilesetPaths = discovered.byType.get('tileset') ?? new Set<string>();
         const timelinePaths = discovered.byType.get('timeline') ?? new Set<string>();
+        const fsmPaths = discovered.byType.get('statemachine') ?? new Set<string>();
+        const btPaths = discovered.byType.get('behaviortree') ?? new Set<string>();
         const spinePairs = discovered.spines;
 
         const textureHandles = new Map<string, number>();
@@ -565,6 +567,11 @@ export class Assets {
         pushFireAndForget(tilesetPaths, p => this.loadTileset(p), 'tileset');
         pushFireAndForget(timelinePaths, p => this.loadTimeline(p), 'timeline');
         pushFireAndForget(audioPaths, p => this.loadAudio(p), 'audio');
+        // FSM/BT loaders register the parsed definition into the shared AI store
+        // under the asset path, so a StateMachineAgent/BehaviorTreeAgent whose
+        // fsm/bt is that path resolves once the scene finishes preloading.
+        pushFireAndForget(fsmPaths, p => this.loadTyped('statemachine', p), 'statemachine');
+        pushFireAndForget(btPaths, p => this.loadTyped('behaviortree', p), 'behaviortree');
 
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);

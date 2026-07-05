@@ -300,6 +300,31 @@ export function unregisterComponent(name: string): void {
     userComponents().delete(name);
 }
 
+// The engine's own `defineComponent`s (AI, animation, audio, physics joints, UI
+// text, tilemap, timeline…) register at SDK module load into the per-app user
+// registry. A hot reload only re-imports the PROJECT bundle — the cached `esengine`
+// module does NOT re-run — so `clearUserComponents()` would drop these engine
+// components with nothing to put them back. The SDK entry snapshots them once as a
+// baseline; the hot-reload probe and app build re-seed it so engine components
+// survive a reload (and the hot-swap fast path can match fingerprints).
+let engineComponentBaseline_: Map<string, AnyComponentDef> | null = null;
+
+/** Snapshot the currently-registered components as the engine baseline. Called
+ *  once from the SDK entry after all engine `defineComponent`s have run and before
+ *  any project bundle registers its own. */
+export function markEngineComponentBaseline(): void {
+    engineComponentBaseline_ = new Map(userComponents());
+}
+
+/** Re-add the engine baseline to a registry (only where missing), so a context
+ *  that has never re-run the SDK's module-level registrations still has them.
+ *  No-op until {@link markEngineComponentBaseline} has run (e.g. unit tests that
+ *  never load the SDK entry). */
+export function seedEngineComponents(registry: Map<string, AnyComponentDef> = userComponents()): void {
+    if (!engineComponentBaseline_) return;
+    for (const [name, def] of engineComponentBaseline_) if (!registry.has(name)) registry.set(name, def);
+}
+
 function registerToEditor(
     name: string,
     defaults: Record<string, unknown>,

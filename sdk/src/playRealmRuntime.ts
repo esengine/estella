@@ -77,6 +77,11 @@ export function resolvePlayAssetRef(ref: string, manifest: Record<string, string
         return url;
     }
     const base = (assetBaseUrl ?? '').replace(/\/$/, '');
+    // Idempotent, like HttpBackend.resolveUrl: an already-resolved absolute URL or
+    // base-prefixed path must not be prefixed again. Preload resolves a ref once to
+    // bucket it by type, then the loader resolves it a second time — without this
+    // guard a plain path would gain the base twice (estella://…/estella://…/404).
+    if (ref.includes('://') || (base && ref.startsWith(`${base}/`))) return ref;
     return base ? `${base}/${ref.replace(/^\//, '')}` : ref;
 }
 

@@ -20,6 +20,8 @@ import { defineResource } from '../../resource';
 import { Commands, type CommandsInstance } from '../../commands';
 import { playModeOnly } from '../../env';
 import type { AnyComponentDef, ComponentData } from '../../component';
+import { Assets } from '../../asset/AssetPlugin';
+import { resolveAssetKey } from '../../asset/resolveAssetKey';
 import { Blackboard } from './Blackboard';
 import { createFsmRunState, stepFsm, type FsmRunState } from './FsmRunner';
 import { aiRegistry, type AiContext } from './AiContext';
@@ -60,6 +62,11 @@ export function stepStateMachines(
     commands: CommandsInstance,
     dt: number,
     states: Map<Entity, AgentState>,
+    // A `.esfsm` asset registers under its resolved path (the realm's ref resolver
+    // maps a plain/`@uuid:` ref to that key); the agent still holds the authored
+    // ref, so resolve before lookup. Falls back to the raw ref for `registerFsm`
+    // code names, which are keyed verbatim. Optional so tests need no realm.
+    resolveKey?: (ref: string) => string,
 ): void {
     if (dt <= 0) return;
 
@@ -77,7 +84,7 @@ export function stepStateMachines(
     for (const entity of world.getEntitiesWithComponents([StateMachineAgent])) {
         const agent = world.get(entity, StateMachineAgent);
         if (!agent.fsm) continue;
-        const fsm = getFsm(agent.fsm);
+        const fsm = getFsm(resolveKey ? resolveKey(agent.fsm) : agent.fsm) ?? getFsm(agent.fsm);
         if (!fsm) continue;
 
         let st = states.get(entity);
@@ -131,12 +138,15 @@ export class FsmPlugin implements Plugin {
         app.world.onDespawn((entity: Entity) => states.delete(entity));
         app.insertResource(AiFsm, new StateMachines(states));
 
+        const resolveKey = (ref: string): string =>
+            resolveAssetKey(app.hasResource(Assets) ? app.getResource(Assets) : null, ref);
+
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {
-                    stepStateMachines(world as FsmWorldView, commands, time.delta, states);
+                    stepStateMachines(world as FsmWorldView, commands, time.delta, states, resolveKey);
                 },
                 { name: 'StateMachineSystem' },
             ),

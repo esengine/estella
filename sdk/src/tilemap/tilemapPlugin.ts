@@ -12,7 +12,8 @@ import { getTilemapSource, getResolvedTileset } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
 import { generateLayerCollision, generateChunkCollision, generateChunkPolygonCollision } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
-import { Assets, type AssetsData } from '../asset/AssetPlugin';
+import { Assets } from '../asset/AssetPlugin';
+import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Time } from '../resource';
 import { playModeOnly } from '../env';
 import { log } from '../logger';
@@ -26,13 +27,6 @@ const GRID_TYPE_MAP: Record<string, number> = {
     isometric: 1,
     staggered: 2,
 };
-
-/** A `.estileset` ref → the resolved-tileset cache key (its project path). A `@uuid:`
- *  ref needs the Assets registry; an already-resolved path is used as-is. */
-function resolveTilesetPath(assets: AssetsData | undefined, ref: string): string | null {
-    if (ref.startsWith('@uuid:')) return assets ? assets.resolveRef(ref) : null;
-    return ref;
-}
 
 export class TilemapPlugin implements Plugin {
     name = 'tilemap';
@@ -177,8 +171,8 @@ export class TilemapPlugin implements Plugin {
                     // derive its render table + animations + collision LIVE (once per load) —
                     // replacing the copied columns and the baked collidableTileIds snapshot.
                     if (tilesetRef && !liveResolved.has(entity)) {
-                        const path = resolveTilesetPath(assets, tilesetRef);
-                        const resolved = path ? getResolvedTileset(path) : undefined;
+                        const tilesetKey = resolveAssetKey(assets, tilesetRef);
+                        const resolved = getResolvedTileset(tilesetKey) ?? getResolvedTileset(tilesetRef);
                         if (resolved) {
                             const model = resolveTilesetModel([resolved]);
                             TilemapAPI.setTilesets(entity, model.slots);
@@ -193,14 +187,15 @@ export class TilemapPlugin implements Plugin {
                                 nativePolygonShapes.set(entity, model.polygonShapes);
                             }
                             liveResolved.add(entity);
-                        } else if (path && assets && !requestedTilesetLoads.has(path)) {
+                        } else if (assets && !requestedTilesetLoads.has(tilesetKey)) {
                             // The `.estileset` is referenced but not loaded. It's an
                             // out-of-band ref (invisible to scene asset discovery), so
-                            // nothing preloads it — kick the load off here. Once it lands
-                            // getResolvedTileset() hits next frame and we resolve live.
-                            requestedTilesetLoads.add(path);
-                            assets.load('tileset', path).catch((e) => {
-                                log.warn('tilemap', `failed to load tileset asset '${path}'`, e);
+                            // nothing preloads it — kick the load off here (the loader
+                            // resolves the ref itself). Once it lands getResolvedTileset()
+                            // hits next frame and we resolve live.
+                            requestedTilesetLoads.add(tilesetKey);
+                            assets.load('tileset', tilesetRef).catch((e) => {
+                                log.warn('tilemap', `failed to load tileset asset '${tilesetRef}'`, e);
                             });
                         }
                     }
@@ -243,13 +238,10 @@ export class TilemapPlugin implements Plugin {
                     const tilemap = world.tryGet(entity, Tilemap) as { source: string } | null;
                     if (!tilemap?.source) continue;
 
-                    // `source` may be a `@uuid:` ref (how the editor serializes asset
-                    // fields) or a plain path. The loader keys the source cache by the
-                    // RESOLVED path (Assets.resolveRef → path), and `resolveSceneAssetPaths`
-                    // does NOT rewrite tilemap fields, so resolve here too or a `@uuid:`
-                    // scene would never find its cached source.
-                    const sourcePath = resolveTilesetPath(assets, tilemap.source);
-                    const cached = sourcePath ? getTilemapSource(sourcePath) : undefined;
+                    // The loader keys the source cache by the RESOLVED path and
+                    // `resolveSceneAssetPaths` leaves `source` as the authored ref, so
+                    // resolve at lookup (see resolveAssetKey), falling back to the raw ref.
+                    const cached = getTilemapSource(resolveAssetKey(assets, tilemap.source)) ?? getTilemapSource(tilemap.source);
                     if (!cached) continue;
 
                     if (!sourceEntityKeys.has(entity)) {

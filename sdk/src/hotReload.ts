@@ -6,7 +6,7 @@
  *          re-registrations in isolation so the editor can decide hot-swap vs reload.
  */
 import { AppContext, getDefaultContext, setDefaultContext, type PendingSystemEntry } from './context';
-import { getUserComponentFingerprint } from './component';
+import { getUserComponentFingerprint, seedEngineComponents } from './component';
 
 export interface ProbedRegistrations {
     /** Digest of the user component schemas the bundle declared (shape, not values). */
@@ -28,6 +28,11 @@ export interface ProbedRegistrations {
 export async function probeRegistrations(register: () => Promise<void>): Promise<ProbedRegistrations> {
     const live = getDefaultContext();
     const probe = new AppContext();
+    // The re-imported bundle only re-runs the PROJECT's registrations (the cached
+    // esengine module does not), so seed the engine baseline first — otherwise the
+    // probe fingerprint would omit every SDK component and never match live, so the
+    // hot-swap fast path could never engage.
+    seedEngineComponents(probe.componentRegistry);
     setDefaultContext(probe);
     try {
         await register();

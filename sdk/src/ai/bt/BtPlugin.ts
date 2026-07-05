@@ -20,6 +20,8 @@ import { defineResource } from '../../resource';
 import { Commands, type CommandsInstance } from '../../commands';
 import { playModeOnly } from '../../env';
 import type { AnyComponentDef, ComponentData } from '../../component';
+import { Assets } from '../../asset/AssetPlugin';
+import { resolveAssetKey } from '../../asset/resolveAssetKey';
 import { Blackboard } from '../fsm/Blackboard';
 import { aiRegistry, type AiContext } from '../fsm/AiContext';
 import { tickBt, createBtRunState, type BtRunState } from './BtRunner';
@@ -58,6 +60,10 @@ export function stepBehaviorTrees(
     commands: CommandsInstance,
     dt: number,
     states: Map<Entity, BtAgentState>,
+    // A `.esbt` asset registers under its resolved path; the agent holds the
+    // authored ref, so resolve before lookup (falls back to the raw ref for
+    // `registerBt` code names). Optional so tests need no realm.
+    resolveKey?: (ref: string) => string,
 ): void {
     if (dt <= 0) return;
 
@@ -75,7 +81,7 @@ export function stepBehaviorTrees(
     for (const entity of world.getEntitiesWithComponents([BehaviorTreeAgent])) {
         const agent = world.get(entity, BehaviorTreeAgent);
         if (!agent.bt) continue;
-        const def = getBt(agent.bt);
+        const def = getBt(resolveKey ? resolveKey(agent.bt) : agent.bt) ?? getBt(agent.bt);
         if (!def) continue;
 
         let st = states.get(entity);
@@ -125,12 +131,15 @@ export class BtPlugin implements Plugin {
         app.world.onDespawn((entity: Entity) => states.delete(entity));
         app.insertResource(AiBt, new BehaviorTrees(states));
 
+        const resolveKey = (ref: string): string =>
+            resolveAssetKey(app.hasResource(Assets) ? app.getResource(Assets) : null, ref);
+
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {
-                    stepBehaviorTrees(world as AiWorldView, commands, time.delta, states);
+                    stepBehaviorTrees(world as AiWorldView, commands, time.delta, states, resolveKey);
                 },
                 { name: 'BehaviorTreeSystem' },
             ),

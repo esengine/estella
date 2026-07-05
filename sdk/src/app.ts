@@ -23,6 +23,7 @@ import type { SceneConfig } from './sceneManager';
 import { SceneManager } from './sceneManager';
 import { sceneManagerPlugin } from './scenePlugin';
 import { getDefaultContext } from './context';
+import { seedEngineComponents } from './component';
 import { cameraPlugin } from './camera/CameraPlugin';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
 import { SubsystemRegistry } from './subsystems';
@@ -1002,6 +1003,10 @@ export interface WebAppOptions {
 }
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
+    // Restore any engine components a prior project hot-reload's clearUserComponents
+    // wiped, so the scene about to load can still resolve them (no-op before the SDK
+    // entry snapshots the baseline — e.g. in unit tests that never load it).
+    seedEngineComponents();
     const app = App.new();
     if (options?.sideModules) app.setSideModules(options.sideModules);
     const cppRegistry = new module.Registry() as unknown as CppRegistry;
