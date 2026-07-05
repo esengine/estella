@@ -15,6 +15,7 @@ export {
     maxChildren,
     canHaveChildren,
     addBtChild,
+    addBtOrphan,
     removeBtNode,
     moveBtNode,
     setBtNodeField,

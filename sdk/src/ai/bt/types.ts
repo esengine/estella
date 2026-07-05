@@ -38,4 +38,9 @@ export interface BtNode {
 
 export interface BtDefinition {
     root: BtNode;
+    /**
+     * Editor-only unconnected nodes/subtrees (created but not yet wired under
+     * root). The interpreter ignores them — only `root` is ticked.
+     */
+    orphans?: BtNode[];
 }

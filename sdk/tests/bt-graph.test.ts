@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     emptyBt, ensureBtIds, btNodes, btEdges, maxChildren, canHaveChildren,
-    addBtChild, removeBtNode, moveBtNode, setBtNodeField, reparentBtNode,
+    addBtChild, addBtOrphan, removeBtNode, moveBtNode, setBtNodeField, reparentBtNode,
 } from '../src/ai/bt/btGraph';
 import type { BtDefinition } from '../src/ai/bt/types';
 
@@ -93,6 +93,54 @@ describe('btGraph', () => {
         const edges = btEdges(def);
         expect(edges).toHaveLength(2);
         expect(edges.every(e => e.from === 'n0')).toBe(true);
+    });
+});
+
+describe('btGraph orphans', () => {
+    it('adds an unconnected orphan node with no edge', () => {
+        let def = emptyBt();
+        def = addBtOrphan(def, 'action', 300, 100);
+        expect(btNodes(def)).toHaveLength(2); // root + orphan
+        expect(btEdges(def)).toHaveLength(0); // orphan is not connected
+        expect(def.orphans).toHaveLength(1);
+    });
+
+    it('reparents an orphan into the tree and empties the pool', () => {
+        let def = emptyBt(); // selector root n0
+        def = addBtOrphan(def, 'sequence', 300, 100);
+        const orphanId = def.orphans![0].id!;
+        def = reparentBtNode(def, orphanId, 'n0');
+        expect(def.orphans).toBeUndefined();
+        expect(btEdges(def).map(e => e.id)).toEqual([`n0->${orphanId}`]);
+    });
+
+    it('removes an orphan', () => {
+        let def = emptyBt();
+        def = addBtOrphan(def, 'action');
+        const id = def.orphans![0].id!;
+        def = removeBtNode(def, id);
+        expect(def.orphans).toBeUndefined();
+        expect(btNodes(def)).toHaveLength(1);
+    });
+
+    it('moves and edits an orphan like any node', () => {
+        let def = addBtOrphan(emptyBt(), 'wait');
+        const id = def.orphans![0].id!;
+        def = moveBtNode(def, id, 400, 200);
+        def = setBtNodeField(def, id, { seconds: 1.5 });
+        const o = def.orphans![0];
+        expect(o).toMatchObject({ x: 400, y: 200, seconds: 1.5 });
+    });
+
+    it('clears orphans as undefined so an Object.assign apply leaves no duplicate node', () => {
+        let def = addBtOrphan(emptyBt(), 'action');
+        const orphanId = def.orphans![0].id!;
+        // Reproduce the editor's `Object.assign(draft, op(draft))` apply path.
+        const draft = JSON.parse(JSON.stringify(def)) as typeof def; // draft has orphans=[orphanId]
+        Object.assign(draft, reparentBtNode(draft, orphanId, 'n0'));
+        expect(draft.orphans).toBeUndefined(); // stale array overwritten, not left behind
+        const ids = btNodes(draft).map(n => n.id);
+        expect(new Set(ids).size).toBe(ids.length); // all ids unique — no duplicate key
     });
 });
 
