@@ -54,6 +54,10 @@ export interface FsmResult {
     fsmId: string;
 }
 
+export interface BtResult {
+    btId: string;
+}
+
 export interface PrefabResult {
     data: unknown;
 }

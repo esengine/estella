@@ -467,3 +467,27 @@ export {
     type AiContext,
     type StateMachineAgentData,
 } from './ai';
+
+// =============================================================================
+// AI — Behavior trees (pure-TS interpreter, .esbt data + shared registry)
+// =============================================================================
+
+export {
+    Status,
+    tickBt,
+    createBtRunState,
+    BehaviorTreeAgent,
+    registerBt,
+    getBt,
+    clearBtStore,
+    BtPlugin,
+    btPlugin,
+    BehaviorTrees,
+    AiBt,
+    agentBtBlackboard,
+    type BtNodeType,
+    type BtNode,
+    type BtDefinition,
+    type BtRunState,
+    type BehaviorTreeAgentData,
+} from './ai';

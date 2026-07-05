@@ -33,3 +33,26 @@ export {
     agentBlackboard,
     type FsmWorldView,
 } from './fsm/FsmPlugin';
+
+// Shared AI task status (FSM actions + BT nodes).
+export { Status } from './status';
+
+// Behavior trees: pure core (types + interpreter)…
+export * from './bt';
+// …plus the engine binding (component, store, plugin).
+export {
+    BehaviorTreeAgent,
+    registerBt,
+    getBt,
+    clearBtStore,
+    type BehaviorTreeAgentData,
+} from './bt/BehaviorTreeAgent';
+export {
+    BtPlugin,
+    btPlugin,
+    BehaviorTrees,
+    AiBt,
+    stepBehaviorTrees,
+    agentBtBlackboard,
+    type AiWorldView,
+} from './bt/BtPlugin';

@@ -12,8 +12,11 @@
  */
 
 import type { Blackboard } from './Blackboard';
+import type { Status } from '../status';
 
-export type AiAction<Ctx> = (ctx: Ctx, bb: Blackboard) => void;
+// Returns Status (a BT leaf that may run across frames) or nothing (a one-shot
+// FSM action). FSM ignores the return; BT reads it, treating void as Success.
+export type AiAction<Ctx> = (ctx: Ctx, bb: Blackboard) => void | Status;
 export type AiCondition<Ctx> = (ctx: Ctx, bb: Blackboard) => boolean;
 
 export class AiRegistry<Ctx = unknown> {
