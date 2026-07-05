@@ -18,6 +18,7 @@ import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
 import { TilemapPainter } from '@/panels/TilemapPainter';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
+import { StateMachineEditor } from '@/panels/StateMachineEditor';
 import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
 import { dockApi } from '@/layout/dockApi';
@@ -35,6 +36,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   tileset: () => panel('tileset', <TilesetEditor />),
   tilemap: () => panel('tilemap', <TilemapPainter />),
   materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
+  statemachine: () => panel('statemachine', <StateMachineEditor />),
   profiler: () => <ProfilerPanel />,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => panel('game', <GamePanel />),

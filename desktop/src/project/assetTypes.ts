@@ -13,7 +13,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2,
+  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch,
   type LucideIcon,
 } from 'lucide-react';
 import type { AssetType } from '@/types';
@@ -48,6 +48,7 @@ export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
   tileset: { extensions: ['estileset'], badge: 'TST', icon: Grid3x3, tint: '#9b8fc0' },
   tilemap: { extensions: ['estilemap'], badge: 'TMP', icon: Grid3x3, tint: '#7fa6c4' },
   inputmap: { extensions: ['inputmap'], badge: 'INP', icon: Gamepad2, tint: '#a0b88f' },
+  statemachine: { extensions: ['esfsm'], badge: 'FSM', icon: GitBranch, tint: '#8fb0a0' },
   file: { badge: '', icon: File, tint: 'var(--text-dim)' },
 };
 

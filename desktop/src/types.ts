@@ -147,6 +147,7 @@ export type AssetType =
   | 'tileset'
   | 'tilemap'
   | 'inputmap'
+  | 'statemachine'
   | 'file';
 
 export interface AssetItem {
