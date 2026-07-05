@@ -148,6 +148,7 @@ export type AssetType =
   | 'tilemap'
   | 'inputmap'
   | 'statemachine'
+  | 'behaviortree'
   | 'file';
 
 export interface AssetItem {

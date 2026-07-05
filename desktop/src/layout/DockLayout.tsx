@@ -19,6 +19,7 @@ import { TilesetEditor } from '@/panels/TilesetEditor';
 import { TilemapPainter } from '@/panels/TilemapPainter';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
 import { StateMachineEditor } from '@/panels/StateMachineEditor';
+import { BtTreeEditor } from '@/panels/BtTreeEditor';
 import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
 import { dockApi } from '@/layout/dockApi';
@@ -37,6 +38,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   tilemap: () => panel('tilemap', <TilemapPainter />),
   materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
   statemachine: () => panel('statemachine', <StateMachineEditor />),
+  behaviortree: () => panel('behaviortree', <BtTreeEditor />),
   profiler: () => <ProfilerPanel />,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => panel('game', <GamePanel />),

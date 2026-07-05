@@ -16,6 +16,7 @@ import { openTileset } from '@/tileset/openTileset';
 import { openMaterial } from '@/material/openMaterial';
 import { openMaterialGraph } from '@/material/openMaterialGraph';
 import { openStateMachine } from '@/fsm/openStateMachine';
+import { openBehaviorTree } from '@/bt/openBehaviorTree';
 
 /** Open action per asset type; types absent here aren't double-click-openable. */
 export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void>> = {
@@ -29,4 +30,5 @@ export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) 
   material: (path) => void openMaterial(path),
   materialgraph: (path) => void openMaterialGraph(path),
   statemachine: (path) => void openStateMachine(path),
+  behaviortree: (path) => void openBehaviorTree(path),
 };

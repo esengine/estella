@@ -19,6 +19,8 @@ export type BtNodeType =
 
 export interface BtNode {
     type: BtNodeType;
+    /** Editor-only stable id for selection/addressing; ignored by the interpreter. */
+    id?: string;
     /** Registry name for a leaf (`action`/`condition`). */
     name?: string;
     /** Children: many for a composite, one for a decorator. */

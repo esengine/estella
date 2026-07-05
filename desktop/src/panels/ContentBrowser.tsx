@@ -17,6 +17,7 @@ import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
 import { createMaterialGraph } from '@/material/openMaterialGraph';
 import { createStateMachine } from '@/fsm/openStateMachine';
+import { createBehaviorTree } from '@/bt/openBehaviorTree';
 import { createAnimationClip } from '@/timeline/openClip';
 import { fsRefresh } from '@/project/fsWatch';
 import type { DirEntry } from '@/project/format';
@@ -560,6 +561,7 @@ export function ContentBrowser() {
         { label: 'New Material', onClick: () => void createMaterial(cwd) },
         { label: 'New Material Graph', onClick: () => void createMaterialGraph(cwd) },
         { label: 'New State Machine', onClick: () => void createStateMachine(cwd) },
+        { label: 'New Behavior Tree', onClick: () => void createBehaviorTree(cwd) },
         { sep: true },
         { label: 'Show in Explorer', onClick: () => void showInExplorer(cwd) },
       ];

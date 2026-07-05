@@ -7,3 +7,17 @@
 
 export type { BtNodeType, BtNode, BtDefinition } from './types';
 export { tickBt, createBtRunState, type BtRunState } from './BtRunner';
+export {
+    emptyBt,
+    ensureBtIds,
+    btNodes,
+    btEdges,
+    maxChildren,
+    canHaveChildren,
+    addBtChild,
+    removeBtNode,
+    moveBtNode,
+    setBtNodeField,
+    reparentBtNode,
+    type BtEdge,
+} from './btGraph';
