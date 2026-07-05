@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Enemy AI",
+  "description": "A state machine drives enemies to patrol, sense the player, and chase via A* navigation.",
+  "tag": "AI",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "spineVersion": "none"
+}
