@@ -40,6 +40,10 @@ jobs:
         working-directory: docs/astro
         run: npm install
 
+      - name: Verify doc API imports match the SDK exports
+        working-directory: docs/astro
+        run: npm run verify:imports
+
       - name: Build Astro Site
         working-directory: docs/astro
         run: npm run build

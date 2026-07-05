@@ -7,7 +7,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "verify:imports": "node scripts/verify-doc-imports.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.1",
