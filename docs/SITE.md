@@ -96,8 +96,8 @@ This will:
 3. Add to sidebar in `astro/astro.config.mjs`
 4. Keep code samples accurate: every symbol a guide imports from the main `esengine`
    barrel must be a real SDK export. `npm run verify:imports` (from `docs/astro/`)
-   checks this against `sdk/dist/index.d.ts` and runs in CI before the site build, so
-   a renamed or fabricated API fails the docs deploy.
+   checks this against the exports declared in `sdk/src` and runs in CI before the
+   site build, so a renamed or fabricated API fails the docs deploy.
 
 ### Available Components
 
