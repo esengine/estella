@@ -211,6 +211,61 @@ dialog.close();
 **Handle:** `open()`, `close()`, `isOpen()`, `dispose()`, plus `backdropEntity` /
 `panelEntity`.
 
+## Lists & collections
+
+For long, scrollable, **data-driven** lists — inventories, leaderboards, chat logs —
+`createListView` builds a **virtualized** list (or grid): only the items near the
+viewport are ever mounted, so a 10 000-row list stays cheap. One call composes a data
+source, a layout, item recycling, scrolling, and clipping.
+
+```typescript
+import { createListView, arrayDataSource, spawnUIEntity, px } from 'esengine';
+
+const list = createListView<Player>({
+  world, parent,
+  viewportSize: { x: 320, y: 480 },     // the visible window, in pixels
+  data: arrayDataSource(players),        // any DataSource<T>, or a raw array
+  layout: { itemHeight: 56 },            // a column list
+  item: {
+    create: (world, parent) => spawnUIEntity({ world, parent, node: { height: px(56) } }),
+    bind: (entity, player, index) => { /* fill the row's Text / Sprite from `player` */ },
+  },
+});
+```
+
+`item.create` builds one row entity; `item.bind` fills it from the data. `bind` runs
+every time a row is reused for a different index, so keep it a pure "apply this data"
+function.
+
+**Layout** is a column, a row, or a grid:
+
+| `layout` | Result |
+|---|---|
+| `{ itemHeight }` | A vertical list. |
+| `{ itemWidth, direction: 'row' }` | A horizontal list. |
+| `{ columns, itemSize }` | A grid (a *TileView*). |
+
+**Updating** the list means mutating its data source — an `ArrayDataSource` notifies
+the view, which re-syncs on the next frame:
+
+```typescript
+list.data.append([newPlayer]);        // add
+list.data.remove(3);                   // remove index 3
+list.data.update(0, updatedPlayer);    // replace one
+list.data.setItems(freshList);         // replace all
+```
+
+**Handle:** `data` (mutate it to change the list) · `scrollToIndex(i)` · `refresh()` ·
+`mountedCount()` (never grows with the data — handy in tests) · `dispose()`, plus
+`scroll` and `view` as escape hatches to the underlying `ScrollContainer` / `ListView`.
+
+<Aside type="note">
+  Mouse-wheel scrolling works out of the box (the viewport is a hover target). Drag /
+  touch scrolling isn't wired yet — drive it from your own pointer handler via
+  `list.scroll.scrollBy(...)`. For heterogeneous rows, pass a map of item type →
+  template instead of one `item`, and give the data source a `getItemType(i)`.
+</Aside>
+
 ## Editor prefabs
 
 The same widgets ship as editor prefabs, so **Create… → UI** drops a ready-made

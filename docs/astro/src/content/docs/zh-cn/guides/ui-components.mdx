@@ -204,6 +204,57 @@ dialog.close();
 
 **句柄:** `open()`、`close()`、`isOpen()`、`dispose()`,以及 `backdropEntity` / `panelEntity`。
 
+## 列表与集合
+
+对于长的、可滚动的、**数据驱动**的列表——背包、排行榜、聊天记录——`createListView` 构建一个
+**虚拟化**列表(或网格):只有视口附近的条目会被挂载,所以一万行的列表也很轻。一次调用就组合了
+数据源、布局、条目回收、滚动和裁剪。
+
+```typescript
+import { createListView, arrayDataSource, spawnUIEntity, px } from 'esengine';
+
+const list = createListView<Player>({
+  world, parent,
+  viewportSize: { x: 320, y: 480 },     // 可见窗口,像素
+  data: arrayDataSource(players),        // 任意 DataSource<T>,或裸数组
+  layout: { itemHeight: 56 },            // 列表
+  item: {
+    create: (world, parent) => spawnUIEntity({ world, parent, node: { height: px(56) } }),
+    bind: (entity, player, index) => { /* 用 `player` 填这行的 Text / Sprite */ },
+  },
+});
+```
+
+`item.create` 建一个行实体;`item.bind` 用数据填它。`bind` 每当一行被复用到不同索引时都会跑,
+所以把它写成纯粹的"应用这份数据"函数。
+
+**布局**是列、行或网格:
+
+| `layout` | 结果 |
+|---|---|
+| `{ itemHeight }` | 竖直列表。 |
+| `{ itemWidth, direction: 'row' }` | 水平列表。 |
+| `{ columns, itemSize }` | 网格(*TileView*)。 |
+
+**更新**列表 = 改它的数据源——`ArrayDataSource` 会通知视图,视图在下一帧重新同步:
+
+```typescript
+list.data.append([newPlayer]);        // 增
+list.data.remove(3);                   // 删索引 3
+list.data.update(0, updatedPlayer);    // 改一个
+list.data.setItems(freshList);         // 全替换
+```
+
+**句柄:** `data`(改它来改列表)· `scrollToIndex(i)` · `refresh()` · `mountedCount()`
+(永远不随数据量增长——测试里好用)· `dispose()`,以及 `scroll` 和 `view` 作为通往底层
+`ScrollContainer` / `ListView` 的逃生舱。
+
+<Aside type="note">
+  鼠标滚轮滚动开箱即用(视口是悬停目标)。拖拽/触摸滚动尚未接线——需要的话用
+  `list.scroll.scrollBy(...)` 从你自己的指针处理器驱动。异构行:用「item 类型 → 模板」的映射
+  代替单个 `item`,并给数据源一个 `getItemType(i)`。
+</Aside>
+
 ## 编辑器预制体
 
 这些控件同时作为编辑器预制体提供,所以 **创建… → UI** 会把现成的 Button、Toggle、Slider 等放进
