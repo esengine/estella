@@ -111,6 +111,13 @@ export function StateMachineEditor() {
             onConnect={(from, to) => FsmGraphDocument.edit('Add transition', d => Object.assign(d, addTransition(d, from, to)))}
             onDeleteNode={id => { FsmGraphDocument.edit('Delete state', d => Object.assign(d, removeState(d, id))); setSelState(null); }}
             onDeleteEdge={id => { const p = parseEdgeId(id); if (p) FsmGraphDocument.edit('Delete transition', d => Object.assign(d, removeTransition(d, p.from, p.index))); setSelEdge(null); }}
+            menuItems={target => target.kind === 'canvas'
+              ? [{ label: 'Add State', onClick: () => { const name = uniqueName(def, 'State'); FsmGraphDocument.edit('Add state', d => Object.assign(d, addState(d, name, target.x, target.y))); setSelState(name); setSelEdge(null); } }]
+              : [
+                  { label: 'Set as initial', disabled: def.initial === target.nodeId, onClick: () => FsmGraphDocument.edit('Set initial', d => Object.assign(d, setInitial(d, target.nodeId!))) },
+                  { label: '', sep: true, onClick: () => { /* separator */ } },
+                  { label: 'Delete state', onClick: () => { FsmGraphDocument.edit('Delete state', d => Object.assign(d, removeState(d, target.nodeId!))); setSelState(null); } },
+                ]}
             toolbar={toolbar}
             emptyHint="Add a state, then drag from its handle to another to add a transition."
             renderEdgeLabel={e => <>{edgeSummary(e.transition)}</>}

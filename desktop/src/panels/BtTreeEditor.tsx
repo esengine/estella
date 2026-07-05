@@ -13,13 +13,13 @@
 import { useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { Trash2, Save } from 'lucide-react';
 import {
-  btNodes, btEdges, addBtChild, removeBtNode, moveBtNode, setBtNodeField, reparentBtNode,
-  canHaveChildren, aiRegistry,
+  btNodes, btEdges, addBtChild, addBtOrphan, removeBtNode, moveBtNode, setBtNodeField, reparentBtNode,
+  canHaveChildren, maxChildren, aiRegistry,
   type BtNode, type BtNodeType, type BtDefinition, type BtEdge,
 } from 'esengine';
 import { BtDocument } from '@/bt/BtDocument';
 import { EditorHistory } from '@/engine/EditorHistory';
-import { NodeGraphCanvas, type CanvasNode } from '@/panels/NodeGraphCanvas';
+import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/panels/NodeGraphCanvas';
 
 type BtCanvasNode = BtNode & CanvasNode;
 
@@ -106,6 +106,7 @@ export function BtTreeEditor() {
             selectedNode={selected}
             selectedEdge={null}
             nodeSize={() => ({ width: NODE_W, height: NODE_H })}
+            hasInput={n => def.root.id !== n.id}
             onSelectNode={setSelected}
             onSelectEdge={() => { /* BT edges are structural; not independently selectable */ }}
             onMoveNodeStart={() => { dragBefore.current = def; }}
@@ -118,6 +119,25 @@ export function BtTreeEditor() {
             onConnect={(from, to) => BtDocument.edit('Reparent', d => Object.assign(d, reparentBtNode(d, to, from)))}
             onDeleteNode={id => { if (def.root.id !== id) { BtDocument.edit('Delete node', d => Object.assign(d, removeBtNode(d, id))); setSelected(null); } }}
             onDeleteEdge={() => { /* structural */ }}
+            menuItems={target => {
+              // Canvas → create an unconnected node (wire it by dragging a
+              // parent's handle onto it). Node → add a child under it directly.
+              if (target.kind === 'canvas') {
+                return BT_TYPES.map(spec => ({ label: `Add ${spec.label}`, onClick: () => BtDocument.edit('Add node', d => Object.assign(d, addBtOrphan(d, spec.type, target.x, target.y))) }));
+              }
+              const parentId = target.nodeId!;
+              const parent = nodes.find(n => n.id === parentId);
+              const full = !parent || (parent.children?.length ?? 0) >= maxChildren(parent.type);
+              const items: MenuItem[] = [];
+              if (parent && canHaveChildren(parent.type) && !full) {
+                for (const spec of BT_TYPES) items.push({ label: `Add child: ${spec.label}`, onClick: () => BtDocument.edit('Add node', d => Object.assign(d, addBtChild(d, parentId, spec.type, target.x, target.y))) });
+              }
+              if (def.root.id !== parentId) {
+                if (items.length) items.push({ label: '', sep: true, onClick: () => { /* separator */ } });
+                items.push({ label: 'Delete node', onClick: () => { BtDocument.edit('Delete node', d => Object.assign(d, removeBtNode(d, parentId))); setSelected(null); } });
+              }
+              return items;
+            }}
             toolbar={toolbar}
             emptyHint="Drag from a node's handle to another to set parent → child."
             renderNode={(n, sel) => {
