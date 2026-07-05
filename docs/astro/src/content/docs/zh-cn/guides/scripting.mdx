@@ -1,0 +1,166 @@
+---
+title: 脚本
+description: 用 defineBehavior 编写每实体的游戏逻辑——一次调用同时给你一个编辑器可调的组件和 start/update/destroy 生命周期,完全降解到 ECS 之上,没有第二套运行时。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`defineBehavior` 是游戏循环的编排糖。一次调用同时给你两样东西:
+
+1. 一个**组件**,持有这个行为的每实体 `state`——可挂到任意实体,并在编辑器 Details 面板里调。
+2. 一个自动注册的**系统**,为每个携带该组件的实体驱动 `start` / `update` / `destroy` 生命周期。
+
+这里没有第二套脚本运行时:一个 behavior 完全降解到 Estella 现有的
+[ECS](/docs/zh-cn/core-concepts/ecs/) 之上——还是你已经在用的那套组件、系统和调度——所以它
+既快又完全可检视。
+
+## 你的第一个 behavior
+
+`defineBehavior(name, def)` 返回其背后的组件,所以你能像任何组件一样 spawn 或 insert 它。
+`state` 对象成为该组件的每实体数据:
+
+```typescript
+import { defineBehavior, Transform } from 'esengine';
+
+export const Patrol = defineBehavior('Patrol', {
+  state: { speed: 60 },   // 每实体数据,可在 Details 面板里编辑
+  update(ctx, dt) {
+    ctx.get(Transform).position.x += ctx.self.speed * dt;
+  },
+});
+```
+
+这一次调用就注册了更新系统。要把行为放到实体上,insert 它的组件——还能顺便覆盖起始 `state`:
+
+```typescript
+import { defineSystem, Commands, Transform } from 'esengine';
+
+const spawn = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Patrol, { speed: 120 });   // 每个实例单独覆盖默认值
+});
+```
+
+<Aside type="tip">
+  因为一个 behavior *就是*一个组件,你也能在编辑器里挂它——在 **Details** 面板里把它拖到某个
+  实体上,在那里调 `speed`。代码和编辑器是通往同一份数据的两扇门。
+</Aside>
+
+## 生命周期
+
+每个钩子都是可选的;只定义你需要的那些。
+
+| 钩子 | 何时运行 |
+|---|---|
+| `start(ctx)` | 一次,在该行为的组件首次出现在某实体上的那一帧。 |
+| `update(ctx, dt)` | 每帧,对每个携带该行为的实体。`dt` 是帧间隔(秒)(等同 `ctx.time.delta`)。 |
+| `destroy(ctx)` | 一次,当组件被移除**或**实体被 despawn 时。 |
+
+```typescript
+export const Enemy = defineBehavior('Enemy', {
+  state: { hp: 100 },
+  start(ctx) {
+    // 一次性初始化:播种状态、缓存查找、生成血条……
+  },
+  update(ctx, dt) {
+    if (ctx.self.hp <= 0) ctx.commands.despawn(ctx.entity);
+  },
+  destroy(ctx) {
+    // 收尾:不管实体是被杀死还是组件被卸下,都会运行
+  },
+});
+```
+
+<Aside type="note">
+  `destroy` 由实体的**存在性**驱动,而不是每帧的标志位:它在实体掉出该行为查询的那一帧触发,
+  不论是哪个系统移除了它、以什么顺序。这让清理与顺序无关且可靠。
+</Aside>
+
+## 上下文
+
+每个钩子都会收到一个 `BehaviorContext`——通往它所运行实体、以及周围世界的句柄:
+
+| 成员 | 类型 | 说明 |
+|---|---|---|
+| `ctx.self` | `S` | 该行为自己的 `state`。**随意改——修改会持久化。** |
+| `ctx.entity` | `Entity` | 该实例所挂的实体。 |
+| `ctx.time` | `TimeData` | 帧计时:`delta`、`elapsed`、`frameCount`、`fixedDelta`。 |
+| `ctx.input` | `InputState` | 键盘 / 鼠标 / 触摸 / 手柄(见 [输入](/docs/zh-cn/guides/input/))。 |
+| `ctx.commands` | `Commands` | 延迟的 spawn / despawn / insert——update 中调用安全。 |
+| `ctx.world` | `World` | 完整世界访问,用于跨实体读写。 |
+| `ctx.get(Comp)` | `ComponentData` | 读取**本**实体上的另一个组件。 |
+| `ctx.set(Comp, data)` | `void` | 写入**本**实体上的一个组件。 |
+| `ctx.has(Comp)` | `boolean` | 本实体是否拥有 `Comp`。 |
+
+```typescript
+import { defineBehavior, Transform } from 'esengine';
+
+export const PlayerController = defineBehavior('PlayerController', {
+  state: { speed: 200, facing: 1 },
+  update(ctx, dt) {
+    const move = (ctx.input.isKeyDown('KeyD') ? 1 : 0) - (ctx.input.isKeyDown('KeyA') ? 1 : 0);
+    if (move !== 0) ctx.self.facing = move;        // 改 self 会持久化
+    ctx.get(Transform).position.x += move * ctx.self.speed * dt;
+  },
+});
+```
+
+<Aside type="caution">
+  `ctx` 对象在实体与帧之间**被复用**,以实现每实体零分配。在钩子内部读它,但绝不要把它(或它的
+  `self`/`time`/`input`)存进闭包或数组留着以后用——把你需要的值拷出来。
+</Aside>
+
+## 可编辑状态与元数据
+
+`state` 对象定义了组件的字段和默认值。传 `metadata` 来控制这些字段在编辑器里的呈现——范围、
+步进、单位、枚举——和任何[组件](/docs/zh-cn/core-concepts/components/)用的字段元数据是同一套:
+
+```typescript
+export const Turret = defineBehavior('Turret', {
+  state: { range: 300, fireRate: 2, target: 0 },
+  metadata: {
+    fields: {
+      range: { min: 0, unit: 'px', category: 'Targeting' },
+      fireRate: { min: 0, unit: '/s', category: 'Targeting', tooltip: 'Shots per second.' },
+    },
+  },
+  update(ctx, dt) { /* … */ },
+});
+```
+
+因为状态是一个真正的、可序列化的组件,每实体的覆盖值会随场景保存,并在 Details 面板里实时编辑。
+
+## 选择调度
+
+默认情况下生命周期系统在 `Schedule.Update` 里运行,每帧一次。传一个不同的 `schedule` 可以在帧
+里的别处运行——例如用 `Schedule.FixedUpdate` 与物理同步推进:
+
+```typescript
+import { defineBehavior, Schedule } from 'esengine';
+
+export const Thruster = defineBehavior('Thruster', {
+  schedule: Schedule.FixedUpdate,
+  state: { force: 500 },
+  update(ctx) {
+    // 固定节奏——读 ctx.time.fixedDelta 拿到固定步长
+  },
+});
+```
+
+可用的相位包括 `Startup`、`PreUpdate`、`Update`、`PostUpdate`,以及固定三件套
+`FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`。
+
+## 它如何组合
+
+一个 behavior 并不是特例——它编译成恰好一个 `defineComponent` 加一个 `defineSystem`。当你的逻辑
+天然是*每实体*的(巡逻、抛射物、拾取物)时,用 `defineBehavior`;当你要一次处理整个查询、或在实体
+间协调时,用一个普通[系统](/docs/zh-cn/core-concepts/systems/)。
+
+钩子签名——`entity`、`world`、`commands`,外加 `self`——也和[游戏 AI](/docs/zh-cn/guides/ai/) 层
+的动作与行为树叶子是同一套编程模型,所以在 behavior 和 AI 动作之间搬逻辑很顺手。
+
+<Aside type="note">
+  热重载时,存活实体的 `start` 会再跑一次——契合 Estella 的快速重启语义,所以把 `start` 当作
+  幂等的初始化来写。
+</Aside>

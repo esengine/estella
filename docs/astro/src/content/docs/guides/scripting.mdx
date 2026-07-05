@@ -1,0 +1,181 @@
+---
+title: Scripting
+description: Write per-entity game logic with defineBehavior — one call gives you an editor-tunable component plus a start/update/destroy lifecycle, desugared entirely onto the ECS with no second runtime.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`defineBehavior` is the authoring sugar for the gameplay loop. One call gives you two
+things at once:
+
+1. A **component** that holds this behavior's per-entity `state` — attachable to any
+   entity and tunable in the editor's Details panel.
+2. An auto-registered **system** that drives a `start` / `update` / `destroy`
+   lifecycle for every entity carrying that component.
+
+There is no second scripting runtime: a behavior desugars entirely onto Estella's
+existing [ECS](/docs/core-concepts/ecs/) — the same components, systems, and
+scheduling you already use — so it stays fast and fully inspectable.
+
+## Your first behavior
+
+`defineBehavior(name, def)` returns the backing component, so you can spawn or insert
+it like any other. The `state` object becomes the component's per-entity data:
+
+```typescript
+import { defineBehavior, Transform } from 'esengine';
+
+export const Patrol = defineBehavior('Patrol', {
+  state: { speed: 60 },   // per-entity data, editable in the Details panel
+  update(ctx, dt) {
+    ctx.get(Transform).position.x += ctx.self.speed * dt;
+  },
+});
+```
+
+That single call registers the update system. To put the behavior on an entity, insert
+its component — optionally overriding the starting `state`:
+
+```typescript
+import { defineSystem, Commands, Transform } from 'esengine';
+
+const spawn = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Patrol, { speed: 120 });   // override the default per instance
+});
+```
+
+<Aside type="tip">
+  Because a behavior *is* a component, you can also attach it in the editor — drag it
+  onto an entity in the **Details** panel and tune `speed` there. Code and editor are
+  two doors to the same data.
+</Aside>
+
+## The lifecycle
+
+Each hook is optional; define only the ones you need.
+
+| Hook | When it runs |
+|---|---|
+| `start(ctx)` | Once, the frame the behavior's component first appears on an entity. |
+| `update(ctx, dt)` | Every frame, for each entity carrying the behavior. `dt` is the frame delta in seconds (same as `ctx.time.delta`). |
+| `destroy(ctx)` | Once when the component is removed **or** the entity is despawned. |
+
+```typescript
+export const Enemy = defineBehavior('Enemy', {
+  state: { hp: 100 },
+  start(ctx) {
+    // one-time setup: seed state, cache lookups, spawn a health bar…
+  },
+  update(ctx, dt) {
+    if (ctx.self.hp <= 0) ctx.commands.despawn(ctx.entity);
+  },
+  destroy(ctx) {
+    // teardown: runs whether the entity was killed or the component was detached
+  },
+});
+```
+
+<Aside type="note">
+  `destroy` is driven by entity **presence**, not a per-frame flag: it fires the frame
+  an entity drops out of the behavior's query, whichever system removed it and in
+  whatever order. That makes cleanup order-independent and reliable.
+</Aside>
+
+## The context
+
+Every hook receives a `BehaviorContext` — the handle to the entity it runs for and to
+the world around it:
+
+| Member | Type | Description |
+|---|---|---|
+| `ctx.self` | `S` | This behavior's own `state`. **Mutate it freely — changes persist.** |
+| `ctx.entity` | `Entity` | The entity this instance is attached to. |
+| `ctx.time` | `TimeData` | Frame timing: `delta`, `elapsed`, `frameCount`, `fixedDelta`. |
+| `ctx.input` | `InputState` | Keyboard / mouse / touch / gamepad (see [Input](/docs/guides/input/)). |
+| `ctx.commands` | `Commands` | Deferred spawn / despawn / insert — safe to call mid-update. |
+| `ctx.world` | `World` | Full world access for cross-entity reads and writes. |
+| `ctx.get(Comp)` | `ComponentData` | Read another component on **this** entity. |
+| `ctx.set(Comp, data)` | `void` | Write a component on **this** entity. |
+| `ctx.has(Comp)` | `boolean` | Whether this entity has `Comp`. |
+
+```typescript
+import { defineBehavior, Transform } from 'esengine';
+
+export const PlayerController = defineBehavior('PlayerController', {
+  state: { speed: 200, facing: 1 },
+  update(ctx, dt) {
+    const move = (ctx.input.isKeyDown('KeyD') ? 1 : 0) - (ctx.input.isKeyDown('KeyA') ? 1 : 0);
+    if (move !== 0) ctx.self.facing = move;        // mutating self persists
+    ctx.get(Transform).position.x += move * ctx.self.speed * dt;
+  },
+});
+```
+
+<Aside type="caution">
+  The `ctx` object is **reused** across entities and frames for zero per-entity
+  allocation. Read from it inside the hook, but never stash it (or its
+  `self`/`time`/`input`) in a closure or array to use later — copy the values you need.
+</Aside>
+
+## Editable state & metadata
+
+The `state` object defines the component's fields and their defaults. Pass `metadata`
+to control how those fields present in the editor — ranges, steps, units, enums — the
+same field metadata any [component](/docs/core-concepts/components/) uses:
+
+```typescript
+export const Turret = defineBehavior('Turret', {
+  state: { range: 300, fireRate: 2, target: 0 },
+  metadata: {
+    fields: {
+      range: { min: 0, unit: 'px', category: 'Targeting' },
+      fireRate: { min: 0, unit: '/s', category: 'Targeting', tooltip: 'Shots per second.' },
+    },
+  },
+  update(ctx, dt) { /* … */ },
+});
+```
+
+Because the state is a real serialized component, per-entity overrides are saved with
+the scene and edited live in the Details panel.
+
+## Choosing a schedule
+
+By default the lifecycle system runs in `Schedule.Update`, once per frame. Pass a
+different `schedule` to run elsewhere in the frame — for example
+`Schedule.FixedUpdate` to advance in lockstep with physics:
+
+```typescript
+import { defineBehavior, Schedule } from 'esengine';
+
+export const Thruster = defineBehavior('Thruster', {
+  schedule: Schedule.FixedUpdate,
+  state: { force: 500 },
+  update(ctx) {
+    // fixed cadence — read ctx.time.fixedDelta for the fixed step
+  },
+});
+```
+
+Available phases include `Startup`, `PreUpdate`, `Update`, `PostUpdate`, and the fixed
+trio `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`.
+
+## How it fits together
+
+A behavior is not a special case — it compiles to exactly one `defineComponent` plus
+one `defineSystem`. Reach for `defineBehavior` when your logic is naturally
+*per-entity* (a patrol, a projectile, a pickup); reach for a plain
+[system](/docs/core-concepts/systems/) when you're processing a whole query at once or
+coordinating across entities.
+
+The hook signature — `entity`, `world`, `commands`, plus `self` — is also the same
+programming model used by the [Gameplay AI](/docs/guides/ai/) layer's actions and
+behavior-tree leaves, so moving logic between a behavior and an AI action is
+straightforward.
+
+<Aside type="note">
+  On hot reload, per-entity `start` runs again for live entities — matching Estella's
+  fast-restart semantics, so treat `start` as idempotent setup.
+</Aside>

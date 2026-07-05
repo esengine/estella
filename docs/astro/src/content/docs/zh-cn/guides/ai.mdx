@@ -50,8 +50,9 @@ registerAction('chase', (ctx) => {
 });
 ```
 
-每个动作和条件都会收到它所运行实体的 **`AiContext`**。它和一个 `defineBehavior` 的 update
-是同一套编程模型——实体、世界、命令的访问——外加一个每个 agent 独有的 `blackboard`(黑板):
+每个动作和条件都会收到它所运行实体的 **`AiContext`**。它和一个
+[`defineBehavior`](/docs/zh-cn/guides/scripting/) 的 update 是同一套编程模型——实体、世界、
+命令的访问——外加一个每个 agent 独有的 `blackboard`(黑板):
 
 | 成员 | 类型 | 说明 |
 |---|---|---|
