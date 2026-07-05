@@ -1,0 +1,82 @@
+---
+title: 构建与导出
+description: 从编辑器的"打包项目"对话框把一个项目发布到 Web、桌面、微信小游戏或单文件 Playable 广告——构建配置、输出目录、打包设置与运行时前置条件。
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+一个 Estella 项目可发布到四个目标——**Web**、**桌面**、**微信小游戏**和单文件 **Playable 广告**
+——全部从编辑器完成。导出用的是**你在编辑器里运行的同一套运行时**,所以你发布的就是你测过的
+(*play == ship*)。
+
+## 从编辑器导出
+
+<Steps>
+
+1. 打开 **文件 → Build…** 调出 **打包项目(Package Project)** 对话框。
+2. 选一个**平台**(Web / 桌面 / 微信 / Playable)。
+3. 选一个**构建配置**——*Development* 或 *Shipping*(Shipping 会压缩)——一个**输出目录**,以及
+   是否输出 source map。
+4. 点 **导出**,看实时构建日志。完成后输出目录会自动打开。
+
+</Steps>
+
+你的选择会存进 `project.esproject`,所以对话框下次会记住它们。
+
+## 各个目标
+
+| 目标 | 产出什么 | 输出 | 下一步 |
+|---|---|---|---|
+| **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | 打开 `index.html`,或把文件夹上传到任意静态托管。 |
+| **桌面** | 一棵 Electron 应用源码树。 | `dist-desktop/` | `cd dist-desktop && npm install && npm start`——或 `npm run dist` 出原生 `.dmg` / `.exe` / AppImage 安装包。 |
+| **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/guides/wechat/)。 |
+| **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告网络的要求)。 | `dist-playable/` | 打开 `index.html`。注意完整引擎通常超出广告网络的体积限制。 |
+
+## 运行时前置条件
+
+Web 和桌面复用随编辑器附带的引擎运行时,所以导出无需准备。**微信**和 **Playable** 各需先构建一次
+自己的引擎运行时,因为它们用不同的 WebAssembly 加载器 / 单文件打包方式:
+
+```bash
+# 仅在首次微信导出前
+node build-tools/cli.js build -t wechat
+
+# 仅在首次 Playable 导出前
+node build-tools/cli.js build -t playable
+```
+
+当某个目标的运行时缺失时,打包项目对话框会提醒你。
+
+## 构建配置与 source map
+
+- **Development** —— 不压缩的构建;配上 source map 得到可调试的输出。
+- **Shipping** —— 为体积和速度压缩。这是你发布用的。
+- **source map** 把运行的 bundle 映射回你的 TypeScript。Web 和桌面可用;发布构建请关掉。
+
+## 打包设置
+
+每个目标的元数据在 **项目设置 → 打包(Packaging)** 里,并随项目保存:
+
+- **微信** —— AppID 和屏幕朝向。
+- **桌面** —— 应用 id 和产品名(用于命名安装包)。
+- **Playable** —— 朝向。
+
+设置界面见 [编辑器](/docs/zh-cn/guides/editor/)。
+
+## 构建 CLI(进阶)
+
+编辑器打包你的**游戏**。而 `build-tools/cli.js` 命令构建的是**引擎和 SDK 本身**——你只在要产出上面
+的微信 / Playable 运行时、或开发引擎时才需要它。常用命令:
+
+```bash
+node build-tools/cli.js build -t web        # 构建引擎(web 目标)
+node build-tools/cli.js build -t wechat     # …微信运行时
+node build-tools/cli.js build -t playable   # …单文件运行时
+node build-tools/cli.js sdk                 # 只构建 SDK
+node build-tools/cli.js watch               # 改动即重建(引擎开发)
+```
+
+<Aside type="note">
+  大多数游戏开发者除了那一次性的微信 / Playable 运行时构建外,从不需要动构建 CLI——日常工作都在
+  编辑器和 SDK 里。
+</Aside>

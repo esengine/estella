@@ -1,0 +1,90 @@
+---
+title: Building & Exporting
+description: Ship one project to Web, Desktop, WeChat MiniGame, or a single-file Playable Ad from the editor's Package Project dialog — build configs, output folders, packaging settings, and the runtime prerequisites.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+One Estella project ships to four targets — **Web**, **Desktop**, **WeChat
+MiniGame**, and a single-file **Playable Ad** — all from the editor. The export uses
+the **same runtime you played in the editor**, so what you shipped is what you tested
+(*play == ship*).
+
+## Exporting from the editor
+
+<Steps>
+
+1. Open **File → Build…** to bring up the **Package Project** dialog.
+2. Pick a **platform** (Web / Desktop / WeChat / Playable).
+3. Choose a **build config** — *Development* or *Shipping* (Shipping minifies) — an
+   **output folder**, and whether to emit source maps.
+4. Click **Export** and watch the live build log. When it finishes, the output folder
+   opens.
+
+</Steps>
+
+Your choices are saved into `project.esproject`, so the dialog remembers them next
+time.
+
+## The targets
+
+| Target | What it produces | Output | Next step |
+|---|---|---|---|
+| **Web** | A static, self-contained web build. | `dist-web/` | Open `index.html`, or upload the folder to any static host. |
+| **Desktop** | An Electron app source tree. | `dist-desktop/` | `cd dist-desktop && npm install && npm start` — or `npm run dist` for a native `.dmg` / `.exe` / AppImage installer. |
+| **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/guides/wechat/). |
+| **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | Open `index.html`. Note a full engine usually exceeds ad-network size limits. |
+
+## Runtime prerequisites
+
+Web and Desktop reuse the engine runtime that ships with the editor, so they export
+with no setup. **WeChat** and **Playable** each need their own engine runtime built
+once, because they use a different WebAssembly loader / single-file packaging:
+
+```bash
+# only before the first WeChat export
+node build-tools/cli.js build -t wechat
+
+# only before the first Playable export
+node build-tools/cli.js build -t playable
+```
+
+The Package Project dialog reminds you when a target's runtime is missing.
+
+## Build config & source maps
+
+- **Development** — an unminified build; pair it with source maps for debuggable
+  output.
+- **Shipping** — minified for size and speed. This is what you release.
+- **Source maps** map the running bundle back to your TypeScript. They're available for
+  Web and Desktop; leave them off for a release build.
+
+## Packaging settings
+
+Per-target metadata lives in **Project Settings → Packaging** and is saved with the
+project:
+
+- **WeChat** — AppID and screen orientation.
+- **Desktop** — application id and product name (used to name the installer).
+- **Playable** — orientation.
+
+See [The Editor](/docs/guides/editor/) for the settings UI.
+
+## The build CLI (advanced)
+
+The editor packages your **game**. The `build-tools/cli.js` command builds the
+**engine and SDK** themselves — you only need it to produce the WeChat / Playable
+runtimes above, or when working on the engine. Common commands:
+
+```bash
+node build-tools/cli.js build -t web        # build the engine (web target)
+node build-tools/cli.js build -t wechat     # …the WeChat runtime
+node build-tools/cli.js build -t playable   # …the single-file runtime
+node build-tools/cli.js sdk                 # build the SDK only
+node build-tools/cli.js watch               # rebuild on change (engine dev)
+```
+
+<Aside type="note">
+  Most game developers never run the build CLI beyond the one-time WeChat / Playable
+  runtime builds — day-to-day work happens in the editor and the SDK.
+</Aside>

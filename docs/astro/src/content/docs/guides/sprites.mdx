@@ -1,0 +1,139 @@
+---
+title: Sprites & Rendering
+description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, parallax, and the ShapeRenderer for primitives.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **`Sprite`** is the workhorse 2D renderer: an entity with a `Sprite` component
+draws a textured quad in the world. For solid primitives without a texture there's
+**`ShapeRenderer`**. Everything is drawn through a [Camera](/docs/guides/camera/), and
+draw order is controlled by **sorting layers**.
+
+## Your first sprite
+
+A sprite needs a `Transform` (where it is) and a `Sprite` (what it draws). Load a
+texture through the [`Assets`](/docs/guides/assets/) resource and put its handle on the
+sprite:
+
+```typescript
+import { defineSystem, Commands, Res, Query, Mut, Transform, Sprite, Assets } from 'esengine';
+
+const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets) => {
+  const tex = await assets.loadTexture('textures/player.png');   // { handle, width, height }
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Sprite, { texture: tex.handle, size: { x: tex.width, y: tex.height } });
+});
+```
+
+`sprite.texture` is a texture **handle**, not a path — you get one from a loader
+(`assets.loadTexture(ref)`). In the editor you don't write this: drag an image from the
+Content Browser onto an entity, or set the Sprite's texture field in Details.
+
+## Sprite fields
+
+| Field | Default | Description |
+|---|---|---|
+| `texture` | `0` | Texture handle from a loader (`0` = untextured, draws a white quad). |
+| `color` | `{1,1,1,1}` | Tint multiplied into the texture (white = unchanged). |
+| `size` | `{100,100}` | Rendered size in world units. |
+| `pivot` | `{0.5,0.5}` | Anchor point (0–1) the sprite rotates and scales about. |
+| `layer` | `0` | Sorting layer — controls draw order (see below). |
+| `flipX` / `flipY` | `false` | Mirror horizontally / vertically. |
+| `material` | `0` | A custom [material](/docs/guides/material/) handle (`0` = the default sprite shader). |
+| `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | Sub-rectangle of the texture to show (for atlases / scrolling). |
+| `tileSize` / `tileSpacing` | `{0,0}` | Repeat the texture across the sprite (`0` = no tiling). |
+| `parallax` | `{1,1}` | Parallax scroll factor (see below). |
+| `enabled` | `true` | Hide without removing the component. |
+
+## Tint & transparency
+
+`color` is an RGBA multiplier over the texture. White (`{1,1,1,1}`) draws it unchanged;
+tint it, or fade it by lowering alpha:
+
+```typescript
+sprite.color = { r: 1, g: 0.4, b: 0.4, a: 1 };   // reddened
+sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% transparent
+```
+
+`color` (and `size`) are **animatable** — key them in the
+[Sequencer](/docs/guides/timeline/) for flashes and fades.
+
+## Size & pivot
+
+`size` is the quad's size in **world units**, independent of the texture's pixel
+dimensions — set it to `{ tex.width, tex.height }` for 1:1, or anything else to scale.
+Scale on the `Transform` multiplies on top of it. `pivot` is the normalized anchor
+(0–1) the sprite rotates and scales about: `{0.5, 0.5}` is centered, `{0, 0}` is the
+bottom-left corner, `{0.5, 0}` pins the bottom-center (handy for characters standing on
+the ground).
+
+## Draw order & sorting layers
+
+When sprites overlap, draw order decides what's on top. Order is set by the **sorting
+layer** (`sprite.layer`) — a named layer list you define in **Project Settings →
+Rendering**, so the inspector shows a dropdown of *Background*, *Default*, *Foreground*,
+etc. instead of a raw number. Lower layers draw first (behind).
+
+```typescript
+sprite.layer = 0;   // e.g. "Background"
+sprite.layer = 2;   // e.g. "Foreground" — drawn on top
+```
+
+<Aside type="tip">
+  Sorting layers group things coarsely (background vs gameplay vs UI-in-world). For
+  fine ordering *within* a layer, use the entity's `Transform` z position.
+</Aside>
+
+## Flipping, atlases & scrolling
+
+- **Flip** a sprite with `flipX` / `flipY` — e.g. face a character left or right without
+  a separate texture.
+- **Atlases**: show one cell of a packed sheet by setting `uvOffset` and `uvScale` to
+  the cell's normalized rectangle. (For frame-by-frame animation, drive these from the
+  [Animator](/docs/guides/animation/) instead of by hand.)
+- **Scrolling**: animate `uvOffset` over time to scroll a texture (water, conveyor
+  belts), and set `tileSize` to repeat it across a large sprite.
+
+## Parallax backgrounds
+
+`parallax` scales how much a sprite moves relative to the camera: `1` moves with the
+world, `0` locks it to the camera (a fixed backdrop), and values in between scroll
+slower for depth. Layer a few sprites at `0.2`, `0.5`, `0.8` for a classic parallax
+background.
+
+## Custom materials & lighting
+
+Assign `sprite.material` to draw the sprite with your own shader — a tint, a
+dissolve, a distortion — see [Materials & Shaders](/docs/guides/material/). To make a
+sprite respond to `Light2D` lights, give it a **Lit-2D material**; see
+[2D Lighting & Shadows](/docs/guides/lighting/).
+
+## Shapes without a texture
+
+For solid circles, capsules, and rounded rectangles — placeholders, bars, debug
+overlays — use **`ShapeRenderer`** instead of a texture (`ShapeType.Circle`,
+`Capsule`, or `RoundedRect`):
+
+```typescript
+import { ShapeRenderer, ShapeType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ShapeRenderer, {
+    shapeType: ShapeType.RoundedRect,
+    size: { x: 200, y: 80 },
+    cornerRadius: 12,
+    color: { r: 0.2, g: 0.6, b: 1, a: 1 },
+  });
+```
+
+`ShapeRenderer` shares the sorting `layer` and `color` conventions with `Sprite`.
+
+## In the editor
+
+- **Create → Sprite** adds a sprite entity, or **drag an image** from the Content
+  Browser into the viewport to spawn one already textured.
+- Every field above is editable in **Details**; sprites, cameras, and lights show as
+  gizmos in the viewport. See [The Editor](/docs/guides/editor/).

@@ -1,0 +1,122 @@
+---
+title: 精灵与渲染
+description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、尺寸与轴心、翻转、排序层与绘制顺序、视差,以及绘制基本图元的 ShapeRenderer。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**`Sprite`** 是 2D 渲染的主力:一个带 `Sprite` 组件的实体在世界里绘制一个带纹理的四边形。要绘制
+不带纹理的实心图元,有 **`ShapeRenderer`**。一切都经由 [相机](/docs/zh-cn/guides/camera/) 绘制,
+而绘制顺序由**排序层**控制。
+
+## 你的第一个精灵
+
+一个精灵需要 `Transform`(在哪)和 `Sprite`(画什么)。通过 [`Assets`](/docs/zh-cn/guides/assets/)
+资源加载一张纹理,把它的句柄放到精灵上:
+
+```typescript
+import { defineSystem, Commands, Res, Query, Mut, Transform, Sprite, Assets } from 'esengine';
+
+const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets) => {
+  const tex = await assets.loadTexture('textures/player.png');   // { handle, width, height }
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Sprite, { texture: tex.handle, size: { x: tex.width, y: tex.height } });
+});
+```
+
+`sprite.texture` 是一个纹理**句柄**,而不是路径——你从加载器(`assets.loadTexture(ref)`)拿到它。
+在编辑器里你不用写这个:从内容浏览器把一张图拖到实体上,或在 Details 里设精灵的 texture 字段。
+
+## Sprite 字段
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `texture` | `0` | 加载器给的纹理句柄(`0` = 无纹理,画白色四边形)。 |
+| `color` | `{1,1,1,1}` | 乘进纹理的着色(白 = 不变)。 |
+| `size` | `{100,100}` | 渲染尺寸,世界单位。 |
+| `pivot` | `{0.5,0.5}` | 精灵旋转/缩放所绕的轴心点(0–1)。 |
+| `layer` | `0` | 排序层——控制绘制顺序(见下)。 |
+| `flipX` / `flipY` | `false` | 水平 / 垂直镜像。 |
+| `material` | `0` | 自定义[材质](/docs/zh-cn/guides/material/)句柄(`0` = 默认精灵着色器)。 |
+| `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | 要显示的纹理子矩形(用于图集 / 滚动)。 |
+| `tileSize` / `tileSpacing` | `{0,0}` | 把纹理在精灵上平铺重复(`0` = 不平铺)。 |
+| `parallax` | `{1,1}` | 视差滚动系数(见下)。 |
+| `enabled` | `true` | 不移除也能隐藏组件。 |
+
+## 着色与透明
+
+`color` 是叠加在纹理上的 RGBA 乘子。白(`{1,1,1,1}`)原样绘制;给它染色,或降低 alpha 让它淡出:
+
+```typescript
+sprite.color = { r: 1, g: 0.4, b: 0.4, a: 1 };   // 泛红
+sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
+```
+
+`color`(和 `size`)都**可动画**——在 [Sequencer](/docs/zh-cn/guides/timeline/) 里给它们打关键帧
+做闪烁和淡入淡出。
+
+## 尺寸与轴心
+
+`size` 是四边形的**世界单位**尺寸,与纹理的像素尺寸无关——设成 `{ tex.width, tex.height }` 得到
+1:1,或设成别的值来缩放。`Transform` 上的缩放会再乘上去。`pivot` 是精灵旋转/缩放所绕的归一化
+轴心(0–1):`{0.5, 0.5}` 居中,`{0, 0}` 是左下角,`{0.5, 0}` 钉住底部中心(适合站在地面上的角色)。
+
+## 绘制顺序与排序层
+
+当精灵重叠时,绘制顺序决定谁在上面。顺序由**排序层**(`sprite.layer`)决定——一个你在
+**项目设置 → 渲染**里定义的命名层列表,于是检视器显示 *Background*、*Default*、*Foreground* 等
+下拉,而不是裸数字。较低的层先画(在后面)。
+
+```typescript
+sprite.layer = 0;   // 例如 "Background"
+sprite.layer = 2;   // 例如 "Foreground" —— 画在上面
+```
+
+<Aside type="tip">
+  排序层做粗粒度分组(背景 vs 玩法 vs 世界内 UI)。层**内**的精细排序,用实体 `Transform` 的 z 位置。
+</Aside>
+
+## 翻转、图集与滚动
+
+- 用 `flipX` / `flipY` **翻转**精灵——例如让角色朝左或朝右,而不用另一张纹理。
+- **图集**:把 `uvOffset` 和 `uvScale` 设为某个单元格的归一化矩形,显示打包图集里的一格。(逐帧动画
+  请用 [Animator](/docs/zh-cn/guides/animation/) 驱动这些,而非手动。)
+- **滚动**:随时间改 `uvOffset` 来滚动纹理(水面、传送带),并设 `tileSize` 把它在大精灵上重复平铺。
+
+## 视差背景
+
+`parallax` 缩放一个精灵相对相机的移动量:`1` 随世界移动,`0` 锁定到相机(固定背景板),中间的值
+滚动更慢以产生纵深。把几张精灵分别设为 `0.2`、`0.5`、`0.8`,就得到经典的视差背景。
+
+## 自定义材质与光照
+
+给 `sprite.material` 赋值,用你自己的着色器绘制精灵——染色、溶解、扭曲——见
+[材质与着色器](/docs/zh-cn/guides/material/)。要让精灵响应 `Light2D` 光源,给它一个 **Lit-2D 材质**;
+见 [2D 光照与阴影](/docs/zh-cn/guides/lighting/)。
+
+## 不带纹理的图元
+
+要画实心圆、胶囊和圆角矩形——占位、进度条、调试覆盖——用 **`ShapeRenderer`** 而不是纹理
+(`ShapeType.Circle`、`Capsule` 或 `RoundedRect`):
+
+```typescript
+import { ShapeRenderer, ShapeType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ShapeRenderer, {
+    shapeType: ShapeType.RoundedRect,
+    size: { x: 200, y: 80 },
+    cornerRadius: 12,
+    color: { r: 0.2, g: 0.6, b: 1, a: 1 },
+  });
+```
+
+`ShapeRenderer` 与 `Sprite` 共享排序 `layer` 和 `color` 约定。
+
+## 在编辑器里
+
+- **创建 → 精灵** 添加一个精灵实体,或从内容浏览器**把图拖**进视口,生成一个已带纹理的精灵。
+- 上面每个字段都能在 **Details** 里编辑;精灵、相机、光源在视口里显示为 gizmo。见
+  [编辑器](/docs/zh-cn/guides/editor/)。

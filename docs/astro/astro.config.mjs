@@ -64,6 +64,7 @@ export default defineConfig({
           label: 'Graphics & UI',
           translations: { 'zh-CN': '图形与 UI' },
           items: [
+            { label: 'Sprites & Rendering', translations: { 'zh-CN': '精灵与渲染' }, slug: 'guides/sprites' },
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
             { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'guides/ui' },
             { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'guides/particle' },
@@ -82,6 +83,7 @@ export default defineConfig({
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scene' },
             { label: 'Saving & Loading', translations: { 'zh-CN': '存档与读档' }, slug: 'guides/save' },
             { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'guides/localization' },
+            { label: 'Building & Exporting', translations: { 'zh-CN': '构建与导出' }, slug: 'guides/build-export' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
             { label: 'Networking', translations: { 'zh-CN': '联网' }, slug: 'guides/networking' },
           ],
