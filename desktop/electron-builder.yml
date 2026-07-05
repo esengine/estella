@@ -35,4 +35,6 @@ linux:
 # Switch to `release` for direct publishing.
 publish:
   provider: github
+  owner: esengine
+  repo: estella
   releaseType: draft
