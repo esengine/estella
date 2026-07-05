@@ -34,7 +34,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 200, "y": 150, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 36, "y": 36 }, "color": { "r": 0.9, "g": 0.35, "b": 0.3, "a": 1 }, "layer": 2 } },
-        { "type": "StateMachineAgent", "data": { "fsm": "enemy" } },
+        { "type": "StateMachineAgent", "data": { "fsm": "assets/ai/enemy.esfsm" } },
         { "type": "NavAgent", "data": { "speed": 120, "repathInterval": 0.35 } },
         { "type": "Perceiver", "data": { "range": 260, "fovDegrees": 360 } }
       ],
@@ -48,7 +48,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 260, "y": -160, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 36, "y": 36 }, "color": { "r": 0.95, "g": 0.55, "b": 0.25, "a": 1 }, "layer": 2 } },
-        { "type": "StateMachineAgent", "data": { "fsm": "enemy" } },
+        { "type": "BehaviorTreeAgent", "data": { "bt": "assets/ai/enemy.esbt" } },
         { "type": "NavAgent", "data": { "speed": 95, "repathInterval": 0.5 } },
         { "type": "Perceiver", "data": { "range": 220, "fovDegrees": 360 } }
       ],

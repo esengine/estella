@@ -1,0 +1,6 @@
+{
+  "uuid": "b2f3d4e5-f6c7-48b9-ad12-2233445566bb",
+  "version": "1.0",
+  "type": "behaviortree",
+  "importer": { "autoMigrate": true }
+}

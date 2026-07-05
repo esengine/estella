@@ -1,0 +1,6 @@
+{
+  "uuid": "a1f2c3d4-e5b6-47a8-9c01-1122334455aa",
+  "version": "1.0",
+  "type": "statemachine",
+  "importer": { "autoMigrate": true }
+}

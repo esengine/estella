@@ -1,0 +1,21 @@
+{
+  "root": {
+    "type": "selector",
+    "id": "n0",
+    "x": 60,
+    "y": 150,
+    "children": [
+      {
+        "type": "sequence",
+        "id": "n1",
+        "x": 300,
+        "y": 70,
+        "children": [
+          { "type": "condition", "id": "n2", "name": "seesPlayer", "x": 540, "y": 40 },
+          { "type": "action", "id": "n3", "name": "chase", "x": 540, "y": 120 }
+        ]
+      },
+      { "type": "action", "id": "n4", "name": "patrol", "x": 300, "y": 240 }
+    ]
+  }
+}
