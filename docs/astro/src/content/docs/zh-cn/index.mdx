@@ -1,33 +1,53 @@
 ---
 title: Estella
-description: 由 WebAssembly 与 ECS 驱动的高性能 2D 游戏引擎。
+description: 由 WebAssembly 与 ECS 驱动的高性能 2D 游戏引擎，带可视化编辑器。
 template: splash
 hero:
-  tagline: 一个搭配 TypeScript SDK、由 C++/WebAssembly 内核驱动的 2D 游戏引擎。一次开发，发布到 Web 与微信小游戏。
+  tagline: 一个高性能 2D 游戏引擎——TypeScript SDK、C++/WebAssembly 内核、可视化编辑器。一个项目发布到 Web、桌面、微信小游戏和 Playable 广告。
   actions:
     - text: 快速开始
       link: /docs/zh-cn/getting-started/introduction/
       icon: right-arrow
+    - text: 下载编辑器
+      link: https://github.com/esengine/estella/releases
+      icon: laptop
+      variant: secondary
     - text: 在 GitHub 查看
       link: https://github.com/esengine/estella
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="快" icon="rocket">
     C++ 渲染管线编译为 WebAssembly，而不是解释执行的 JavaScript。
   </Card>
-  <Card title="类型安全" icon="seti:typescript">
-    一流的 TypeScript SDK：`defineComponent`、`defineSystem`、`Query`、
-    `Commands`、`Res`。
+  <Card title="类型安全的 SDK" icon="seti:typescript">
+    一流的 TypeScript API：`defineComponent`、`defineSystem`、`Query`、`Commands`、`Res`。
   </Card>
   <Card title="数据导向" icon="puzzle">
     Entity-Component-System 内核，单一且缓存友好的组件存储层。
   </Card>
-  <Card title="跨平台" icon="laptop">
-    一套代码，发布到 Web 浏览器与微信小游戏。
+  <Card title="可视化编辑器" icon="pencil">
+    UE5 风格的编辑器——场景视口、检视器、瓦片画笔、Sequencer，以及材质和 AI 的节点图编辑器。
   </Card>
+  <Card title="开箱即用" icon="star">
+    物理、瓦片地图、粒子、材质与 2D 光照、动画、Spine、音频、UI，以及一套游戏 AI 层。
+  </Card>
+  <Card title="跨平台" icon="laptop">
+    一个项目，导出到 Web、桌面、微信小游戏和单文件 Playable 广告。
+  </Card>
+</CardGrid>
+
+## 上手
+
+<CardGrid>
+  <LinkCard title="快速上手" href="/docs/zh-cn/getting-started/quick-start/" description="搭建你的第一个场景并运行。" />
+  <LinkCard title="编辑器" href="/docs/zh-cn/guides/editor/" description="可视化编辑器及其各面板导览。" />
+  <LinkCard title="精灵与渲染" href="/docs/zh-cn/guides/sprites/" description="绘制图像——着色、尺寸、排序与分层。" />
+  <LinkCard title="物理" href="/docs/zh-cn/guides/physics/" description="刚体、碰撞体、关节与空间查询。" />
+  <LinkCard title="游戏 AI" href="/docs/zh-cn/guides/ai/" description="导航、感知、状态机、行为树。" />
+  <LinkCard title="构建与导出" href="/docs/zh-cn/guides/build-export/" description="发布到 Web、桌面、微信和 Playable 广告。" />
 </CardGrid>

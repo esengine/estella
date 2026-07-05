@@ -1,34 +1,57 @@
 ---
 title: Estella
-description: A fast 2D game engine powered by WebAssembly and ECS.
+description: A fast 2D game engine powered by WebAssembly and ECS, with a visual editor.
 template: splash
 hero:
-  tagline: A fast 2D game engine with a TypeScript SDK and a C++/WebAssembly backend. Build games for the web and WeChat MiniGames.
+  tagline: A fast 2D game engine with a TypeScript SDK, a C++/WebAssembly core, and a visual editor. Ship one project to the web, desktop, WeChat MiniGames, and playable ads.
   actions:
     - text: Get Started
       link: /docs/getting-started/introduction/
       icon: right-arrow
+    - text: Download the Editor
+      link: https://github.com/esengine/estella/releases
+      icon: laptop
+      variant: secondary
     - text: View on GitHub
       link: https://github.com/esengine/estella
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="Fast" icon="rocket">
-    A C++ rendering pipeline compiled to WebAssembly — not interpreted
-    JavaScript.
+    A C++ rendering pipeline compiled to WebAssembly — not interpreted JavaScript.
   </Card>
-  <Card title="Type-safe" icon="seti:typescript">
-    A first-class TypeScript SDK: `defineComponent`, `defineSystem`, `Query`,
+  <Card title="Type-safe SDK" icon="seti:typescript">
+    A first-class TypeScript API: `defineComponent`, `defineSystem`, `Query`,
     `Commands`, `Res`.
   </Card>
   <Card title="Data-oriented" icon="puzzle">
     An Entity-Component-System core with a single cache-friendly storage layer.
   </Card>
-  <Card title="Cross-platform" icon="laptop">
-    One codebase, deployed to web browsers and WeChat MiniGames.
+  <Card title="Visual editor" icon="pencil">
+    A UE5-style editor — scene viewport, inspector, tilemap painter, Sequencer, and
+    node-graph editors for materials and AI.
   </Card>
+  <Card title="Batteries included" icon="star">
+    Physics, tilemaps, particles, materials & 2D lighting, animation, Spine, audio,
+    UI, and a gameplay AI layer.
+  </Card>
+  <Card title="Cross-platform" icon="laptop">
+    One project, exported to the web, desktop, WeChat MiniGames, and single-file
+    playable ads.
+  </Card>
+</CardGrid>
+
+## Dive in
+
+<CardGrid>
+  <LinkCard title="Quick Start" href="/docs/getting-started/quick-start/" description="Build your first scene and run it." />
+  <LinkCard title="The Editor" href="/docs/guides/editor/" description="A tour of the visual editor and its panels." />
+  <LinkCard title="Sprites & Rendering" href="/docs/guides/sprites/" description="Draw images — tint, size, sort, and layer them." />
+  <LinkCard title="Physics" href="/docs/guides/physics/" description="Rigid bodies, colliders, joints, and spatial queries." />
+  <LinkCard title="Gameplay AI" href="/docs/guides/ai/" description="Navigation, perception, state machines, behavior trees." />
+  <LinkCard title="Building & Exporting" href="/docs/guides/build-export/" description="Ship to web, desktop, WeChat, and playable ads." />
 </CardGrid>
