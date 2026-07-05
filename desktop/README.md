@@ -3,8 +3,10 @@
 A purpose-built visual editor for the Estella 2D WASM engine — Electron + React +
 TypeScript, with a UE5-style dockable workspace.
 
-> **Status:** static UI foundation. Every panel renders against the real domain
-> types with mock data; no engine is wired yet. This is the base to build features on.
+> **Status:** a working visual editor. The engine runs live in the viewport, scenes
+> load from and save to disk, the inspector is driven by engine reflection, you can
+> play-in-editor in an isolated realm, and the specialized asset editors — Sequencer,
+> tilemap painter, tileset, material graph, and the FSM / behavior-tree graphs — are wired.
 
 ## Stack
 
@@ -31,9 +33,9 @@ MenuBar      File · Edit · … + project / scene
 Toolbar      Save │ Select Move Rotate Scale │ Snap Grid │ [Play Pause Stop] │ Build
 ┌───────────┬───────────────────────────┬───────────┐
 │ World     │        Viewport           │  Details  │
-│ Outliner  │  (engine canvas mounts    │ (inspector│
-│           │   here — currently a       │  driven by│
-│           │   placeholder stage)       │  schema)  │
+│ Outliner  │  (live WebGL engine        │ (inspector│
+│           │   canvas mounts here)      │  driven by│
+│           │                            │  schema)  │
 ├───────────┴───────────────────────────┴───────────┤
 │ Content Browser  ·  Output Log   (tabbed bottom dock)│
 └──────────────────────────────────────────────────┘
@@ -49,26 +51,28 @@ electron/        main process + preload bridge (privileged IPC surface)
 src/
   theme/         design tokens, global reset, dockview theme, app styles
   layout/        MenuBar · Toolbar · StatusBar · DockLayout (dockview wiring)
-  panels/        Outliner · Viewport · Details · ContentBrowser · OutputLog
+  panels/        Viewport · Outliner · Details · ContentBrowser · OutputLog · Sequencer · node-graph editors
+  launcher/      project launcher (recents + new-from-template)
+  project/       ProjectStore, on-disk .esproject format, fs watch
+  engine/        runtime boot + EditorControlSurface + history
+  commands/      the editor command registry (labels, shortcuts, handlers)
+  settings/      editor + project settings registry (incl. Project Settings)
+  tools/         viewport transform gizmos, marquee, tile tools
   store/         Zustand editor state (selection, tool, play, overlays)
-  components/    shared bits (icon maps)
-  mock/          placeholder scene / components / assets / logs
+  components/    shared bits (menus, popovers, icon maps)
   types.ts       editor domain types — mirror the engine bridge contract
 public/          wasm runtime, bundled SDK, example projects (served at web root)
 ```
 
-## Wiring the engine (next steps)
+## How it works
 
-The mock layer is deliberately shaped like the real contract, so going live means
-swapping data sources, not rewriting panels:
-
-1. **Boot the runtime** — load `public/wasm/esengine.js` + `.wasm` into a `<canvas>`
-   inside `Viewport`, via the SDK's `CoreApiBridge` / `WasmBridge`.
-2. **Scene tree** — replace `MOCK_SCENE` with a live entity list from the bridge;
-   selection already flows through `editorStore`.
-3. **Inspector** — drive `Details` from the generated `EditorAPI` schema
-   (`tools/eht/generators/editor_api.py`): component list, property get/set by path.
-4. **Assets** — point `ContentBrowser` at the project's content directory (Electron
-   main process: `fs` + `chokidar` watch).
-5. **Play-in-editor** — `Toolbar` play controls drive the engine's run loop.
+- **Runtime** — the SDK + `esengine.wasm` boot into a `<canvas>` in `Viewport`; the
+  editor drives the world through `EditorControlSurface` (also exposed to headless
+  automation and AI agents over an MCP server, `electron/mcp/`).
+- **Scenes & assets** — `ProjectStore` opens a project from disk and the Electron main
+  process watches it (`fs` + `chokidar`); the `ContentBrowser` browses and creates assets.
+- **Inspector** — `Details` is generated from the engine's reflection metadata:
+  component list plus typed fields with ranges, units, and enums.
+- **Play-in-editor** — the toolbar Play controls run the game in an **isolated realm**
+  (the same runtime that ships the game), so play never mutates the edit-mode scene.
 ```
