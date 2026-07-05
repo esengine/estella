@@ -1,0 +1,218 @@
+---
+title: The Editor
+description: A tour of the Estella editor — the docked workspace, the viewport and its transform gizmos, building scenes with the Outliner and Details panels, the Content Browser, play-in-editor, the specialized asset editors, and project settings.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The Estella editor is a desktop application (Electron + React) with a UE5-style
+**dockable workspace**. You build scenes visually, tune components in an inspector,
+paint tilemaps, wire node graphs, and **play the game right inside the editor** — in
+an isolated runtime realm, so play never dirties your scene.
+
+## Launching a project
+
+When no project is open, the editor shows the **Launcher**:
+
+- **Recent** — reopen a project you've worked on, with search and grid/list views.
+- **New project** — pick a template, give it a name and location, and create it.
+
+A project is a folder on disk. The pieces the editor cares about:
+
+| Path | What it is |
+|---|---|
+| `project.esproject` | The project manifest — name, default scene, design resolution, enabled features (physics, rendering), packaging. Committed to version control. |
+| `.esengine/workspace.json` | Editor-local state (last-opened scene, panel layout). Gitignored. |
+| `assets/scenes/*.esscene` | Your scenes. |
+| `assets/…` | Textures, materials, tilesets, and other assets, each with a `.meta` sidecar. |
+| `src/components.ts` | Where you declare your project's components and behaviors. |
+| `src/main.ts` | The startup entry — where you register systems. |
+
+Assets are referenced portably by UUID (`@uuid:…`) rather than by path, so moving or
+renaming a file doesn't break references.
+
+## The workspace
+
+The default layout, from the outside in:
+
+- **Activity Bar** — the far-left icon rail (open side panels, project settings).
+- **Menu Bar** — File · Edit · Entity · View · Build · Window · Help.
+- **Toolbar** — Save, Undo/Redo, the transform tools, snapping, Show Grid, the **Play**
+  controls, Show Gizmos, and Build.
+- **Viewport** (center) — the live WebGL scene view.
+- **World Outliner** (right) — the scene's entity hierarchy.
+- **Details** (right) — the inspector for the current selection.
+- **Content Browser** + **Output Log** (bottom tabs).
+- **Status Bar** — edit mode, selection, cursor, FPS, draw calls, and the engine version.
+
+Panels are dockable — drag a tab to re-arrange, split, or float it, and the layout is
+saved automatically. You can also summon the Content Browser as a slide-up overlay
+from anywhere with **Ctrl / ⌘ + Space** (the *Content Drawer*).
+
+<Aside type="note">
+  Play runs in a **separate realm** from the scene you're editing, so a running game
+  can't mutate your edit-mode world. Stopping returns you to exactly the scene you had.
+</Aside>
+
+## The viewport
+
+The viewport is where you place and manipulate entities.
+
+**Navigation**
+
+- **Pan** — drag with the middle or right mouse button.
+- **Zoom** — scroll the mouse wheel (zooms toward the cursor).
+- **Frame Selected** — press **F** to center and fit the selection.
+
+**Selecting**
+
+- **Click** an entity to select it; **Shift-click** to toggle it in a multi-selection.
+- Drag on **empty space** to **marquee** box-select everything inside.
+- Press **Esc** to cancel an in-progress drag, then to clear the selection.
+
+**Transforming** — pick a tool from the toolbar (or its shortcut) and drag a gizmo
+handle:
+
+| Tool | Shortcut | Gizmo |
+|---|---|---|
+| Select | `Q` | Pick / marquee only, no transform handles. |
+| Move | `W` | Axis arrows (X / Y) plus a center plane for free move. |
+| Rotate | `E` | A rotation ring. |
+| Scale | `R` | Axis boxes plus a uniform-scale center. |
+
+Dragging a handle transforms the whole selection as one, about a shared pivot, and
+each drag is a single undo step. **Alt-drag** a selection to duplicate it and drag the
+copies. Nudge the selection with the **arrow keys** (one grid step; hold **Shift** for
+×10).
+
+**Snapping** — toggle snapping from the viewport's Snap dropdown and set the grid step,
+rotation angle, and scale increment.
+
+**Show Flags** — a viewport dropdown toggles the Grid, Gizmos, Colliders, and the perf
+overlay, plus World/Local axis orientation and Pivot-vs-Center. Entities that don't
+render — Cameras, `Light2D`, and colliders — are drawn as gizmos in edit mode (icon,
+view rect, light reach/cone, collider outline) so you can see and place them.
+
+## Building a scene
+
+### Creating entities
+
+There are several ways to add an entity:
+
+- **Entity → Add Entity** (or the toolbar) drops a blank Transform entity.
+- **Create…** opens a command-palette of entity templates: **Basic** (Empty), **2D**
+  (Sprite, Camera, Particles, Light), and **UI** (Canvas plus the built-in UI widgets).
+- **Right-click in the Outliner** for the same actions in context, plus folders,
+  parenting, and prefab creation.
+- **Drag from the Content Browser** — drop an image to spawn a Sprite, or a `.esprefab`
+  to instantiate it.
+
+### The World Outliner
+
+The Outliner is the scene's hierarchy. You can:
+
+- Reparent by dragging entities onto one another, and organize with **folders**.
+- **Rename** with `F2`, **Duplicate** with Ctrl/⌘ + D, **Delete** with Delete.
+- **Hide/Show** and **Lock/Unlock** entities (independent of whether the component is
+  enabled at runtime).
+- **Create Prefab** from a selection, then drop instances back into the scene.
+
+### The Details panel
+
+Details is the inspector for the selection. It lists every component on the entity and
+its fields — driven by the engine's reflection metadata, so ranges, units, enums, and
+tooltips come straight from the component definition. Add components, edit values, and
+they're written back to the scene live. Details also serves as the **asset inspector**:
+select an asset in the Content Browser to edit its import settings or, for a material,
+its parameters.
+
+## The Content Browser
+
+The Content Browser is your project's asset explorer. Its **create** menu makes new
+assets in place:
+
+- New Scene, New Animation, New Input Map, New Material, New Material Graph,
+  New State Machine, New Behavior Tree, New Folder.
+- Context actions per asset type: **Create Tileset** (from a texture), **Create
+  Tilemap** (from a tileset), **Create Material Instance** (from a material).
+
+**Import** by dragging files in from Finder / Explorer, or via Import…. Each asset gets
+a `.meta` sidecar the first time it's seen. Per-asset context actions include Rename,
+Duplicate, Copy Path, Copy Reference, Show in Explorer, and Delete.
+
+## Play-in-editor
+
+The **Play** controls in the toolbar run your game:
+
+- **Play** starts the game (the button becomes **Restart** while running); **Pause**
+  and **Stop** do what they say.
+- The play-mode dropdown chooses **Play In Viewport** (the game hosts over the viewport)
+  or **Play In New Window** (a dedicated **Game** tab).
+- Shortcuts: **F5** to play/toggle, **Esc** to stop.
+
+Because play uses an isolated realm — the same runtime that ships your game — what you
+see in play is what a player gets.
+
+## Specialized editors
+
+Double-click an asset in the Content Browser to open its editor in a document tab.
+
+- **Sequencer** — a timeline / curve editor for keyframe animation. See
+  [Timeline](/docs/guides/timeline/).
+- **Tilemap painter** — tools for **brush, erase, rectangle, line, bucket, select,
+  eyedropper**, and **terrain (autotile)**, plus stamp **flip-H / flip-V / rotate-90°**
+  (`H` / `V` / `R` while a paint tool is active). See [Tilemaps](/docs/guides/tilemap/).
+- **Tileset editor** — mark per-tile **collision** (box or polygon) and **terrain**
+  membership for autotiling.
+- **State Machine** (`.esfsm`) and **Behavior Tree** (`.esbt`) editors — visual graphs
+  for AI. See [Gameplay AI](/docs/guides/ai/).
+- **Material Graph** (`.esmatgraph`) — a node editor that compiles to a shader. See
+  [Materials & Shaders](/docs/guides/material/).
+
+The State Machine and Behavior Tree editors share a common node canvas: **middle-drag**
+to pan, **wheel** to zoom toward the cursor, drag an output handle onto another node to
+connect them, click to select a node or edge, **Delete** to remove it, and right-click
+the canvas to add a node at the cursor.
+
+## Project settings
+
+Open settings with **Ctrl / ⌘ + ,** or the Activity Bar's gear. Settings are grouped:
+
+- **Editor** — Appearance (accent color, UI scale), Viewport (grid, snapping, gizmos),
+  **Keyboard Shortcuts** (every shortcut below is rebindable here), and Console.
+- **Project** (saved into `project.esproject`):
+  - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
+    matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
+    speed, sleeping, continuous collision). See [Physics](/docs/guides/physics/).
+  - **Rendering** — named sorting layers that populate the inspector's layer dropdown.
+  - **Packaging** — per-platform settings for WeChat, Desktop, and Playable exports.
+
+## Keyboard shortcuts
+
+`mod` is **⌘** on macOS and **Ctrl** elsewhere. All of these are rebindable under
+Settings → Keyboard Shortcuts.
+
+| Action | Shortcut |
+|---|---|
+| New Scene | `mod + N` |
+| Open Project | `mod + O` |
+| Save Scene | `mod + S` |
+| Save Scene As | `mod + shift + S` |
+| Undo / Redo | `mod + Z` / `mod + shift + Z` |
+| Duplicate | `mod + D` |
+| Copy / Cut / Paste | `mod + C` / `mod + X` / `mod + V` |
+| Delete | `Delete` / `Backspace` |
+| Select All | `mod + A` |
+| Select / Move / Rotate / Scale tool | `Q` / `W` / `E` / `R` |
+| Nudge selection (×10 with Shift) | Arrow keys |
+| Frame Selected | `F` |
+| Play / toggle · Stop | `F5` · `Esc` |
+| Content Drawer | `Ctrl + Space` |
+| Project Settings | `mod + ,` |
+
+<Aside type="tip">
+  For headless automation and AI agents, the editor also exposes an
+  `EditorControlSurface` (load a scene, step the sim, read the scene tree/inspector,
+  capture the viewport) over an MCP server — a developer/automation surface driven from
+  scripts, separate from the visual editor above.
+</Aside>

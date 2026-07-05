@@ -33,6 +33,7 @@ export default defineConfig({
             { label: 'Introduction', translations: { 'zh-CN': '简介' }, slug: 'getting-started/introduction' },
             { label: 'Installation', translations: { 'zh-CN': '安装' }, slug: 'getting-started/installation' },
             { label: 'Quick Start', translations: { 'zh-CN': '快速上手' }, slug: 'getting-started/quick-start' },
+            { label: 'The Editor', translations: { 'zh-CN': '编辑器' }, slug: 'guides/editor' },
           ],
         },
         {
