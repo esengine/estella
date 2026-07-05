@@ -12,7 +12,7 @@ import { postProcessPlugin } from './postprocess';
 import { timelinePlugin } from './timeline';
 import { timerPlugin } from './timer';
 import { lifecyclePlugin } from './lifecycle';
-import { navPlugin, fsmPlugin, btPlugin } from './ai';
+import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from './ai';
 import { SpinePlugin } from './spine';
 import { createFetchSideModuleHost, type SideModuleHost } from './sideModules';
 
@@ -58,7 +58,7 @@ export interface CreateWebAppOptions extends WebAppOptions {
     wasmBaseUrl?: string;
 }
 
-const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, fsmPlugin, btPlugin, navPlugin];
+const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin];
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     const sideModules: SideModuleHost | undefined = options?.sideModules

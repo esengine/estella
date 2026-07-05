@@ -1,28 +1,29 @@
 import {
-    defineSystem, Query, Res, Transform, GetWorld,
-    registerFsm, registerAction, setNavDestination, Nav, NavGrid, AiFsm, StateMachineAgent,
+    defineSystem, Res,
+    registerFsm, registerAction, registerCondition, setNavDestination, Nav, NavGrid, Perception,
 } from 'esengine';
-import { PlayerControl } from './components';
 
-// The enemy brain, as data: patrol until the player is sensed, chase while seen,
-// break off when lost. `seesPlayer` is a blackboard flag the perception system
-// writes; `chase` is a named action resolved from the registry below.
+// The enemy brain reads the Perception component that the engine's built-in
+// perception system writes (sight range + field-of-view over PerceptionTargets),
+// so sensing and decision-making stay decoupled — no per-project sensing code.
+registerCondition('seesPlayer', ctx => ctx.has(Perception) && ctx.get(Perception).visible);
+registerCondition('lostPlayer', ctx => !ctx.has(Perception) || !ctx.get(Perception).visible);
+
+// Patrol until the player is seen, chase while seen, break off when lost.
 registerFsm('enemy', {
     initial: 'Patrol',
     states: [
-        { name: 'Patrol', transitions: [{ to: 'Chase', guard: { key: 'seesPlayer', op: 'truthy' } }] },
-        { name: 'Chase', onUpdate: 'chase', transitions: [{ to: 'Patrol', guard: { key: 'seesPlayer', op: 'falsy' } }] },
+        { name: 'Patrol', transitions: [{ to: 'Chase', condition: 'seesPlayer' }] },
+        { name: 'Chase', onUpdate: 'chase', transitions: [{ to: 'Patrol', condition: 'lostPlayer' }] },
     ],
 });
 
-// Chase leaf: steer this agent's NavAgent at the player's live position. The
+// Chase leaf: steer this agent's NavAgent at the last-seen player position. The
 // nav layer plans the A* path and moves the body — the action only sets intent.
-registerAction('chase', (ctx) => {
-    const players = ctx.world.getEntitiesWithComponents([PlayerControl, Transform]);
-    const player = players[0];
-    if (player === undefined) return;
-    const p = ctx.world.get(player, Transform);
-    setNavDestination(ctx.world, ctx.entity, { x: p.position.x, y: p.position.y });
+registerAction('chase', ctx => {
+    if (!ctx.has(Perception)) return;
+    const per = ctx.get(Perception);
+    if (per.visible) setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
 });
 
 /** Install an open navigation grid over the arena on startup. */
@@ -32,21 +33,4 @@ export const setupNavGridSystem = defineSystem(
         nav.setGrid(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
     },
     { name: 'SetupNavGridSystem' },
-);
-
-const SENSE_RANGE = 180;
-
-/** Perception: set each enemy's `seesPlayer` blackboard flag that the FSM guard reads. */
-export const enemySenseSystem = defineSystem(
-    [Query(Transform, StateMachineAgent), Res(AiFsm), GetWorld()],
-    (enemies, aifsm, world) => {
-        const players = world.getEntitiesWithComponents([PlayerControl, Transform]);
-        if (players.length === 0) return;
-        const pp = world.get(players[0], Transform).position;
-        for (const [entity, tf] of enemies) {
-            const d = Math.hypot(pp.x - tf.position.x, pp.y - tf.position.y);
-            aifsm.blackboard(entity).set('seesPlayer', d < SENSE_RANGE);
-        }
-    },
-    { name: 'EnemySenseSystem' },
 );

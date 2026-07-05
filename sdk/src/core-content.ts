@@ -503,3 +503,23 @@ export {
     type BtRunState,
     type BehaviorTreeAgentData,
 } from './ai';
+
+// =============================================================================
+// AI — Perception (sight/FOV sensing into a Perception component)
+// =============================================================================
+
+export {
+    senseTarget,
+    facingFromQuat,
+    normalizeAngle,
+    Perceiver,
+    Perception,
+    PerceptionTarget,
+    PerceptionPlugin,
+    perceptionPlugin,
+    stepPerception,
+    makeLosCheck,
+    type SenseResult,
+    type PerceiverData,
+    type PerceptionData,
+} from './ai';

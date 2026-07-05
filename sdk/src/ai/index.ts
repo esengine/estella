@@ -56,3 +56,6 @@ export {
     agentBtBlackboard,
     type AiWorldView,
 } from './bt/BtPlugin';
+
+// Perception: sight/FOV sensing into a Perception component (read by FSM/BT).
+export * from './perception';
