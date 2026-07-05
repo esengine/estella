@@ -22,9 +22,14 @@ import { StateMachineEditor } from '@/panels/StateMachineEditor';
 import { BtTreeEditor } from '@/panels/BtTreeEditor';
 import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { dockApi } from '@/layout/dockApi';
 
-const panel = (id: string, node: ReactNode) => <Perf id={id}>{node}</Perf>;
+const panel = (id: string, node: ReactNode) => (
+  <Perf id={id}>
+    <ErrorBoundary label={id}>{node}</ErrorBoundary>
+  </Perf>
+);
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount.
 const components: Record<string, FC<IDockviewPanelProps>> = {
@@ -39,7 +44,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
   statemachine: () => panel('statemachine', <StateMachineEditor />),
   behaviortree: () => panel('behaviortree', <BtTreeEditor />),
-  profiler: () => <ProfilerPanel />,
+  profiler: () => <ErrorBoundary label="profiler"><ProfilerPanel /></ErrorBoundary>,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => panel('game', <GamePanel />),
 };
