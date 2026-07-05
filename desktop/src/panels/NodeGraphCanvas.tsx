@@ -79,6 +79,7 @@ function bezier(x1: number, y1: number, x2: number, y2: number): string {
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }
 
+
 export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(props: NodeGraphCanvasProps<N, E>) {
   const {
     nodes, edges, selectedNode, selectedEdge, nodeSize, renderNode, renderEdgeLabel,
@@ -106,7 +107,6 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
 
   const byId = new Map(nodes.map(n => [n.id, n]));
   const out = (n: N) => { const s = nodeSize(n); return { x: nx(n) + s.width, y: ny(n) + s.height / 2 }; };
-  const inp = (n: N) => ({ x: nx(n), y: ny(n) + nodeSize(n).height / 2 });
 
   // Screen point → world coord (inverse of the viewport transform).
   const toCanvas = (clientX: number, clientY: number) => {
@@ -178,6 +178,35 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
     return `M ${cx - 16} ${y} C ${cx - 30} ${y - 40}, ${cx + 30} ${y - 40}, ${cx + 16} ${y}`;
   };
 
+  // Edge geometry: anchors chosen on the side facing the target, plus a bow
+  // offset for bidirectional pairs so they don't overlap.
+  const edgeGeom = (from: N, to: N, e: E) => {
+    if (e.from === e.to) {
+      return { d: selfLoopPath(from), mx: nx(from) + nodeSize(from).width / 2, my: ny(from) - 22 };
+    }
+    const fs = nodeSize(from);
+    const ts = nodeSize(to);
+    // Output (right edge) -> input (left edge), matching the node handles.
+    const a = { x: nx(from) + fs.width, y: ny(from) + fs.height / 2 };
+    const b = { x: nx(to), y: ny(to) + ts.height / 2 };
+    // Target to the right: a direct S-curve. Otherwise it's a back-edge (the
+    // source sits right of the target) - route it as a compact arc bowing below
+    // the nodes, not a wide horizontal S that flings far past them.
+    if (b.x > a.x + 20) {
+      return { d: bezier(a.x, a.y, b.x, b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+    }
+    const bow = 58;
+    const c1x = a.x + 46;
+    const c1y = a.y + bow;
+    const c2x = b.x - 46;
+    const c2y = b.y + bow;
+    return {
+      d: `M ${a.x} ${a.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${b.x} ${b.y}`,
+      mx: 0.125 * a.x + 0.375 * c1x + 0.375 * c2x + 0.125 * b.x,
+      my: 0.125 * a.y + 0.375 * c1y + 0.375 * c2y + 0.125 * b.y,
+    };
+  };
+
   return (
     <div className="panel" style={S.root}>
       {toolbar && <div style={S.bar}>{toolbar}</div>}
@@ -202,20 +231,25 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
         {nodes.length === 0 && emptyHint && <div style={S.empty}>{emptyHint}</div>}
         <div style={{ position: 'absolute', top: 0, left: 0, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`, transformOrigin: '0 0' }}>
         <svg style={S.svg}>
+          <defs>
+            <marker id="ng-arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M0,0 L7.5,3 L0,6 Z" fill="#7d8794" />
+            </marker>
+            <marker id="ng-arrow-sel" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M0,0 L7.5,3 L0,6 Z" fill="var(--accent, #6ea9ff)" />
+            </marker>
+          </defs>
           {edges.map(e => {
             const from = byId.get(e.from);
             const to = byId.get(e.to);
             if (!from || !to) return null;
-            const self = e.from === e.to;
-            const a = out(from);
-            const b = self ? { x: nx(to) + nodeSize(to).width / 2, y: ny(to) } : inp(to);
-            const d = self ? selfLoopPath(from) : bezier(a.x, a.y, b.x, b.y);
+            const { d } = edgeGeom(from, to, e);
             const sel = selectedEdge === e.id;
             return (
               <g key={e.id}>
                 <path d={d} stroke="transparent" strokeWidth={12} fill="none" style={{ cursor: 'pointer' }}
                   onPointerDown={ev => { ev.stopPropagation(); onSelectEdge(e.id); onSelectNode(null); }} />
-                <path d={d} stroke={sel ? 'var(--accent, #6ea9ff)' : '#7d8794'} strokeWidth={sel ? 2.5 : 1.6} fill="none" />
+                <path d={d} stroke={sel ? 'var(--accent, #6ea9ff)' : '#7d8794'} strokeWidth={sel ? 2.5 : 1.6} fill="none" markerEnd={`url(#ng-arrow${sel ? '-sel' : ''})`} />
               </g>
             );
           })}
@@ -231,9 +265,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
           const from = byId.get(e.from);
           const to = byId.get(e.to);
           if (!from || !to) return null;
-          const self = e.from === e.to;
-          const mx = self ? nx(from) + nodeSize(from).width / 2 : (out(from).x + inp(to).x) / 2;
-          const my = self ? ny(from) - 22 : (out(from).y + inp(to).y) / 2;
+          const { mx, my } = edgeGeom(from, to, e);
           return (
             <div key={`lbl-${e.id}`} style={{ ...S.edgeLabel, left: mx - 40, top: my - 9, borderColor: selectedEdge === e.id ? 'var(--accent, #6ea9ff)' : 'transparent' }}
               onPointerDown={ev => { ev.stopPropagation(); onSelectEdge(e.id); onSelectNode(null); }}>
