@@ -108,10 +108,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Copy esbuild.wasm to desktop public
-        shell: bash
-        run: cp $(find node_modules/.pnpm -name 'esbuild.wasm' -path '*/esbuild-wasm/*' | head -1) desktop/public/esbuild.wasm
-
       # Native ECS release-safety tests (ES_VERIFY guards + PackedId packing).
       # Compiled WITHOUT -DES_DEBUG to mirror the shipped Release config (where
       # ES_ASSERT is stripped) and under ASAN, so the OOB write / index-alias
