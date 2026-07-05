@@ -4,6 +4,9 @@
 # installers; `dist:dir` produces an unpacked app for local smoke testing.
 appId: com.estellaengine.editor
 productName: Estella Editor
+# The package name is scoped (@estella/editor); pin a clean binary name so the Linux
+# AppImage builder doesn't choke on the '@' / '/'.
+executableName: estella-editor
 directories:
   output: release
 files:
@@ -23,9 +26,13 @@ extraResources:
 win:
   target: nsis
 mac:
+  # arm64 only: a universal build would merge an x64 slice, but pnpm 10 installs just
+  # the host-arch esbuild native binary, so the x64 slice would ship a broken esbuild
+  # (and electron-builder rejects the identical-across-arch binary). Intel-mac support
+  # would need the darwin-x64 esbuild binary installed for a separate x64 dmg.
   target:
     - target: dmg
-      arch: universal
+      arch: arm64
   category: public.app-category.developer-tools
 linux:
   target: AppImage
