@@ -1,0 +1,210 @@
+---
+title: UI 控件
+description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropdown、Dialog——它们的选项与命令式句柄,构建在 UI 组件模型之上。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+控件工厂用 [UI](/docs/zh-cn/guides/ui/) 组件模型(`UINode` + `Interactable` + `StateMachine` +
+`StateVisuals`)构建常见控件,免得你逐个手动接线。每个工厂接收一个选项对象,返回创建的实体
+(Button)或一个带命令式方法、用于读取和驱动它的**句柄(handle)**。
+
+交互式控件需要 world 和 UI 事件队列——`world` 来自 `GetWorld()`,`events` 来自 `Res(UIEvents)`,
+和 [UI 指南](/docs/zh-cn/guides/ui/)里一样。它们都接受 `parent?`、一个 `node?`
+([`UINode`](/docs/zh-cn/guides/ui/#uinode--the-layout-box) 布局)和视觉覆盖。
+
+<Aside type="tip">
+  这些是方便的起点,而非封闭集合——一个控件不过是挂了 UI 组件的实体树,所以你能用同样方式组合
+  自己的控件。
+</Aside>
+
+## Button 按钮
+
+`createButton(opts)` 生成一个可点击实体(带可选子标签),在各视觉状态间过渡。返回按钮**实体**。
+一次点击是在按钮*上*按下再松开。
+
+```typescript
+import { createButton } from 'esengine';
+
+const btn = createButton({
+  world, events, parent,
+  text: 'Play',
+  node: { width: px(160), height: px(44) },
+  states: {
+    normal:  { color: { r: 0.20, g: 0.55, b: 1.0, a: 1 } },
+    hover:   { color: { r: 0.30, g: 0.65, b: 1.0, a: 1 } },
+    pressed: { color: { r: 0.12, g: 0.45, b: 0.9, a: 1 } },
+    disabled:{ color: { r: 0.3, g: 0.3, b: 0.3, a: 1 } },
+  },
+  onClick: (entity) => { /* … */ },
+});
+```
+
+| 选项 | 说明 |
+|---|---|
+| `text` | 标签——字符串或 `TextInit`。省略则无标签。 |
+| `states` | 状态名(`normal` / `hover` / `pressed` / `disabled`)→ 颜色 / sprite / 缩放覆盖的映射。 |
+| `background` | 背景视觉(默认:纯白)。 |
+| `transitionFlags` / `fadeDuration` | 过渡类型(默认 `ColorTint`)和插值时间(默认 `0` = 立即)。 |
+| `disabled` | 初始禁用。 |
+| `onClick(entity)` | 点击回调。 |
+
+之后可用 `setButtonState(world, entity, 'loading')` 切到自定义状态。
+
+## Toggle 开关
+
+`createToggle(opts)` 用一个按钮加一个开/关勾选指示器组合而成。返回 `ToggleHandle`。
+
+```typescript
+import { createToggle } from 'esengine';
+
+const toggle = createToggle({
+  world, events, parent,
+  interactionStates: { normal: { color: /* … */ }, hover: { /* … */ }, pressed: { /* … */ } },
+  check: { color: { r: 0.2, g: 0.8, b: 0.4, a: 1 } },   // "开"指示器
+  isOn: true,
+  onChange: (isOn, entity) => { /* … */ },
+});
+
+toggle.setIsOn(false);      // 程序化改变(触发 onChange)
+toggle.setIsOn(true, true); // 静默——跳过 onChange
+```
+
+| 选项 | 说明 |
+|---|---|
+| `interactionStates` | 框架视觉状态(类似按钮的 `states`)。 |
+| `check` | 开状态指示器:`{ node?, color?, sprite? }`,开时显示。 |
+| `isOn` | 初始状态。 |
+| `onChange(isOn, entity)` | 切换时触发。 |
+
+**句柄:** `isOn()`、`setIsOn(value, silent?)`、`entity`、`dispose()`。
+
+## Slider 滑块
+
+`createSlider(opts)` 构建轨道 + 填充 + 手柄。返回 `SliderHandle`。
+
+```typescript
+import { createSlider } from 'esengine';
+
+const slider = createSlider({
+  world, parent,
+  min: 0, max: 100, value: 50, step: 5,
+  onChange: (value) => { /* … */ },
+});
+
+slider.setValue(75);
+```
+
+| 选项 | 说明 |
+|---|---|
+| `min` / `max` / `value` | 范围与初始值。 |
+| `step` | 量化步长(`0` = 连续)。 |
+| `handleWidth` | 手柄宽度(像素,默认 `12`)。 |
+| `trackVisual` / `fillVisual` / `handleVisual` | 各部件视觉。 |
+| `onChange(value, entity)` | 值改变时触发。 |
+
+**句柄:** `getValue()`、`setValue(v)`、`valueAtLocalX(localX, trackWidth)`、`dispose()`,
+以及 `trackEntity` / `fillEntity` / `handleEntity`。
+
+<Aside type="note">
+  滑块**没有内置指针输入**——自己接一个拖拽/点击处理器,用 `valueAtLocalX()` 把指针位置转成值,
+  或直接调 `setValue()`。
+</Aside>
+
+## Progress 进度条
+
+`createProgress(opts)` 是一个非交互的填充条。返回 `ProgressHandle`。
+
+```typescript
+import { createProgress } from 'esengine';
+
+const bar = createProgress({
+  world, parent,
+  direction: 'right',
+  fill: { color: { r: 0.2, g: 0.8, b: 0.4, a: 1 } },
+  value: 0,
+});
+
+bar.setValue(0.6);   // 0..1
+```
+
+| 选项 | 说明 |
+|---|---|
+| `value` | 初始进度,`0..1`。 |
+| `direction` | 填充增长方向:`'right'`(默认)、`'left'`、`'up'`、`'down'`。 |
+| `background` / `fill` | 轨道和填充视觉。 |
+
+**句柄:** `value()`、`setValue(v)`、`dispose()`,以及 `fillEntity`。
+
+## Dropdown 下拉
+
+`createDropdown(opts)` 显示当前选择,并弹出一个选项行列表。它对选项类型是泛型的。返回
+`DropdownHandle<T>`。
+
+```typescript
+import { createDropdown } from 'esengine';
+
+const dd = createDropdown({
+  world, events, parent,
+  options: ['Low', 'Medium', 'High'],
+  selectedIndex: 1,
+  onSelect: (index, option) => { /* … */ },
+});
+
+// 对象需要一个标签映射:
+createDropdown({
+  world, events, parent,
+  options: resolutions,                       // 例如 { w, h }[]
+  optionToLabel: (r) => `${r.w}×${r.h}`,
+  onSelect: (i, r) => applyResolution(r),
+});
+```
+
+| 选项 | 说明 |
+|---|---|
+| `options` | 可选值列表。 |
+| `selectedIndex` | 初始选择。 |
+| `optionToLabel(option, i)` | 把非字符串选项映射为显示文本。 |
+| `buttonStates` / `optionStates` | 主按钮和选项行的颜色。 |
+| `optionHeight` | 行高(像素,默认 `32`)。 |
+| `onSelect(index, option, entity)` | 选择时触发。 |
+
+**句柄:** `getSelected()`、`getSelectedIndex()`、`setSelectedIndex(i, silent?)`、`open()`、
+`close()`、`isOpen()`、`dispose()`。
+
+<Aside type="note">
+  点击外部关闭没有接线——需要的话从你自己的全局输入层调 `close()`。
+</Aside>
+
+## Dialog 对话框
+
+`createDialog(opts)` 是一个模态:一个挡住点击的背景加一个居中面板,打开前隐藏。返回
+`DialogHandle`。**把你的内容作为 `panelEntity` 的子实体加进去。**
+
+```typescript
+import { createDialog, spawnUIEntity } from 'esengine';
+
+const dialog = createDialog({
+  world, parent,
+  panelNode: { width: px(420), height: px(260) },
+});
+
+spawnUIEntity({ world, parent: dialog.panelEntity, text: { content: '确定吗?' } });
+
+dialog.open();
+// …之后
+dialog.close();
+```
+
+| 选项 | 说明 |
+|---|---|
+| `backdropNode` / `backdropVisual` | 面板后方的全视口遮罩。 |
+| `panelNode` / `panelVisual` | 模态面板(默认:400×300,居中)。 |
+| `startHidden` | 初始关闭(默认 `true`)。 |
+
+**句柄:** `open()`、`close()`、`isOpen()`、`dispose()`,以及 `backdropEntity` / `panelEntity`。
+
+## 编辑器预制体
+
+这些控件同时作为编辑器预制体提供,所以 **创建… → UI** 会把现成的 Button、Toggle、Slider 等放进
+场景,你再在 Details 里编辑。见 [编辑器](/docs/zh-cn/guides/editor/)。

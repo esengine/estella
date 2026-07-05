@@ -1,0 +1,218 @@
+---
+title: UI Components
+description: The built-in widget factories — Button, Toggle, Slider, Progress, Dropdown, and Dialog — their options and imperative handles, built on the UI component model.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The widget factories build common controls out of the [UI](/docs/guides/ui/) component
+model (`UINode` + `Interactable` + `StateMachine` + `StateVisuals`), so you don't wire
+each one by hand. Each factory takes an options object and returns either the created
+entity (Button) or a **handle** with imperative methods to read and drive it.
+
+Interactive widgets need the world and the UI event queue — `world` from `GetWorld()`
+and `events` from `Res(UIEvents)`, exactly as in the [UI guide](/docs/guides/ui/). They
+all accept `parent?`, a `node?` ([`UINode`](/docs/guides/ui/#uinode--the-layout-box)
+layout), and visual overrides.
+
+<Aside type="tip">
+  These are a convenient starting point, not a closed set — a widget is just an entity
+  tree with the UI components on it, so you can compose your own the same way.
+</Aside>
+
+## Button
+
+`createButton(opts)` spawns a clickable entity (with an optional child label) that
+transitions between visual states. Returns the button **entity**. A click is a
+press-then-release *over* the button.
+
+```typescript
+import { createButton } from 'esengine';
+
+const btn = createButton({
+  world, events, parent,
+  text: 'Play',
+  node: { width: px(160), height: px(44) },
+  states: {
+    normal:  { color: { r: 0.20, g: 0.55, b: 1.0, a: 1 } },
+    hover:   { color: { r: 0.30, g: 0.65, b: 1.0, a: 1 } },
+    pressed: { color: { r: 0.12, g: 0.45, b: 0.9, a: 1 } },
+    disabled:{ color: { r: 0.3, g: 0.3, b: 0.3, a: 1 } },
+  },
+  onClick: (entity) => { /* … */ },
+});
+```
+
+| Option | Description |
+|---|---|
+| `text` | Label — a string or a `TextInit`. Omit for no label. |
+| `states` | Map of state name (`normal` / `hover` / `pressed` / `disabled`) → color / sprite / scale override. |
+| `background` | Background visual (default: solid white). |
+| `transitionFlags` / `fadeDuration` | Transition type (default `ColorTint`) and lerp time (default `0` = snap). |
+| `disabled` | Start disabled. |
+| `onClick(entity)` | Click callback. |
+
+Flip a custom state later with `setButtonState(world, entity, 'loading')`.
+
+## Toggle
+
+`createToggle(opts)` composes a button with an on/off check indicator. Returns a
+`ToggleHandle`.
+
+```typescript
+import { createToggle } from 'esengine';
+
+const toggle = createToggle({
+  world, events, parent,
+  interactionStates: { normal: { color: /* … */ }, hover: { /* … */ }, pressed: { /* … */ } },
+  check: { color: { r: 0.2, g: 0.8, b: 0.4, a: 1 } },   // the "on" indicator
+  isOn: true,
+  onChange: (isOn, entity) => { /* … */ },
+});
+
+toggle.setIsOn(false);      // programmatic change (fires onChange)
+toggle.setIsOn(true, true); // silent — skips onChange
+```
+
+| Option | Description |
+|---|---|
+| `interactionStates` | Frame visual states (like the button's `states`). |
+| `check` | The on-state indicator: `{ node?, color?, sprite? }`, shown when on. |
+| `isOn` | Initial state. |
+| `onChange(isOn, entity)` | Fires on toggle. |
+
+**Handle:** `isOn()`, `setIsOn(value, silent?)`, `entity`, `dispose()`.
+
+## Slider
+
+`createSlider(opts)` builds a track + fill + handle. Returns a `SliderHandle`.
+
+```typescript
+import { createSlider } from 'esengine';
+
+const slider = createSlider({
+  world, parent,
+  min: 0, max: 100, value: 50, step: 5,
+  onChange: (value) => { /* … */ },
+});
+
+slider.setValue(75);
+```
+
+| Option | Description |
+|---|---|
+| `min` / `max` / `value` | Range and initial value. |
+| `step` | Quantization step (`0` = continuous). |
+| `handleWidth` | Thumb width in pixels (default `12`). |
+| `trackVisual` / `fillVisual` / `handleVisual` | Per-part visuals. |
+| `onChange(value, entity)` | Fires on value change. |
+
+**Handle:** `getValue()`, `setValue(v)`, `valueAtLocalX(localX, trackWidth)`,
+`dispose()`, plus `trackEntity` / `fillEntity` / `handleEntity`.
+
+<Aside type="note">
+  The slider has **no built-in pointer input** — wire your own drag/click handler and
+  convert the pointer position with `valueAtLocalX()`, or call `setValue()` directly.
+</Aside>
+
+## Progress
+
+`createProgress(opts)` is a non-interactive fill bar. Returns a `ProgressHandle`.
+
+```typescript
+import { createProgress } from 'esengine';
+
+const bar = createProgress({
+  world, parent,
+  direction: 'right',
+  fill: { color: { r: 0.2, g: 0.8, b: 0.4, a: 1 } },
+  value: 0,
+});
+
+bar.setValue(0.6);   // 0..1
+```
+
+| Option | Description |
+|---|---|
+| `value` | Initial progress, `0..1`. |
+| `direction` | Fill growth: `'right'` (default), `'left'`, `'up'`, `'down'`. |
+| `background` / `fill` | Track and fill visuals. |
+
+**Handle:** `value()`, `setValue(v)`, `dispose()`, plus `fillEntity`.
+
+## Dropdown
+
+`createDropdown(opts)` shows the current selection and opens a popup of option rows.
+It's generic over the option type. Returns a `DropdownHandle<T>`.
+
+```typescript
+import { createDropdown } from 'esengine';
+
+const dd = createDropdown({
+  world, events, parent,
+  options: ['Low', 'Medium', 'High'],
+  selectedIndex: 1,
+  onSelect: (index, option) => { /* … */ },
+});
+
+// Objects need a label mapper:
+createDropdown({
+  world, events, parent,
+  options: resolutions,                       // e.g. { w, h }[]
+  optionToLabel: (r) => `${r.w}×${r.h}`,
+  onSelect: (i, r) => applyResolution(r),
+});
+```
+
+| Option | Description |
+|---|---|
+| `options` | The list of selectable values. |
+| `selectedIndex` | Initial selection. |
+| `optionToLabel(option, i)` | Map a non-string option to its display text. |
+| `buttonStates` / `optionStates` | Colors for the main button and the option rows. |
+| `optionHeight` | Row height in pixels (default `32`). |
+| `onSelect(index, option, entity)` | Fires on selection. |
+
+**Handle:** `getSelected()`, `getSelectedIndex()`, `setSelectedIndex(i, silent?)`,
+`open()`, `close()`, `isOpen()`, `dispose()`.
+
+<Aside type="note">
+  Click-outside-to-close isn't wired — call `close()` from your own global input layer
+  if you need it.
+</Aside>
+
+## Dialog
+
+`createDialog(opts)` is a modal: a click-blocking backdrop with a centered panel,
+hidden until opened. Returns a `DialogHandle`. **Add your content as children of
+`panelEntity`.**
+
+```typescript
+import { createDialog, spawnUIEntity } from 'esengine';
+
+const dialog = createDialog({
+  world, parent,
+  panelNode: { width: px(420), height: px(260) },
+});
+
+spawnUIEntity({ world, parent: dialog.panelEntity, text: { content: 'Are you sure?' } });
+
+dialog.open();
+// …later
+dialog.close();
+```
+
+| Option | Description |
+|---|---|
+| `backdropNode` / `backdropVisual` | The full-viewport scrim behind the panel. |
+| `panelNode` / `panelVisual` | The modal panel (default: 400×300, centered). |
+| `startHidden` | Start closed (default `true`). |
+
+**Handle:** `open()`, `close()`, `isOpen()`, `dispose()`, plus `backdropEntity` /
+`panelEntity`.
+
+## Editor prefabs
+
+The same widgets ship as editor prefabs, so **Create… → UI** drops a ready-made
+Button, Toggle, Slider, and so on into the scene, which you then edit in Details. See
+[The Editor](/docs/guides/editor/).
