@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "name": "UIMask (Scissor) clips overflowing content to the viewport — the primitive createListView relies on",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2, 3],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Background",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0, "g": 0, "b": 1, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Viewport",
+      "parent": 1,
+      "children": [4],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 200, "unit": 0 },
+            "insetTop": { "value": 200, "unit": 0 },
+            "width": { "value": 400, "unit": 0 },
+            "height": { "value": 200, "unit": 0 }
+          }
+        },
+        { "type": "UIMask", "data": { "enabled": true, "mode": 0, "maskTexture": 0, "inverted": false } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Item",
+      "parent": 3,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "width": { "value": 600, "unit": 0 },
+            "height": { "value": 400, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    }
+  ]
+}

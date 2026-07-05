@@ -12,6 +12,9 @@ import { createToggle } from '../src/ui/widgets/toggle';
 import { createSlider } from '../src/ui/widgets/slider';
 import { createProgress } from '../src/ui/widgets/progress';
 import { createDropdown } from '../src/ui/widgets/dropdown';
+import { spawnUIEntity } from '../src/ui/widgets/helpers';
+import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
+import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { themeColors } from '../src/ui/theme/tokens';
 import { px } from '../src/ui/core/dimension';
 
@@ -119,5 +122,31 @@ describe('UI widget prefab codegen', () => {
             }).entity as unknown as number,
         );
         expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(['UINode', 'Interactable']));
+    });
+
+    it('ListView: a clipped viewport shell (items are populated by createListView in code)', () => {
+        const prefab = generate('ListView', (world) => {
+            // The serializable half of createListView: a sized viewport with a
+            // Scissor mask + a hover hit-target, plus a placeholder label. Data and
+            // item rows are runtime-only — wire them with createListView in code.
+            const viewport = spawnUIEntity({
+                world,
+                node: { width: px(240), height: px(320) },
+                visual: { color: c.control },
+            });
+            world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, maskTexture: 0, inverted: false });
+            world.insert(viewport, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
+            world.insert(viewport, UIInteraction, { hovered: false, pressed: false, justPressed: false, justReleased: false });
+            spawnUIEntity({
+                world, parent: viewport,
+                node: { fill: true },
+                text: { content: 'List View', color: c.onPrimary, fontSize: 14 },
+            });
+            return viewport as unknown as number;
+        });
+        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining([
+            'UINode', 'UIVisual', 'UIMask', 'Interactable',
+        ]));
+        expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(1);
     });
 });
