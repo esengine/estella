@@ -15,6 +15,70 @@ each entry.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-05
+
+The first feature release since the 0.14.0 licensing change — a large one. It adds a
+full gameplay AI layer, a rebuilt World Outliner, a complete tilemap painter, a
+first-class material system, a Sequencer, and much more, alongside deep internal
+re-architecture of the editor, renderer, and asset pipelines.
+
+### Added
+
+- **Gameplay AI layer.** Grid navigation with A\* pathfinding (`NavGrid`, `NavAgent`,
+  the `Nav` resource), a perception system (`Perceiver` / `PerceptionTarget` /
+  `Perception`), and two decision paradigms over one shared action/condition
+  registry — **state machines** (`.esfsm`) and **behavior trees** (`.esbt`) — each
+  with a visual node-graph editor. New guide: **Gameplay AI**.
+- **World Outliner** rebuilt to a UE-style `SSceneOutliner`: virtualized tree,
+  path-based first-class folders, real hidden/locked state (decoupled from component
+  enabled), reveal-on-select, keyboard navigation, token search, drag-to-reorder,
+  and a pluggable column registry.
+- **Tilemap painter** — stamp brush with flip/rotate and footprint preview, bucket &
+  line tools on a unified stroke driver, terrain/autotile, per-tile polygon collision
+  end-to-end, and a marquee select with copy / cut / paste / delete.
+- **Material system** — reflection-driven std140 UBO materials, Material Instances, a
+  Material Editor, static shader switches compiled to variants, 2D lighting (`Light2D`
+  directional/point/spot with normal maps), and a visual **Material Graph**.
+- **2D lighting & shadows** — `Light2D` on a dedicated Lit-2D channel plus
+  `ShadowCaster2D` for soft, directional 2D shadows; per-sprite parallax scrolling.
+- **Sequencer** — a UE-style timeline panel with a curve editor and auto-key
+  recording, backed by a pure-TypeScript timeline runtime.
+- **Animator** upgrades — nested (sub-)state machines, 1D blend states, exit-time
+  transitions, and Spine-driven animation (not just sprites).
+- **Input** — `defineInputMap` with named actions, gamepad support, data-driven
+  `.inputmap` assets, a visual input-map editor, and interactive rebinding.
+- **Physics** — a kinematic move-and-slide `CharacterController`, a Unity/UE-style
+  collision-layer matrix in Project Settings, full world/solver config threaded from
+  Project Settings, and contact/hit events.
+- **Editor viewport** — UE-style gizmo handles, any-entity picking, multi-select,
+  marquee, group transforms, nudge/snap, collider-shape overlays, and click-to-select
+  UI elements via the engine hit-test.
+- **Export targets** — playable-ad (single-file HTML), WeChat MiniGame
+  (`exportWeChat`), and a desktop (Electron) target.
+- **Subsystem observability** — a live **Engine Modules** panel reporting which
+  subsystems are loaded and stepping across both the edit and play realms.
+
+### Changed
+
+- Large internal re-architecture across the **editor** (model-as-truth state, a
+  versioned editor↔runtime protocol), the **renderer** (unified submission path,
+  device-owned pipeline state, single-source `.esshader` shaders), **serialization**,
+  and the **asset pipeline**. These touch engine internals, not the documented SDK
+  surface.
+- **UI runtime** modernized to fully SDF text (fill / outline / shadow), flex layout,
+  and theme tokens; the legacy Canvas2D text renderer was removed.
+- The **Apache-2.0 relicense** from 0.14.0 is carried into this release.
+
+### Fixed
+
+- Editor stability: a per-panel render error boundary, state-preserving hot reload,
+  and more robust asset-reference resolution — plus numerous tilemap, outliner,
+  physics, and export fixes.
+
+### SDK
+
+- `esengine` SDK **0.4.0** on npm.
+
 ## [0.14.0] - 2026-06-26
 
 ### Changed
@@ -53,6 +117,7 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/esengine/estella/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/esengine/estella/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/esengine/estella/compare/v0.12.3...v0.13.0

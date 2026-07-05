@@ -1,0 +1,384 @@
+---
+title: 游戏 AI
+description: 游戏 AI 层——感知、基于网格的 A* 寻路导航、状态机与行为树,全部由同一份具名动作/条件注册表驱动,并在编辑器里可视化编排。
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Estella 的 AI 层把一个实体变成会**感知**、会**决策**、会**移动**的角色。它由四个协作部件
+组成,而这四者共享同一套设计:
+
+<CardGrid>
+  <Card title="感知 Perception" icon="magnifier">
+    `Perceiver` 在视野锥内感知附近的 `PerceptionTarget`,把看到的东西写进 `Perception` 组件。
+  </Card>
+  <Card title="导航 Navigation" icon="rocket">
+    `NavGrid` + A\* 寻路把 `NavAgent` 移动到任意世界坐标,并随目标移动而重新规划。
+  </Card>
+  <Card title="状态机 FSM" icon="list-format">
+    `StateMachineAgent` 运行一个 `.esfsm` 图——带进入/更新/退出钩子和带守卫的转移的状态。
+  </Card>
+  <Card title="行为树 BT" icon="puzzle">
+    `BehaviorTreeAgent` 运行一个 `.esbt` 图——选择器、序列、装饰器与叶子。
+  </Card>
+</CardGrid>
+
+统一的核心思想:**状态机和行为树是同一套构件之上的两种编排范式。** 你在代码里注册一次具名
+的*动作*与*条件*,然后把它们连进 FSM 或 BT——图在编辑器里可视化编排,而不是写死在代码里。
+感知喂给决策,决策驱动导航。
+
+<Aside type="note">
+  这里的一切都是 `esengine` 内核里的纯 TypeScript(没有 WebAssembly 侧模块)。感知、FSM、BT、
+  导航这四个插件都由编辑器和 Web 运行时**自动**加入。只有当你从一个裸的 `new App()` 起步时,
+  才需要自己加插件(见[自定义应用](#自定义应用))。
+</Aside>
+
+## 共享注册表
+
+一个**动作**做某件事(追击、攻击、放个音效);一个**条件**回答一个是/否问题(我看得见玩家吗?)。
+你按名字注册一次,FSM 和 BT 都会对同一份注册表按名字解析——于是一套叶子同时服务两种范式。
+
+```typescript
+import { registerAction, registerCondition, Status, Perception, setNavDestination } from 'esengine';
+
+registerCondition('seesPlayer', (ctx) =>
+  ctx.has(Perception) && ctx.get(Perception).visible);
+
+registerAction('chase', (ctx) => {
+  const per = ctx.get(Perception);
+  setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
+});
+```
+
+每个动作和条件都会收到它所运行实体的 **`AiContext`**。它和一个 `defineBehavior` 的 update
+是同一套编程模型——实体、世界、命令的访问——外加一个每个 agent 独有的 `blackboard`(黑板):
+
+| 成员 | 类型 | 说明 |
+|---|---|---|
+| `ctx.entity` | `Entity` | 该动作/条件运行所在的 agent 实体。 |
+| `ctx.dt` | `number` | 帧间隔(秒)。 |
+| `ctx.world` | `World` | 完整世界访问,用于跨实体读取。 |
+| `ctx.commands` | `Commands` | 延迟的 spawn/despawn,tick 中调用安全。 |
+| `ctx.blackboard` | `Blackboard` | 该 agent 的 AI 数据面(见[黑板](#黑板))。 |
+| `ctx.get(Comp)` | `ComponentData` | 读取**本**实体上的另一个组件。 |
+| `ctx.set(Comp, data)` | `void` | 写入**本**实体上的一个组件。 |
+| `ctx.has(Comp)` | `boolean` | 本实体是否拥有 `Comp`。 |
+
+<Aside type="tip">
+  在模块加载时(顶层,或在一个 `Schedule.Startup` 系统里)注册你的动作和条件,好让它们在任何
+  agent 开始 tick 之前就已存在。注册表是进程级的,在多个 `App` 实例间共享。
+</Aside>
+
+### 动作的返回值
+
+**条件**总是返回 `boolean`。**动作**可以返回一个 `Status`,也可以什么都不返回:
+
+```typescript
+export enum Status { Success = 'success', Failure = 'failure', Running = 'running' }
+```
+
+- 在**行为树**里,叶子返回 `Status` 以跨帧运行(`Running`)、成功或失败。什么都不返回视为
+  `Success`。
+- 在**状态机**里,返回值被忽略——FSM 动作是一次性的副作用。
+
+写一个返回 `Status` 的动作,就能让*同一个*动作既当 BT 叶子又当 FSM 钩子。
+
+## 感知
+
+`Perceiver` 每帧扫描最近的、可见的 `PerceptionTarget`,把结果写进同一实体上的 `Perception`
+组件。决策读 `Perception`;感知只是 ECS 数据,而不是一条旁路。
+
+```typescript
+import { Perceiver, PerceptionTarget, Perception } from 'esengine';
+
+// 猎手负责感知……
+cmds.spawn()
+  .insert(Transform, { position: { x: -200, y: 0, z: 0 } })
+  .insert(Perceiver, { range: 260, fovDegrees: 120 })
+  .insert(Perception, {});          // 由感知插件每帧写入
+
+// ……任何被标记为目标的实体。
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(PerceptionTarget, {});
+```
+
+| 组件 | 字段 | 默认 | 说明 |
+|---|---|---|---|
+| **`Perceiver`** | `range` | `220` | 视野范围(世界像素)。 |
+| | `fovDegrees` | `360` | 视野锥角度(`360` = 全向)。 |
+| **`Perception`** | `visible` | `false` | 当前是否看见一个目标。 |
+| | `distance` | `0` | 到所见目标的距离。 |
+| | `targetX`、`targetY` | `0` | 所见目标位置(世界像素)。 |
+| | `dirX`、`dirY` | `0` | 从观察者指向目标的单位方向。 |
+| **`PerceptionTarget`** | *(标签)* | — | 把实体标记为可被 `Perceiver` 感知。 |
+
+视野锥的朝向由感知者的 `Transform` 旋转决定。`Perception` 是一个瞬态、仅运行时的组件——
+插件每帧重写它,所以你从不需要手写它的值。
+
+## 导航
+
+导航沿着一条避开被阻挡格子的路线,把 agent 移动到某个世界坐标,底层用 A\* 在一个 **`NavGrid`**
+上寻路。
+
+### 构建网格
+
+`NavGrid` 是一个由可走/被阻挡格子构成的矩形网格。把它装到 `Nav` 资源上,agent 才能对它寻路:
+
+```typescript
+import { defineSystem, Res, Nav, NavGrid } from 'esengine';
+
+export const setupNav = defineSystem([Res(Nav)], (nav) => {
+  nav.setGrid(new NavGrid({
+    width: 60,          // 列数
+    height: 44,         // 行数
+    cellSize: 20,       // 每格的世界像素
+    origin: { x: -600, y: -440 },  // 格子 (0,0) 中心的世界坐标
+  }));
+}, { name: 'SetupNav' });
+```
+
+| `NavGrid` 选项 | 类型 | 说明 |
+|---|---|---|
+| `width` | number | 格子列数。 |
+| `height` | number | 格子行数。 |
+| `cellSize` | number | 每格的世界像素(正方形)。 |
+| `origin` | `Vec2` | 格子 `(0,0)` 中心的世界坐标。默认 `(0,0)`。 |
+| `walkable` | `Uint8Array` | 可选的行主序 `width*height` 掩码,`1` = 可走,`0` = 阻挡。省略则全部可走。 |
+
+若想从已绘制的瓦片地图推导网格,而不是手写掩码,用 `navGridFromTilemapLayer`(把某图层的
+实心瓦片视作阻挡)或 `navGridFromTiles`。
+
+<Aside type="tip">
+  `Nav` 资源也能直接回答一次性查询:`nav.findWorldPath(from, to)` 返回一组世界空间路点
+  (没有路线时返回 `null`),无需 `NavAgent`。
+</Aside>
+
+### 移动 agent
+
+加一个 `NavAgent`,然后给它指一个目的地。内置的导航插件会规划路径并每帧沿路径推进 agent——
+你只管设目标。
+
+```typescript
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 140, arriveRadius: 8 });
+
+// 从任何能访问 world 的系统/动作里——每帧调用都安全:
+setNavDestination(world, entity, { x: 320, y: -120 });
+// ……以及原地停下:
+stopNavAgent(world, entity);
+```
+
+| `NavAgent` 字段 | 默认 | 说明 |
+|---|---|---|
+| `speed` | `120` | 移动速度(世界像素/秒)。 |
+| `radius` | `12` | agent 半径(到达容差 / 碰撞尺寸)。 |
+| `arriveRadius` | `6` | 距最终目标的停止距离。 |
+| `repathInterval` | `0.5` | 移动中两次重规划的间隔秒数;`0` = 只在目标改变时重规划。 |
+| `hasTarget` | `false` | 是否已设目的地(自动管理)。 |
+| `targetX`、`targetY` | `0` | 当前目的地(世界像素)。 |
+| `arrived` | `false` | agent 到达目标的那一帧被置真。 |
+
+`setNavDestination` 每帧调用都安全,可用于追一个移动的目标——只有当目标真的移动、或
+`repathInterval` 到点时,agent 才重新规划。读 `agent.arrived`(或 `Perception`)来判断何时
+切换行为。
+
+## 状态机
+
+状态机是一组由带守卫的**转移**连接起来的**状态**。任一时刻恰好一个状态处于激活;每个 tick,
+它的出边按顺序被检查,第一条满足条件的被采用。加一个 `StateMachineAgent` 并指向一个图:
+
+```typescript
+import { StateMachineAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(NavAgent, {})
+  .insert(Perceiver, { range: 240 })
+  .insert(Perception, {})
+  .insert(StateMachineAgent, { fsm: 'ai/enemy.esfsm' });   // 一个编辑器编排的资产
+```
+
+| `StateMachineAgent` 字段 | 说明 |
+|---|---|
+| `fsm` | 要运行的机器的 key:一个 `registerFsm` 名字**或**一个 `.esfsm` 资产路径。 |
+| `current` | 当前激活状态名,每 tick 写入(只读;在检视面板可见)。 |
+
+推荐做法是**在编辑器里把图编排成 `.esfsm` 资产**(见[在编辑器里编排](#在编辑器里编排))。
+状态用字符串引用你注册的动作/条件名。你也可以用代码构建一台机器:
+
+```typescript
+import { registerFsm } from 'esengine';
+
+registerFsm('guard', {
+  initial: 'Patrol',
+  states: [
+    {
+      name: 'Patrol',
+      onUpdate: 'patrol',
+      transitions: [{ to: 'Chase', condition: 'seesPlayer' }],
+    },
+    {
+      name: 'Chase',
+      onEnter: 'startChase',
+      onUpdate: 'chase',
+      transitions: [{ to: 'Patrol', condition: 'lostPlayer' }],
+    },
+  ],
+});
+```
+
+每个状态最多带三个具名钩子——`onEnter`、`onUpdate`、`onExit`——以及一组 `transitions`。当一条
+转移所指定的机制**全部**成立时它才被启用;一条什么都不指定的转移是无条件的:
+
+| 转移字段 | 说明 |
+|---|---|
+| `to` | 目标状态名。 |
+| `trigger` | 必须被 fire 的一次性事件名(采用时消费)。 |
+| `condition` | 必须返回真的一个已注册条件。 |
+| `guard` | 一个或多个黑板比较,按 AND 组合。 |
+
+守卫用 `==`、`!=`、`<`、`<=`、`>`、`>=`、`truthy`、`falsy` 比较一个黑板 key——例如
+`{ key: 'health', op: '<', value: 20 }`。
+
+## 行为树
+
+行为树每帧从**根**开始 tick 并返回一个 `Status`。组合节点控制流程;装饰器变换其唯一子节点的
+结果;叶子是你注册的动作和条件。加一个 `BehaviorTreeAgent`:
+
+```typescript
+import { BehaviorTreeAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(NavAgent, {})
+  .insert(Perception, {})
+  .insert(BehaviorTreeAgent, { bt: 'ai/enemy.esbt' });   // 一个编辑器编排的资产
+```
+
+| `BehaviorTreeAgent` 字段 | 说明 |
+|---|---|
+| `bt` | 要运行的树的 key:一个 `registerBt` 名字**或**一个 `.esbt` 资产路径。 |
+| `status` | 上一次根状态,每 tick 写入(只读)。 |
+
+在编辑器里可视化编排这棵树,或用 `registerBt` 用代码构建:
+
+```typescript
+import { registerBt } from 'esengine';
+
+registerBt('guard', {
+  root: {
+    type: 'selector',            // 从左到右尝试子节点,直到一个成功
+    children: [
+      {
+        type: 'sequence',        // 全部按序成功
+        children: [
+          { type: 'condition', name: 'seesPlayer' },
+          { type: 'action', name: 'chase' },
+        ],
+      },
+      { type: 'action', name: 'patrol' },
+    ],
+  },
+});
+```
+
+节点类型:
+
+| 类别 | 类型 | 行为 |
+|---|---|---|
+| 组合 | `sequence` | 按序 tick 子节点;第一个失败即失败,全部成功才成功。 |
+| | `selector` | 按序 tick 子节点;第一个成功即成功,全部失败才失败。 |
+| | `parallel` | tick 全部子节点;`policy: 'one'` 任一成功即成功,`'all'`(默认)全部成功才成功。 |
+| 装饰器 | `inverter` | 反转子节点的成功/失败。 |
+| | `succeeder` | 总是报告 Success。 |
+| | `repeater` | 把子节点重跑 `count` 次(`0` = 永远)。 |
+| | `wait` | 运行 `seconds` 秒后报告 Success。 |
+| 叶子 | `action` | 运行已注册动作 `name`;它的 `Status`(void 则为 `Success`)向上传播。 |
+| | `condition` | 已注册条件 `name` 为真时返回 `Success`,否则 `Failure`。 |
+
+## 黑板
+
+每个 FSM/BT agent 拥有一块 **`Blackboard`**(黑板)——它私有的键值存储加上一次性事件触发器。
+动作和条件通过 `ctx.blackboard` 访问它;这是 AI 状态在叶子间流动的方式,也是转移守卫取值的来源。
+
+```typescript
+registerAction('takeDamage', (ctx) => {
+  const hp = (ctx.blackboard.get<number>('health') ?? 100) - 10;
+  ctx.blackboard.set('health', hp);
+  if (hp <= 0) ctx.blackboard.fire('died');   // 一条以 'died' 为键的转移被 fire 一次
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `get<T>(key)` / `set(key, value)` | 读/写一个值。 |
+| `has(key)` / `delete(key)` | 测试 / 删除一个 key。 |
+| `fire(trigger)` | fire 一个一次性事件;以它为键的转移在被采用前保持启用。 |
+| `isFired(trigger)` / `consume(trigger)` | 测试 / 清除一个触发器。 |
+
+黑板的值支撑 FSM 转移上的 `guard` 比较,而 `trigger` 机制就是 Unity 式的边事件:fire 一次,
+被采用它的那条转移消费。
+
+## 在编辑器里编排
+
+设想的工作流是图本身**用数据、不用代码**——你注册一次叶子逻辑,然后可视化地构建并调优机器/树:
+
+1. 在**内容浏览器**里,新建一个**状态机**(`.esfsm`)或**行为树**(`.esbt`)资产,双击它打开
+   节点图编辑器。
+2. 添加状态/节点,拖拽连线,把每个叶子的**动作**或**条件**填成你注册的某个名字。在检视面板里
+   设置转移的条件、触发器和黑板守卫。
+3. 在 agent 实体上,把 `StateMachineAgent.fsm`(或 `BehaviorTreeAgent.bt`)设为资产的路径。
+
+资产按路径引用并**随场景预加载**,所以图在 agent 首次 tick 之前就已注册——不需要
+`registerFsm`/`registerBt` 调用。因为两种范式都从同一份注册表解析叶子,你可以先把一个敌人
+原型成状态机,之后再换成行为树(或两者都跑),而不用动你的动作/条件代码。
+
+## 自定义应用
+
+感知、FSM、BT、导航这四个插件是默认插件集的一部分,所以**编辑器和 `esengine` Web 运行时会替你
+加上它们**。只有当你从一个裸的 `new App()` 构建应用时,才需要显式加:
+
+```typescript
+import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine';
+
+app.addPlugin(perceptionPlugin);
+app.addPlugin(fsmPlugin);
+app.addPlugin(btPlugin);
+app.addPlugin(navPlugin);
+```
+
+每个都同时导出为一个开箱即用的单例(`navPlugin`)和一个类(`NavPlugin`),需要多个实例时用类。
+
+## 组合起来
+
+[`enemy-ai` 示例](https://github.com/esengine/estella/tree/master/examples/enemy-ai)
+用两个敌人猎杀玩家,它们共享同一套感官和叶子——一个由状态机驱动,另一个由行为树驱动:
+
+```typescript
+import {
+  defineSystem, Res, Nav, NavGrid,
+  registerAction, registerCondition, setNavDestination, Perception,
+} from 'esengine';
+
+// 共享叶子——同一批名字同时服务 .esfsm 和 .esbt。
+registerCondition('seesPlayer', (ctx) => ctx.has(Perception) && ctx.get(Perception).visible);
+registerCondition('lostPlayer', (ctx) => !ctx.has(Perception) || !ctx.get(Perception).visible);
+
+registerAction('chase', (ctx) => {
+  if (!ctx.has(Perception)) return;
+  const per = ctx.get(Perception);
+  if (per.visible) setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
+});
+registerAction('patrol', () => { /* 在看见玩家之前保持原地 */ });
+
+// 一张覆盖竞技场的开阔导航网格。
+export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
+  nav.setGrid(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
+}, { name: 'SetupNavGrid' });
+```
+
+两个敌人的 `StateMachineAgent.fsm` 和 `BehaviorTreeAgent.bt` 分别指向 `enemy.esfsm` /
+`enemy.esbt`——在编辑器里编排,由引擎加载。感知、FSM/BT 的 tick、以及跟随导航全是内置的,
+所以唯一的游戏代码就是上面的共享叶子加上那张一次性的网格。

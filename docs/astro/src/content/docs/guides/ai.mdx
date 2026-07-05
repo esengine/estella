@@ -1,0 +1,417 @@
+---
+title: Gameplay AI
+description: The gameplay AI layer — perception, grid navigation with A* pathfinding, state machines, and behavior trees, all driven by one shared registry of named actions and conditions and authored visually in the editor.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Estella's AI layer turns an entity into an actor that **senses**, **decides**, and
+**moves**. It is built from four cooperating pieces that share one design:
+
+<CardGrid>
+  <Card title="Perception" icon="magnifier">
+    A `Perceiver` senses nearby `PerceptionTarget`s within a sight cone and writes
+    what it sees into a `Perception` component.
+  </Card>
+  <Card title="Navigation" icon="rocket">
+    A `NavGrid` + A\* pathfinding moves a `NavAgent` to any world point, replanning
+    as the target moves.
+  </Card>
+  <Card title="State machines" icon="list-format">
+    A `StateMachineAgent` runs an `.esfsm` graph — states with enter/update/exit
+    hooks and guarded transitions.
+  </Card>
+  <Card title="Behavior trees" icon="puzzle">
+    A `BehaviorTreeAgent` runs an `.esbt` graph — selectors, sequences, decorators,
+    and leaves.
+  </Card>
+</CardGrid>
+
+The unifying idea: **state machines and behavior trees are two authoring paradigms
+over the same building blocks.** You register named *actions* and *conditions* once,
+in code, then wire them into either an FSM or a BT — graphs authored visually in the
+editor, not hardcoded. Perception feeds the decision; the decision drives navigation.
+
+<Aside type="note">
+  Everything here is pure TypeScript in the `esengine` core (no WebAssembly
+  side-module). All four plugins — perception, FSM, BT, and navigation — are added
+  automatically by the editor and the web runtime. You only wire plugins yourself in
+  a bare `new App()` (see [Custom app setup](#custom-app-setup)).
+</Aside>
+
+## The shared registry
+
+An **action** does something (chase, attack, play a sound); a **condition** answers
+a yes/no question (do I see the player?). You register each under a name, once, and
+both the FSM and the BT resolve those names against the same registry — so one set
+of leaves serves both paradigms.
+
+```typescript
+import { registerAction, registerCondition, Status, Perception, setNavDestination } from 'esengine';
+
+registerCondition('seesPlayer', (ctx) =>
+  ctx.has(Perception) && ctx.get(Perception).visible);
+
+registerAction('chase', (ctx) => {
+  const per = ctx.get(Perception);
+  setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
+});
+```
+
+Every action and condition receives an **`AiContext`** for the agent it runs on. It
+is the same programming model as a `defineBehavior` update — entity, world, and
+commands access — plus a per-agent `blackboard`:
+
+| Member | Type | Description |
+|---|---|---|
+| `ctx.entity` | `Entity` | The agent this action/condition runs for. |
+| `ctx.dt` | `number` | Frame delta in seconds. |
+| `ctx.world` | `World` | Full world access for cross-entity reads. |
+| `ctx.commands` | `Commands` | Deferred spawn/despawn, safe mid-tick. |
+| `ctx.blackboard` | `Blackboard` | This agent's AI data plane (see [Blackboard](#the-blackboard)). |
+| `ctx.get(Comp)` | `ComponentData` | Read another component on **this** entity. |
+| `ctx.set(Comp, data)` | `void` | Write a component on **this** entity. |
+| `ctx.has(Comp)` | `boolean` | Whether this entity has `Comp`. |
+
+<Aside type="tip">
+  Register your actions and conditions at module load (top-level, or in a
+  `Schedule.Startup` system) so they exist before any agent ticks. The
+  registry is process-wide and shared across `App` instances.
+</Aside>
+
+### Action return values
+
+A **condition** always returns a `boolean`. An **action** may return a `Status`
+or nothing:
+
+```typescript
+export enum Status { Success = 'success', Failure = 'failure', Running = 'running' }
+```
+
+- In a **behavior tree**, a leaf returns `Status` to run across frames (`Running`),
+  succeed, or fail. Returning nothing counts as `Success`.
+- In a **state machine**, the return value is ignored — FSM actions are one-shot
+  side effects.
+
+Writing an action that returns `Status` lets the *same* action serve as a BT leaf and
+an FSM hook.
+
+## Perception
+
+A `Perceiver` scans for the nearest visible `PerceptionTarget` each frame and writes
+the result into a `Perception` component on the same entity. Decisions read
+`Perception`; sensing is just ECS data, not a side channel.
+
+```typescript
+import { Perceiver, PerceptionTarget, Perception } from 'esengine';
+
+// The hunter senses…
+cmds.spawn()
+  .insert(Transform, { position: { x: -200, y: 0, z: 0 } })
+  .insert(Perceiver, { range: 260, fovDegrees: 120 })
+  .insert(Perception, {});          // written every frame by the perception plugin
+
+// …anything tagged as a target.
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(PerceptionTarget, {});
+```
+
+| Component | Field | Default | Description |
+|---|---|---|---|
+| **`Perceiver`** | `range` | `220` | Sight range in world pixels. |
+| | `fovDegrees` | `360` | Field-of-view cone in degrees (`360` = omnidirectional). |
+| **`Perception`** | `visible` | `false` | A target is currently seen. |
+| | `distance` | `0` | Distance to the seen target. |
+| | `targetX`, `targetY` | `0` | Seen target position, world pixels. |
+| | `dirX`, `dirY` | `0` | Unit direction from observer to target. |
+| **`PerceptionTarget`** | *(tag)* | — | Marks an entity as sensable by `Perceiver`s. |
+
+The FOV cone is oriented by the perceiver's `Transform` rotation. `Perception` is a
+transient, runtime-only component — the plugin rewrites it every frame, so you never
+author its values.
+
+## Navigation
+
+Navigation moves an agent to a world point along a route that avoids blocked cells,
+using A\* over a **`NavGrid`**.
+
+### Building a grid
+
+A `NavGrid` is a rectangular grid of walkable/blocked cells. Install it on the `Nav`
+resource so agents can path against it:
+
+```typescript
+import { defineSystem, Res, Nav, NavGrid } from 'esengine';
+
+export const setupNav = defineSystem([Res(Nav)], (nav) => {
+  nav.setGrid(new NavGrid({
+    width: 60,          // columns
+    height: 44,         // rows
+    cellSize: 20,       // world pixels per cell
+    origin: { x: -600, y: -440 },  // world position of cell (0,0)'s center
+  }));
+}, { name: 'SetupNav' });
+```
+
+| `NavGrid` option | Type | Description |
+|---|---|---|
+| `width` | number | Cell columns. |
+| `height` | number | Cell rows. |
+| `cellSize` | number | World pixels per cell (square). |
+| `origin` | `Vec2` | World position of cell `(0,0)`'s center. Defaults to `(0,0)`. |
+| `walkable` | `Uint8Array` | Optional row-major `width*height` mask, `1` = walkable, `0` = blocked. Omitted → all walkable. |
+
+To derive a grid from a painted tilemap instead of hand-authoring the mask, use
+`navGridFromTilemapLayer` (which cells a layer's solid tiles block) or
+`navGridFromTiles`.
+
+<Aside type="tip">
+  The `Nav` resource also answers one-off queries directly:
+  `nav.findWorldPath(from, to)` returns an array of world-space waypoints (or
+  `null` if there's no route) without needing a `NavAgent`.
+</Aside>
+
+### Moving an agent
+
+Attach a `NavAgent`, then point it at a destination. The built-in nav plugin plans
+the path and steps the agent along it each frame — you just set the goal.
+
+```typescript
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 140, arriveRadius: 8 });
+
+// From any system/action with world access — safe to call every frame:
+setNavDestination(world, entity, { x: 320, y: -120 });
+// …and to halt in place:
+stopNavAgent(world, entity);
+```
+
+| `NavAgent` field | Default | Description |
+|---|---|---|
+| `speed` | `120` | Movement speed in world pixels per second. |
+| `radius` | `12` | Agent radius (arrival tolerance / collision size). |
+| `arriveRadius` | `6` | Stop distance from the final goal. |
+| `repathInterval` | `0.5` | Seconds between replans while moving; `0` = replan only when the target changes. |
+| `hasTarget` | `false` | Whether a destination is set (managed for you). |
+| `targetX`, `targetY` | `0` | Current destination in world pixels. |
+| `arrived` | `false` | Set true the frame the agent reaches its goal. |
+
+`setNavDestination` is safe to call every frame to chase a moving target — the agent
+only replans when the target actually moves or `repathInterval` elapses. Read
+`agent.arrived` (or `Perception`) to know when to switch behavior.
+
+## State machines
+
+A state machine is a set of **states** connected by guarded **transitions**. Exactly
+one state is active; each tick, its outgoing transitions are checked in order and the
+first enabled one is taken. Attach a `StateMachineAgent` and point it at a graph:
+
+```typescript
+import { StateMachineAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(NavAgent, {})
+  .insert(Perceiver, { range: 240 })
+  .insert(Perception, {})
+  .insert(StateMachineAgent, { fsm: 'ai/enemy.esfsm' });   // an editor-authored asset
+```
+
+| `StateMachineAgent` field | Description |
+|---|---|
+| `fsm` | Key of the machine to run: a `registerFsm` name **or** an `.esfsm` asset path. |
+| `current` | Active state name, written each tick (read-only; visible in the inspector). |
+
+The recommended path is to **author the graph in the editor** as an `.esfsm` asset
+(see [Authoring in the editor](#authoring-in-the-editor)). The states reference your
+registered action/condition names by string. You can also build a machine in code:
+
+```typescript
+import { registerFsm } from 'esengine';
+
+registerFsm('guard', {
+  initial: 'Patrol',
+  states: [
+    {
+      name: 'Patrol',
+      onUpdate: 'patrol',
+      transitions: [{ to: 'Chase', condition: 'seesPlayer' }],
+    },
+    {
+      name: 'Chase',
+      onEnter: 'startChase',
+      onUpdate: 'chase',
+      transitions: [{ to: 'Patrol', condition: 'lostPlayer' }],
+    },
+  ],
+});
+```
+
+Each state carries up to three named hooks — `onEnter`, `onUpdate`, `onExit` — and a
+list of `transitions`. A transition is enabled when **all** of its specified
+mechanisms hold; a transition with none is unconditional:
+
+| Transition field | Description |
+|---|---|
+| `to` | Destination state name. |
+| `trigger` | A one-shot event name that must be fired (consumed when taken). |
+| `condition` | A registered condition that must return true. |
+| `guard` | One or more blackboard comparisons, AND-combined. |
+
+Guards compare a blackboard key with `==`, `!=`, `<`, `<=`, `>`, `>=`, `truthy`, or
+`falsy` — e.g. `{ key: 'health', op: '<', value: 20 }`.
+
+## Behavior trees
+
+A behavior tree ticks from its **root** every frame and returns a `Status`. Composite
+nodes control flow; decorators transform one child's result; leaves are your
+registered actions and conditions. Attach a `BehaviorTreeAgent`:
+
+```typescript
+import { BehaviorTreeAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(NavAgent, {})
+  .insert(Perception, {})
+  .insert(BehaviorTreeAgent, { bt: 'ai/enemy.esbt' });   // an editor-authored asset
+```
+
+| `BehaviorTreeAgent` field | Description |
+|---|---|
+| `bt` | Key of the tree to run: a `registerBt` name **or** an `.esbt` asset path. |
+| `status` | Last root status, written each tick (read-only). |
+
+Author the tree visually in the editor, or build it in code with `registerBt`:
+
+```typescript
+import { registerBt } from 'esengine';
+
+registerBt('guard', {
+  root: {
+    type: 'selector',            // try children left→right until one succeeds
+    children: [
+      {
+        type: 'sequence',        // all must succeed, in order
+        children: [
+          { type: 'condition', name: 'seesPlayer' },
+          { type: 'action', name: 'chase' },
+        ],
+      },
+      { type: 'action', name: 'patrol' },
+    ],
+  },
+});
+```
+
+Node types:
+
+| Category | Type | Behavior |
+|---|---|---|
+| Composite | `sequence` | Ticks children in order; fails on the first failure, succeeds if all succeed. |
+| | `selector` | Ticks children in order; succeeds on the first success, fails if all fail. |
+| | `parallel` | Ticks all children; `policy: 'one'` succeeds when any does, `'all'` (default) when all do. |
+| Decorator | `inverter` | Inverts its child's Success/Failure. |
+| | `succeeder` | Always reports Success. |
+| | `repeater` | Re-runs its child `count` times (`0` = forever). |
+| | `wait` | Runs for `seconds` before reporting Success. |
+| Leaf | `action` | Runs the registered action `name`; its `Status` (or `Success` on void) propagates up. |
+| | `condition` | Returns `Success` when the registered condition `name` is true, else `Failure`. |
+
+## The blackboard
+
+Every FSM/BT agent owns a **`Blackboard`** — its private key/value store plus one-shot
+event triggers. Actions and conditions reach it through `ctx.blackboard`; it's how AI
+state flows between leaves and how transition guards get their values.
+
+```typescript
+registerAction('takeDamage', (ctx) => {
+  const hp = (ctx.blackboard.get<number>('health') ?? 100) - 10;
+  ctx.blackboard.set('health', hp);
+  if (hp <= 0) ctx.blackboard.fire('died');   // a transition keyed on 'died' fires once
+});
+```
+
+| Method | Description |
+|---|---|
+| `get<T>(key)` / `set(key, value)` | Read/write a value. |
+| `has(key)` / `delete(key)` | Test / remove a key. |
+| `fire(trigger)` | Fire a one-shot event; a transition keyed on it becomes enabled until taken. |
+| `isFired(trigger)` / `consume(trigger)` | Test / clear a trigger. |
+
+Blackboard values back the `guard` comparisons on FSM transitions, and the `trigger`
+mechanism is the Unity-style edge event: fired once, consumed by the transition that
+takes it.
+
+## Authoring in the editor
+
+The intended workflow is **data, not code** for the graphs themselves — you register
+the leaf logic once, then build and tune the machines/trees visually:
+
+1. In the **Content Browser**, create a **State Machine** (`.esfsm`) or **Behavior
+   Tree** (`.esbt`) asset and double-click it to open the node-graph editor.
+2. Add states/nodes, drag to connect them, and fill each leaf's **action** or
+   **condition** with one of your registered names. Set transition conditions,
+   triggers, and blackboard guards in the inspector.
+3. On the agent entity, set `StateMachineAgent.fsm` (or `BehaviorTreeAgent.bt`) to the
+   asset's path.
+
+The asset is referenced by path and **preloaded with the scene**, so the graph is
+registered before the agent first ticks — no `registerFsm`/`registerBt` call needed.
+Because both paradigms resolve leaves from the same registry, you can prototype an
+enemy as a state machine and later swap in a behavior tree (or run both) without
+touching your action/condition code.
+
+## Custom app setup
+
+The perception, FSM, BT, and navigation plugins are part of the default plugin set,
+so the **editor and the `esengine` web runtime add them for you**. Only when you build
+an app from a bare `new App()` do you add them explicitly:
+
+```typescript
+import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine';
+
+app.addPlugin(perceptionPlugin);
+app.addPlugin(fsmPlugin);
+app.addPlugin(btPlugin);
+app.addPlugin(navPlugin);
+```
+
+Each is exported both as a ready-to-use singleton (`navPlugin`) and as a class
+(`NavPlugin`) if you need multiple instances.
+
+## Putting it together
+
+The [`enemy-ai` example](https://github.com/esengine/estella/tree/master/examples/enemy-ai)
+hunts a player with two enemies that share the same senses and leaves — one driven by
+a state machine, the other by a behavior tree:
+
+```typescript
+import {
+  defineSystem, Res, Nav, NavGrid,
+  registerAction, registerCondition, setNavDestination, Perception,
+} from 'esengine';
+
+// Shared leaves — the same names serve BOTH the .esfsm and the .esbt.
+registerCondition('seesPlayer', (ctx) => ctx.has(Perception) && ctx.get(Perception).visible);
+registerCondition('lostPlayer', (ctx) => !ctx.has(Perception) || !ctx.get(Perception).visible);
+
+registerAction('chase', (ctx) => {
+  if (!ctx.has(Perception)) return;
+  const per = ctx.get(Perception);
+  if (per.visible) setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
+});
+registerAction('patrol', () => { /* hold position until the player is seen */ });
+
+// One open nav grid over the arena.
+export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
+  nav.setGrid(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
+}, { name: 'SetupNavGrid' });
+```
+
+The two enemies' `StateMachineAgent.fsm` and `BehaviorTreeAgent.bt` point at
+`enemy.esfsm` / `enemy.esbt` — authored in the editor, loaded by the engine.
+Perception, the FSM/BT ticks, and nav following are all built-in, so the only game
+code is the shared leaves above plus the one-time grid.

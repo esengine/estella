@@ -52,6 +52,7 @@ export default defineConfig({
             { label: 'Input', translations: { 'zh-CN': '输入' }, slug: 'guides/input' },
             { label: 'Camera', translations: { 'zh-CN': '相机' }, slug: 'guides/camera' },
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
+            { label: 'Gameplay AI', translations: { 'zh-CN': '游戏 AI' }, slug: 'guides/ai' },
             { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'guides/animation' },
             { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'guides/timeline' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
