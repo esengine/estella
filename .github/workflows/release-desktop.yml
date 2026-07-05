@@ -9,6 +9,11 @@ jobs:
   release:
     strategy:
       fail-fast: false
+      # Serialize the platforms: electron-builder's GitHub publisher creates the draft
+      # release lazily, so running all three in parallel races and produces duplicate
+      # drafts with the artifacts split between them. With one at a time, the first job
+      # creates the draft and the rest find and upload to it.
+      max-parallel: 1
       matrix:
         platform:
           - macos-latest
