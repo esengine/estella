@@ -75,6 +75,17 @@ class PlayRealmImpl {
    * esengine instance (custom components/systems run) and all assets are
    * same-origin. Init is posted on the realm's `hello`.
    */
+  /** Stage the realm ahead of time (idle after project open / play stop), so
+   *  Play's own preparePlayRealm hits warm stamps and returns in milliseconds.
+   *  Fire-and-forget; the build is stamped + idempotent. */
+  prewarm(): void {
+    try {
+      void window.estella.project.preparePlayRealm();
+    } catch {
+      /* prewarm is best-effort; Play reports real errors */
+    }
+  }
+
   async start(payload: PlayPayload): Promise<void> {
     this.payload = payload;
     this.set({ playing: true, ready: false, error: null });

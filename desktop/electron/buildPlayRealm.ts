@@ -113,32 +113,46 @@ export async function buildPlayRealm(opts: {
   await mkdir(out, { recursive: true });
 
   // 1. Host module — esengine EXTERNAL (resolved by the realm's import map).
-  try {
-    const res = await build({
-      entryPoints: [opts.playHostEntry],
-      bundle: true,
-      format: 'esm',
-      platform: 'browser',
-      target: 'es2020',
-      external: ['esengine', 'esengine/*'],
-      outfile: path.join(out, 'host.js'),
-      sourcemap: false,
-      write: true,
-      logLevel: 'silent',
-    });
-    errors.push(...res.errors.map((e) => e.text));
-  } catch (err) {
-    const e = err as { errors?: { text: string }[]; message?: string };
-    errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
-    return { ok: false, hostPath: '', errors };
+  //    Stamped on the entry's stat like the dir syncs below, so a repeat Play
+  //    (the hot path — prewarmed on project open) skips esbuild entirely.
+  const hostStamp = path.join(out, '.host-stamp');
+  const hostOut = path.join(out, 'host.js');
+  const entryStat = await stat(opts.playHostEntry);
+  const hostSig = `${opts.playHostEntry}:${entryStat.size}:${Math.round(entryStat.mtimeMs)}`;
+  const hostFresh =
+    existsSync(hostOut) && existsSync(hostStamp) && (await readFile(hostStamp, 'utf8')) === hostSig;
+  if (!hostFresh) {
+    try {
+      const res = await build({
+        entryPoints: [opts.playHostEntry],
+        bundle: true,
+        format: 'esm',
+        platform: 'browser',
+        target: 'es2020',
+        external: ['esengine', 'esengine/*'],
+        outfile: hostOut,
+        sourcemap: false,
+        write: true,
+        logLevel: 'silent',
+      });
+      errors.push(...res.errors.map((e) => e.text));
+      if (errors.length === 0) await writeFile(hostStamp, hostSig);
+    } catch (err) {
+      const e = err as { errors?: { text: string }[]; message?: string };
+      errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
+      return { ok: false, hostPath: '', errors };
+    }
   }
 
   // 2. SDK + wasm copies (gated on a full dir signature, so an added file re-syncs).
   await syncDir(opts.sdkDistDir, path.join(out, 'sdk'), path.join(out, '.sdk-stamp'));
   await syncDir(opts.wasmDir, path.join(out, 'wasm'), path.join(out, '.wasm-stamp'));
 
-  // 3. Host page.
-  await writeFile(path.join(out, 'play.html'), PLAY_HTML);
+  // 3. Host page (only when its content actually changed — keeps mtimes stable).
+  const htmlPath = path.join(out, 'play.html');
+  if (!existsSync(htmlPath) || (await readFile(htmlPath, 'utf8')) !== PLAY_HTML) {
+    await writeFile(htmlPath, PLAY_HTML);
+  }
 
   return { ok: errors.length === 0, hostPath: `${PLAY_DIR}/play.html`, errors };
 }

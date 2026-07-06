@@ -47,11 +47,13 @@ import type { WorkspaceState } from '../src/project/format';
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'estella',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+    // codeCache: V8 caches compiled bytecode for scripts served over this scheme
+    // (the play realm's SDK bundle + host), cutting repeat-Play parse time.
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true },
   },
   {
     scheme: 'app',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true },
   },
 ]);
 
