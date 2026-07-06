@@ -44,7 +44,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
 void renderer_init(u32 width, u32 height);
 void renderer_resize(u32 width, u32 height);
-void renderer_beginFrame();
+void renderer_beginFrame(f32 elapsedSec);
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle);
 void renderer_flush();
 void renderer_end();

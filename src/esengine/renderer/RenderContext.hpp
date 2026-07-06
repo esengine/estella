@@ -157,6 +157,9 @@ public:
      */
     void updateFrameConstants(const glm::mat4& viewProjection);
 
+    /** @brief Uploads the frame clock into the injected TimeConstants UBO (u_esTime = elapsed, dt). */
+    void setFrameTime(f32 elapsedSec);
+
     /**
      * @brief The engine-side material registry (handle -> resolved render state).
      * @details Written by the SDK material binding (defineMaterial) and read by the render
@@ -187,6 +190,8 @@ private:
     u32 blackTextureId_ = 0;
     u32 flatNormalTextureId_ = 0;
     u32 frameUbo_ = 0;
+    u32 timeUbo_ = 0;
+    f32 lastElapsed_ = 0.0f;
     MaterialStore materials_;
     LightStore lights_;
 

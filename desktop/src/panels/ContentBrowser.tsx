@@ -14,6 +14,7 @@ import { referencingPaths } from '@/project/assetRefs';
 import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
 import { createMaterialGraph } from '@/material/openMaterialGraph';
 import { createStateMachine } from '@/fsm/openStateMachine';
@@ -558,8 +559,13 @@ export function ContentBrowser() {
         { label: 'New Scene', onClick: () => void newScene() },
         { label: 'New Animation', onClick: () => void createAnimationClip(cwd) },
         { label: 'New Input Map', onClick: () => void newInputMap() },
-        { label: 'New Material (Unlit)', onClick: () => void createMaterial(cwd, 'sprite-unlit') },
-        { label: 'New Material (Lit)', onClick: () => void createMaterial(cwd, 'sprite-lit') },
+        {
+          label: 'New Material',
+          children: BUILTIN_SHADER_TEMPLATES.map((t) => ({
+            label: t.label,
+            onClick: () => void createMaterial(cwd, t.id),
+          })),
+        },
         { label: 'New Material Graph', onClick: () => void createMaterialGraph(cwd) },
         { label: 'New State Machine', onClick: () => void createStateMachine(cwd) },
         { label: 'New Behavior Tree', onClick: () => void createBehaviorTree(cwd) },

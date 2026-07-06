@@ -40,4 +40,16 @@ inline constexpr u32 FRAME_CONSTANTS_BINDING = 0;
 /** @brief GLSL block name; must match the shader declarations and Shader::compile lookup. */
 inline constexpr const char* FRAME_CONSTANTS_BLOCK = "FrameConstants";
 
+/**
+ * @brief CPU mirror of the injected TimeConstants block (std140).
+ * @details u_esTime = (elapsed seconds, delta seconds, 0, 0). Engine-owned: ShaderParser
+ *          injects the block into every assembled stage — shaders never declare it.
+ */
+struct TimeConstants {
+    glm::vec4 time{0.0f};
+};
+
+inline constexpr u32 TIME_CONSTANTS_BINDING = 3;
+inline constexpr const char* TIME_CONSTANTS_BLOCK = "TimeConstants";
+
 }  // namespace esengine

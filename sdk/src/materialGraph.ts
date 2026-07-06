@@ -20,6 +20,7 @@ export type GraphNodeType =
   | 'output' // the root: its `color` input becomes fragColor
   | 'uv' // v_texCoord
   | 'vertexColor' // v_color (the sprite's per-instance tint)
+  | 'time' // u_esTime.x — the injected engine frame clock (seconds)
   | 'constFloat' // a scalar material param (#pragma param ... float)
   | 'constColor' // an RGBA material param (#pragma param ... color)
   | 'textureSample' // sample a texture material param at a UV (#pragma param ... texture)
@@ -27,7 +28,11 @@ export type GraphNodeType =
   | 'add'
   | 'lerp'
   | 'oneMinus' // 1 - x (invert a mask)
-  | 'saturate'; // clamp(x, 0, 1)
+  | 'saturate' // clamp(x, 0, 1)
+  | 'sin'
+  | 'smoothstep' // smoothstep(edge0, edge1, x) — edges are node literals
+  | 'noise' // procedural value noise over a UV (scale is a node literal)
+  | 'panner'; // uv + time × speed (speed is a node literal pair)
 
 export interface MaterialGraphNode {
   id: string;
@@ -77,8 +82,15 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
   const memo = new Map<string, { expr: string; type: GraphType }>();
   const visiting = new Set<string>();
   const params: string[] = [];
+  const helpers = new Set<string>();
   const body: string[] = [];
   let tmp = 0;
+
+  const numParam = (n: MaterialGraphNode, key: string, fallback: number): string => {
+    const v = n.params?.[key];
+    const f = typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+    return f.toFixed(4);
+  };
 
   const paramName = (n: MaterialGraphNode) =>
     typeof n.params?.name === 'string' ? (n.params.name as string) : `u_${n.id}`;
@@ -104,6 +116,9 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
         break;
       case 'vertexColor':
         out = { expr: 'v_color', type: 'vec4' };
+        break;
+      case 'time':
+        out = { expr: 'u_esTime.x', type: 'float' };
         break;
       case 'constFloat': {
         const name = paramName(n);
@@ -150,13 +165,38 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
         break;
       }
       case 'oneMinus':
-      case 'saturate': {
-        // Both are single-input and preserve type — GLSL broadcasts the scalar over any genType.
+      case 'saturate':
+      case 'sin': {
+        // Single-input, type-preserving — GLSL broadcasts over any genType.
         const a = input('x');
         const t = `n${tmp++}`;
-        const expr = n.type === 'oneMinus' ? `1.0 - ${a.expr}` : `clamp(${a.expr}, 0.0, 1.0)`;
+        const expr = n.type === 'oneMinus' ? `1.0 - ${a.expr}`
+          : n.type === 'saturate' ? `clamp(${a.expr}, 0.0, 1.0)`
+          : `sin(${a.expr})`;
         body.push(`${a.type} ${t} = ${expr};`);
         out = { expr: t, type: a.type };
+        break;
+      }
+      case 'smoothstep': {
+        const a = input('x');
+        const t = `n${tmp++}`;
+        body.push(`${a.type} ${t} = smoothstep(${numParam(n, 'edge0', 0)}, ${numParam(n, 'edge1', 1)}, ${a.expr});`);
+        out = { expr: t, type: a.type };
+        break;
+      }
+      case 'noise': {
+        helpers.add(NOISE_HELPER);
+        const uv = n.inputs?.uv ? input('uv').expr : 'v_texCoord';
+        const t = `n${tmp++}`;
+        body.push(`float ${t} = es_noise(${uv} * ${numParam(n, 'scale', 12)});`);
+        out = { expr: t, type: 'float' };
+        break;
+      }
+      case 'panner': {
+        const uv = n.inputs?.uv ? input('uv').expr : 'v_texCoord';
+        const t = `n${tmp++}`;
+        body.push(`vec2 ${t} = fract(${uv} + u_esTime.x * vec2(${numParam(n, 'speedX', 0.1)}, ${numParam(n, 'speedY', 0)}));`);
+        out = { expr: t, type: 'vec2' };
         break;
       }
       case 'output': {
@@ -182,39 +222,21 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
   const name = graph.name ?? 'Graph';
   const domain = graph.domain ?? 'Unlit2D';
   const paramBlock = params.length ? params.join('\n') + '\n' : '';
+  const helperBlock = helpers.size ? [...helpers].join('\n') + '\n\n' : '';
   const bodyBlock = body.map((l) => '    ' + l).join('\n');
 
+  // Fragment-only: the canonical 2D vertex stage is injected by the engine's ShaderParser.
   return `#pragma shader "${name}"
 #pragma version 300 es
 #pragma domain ${domain}
 ${paramBlock}
-#pragma vertex
-layout(location = 0) in vec2 a_position;
-layout(location = 1) in vec4 a_color;
-layout(location = 2) in vec2 a_texCoord;
-layout(location = 3) in float a_texIndex;
-
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
-out vec4 v_color;
-out vec2 v_texCoord;
-
-void main() {
-    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
-    v_color = a_color;
-    v_texCoord = a_texCoord;
-}
-#pragma end
-
 #pragma fragment
 precision mediump float;
 
 in vec4 v_color;
 in vec2 v_texCoord;
 
-out vec4 fragColor;
+${helperBlock}out vec4 fragColor;
 
 void main() {
 ${bodyBlock}
@@ -223,6 +245,15 @@ ${bodyBlock}
 #pragma end
 `;
 }
+
+const NOISE_HELPER = `float es_hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float es_noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(es_hash(i), es_hash(i + vec2(1.0, 0.0)), f.x),
+               mix(es_hash(i + vec2(0.0, 1.0)), es_hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}`;
 
 // =============================================================================
 // Editor schema + graph operations (the visual node editor, P5b)
@@ -257,6 +288,7 @@ export const NODE_SPECS: Record<GraphNodeType, NodeSpec> = {
   output: { label: 'Output', inputs: [{ name: 'color', type: 'vec4' }], output: null, params: [], addable: false },
   uv: { label: 'UV', inputs: [], output: 'vec2', params: [], addable: true },
   vertexColor: { label: 'Vertex Color', inputs: [], output: 'vec4', params: [], addable: true },
+  time: { label: 'Time', inputs: [], output: 'float', params: [], addable: true },
   constFloat: { label: 'Float', inputs: [], output: 'float', params: [{ key: 'value', label: 'Value', kind: 'float' }], addable: true },
   constColor: { label: 'Color', inputs: [], output: 'vec4', params: [{ key: 'value', label: 'Color', kind: 'color' }], addable: true },
   textureSample: { label: 'Texture', inputs: [{ name: 'uv', type: 'vec2' }], output: 'vec4', params: [{ key: 'name', label: 'Param', kind: 'texture' }], addable: true },
@@ -265,6 +297,10 @@ export const NODE_SPECS: Record<GraphNodeType, NodeSpec> = {
   lerp: { label: 'Lerp', inputs: [{ name: 'a', type: 'vec4' }, { name: 'b', type: 'vec4' }, { name: 't', type: 'float' }], output: 'vec4', params: [], addable: true },
   oneMinus: { label: 'One Minus', inputs: [{ name: 'x', type: 'vec4' }], output: 'vec4', params: [], addable: true },
   saturate: { label: 'Saturate', inputs: [{ name: 'x', type: 'vec4' }], output: 'vec4', params: [], addable: true },
+  sin: { label: 'Sin', inputs: [{ name: 'x', type: 'float' }], output: 'float', params: [], addable: true },
+  smoothstep: { label: 'Smoothstep', inputs: [{ name: 'x', type: 'float' }], output: 'float', params: [{ key: 'edge0', label: 'Edge 0', kind: 'float' }, { key: 'edge1', label: 'Edge 1', kind: 'float' }], addable: true },
+  noise: { label: 'Noise', inputs: [{ name: 'uv', type: 'vec2' }], output: 'float', params: [{ key: 'scale', label: 'Scale', kind: 'float' }], addable: true },
+  panner: { label: 'Panner', inputs: [{ name: 'uv', type: 'vec2' }], output: 'vec2', params: [{ key: 'speedX', label: 'Speed X', kind: 'float' }, { key: 'speedY', label: 'Speed Y', kind: 'float' }], addable: true },
 };
 
 /** A default starter graph: a white texture sample straight into the output. */
@@ -296,6 +332,9 @@ function defaultParams(type: GraphNodeType, id: string): Record<string, unknown>
     case 'constFloat': return { name: `u_${id}`, value: 1 };
     case 'constColor': return { name: `u_${id}`, value: [1, 1, 1, 1] };
     case 'textureSample': return { name: `u_${id}`, default: 'white' };
+    case 'smoothstep': return { edge0: 0, edge1: 1 };
+    case 'noise': return { scale: 12 };
+    case 'panner': return { speedX: 0.1, speedY: 0 };
     default: return undefined;
   }
 }

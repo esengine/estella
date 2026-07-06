@@ -17,11 +17,60 @@ name and they reach the GPU safely. A `Material` binds a compiled shader to a se
 parameter values; assigning its handle to a renderer's `material` field draws that
 renderer with it.
 
-## Declaring parameters with `#pragma param`
+## Built-in shader templates
+
+You rarely start from a blank file. The Content Browser's **New Material** submenu
+creates a material from a built-in template — the same list ships in code as
+`BUILTIN_SHADER_TEMPLATES`:
+
+| Template | What it does |
+|---|---|
+| **Unlit** | Texture × vertex color × `u_tint`. The plain default. |
+| **Lit** | Lit by the scene's 2D lights; `u_tint` + optional `u_normalMap`. |
+| **Hit Flash** | Blends toward `u_flashColor` by `u_flash` — drive it from code for damage blinks. |
+| **Outline** | Colored silhouette outline (`u_outlineColor`, `u_outlineWidth` in texels). |
+| **Dissolve** | Noise burn-away with a glowing edge (`u_progress` 0→1). |
+| **Pixelate** | Quantizes UVs to a `u_pixels` grid. |
+| **UV Scroll** | Scrolls the texture by `u_scrollSpeed` × time. |
+
+Each template is an ordinary `.esshader` created next to the material — open it and
+edit; nothing about it is special.
+
+## The `.esshader` format
+
+One file holds every stage plus its metadata, separated by pragmas:
+
+| Pragma | Meaning |
+|---|---|
+| `#pragma shader "Name"` | Display name. |
+| `#pragma version 300 es` | GLSL version line for every stage. |
+| `#pragma domain <D>` | `Unlit2D` (default), `Lit2D`, `PostProcess`, `UI`. `Lit2D` injects the lighting uniforms + helpers. |
+| `#pragma param …` | A reflected material parameter (table below). |
+| `#pragma switch NAME [default(on)]` | Material-facing static permutation toggle (a `#define`). |
+| `#pragma feature NAME` | Engine-chosen compile-time variant keyword. |
+| `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage bodies. **The vertex block is optional for 2D domains** — the engine injects the canonical stage. |
+| `#include "path"` | Textual include (resolved by the host). |
+
+### Fragment-only authoring
+
+2D sprites bake their world transform into the batch vertices, so every 2D shader
+shares one vertex stage. Omit `#pragma vertex` and write only the fragment; these
+varyings arrive ready to use:
+
+| Varying | Type | Value |
+|---|---|---|
+| `v_color` | `vec4` | Per-instance tint (the sprite's `color`). |
+| `v_texCoord` | `vec2` | Texture UV. |
+| `v_worldPos` | `highp vec2` | World-space position (**Lit2D domain only**). |
+
+The sprite's texture is `u_textures[0]` (declare `uniform sampler2D u_textures[8];`
+— units 0–7 belong to the batch; texture *params* bind above them automatically).
+
+### Declaring parameters with `#pragma param`
 
 ```glsl
 #pragma param u_tint      color   default(1, 1, 1, 1)
-#pragma param u_intensity float   default(1.0)
+#pragma param u_intensity float   default(1.0) range(0, 4) ui(slider)
 #pragma param u_mask      texture default(white)
 
 // … your GLSL fragment code, reading u_tint / u_intensity / u_mask …
@@ -29,9 +78,25 @@ renderer with it.
 
 | Param type | GLSL | Value shape | Notes |
 |---|---|---|---|
-| `float` | `float` | `number` | Scalar knob. |
-| `color` | `vec4` | `[r, g, b, a]` | RGBA, 0..1. |
-| `texture` | `sampler2D` | texture handle | `default(white)` etc. for a fallback. |
+| `float` / `int` | `float` / `int` | `number` | Scalar knob; `range(min,max)` + `ui(slider)` for the inspector. |
+| `vec2` / `vec3` / `vec4` | same | `[x, y, …]` | Vector knob. |
+| `color` | `vec4` | `[r, g, b, a]` | RGBA, 0..1; color picker in the inspector. |
+| `texture` | `sampler2D` | texture handle | `default(white \| black \| flatnormal)` fallback when unset. |
+
+Params live in an engine-generated std140 block, initialized from their `default(…)`
+values — a material that never sets a param still draws correctly.
+
+### Injected uniforms & helpers
+
+The engine injects these into every compiled `.esshader` — never declare them yourself:
+
+| Injected | Available | What |
+|---|---|---|
+| `u_esTime` | always | `vec4` frame clock: `.x` elapsed seconds, `.y` delta seconds. |
+| MaterialConstants block | when the shader has params | Your `#pragma param` values. |
+| `es_applyLighting2D(albedo, N, worldPos)` | Lit2D | Applies every scene light (+shadows); returns the lit color. |
+| `es_sampleNormal(map, uv)` | Lit2D | Unpacks a tangent-space normal map (RGB → [-1,1], normalized). |
+| `es_shadowFactor2D(worldPos, target, softness)` | Lit2D | Occlusion factor toward a point (used by `es_applyLighting2D`). |
 
 A `#pragma switch` selects a static shader permutation baked into the material at
 compile time (via the `features` argument to `compileShader`).

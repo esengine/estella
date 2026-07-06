@@ -14,11 +14,57 @@ import { Aside } from '@astrojs/starlight/components';
 std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一个 `Material` 把编译好的
 着色器绑定到一组参数值;把它的句柄赋给渲染器的 `material` 字段,就用它来绘制该渲染器。
 
-## 用 `#pragma param` 声明参数
+## 内置着色器模板
+
+你很少需要从空白文件开始。内容浏览器的 **New Material** 子菜单从内置模板创建材质——
+同一份清单在代码里是 `BUILTIN_SHADER_TEMPLATES`:
+
+| 模板 | 作用 |
+|---|---|
+| **Unlit** | 纹理 × 顶点色 × `u_tint`,普通默认。 |
+| **Lit** | 被场景 2D 灯光照亮;`u_tint` + 可选 `u_normalMap`。 |
+| **Hit Flash** | 按 `u_flash` 混向 `u_flashColor`——代码里驱动它做受击闪白。 |
+| **Outline** | 彩色剪影描边(`u_outlineColor`、`u_outlineWidth`,单位纹素)。 |
+| **Dissolve** | 噪声烧蚀 + 发光边缘(`u_progress` 0→1)。 |
+| **Pixelate** | UV 量化到 `u_pixels` 网格。 |
+| **UV Scroll** | 按 `u_scrollSpeed` × 时间滚动纹理。 |
+
+每个模板就是生成在材质旁边的普通 `.esshader`——直接打开改,没有任何特殊之处。
+
+## `.esshader` 格式
+
+一个文件容纳所有 stage 与元数据,用 pragma 分段:
+
+| Pragma | 含义 |
+|---|---|
+| `#pragma shader "Name"` | 显示名。 |
+| `#pragma version 300 es` | 每个 stage 的 GLSL 版本行。 |
+| `#pragma domain <D>` | `Unlit2D`(默认)、`Lit2D`、`PostProcess`、`UI`。`Lit2D` 注入光照 uniform + helper。 |
+| `#pragma param …` | 反射的材质参数(见下表)。 |
+| `#pragma switch NAME [default(on)]` | 材质可控的静态排列开关(一个 `#define`)。 |
+| `#pragma feature NAME` | 引擎选择的编译期变体关键字。 |
+| `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage 代码体。**2D 域的顶点段可省略**——引擎注入规范顶点段。 |
+| `#include "path"` | 文本 include(由宿主解析)。 |
+
+### 只写片元
+
+2D 精灵的世界变换烘焙进批处理顶点,所以所有 2D 着色器共享同一个顶点段。省略
+`#pragma vertex`,只写片元;以下 varying 开箱即用:
+
+| Varying | 类型 | 值 |
+|---|---|---|
+| `v_color` | `vec4` | 每实例色调(精灵的 `color`)。 |
+| `v_texCoord` | `vec2` | 纹理 UV。 |
+| `v_worldPos` | `highp vec2` | 世界坐标(**仅 Lit2D 域**)。 |
+
+精灵纹理是 `u_textures[0]`(声明 `uniform sampler2D u_textures[8];`——单元 0–7 归批处理;
+纹理*参数*自动绑定在其上方)。
+
+### 用 `#pragma param` 声明参数
 
 ```glsl
 #pragma param u_tint      color   default(1, 1, 1, 1)
-#pragma param u_intensity float   default(1.0)
+#pragma param u_intensity float   default(1.0) range(0, 4) ui(slider)
 #pragma param u_mask      texture default(white)
 
 // … your GLSL fragment code, reading u_tint / u_intensity / u_mask …
@@ -26,9 +72,24 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 
 | 参数类型 | GLSL | 值的形状 | 备注 |
 |---|---|---|---|
-| `float` | `float` | `number` | 标量旋钮。 |
-| `color` | `vec4` | `[r, g, b, a]` | RGBA,0..1。 |
-| `texture` | `sampler2D` | 纹理句柄 | `default(white)` 等作为回退。 |
+| `float` / `int` | `float` / `int` | `number` | 标量旋钮;`range(min,max)` + `ui(slider)` 控制检视器。 |
+| `vec2` / `vec3` / `vec4` | 同名 | `[x, y, …]` | 向量旋钮。 |
+| `color` | `vec4` | `[r, g, b, a]` | RGBA,0..1;检视器里是取色器。 |
+| `texture` | `sampler2D` | 纹理句柄 | `default(white \| black \| flatnormal)` 未设置时的回退。 |
+
+参数存在引擎生成的 std140 块里,并从 `default(…)` 初始化——材质从未设置某参数也能正确绘制。
+
+### 注入的 uniform 与 helper
+
+引擎向每个编译的 `.esshader` 注入以下内容——永远不要自己声明它们:
+
+| 注入项 | 可用范围 | 说明 |
+|---|---|---|
+| `u_esTime` | 总是 | `vec4` 帧时钟:`.x` 累计秒,`.y` 帧间隔秒。 |
+| MaterialConstants 块 | 着色器有参数时 | 你的 `#pragma param` 值。 |
+| `es_applyLighting2D(albedo, N, worldPos)` | Lit2D | 应用场景所有灯光(含阴影),返回受光颜色。 |
+| `es_sampleNormal(map, uv)` | Lit2D | 解包切线空间法线贴图(RGB → [-1,1],归一化)。 |
+| `es_shadowFactor2D(worldPos, target, softness)` | Lit2D | 朝向目标点的遮挡系数(`es_applyLighting2D` 内部使用)。 |
 
 `#pragma switch` 选择编译期烘焙进材质的静态着色器排列(通过 `compileShader` 的 `features` 参数)。
 

@@ -66,8 +66,8 @@ export class RenderPipeline {
         this.preFlushCallbacks_.push(cb);
     }
 
-    beginFrame(): void {
-        Renderer.beginFrame();
+    beginFrame(elapsedSec = 0): void {
+        Renderer.beginFrame(elapsedSec);
     }
 
     beginScreenCapture(): void {
@@ -116,7 +116,7 @@ export class RenderPipeline {
             this.lastHeight_ = height;
         }
 
-        Renderer.beginFrame();
+        Renderer.beginFrame(elapsed);
         Renderer.setViewport(0, 0, width, height);
         Renderer.clearBuffers(3);
         Renderer.begin(viewProjection);

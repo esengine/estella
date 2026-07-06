@@ -40,6 +40,9 @@
 .ctx-item.danger:hover { background: rgba(214, 90, 90, 0.14); color: var(--error); }
 .ctx-item.danger:hover .ci { color: var(--error); }
 .ctx-sep { height: 1px; background: var(--border-line); margin: 4px 6px; }
+.ctx-sub { position: relative; }
+.ctx-flyout { position: absolute; left: calc(100% - 4px); top: -5px; }
+.ctx-flyout.flip { left: auto; right: calc(100% - 4px); }
 
 /* ════════════════════════ Hover tooltip ════════════════════════ */
 /* The floating container for the shared <Tooltip> primitive (asset hover card,

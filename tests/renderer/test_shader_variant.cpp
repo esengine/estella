@@ -100,6 +100,11 @@ static void testFragmentOnly() {
     ParsedShader authored = ShaderParser::parse(SRC);
     const std::string av = ShaderParser::assembleStage(authored, ShaderStage::Vertex);
     CHECK(av.find("a_pos") != std::string::npos, "an authored vertex stage is untouched");
+
+    const std::string af = ShaderParser::assembleStage(authored, ShaderStage::Fragment);
+    CHECK(av.find("uniform TimeConstants") != std::string::npos &&
+          af.find("uniform TimeConstants") != std::string::npos,
+          "u_esTime clock block injected into both stages");
 }
 
 int main() {

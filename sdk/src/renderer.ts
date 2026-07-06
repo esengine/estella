@@ -59,8 +59,8 @@ export const Renderer = {
         module?.renderer_resize(width, height);
     },
 
-    beginFrame(): void {
-        module?.renderer_beginFrame();
+    beginFrame(elapsedSec = 0): void {
+        module?.renderer_beginFrame(elapsedSec);
     },
 
     updateTransforms(registry: { _cpp: CppRegistry }): void {

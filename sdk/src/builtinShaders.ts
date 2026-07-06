@@ -62,6 +62,147 @@ void main() {
 #pragma end
 `;
 
+const SPRITE_HIT_FLASH = `#pragma shader "Hit Flash"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_flash float default(0) range(0,1) ui(slider)
+#pragma param u_flashColor color default(1,1,1,1)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+// Drive u_flash 1 → 0 from code (tween) for the classic damage blink.
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+    fragColor = vec4(mix(base.rgb, u_flashColor.rgb, u_flash), base.a);
+}
+#pragma end
+`;
+
+const SPRITE_OUTLINE = `#pragma shader "Outline"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_outlineColor color default(1,1,1,1)
+#pragma param u_outlineWidth float default(1) range(0,8)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+    highp vec2 texel = u_outlineWidth / vec2(textureSize(u_textures[0], 0));
+    float edge = 0.0;
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2( texel.x, 0.0)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x, 0.0)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(0.0,  texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(0.0, -texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2( texel.x,  texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2( texel.x, -texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x,  texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x, -texel.y)).a);
+    fragColor = mix(vec4(u_outlineColor.rgb, edge * u_outlineColor.a), base, base.a);
+}
+#pragma end
+`;
+
+const SPRITE_DISSOLVE = `#pragma shader "Dissolve"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_progress float default(0) range(0,1) ui(slider)
+#pragma param u_edgeColor color default(1,0.5,0,1)
+#pragma param u_edgeWidth float default(0.08) range(0,0.5)
+#pragma param u_noiseScale float default(12) range(1,64)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+float es_hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float es_noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(es_hash(i), es_hash(i + vec2(1.0, 0.0)), f.x),
+               mix(es_hash(i + vec2(0.0, 1.0)), es_hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// u_progress 0 = intact, 1 = fully dissolved; a glowing edge leads the cut.
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+    float n = es_noise(v_texCoord * u_noiseScale);
+    float cut = u_progress * (1.0 + u_edgeWidth);
+    if (n < cut - u_edgeWidth) discard;
+    vec3 rgb = (n < cut) ? u_edgeColor.rgb : base.rgb;
+    fragColor = vec4(rgb, base.a);
+}
+#pragma end
+`;
+
+const SPRITE_PIXELATE = `#pragma shader "Pixelate"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_pixels float default(32) range(2,256)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    vec2 uv = (floor(v_texCoord * u_pixels) + 0.5) / u_pixels;
+    fragColor = texture(u_textures[0], uv) * v_color;
+}
+#pragma end
+`;
+
+const SPRITE_UV_SCROLL = `#pragma shader "UV Scroll"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_scrollSpeed vec2 default(0.1,0)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+// u_esTime.x is the engine frame clock (seconds), injected into every shader.
+void main() {
+    vec2 uv = fract(v_texCoord + u_esTime.x * u_scrollSpeed);
+    fragColor = texture(u_textures[0], uv) * v_color;
+}
+#pragma end
+`;
+
 export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     {
         id: 'sprite-unlit',
@@ -76,6 +217,41 @@ export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
         description: 'Lit by the scene\'s 2D lights; optional normal map.',
         source: SPRITE_LIT,
         defaults: { u_tint: { r: 1, g: 1, b: 1, a: 1 } },
+    },
+    {
+        id: 'sprite-hit-flash',
+        label: 'Hit Flash',
+        description: 'Blend toward a flash color; drive u_flash from code for damage blinks.',
+        source: SPRITE_HIT_FLASH,
+        defaults: {},
+    },
+    {
+        id: 'sprite-outline',
+        label: 'Outline',
+        description: 'Colored silhouette outline around the sprite\'s opaque pixels.',
+        source: SPRITE_OUTLINE,
+        defaults: {},
+    },
+    {
+        id: 'sprite-dissolve',
+        label: 'Dissolve',
+        description: 'Noise-driven burn-away with a glowing edge (u_progress 0→1).',
+        source: SPRITE_DISSOLVE,
+        defaults: {},
+    },
+    {
+        id: 'sprite-pixelate',
+        label: 'Pixelate',
+        description: 'Quantizes UVs to a coarse pixel grid.',
+        source: SPRITE_PIXELATE,
+        defaults: {},
+    },
+    {
+        id: 'sprite-uv-scroll',
+        label: 'UV Scroll',
+        description: 'Scrolls the texture over time (conveyors, water, clouds).',
+        source: SPRITE_UV_SCROLL,
+        defaults: {},
     },
 ];
 

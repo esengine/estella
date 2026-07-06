@@ -429,6 +429,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         ++headerLines;
     }
 
+    // Engine-owned frame clock, injected into every stage (identical in both, so the
+    // program links). u_esTime = (elapsed s, delta s, 0, 0); binding 3 (Shader::compile).
+    static const char* kTimeHeader =
+        "layout(std140) uniform TimeConstants { highp vec4 u_esTime; };\n";
+    assembled << kTimeHeader;
+    headerLines += countNewlines(kTimeHeader);
+
     // Auto-generated material params (#pragma param): the std140 MaterialConstants block
     // (non-texture params in declared order == std140 offset order) plus sampler uniforms.
     // Injected after the #defines so both stages share one block and the body can use the

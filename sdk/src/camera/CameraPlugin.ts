@@ -476,7 +476,7 @@ export function cameraPlugin(
                             width, height, elapsed,
                         });
                     } else {
-                        pipeline.beginFrame();
+                        pipeline.beginFrame(elapsed);
                         pipeline.beginScreenCapture();
                         for (const cam of cameras) {
                             const vp = cam.viewportRect;

@@ -241,7 +241,7 @@ export interface ESEngineModule {
     // Renderer API (RenderFrame)
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
-    renderer_beginFrame(): void;
+    renderer_beginFrame(elapsedSec: number): void;
     renderer_updateTransforms(registry: CppRegistry): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
     renderer_flush(): void;

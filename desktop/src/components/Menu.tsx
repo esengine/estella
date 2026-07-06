@@ -9,14 +9,16 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 
 export type MenuItem =
   | { sep: true }
   | {
       label: string;
       shortcut?: string;
-      onClick: () => void;
+      onClick?: () => void;
+      /** Submenu — the item opens a flyout on hover (ContextMenu only); onClick is ignored. */
+      children?: MenuItem[];
       disabled?: boolean;
       checked?: boolean;
       icon?: ReactNode;
@@ -43,7 +45,7 @@ export function MenuItems({ items, onSelect }: { items: MenuItem[]; onSelect: ()
             disabled={it.disabled}
             onClick={() => {
               onSelect();
-              it.onClick();
+              it.onClick?.();
             }}
           >
             <span className="menu-dropdown__check">
@@ -114,9 +116,42 @@ export function ContextMenu({
       style={{ left: pos.left, top: pos.top }}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      <CtxItems items={items} onClose={onClose} />
+    </div>,
+    document.body,
+  );
+}
+
+// Context-menu item list; an item with `children` opens a hover flyout, flipped
+// to the left edge when there's no room on the right.
+function CtxItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }) {
+  const [open, setOpen] = useState<{ i: number; flip: boolean } | null>(null);
+  return (
+    <>
       {items.map((it, i) =>
         'sep' in it ? (
           <div key={i} className="ctx-sep" />
+        ) : it.children ? (
+          <div
+            key={i}
+            className="ctx-sub"
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setOpen({ i, flip: r.right + 200 > window.innerWidth });
+            }}
+            onMouseLeave={() => setOpen((o) => (o?.i === i ? null : o))}
+          >
+            <button type="button" role="menuitem" className="ctx-item" aria-haspopup="menu" disabled={it.disabled}>
+              <span className="ci">{it.icon}</span>
+              <span className="cl">{it.label}</span>
+              <span className="ck"><ChevronRight size={12} /></span>
+            </button>
+            {open?.i === i ? (
+              <div className={`ctx ctx-flyout${open.flip ? ' flip' : ''}`} role="menu">
+                <CtxItems items={it.children} onClose={onClose} />
+              </div>
+            ) : null}
+          </div>
         ) : (
           <button
             key={i}
@@ -126,7 +161,7 @@ export function ContextMenu({
             disabled={it.disabled}
             onClick={() => {
               onClose();
-              it.onClick();
+              it.onClick?.();
             }}
           >
             <span className="ci">{it.checked ? <Check size={13} strokeWidth={2.4} /> : it.icon}</span>
@@ -135,7 +170,6 @@ export function ContextMenu({
           </button>
         ),
       )}
-    </div>,
-    document.body,
+    </>
   );
 }

@@ -238,8 +238,9 @@ void renderer_resize(u32 width, u32 height) {
     g_renderFrame->resize(width, height);
 }
 
-void renderer_beginFrame() {
+void renderer_beginFrame(f32 elapsedSec) {
     ctx().state().transforms_updated = false;
+    if (auto* rc = ctx().tryGet<RenderContext>()) rc->setFrameTime(elapsedSec);
 }
 
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {

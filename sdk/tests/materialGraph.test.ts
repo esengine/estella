@@ -43,6 +43,34 @@ describe('compileMaterialGraph', () => {
     expect(src.indexOf('texture(u_albedo')).toBeLessThan(src.indexOf('n0 * u_tint'));
   });
 
+  it('emits fragment-only shaders (the canonical vertex stage is engine-injected)', () => {
+    expect(compileMaterialGraph(tintGraph)).not.toContain('#pragma vertex');
+  });
+
+  it('compiles time/sin/panner/noise/smoothstep nodes', () => {
+    const g: MaterialGraph = {
+      output: 'out',
+      nodes: [
+        { id: 'uv', type: 'uv' },
+        { id: 'pan', type: 'panner', inputs: { uv: 'uv' }, params: { speedX: 0.25, speedY: 0 } },
+        { id: 'tex', type: 'textureSample', inputs: { uv: 'pan' }, params: { name: 'u_albedo', default: 'white' } },
+        { id: 't', type: 'time' },
+        { id: 's', type: 'sin', inputs: { x: 't' } },
+        { id: 'n', type: 'noise', inputs: { uv: 'uv' }, params: { scale: 8 } },
+        { id: 'ss', type: 'smoothstep', inputs: { x: 'n' }, params: { edge0: 0.2, edge1: 0.8 } },
+        { id: 'mask', type: 'multiply', inputs: { a: 'ss', b: 's' } },
+        { id: 'mul', type: 'multiply', inputs: { a: 'tex', b: 'mask' } },
+        { id: 'out', type: 'output', inputs: { color: 'mul' } },
+      ],
+    };
+    const src = compileMaterialGraph(g);
+    expect(src).toContain('fract(v_texCoord + u_esTime.x * vec2(0.2500, 0.0000))');
+    expect(src).toContain('sin(u_esTime.x)');
+    expect(src).toContain('es_noise(v_texCoord * 8.0000)');
+    expect(src).toContain('smoothstep(0.2000, 0.8000,');
+    expect(src.match(/float es_noise/g)?.length).toBe(1); // helper emitted once
+  });
+
   it('reuses a shared node once (DAG, not a tree)', () => {
     const g: MaterialGraph = {
       output: 'out',

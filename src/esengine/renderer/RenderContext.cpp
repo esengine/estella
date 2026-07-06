@@ -61,6 +61,10 @@ void RenderContext::shutdown() {
         device_.deleteBuffer(frameUbo_);
         frameUbo_ = 0;
     }
+    if (timeUbo_ != 0) {
+        device_.deleteBuffer(timeUbo_);
+        timeUbo_ = 0;
+    }
 
     materials_.clear();  // free per-material UBOs while the device is still valid
     lights_.free();      // free the lighting UBO while the device is still valid
@@ -105,6 +109,12 @@ void RenderContext::initFrameUbo() {
     // at compile time (Shader::compile).
     device_.bindBufferBase(FRAME_CONSTANTS_BINDING, frameUbo_);
 
+    timeUbo_ = device_.createBuffer();
+    TimeConstants time{};
+    device_.bindUniformBuffer(timeUbo_);
+    device_.bufferData(GfxBufferTarget::Uniform, &time, sizeof(TimeConstants), /*dynamic=*/true);
+    device_.bindBufferBase(TIME_CONSTANTS_BINDING, timeUbo_);
+
     ES_LOG_DEBUG("FrameConstants UBO created (ID: {})", frameUbo_);
 }
 
@@ -113,6 +123,14 @@ void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
     device_.bindUniformBuffer(frameUbo_);
     device_.bufferSubData(GfxBufferTarget::Uniform, 0, glm::value_ptr(viewProjection),
                           sizeof(glm::mat4));
+}
+
+void RenderContext::setFrameTime(f32 elapsedSec) {
+    const f32 dt = (lastElapsed_ > 0.0f && elapsedSec > lastElapsed_) ? elapsedSec - lastElapsed_ : 0.0f;
+    lastElapsed_ = elapsedSec;
+    TimeConstants time{ glm::vec4(elapsedSec, dt, 0.0f, 0.0f) };
+    device_.bindUniformBuffer(timeUbo_);
+    device_.bufferSubData(GfxBufferTarget::Uniform, 0, &time, sizeof(TimeConstants));
 }
 
 }  // namespace esengine
