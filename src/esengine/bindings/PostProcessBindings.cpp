@@ -35,7 +35,7 @@ bool postprocess_init(u32 width, u32 height) {
     }
 
     g_postProcessPipeline->init(width, height);
-    g_device->bindFramebuffer(0);
+    g_device->bindFramebuffer(FramebufferHandle::Default);
 
     return g_postProcessPipeline->isInitialized();
 }
@@ -131,7 +131,7 @@ void postprocess_clearPasses() {
 
 void postprocess_setOutputTarget(u32 fboId) {
     if (g_postProcessPipeline) {
-        g_postProcessPipeline->setOutputTarget(fboId);
+        g_postProcessPipeline->setOutputTarget(FramebufferHandle{fboId});
     }
 }
 

@@ -48,16 +48,16 @@ void RenderTarget::resize(u32 width, u32 height) {
     }
 }
 
-u32 RenderTarget::getColorTexture() const {
-    return framebuffer_ ? framebuffer_->getColorAttachment() : 0;
+TextureHandle RenderTarget::getColorTexture() const {
+    return framebuffer_ ? framebuffer_->getColorAttachment() : TextureHandle::Invalid;
 }
 
-u32 RenderTarget::getDepthTexture() const {
-    return framebuffer_ ? framebuffer_->getDepthAttachment() : 0;
+TextureHandle RenderTarget::getDepthTexture() const {
+    return framebuffer_ ? framebuffer_->getDepthAttachment() : TextureHandle::Invalid;
 }
 
-u32 RenderTarget::getFramebufferId() const {
-    return framebuffer_ ? framebuffer_->getFramebufferId() : 0;
+FramebufferHandle RenderTarget::getFramebuffer() const {
+    return framebuffer_ ? framebuffer_->handle() : FramebufferHandle::Default;
 }
 
 RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth, bool linearFilter) {

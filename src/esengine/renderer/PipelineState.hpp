@@ -41,7 +41,7 @@ enum class GfxStencilMode : u8 {
  *        two draws with the same description share one PipelineHandle.
  */
 struct PipelineDesc {
-    u32 program = 0;
+    ShaderHandle program = ShaderHandle::Invalid;
     LayoutId vertexLayout = LayoutId::Batch;
     BlendMode blend = BlendMode::Normal;
     bool blendEnabled = true;

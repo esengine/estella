@@ -374,7 +374,7 @@ u32 renderer_createTarget(u32 width, u32 height, i32 flags) {
 u32 renderer_getTargetDepthTexture(u32 handle) {
     if (!g_renderFrame) return 0;
     auto* target = g_renderFrame->targetManager().get(handle);
-    return target ? target->getDepthTexture() : 0;
+    return target ? static_cast<u32>(target->getDepthTexture()) : 0;
 }
 
 void renderer_releaseTarget(u32 handle) {
@@ -385,7 +385,7 @@ void renderer_releaseTarget(u32 handle) {
 u32 renderer_getTargetTexture(u32 handle) {
     if (!g_renderFrame) return 0;
     auto* target = g_renderFrame->targetManager().get(handle);
-    return target ? target->getColorTexture() : 0;
+    return target ? static_cast<u32>(target->getColorTexture()) : 0;
 }
 
 u32 renderer_getDrawCalls() {
@@ -739,7 +739,7 @@ void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 
     auto* device = g_device;
     if (!device) return;
     device->setTextureParams(
-        textureId,
+        TextureHandle{textureId},
         static_cast<TextureFilter>(minFilter),
         static_cast<TextureFilter>(magFilter),
         static_cast<TextureWrap>(wrapS),

@@ -29,9 +29,9 @@ void TransientBufferPool::shutdown() {
 
     for (auto& s : streams_) {
         if (s.vao) { device_.deleteVertexArray(s.vao); s.vao = 0; }
-        if (s.vbo) { device_.deleteBuffer(s.vbo); s.vbo = 0; }
-        if (s.ebo) { device_.deleteBuffer(s.ebo); s.ebo = 0; }
-        if (s.quad_vbo) { device_.deleteBuffer(s.quad_vbo); s.quad_vbo = 0; }
+        if (s.vbo != BufferHandle::Invalid) { device_.deleteBuffer(s.vbo); s.vbo = BufferHandle::Invalid; }
+        if (s.ebo != BufferHandle::Invalid) { device_.deleteBuffer(s.ebo); s.ebo = BufferHandle::Invalid; }
+        if (s.quad_vbo != BufferHandle::Invalid) { device_.deleteBuffer(s.quad_vbo); s.quad_vbo = BufferHandle::Invalid; }
         s.vertex_staging.clear();
         s.index_staging.clear();
         s.vertex_write_pos = 0;
@@ -100,41 +100,31 @@ u32 TransientBufferPool::appendIndices(LayoutId layout, const u32* data, u32 cou
 }
 
 void TransientBufferPool::upload() {
+    // Growth goes through resizeBuffer, which keeps the handle stable — the stream's
+    // VAO association survives. Index uploads are safe against VAO capture because the
+    // device detaches the bound VAO before touching the element-array target.
     for (auto& s : streams_) {
-        if (!s.vbo) continue;
+        if (s.vbo == BufferHandle::Invalid) continue;
         if (s.vertex_write_pos == 0 && s.index_write_pos == 0) continue;
 
-        // Bind THIS stream's own VAO before touching its EBO below. GL_ELEMENT_ARRAY_BUFFER
-        // is VAO state, so binding/growing the index buffer mutates the currently-bound VAO;
-        // without this, upload() edits whichever VAO a prior draw left bound and rebinds its
-        // element buffer to this stream's EBO. That VAO's next draw then runs against a
-        // wrong-sized EBO → "glDrawElements: insufficient buffer size" on strict GL / real
-        // GPUs (SwiftShader silently tolerates it). The VBO (GL_ARRAY_BUFFER) is global state,
-        // so it's unaffected either way — but scoping everything to the stream's VAO keeps the
-        // per-stream upload self-contained.
-        device_.bindVertexArray(s.vao);
-
-        device_.bindVertexBuffer(s.vbo);
         if (s.vertex_write_pos > s.vbo_capacity) {
             s.vbo_capacity = s.vertex_write_pos;
-            device_.bufferData(GfxBufferTarget::Vertex, s.vertex_staging.data(), s.vbo_capacity, true);
+            device_.resizeBuffer(s.vbo, s.vbo_capacity, s.vertex_staging.data());
         } else if (s.vertex_write_pos > 0) {
-            device_.bufferSubData(GfxBufferTarget::Vertex, 0, s.vertex_staging.data(), s.vertex_write_pos);
+            device_.updateBuffer(s.vbo, 0, s.vertex_staging.data(), s.vertex_write_pos);
         }
 
-        device_.bindIndexBuffer(s.ebo);
         u32 eboBytes = s.index_write_pos * sizeof(u32);
         u32 eboCapBytes = s.ebo_capacity * sizeof(u32);
         if (eboBytes > eboCapBytes) {
             s.ebo_capacity = s.index_write_pos;
-            device_.bufferData(GfxBufferTarget::Index, s.index_staging.data(),
-                                s.ebo_capacity * sizeof(u32), true);
+            device_.resizeBuffer(s.ebo, static_cast<u32>(s.ebo_capacity * sizeof(u32)),
+                                 s.index_staging.data());
         } else if (eboBytes > 0) {
-            device_.bufferSubData(GfxBufferTarget::Index, 0, s.index_staging.data(), eboBytes);
+            device_.updateBuffer(s.ebo, 0, s.index_staging.data(), eboBytes);
         }
     }
-    // Leave a neutral VAO bound so execute()'s bindLayout starts from a known state and no
-    // stream VAO is left mid-upload.
+    // Leave a neutral VAO bound so execute()'s bindLayout starts from a known state.
     device_.bindVertexArray(0);
 }
 
@@ -169,11 +159,11 @@ u32 TransientBufferPool::indicesUsed(LayoutId layout) const {
     return stream(layout).index_write_pos;
 }
 
-u32 TransientBufferPool::vboId(LayoutId layout) const {
+BufferHandle TransientBufferPool::vertexBuffer(LayoutId layout) const {
     return stream(layout).vbo;
 }
 
-u32 TransientBufferPool::eboId(LayoutId layout) const {
+BufferHandle TransientBufferPool::indexBuffer(LayoutId layout) const {
     return stream(layout).ebo;
 }
 
@@ -184,9 +174,7 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         // Per-instance (per-particle) stream: dynamic, streamed each frame.
         s.vertex_staging.resize(initial_vertex_bytes_);
         s.vbo_capacity = initial_vertex_bytes_;
-        s.vbo = device_.createBuffer();
-        device_.bindVertexBuffer(s.vbo);
-        device_.bufferData(GfxBufferTarget::Vertex, nullptr, s.vbo_capacity, true);
+        s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true}, nullptr);
 
         // Static unit quad (pos + uv) and its 6 indices, uploaded once. UVs are laid out
         // so the instance shader's a_texCoord*uvScale+uvOffset reproduces the prior
@@ -199,12 +187,10 @@ void TransientBufferPool::setupStream(LayoutId layout) {
             { -0.5f,  0.5f, 0.0f, 0.0f },
         };
         const u32 quadIdx[6] = { 0, 1, 2, 2, 3, 0 };
-        s.quad_vbo = device_.createBuffer();
-        device_.bindVertexBuffer(s.quad_vbo);
-        device_.bufferData(GfxBufferTarget::Vertex, quad, sizeof(quad), false);
-        s.ebo = device_.createBuffer();
-        device_.bindIndexBuffer(s.ebo);
-        device_.bufferData(GfxBufferTarget::Index, quadIdx, sizeof(quadIdx), false);
+        s.quad_vbo = device_.createBuffer(
+            {GfxBufferUsage::Vertex, static_cast<u32>(sizeof(quad)), /*dynamic=*/false}, quad);
+        s.ebo = device_.createBuffer(
+            {GfxBufferUsage::Index, static_cast<u32>(sizeof(quadIdx)), /*dynamic=*/false}, quadIdx);
 
         s.vao = device_.createVertexArray();
         device_.bindVertexArray(s.vao);
@@ -228,8 +214,8 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         device_.enableVertexAttrib(7); device_.vertexAttribPointer(7, 2, GfxDataType::Float, false, IS, 32); device_.vertexAttribDivisor(7, 1);
 
         device_.bindVertexArray(0);
-        device_.bindVertexBuffer(0);
-        device_.bindIndexBuffer(0);
+        device_.bindVertexBuffer(BufferHandle::Invalid);
+        device_.bindIndexBuffer(BufferHandle::Invalid);
         return;
     }
 
@@ -238,14 +224,9 @@ void TransientBufferPool::setupStream(LayoutId layout) {
     s.vbo_capacity = initial_vertex_bytes_;
     s.ebo_capacity = initial_index_count_;
 
-    s.vbo = device_.createBuffer();
-    s.ebo = device_.createBuffer();
-
-    device_.bindVertexBuffer(s.vbo);
-    device_.bufferData(GfxBufferTarget::Vertex, nullptr, s.vbo_capacity, true);
-
-    device_.bindIndexBuffer(s.ebo);
-    device_.bufferData(GfxBufferTarget::Index, nullptr, s.ebo_capacity * sizeof(u32), true);
+    s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true}, nullptr);
+    s.ebo = device_.createBuffer(
+        {GfxBufferUsage::Index, static_cast<u32>(s.ebo_capacity * sizeof(u32)), /*dynamic=*/true}, nullptr);
 
     s.vao = device_.createVertexArray();
     device_.bindVertexArray(s.vao);
@@ -292,8 +273,8 @@ void TransientBufferPool::setupStream(LayoutId layout) {
     }
 
     device_.bindVertexArray(0);
-    device_.bindVertexBuffer(0);
-    device_.bindIndexBuffer(0);
+    device_.bindVertexBuffer(BufferHandle::Invalid);
+    device_.bindIndexBuffer(BufferHandle::Invalid);
 }
 
 void TransientBufferPool::growVertexStaging(Stream& s, u32 requiredBytes) {

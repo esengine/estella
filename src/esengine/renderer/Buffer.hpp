@@ -21,6 +21,7 @@
 
 // Project includes
 #include "../core/Types.hpp"
+#include "GfxEnums.hpp"
 
 // Standard library
 #include <span>
@@ -300,11 +301,8 @@ public:
      */
     const VertexLayout& getLayout() const { return layout_; }
 
-    /**
-     * @brief Gets the GPU buffer ID
-     * @return GPU buffer handle
-     */
-    u32 getId() const { return bufferId_; }
+    /** @brief Gets the device buffer handle */
+    BufferHandle handle() const { return handle_; }
 
     // =========================================================================
     // Raw API for internal use only
@@ -336,7 +334,7 @@ public:
 
 private:
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
-    u32 bufferId_ = 0;
+    BufferHandle handle_ = BufferHandle::Invalid;
     VertexLayout layout_;
 };
 
@@ -413,15 +411,15 @@ public:
     /** @brief Gets the number of indices */
     u32 getCount() const { return count_; }
 
-    /** @brief Gets the GPU buffer ID */
-    u32 getId() const { return bufferId_; }
+    /** @brief Gets the device buffer handle */
+    BufferHandle handle() const { return handle_; }
 
     /** @brief Returns true if using 16-bit indices */
     bool is16Bit() const { return is16Bit_; }
 
 private:
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
-    u32 bufferId_ = 0;
+    BufferHandle handle_ = BufferHandle::Invalid;
     u32 count_ = 0;
     bool is16Bit_ = false;
 };

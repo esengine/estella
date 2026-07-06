@@ -38,19 +38,18 @@ struct Frustum {
     bool intersectsAABB(const glm::vec3& center, const glm::vec3& halfExtents) const;
 };
 
-// GPU frame timer (EXT_disjoint_timer_query). POD state only; the GL methods live
-// in RenderFrame.cpp so no GL headers leak through this header.
+// GPU frame timer: a small ring of device timer queries so a frame's result is
+// read a few frames later without stalling the CPU on the GPU.
 class GpuTimer {
 public:
-    void begin();
-    void end();
-    void poll();
+    void begin(GfxDevice& device);
+    void end(GfxDevice& device);
+    void poll(GfxDevice& device);
     f32 lastMs() const { return last_ms_; }
 
 private:
-    void ensureInit(); // lazy: enable the extension + gen queries on first use
     static constexpr int kRing = 3;
-    unsigned queries_[kRing] = {0, 0, 0};
+    u32 queries_[kRing] = {0, 0, 0};
     bool inflight_[kRing] = {false, false, false};
     int write_ = 0;
     int read_ = 0;

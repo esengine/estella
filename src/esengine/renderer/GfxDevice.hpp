@@ -3,9 +3,11 @@
 /**
  * @file    GfxDevice.hpp
  * @brief   Abstract graphics device interface
- * @details Thin abstraction layer over graphics APIs (OpenGL ES, WebGPU, Vulkan).
- *          Upper-layer code (DrawList, RenderFrame, plugins) depends only on this
- *          interface, isolating all API-specific calls into concrete implementations.
+ * @details The render backend boundary (RHI). Upper-layer code (DrawList,
+ *          RenderFrame, plugins) depends only on this interface: typed resource
+ *          handles created from descriptors, immutable pipelines, and draw
+ *          submission. Concrete backends (GLDevice today; WebGPU and native APIs
+ *          later) own every API-specific concept behind it.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -23,7 +25,6 @@
 #include "BlendMode.hpp"
 #include "GfxEnums.hpp"
 #include "PipelineState.hpp"
-#include "Texture.hpp"
 
 #include <string>
 #include <vector>
@@ -34,6 +35,9 @@ namespace esengine {
 // GfxDevice Interface
 // =============================================================================
 
+/** @brief Sentinel returned by getUniformBlockIndex when a program has no such block (GL_INVALID_INDEX). */
+static constexpr u32 GFX_INVALID_UNIFORM_BLOCK = 0xFFFFFFFFu;
+
 /**
  * @brief Abstract graphics device interface
  *
@@ -42,9 +46,6 @@ namespace esengine {
  *          through an external tracker. Per-draw dynamic state (scissor, stencil ref,
  *          textures) is applied directly; sorted+merged draws already group it coarsely.
  */
-/** @brief Sentinel returned by getUniformBlockIndex when a program has no such block (GL_INVALID_INDEX). */
-static constexpr u32 GFX_INVALID_UNIFORM_BLOCK = 0xFFFFFFFFu;
-
 class GfxDevice {
 public:
     virtual ~GfxDevice() = default;
@@ -135,14 +136,94 @@ public:
     virtual void setCullFace(bool front) = 0;
 
     // =========================================================================
-    // Texture Binding
+    // Buffers
     // =========================================================================
+
+    /**
+     * @brief Creates a buffer with fixed capacity and optional initial contents.
+     * @param initialData When non-null, `desc.size` bytes uploaded at creation.
+     */
+    virtual BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) = 0;
+
+    /** @brief Deletes a buffer */
+    virtual void deleteBuffer(BufferHandle buffer) = 0;
+
+    /** @brief Updates a sub-range of a buffer; must fit within its capacity. */
+    virtual void updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) = 0;
+
+    /**
+     * @brief Re-specifies a buffer's store with a new capacity, discarding prior contents.
+     * @details The handle stays valid (streaming growth without re-wiring vertex
+     *          layouts). `data` may be null to allocate uninitialized storage.
+     */
+    virtual void resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) = 0;
+
+    /** @brief Binds a buffer to a uniform binding slot (the block index shaders are linked to). */
+    virtual void setUniformBuffer(u32 slot, BufferHandle buffer) = 0;
+
+    /** @brief Binds a vertex buffer for vertex-layout setup */
+    virtual void bindVertexBuffer(BufferHandle buffer) = 0;
+
+    /** @brief Binds an index buffer for vertex-layout setup */
+    virtual void bindIndexBuffer(BufferHandle buffer) = 0;
+
+    // =========================================================================
+    // Textures
+    // =========================================================================
+
+    /**
+     * @brief Creates a 2D texture; uploads `pixels` (tightly packed, desc-sized) when non-null.
+     * @details Storage is allocated either way. `desc.mipmaps` generates mipmaps
+     *          after the initial upload.
+     */
+    virtual TextureHandle createTexture(const TextureDesc& desc, const void* pixels) = 0;
+
+    /**
+     * @brief Creates a texture from pre-compressed GPU block data.
+     * @details The caller must first confirm the backend supports `format`
+     *          (see supportsCompressedFormat) and fall back to an uncompressed
+     *          createTexture otherwise. Data is uploaded as-is; no CPU-side decode.
+     */
+    virtual TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
+                                                  const void* data, u32 byteLength) = 0;
+
+    /**
+     * @brief Wraps a texture created outside the device (e.g. a JS-side WebGL upload).
+     * @details Registers the metadata updates/binds need; ownership stays external,
+     *          so the wrapper must not delete it.
+     */
+    virtual TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) = 0;
+
+    /** @brief Deletes a texture */
+    virtual void deleteTexture(TextureHandle texture) = 0;
+
+    /**
+     * @brief Uploads pixels to a sub-rectangle of a texture (transfer format from its desc).
+     * @param flipY Vertical flip on upload (WebGL upload state; no-op on native backends).
+     */
+    virtual void updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
+                               const void* pixels, bool flipY) = 0;
+
+    /** @brief Sets texture filtering and wrap parameters */
+    virtual void setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,
+                                  TextureWrap wrapS, TextureWrap wrapT) = 0;
+
+    /** @brief Generates mipmaps for a texture */
+    virtual void generateMipmaps(TextureHandle texture) = 0;
 
     /** @brief Activates a texture slot and binds a 2D texture */
-    virtual void bindTexture(u32 slot, u32 textureId) = 0;
+    virtual void bindTexture(u32 slot, TextureHandle texture) = 0;
+
+    /**
+     * @brief Reports whether the backend can sample the given compressed format.
+     * @details ETC2/EAC is always true on a WebGL2/GLES3 backend (core spec);
+     *          ASTC and S3TC depend on driver extensions. Probe this before
+     *          calling createCompressedTexture with a non-core format.
+     */
+    virtual bool supportsCompressedFormat(GfxCompressedFormat format) = 0;
 
     // =========================================================================
-    // Shader Program
+    // Shader Programs
     // =========================================================================
 
     /**
@@ -153,26 +234,26 @@ public:
      * @param bindingCount Number of entries in @p bindings.
      * @param outLog      Optional; receives the driver info log on failure.
      * @param outFailedStage Optional; receives the stage that rejected the source.
-     * @return The linked program id, or 0 on failure.
-     * @details Collapses the multi-step GL shader protocol behind the device so
-     *          no upper layer ever issues raw shader GL. Uniform reflection is a
-     *          separate call (getActiveUniforms).
+     * @return The linked program handle, or Invalid on failure.
      */
-    virtual u32 createProgram(const char* vertexSrc, const char* fragmentSrc,
-                              const GfxAttribBinding* bindings, u32 bindingCount,
-                              std::string* outLog, GfxShaderStage* outFailedStage) = 0;
+    virtual ShaderHandle createProgram(const char* vertexSrc, const char* fragmentSrc,
+                                       const GfxAttribBinding* bindings, u32 bindingCount,
+                                       std::string* outLog, GfxShaderStage* outFailedStage) = 0;
 
     /** @brief Deletes a shader program */
-    virtual void deleteProgram(u32 programId) = 0;
+    virtual void deleteProgram(ShaderHandle program) = 0;
 
-    /** @brief Binds a shader program */
-    virtual void useProgram(u32 programId) = 0;
+    /**
+     * @brief Binds a program directly, for setup-time uniform seeding.
+     * @details Per-frame rendering binds programs through setPipeline.
+     */
+    virtual void useProgram(ShaderHandle program) = 0;
 
     /** @brief Gets a uniform location by name */
-    virtual i32 getUniformLocation(u32 programId, const char* name) = 0;
+    virtual i32 getUniformLocation(ShaderHandle program, const char* name) = 0;
 
     /** @brief Gets a vertex attribute location by name (-1 if not found) */
-    virtual i32 getAttribLocation(u32 programId, const char* name) = 0;
+    virtual i32 getAttribLocation(ShaderHandle program, const char* name) = 0;
 
     /** @brief Sets an integer uniform */
     virtual void setUniform1i(i32 location, i32 value) = 0;
@@ -196,45 +277,13 @@ public:
     virtual void setUniformMat4(i32 location, const f32* data) = 0;
 
     /** @brief Enumerates all active uniforms of a linked shader program */
-    virtual std::vector<GfxUniformInfo> getActiveUniforms(u32 programId) = 0;
-
-    // =========================================================================
-    // Buffer Operations
-    // =========================================================================
-
-    /** @brief Creates a new buffer and returns its ID */
-    virtual u32 createBuffer() = 0;
-
-    /** @brief Deletes a buffer */
-    virtual void deleteBuffer(u32 bufferId) = 0;
-
-    /** @brief Binds a buffer to the vertex (array) target */
-    virtual void bindVertexBuffer(u32 bufferId) = 0;
-
-    /** @brief Binds a buffer to the index (element) target */
-    virtual void bindIndexBuffer(u32 bufferId) = 0;
-
-    /** @brief Uploads data to a buffer target */
-    virtual void bufferData(GfxBufferTarget target, const void* data, u32 sizeBytes, bool dynamic) = 0;
-
-    /** @brief Updates a sub-region of a buffer target */
-    virtual void bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) = 0;
-
-    // =========================================================================
-    // Uniform Buffer Objects (per-frame / shared constants)
-    // =========================================================================
-
-    /** @brief Binds a buffer to the uniform target (for data upload via bufferData/bufferSubData). */
-    virtual void bindUniformBuffer(u32 bufferId) = 0;
-
-    /** @brief Binds a buffer to an indexed uniform binding point (the slot shaders read from). */
-    virtual void bindBufferBase(u32 bindingPoint, u32 bufferId) = 0;
+    virtual std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle program) = 0;
 
     /** @brief Returns a program's uniform-block index by name, or GFX_INVALID_UNIFORM_BLOCK if absent. */
-    virtual u32 getUniformBlockIndex(u32 programId, const char* name) = 0;
+    virtual u32 getUniformBlockIndex(ShaderHandle program, const char* name) = 0;
 
-    /** @brief Links a program's uniform block to an indexed binding point. */
-    virtual void uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) = 0;
+    /** @brief Links a program's uniform block to an indexed binding slot. */
+    virtual void uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bindingPoint) = 0;
 
     // =========================================================================
     // Pipeline State (immutable "how to draw"; see PipelineState.hpp)
@@ -294,72 +343,21 @@ public:
     virtual void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) = 0;
 
     // =========================================================================
-    // Texture Creation
+    // Framebuffers
     // =========================================================================
-
-    /** @brief Creates a new texture and returns its ID */
-    virtual u32 createTexture() = 0;
-
-    /** @brief Deletes a texture */
-    virtual void deleteTexture(u32 textureId) = 0;
-
-    /** @brief Allocates texture storage with optional initial data */
-    virtual void texImage2D(u32 textureId, u32 width, u32 height,
-                            GfxPixelFormat format, const void* data) = 0;
-
-    /** @brief Updates a sub-region of a texture */
-    virtual void texSubImage2D(u32 textureId, i32 xoffset, i32 yoffset,
-                               u32 width, u32 height,
-                               GfxPixelFormat format, const void* data) = 0;
 
     /**
-     * @brief Allocates texture storage from pre-compressed GPU block data.
-     * @param byteLength Size of the compressed payload in bytes.
-     * @details Pure addition alongside texImage2D — the uncompressed path is
-     *          unchanged. The caller must first confirm the backend supports
-     *          `format` (see supportsCompressedFormat) and fall back to RGBA8
-     *          otherwise. Data is uploaded as-is; no CPU-side decode.
+     * @brief Creates a framebuffer from its attachments and validates completeness.
+     * @return The framebuffer handle, or Default (0) when incomplete — the default
+     *         framebuffer can never be created, so 0 unambiguously means failure.
      */
-    virtual void compressedTexImage2D(u32 textureId, u32 width, u32 height,
-                                      GfxCompressedFormat format,
-                                      const void* data, u32 byteLength) = 0;
+    virtual FramebufferHandle createFramebuffer(const FramebufferDesc& desc) = 0;
 
-    /** @brief Sets texture filtering and wrap parameters */
-    virtual void setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
-                                  TextureWrap wrapS, TextureWrap wrapT) = 0;
+    /** @brief Deletes a framebuffer (its attachment textures are owned by the caller) */
+    virtual void deleteFramebuffer(FramebufferHandle framebuffer) = 0;
 
-    /** @brief Generates mipmaps for a texture */
-    virtual void generateMipmaps(u32 textureId) = 0;
-
-    /** @brief Sets pixel store parameter */
-    virtual void pixelStorei(u32 pname, i32 param) = 0;
-
-    /**
-     * @brief Toggles vertical flip on subsequent texture uploads.
-     * @details WebGL-only (GL_UNPACK_FLIP_Y_WEBGL); a no-op on native, where
-     *          image data is flipped CPU-side at load time. Keeping the WebGL
-     *          constant inside the device avoids leaking it to upper layers.
-     */
-    virtual void setUnpackFlipY(bool enabled) = 0;
-
-    // =========================================================================
-    // Framebuffer
-    // =========================================================================
-
-    /** @brief Creates a framebuffer and returns its ID */
-    virtual u32 createFramebuffer() = 0;
-
-    /** @brief Deletes a framebuffer */
-    virtual void deleteFramebuffer(u32 fboId) = 0;
-
-    /** @brief Binds a framebuffer (0 = default) */
-    virtual void bindFramebuffer(u32 fboId) = 0;
-
-    /** @brief Attaches a texture to a framebuffer */
-    virtual void framebufferTexture2D(u32 fboId, GfxAttachment attachment, u32 textureId) = 0;
-
-    /** @brief Checks framebuffer completeness */
-    virtual bool checkFramebufferStatus() = 0;
+    /** @brief Binds a framebuffer (Default = backbuffer) */
+    virtual void bindFramebuffer(FramebufferHandle framebuffer) = 0;
 
     // =========================================================================
     // Readback
@@ -367,6 +365,28 @@ public:
 
     /** @brief Reads pixels from the current framebuffer */
     virtual void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) = 0;
+
+    // =========================================================================
+    // GPU Timing (optional; EXT_disjoint_timer_query on WebGL2)
+    // =========================================================================
+
+    /** @brief Creates a GPU elapsed-time query, or 0 when the backend cannot time GPU work. */
+    virtual u32 createTimerQuery() = 0;
+
+    /** @brief Starts timing GPU work into a query; one query may be active at a time. */
+    virtual void beginTimerQuery(u32 query) = 0;
+
+    /** @brief Stops the active timer query */
+    virtual void endTimerQuery() = 0;
+
+    /**
+     * @brief True when GPU timing was disturbed since the last check.
+     * @details In-flight query results are then meaningless and must be discarded.
+     */
+    virtual bool timerDisjoint() = 0;
+
+    /** @brief Fetches a completed query's elapsed nanoseconds; false while still pending. */
+    virtual bool getTimerQueryNs(u32 query, u64* outNanoseconds) = 0;
 
     // =========================================================================
     // Debug
@@ -383,14 +403,6 @@ public:
 
     /** @brief Queries a backend integer capability/limit */
     virtual i32 getInt(GfxIntParam name) = 0;
-
-    /**
-     * @brief Reports whether the backend can sample the given compressed format.
-     * @details ETC2/EAC is always true on a WebGL2/GLES3 backend (core spec);
-     *          ASTC and S3TC depend on driver extensions. Probe this before
-     *          calling compressedTexImage2D with a non-core format.
-     */
-    virtual bool supportsCompressedFormat(GfxCompressedFormat format) = 0;
 };
 
 }  // namespace esengine

@@ -21,10 +21,39 @@
 namespace esengine {
 
 // =============================================================================
-// Buffer Target
+// Resource Handles
 // =============================================================================
 
-enum class GfxBufferTarget : u8 {
+// Opaque, type-safe GPU resource handles. On the GL backend the value is the GL
+// object id (0 is GL's null object, matching Invalid); other backends map the
+// value to an internal resource table.
+
+enum class BufferHandle : u32 { Invalid = 0 };
+enum class TextureHandle : u32 { Invalid = 0 };
+enum class ShaderHandle : u32 { Invalid = 0 };
+/** @brief Handle 0 is the default framebuffer (backbuffer); it cannot be created or deleted. */
+enum class FramebufferHandle : u32 { Default = 0 };
+
+// =============================================================================
+// Texture Sampling
+// =============================================================================
+
+enum class TextureFilter : u8 {
+    Nearest,  ///< No interpolation (pixelated look)
+    Linear,   ///< Bilinear interpolation (smooth)
+};
+
+enum class TextureWrap : u8 {
+    Repeat,          ///< Tile the texture
+    ClampToEdge,     ///< Clamp to edge pixels
+    MirroredRepeat,  ///< Tile with mirroring
+};
+
+// =============================================================================
+// Buffer Usage
+// =============================================================================
+
+enum class GfxBufferUsage : u8 {
     Vertex,
     Index,
     Uniform,
@@ -105,7 +134,7 @@ enum class GfxPixelFormat : u8 {
 // =============================================================================
 
 /**
- * @brief GPU-compressed texture internal formats for compressedTexImage2D.
+ * @brief GPU-compressed texture internal formats for createCompressedTexture.
  *
  * @details Decoded textures stay compressed in VRAM (4–8× smaller than RGBA8),
  *          the key constraint on mobile. Tiering:
@@ -128,13 +157,45 @@ enum class GfxCompressedFormat : u8 {
 };
 
 // =============================================================================
-// Framebuffer Attachment
+// Resource Descriptors
 // =============================================================================
 
-enum class GfxAttachment : u8 {
-    Color0,
-    Depth,
-    DepthStencil,
+/**
+ * @brief Immutable creation parameters of a GPU buffer.
+ * @details `size` is the buffer's capacity; updateBuffer must stay within it.
+ *          Growing is an explicit resizeBuffer (contents discarded), keeping the
+ *          handle stable so vertex-layout associations survive.
+ */
+struct BufferDesc {
+    GfxBufferUsage usage = GfxBufferUsage::Vertex;
+    u32 size = 0;
+    bool dynamic = false;
+};
+
+/**
+ * @brief Immutable creation parameters of a 2D texture.
+ * @details `flipY` applies to the initial pixel upload only (WebGL upload state;
+ *          native backends flip CPU-side at load time).
+ */
+struct TextureDesc {
+    u32 width = 1;
+    u32 height = 1;
+    GfxPixelFormat format = GfxPixelFormat::RGBA8;
+    TextureFilter minFilter = TextureFilter::Linear;
+    TextureFilter magFilter = TextureFilter::Linear;
+    TextureWrap wrapS = TextureWrap::ClampToEdge;
+    TextureWrap wrapT = TextureWrap::ClampToEdge;
+    bool mipmaps = false;
+    bool flipY = false;
+};
+
+/**
+ * @brief Attachments of an offscreen render target. The attach point of
+ *        `depthStencil` follows its texture's pixel format.
+ */
+struct FramebufferDesc {
+    TextureHandle color0 = TextureHandle::Invalid;
+    TextureHandle depthStencil = TextureHandle::Invalid;
 };
 
 // =============================================================================

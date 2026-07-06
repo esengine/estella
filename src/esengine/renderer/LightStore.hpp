@@ -17,6 +17,7 @@
  */
 #pragma once
 
+#include "GfxEnums.hpp"
 #include "LightConstants.hpp"
 
 #include <glm/glm.hpp>
@@ -83,7 +84,7 @@ public:
 private:
     LightConstants data_{};
     u32 count_ = 0;
-    u32 ubo_ = 0;
+    BufferHandle ubo_ = BufferHandle::Invalid;
     bool dirty_ = true;
     GfxDevice* device_ = nullptr;
 };

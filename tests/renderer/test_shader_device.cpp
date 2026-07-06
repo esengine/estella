@@ -37,9 +37,10 @@ int main() {
         CHECK(d.setUniform4fCalls == 1, "setUniform(name,vec4) routes through device.setUniform4f");
 
         shader->bind();
-        CHECK(d.useProgramCalls == 1 && d.lastProgram == 1, "bind routes through device.useProgram");
+        CHECK(d.useProgramCalls == 1 && d.lastProgram == ShaderHandle{1}, "bind routes through device.useProgram");
         shader->unbind();
-        CHECK(d.useProgramCalls == 2 && d.lastProgram == 0, "unbind routes through device.useProgram(0)");
+        CHECK(d.useProgramCalls == 2 && d.lastProgram == ShaderHandle::Invalid,
+              "unbind routes through device.useProgram(Invalid)");
 
         // shader destructed at scope end -> device.deleteProgram
     }

@@ -20,6 +20,7 @@
 
 // Project includes
 #include "../core/Types.hpp"
+#include "GfxEnums.hpp"
 
 // Standard library
 #include <span>
@@ -34,6 +35,9 @@ class GfxDevice;
 // Texture Enums
 // =============================================================================
 
+// TextureFilter / TextureWrap live in GfxEnums.hpp with the other backend-agnostic
+// sampling enums; TextureFormat below is this wrapper's user-facing format set.
+
 /**
  * @brief Texture pixel format
  */
@@ -42,28 +46,6 @@ enum class TextureFormat {
     RGB8,    ///< 3 channels, 8 bits each (24 bpp)
     RGBA8,   ///< 4 channels, 8 bits each (32 bpp)
     Depth24  ///< Depth buffer format (24 bits)
-};
-
-/**
- * @brief Texture filtering mode
- *
- * @details Controls how texels are sampled when the texture is
- *          scaled up or down.
- */
-enum class TextureFilter {
-    Nearest,  ///< No interpolation (pixelated look)
-    Linear    ///< Bilinear interpolation (smooth)
-};
-
-/**
- * @brief Texture wrapping mode
- *
- * @details Controls behavior when sampling outside [0,1] UV range.
- */
-enum class TextureWrap {
-    Repeat,         ///< Tile the texture
-    ClampToEdge,    ///< Clamp to edge pixels
-    MirroredRepeat  ///< Tile with mirroring
 };
 
 // =============================================================================
@@ -216,8 +198,11 @@ public:
     // Properties
     // =========================================================================
 
-    /** @brief Gets the OpenGL texture ID */
-    u32 getId() const { return textureId_; }
+    /** @brief Gets the device texture handle */
+    TextureHandle handle() const { return handle_; }
+
+    /** @brief Gets the texture handle's raw value, for command payloads and the WASM boundary */
+    u32 getId() const { return static_cast<u32>(handle_); }
 
     /** @brief Gets the texture width in pixels */
     u32 getWidth() const { return width_; }
@@ -234,7 +219,7 @@ public:
      * @return True if same GPU texture
      */
     bool operator==(const Texture& other) const {
-        return textureId_ == other.textureId_;
+        return handle_ == other.handle_;
     }
 
     // =========================================================================
@@ -275,12 +260,14 @@ private:
     /**
      * @brief Initializes the texture on GPU
      * @param spec Texture parameters
+     * @param pixels Optional initial pixel data
+     * @param flipY Vertical flip on the initial upload
      * @return True on success
      */
-    bool initialize(const TextureSpecification& spec);
+    bool initialize(const TextureSpecification& spec, const void* pixels, bool flipY);
 
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
-    u32 textureId_ = 0;
+    TextureHandle handle_ = TextureHandle::Invalid;
     u32 width_ = 0;
     u32 height_ = 0;
     TextureFormat format_ = TextureFormat::None;

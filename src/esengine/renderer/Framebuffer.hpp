@@ -81,7 +81,7 @@ struct FramebufferSpec {
  * fbo->unbind();
  *
  * // Use color texture
- * u32 textureId = fbo->getColorAttachment();
+ * TextureHandle texture = fbo->getColorAttachment();
  * @endcode
  */
 class Framebuffer {
@@ -140,11 +140,11 @@ public:
     // Properties
     // =========================================================================
 
-    /** @brief Gets the color attachment texture ID */
-    u32 getColorAttachment() const { return colorAttachment_; }
+    /** @brief Gets the color attachment texture */
+    TextureHandle getColorAttachment() const { return colorAttachment_; }
 
-    /** @brief Gets the depth attachment texture ID (0 if none) */
-    u32 getDepthAttachment() const { return depthAttachment_; }
+    /** @brief Gets the depth attachment texture (Invalid if none) */
+    TextureHandle getDepthAttachment() const { return depthAttachment_; }
 
     /** @brief Gets the framebuffer width in pixels */
     u32 getWidth() const { return spec_.width; }
@@ -155,8 +155,8 @@ public:
     /** @brief Gets the framebuffer specification */
     const FramebufferSpec& getSpecification() const { return spec_; }
 
-    /** @brief Gets the underlying GL framebuffer object ID */
-    u32 getFramebufferId() const { return framebufferId_; }
+    /** @brief Gets the device framebuffer handle */
+    FramebufferHandle handle() const { return handle_; }
 
 private:
     /**
@@ -172,9 +172,9 @@ private:
 
     GfxDevice* device_ = nullptr;  ///< Set by create(); all GL goes through it.
     FramebufferSpec spec_;
-    u32 framebufferId_ = 0;
-    u32 colorAttachment_ = 0;
-    u32 depthAttachment_ = 0;
+    FramebufferHandle handle_ = FramebufferHandle::Default;
+    TextureHandle colorAttachment_ = TextureHandle::Invalid;
+    TextureHandle depthAttachment_ = TextureHandle::Invalid;
 };
 
 }  // namespace esengine

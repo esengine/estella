@@ -50,20 +50,20 @@ void RenderContext::shutdown() {
         return;
     }
 
-    for (u32* tex : {&whiteTextureId_, &blackTextureId_, &flatNormalTextureId_}) {
-        if (*tex != 0) {
+    for (TextureHandle* tex : {&whiteTexture_, &blackTexture_, &flatNormalTexture_}) {
+        if (*tex != TextureHandle::Invalid) {
             device_.deleteTexture(*tex);
-            *tex = 0;
+            *tex = TextureHandle::Invalid;
         }
     }
 
-    if (frameUbo_ != 0) {
+    if (frameUbo_ != BufferHandle::Invalid) {
         device_.deleteBuffer(frameUbo_);
-        frameUbo_ = 0;
+        frameUbo_ = BufferHandle::Invalid;
     }
-    if (timeUbo_ != 0) {
+    if (timeUbo_ != BufferHandle::Invalid) {
         device_.deleteBuffer(timeUbo_);
-        timeUbo_ = 0;
+        timeUbo_ = BufferHandle::Invalid;
     }
 
     materials_.clear();  // free per-material UBOs while the device is still valid
@@ -74,55 +74,52 @@ void RenderContext::shutdown() {
     ES_LOG_INFO("RenderContext shutdown");
 }
 
-u32 RenderContext::make1x1Texture(u32 rgba) {
-    u32 id = device_.createTexture();
-    device_.texImage2D(id, 1, 1, GfxPixelFormat::RGBA8, &rgba);
-    device_.setTextureParams(id, TextureFilter::Nearest, TextureFilter::Nearest,
-                             TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
-    return id;
+TextureHandle RenderContext::make1x1Texture(u32 rgba) {
+    TextureDesc desc;
+    desc.width = 1;
+    desc.height = 1;
+    desc.minFilter = TextureFilter::Nearest;
+    desc.magFilter = TextureFilter::Nearest;
+    return device_.createTexture(desc, &rgba);
 }
 
 void RenderContext::initDefaultTextures() {
     // Byte order in memory is R,G,B,A; these u32s are little-endian (so 0xAABBGGRR).
-    whiteTextureId_ = make1x1Texture(0xFFFFFFFF);       // RGBA(255,255,255,255)
-    blackTextureId_ = make1x1Texture(0xFF000000);       // RGBA(0,0,0,255)
-    flatNormalTextureId_ = make1x1Texture(0xFFFF8080);  // RGB(128,128,255) → normal (0,0,1)
+    whiteTexture_ = make1x1Texture(0xFFFFFFFF);       // RGBA(255,255,255,255)
+    blackTexture_ = make1x1Texture(0xFF000000);       // RGBA(0,0,0,255)
+    flatNormalTexture_ = make1x1Texture(0xFFFF8080);  // RGB(128,128,255) → normal (0,0,1)
     ES_LOG_DEBUG("Default textures created (white {}, black {}, flatNormal {})",
-                 whiteTextureId_, blackTextureId_, flatNormalTextureId_);
+                 static_cast<u32>(whiteTexture_), static_cast<u32>(blackTexture_),
+                 static_cast<u32>(flatNormalTexture_));
 }
 
 u32 RenderContext::defaultTextureByName(const std::string& name) const {
-    if (name == "black") return blackTextureId_;
-    if (name == "flatnormal" || name == "normal") return flatNormalTextureId_;
-    return whiteTextureId_;  // "white" / empty / unknown
+    if (name == "black") return static_cast<u32>(blackTexture_);
+    if (name == "flatnormal" || name == "normal") return static_cast<u32>(flatNormalTexture_);
+    return static_cast<u32>(whiteTexture_);  // "white" / empty / unknown
 }
 
 void RenderContext::initFrameUbo() {
-    frameUbo_ = device_.createBuffer();
-
     FrameConstants initial{};
-    device_.bindUniformBuffer(frameUbo_);
-    device_.bufferData(GfxBufferTarget::Uniform, &initial, sizeof(FrameConstants), /*dynamic=*/true);
+    frameUbo_ = device_.createBuffer(
+        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(FrameConstants)), /*dynamic=*/true}, &initial);
 
-    // The binding point persists for the context lifetime; only the contents change
-    // per frame. Every engine shader's FrameConstants block is linked to this point
+    // The binding slot persists for the context lifetime; only the contents change
+    // per frame. Every engine shader's FrameConstants block is linked to this slot
     // at compile time (Shader::compile).
-    device_.bindBufferBase(FRAME_CONSTANTS_BINDING, frameUbo_);
+    device_.setUniformBuffer(FRAME_CONSTANTS_BINDING, frameUbo_);
 
-    timeUbo_ = device_.createBuffer();
     TimeConstants time{};
-    device_.bindUniformBuffer(timeUbo_);
-    device_.bufferData(GfxBufferTarget::Uniform, &time, sizeof(TimeConstants), /*dynamic=*/true);
-    device_.bindBufferBase(TIME_CONSTANTS_BINDING, timeUbo_);
+    timeUbo_ = device_.createBuffer(
+        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(TimeConstants)), /*dynamic=*/true}, &time);
+    device_.setUniformBuffer(TIME_CONSTANTS_BINDING, timeUbo_);
 
-    ES_LOG_DEBUG("FrameConstants UBO created (ID: {})", frameUbo_);
+    ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }
 
 void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
     viewProjection_ = viewProjection;
-    device_.bindUniformBuffer(frameUbo_);
-    device_.bufferSubData(GfxBufferTarget::Uniform, 0, glm::value_ptr(viewProjection),
-                          sizeof(glm::mat4));
+    device_.updateBuffer(frameUbo_, 0, glm::value_ptr(viewProjection), sizeof(glm::mat4));
 }
 
 void RenderContext::setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH) {
@@ -134,8 +131,7 @@ void RenderContext::setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH) {
         glm::vec4(elapsedSec, dt, 0.0f, 0.0f),
         glm::vec4(w, h, w > 0.0f ? 1.0f / w : 0.0f, h > 0.0f ? 1.0f / h : 0.0f),
     };
-    device_.bindUniformBuffer(timeUbo_);
-    device_.bufferSubData(GfxBufferTarget::Uniform, 0, &time, sizeof(TimeConstants));
+    device_.updateBuffer(timeUbo_, 0, &time, sizeof(TimeConstants));
 }
 
 }  // namespace esengine

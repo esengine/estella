@@ -71,20 +71,20 @@ void ImmediateDraw::init() {
     );
     Shader* shader = resource_manager_.getShader(handle);
     if (shader && shader->isValid()) {
-        batch_shader_id_ = shader->getProgramId();
-        device_.useProgram(batch_shader_id_);
+        batch_shader_ = shader->handle();
+        device_.useProgram(batch_shader_);
         // Immediate draw is single-texture (slot 0), but bind all 8 samplers for parity
         // with the world batch shader.
         for (i32 i = 0; i < 8; ++i) {
-            i32 loc = device_.getUniformLocation(batch_shader_id_, ("u_textures[" + std::to_string(i) + "]").c_str());
+            i32 loc = device_.getUniformLocation(batch_shader_, ("u_textures[" + std::to_string(i) + "]").c_str());
             if (loc >= 0) device_.setUniform1i(loc, i);
         }
-        device_.useProgram(0);
+        device_.useProgram(ShaderHandle::Invalid);
 
         // One immutable pipeline: the batch shader, Batch layout, normal blend, depth
         // test off (write on, matching the world batch path), no stencil, no culling.
         PipelineDesc desc{};
-        desc.program = batch_shader_id_;
+        desc.program = batch_shader_;
         desc.vertexLayout = LayoutId::Batch;
         desc.blend = BlendMode::Normal;
         desc.blendEnabled = true;
@@ -130,7 +130,7 @@ void ImmediateDraw::flush() {
     pool_.upload();
 
     device_.setPipeline(pipeline_);
-    device_.bindTexture(0, currentTexture_);
+    device_.bindTexture(0, TextureHandle{currentTexture_});
 
     pool_.bindLayout(LayoutId::Batch);
     device_.drawElements(pool_.indicesUsed(LayoutId::Batch), GfxDataType::UnsignedInt, 0);

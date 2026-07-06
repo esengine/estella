@@ -27,14 +27,14 @@ public:
     void unbind();
     void resize(u32 width, u32 height);
 
-    u32 getColorTexture() const;
-    u32 getDepthTexture() const;
+    TextureHandle getColorTexture() const;
+    TextureHandle getDepthTexture() const;
     glm::uvec2 getSize() const { return { width_, height_ }; }
     u32 getWidth() const { return width_; }
     u32 getHeight() const { return height_; }
 
     bool isValid() const { return framebuffer_ != nullptr; }
-    u32 getFramebufferId() const;
+    FramebufferHandle getFramebuffer() const;
 
 private:
     Unique<Framebuffer> framebuffer_;

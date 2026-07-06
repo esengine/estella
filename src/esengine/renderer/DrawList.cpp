@@ -114,7 +114,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // its material, or the 2D defaults: depth_write on with the test off). createPipeline
         // caches; a one-entry memo skips the lookup for identical consecutive (sorted) commands.
         PipelineDesc desc{};
-        desc.program = cmd.shader_id;
+        desc.program = ShaderHandle{cmd.shader_id};
         desc.vertexLayout = cmd.layout_id;
         desc.blend = cmd.blend_mode;
         desc.blendEnabled = true;
@@ -153,11 +153,11 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         if (cmd.layout_id == LayoutId::Batch) {
             for (u8 slot = 0; slot < MAX_CMD_TEXTURE_SLOTS; ++slot) {
                 u32 tex = (slot < cmd.texture_count) ? cmd.texture_ids[slot] : cmd.texture_ids[0];
-                device.bindTexture(slot, tex);
+                device.bindTexture(slot, TextureHandle{tex});
             }
         } else {
             for (u8 slot = 0; slot < cmd.texture_count; ++slot) {
-                device.bindTexture(slot, cmd.texture_ids[slot]);
+                device.bindTexture(slot, TextureHandle{cmd.texture_ids[slot]});
             }
         }
 

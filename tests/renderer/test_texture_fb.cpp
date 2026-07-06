@@ -1,4 +1,4 @@
-// Native MSVC/CTest harness for Texture + Framebuffer (RC5-GfxDevice).
+// Native MSVC/CTest harness for Texture + Framebuffer (GfxDevice).
 //
 // Compiles the CONVERTED Texture.cpp and Framebuffer.cpp against MockGfxDevice.
 // Linking proves they no longer touch GL; the asserts confirm create/upload/
@@ -30,46 +30,51 @@ int main() {
             auto tex = Texture::create(d, spec);
             CHECK(tex != nullptr, "Texture::create returns a texture");
             CHECK(d.createTextureCalls == 1, "create routes through device.createTexture");
-            CHECK(d.texImage2DCalls == 1, "create allocates via device.texImage2D");
-            CHECK(d.setTextureParamsCalls == 1, "create sets params via device.setTextureParams");
-            CHECK(d.generateMipmapsCalls == 1, "generateMips routes through device.generateMipmaps");
-            CHECK(tex->getId() == 100, "texture id is device-assigned");
+            CHECK(d.lastTextureDesc.width == 8 && d.lastTextureDesc.height == 8,
+                  "creation descriptor carries the dimensions");
+            CHECK(d.lastTextureDesc.format == GfxPixelFormat::RGBA8,
+                  "creation descriptor carries the pixel format");
+            CHECK(d.lastTextureDesc.mipmaps, "generateMips is declared in the descriptor");
+            CHECK(!d.lastCreateTextureHadPixels, "empty spec allocates without pixel data");
+            CHECK(tex->handle() == TextureHandle{100}, "texture handle is device-assigned");
             tex->bind(2);
             CHECK(d.bindTextureCalls == 1, "bind routes through device.bindTexture");
         }
-        CHECK(d.deleteTextureCalls == 1 && d.lastDeletedTexture == 100,
+        CHECK(d.deleteTextureCalls == 1 && d.lastDeletedTexture == TextureHandle{100},
               "destructor routes through device.deleteTexture");
     }
 
-    // --- Texture: pixel upload ---
+    // --- Texture: pixel upload at creation ---
     {
         MockGfxDevice d;
         std::vector<u8> pixels(2 * 2 * 4, 0xFF);
         auto tex = Texture::create(d, 2, 2, pixels, TextureFormat::RGBA8, /*flipY*/ true);
         CHECK(tex != nullptr, "Texture::create(pixels) returns a texture");
-        CHECK(d.texSubImage2DCalls == 1, "pixel upload routes through device.texSubImage2D");
+        CHECK(d.createTextureCalls == 1 && d.lastCreateTextureHadPixels,
+              "pixels are uploaded with the creation call");
+        CHECK(d.lastTextureDesc.flipY, "flipY is declared in the creation descriptor");
     }
 
     // --- A2 regression: setDataRaw rejects undersized buffer (no OOB upload) ---
     // Audit A2: ES_ASSERT is stripped in release, so an undersized buffer used to
-    // reach texSubImage2D and read past its end. Guard must hold without asserts.
+    // reach the GPU upload and read past its end. Guard must hold without asserts.
     {
         MockGfxDevice d;
         TextureSpecification spec;
         spec.width = 4; spec.height = 4; spec.format = TextureFormat::RGBA8;  // needs 4*4*4 = 64 bytes
         auto tex = Texture::create(d, spec);
-        const int before = d.texSubImage2DCalls;
+        const int before = d.updateTextureCalls;
         std::vector<u8> tooSmall(16, 0xAB);  // 16 < 64
         tex->setDataRaw(tooSmall.data(), static_cast<u32>(tooSmall.size()));
-        CHECK(d.texSubImage2DCalls == before, "setDataRaw skips upload for undersized buffer (no OOB read)");
+        CHECK(d.updateTextureCalls == before, "setDataRaw skips upload for undersized buffer (no OOB read)");
         std::vector<u8> exact(64, 0xAB);
         tex->setDataRaw(exact.data(), static_cast<u32>(exact.size()));
-        CHECK(d.texSubImage2DCalls == before + 1, "setDataRaw uploads when size is sufficient");
+        CHECK(d.updateTextureCalls == before + 1, "setDataRaw uploads when size is sufficient");
     }
 
     // --- create() fails (returns null) when the device can't allocate a texture ---
-    // createTexture returns 0 on OOM / lost context; initialize() must surface that
-    // instead of returning a "valid" texture wrapping id 0 (which renders as black).
+    // createTexture returns Invalid on OOM / lost context; initialize() must surface
+    // that instead of returning a "valid" texture wrapping the null handle.
     {
         MockGfxDevice d;
         d.createTextureFails = true;
@@ -77,16 +82,16 @@ int main() {
         spec.width = 8; spec.height = 8; spec.format = TextureFormat::RGBA8;
         auto tex = Texture::create(d, spec);
         CHECK(tex == nullptr, "create returns null when device.createTexture fails");
-        CHECK(d.texImage2DCalls == 0, "no upload is attempted after a failed allocation");
     }
 
-    // --- createFromExternalId must NOT delete the externally-owned GL texture ---
+    // --- createFromExternalId must NOT delete the externally-owned texture ---
     // The external owner frees that id; deleting it here too is a double-free.
     {
         MockGfxDevice d;
         {
             auto tex = Texture::createFromExternalId(d, 42, 8, 8);
-            CHECK(tex != nullptr && tex->getId() == 42, "wrapper holds the external id");
+            CHECK(tex != nullptr && tex->handle() == TextureHandle{42}, "wrapper holds the external id");
+            CHECK(d.importExternalTextureCalls == 1, "external id is registered with the device");
         }
         CHECK(d.deleteTextureCalls == 0, "destructor does NOT delete an externally-owned texture");
     }
@@ -110,7 +115,9 @@ int main() {
             CHECK(fbo != nullptr, "Framebuffer::create returns a framebuffer");
             CHECK(d.createFramebufferCalls == 1, "create routes through device.createFramebuffer");
             CHECK(d.createTextureCalls == 2, "color + depth attachments via device.createTexture");
-            CHECK(d.framebufferTexture2DCalls == 2, "both attachments via device.framebufferTexture2D");
+            CHECK(d.lastFramebufferDesc.color0 != TextureHandle::Invalid &&
+                  d.lastFramebufferDesc.depthStencil != TextureHandle::Invalid,
+                  "both attachments are declared in the framebuffer descriptor");
             fbo->bind();
             CHECK(d.bindFramebufferCalls >= 1, "bind routes through device.bindFramebuffer");
         }

@@ -61,15 +61,15 @@ public:
     u8* vertexData(LayoutId layout);
     u32 vertexBytesUsed(LayoutId layout) const;
     u32 indicesUsed(LayoutId layout) const;
-    u32 vboId(LayoutId layout) const;
-    u32 eboId(LayoutId layout) const;
+    BufferHandle vertexBuffer(LayoutId layout) const;
+    BufferHandle indexBuffer(LayoutId layout) const;
 
 private:
     struct Stream {
-        u32 vbo = 0;       // for ParticleInstance this is the per-instance (streamed) buffer
-        u32 ebo = 0;
+        BufferHandle vbo = BufferHandle::Invalid;  // for ParticleInstance: the per-instance (streamed) buffer
+        BufferHandle ebo = BufferHandle::Invalid;
         u32 vao = 0;
-        u32 quad_vbo = 0;  // ParticleInstance only: static unit-quad geometry (divisor 0)
+        BufferHandle quad_vbo = BufferHandle::Invalid;  // ParticleInstance only: static unit-quad geometry (divisor 0)
         std::vector<u8> vertex_staging;
         std::vector<u32> index_staging;  // 32-bit indices: a single Batch stream can exceed 65535 vertices
         u32 vertex_write_pos = 0;

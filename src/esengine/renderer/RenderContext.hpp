@@ -21,6 +21,7 @@
 // Project includes
 #include "../core/Types.hpp"
 #include "Buffer.hpp"
+#include "GfxEnums.hpp"
 #include "LightStore.hpp"
 #include "MaterialStore.hpp"
 #include "Shader.hpp"
@@ -137,14 +138,13 @@ public:
     // =========================================================================
 
     /**
-     * @brief Gets the white texture ID (for untextured quads)
-     * @return GPU texture handle
+     * @brief Gets the white texture handle's raw value (for untextured quads)
      */
-    u32 getWhiteTextureId() const { return whiteTextureId_; }
+    u32 getWhiteTextureId() const { return static_cast<u32>(whiteTexture_); }
 
     /**
-     * @brief GL texture id for a named built-in default texture, used to resolve a material
-     *        texture param's `#pragma param ... texture default(<name>)`.
+     * @brief Texture handle value for a named built-in default texture, used to resolve a
+     *        material texture param's `#pragma param ... texture default(<name>)`.
      * @details "black" → opaque black, "flatnormal"/"normal" → a flat tangent-space normal
      *          (RGB 128,128,255 → (0,0,1)); anything else (incl. "white" / empty) → white.
      */
@@ -180,17 +180,17 @@ public:
 
 private:
     void initDefaultTextures();
-    u32 make1x1Texture(u32 rgba);
+    TextureHandle make1x1Texture(u32 rgba);
     void initFrameUbo();
 
     glm::mat4 viewProjection_{1.0f};
     RenderContextStats stats_;
 
-    u32 whiteTextureId_ = 0;
-    u32 blackTextureId_ = 0;
-    u32 flatNormalTextureId_ = 0;
-    u32 frameUbo_ = 0;
-    u32 timeUbo_ = 0;
+    TextureHandle whiteTexture_ = TextureHandle::Invalid;
+    TextureHandle blackTexture_ = TextureHandle::Invalid;
+    TextureHandle flatNormalTexture_ = TextureHandle::Invalid;
+    BufferHandle frameUbo_ = BufferHandle::Invalid;
+    BufferHandle timeUbo_ = BufferHandle::Invalid;
     f32 lastElapsed_ = 0.0f;
     MaterialStore materials_;
     LightStore lights_;

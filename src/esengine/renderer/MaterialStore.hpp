@@ -24,6 +24,7 @@
 
 #include "../core/Types.hpp"
 #include "BlendMode.hpp"
+#include "GfxEnums.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -98,7 +99,7 @@ struct MaterialRecord {
     /// Packed std140 MaterialConstants payload (sized to the shader's blockSize), the GPU
     /// UBO it uploads to (lazy), and whether the bytes changed since the last upload.
     std::vector<u8> uboBytes;
-    u32 ubo = 0;
+    BufferHandle ubo = BufferHandle::Invalid;
     bool uboDirty = false;
 
     /// Texture params bound to sampler units (GL texture ids, resolved at set time).
@@ -132,7 +133,7 @@ public:
         }
         MaterialRecord& rec = it->second;
         const bool shaderChanged = rec.shader != record.shader;
-        const u32 ubo = rec.ubo;
+        const BufferHandle ubo = rec.ubo;
         std::vector<u8> bytes = std::move(rec.uboBytes);
         std::vector<MaterialTextureBinding> texs = std::move(rec.textures);
         rec = record;        // render state

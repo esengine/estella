@@ -10,10 +10,6 @@
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "../core/FrameProfiler.hpp"
-#include "OpenGLHeaders.hpp"
-#ifdef __EMSCRIPTEN__
-#include <emscripten/html5.h>
-#endif
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -23,59 +19,40 @@
 
 namespace esengine {
 
-// EXT_disjoint_timer_query_webgl2 enums — not guaranteed in <GLES3/gl3.h>.
-#ifndef GL_TIME_ELAPSED_EXT
-#define GL_TIME_ELAPSED_EXT 0x88BF
-#endif
-#ifndef GL_GPU_DISJOINT_EXT
-#define GL_GPU_DISJOINT_EXT 0x8FBB
-#endif
-
-void GpuTimer::ensureInit() {
-    if (state_ != 0) return;
-#ifdef __EMSCRIPTEN__
-    // Must ENABLE the extension (not just check presence) so emscripten routes the
-    // TIME_ELAPSED query entry points.
-    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
-    if (ctx && emscripten_webgl_enable_extension(ctx, "EXT_disjoint_timer_query_webgl2")) {
-        glGenQueries(kRing, queries_);
-        state_ = 1;
-        return;
+void GpuTimer::begin(GfxDevice& device) {
+    if (state_ == 0) {
+        // Lazy probe: the device reports timer support by whether it can create a query.
+        queries_[0] = device.createTimerQuery();
+        if (queries_[0] != 0) {
+            for (int i = 1; i < kRing; ++i) queries_[i] = device.createTimerQuery();
+            state_ = 1;
+        } else {
+            state_ = 2;
+        }
     }
-#endif
-    state_ = 2;
-}
-
-void GpuTimer::begin() {
-    ensureInit();
     if (state_ != 1 || inflight_[write_]) return;
-    glBeginQuery(GL_TIME_ELAPSED_EXT, queries_[write_]);
+    device.beginTimerQuery(queries_[write_]);
     active_ = true;
 }
 
-void GpuTimer::end() {
+void GpuTimer::end(GfxDevice& device) {
     if (!active_) return;
-    glEndQuery(GL_TIME_ELAPSED_EXT);
+    device.endTimerQuery();
     inflight_[write_] = true;
     write_ = (write_ + 1) % kRing;
     active_ = false;
 }
 
-void GpuTimer::poll() {
+void GpuTimer::poll(GfxDevice& device) {
     if (state_ != 1) return;
-    GLint disjoint = 0;
-    glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
-    if (disjoint) { // timing disturbed — drop everything in flight
+    if (device.timerDisjoint()) { // timing disturbed — drop everything in flight
         for (int i = 0; i < kRing; ++i) inflight_[i] = false;
         read_ = write_;
         return;
     }
     while (inflight_[read_]) {
-        GLuint avail = 0;
-        glGetQueryObjectuiv(queries_[read_], GL_QUERY_RESULT_AVAILABLE, &avail);
-        if (!avail) break;
-        GLuint ns = 0;
-        glGetQueryObjectuiv(queries_[read_], GL_QUERY_RESULT, &ns);
+        u64 ns = 0;
+        if (!device.getTimerQueryNs(queries_[read_], &ns)) break;
         last_ms_ = static_cast<f32>(ns) / 1.0e6f;
         inflight_[read_] = false;
         read_ = (read_ + 1) % kRing;
@@ -228,7 +205,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
         if (target != RenderTargetManager::INVALID_HANDLE) {
             auto* rt = target_manager_.get(target);
             if (rt) {
-                post_process_->setOutputTarget(rt->getFramebufferId());
+                post_process_->setOutputTarget(rt->getFramebuffer());
             }
         }
         post_process_->begin();
@@ -260,12 +237,12 @@ void RenderFrame::flush() {
     context_.updateFrameConstants(view_projection_);
     context_.lights().uploadAndBind();
 
-    gpu_timer_.poll();
+    gpu_timer_.poll(device_);
     {
         ES_PROFILE_SCOPE("render.submit");
-        gpu_timer_.begin();
+        gpu_timer_.begin(device_);
         draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
-        gpu_timer_.end();
+        gpu_timer_.end(device_);
     }
     FrameProfiler::get().gpuScope("submit", gpu_timer_.lastMs());
 
@@ -318,10 +295,10 @@ void RenderFrame::end() {
     if (usePostProcess) {
 #ifdef ES_ENABLE_POSTPROCESS
         ES_PROFILE_SCOPE("render.postprocess");
-        gpu_timer_pp_.poll();
-        gpu_timer_pp_.begin();
+        gpu_timer_pp_.poll(device_);
+        gpu_timer_pp_.begin(device_);
         post_process_->end();
-        gpu_timer_pp_.end();
+        gpu_timer_pp_.end(device_);
         FrameProfiler::get().gpuScope("postprocess", gpu_timer_pp_.lastMs());
 #endif
     } else if (current_target_ != RenderTargetManager::INVALID_HANDLE) {
@@ -625,15 +602,15 @@ u32 RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
 
     Shader* shader = resource_manager_.getShader(handle);
     if (shader && shader->isValid()) {
-        u32 prog = shader->getProgramId();
         shader->bind();
         // Bind the 8 multi-texture samplers to units 0..7 (per-program, set once).
         for (i32 i = 0; i < 8; ++i) {
-            i32 loc = device_.getUniformLocation(prog, ("u_textures[" + std::to_string(i) + "]").c_str());
+            i32 loc = device_.getUniformLocation(shader->handle(),
+                                                 ("u_textures[" + std::to_string(i) + "]").c_str());
             if (loc >= 0) device_.setUniform1i(loc, i);
         }
         shader->unbind();
-        return prog;
+        return shader->getProgramId();
     }
 
     const std::string vk = resource::ShaderParser::variantKey(features);

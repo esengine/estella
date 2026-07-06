@@ -19,6 +19,7 @@
 
 #include "GfxDevice.hpp"
 
+#include <unordered_map>
 #include <vector>
 
 namespace esengine {
@@ -61,15 +62,34 @@ public:
     void setCulling(bool enabled) override;
     void setCullFace(bool front) override;
 
-    void bindTexture(u32 slot, u32 textureId) override;
+    BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override;
+    void deleteBuffer(BufferHandle buffer) override;
+    void updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) override;
+    void resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) override;
+    void setUniformBuffer(u32 slot, BufferHandle buffer) override;
+    void bindVertexBuffer(BufferHandle buffer) override;
+    void bindIndexBuffer(BufferHandle buffer) override;
 
-    u32 createProgram(const char* vertexSrc, const char* fragmentSrc,
-                      const GfxAttribBinding* bindings, u32 bindingCount,
-                      std::string* outLog, GfxShaderStage* outFailedStage) override;
-    void deleteProgram(u32 programId) override;
-    void useProgram(u32 programId) override;
-    i32 getUniformLocation(u32 programId, const char* name) override;
-    i32 getAttribLocation(u32 programId, const char* name) override;
+    TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override;
+    TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
+                                          const void* data, u32 byteLength) override;
+    TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) override;
+    void deleteTexture(TextureHandle texture) override;
+    void updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
+                       const void* pixels, bool flipY) override;
+    void setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,
+                          TextureWrap wrapS, TextureWrap wrapT) override;
+    void generateMipmaps(TextureHandle texture) override;
+    void bindTexture(u32 slot, TextureHandle texture) override;
+    bool supportsCompressedFormat(GfxCompressedFormat format) override;
+
+    ShaderHandle createProgram(const char* vertexSrc, const char* fragmentSrc,
+                               const GfxAttribBinding* bindings, u32 bindingCount,
+                               std::string* outLog, GfxShaderStage* outFailedStage) override;
+    void deleteProgram(ShaderHandle program) override;
+    void useProgram(ShaderHandle program) override;
+    i32 getUniformLocation(ShaderHandle program, const char* name) override;
+    i32 getAttribLocation(ShaderHandle program, const char* name) override;
     void setUniform1i(i32 location, i32 value) override;
     void setUniform1f(i32 location, f32 value) override;
     void setUniform2f(i32 location, f32 x, f32 y) override;
@@ -78,19 +98,10 @@ public:
     void setUniformMat3(i32 location, const f32* data) override;
     void setUniformMat4(i32 location, const f32* data) override;
 
-    std::vector<GfxUniformInfo> getActiveUniforms(u32 programId) override;
+    std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle program) override;
 
-    u32 createBuffer() override;
-    void deleteBuffer(u32 bufferId) override;
-    void bindVertexBuffer(u32 bufferId) override;
-    void bindIndexBuffer(u32 bufferId) override;
-    void bufferData(GfxBufferTarget target, const void* data, u32 sizeBytes, bool dynamic) override;
-    void bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) override;
-
-    void bindUniformBuffer(u32 bufferId) override;
-    void bindBufferBase(u32 bindingPoint, u32 bufferId) override;
-    u32 getUniformBlockIndex(u32 programId, const char* name) override;
-    void uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) override;
+    u32 getUniformBlockIndex(ShaderHandle program, const char* name) override;
+    void uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bindingPoint) override;
 
     PipelineHandle createPipeline(const PipelineDesc& desc) override;
     void setPipeline(PipelineHandle handle) override;
@@ -109,35 +120,22 @@ public:
     void drawArrays(u32 first, u32 vertexCount) override;
     void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) override;
 
-    u32 createTexture() override;
-    void deleteTexture(u32 textureId) override;
-    void texImage2D(u32 textureId, u32 width, u32 height,
-                    GfxPixelFormat format, const void* data) override;
-    void texSubImage2D(u32 textureId, i32 xoffset, i32 yoffset,
-                       u32 width, u32 height,
-                       GfxPixelFormat format, const void* data) override;
-    void compressedTexImage2D(u32 textureId, u32 width, u32 height,
-                              GfxCompressedFormat format,
-                              const void* data, u32 byteLength) override;
-    void setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
-                          TextureWrap wrapS, TextureWrap wrapT) override;
-    void generateMipmaps(u32 textureId) override;
-    void pixelStorei(u32 pname, i32 param) override;
-    void setUnpackFlipY(bool enabled) override;
-
-    u32 createFramebuffer() override;
-    void deleteFramebuffer(u32 fboId) override;
-    void bindFramebuffer(u32 fboId) override;
-    void framebufferTexture2D(u32 fboId, GfxAttachment attachment, u32 textureId) override;
-    bool checkFramebufferStatus() override;
+    FramebufferHandle createFramebuffer(const FramebufferDesc& desc) override;
+    void deleteFramebuffer(FramebufferHandle framebuffer) override;
+    void bindFramebuffer(FramebufferHandle framebuffer) override;
 
     void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) override;
+
+    u32 createTimerQuery() override;
+    void beginTimerQuery(u32 query) override;
+    void endTimerQuery() override;
+    bool timerDisjoint() override;
+    bool getTimerQueryNs(u32 query, u64* outNanoseconds) override;
 
     void setWireframe(bool enabled) override;
     u32 getError() override;
     std::string getString(GfxStringName name) override;
     i32 getInt(GfxIntParam name) override;
-    bool supportsCompressedFormat(GfxCompressedFormat format) override;
 
 private:
     // Pipeline cache: a handle is (index + 1) into pipelines_; PipelineHandle::Invalid is 0.
@@ -145,9 +143,24 @@ private:
     // state, deduped by comparing handles (same pipeline -> skip the whole state apply).
     void applyStencilMode(GfxStencilMode mode);
 
+    void uploadBufferStore(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes, bool respec);
+
     std::vector<PipelineDesc> pipelines_;
     PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;
+
+    // Per-handle metadata the GL bind-to-edit protocol needs but the interface no
+    // longer carries: buffer target/usage for uploads, texture transfer format for
+    // sub-image updates.
+    struct BufferMeta {
+        GfxBufferUsage usage;
+        bool dynamic;
+    };
+    std::unordered_map<u32, BufferMeta> buffer_meta_;
+    std::unordered_map<u32, GfxPixelFormat> texture_formats_;
+
+    // 0 = unprobed, 1 = timer queries available, 2 = unavailable.
+    int timer_query_state_ = 0;
 };
 
 }  // namespace esengine

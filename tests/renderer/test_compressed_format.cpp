@@ -21,15 +21,17 @@ static int g_failures = 0;
 
 // The choice the asset upload path makes: prefer the compressed upload, fall back
 // to an uncompressed RGBA8 upload when the backend can't sample the format.
-static void uploadTexture(GfxDevice& d, u32 tex, u32 w, u32 h,
-                          GfxCompressedFormat fmt,
-                          const void* compressed, u32 compressedLen,
-                          const void* rgba) {
+static TextureHandle uploadTexture(GfxDevice& d, u32 w, u32 h,
+                                   GfxCompressedFormat fmt,
+                                   const void* compressed, u32 compressedLen,
+                                   const void* rgba) {
+    TextureDesc desc;
+    desc.width = w;
+    desc.height = h;
     if (d.supportsCompressedFormat(fmt)) {
-        d.compressedTexImage2D(tex, w, h, fmt, compressed, compressedLen);
-    } else {
-        d.texImage2D(tex, w, h, GfxPixelFormat::RGBA8, rgba);
+        return d.createCompressedTexture(desc, fmt, compressed, compressedLen);
     }
+    return d.createTexture(desc, rgba);
 }
 
 int main() {
@@ -40,11 +42,11 @@ int main() {
     {
         MockGfxDevice d;
         d.compressedSupported = true;
-        u32 tex = d.createTexture();
-        uploadTexture(d, tex, 64, 64, GfxCompressedFormat::ASTC_4x4,
-                      blocks.data(), static_cast<u32>(blocks.size()), rgba.data());
-        CHECK(d.compressedTexImage2DCalls == 1, "supported -> routes through device.compressedTexImage2D");
-        CHECK(d.texImage2DCalls == 0, "supported -> no RGBA8 upload");
+        TextureHandle tex = uploadTexture(d, 64, 64, GfxCompressedFormat::ASTC_4x4,
+                                          blocks.data(), static_cast<u32>(blocks.size()), rgba.data());
+        CHECK(tex != TextureHandle::Invalid, "supported -> creation succeeds");
+        CHECK(d.createCompressedTextureCalls == 1, "supported -> routes through device.createCompressedTexture");
+        CHECK(d.createTextureCalls == 0, "supported -> no RGBA8 upload");
         CHECK(d.lastCompressedFormat == GfxCompressedFormat::ASTC_4x4, "format forwarded to device");
         CHECK(d.lastCompressedByteLength == blocks.size(), "compressed byte length forwarded");
     }
@@ -53,19 +55,22 @@ int main() {
     {
         MockGfxDevice d;
         d.compressedSupported = false;
-        u32 tex = d.createTexture();
-        uploadTexture(d, tex, 64, 64, GfxCompressedFormat::ASTC_4x4,
-                      blocks.data(), static_cast<u32>(blocks.size()), rgba.data());
-        CHECK(d.compressedTexImage2DCalls == 0, "unsupported -> no compressed upload");
-        CHECK(d.texImage2DCalls == 1, "unsupported -> RGBA8 fallback via device.texImage2D");
+        TextureHandle tex = uploadTexture(d, 64, 64, GfxCompressedFormat::ASTC_4x4,
+                                          blocks.data(), static_cast<u32>(blocks.size()), rgba.data());
+        CHECK(tex != TextureHandle::Invalid, "unsupported -> fallback creation succeeds");
+        CHECK(d.createCompressedTextureCalls == 0, "unsupported -> no compressed upload");
+        CHECK(d.createTextureCalls == 1 && d.lastCreateTextureHadPixels,
+              "unsupported -> RGBA8 fallback via device.createTexture");
     }
 
     // --- core ETC2/EAC baseline routes through the compressed entry ---
     {
         MockGfxDevice d;
-        u32 tex = d.createTexture();
-        d.compressedTexImage2D(tex, 32, 32, GfxCompressedFormat::ETC2_RGBA8, blocks.data(), 512);
-        CHECK(d.compressedTexImage2DCalls == 1, "ETC2_RGBA8 routes through device");
+        TextureDesc desc;
+        desc.width = 32;
+        desc.height = 32;
+        d.createCompressedTexture(desc, GfxCompressedFormat::ETC2_RGBA8, blocks.data(), 512);
+        CHECK(d.createCompressedTextureCalls == 1, "ETC2_RGBA8 routes through device");
         CHECK(d.lastCompressedFormat == GfxCompressedFormat::ETC2_RGBA8, "ETC2 format forwarded");
         CHECK(d.lastCompressedByteLength == 512, "ETC2 byte length forwarded");
     }

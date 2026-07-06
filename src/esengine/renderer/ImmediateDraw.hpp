@@ -172,7 +172,7 @@ private:
     resource::ResourceManager& resource_manager_;
 
     TransientBufferPool pool_;
-    u32 batch_shader_id_ = 0;
+    ShaderHandle batch_shader_ = ShaderHandle::Invalid;
     PipelineHandle pipeline_ = PipelineHandle::Invalid;
     u32 white_texture_id_ = 0;
     u32 currentTexture_ = 0;

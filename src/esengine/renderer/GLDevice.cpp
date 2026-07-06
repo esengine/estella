@@ -15,6 +15,10 @@
 #include "OpenGLHeaders.hpp"
 #include "../core/Log.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
+
 #include <cstring>
 
 #ifndef GL_DEPTH_STENCIL
@@ -53,6 +57,13 @@
 #ifndef GL_UNPACK_FLIP_Y_WEBGL
     #define GL_UNPACK_FLIP_Y_WEBGL 0x9240
 #endif
+// EXT_disjoint_timer_query_webgl2 enums — not guaranteed in <GLES3/gl3.h>.
+#ifndef GL_TIME_ELAPSED_EXT
+    #define GL_TIME_ELAPSED_EXT 0x88BF
+#endif
+#ifndef GL_GPU_DISJOINT_EXT
+    #define GL_GPU_DISJOINT_EXT 0x8FBB
+#endif
 
 namespace esengine {
 
@@ -87,11 +98,11 @@ void setCapability(GLenum cap, bool enabled) {
     }
 }
 
-GLenum toGLBufferTarget(GfxBufferTarget target) {
-    switch (target) {
-    case GfxBufferTarget::Vertex:  return GL_ARRAY_BUFFER;
-    case GfxBufferTarget::Index:   return GL_ELEMENT_ARRAY_BUFFER;
-    case GfxBufferTarget::Uniform: return GL_UNIFORM_BUFFER;
+GLenum toGLBufferTarget(GfxBufferUsage usage) {
+    switch (usage) {
+    case GfxBufferUsage::Vertex:  return GL_ARRAY_BUFFER;
+    case GfxBufferUsage::Index:   return GL_ELEMENT_ARRAY_BUFFER;
+    case GfxBufferUsage::Uniform: return GL_UNIFORM_BUFFER;
     default: return GL_ARRAY_BUFFER;
     }
 }
@@ -173,15 +184,6 @@ bool glExtensionPresent(const char* name) {
         if (ext && std::strcmp(ext, name) == 0) return true;
     }
     return false;
-}
-
-GLenum toGLAttachment(GfxAttachment attachment) {
-    switch (attachment) {
-    case GfxAttachment::Color0:       return GL_COLOR_ATTACHMENT0;
-    case GfxAttachment::Depth:        return GL_DEPTH_ATTACHMENT;
-    case GfxAttachment::DepthStencil: return GL_DEPTH_STENCIL_ATTACHMENT;
-    default: return GL_COLOR_ATTACHMENT0;
-    }
 }
 
 std::string readShaderInfoLog(GLuint shader) {
@@ -356,21 +358,12 @@ void GLDevice::setCullFace(bool front) {
 }
 
 // =============================================================================
-// Texture Binding
-// =============================================================================
-
-void GLDevice::bindTexture(u32 slot, u32 textureId) {
-    glActiveTexture(GL_TEXTURE0 + slot);
-    glBindTexture(GL_TEXTURE_2D, textureId);
-}
-
-// =============================================================================
 // Shader Program
 // =============================================================================
 
-u32 GLDevice::createProgram(const char* vertexSrc, const char* fragmentSrc,
-                            const GfxAttribBinding* bindings, u32 bindingCount,
-                            std::string* outLog, GfxShaderStage* outFailedStage) {
+ShaderHandle GLDevice::createProgram(const char* vertexSrc, const char* fragmentSrc,
+                                     const GfxAttribBinding* bindings, u32 bindingCount,
+                                     std::string* outLog, GfxShaderStage* outFailedStage) {
     auto setFailure = [&](GfxShaderStage stage, std::string&& log) {
         if (outLog) *outLog = std::move(log);
         if (outFailedStage) *outFailedStage = stage;
@@ -387,7 +380,7 @@ u32 GLDevice::createProgram(const char* vertexSrc, const char* fragmentSrc,
         ES_LOG_ERROR("Vertex shader compilation failed: {}", log);
         setFailure(GfxShaderStage::Vertex, std::move(log));
         glDeleteShader(vertexShader);
-        return 0;
+        return ShaderHandle::Invalid;
     }
 
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -401,7 +394,7 @@ u32 GLDevice::createProgram(const char* vertexSrc, const char* fragmentSrc,
         setFailure(GfxShaderStage::Fragment, std::move(log));
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
-        return 0;
+        return ShaderHandle::Invalid;
     }
 
     GLuint program = glCreateProgram();
@@ -422,30 +415,30 @@ u32 GLDevice::createProgram(const char* vertexSrc, const char* fragmentSrc,
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
         glDeleteProgram(program);
-        return 0;
+        return ShaderHandle::Invalid;
     }
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
     if (outFailedStage) *outFailedStage = GfxShaderStage::None;
-    return static_cast<u32>(program);
+    return ShaderHandle{program};
 }
 
-void GLDevice::deleteProgram(u32 programId) {
-    if (programId != 0) glDeleteProgram(programId);
+void GLDevice::deleteProgram(ShaderHandle program) {
+    if (program != ShaderHandle::Invalid) glDeleteProgram(static_cast<GLuint>(program));
 }
 
-void GLDevice::useProgram(u32 programId) {
-    glUseProgram(programId);
+void GLDevice::useProgram(ShaderHandle program) {
+    glUseProgram(static_cast<GLuint>(program));
 }
 
-i32 GLDevice::getUniformLocation(u32 programId, const char* name) {
-    return glGetUniformLocation(programId, name);
+i32 GLDevice::getUniformLocation(ShaderHandle program, const char* name) {
+    return glGetUniformLocation(static_cast<GLuint>(program), name);
 }
 
-i32 GLDevice::getAttribLocation(u32 programId, const char* name) {
-    return glGetAttribLocation(programId, name);
+i32 GLDevice::getAttribLocation(ShaderHandle program, const char* name) {
+    return glGetAttribLocation(static_cast<GLuint>(program), name);
 }
 
 void GLDevice::setUniform1i(i32 location, i32 value) {
@@ -500,9 +493,10 @@ GfxUniformType fromGLUniformType(GLenum type) {
 
 }  // namespace
 
-std::vector<GfxUniformInfo> GLDevice::getActiveUniforms(u32 programId) {
+std::vector<GfxUniformInfo> GLDevice::getActiveUniforms(ShaderHandle program) {
     std::vector<GfxUniformInfo> result;
-    if (programId == 0) return result;
+    if (program == ShaderHandle::Invalid) return result;
+    const GLuint programId = static_cast<GLuint>(program);
 
     GLint count = 0;
     glGetProgramiv(programId, GL_ACTIVE_UNIFORMS, &count);
@@ -545,47 +539,68 @@ std::vector<GfxUniformInfo> GLDevice::getActiveUniforms(u32 programId) {
 // Buffer Operations
 // =============================================================================
 
-u32 GLDevice::createBuffer() {
+void GLDevice::uploadBufferStore(BufferHandle buffer, u32 offsetBytes, const void* data,
+                                 u32 sizeBytes, bool respec) {
+    const u32 id = static_cast<u32>(buffer);
+    auto it = buffer_meta_.find(id);
+    if (it == buffer_meta_.end()) return;
+    const BufferMeta& meta = it->second;
+
+    // GL_ELEMENT_ARRAY_BUFFER binding is VAO state: uploading through it while some
+    // VAO is bound would silently rewire that VAO's index buffer. Detach first.
+    if (meta.usage == GfxBufferUsage::Index) {
+        glBindVertexArray(0);
+    }
+
+    const GLenum target = toGLBufferTarget(meta.usage);
+    glBindBuffer(target, id);
+    if (respec) {
+        glBufferData(target, sizeBytes, data, meta.dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+    } else {
+        glBufferSubData(target, offsetBytes, sizeBytes, data);
+    }
+}
+
+BufferHandle GLDevice::createBuffer(const BufferDesc& desc, const void* initialData) {
     GLuint id = 0;
     glGenBuffers(1, &id);
-    return static_cast<u32>(id);
+    buffer_meta_[id] = BufferMeta{desc.usage, desc.dynamic};
+    uploadBufferStore(BufferHandle{id}, 0, initialData, desc.size, /*respec=*/true);
+    return BufferHandle{id};
 }
 
-void GLDevice::deleteBuffer(u32 bufferId) {
-    GLuint id = static_cast<GLuint>(bufferId);
+void GLDevice::deleteBuffer(BufferHandle buffer) {
+    GLuint id = static_cast<GLuint>(buffer);
     glDeleteBuffers(1, &id);
+    buffer_meta_.erase(static_cast<u32>(buffer));
 }
 
-void GLDevice::bindVertexBuffer(u32 bufferId) {
-    glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+void GLDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) {
+    uploadBufferStore(buffer, offsetBytes, data, sizeBytes, /*respec=*/false);
 }
 
-void GLDevice::bindIndexBuffer(u32 bufferId) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferId);
+void GLDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) {
+    uploadBufferStore(buffer, 0, data, sizeBytes, /*respec=*/true);
 }
 
-void GLDevice::bufferData(GfxBufferTarget target, const void* data, u32 sizeBytes, bool dynamic) {
-    glBufferData(toGLBufferTarget(target), sizeBytes, data, dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+void GLDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
+    glBindBufferBase(GL_UNIFORM_BUFFER, slot, static_cast<GLuint>(buffer));
 }
 
-void GLDevice::bufferSubData(GfxBufferTarget target, u32 offset, const void* data, u32 sizeBytes) {
-    glBufferSubData(toGLBufferTarget(target), offset, sizeBytes, data);
+void GLDevice::bindVertexBuffer(BufferHandle buffer) {
+    glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(buffer));
 }
 
-void GLDevice::bindUniformBuffer(u32 bufferId) {
-    glBindBuffer(GL_UNIFORM_BUFFER, bufferId);
+void GLDevice::bindIndexBuffer(BufferHandle buffer) {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLuint>(buffer));
 }
 
-void GLDevice::bindBufferBase(u32 bindingPoint, u32 bufferId) {
-    glBindBufferBase(GL_UNIFORM_BUFFER, bindingPoint, bufferId);
+u32 GLDevice::getUniformBlockIndex(ShaderHandle program, const char* name) {
+    return static_cast<u32>(glGetUniformBlockIndex(static_cast<GLuint>(program), name));
 }
 
-u32 GLDevice::getUniformBlockIndex(u32 programId, const char* name) {
-    return static_cast<u32>(glGetUniformBlockIndex(programId, name));
-}
-
-void GLDevice::uniformBlockBinding(u32 programId, u32 blockIndex, u32 bindingPoint) {
-    glUniformBlockBinding(programId, blockIndex, bindingPoint);
+void GLDevice::uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bindingPoint) {
+    glUniformBlockBinding(static_cast<GLuint>(program), blockIndex, bindingPoint);
 }
 
 // =============================================================================
@@ -717,96 +732,132 @@ void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 
 }
 
 // =============================================================================
-// Texture Creation
+// Textures
 // =============================================================================
 
-u32 GLDevice::createTexture() {
+void GLDevice::bindTexture(u32 slot, TextureHandle texture) {
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+}
+
+TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixels) {
     GLuint id = 0;
     glGenTextures(1, &id);
-    return static_cast<u32>(id);
-}
+    texture_formats_[id] = desc.format;
 
-void GLDevice::deleteTexture(u32 textureId) {
-    GLuint id = static_cast<GLuint>(textureId);
-    glDeleteTextures(1, &id);
-}
-
-void GLDevice::texImage2D(u32 textureId, u32 width, u32 height,
-                          GfxPixelFormat format, const void* data) {
-    auto gl = toGLPixelFormat(format);
-    glBindTexture(GL_TEXTURE_2D, textureId);
+    auto gl = toGLPixelFormat(desc.format);
+    glBindTexture(GL_TEXTURE_2D, id);
+    if (pixels && desc.flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_TRUE);
     glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(gl.internalFormat),
-                 static_cast<GLsizei>(width), static_cast<GLsizei>(height),
-                 0, gl.format, gl.type, data);
+                 static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
+                 0, gl.format, gl.type, pixels);
+    if (pixels && desc.flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_FALSE);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(desc.minFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(desc.magFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(desc.wrapS));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap(desc.wrapT));
+
+    if (desc.mipmaps) {
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    return TextureHandle{id};
 }
 
-void GLDevice::texSubImage2D(u32 textureId, i32 xoffset, i32 yoffset,
-                             u32 width, u32 height,
-                             GfxPixelFormat format, const void* data) {
-    auto gl = toGLPixelFormat(format);
-    glBindTexture(GL_TEXTURE_2D, textureId);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, xoffset, yoffset,
-                    static_cast<GLsizei>(width), static_cast<GLsizei>(height),
-                    gl.format, gl.type, data);
-}
+TextureHandle GLDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
+                                                const void* data, u32 byteLength) {
+    GLuint id = 0;
+    glGenTextures(1, &id);
+    texture_formats_[id] = desc.format;
 
-void GLDevice::compressedTexImage2D(u32 textureId, u32 width, u32 height,
-                                    GfxCompressedFormat format,
-                                    const void* data, u32 byteLength) {
-    glBindTexture(GL_TEXTURE_2D, textureId);
+    glBindTexture(GL_TEXTURE_2D, id);
     glCompressedTexImage2D(GL_TEXTURE_2D, 0, toGLCompressedFormat(format),
-                           static_cast<GLsizei>(width), static_cast<GLsizei>(height),
+                           static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
                            0, static_cast<GLsizei>(byteLength), data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(desc.minFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(desc.magFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(desc.wrapS));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap(desc.wrapT));
+    return TextureHandle{id};
 }
 
-void GLDevice::setTextureParams(u32 textureId, TextureFilter min, TextureFilter mag,
+TextureHandle GLDevice::importExternalTexture(u32 nativeId, const TextureDesc& desc) {
+    texture_formats_[nativeId] = desc.format;
+    return TextureHandle{nativeId};
+}
+
+void GLDevice::deleteTexture(TextureHandle texture) {
+    GLuint id = static_cast<GLuint>(texture);
+    glDeleteTextures(1, &id);
+    texture_formats_.erase(static_cast<u32>(texture));
+}
+
+void GLDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
+                             const void* pixels, bool flipY) {
+    auto it = texture_formats_.find(static_cast<u32>(texture));
+    auto gl = toGLPixelFormat(it != texture_formats_.end() ? it->second : GfxPixelFormat::RGBA8);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    if (flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_TRUE);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y,
+                    static_cast<GLsizei>(width), static_cast<GLsizei>(height),
+                    gl.format, gl.type, pixels);
+    if (flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_FALSE);
+}
+
+void GLDevice::setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,
                                 TextureWrap wrapS, TextureWrap wrapT) {
-    glBindTexture(GL_TEXTURE_2D, textureId);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(min));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(mag));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(wrapS));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap(wrapT));
 }
 
-void GLDevice::generateMipmaps(u32 textureId) {
-    glBindTexture(GL_TEXTURE_2D, textureId);
+void GLDevice::generateMipmaps(TextureHandle texture) {
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
     glGenerateMipmap(GL_TEXTURE_2D);
-}
-
-void GLDevice::pixelStorei(u32 pname, i32 param) {
-    glPixelStorei(pname, param);
-}
-
-void GLDevice::setUnpackFlipY(bool enabled) {
-    glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, enabled ? GL_TRUE : GL_FALSE);
 }
 
 // =============================================================================
 // Framebuffer
 // =============================================================================
 
-u32 GLDevice::createFramebuffer() {
+FramebufferHandle GLDevice::createFramebuffer(const FramebufferDesc& desc) {
     GLuint id = 0;
     glGenFramebuffers(1, &id);
-    return static_cast<u32>(id);
+    glBindFramebuffer(GL_FRAMEBUFFER, id);
+
+    if (desc.color0 != TextureHandle::Invalid) {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               static_cast<GLuint>(desc.color0), 0);
+    }
+    if (desc.depthStencil != TextureHandle::Invalid) {
+        // Attach point follows the texture's pixel format (depth-only vs packed depth+stencil).
+        auto it = texture_formats_.find(static_cast<u32>(desc.depthStencil));
+        const bool depthOnly = it != texture_formats_.end()
+                            && it->second == GfxPixelFormat::DepthComponent24;
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               depthOnly ? GL_DEPTH_ATTACHMENT : GL_DEPTH_STENCIL_ATTACHMENT,
+                               GL_TEXTURE_2D, static_cast<GLuint>(desc.depthStencil), 0);
+    }
+
+    const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (!complete) {
+        glDeleteFramebuffers(1, &id);
+        return FramebufferHandle::Default;
+    }
+    return FramebufferHandle{id};
 }
 
-void GLDevice::deleteFramebuffer(u32 fboId) {
-    GLuint id = static_cast<GLuint>(fboId);
-    glDeleteFramebuffers(1, &id);
+void GLDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
+    GLuint id = static_cast<GLuint>(framebuffer);
+    if (id != 0) glDeleteFramebuffers(1, &id);
 }
 
-void GLDevice::bindFramebuffer(u32 fboId) {
-    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-}
-
-void GLDevice::framebufferTexture2D(u32 fboId, GfxAttachment attachment, u32 textureId) {
-    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, toGLAttachment(attachment), GL_TEXTURE_2D, textureId, 0);
-}
-
-bool GLDevice::checkFramebufferStatus() {
-    return glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+void GLDevice::bindFramebuffer(FramebufferHandle framebuffer) {
+    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
 }
 
 // =============================================================================
@@ -816,6 +867,52 @@ bool GLDevice::checkFramebufferStatus() {
 void GLDevice::readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) {
     auto gl = toGLPixelFormat(format);
     glReadPixels(x, y, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type, data);
+}
+
+// =============================================================================
+// GPU Timing
+// =============================================================================
+
+u32 GLDevice::createTimerQuery() {
+    if (timer_query_state_ == 0) {
+#ifdef __EMSCRIPTEN__
+        // Must ENABLE the extension (not just check presence) so emscripten routes the
+        // TIME_ELAPSED query entry points.
+        EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+        timer_query_state_ =
+            (ctx && emscripten_webgl_enable_extension(ctx, "EXT_disjoint_timer_query_webgl2")) ? 1 : 2;
+#else
+        timer_query_state_ = 2;
+#endif
+    }
+    if (timer_query_state_ != 1) return 0;
+    GLuint id = 0;
+    glGenQueries(1, &id);
+    return static_cast<u32>(id);
+}
+
+void GLDevice::beginTimerQuery(u32 query) {
+    glBeginQuery(GL_TIME_ELAPSED_EXT, query);
+}
+
+void GLDevice::endTimerQuery() {
+    glEndQuery(GL_TIME_ELAPSED_EXT);
+}
+
+bool GLDevice::timerDisjoint() {
+    GLint disjoint = 0;
+    glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
+    return disjoint != 0;
+}
+
+bool GLDevice::getTimerQueryNs(u32 query, u64* outNanoseconds) {
+    GLuint available = 0;
+    glGetQueryObjectuiv(query, GL_QUERY_RESULT_AVAILABLE, &available);
+    if (!available) return false;
+    GLuint ns = 0;
+    glGetQueryObjectuiv(query, GL_QUERY_RESULT, &ns);
+    if (outNanoseconds) *outNanoseconds = ns;
+    return true;
 }
 
 // =============================================================================

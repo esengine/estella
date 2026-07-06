@@ -75,25 +75,25 @@ GfxDataType toGfxDataType(ShaderDataType type) {
 // ========================================
 
 VertexBuffer::~VertexBuffer() {
-    if (bufferId_ != 0 && device_) {
-        device_->deleteBuffer(bufferId_);
+    if (handle_ != BufferHandle::Invalid && device_) {
+        device_->deleteBuffer(handle_);
     }
 }
 
 VertexBuffer::VertexBuffer(VertexBuffer&& other) noexcept
-    : device_(other.device_), bufferId_(other.bufferId_), layout_(std::move(other.layout_)) {
-    other.bufferId_ = 0;
+    : device_(other.device_), handle_(other.handle_), layout_(std::move(other.layout_)) {
+    other.handle_ = BufferHandle::Invalid;
 }
 
 VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
     if (this != &other) {
-        if (bufferId_ != 0 && device_) {
-            device_->deleteBuffer(bufferId_);
+        if (handle_ != BufferHandle::Invalid && device_) {
+            device_->deleteBuffer(handle_);
         }
         device_ = other.device_;
-        bufferId_ = other.bufferId_;
+        handle_ = other.handle_;
         layout_ = std::move(other.layout_);
-        other.bufferId_ = 0;
+        other.handle_ = BufferHandle::Invalid;
     }
     return *this;
 }
@@ -101,39 +101,33 @@ VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
 Unique<VertexBuffer> VertexBuffer::createRaw(GfxDevice& device, const void* data, u32 sizeBytes) {
     auto buffer = makeUnique<VertexBuffer>();
     buffer->device_ = &device;
-    buffer->bufferId_ = device.createBuffer();
-    device.bindVertexBuffer(buffer->bufferId_);
-    device.bufferData(GfxBufferTarget::Vertex, data, sizeBytes, false);
+    buffer->handle_ = device.createBuffer({GfxBufferUsage::Vertex, sizeBytes, /*dynamic=*/false}, data);
     return buffer;
 }
 
 Unique<VertexBuffer> VertexBuffer::create(GfxDevice& device, u32 size) {
     auto buffer = makeUnique<VertexBuffer>();
     buffer->device_ = &device;
-    buffer->bufferId_ = device.createBuffer();
-    device.bindVertexBuffer(buffer->bufferId_);
-    device.bufferData(GfxBufferTarget::Vertex, nullptr, size, true);
+    buffer->handle_ = device.createBuffer({GfxBufferUsage::Vertex, size, /*dynamic=*/true}, nullptr);
     return buffer;
 }
 
 void VertexBuffer::bind() const {
-    if (device_) device_->bindVertexBuffer(bufferId_);
+    if (device_) device_->bindVertexBuffer(handle_);
 }
 
 void VertexBuffer::unbind() const {
-    if (device_) device_->bindVertexBuffer(0);
+    if (device_) device_->bindVertexBuffer(BufferHandle::Invalid);
 }
 
 void VertexBuffer::setDataRaw(const void* data, u32 sizeBytes) {
     if (!device_) return;
-    device_->bindVertexBuffer(bufferId_);
-    device_->bufferSubData(GfxBufferTarget::Vertex, 0, data, sizeBytes);
+    device_->updateBuffer(handle_, 0, data, sizeBytes);
 }
 
 void VertexBuffer::setSubDataRaw(const void* data, u32 sizeBytes, u32 offsetBytes) {
     if (!device_) return;
-    device_->bindVertexBuffer(bufferId_);
-    device_->bufferSubData(GfxBufferTarget::Vertex, offsetBytes, data, sizeBytes);
+    device_->updateBuffer(handle_, offsetBytes, data, sizeBytes);
 }
 
 // ========================================
@@ -141,27 +135,27 @@ void VertexBuffer::setSubDataRaw(const void* data, u32 sizeBytes, u32 offsetByte
 // ========================================
 
 IndexBuffer::~IndexBuffer() {
-    if (bufferId_ != 0 && device_) {
-        device_->deleteBuffer(bufferId_);
+    if (handle_ != BufferHandle::Invalid && device_) {
+        device_->deleteBuffer(handle_);
     }
 }
 
 IndexBuffer::IndexBuffer(IndexBuffer&& other) noexcept
-    : device_(other.device_), bufferId_(other.bufferId_), count_(other.count_), is16Bit_(other.is16Bit_) {
-    other.bufferId_ = 0;
+    : device_(other.device_), handle_(other.handle_), count_(other.count_), is16Bit_(other.is16Bit_) {
+    other.handle_ = BufferHandle::Invalid;
     other.count_ = 0;
 }
 
 IndexBuffer& IndexBuffer::operator=(IndexBuffer&& other) noexcept {
     if (this != &other) {
-        if (bufferId_ != 0 && device_) {
-            device_->deleteBuffer(bufferId_);
+        if (handle_ != BufferHandle::Invalid && device_) {
+            device_->deleteBuffer(handle_);
         }
         device_ = other.device_;
-        bufferId_ = other.bufferId_;
+        handle_ = other.handle_;
         count_ = other.count_;
         is16Bit_ = other.is16Bit_;
-        other.bufferId_ = 0;
+        other.handle_ = BufferHandle::Invalid;
         other.count_ = 0;
     }
     return *this;
@@ -172,9 +166,8 @@ Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, const u32* indices, u
     buffer->device_ = &device;
     buffer->count_ = count;
     buffer->is16Bit_ = false;
-    buffer->bufferId_ = device.createBuffer();
-    device.bindIndexBuffer(buffer->bufferId_);
-    device.bufferData(GfxBufferTarget::Index, indices, count * sizeof(u32), false);
+    buffer->handle_ = device.createBuffer(
+        {GfxBufferUsage::Index, count * static_cast<u32>(sizeof(u32)), /*dynamic=*/false}, indices);
     return buffer;
 }
 
@@ -183,18 +176,17 @@ Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, const u16* indices, u
     buffer->device_ = &device;
     buffer->count_ = count;
     buffer->is16Bit_ = true;
-    buffer->bufferId_ = device.createBuffer();
-    device.bindIndexBuffer(buffer->bufferId_);
-    device.bufferData(GfxBufferTarget::Index, indices, count * sizeof(u16), false);
+    buffer->handle_ = device.createBuffer(
+        {GfxBufferUsage::Index, count * static_cast<u32>(sizeof(u16)), /*dynamic=*/false}, indices);
     return buffer;
 }
 
 void IndexBuffer::bind() const {
-    if (device_) device_->bindIndexBuffer(bufferId_);
+    if (device_) device_->bindIndexBuffer(handle_);
 }
 
 void IndexBuffer::unbind() const {
-    if (device_) device_->bindIndexBuffer(0);
+    if (device_) device_->bindIndexBuffer(BufferHandle::Invalid);
 }
 
 // ========================================

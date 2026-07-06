@@ -1,4 +1,4 @@
-// Shared test double for the renderer GPU abstraction (RC5-GfxDevice).
+// Shared test double for the renderer GPU abstraction (GfxDevice).
 //
 // Records the device calls the renderer harnesses assert on; every other method
 // is a no-op stub. Implementing the full GfxDevice contract here also proves the
@@ -25,35 +25,49 @@ struct MockGfxDevice final : GfxDevice {
     int setUniform4fCalls = 0;
     int getActiveUniformsCalls = 0;
     int createTextureCalls = 0;
+    int createCompressedTextureCalls = 0;
+    int importExternalTextureCalls = 0;
     int deleteTextureCalls = 0;
-    int texImage2DCalls = 0;
-    int texSubImage2DCalls = 0;
-    int compressedTexImage2DCalls = 0;
+    int updateTextureCalls = 0;
     int setTextureParamsCalls = 0;
     int generateMipmapsCalls = 0;
-    u32 nextTextureId = 100;
-    bool createTextureFails = false;  // toggle to exercise the OOM / lost-context path (createTexture -> 0)
-    u32 lastDeletedTexture = 0;
-    GfxCompressedFormat lastCompressedFormat = GfxCompressedFormat::ETC2_RGBA8;
-    u32 lastCompressedByteLength = 0;
-    bool compressedSupported = true;  // toggle to exercise the RGBA8 fallback path
     int createFramebufferCalls = 0;
     int deleteFramebufferCalls = 0;
-    int framebufferTexture2DCalls = 0;
-    u32 nextFramebufferId = 500;
     int createBufferCalls = 0;
     int deleteBufferCalls = 0;
-    int bufferDataCalls = 0;
-    int bufferSubDataCalls = 0;
+    int updateBufferCalls = 0;
+    int resizeBufferCalls = 0;
+    int setUniformBufferCalls = 0;
     int createVertexArrayCalls = 0;
     int deleteVertexArrayCalls = 0;
     int enableVertexAttribCalls = 0;
     int vertexAttribPointerCalls = 0;
+    int setPipelineCalls = 0;
+
+    u32 nextTextureId = 100;
     u32 nextBufferId = 200;
+    u32 nextFramebufferId = 500;
     u32 nextVaoId = 800;
+    u32 nextPipelineId = 0;
+
+    bool createTextureFails = false;  // toggle to exercise the OOM / lost-context path (-> Invalid)
+    bool compressedSupported = true;  // toggle to exercise the RGBA8 fallback path
+
     // last args
-    u32 lastProgram = 0, lastVao = 0, lastVbo = 0, lastIbo = 0, lastFbo = 0;
+    ShaderHandle lastProgram = ShaderHandle::Invalid;
+    u32 lastVao = 0;
+    BufferHandle lastVbo = BufferHandle::Invalid;
+    BufferHandle lastIbo = BufferHandle::Invalid;
+    FramebufferHandle lastFbo = FramebufferHandle::Default;
     i32 lastUniform1iLoc = -999, lastUniform1iVal = 0;
+    BufferDesc lastBufferDesc{};
+    bool lastCreateBufferHadData = false;
+    TextureDesc lastTextureDesc{};
+    bool lastCreateTextureHadPixels = false;
+    TextureHandle lastDeletedTexture = TextureHandle::Invalid;
+    GfxCompressedFormat lastCompressedFormat = GfxCompressedFormat::ETC2_RGBA8;
+    u32 lastCompressedByteLength = 0;
+    FramebufferDesc lastFramebufferDesc{};
 
     void init() override {}
     void shutdown() override {}
@@ -81,18 +95,57 @@ struct MockGfxDevice final : GfxDevice {
     void setCulling(bool) override {}
     void setCullFace(bool) override {}
 
-    void bindTexture(u32, u32 textureId) override { ++bindTextureCalls; (void)textureId; }
+    BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override {
+        ++createBufferCalls;
+        lastBufferDesc = desc;
+        lastCreateBufferHadData = initialData != nullptr;
+        return BufferHandle{nextBufferId++};
+    }
+    void deleteBuffer(BufferHandle) override { ++deleteBufferCalls; }
+    void updateBuffer(BufferHandle, u32, const void*, u32) override { ++updateBufferCalls; }
+    void resizeBuffer(BufferHandle, u32, const void*) override { ++resizeBufferCalls; }
+    void setUniformBuffer(u32, BufferHandle) override { ++setUniformBufferCalls; }
+    void bindVertexBuffer(BufferHandle buffer) override { ++bindVertexBufferCalls; lastVbo = buffer; }
+    void bindIndexBuffer(BufferHandle buffer) override { ++bindIndexBufferCalls; lastIbo = buffer; }
 
-    u32 createProgram(const char*, const char*, const GfxAttribBinding*, u32,
-                      std::string*, GfxShaderStage* stage) override {
+    TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override {
+        ++createTextureCalls;
+        lastTextureDesc = desc;
+        lastCreateTextureHadPixels = pixels != nullptr;
+        return createTextureFails ? TextureHandle::Invalid : TextureHandle{nextTextureId++};
+    }
+    TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
+                                          const void*, u32 byteLength) override {
+        ++createCompressedTextureCalls;
+        lastTextureDesc = desc;
+        lastCompressedFormat = format;
+        lastCompressedByteLength = byteLength;
+        return TextureHandle{nextTextureId++};
+    }
+    TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) override {
+        ++importExternalTextureCalls;
+        lastTextureDesc = desc;
+        return TextureHandle{nativeId};
+    }
+    void deleteTexture(TextureHandle texture) override { ++deleteTextureCalls; lastDeletedTexture = texture; }
+    void updateTexture(TextureHandle, i32, i32, u32, u32, const void*, bool) override { ++updateTextureCalls; }
+    void setTextureParams(TextureHandle, TextureFilter, TextureFilter, TextureWrap, TextureWrap) override {
+        ++setTextureParamsCalls;
+    }
+    void generateMipmaps(TextureHandle) override { ++generateMipmapsCalls; }
+    void bindTexture(u32, TextureHandle) override { ++bindTextureCalls; }
+    bool supportsCompressedFormat(GfxCompressedFormat) override { return compressedSupported; }
+
+    ShaderHandle createProgram(const char*, const char*, const GfxAttribBinding*, u32,
+                               std::string*, GfxShaderStage* stage) override {
         ++createProgramCalls;
         if (stage) *stage = GfxShaderStage::None;
-        return 1;  // pretend link succeeds, program id 1
+        return ShaderHandle{1};  // pretend link succeeds, program 1
     }
-    void deleteProgram(u32) override { ++deleteProgramCalls; }
-    void useProgram(u32 programId) override { ++useProgramCalls; lastProgram = programId; }
-    i32 getUniformLocation(u32, const char*) override { return 0; }
-    i32 getAttribLocation(u32, const char*) override { return 0; }
+    void deleteProgram(ShaderHandle) override { ++deleteProgramCalls; }
+    void useProgram(ShaderHandle program) override { ++useProgramCalls; lastProgram = program; }
+    i32 getUniformLocation(ShaderHandle, const char*) override { return 0; }
+    i32 getAttribLocation(ShaderHandle, const char*) override { return 0; }
     void setUniform1i(i32 loc, i32 v) override { ++setUniform1iCalls; lastUniform1iLoc = loc; lastUniform1iVal = v; }
     void setUniform1f(i32, f32) override {}
     void setUniform2f(i32, f32, f32) override {}
@@ -100,22 +153,11 @@ struct MockGfxDevice final : GfxDevice {
     void setUniform4f(i32, f32, f32, f32, f32) override { ++setUniform4fCalls; }
     void setUniformMat3(i32, const f32*) override {}
     void setUniformMat4(i32, const f32*) override {}
-    std::vector<GfxUniformInfo> getActiveUniforms(u32) override { ++getActiveUniformsCalls; return {}; }
+    std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle) override { ++getActiveUniformsCalls; return {}; }
 
-    u32 createBuffer() override { ++createBufferCalls; return nextBufferId++; }
-    void deleteBuffer(u32) override { ++deleteBufferCalls; }
-    void bindVertexBuffer(u32 bufferId) override { ++bindVertexBufferCalls; lastVbo = bufferId; }
-    void bindIndexBuffer(u32 bufferId) override { ++bindIndexBufferCalls; lastIbo = bufferId; }
-    void bufferData(GfxBufferTarget, const void*, u32, bool) override { ++bufferDataCalls; }
-    void bufferSubData(GfxBufferTarget, u32, const void*, u32) override { ++bufferSubDataCalls; }
+    u32 getUniformBlockIndex(ShaderHandle, const char*) override { return GFX_INVALID_UNIFORM_BLOCK; }
+    void uniformBlockBinding(ShaderHandle, u32, u32) override {}
 
-    void bindUniformBuffer(u32) override {}
-    void bindBufferBase(u32, u32) override {}
-    u32 getUniformBlockIndex(u32, const char*) override { return GFX_INVALID_UNIFORM_BLOCK; }
-    void uniformBlockBinding(u32, u32, u32) override {}
-
-    u32 nextPipelineId = 0;
-    int setPipelineCalls = 0;
     PipelineHandle createPipeline(const PipelineDesc&) override { return static_cast<PipelineHandle>(++nextPipelineId); }
     void setPipeline(PipelineHandle) override { ++setPipelineCalls; }
     void setStencilReference(i32) override {}
@@ -132,33 +174,26 @@ struct MockGfxDevice final : GfxDevice {
     void drawArrays(u32, u32) override {}
     void drawElementsInstanced(u32, GfxDataType, u32, u32) override {}
 
-    u32 createTexture() override { ++createTextureCalls; return createTextureFails ? 0u : nextTextureId++; }
-    void deleteTexture(u32 id) override { ++deleteTextureCalls; lastDeletedTexture = id; }
-    void texImage2D(u32, u32, u32, GfxPixelFormat, const void*) override { ++texImage2DCalls; }
-    void texSubImage2D(u32, i32, i32, u32, u32, GfxPixelFormat, const void*) override { ++texSubImage2DCalls; }
-    void compressedTexImage2D(u32, u32, u32, GfxCompressedFormat format, const void*, u32 byteLength) override {
-        ++compressedTexImage2DCalls;
-        lastCompressedFormat = format;
-        lastCompressedByteLength = byteLength;
+    FramebufferHandle createFramebuffer(const FramebufferDesc& desc) override {
+        ++createFramebufferCalls;
+        lastFramebufferDesc = desc;
+        return FramebufferHandle{nextFramebufferId++};
     }
-    void setTextureParams(u32, TextureFilter, TextureFilter, TextureWrap, TextureWrap) override { ++setTextureParamsCalls; }
-    void generateMipmaps(u32) override { ++generateMipmapsCalls; }
-    void pixelStorei(u32, i32) override {}
-    void setUnpackFlipY(bool) override {}
-
-    u32 createFramebuffer() override { ++createFramebufferCalls; return nextFramebufferId++; }
-    void deleteFramebuffer(u32) override { ++deleteFramebufferCalls; }
-    void bindFramebuffer(u32 fboId) override { ++bindFramebufferCalls; lastFbo = fboId; }
-    void framebufferTexture2D(u32, GfxAttachment, u32) override { ++framebufferTexture2DCalls; }
-    bool checkFramebufferStatus() override { return true; }
+    void deleteFramebuffer(FramebufferHandle) override { ++deleteFramebufferCalls; }
+    void bindFramebuffer(FramebufferHandle framebuffer) override { ++bindFramebufferCalls; lastFbo = framebuffer; }
 
     void readPixels(i32, i32, u32, u32, GfxPixelFormat, void*) override {}
+
+    u32 createTimerQuery() override { return 0; }  // report "no GPU timing" like a bare backend
+    void beginTimerQuery(u32) override {}
+    void endTimerQuery() override {}
+    bool timerDisjoint() override { return false; }
+    bool getTimerQueryNs(u32, u64*) override { return false; }
 
     void setWireframe(bool) override {}
     u32 getError() override { return 0; }
     std::string getString(GfxStringName) override { return {}; }
     i32 getInt(GfxIntParam) override { return 16; }
-    bool supportsCompressedFormat(GfxCompressedFormat) override { return compressedSupported; }
 };
 
 }  // namespace esengine

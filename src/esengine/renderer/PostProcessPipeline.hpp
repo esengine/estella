@@ -163,9 +163,9 @@ public:
     void clearPasses();
 
     /**
-     * @brief Sets the output target FBO for the final blit (0 = default framebuffer / screen)
+     * @brief Sets the output target for the final blit (Default = screen)
      */
-    void setOutputTarget(u32 fboId);
+    void setOutputTarget(FramebufferHandle target);
 
     /**
      * @brief Sets the output viewport for the final blit
@@ -222,8 +222,8 @@ private:
     void ensureFBOs();
     void ensureScreenQuad();
     void drawScreenQuad();
-    void renderPass(const PostProcessPass& pass, u32 inputTexture);
-    void blitToOutput(u32 texture);
+    void renderPass(const PostProcessPass& pass, TextureHandle inputTexture);
+    void blitToOutput(TextureHandle texture);
 
     GfxDevice& device_;
     RenderContext& context_;
@@ -233,7 +233,7 @@ private:
     Unique<Framebuffer> fboB_;
     Unique<Framebuffer> fboOriginal_;
     u32 screen_quad_vao_ = 0;
-    u32 screen_quad_vbo_ = 0;
+    BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
     resource::ShaderHandle blitShader_;
 
     std::vector<PostProcessPass> passes_;
@@ -245,9 +245,9 @@ private:
     bool inFrame_ = false;
     bool bypass_ = false;
     u32 currentFBO_ = 0;
-    u32 sceneTexture_ = 0;
+    TextureHandle sceneTexture_ = TextureHandle::Invalid;
 
-    u32 output_target_fbo_ = 0;
+    FramebufferHandle output_target_fbo_ = FramebufferHandle::Default;
     u32 output_vp_x_ = 0;
     u32 output_vp_y_ = 0;
     u32 output_vp_w_ = 0;

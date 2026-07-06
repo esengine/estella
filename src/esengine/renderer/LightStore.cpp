@@ -14,22 +14,21 @@ namespace esengine {
 void LightStore::uploadAndBind() {
     if (!device_) return;
 
-    if (ubo_ == 0) {
-        ubo_ = device_->createBuffer();
-        dirty_ = true;
-    }
-    device_->bindUniformBuffer(ubo_);
-    if (dirty_) {
-        device_->bufferData(GfxBufferTarget::Uniform, &data_, sizeof(LightConstants), /*dynamic=*/true);
+    if (ubo_ == BufferHandle::Invalid) {
+        ubo_ = device_->createBuffer(
+            {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(LightConstants)), /*dynamic=*/true}, &data_);
+        dirty_ = false;
+    } else if (dirty_) {
+        device_->updateBuffer(ubo_, 0, &data_, sizeof(LightConstants));
         dirty_ = false;
     }
-    device_->bindBufferBase(LIGHT_CONSTANTS_BINDING, ubo_);
+    device_->setUniformBuffer(LIGHT_CONSTANTS_BINDING, ubo_);
 }
 
 void LightStore::free() {
-    if (ubo_ != 0 && device_) {
+    if (ubo_ != BufferHandle::Invalid && device_) {
         device_->deleteBuffer(ubo_);
-        ubo_ = 0;
+        ubo_ = BufferHandle::Invalid;
     }
     dirty_ = true;
 }

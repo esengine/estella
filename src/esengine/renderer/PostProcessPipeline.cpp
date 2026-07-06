@@ -118,9 +118,9 @@ void PostProcessPipeline::shutdown() {
     screenPasses_.clear();
 
     auto* device = &device_;
-    if (screen_quad_vbo_ != 0 && device) {
+    if (screen_quad_vbo_ != BufferHandle::Invalid && device) {
         device->deleteBuffer(screen_quad_vbo_);
-        screen_quad_vbo_ = 0;
+        screen_quad_vbo_ = BufferHandle::Invalid;
     }
     if (screen_quad_vao_ != 0 && device) {
         device->deleteVertexArray(screen_quad_vao_);
@@ -135,7 +135,7 @@ void PostProcessPipeline::shutdown() {
     fboOriginalCreated_ = false;
     screenCaptureActive_ = false;
     screenFBOCreated_ = false;
-    sceneTexture_ = 0;
+    sceneTexture_ = TextureHandle::Invalid;
 
     if (blitShader_.isValid()) {
         resourceManager_.releaseShader(blitShader_);
@@ -260,9 +260,9 @@ void PostProcessPipeline::ensureScreenQuad() {
     u32 vao = device->createVertexArray();
     device->bindVertexArray(vao);
 
-    u32 vbo = device->createBuffer();
+    BufferHandle vbo = device->createBuffer(
+        {GfxBufferUsage::Vertex, static_cast<u32>(sizeof(vertices)), /*dynamic=*/false}, vertices);
     device->bindVertexBuffer(vbo);
-    device->bufferData(GfxBufferTarget::Vertex, vertices, static_cast<u32>(sizeof(vertices)), false);
 
     device->enableVertexAttrib(0);
     device->vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
@@ -319,11 +319,11 @@ void PostProcessPipeline::end() {
     if (enabledCount == 0) {
         blitToOutput(sceneTexture_);
     } else {
-        u32 inputTexture = sceneTexture_;
+        TextureHandle inputTexture = sceneTexture_;
         currentFBO_ = 0;
 
         device->bindTexture(1, sceneTexture_);
-        device->bindTexture(0, 0);
+        device->bindTexture(0, TextureHandle::Invalid);
 
         for (const auto& pass : passes_) {
             if (!pass.enabled) continue;
@@ -347,10 +347,10 @@ void PostProcessPipeline::end() {
     device->setBlendEnabled(true);
     device->setDepthTest(true);
     inFrame_ = false;
-    output_target_fbo_ = 0;
+    output_target_fbo_ = FramebufferHandle::Default;
 }
 
-void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTexture) {
+void PostProcessPipeline::renderPass(const PostProcessPass& pass, TextureHandle inputTexture) {
     Shader* shader = resourceManager_.getShader(pass.shader);
     if (!shader) return;
 
@@ -386,8 +386,8 @@ void PostProcessPipeline::clearPasses() {
     passes_.clear();
 }
 
-void PostProcessPipeline::setOutputTarget(u32 fboId) {
-    output_target_fbo_ = fboId;
+void PostProcessPipeline::setOutputTarget(FramebufferHandle target) {
+    output_target_fbo_ = target;
 }
 
 void PostProcessPipeline::setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
@@ -397,7 +397,7 @@ void PostProcessPipeline::setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
     output_vp_h_ = h;
 }
 
-void PostProcessPipeline::blitToOutput(u32 texture) {
+void PostProcessPipeline::blitToOutput(TextureHandle texture) {
     Shader* shader = resourceManager_.getShader(blitShader_);
     if (!shader) return;
 
@@ -417,12 +417,13 @@ void PostProcessPipeline::blitToOutput(u32 texture) {
 }
 
 u32 PostProcessPipeline::getSourceTexture() const {
-    return fboOriginal_ ? fboOriginal_->getColorAttachment() : 0;
+    return fboOriginal_ ? static_cast<u32>(fboOriginal_->getColorAttachment()) : 0;
 }
 
 u32 PostProcessPipeline::getOutputTexture() const {
     if (!fboA_ || !fboB_) return 0;
-    return (currentFBO_ == 0) ? fboA_->getColorAttachment() : fboB_->getColorAttachment();
+    return static_cast<u32>((currentFBO_ == 0) ? fboA_->getColorAttachment()
+                                               : fboB_->getColorAttachment());
 }
 
 void PostProcessPipeline::ensureScreenFBO() {
@@ -489,11 +490,11 @@ void PostProcessPipeline::executeScreenPasses() {
 
     sceneTexture_ = screenFBO_->getColorAttachment();
     screenFBO_->unbind();
-    u32 inputTexture = sceneTexture_;
+    TextureHandle inputTexture = sceneTexture_;
     u32 pingPong = 0;
 
     device->bindTexture(1, sceneTexture_);
-    device->bindTexture(0, 0);
+    device->bindTexture(0, TextureHandle::Invalid);
 
     for (const auto& pass : screenPasses_) {
         if (!pass.enabled) continue;
@@ -511,7 +512,7 @@ void PostProcessPipeline::executeScreenPasses() {
     Framebuffer* lastFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
     lastFBO->unbind();
 
-    device->bindFramebuffer(0);
+    device->bindFramebuffer(FramebufferHandle::Default);
     device->setViewport(0, 0, width_, height_);
     blitToOutput(inputTexture);
 

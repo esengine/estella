@@ -42,7 +42,7 @@ static void restoreImmediateDrawState() {
         dev->setBlendEnabled(true);
         dev->setBlendMode(BlendMode::Normal);
         dev->setDepthTest(false);
-        dev->bindTexture(0, 0);
+        dev->bindTexture(0, TextureHandle::Invalid);
     }
 }
 
@@ -220,7 +220,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
             case 10: {
                 i32 slot = static_cast<i32>(uniforms[idx++]);
                 u32 textureId = static_cast<u32>(uniforms[idx++]);
-                g_device->bindTexture(static_cast<u32>(slot), textureId);
+                g_device->bindTexture(static_cast<u32>(slot), TextureHandle{textureId});
                 shader->setUniform(name, slot);
                 break;
             }

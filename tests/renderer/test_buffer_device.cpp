@@ -29,10 +29,12 @@ int main() {
             auto vbo = VertexBuffer::createRaw(d, verts, sizeof(verts));
             CHECK(vbo != nullptr, "VertexBuffer::createRaw returns a buffer");
             CHECK(d.createBufferCalls == 1, "createRaw -> device.createBuffer");
-            CHECK(d.bufferDataCalls == 1, "createRaw -> device.bufferData");
-            CHECK(vbo->getId() == 200, "buffer id is device-assigned");
+            CHECK(d.lastCreateBufferHadData, "createRaw uploads its initial data at creation");
+            CHECK(d.lastBufferDesc.usage == GfxBufferUsage::Vertex, "createRaw declares Vertex usage");
+            CHECK(d.lastBufferDesc.size == sizeof(verts), "createRaw sizes the buffer to the data");
+            CHECK(vbo->handle() == BufferHandle{200}, "buffer handle is device-assigned");
             vbo->setDataRaw(verts, sizeof(verts));
-            CHECK(d.bufferSubDataCalls == 1, "setDataRaw -> device.bufferSubData");
+            CHECK(d.updateBufferCalls == 1, "setDataRaw -> device.updateBuffer");
         }
         CHECK(d.deleteBufferCalls == 1, "destructor -> device.deleteBuffer");
     }
@@ -43,8 +45,8 @@ int main() {
         u32 idx[] = { 0, 1, 2, 2, 3, 0 };
         auto ibo = IndexBuffer::create(d, idx, 6);
         CHECK(ibo != nullptr, "IndexBuffer::create returns a buffer");
-        CHECK(d.createBufferCalls == 1 && d.bufferDataCalls == 1, "create -> device.createBuffer + bufferData");
-        CHECK(d.bindIndexBufferCalls >= 1, "create binds via device.bindIndexBuffer");
+        CHECK(d.createBufferCalls == 1 && d.lastCreateBufferHadData, "create -> device.createBuffer with data");
+        CHECK(d.lastBufferDesc.usage == GfxBufferUsage::Index, "create declares Index usage");
         CHECK(ibo->getCount() == 6, "index count stored");
         CHECK(!ibo->is16Bit(), "u32 indices not flagged 16-bit");
     }

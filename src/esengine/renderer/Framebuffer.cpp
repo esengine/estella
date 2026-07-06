@@ -30,12 +30,12 @@ Framebuffer::~Framebuffer() {
 Framebuffer::Framebuffer(Framebuffer&& other) noexcept
     : device_(other.device_),
       spec_(other.spec_),
-      framebufferId_(other.framebufferId_),
+      handle_(other.handle_),
       colorAttachment_(other.colorAttachment_),
       depthAttachment_(other.depthAttachment_) {
-    other.framebufferId_ = 0;
-    other.colorAttachment_ = 0;
-    other.depthAttachment_ = 0;
+    other.handle_ = FramebufferHandle::Default;
+    other.colorAttachment_ = TextureHandle::Invalid;
+    other.depthAttachment_ = TextureHandle::Invalid;
 }
 
 Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
@@ -43,12 +43,12 @@ Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
         cleanup();
         device_ = other.device_;
         spec_ = other.spec_;
-        framebufferId_ = other.framebufferId_;
+        handle_ = other.handle_;
         colorAttachment_ = other.colorAttachment_;
         depthAttachment_ = other.depthAttachment_;
-        other.framebufferId_ = 0;
-        other.colorAttachment_ = 0;
-        other.depthAttachment_ = 0;
+        other.handle_ = FramebufferHandle::Default;
+        other.colorAttachment_ = TextureHandle::Invalid;
+        other.depthAttachment_ = TextureHandle::Invalid;
     }
     return *this;
 }
@@ -75,11 +75,11 @@ Unique<Framebuffer> Framebuffer::create(GfxDevice& device, const FramebufferSpec
 // =============================================================================
 
 void Framebuffer::bind() const {
-    if (device_) device_->bindFramebuffer(framebufferId_);
+    if (device_) device_->bindFramebuffer(handle_);
 }
 
 void Framebuffer::unbind() const {
-    if (device_) device_->bindFramebuffer(0);
+    if (device_) device_->bindFramebuffer(FramebufferHandle::Default);
 }
 
 void Framebuffer::resize(u32 width, u32 height) {
@@ -104,56 +104,50 @@ void Framebuffer::resize(u32 width, u32 height) {
 bool Framebuffer::initialize() {
     const TextureFilter filter = spec_.linearFilter ? TextureFilter::Linear : TextureFilter::Nearest;
 
-    framebufferId_ = device_->createFramebuffer();
-    device_->bindFramebuffer(framebufferId_);
-
-    colorAttachment_ = device_->createTexture();
-    device_->texImage2D(colorAttachment_, spec_.width, spec_.height, GfxPixelFormat::RGBA8, nullptr);
-    device_->setTextureParams(colorAttachment_, filter, filter,
-                              TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
-    device_->framebufferTexture2D(framebufferId_, GfxAttachment::Color0, colorAttachment_);
+    TextureDesc colorDesc;
+    colorDesc.width = spec_.width;
+    colorDesc.height = spec_.height;
+    colorDesc.format = GfxPixelFormat::RGBA8;
+    colorDesc.minFilter = filter;
+    colorDesc.magFilter = filter;
+    colorAttachment_ = device_->createTexture(colorDesc, nullptr);
 
     if (spec_.depthStencil) {
-        depthAttachment_ = device_->createTexture();
-        device_->texImage2D(depthAttachment_, spec_.width, spec_.height,
-                            GfxPixelFormat::Depth24Stencil8, nullptr);
-        device_->setTextureParams(depthAttachment_, TextureFilter::Nearest, TextureFilter::Nearest,
-                                  TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
-        device_->framebufferTexture2D(framebufferId_, GfxAttachment::DepthStencil, depthAttachment_);
+        TextureDesc depthDesc;
+        depthDesc.width = spec_.width;
+        depthDesc.height = spec_.height;
+        depthDesc.format = GfxPixelFormat::Depth24Stencil8;
+        depthDesc.minFilter = TextureFilter::Nearest;
+        depthDesc.magFilter = TextureFilter::Nearest;
+        depthAttachment_ = device_->createTexture(depthDesc, nullptr);
     }
 
-    if (u32 err = device_->getError(); err != 0) {
-        ES_LOG_ERROR("Framebuffer GL error before completeness check: 0x{:X} (size: {}x{})",
-                     err, spec_.width, spec_.height);
-    }
-
-    if (!device_->checkFramebufferStatus()) {
-        ES_LOG_ERROR("Framebuffer is incomplete! (size: {}x{})", spec_.width, spec_.height);
-        device_->bindFramebuffer(0);
+    handle_ = device_->createFramebuffer({colorAttachment_, depthAttachment_});
+    if (handle_ == FramebufferHandle::Default) {
+        ES_LOG_ERROR("Framebuffer is incomplete! (size: {}x{}, GL error 0x{:X})",
+                     spec_.width, spec_.height, device_->getError());
         cleanup();
         return false;
     }
-
-    device_->bindFramebuffer(0);
     return true;
 }
 
 void Framebuffer::cleanup() {
     if (!device_) return;
 
-    if (colorAttachment_) {
+    if (colorAttachment_ != TextureHandle::Invalid) {
         device_->deleteTexture(colorAttachment_);
-        colorAttachment_ = 0;
+        colorAttachment_ = TextureHandle::Invalid;
     }
 
-    if (depthAttachment_) {
+    if (depthAttachment_ != TextureHandle::Invalid) {
         device_->deleteTexture(depthAttachment_);
-        depthAttachment_ = 0;
+        depthAttachment_ = TextureHandle::Invalid;
     }
 
-    if (framebufferId_) {
-        device_->deleteFramebuffer(framebufferId_);
-        framebufferId_ = 0;
+    if (handle_ != FramebufferHandle::Default) {
+        device_->deleteFramebuffer(handle_);
+        handle_ = FramebufferHandle::Default;
     }
 }
 

@@ -206,13 +206,13 @@ public:
      * @brief Checks if the shader compiled and linked successfully
      * @return True if the shader is usable
      */
-    bool isValid() const { return programId_ != 0; }
+    bool isValid() const { return program_ != ShaderHandle::Invalid; }
 
-    /**
-     * @brief Gets the OpenGL program ID
-     * @return GPU program handle
-     */
-    u32 getProgramId() const { return programId_; }
+    /** @brief Gets the device program handle */
+    ShaderHandle handle() const { return program_; }
+
+    /** @brief Gets the program handle's raw value, for command payloads and sort keys */
+    u32 getProgramId() const { return static_cast<u32>(program_); }
 
 private:
     /**
@@ -232,7 +232,7 @@ private:
     i32 cacheUniformLocation(const std::string& name, bool warnOnMiss) const;
 
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
-    u32 programId_ = 0;
+    ShaderHandle program_ = ShaderHandle::Invalid;
 
     /** @brief Cached uniform locations (mutable for const uniform setters) */
     mutable std::unordered_map<std::string, i32> uniformCache_;

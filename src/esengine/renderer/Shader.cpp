@@ -27,32 +27,32 @@
 namespace esengine {
 
 Shader::~Shader() {
-    if (programId_ != 0 && device_) {
-        device_->deleteProgram(programId_);
-        programId_ = 0;
+    if (program_ != ShaderHandle::Invalid && device_) {
+        device_->deleteProgram(program_);
+        program_ = ShaderHandle::Invalid;
     }
 }
 
 Shader::Shader(Shader&& other) noexcept
     : device_(other.device_)
-    , programId_(other.programId_)
+    , program_(other.program_)
     , uniformCache_(std::move(other.uniformCache_))
     , attribCache_(std::move(other.attribCache_))
     , activeUniforms_(std::move(other.activeUniforms_)) {
-    other.programId_ = 0;
+    other.program_ = ShaderHandle::Invalid;
 }
 
 Shader& Shader::operator=(Shader&& other) noexcept {
     if (this != &other) {
-        if (programId_ != 0 && device_) {
-            device_->deleteProgram(programId_);
+        if (program_ != ShaderHandle::Invalid && device_) {
+            device_->deleteProgram(program_);
         }
         device_ = other.device_;
-        programId_ = other.programId_;
+        program_ = other.program_;
         uniformCache_ = std::move(other.uniformCache_);
         attribCache_ = std::move(other.attribCache_);
         activeUniforms_ = std::move(other.activeUniforms_);
-        other.programId_ = 0;
+        other.program_ = ShaderHandle::Invalid;
     }
     return *this;
 }
@@ -120,11 +120,11 @@ Unique<Shader> Shader::createFromFile(GfxDevice& device,
 void Shader::bind() const {
     // Direct program bind for setup-time use (e.g. seeding a sampler uniform). Per-frame
     // rendering binds programs through GfxDevice::setPipeline, not here.
-    if (device_) device_->useProgram(programId_);
+    if (device_) device_->useProgram(program_);
 }
 
 void Shader::unbind() const {
-    if (device_) device_->useProgram(0);
+    if (device_) device_->useProgram(ShaderHandle::Invalid);
 }
 
 bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSrc,
@@ -138,9 +138,9 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     }
 
     GfxShaderStage stage = GfxShaderStage::None;
-    programId_ = device_->createProgram(vertexSrc.c_str(), fragmentSrc.c_str(),
-                                        binds.data(), static_cast<u32>(binds.size()),
-                                        outLog, &stage);
+    program_ = device_->createProgram(vertexSrc.c_str(), fragmentSrc.c_str(),
+                                      binds.data(), static_cast<u32>(binds.size()),
+                                      outLog, &stage);
 
     if (outFailedStage) {
         switch (stage) {
@@ -151,7 +151,7 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         }
     }
 
-    if (programId_ == 0) {
+    if (program_ == ShaderHandle::Invalid) {
         return false;
     }
 
@@ -160,33 +160,33 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     // Link the per-frame constants block to its shared binding point, so the program
     // reads u_projection from the FrameConstants UBO with no loose uniform upload.
     // Programs without the block (custom/user shaders) simply skip this.
-    u32 frameBlock = device_->getUniformBlockIndex(programId_, FRAME_CONSTANTS_BLOCK);
+    u32 frameBlock = device_->getUniformBlockIndex(program_, FRAME_CONSTANTS_BLOCK);
     if (frameBlock != GFX_INVALID_UNIFORM_BLOCK) {
-        device_->uniformBlockBinding(programId_, frameBlock, FRAME_CONSTANTS_BINDING);
+        device_->uniformBlockBinding(program_, frameBlock, FRAME_CONSTANTS_BINDING);
     }
 
     // Same for the per-material constants block (ShaderParser auto-generates it for shaders
     // authored with #pragma param); the render path binds each material's UBO here per draw.
-    u32 materialBlock = device_->getUniformBlockIndex(programId_, MATERIAL_CONSTANTS_BLOCK);
+    u32 materialBlock = device_->getUniformBlockIndex(program_, MATERIAL_CONSTANTS_BLOCK);
     if (materialBlock != GFX_INVALID_UNIFORM_BLOCK) {
-        device_->uniformBlockBinding(programId_, materialBlock, MATERIAL_CONSTANTS_BINDING);
+        device_->uniformBlockBinding(program_, materialBlock, MATERIAL_CONSTANTS_BINDING);
     }
 
     // Same for the per-frame 2D light block (ShaderParser injects it for Lit2D-domain shaders);
     // the render path uploads + binds the shared LightConstants UBO here once per frame.
-    u32 lightBlock = device_->getUniformBlockIndex(programId_, LIGHT_CONSTANTS_BLOCK);
+    u32 lightBlock = device_->getUniformBlockIndex(program_, LIGHT_CONSTANTS_BLOCK);
     if (lightBlock != GFX_INVALID_UNIFORM_BLOCK) {
-        device_->uniformBlockBinding(programId_, lightBlock, LIGHT_CONSTANTS_BINDING);
+        device_->uniformBlockBinding(program_, lightBlock, LIGHT_CONSTANTS_BINDING);
     }
 
     // Same for the injected frame clock (u_time).
-    u32 timeBlock = device_->getUniformBlockIndex(programId_, TIME_CONSTANTS_BLOCK);
+    u32 timeBlock = device_->getUniformBlockIndex(program_, TIME_CONSTANTS_BLOCK);
     if (timeBlock != GFX_INVALID_UNIFORM_BLOCK) {
-        device_->uniformBlockBinding(programId_, timeBlock, TIME_CONSTANTS_BINDING);
+        device_->uniformBlockBinding(program_, timeBlock, TIME_CONSTANTS_BINDING);
     }
 
-    ES_LOG_DEBUG("Shader compiled successfully (program ID: {}, active uniforms: {})",
-                 programId_, activeUniforms_.size());
+    ES_LOG_DEBUG("Shader compiled successfully (program handle: {}, active uniforms: {})",
+                 static_cast<u32>(program_), activeUniforms_.size());
     return true;
 }
 
@@ -205,16 +205,16 @@ ShaderCompileOutcome Shader::createEx(GfxDevice& device,
 }
 
 void Shader::reflectActiveUniforms() {
-    activeUniforms_ = device_->getActiveUniforms(programId_);
+    activeUniforms_ = device_->getActiveUniforms(program_);
 }
 
 i32 Shader::cacheUniformLocation(const std::string& name, bool warnOnMiss) const {
     auto [it, inserted] = uniformCache_.emplace(name, -1);
     if (inserted) {
-        it->second = device_->getUniformLocation(programId_, name.c_str());
+        it->second = device_->getUniformLocation(program_, name.c_str());
         if (it->second < 0 && warnOnMiss) {
             ES_LOG_WARN("Shader {}: uniform '{}' not found (typo or optimized out)",
-                        programId_, name);
+                        static_cast<u32>(program_), name);
         }
     }
     return it->second;
@@ -287,7 +287,7 @@ void Shader::setUniform(i32 location, const glm::mat4& value) const {
 i32 Shader::getAttribLocation(const std::string& name) const {
     auto [it, inserted] = attribCache_.emplace(name, -1);
     if (inserted) {
-        it->second = device_->getAttribLocation(programId_, name.c_str());
+        it->second = device_->getAttribLocation(program_, name.c_str());
     }
     return it->second;
 }
