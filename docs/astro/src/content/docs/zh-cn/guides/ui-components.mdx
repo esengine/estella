@@ -126,15 +126,28 @@ const bar = createProgress({
 });
 
 bar.setValue(0.6);   // 0..1
+
+// 径向仪表(冷却 / 环形计量)——从 12 点钟方向顺时针扫过的扇形:
+const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 ```
 
 | 选项 | 说明 |
 |---|---|
 | `value` | 初始进度,`0..1`。 |
-| `direction` | 填充增长方向:`'right'`(默认)、`'left'`、`'up'`、`'down'`。 |
+| `direction` | 线性填充增长方向:`'right'`(默认)、`'left'`、`'up'`、`'down'`。 |
+| `radial` | 用径向仪表替代进度条——顺时针扫过整圆的扇形。忽略 `direction`。 |
 | `background` / `fill` | 轨道和填充视觉。 |
 
 **句柄:** `value()`、`setValue(v)`、`dispose()`,以及 `fillEntity`。
+
+<Aside type="note">
+  **同一个填充原语。** 进度条就是一个处于 **`Filled`** 模式的
+  [`UIVisual`](/docs/guides/ui/)——与滑块填充共用同一个原语,对应 Unity 的
+  "血条 = Filled Image"。`setValue()` 写入 `fillAmount`,因此填充是渲染期裁剪、
+  **不触发每帧布局**,贴图填充会沿轴**揭示**而非拉伸。`direction` 通过共享的
+  `FILL_AXIS` 表解析为 `Filled` 的裁剪轴与锚定边,让进度条、滑块以及其他基于
+  Filled 的控件填充行为完全一致。
+</Aside>
 
 ## Dropdown 下拉
 

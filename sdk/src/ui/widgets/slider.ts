@@ -5,9 +5,9 @@ import type { World } from '../../world';
 
 import { UINode, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
-import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from '../core/ui-visual';
+import { UIVisual, UIVisualType, type UIVisualData } from '../core/ui-visual';
 
-import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, FILL_AXIS, type UINodeInit, type UIVisualInit } from './helpers';
 import { themeColors } from '../theme/tokens';
 
 export interface SliderOptions {
@@ -62,6 +62,10 @@ export function createSlider(opts: SliderOptions): SliderHandle {
 
     const c = themeColors();
 
+    // Slider fill is a horizontal Filled bar growing from the left — the same
+    // partial-fill primitive progress uses, shared via FILL_AXIS.
+    const [fillMethod, fillOrigin] = FILL_AXIS.right;
+
     const track = spawnUIEntity({
         world: opts.world,
         parent: opts.parent,
@@ -75,8 +79,8 @@ export function createSlider(opts: SliderOptions): SliderHandle {
         node: { fill: true },
         visual: {
             visualType: UIVisualType.Filled,
-            fillMethod: FillMethod.Horizontal,
-            fillOrigin: FillOrigin.Left,
+            fillMethod,
+            fillOrigin,
             fillAmount: fraction(value, min, max),
             ...(opts.fillVisual ?? { color: c.primary }),
         },

@@ -11,7 +11,13 @@ import {
     type UIVisualData,
 } from '../core/ui-visual';
 
-import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
+import {
+    spawnUIEntity,
+    FILL_AXIS,
+    type UINodeInit,
+    type UIVisualInit,
+    type LinearFillDirection,
+} from './helpers';
 import { themeColors } from '../theme/tokens';
 
 export interface ProgressOptions {
@@ -23,7 +29,7 @@ export interface ProgressOptions {
     /** Fill renderer config (the filled bar). */
     fill?: { color?: Color; sprite?: number };
     /** Direction the fill grows (linear bars). Default: 'right'. */
-    direction?: 'right' | 'left' | 'up' | 'down';
+    direction?: LinearFillDirection;
     /**
      * Radial gauge instead of a linear bar: the fill is a clockwise wedge
      * sweeping the full circle from 12 o'clock (cooldown / ring meter).
@@ -102,11 +108,3 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
 function clamp01(v: number): number {
     return v < 0 ? 0 : v > 1 ? 1 : v;
 }
-
-// Fill grows along `dir`, anchored at the opposite edge.
-const FILL_AXIS: Record<'right' | 'left' | 'up' | 'down', readonly [FillMethod, FillOrigin]> = {
-    right: [FillMethod.Horizontal, FillOrigin.Left],
-    left: [FillMethod.Horizontal, FillOrigin.Right],
-    up: [FillMethod.Vertical, FillOrigin.Bottom],
-    down: [FillMethod.Vertical, FillOrigin.Top],
-};

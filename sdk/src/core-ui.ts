@@ -117,6 +117,8 @@ export {
     buildText,
     spawnUIEntity,
     setUIVisible,
+    FILL_AXIS,
+    type LinearFillDirection,
     type UINodeInit,
     type UIVisualInit,
     type TextInit,

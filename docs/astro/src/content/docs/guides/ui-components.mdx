@@ -130,15 +130,29 @@ const bar = createProgress({
 });
 
 bar.setValue(0.6);   // 0..1
+
+// Radial gauge (cooldown / ring meter) — a clockwise wedge from 12 o'clock:
+const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 ```
 
 | Option | Description |
 |---|---|
 | `value` | Initial progress, `0..1`. |
-| `direction` | Fill growth: `'right'` (default), `'left'`, `'up'`, `'down'`. |
+| `direction` | Linear fill growth: `'right'` (default), `'left'`, `'up'`, `'down'`. |
+| `radial` | Radial gauge instead of a bar — a clockwise wedge sweeping the full circle. Ignores `direction`. |
 | `background` / `fill` | Track and fill visuals. |
 
 **Handle:** `value()`, `setValue(v)`, `dispose()`, plus `fillEntity`.
+
+<Aside type="note">
+  **One fill primitive.** A progress bar is a single [`UIVisual`](/docs/guides/ui/) in
+  **`Filled`** mode — the same primitive the slider's fill is built on, mirroring Unity's
+  "health bar = Filled Image". `setValue()` writes `fillAmount`, so the fill is a
+  render-time crop with **no per-frame layout pass**, and a sprite fill *reveals* along
+  the axis instead of stretching. `direction` resolves to the `Filled` crop axis and
+  anchor edge through the shared `FILL_AXIS` table, so progress, slider, and any other
+  Filled-based widget fill identically.
+</Aside>
 
 ## Dropdown
 
