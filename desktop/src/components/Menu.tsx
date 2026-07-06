@@ -60,6 +60,17 @@ export function MenuItems({ items, onSelect }: { items: MenuItem[]; onSelect: ()
   );
 }
 
+/** Margin kept between any floating menu and the window edge. */
+const VIEWPORT_PAD = 8;
+
+/** Pull a measured floating rect fully inside the viewport on both axes. */
+function clampToViewport(left: number, top: number, width: number, height: number) {
+  return {
+    left: Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - width - VIEWPORT_PAD)),
+    top: Math.max(VIEWPORT_PAD, Math.min(top, window.innerHeight - height - VIEWPORT_PAD)),
+  };
+}
+
 /**
  * A right-click context menu: portaled to the document body, positioned at the
  * cursor, dismissed on an outside press, a scroll, or Escape. The position is
@@ -87,10 +98,7 @@ export function ContextMenu({
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const pad = 8;
-    const left = x + r.width > window.innerWidth - pad ? Math.max(pad, window.innerWidth - r.width - pad) : x;
-    const top = y + r.height > window.innerHeight - pad ? Math.max(pad, window.innerHeight - r.height - pad) : y;
-    setPos({ left, top });
+    setPos(clampToViewport(x, y, r.width, r.height));
   }, [x, y]);
 
   useEffect(() => {
@@ -122,10 +130,9 @@ export function ContextMenu({
   );
 }
 
-// Context-menu item list; an item with `children` opens a hover flyout, flipped
-// to the left edge when there's no room on the right.
+// Context-menu item list; an item with `children` opens a hover flyout beside it.
 function CtxItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }) {
-  const [open, setOpen] = useState<{ i: number; flip: boolean } | null>(null);
+  const [open, setOpen] = useState<{ i: number; anchor: HTMLElement } | null>(null);
   return (
     <>
       {items.map((it, i) =>
@@ -135,10 +142,7 @@ function CtxItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }
           <div
             key={i}
             className="ctx-sub"
-            onMouseEnter={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              setOpen({ i, flip: r.right + 200 > window.innerWidth });
-            }}
+            onMouseEnter={(e) => setOpen({ i, anchor: e.currentTarget })}
             onMouseLeave={() => setOpen((o) => (o?.i === i ? null : o))}
           >
             <button type="button" role="menuitem" className="ctx-item" aria-haspopup="menu" disabled={it.disabled}>
@@ -146,11 +150,7 @@ function CtxItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }
               <span className="cl">{it.label}</span>
               <span className="ck"><ChevronRight size={12} /></span>
             </button>
-            {open?.i === i ? (
-              <div className={`ctx ctx-flyout${open.flip ? ' flip' : ''}`} role="menu">
-                <CtxItems items={it.children} onClose={onClose} />
-              </div>
-            ) : null}
+            {open?.i === i ? <CtxFlyout anchor={open.anchor} items={it.children} onClose={onClose} /> : null}
           </div>
         ) : (
           <button
@@ -171,5 +171,37 @@ function CtxItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }
         ),
       )}
     </>
+  );
+}
+
+/**
+ * A submenu flyout, positioned in viewport coordinates the same way the root
+ * menu is: render beside the anchor item, measure before paint, flip to the
+ * left when the right edge won't fit, and clamp both axes into the viewport —
+ * so a tall submenu summoned near the bottom shifts up instead of getting
+ * clipped by the window. Stays a DOM child of `.ctx-sub` so the hover
+ * open/close chain keeps working at any nesting depth.
+ */
+function CtxFlyout({ anchor, items, onClose }: { anchor: HTMLElement; items: MenuItem[]; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: 0, top: 0 });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const a = anchor.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    // Prefer the right side; the 4px overlap keeps the pointer's path from the
+    // parent item into the flyout unbroken. -5px lines the first flyout item up
+    // with the anchor row (menu padding + border).
+    let left = a.right - 4;
+    if (left + r.width > window.innerWidth - VIEWPORT_PAD) left = a.left - r.width + 4;
+    setPos(clampToViewport(left, a.top - 5, r.width, r.height));
+  }, [anchor]);
+
+  return (
+    <div ref={ref} className="ctx ctx-flyout" role="menu" style={{ left: pos.left, top: pos.top }}>
+      <CtxItems items={items} onClose={onClose} />
+    </div>
   );
 }
