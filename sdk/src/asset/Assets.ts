@@ -266,7 +266,20 @@ export class Assets {
     }
 
     async loadAnimClip(ref: string): Promise<AnimClipResult> {
-        return this.loadTyped('anim-clip', ref);
+        const result = await this.loadTyped<AnimClipResult>('anim-clip', ref);
+        // The loader registers the clip under its RESOLVED load path (an absolute
+        // URL in realms whose ref resolver returns fetchable URLs, e.g. the play
+        // realm), but SpriteAnimator/Animator reference clips by the SERIALIZED
+        // ref (project-relative path). Alias the raw ref to the same clip object
+        // so lookups match in every realm — without this, play mode registered
+        // `estella://…/walk.esanim` while components asked for
+        // `assets/animations/walk.esanim`, and no clip ever advanced a frame.
+        const anim = this.getSpriteAnimation_();
+        if (anim && ref !== result.clipId) {
+            const clip = anim.getClip(result.clipId);
+            if (clip && !anim.getClip(ref)) anim.aliasClip(ref, clip);
+        }
+        return result;
     }
 
     async loadTilemap(ref: string): Promise<TilemapResult> {
@@ -489,7 +502,11 @@ export class Assets {
         const texturePaths = discovered.byType.get('texture') ?? new Set<string>();
         const materialPaths = discovered.byType.get('material') ?? new Set<string>();
         const fontPaths = discovered.byType.get('font') ?? new Set<string>();
-        const animClipPaths = discovered.byType.get('anim-clip') ?? new Set<string>();
+        // Anim clips load by their RAW serialized ref: components (SpriteAnimator.clip,
+        // Animator states) look clips up by that ref, and loadAnimClip aliases it to
+        // the resolved registration. Feeding the resolved path here (like the handle
+        // types) would strip the alias and leave play-realm lookups keyless.
+        const animClipPaths = discovered.rawByType.get('anim-clip') ?? new Set<string>();
         const audioPaths = discovered.byType.get('audio') ?? new Set<string>();
         const tilemapPaths = discovered.byType.get('tilemap') ?? new Set<string>();
         const tilesetPaths = discovered.byType.get('tileset') ?? new Set<string>();

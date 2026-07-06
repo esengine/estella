@@ -71,6 +71,17 @@ export class SpriteAnimationApi {
         this.clips.set(clip.name, clip);
     }
 
+    /**
+     * Register an EXISTING clip object under an additional lookup name. Loaders
+     * register a clip under its resolved load path, which in some realms is an
+     * absolute URL — components reference the serialized project-relative ref,
+     * so the two must alias to the SAME object (events attached through one
+     * name fire for the other).
+     */
+    aliasClip(name: string, clip: SpriteAnimClip): void {
+        this.clips.set(name, clip);
+    }
+
     unregisterClip(name: string): void {
         this.clips.delete(name);
     }

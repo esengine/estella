@@ -28,6 +28,15 @@ export interface SpineAssetRef {
 
 export interface SceneAssetRefs {
     byType: Map<string, Set<string>>;
+    /**
+     * The same buckets keyed by the RAW serialized ref (pre-resolution).
+     * Loaders whose registry is keyed by what the COMPONENT carries (anim
+     * clips: `SpriteAnimator.clip` / Animator states hold the serialized ref)
+     * must be driven by the raw ref, so load-time aliasing can bind the raw
+     * ref to the resolved registration — a realm whose resolver returns
+     * absolute URLs would otherwise register under keys no component uses.
+     */
+    rawByType: Map<string, Set<string>>;
     spines: SpineAssetRef[];
     /**
      * Refs seen during discovery that could not be resolved to a path
@@ -45,6 +54,7 @@ export function discoverSceneAssets(
     refResolver?: RefResolver,
 ): SceneAssetRefs {
     const byType = new Map<string, Set<string>>();
+    const rawByType = new Map<string, Set<string>>();
     const spines: SpineAssetRef[] = [];
     const spineKeys = new Set<string>();
     const unresolved: string[] = [];
@@ -58,15 +68,20 @@ export function discoverSceneAssets(
         return r;
     };
 
+    const bucket = (map: Map<string, Set<string>>, type: string, value: string): void => {
+        let set = map.get(type);
+        if (!set) {
+            set = new Set();
+            map.set(type, set);
+        }
+        set.add(value);
+    };
+
     const addAsset = (type: string, raw: string): void => {
         const path = resolve(raw);
         if (path == null) return;
-        let set = byType.get(type);
-        if (!set) {
-            set = new Set();
-            byType.set(type, set);
-        }
-        set.add(path);
+        bucket(byType, type, path);
+        bucket(rawByType, type, raw);
     };
 
     for (const entityData of sceneData.entities) {
@@ -111,7 +126,7 @@ export function discoverSceneAssets(
         }
     }
 
-    return { byType, spines, unresolved };
+    return { byType, rawByType, spines, unresolved };
 }
 
 export function getAssetPathsByType(refs: SceneAssetRefs, type: AssetFieldType): Set<string> {

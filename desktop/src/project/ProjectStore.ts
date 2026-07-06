@@ -62,6 +62,19 @@ export interface AssetEntry {
 
 const UUID_PREFIX = '@uuid:';
 
+// UUID v4 shape — serialized refs come in three forms: `@uuid:` (canonical),
+// a BARE uuid (`.esanim` flipbook frame textures), or a plain path. A bare
+// uuid must resolve through the registry like a prefixed one; treating it as
+// a path guarantees a 404 (estella://project/<uuid>) and white sprites.
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The uuid carried by a ref (`@uuid:` prefixed, any body — explicit intent —
+ *  or bare-but-uuid-shaped), else null for plain paths. Lower-cased. */
+function refUuid(ref: string): string | null {
+  if (ref.startsWith(UUID_PREFIX)) return ref.slice(UUID_PREFIX.length).toLowerCase();
+  return UUID_SHAPE.test(ref) ? ref.toLowerCase() : null;
+}
+
 /** The subset of the engine's SceneAssetResult the Reconciler resolver reads. */
 interface PreloadResult {
   textureHandles: Map<string, number>;
@@ -423,9 +436,7 @@ class ProjectStoreImpl {
   /** The texture filter/wrap for a ref (`@uuid:` or path), from its `.meta`
    *  importer — the shape `Assets`'s TextureLoader consumes. Undefined ⇒ defaults. */
   private textureImportFor(ref: string): ReturnType<typeof readTextureImportSettings> {
-    const uuid = ref.startsWith(UUID_PREFIX)
-      ? ref.slice(UUID_PREFIX.length).toLowerCase()
-      : this.pathToUuid.get(ref);
+    const uuid = refUuid(ref) ?? this.pathToUuid.get(ref);
     return readTextureImportSettings(uuid ? this.uuidToImporter.get(uuid) : undefined);
   }
 
@@ -445,10 +456,12 @@ class ProjectStoreImpl {
   }
 
   /** Resolve a serialized asset ref to a project-relative path for the engine
-   *  loader: `@uuid:` → path (null if unknown); a plain path passes through. */
+   *  loader: a uuid ref (`@uuid:` or bare) → path (null if unknown); a plain
+   *  path passes through. */
   private resolveRef(ref: string): string | null {
-    if (!ref.startsWith(UUID_PREFIX)) return ref;
-    return this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase()) ?? null;
+    const uuid = refUuid(ref);
+    if (uuid === null) return ref;
+    return this.uuidToPath.get(uuid) ?? null;
   }
 
   /** The live GL handle for a uuid. Textures read the engine's live cache (so a
@@ -456,9 +469,8 @@ class ProjectStoreImpl {
   private handleForRef(ref: string): number {
     const tex = EngineHost.getResource(Assets)?.getTexture(ref);
     if (tex) return tex.handle;
-    const path = ref.startsWith(UUID_PREFIX)
-      ? this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase())
-      : ref;
+    const uuid = refUuid(ref);
+    const path = uuid !== null ? this.uuidToPath.get(uuid) : ref;
     const r = this.lastAssetResult;
     if (!path || !r) return 0;
     return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;

@@ -30,4 +30,13 @@ describe('resolvePlayAssetRef', () => {
     it('throws for a uuid ref missing from the manifest', () => {
         expect(() => resolvePlayAssetRef('@uuid:zzzz', MANIFEST, BASE)).toThrow(/not in play manifest/);
     });
+
+    // .esanim flipbook frames serialize BARE uuids (no @uuid: prefix); those must
+    // hit the manifest, not the path branch (which 404s on a uuid-shaped "path").
+    it('resolves a bare uuid-shaped ref through the manifest', () => {
+        const uuid = 'e43a0ed9-50e9-46d8-b1db-da1c549590a8';
+        const manifest = { [uuid]: 'estella://project/assets/textures/idle_0.png' };
+        expect(resolvePlayAssetRef(uuid, manifest, BASE)).toBe('estella://project/assets/textures/idle_0.png');
+        expect(resolvePlayAssetRef(uuid.toUpperCase(), manifest, BASE)).toBe('estella://project/assets/textures/idle_0.png');
+    });
 });

@@ -25,8 +25,7 @@ import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
 import type { PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import { fetchDecodePixels } from './asset/imageDecode';
-
-const UUID_PREFIX = '@uuid:';
+import { extractUuid, UUID_REF_PREFIX } from './asset/AssetRegistry';
 
 export interface PlayRealmRuntimeConfig {
     app: App;
@@ -65,14 +64,21 @@ export interface PlayRealmRuntimeConfig {
  * editor returns `access-control-allow-origin: *`.
  */
 /**
- * Resolve a play-realm asset ref to a fetchable URL: `@uuid:` refs go through the
- * editor-supplied manifest; any other ref is a project-relative path (spine
- * skel/atlas, …) and resolves against the project root, not the `.esengine/play/`
- * subdir the realm runs from. Pure.
+ * Resolve a play-realm asset ref to a fetchable URL. UUID refs go through the
+ * editor-supplied manifest — a `@uuid:` prefix is explicit intent (any body), and
+ * a BARE uuid-shaped ref counts too ({@link extractUuid}'s canonical forms):
+ * `.esanim` flipbook frames serialize bare uuids, and the old prefix-only check
+ * dropped those into the path branch → guaranteed 404s, blank sprite animation
+ * in play. Any other ref is a project-relative path (spine skel/atlas, …) and
+ * resolves against the project root, not the `.esengine/play/` subdir the realm
+ * runs from. Pure.
  */
 export function resolvePlayAssetRef(ref: string, manifest: Record<string, string>, assetBaseUrl?: string): string {
-    if (ref.startsWith(UUID_PREFIX)) {
-        const url = manifest[ref.slice(UUID_PREFIX.length).toLowerCase()];
+    const uuid = ref.startsWith(UUID_REF_PREFIX)
+        ? ref.slice(UUID_REF_PREFIX.length).toLowerCase()
+        : extractUuid(ref);
+    if (uuid !== null) {
+        const url = manifest[uuid];
         if (!url) throw new Error(`asset not in play manifest: ${ref}`);
         return url;
     }
