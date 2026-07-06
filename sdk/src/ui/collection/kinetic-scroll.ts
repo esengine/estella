@@ -2,29 +2,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/collection/kinetic-scroll.ts
- * @brief   KineticScroll — the pure velocity model behind drag/touch scrolling.
- *
- * Tracks the pointer's velocity while a drag is held (EMA-smoothed so one
- * jittery frame doesn't dictate the fling) and, after release, decays it
- * exponentially so the content coasts to rest — the standard kinetic-scroll
- * feel (Unity ScrollRect / iOS). Like {@link ScrollContainer}, it has no
- * input or ECS knowledge: a behavior system pushes samples in and applies
- * the ticked deltas back to the container, keeping the model unit-testable.
+ * @brief   KineticScroll — the pure velocity model behind drag/touch scrolling:
+ *          EMA-smoothed sampling while held, exponential decay after release.
+ *          Like {@link ScrollContainer}, it has no input or ECS knowledge.
  */
 import type { Vec2 } from '../../types';
 
 export interface KineticScrollOptions {
-    /**
-     * Fraction of the release velocity remaining after one second of
-     * coasting (`v *= rate^dt`). Default 0.135 — Unity's ScrollRect default.
-     */
+    /** Fling velocity left after 1s of coasting (`v *= rate^dt`). Default 0.135. */
     decelerationRate?: number;
     /** Speed floor (px/s) below which coasting stops. Default 4. */
     restVelocity?: number;
-    /**
-     * Per-second EMA rate blending new velocity samples over the held drag
-     * (`blend = 1 - e^(-rate·dt)`). Default 12 — ≈70% weight in 100ms.
-     */
+    /** Per-second EMA rate for velocity samples (`1 - e^(-rate·dt)`). Default 12. */
     sampleRate?: number;
 }
 

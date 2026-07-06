@@ -3,16 +3,11 @@
 /**
  * @file    ui/text/plugin.ts
  * @brief   TextPlugin — renders the `Text` component via the dynamic glyph
- *          atlas, replacing the legacy Canvas2D-per-entity path. A pre-flush
- *          callback scans Text entities, composes the world transform, places
- *          the text inside its UINode box (no auto-size — the UINode is the
- *          box; rendering never mutates layout) and draws batched glyph quads,
- *          layered to interleave with sibling UI elements.
- *
- *          Two glyph pipelines, routed per Text by {@link resolveTextRenderMode}
- *          (Text.renderMode, default Auto): device-resolution bitmaps when the
- *          text lands 1:1 on screen, SDF + fwidth AA whenever it's scaled by
- *          the design-resolution fit, a camera zoom, or the entity transform.
+ *          atlas. A pre-flush callback scans Text entities, places the text
+ *          inside its UINode box (rendering never mutates layout) and draws
+ *          batched glyph quads, layered with sibling UI elements. Two glyph
+ *          pipelines — hinted bitmap vs SDF — routed per Text by
+ *          {@link resolveTextRenderMode}.
  */
 import type { App, Plugin } from '../../app';
 import { Transform, type TransformData, registerComponent } from '../../component';
@@ -40,13 +35,9 @@ const BITMAP_SCALE_EPSILON = 0.02;
 
 /**
  * Pure: which glyph pipeline a Text draws with. `effectiveScale` is the
- * residual scale the bitmap path CANNOT fold into rasterization — the entity's
- * own world scale. (The canvas design-fit / camera scale is compensated by
- * rasterizing bitmap glyphs at the effective on-screen size, see
- * {@link GlyphAtlas.setContentScale} — so a static UI stays on hinted,
- * pixel-exact bitmaps at any window size, like DOM/FGUI text.) Auto sends
- * genuinely scaled text to SDF, whose screen-px-ramp AA is stable at every
- * zoom. Non-finite or unknown scales keep the bitmap path.
+ * entity's own world scale — the residual the bitmap path can't fold into
+ * rasterization (the canvas fit is, via {@link GlyphAtlas.setContentScale}).
+ * Auto keeps unscaled text on hinted bitmaps and sends scaled text to SDF.
  */
 export function resolveTextRenderMode(
     mode: TextRenderMode | undefined,
@@ -87,11 +78,9 @@ export class TextPlugin implements Plugin {
         const registry = world.getCppRegistry() as CppRegistry;
 
         pipeline.addPreFlushCallback(() => {
-            // Design→device scale of one design px this frame beyond DPR (vpW
-            // is device px). The bitmap atlas folds it into rasterization so
-            // static text is hinted at the final on-screen size regardless of
-            // the window/design fit. Resolved per frame — the camera plugin
-            // may build after this one.
+            // Design→device scale beyond DPR (vpW is device px); the bitmap
+            // atlas folds it into rasterization. Resolved per frame — the
+            // camera plugin may build after this one.
             const uiCamera = app.getResource(UICameraInfo) as UICameraData | undefined;
             const dpr = platformDevicePixelRatio();
             const span = uiCamera ? uiCamera.worldRight - uiCamera.worldLeft : 0;
@@ -105,8 +94,6 @@ export class TextPlugin implements Plugin {
                 if (!t.content) continue;
 
                 const tr = world.get(entity, Transform) as TransformData;
-                // Auto routes on the entity's own scale only — the canvas fit
-                // is already compensated in the bitmap rasterization size.
                 const renderer = this.rendererFor(
                     app,
                     resolveTextRenderMode(t.renderMode, tr.worldScale.x),
@@ -187,14 +174,8 @@ export class TextPlugin implements Plugin {
         });
     }
 
-    /**
-     * The two glyph pipelines, created lazily and kept for the app's lifetime.
-     * Bitmap: per-size rasterization at DPR, Canvas-native AA, blits 1:1.
-     * SDF: one fixed-size rasterization per glyph, fwidth-AA in the shader —
-     * resolution-independent, so scaled/zoomed text stays crisp. Both share
-     * the same layout, page-store, and batch-submit path; only the atlas
-     * contents and the shader's coverage derivation differ.
-     */
+    /** The two glyph pipelines, created lazily; they share layout, page store,
+     *  and batch submit — only the atlas contents and shader coverage differ. */
     private rendererFor(app: App, kind: 'bitmap' | 'sdf', contentScale: number): SdfTextRenderer {
         const module = app.wasmModule as ESEngineModule;
         if (kind === 'sdf') {

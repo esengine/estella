@@ -13,10 +13,7 @@ export interface ScrollContainerOptions {
     wheelSpeed?: number;
     /** Drag/touch scrolling (pointer grab + kinetic fling). Default true. */
     dragScroll?: boolean;
-    /**
-     * Fraction of the fling velocity remaining after one second of coasting.
-     * Default 0.135 (Unity ScrollRect). Only meaningful with `dragScroll`.
-     */
+    /** Fling velocity left after 1s of coasting. Default 0.135. */
     decelerationRate?: number;
 }
 

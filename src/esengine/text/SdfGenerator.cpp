@@ -5,19 +5,10 @@
  * @brief   Exact signed distance field from an antialiased coverage bitmap.
  *
  * Felzenszwalb–Huttenlocher separable squared-distance transform with
- * coverage-derived fractional seeds (the tiny-sdf / Gustavson lineage): a
- * partially covered texel seeds the transform with its sub-texel distance to
- * the true edge, (0.5 − α)², so the reconstructed field carries the edge
- * position at sub-texel accuracy instead of quantizing it to the source grid.
- * The previous 8SSEDT binarized coverage at 0.5, which baked the rasterizer's
- * pixel staircase into the field — invisible at 1:1, but magnified glyphs
- * showed it as wobbling, aliased edges.
- *
- * Two fields are computed — squared distance to the glyph interior and to the
- * exterior — and their square roots subtracted for a signed distance that is
- * positive inside, negative outside, ~0 on the edge. The 1D transform is
- * exact and O(n); scratch buffers are reused across rows/columns, keeping the
- * on-demand per-glyph cost allocation-light.
+ * coverage-derived fractional seeds (tiny-sdf lineage): a partially covered
+ * texel seeds the transform with (0.5 − α)², placing the edge at sub-texel
+ * accuracy so magnified glyphs stay smooth. Interior and exterior fields are
+ * subtracted for the signed distance; the 1D transform is exact and O(n).
  */
 #include "SdfGenerator.hpp"
 

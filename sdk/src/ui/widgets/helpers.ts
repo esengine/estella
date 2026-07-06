@@ -105,19 +105,13 @@ export function buildUIVisual(init: UIVisualInit = {}): UIVisualData {
     };
 }
 
-/**
- * Linear fill direction — the edge a partial fill grows toward. Shared
- * vocabulary for progress bars, slider fills, and any widget built on the
- * {@link UIVisualType.Filled} primitive.
- */
+/** The edge a partial fill grows toward, for widgets built on `Filled`. */
 export type LinearFillDirection = 'right' | 'left' | 'up' | 'down';
 
 /**
- * Map a {@link LinearFillDirection} to the `Filled` visual's crop axis
- * ({@link FillMethod}) and anchor edge ({@link FillOrigin}): the fill grows
- * along `direction`, cropped from the opposite edge. One canonical table so
- * progress, slider, and future Filled widgets reveal identically — no
- * per-widget re-derivation of "which axis, which origin".
+ * direction → the `Filled` visual's crop axis + anchor edge (grows along
+ * `direction`, cropped from the opposite edge). The one canonical table for
+ * progress, slider, and future Filled widgets.
  */
 export const FILL_AXIS: Record<LinearFillDirection, readonly [FillMethod, FillOrigin]> = {
     right: [FillMethod.Horizontal, FillOrigin.Left],

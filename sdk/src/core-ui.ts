@@ -144,8 +144,8 @@ export {
     createDropdown,
     type DropdownOptions,
     type DropdownHandle,
-    // Data-driven virtualized list / grid (REARCH_UI_LIST): the ergonomic factory
-    // plus the collection primitives it composes, as escape hatches.
+    // Data-driven virtualized list / grid: the ergonomic factory plus the
+    // collection primitives it composes, as escape hatches.
     createListView,
     type CreateListViewOptions,
     type ListViewHandle,

@@ -109,20 +109,17 @@ export class GlyphAtlas {
     get renderSize(): number { return this.rasterizer.renderSize; }
 
     /**
-     * On-screen device px per design px beyond DPR (the canvas design-resolution
-     * fit / camera scale). Bitmap glyphs fold it into the rasterization size so
-     * they land 1:1 on *screen* pixels — hinted at the final size, like DOM
-     * text — instead of rasterizing at design px and being resampled by the
-     * quad scale. Integer-px rounding in pixelSizeFor dedupes near-equal
-     * scales, so a window resize re-rasterizes only when sizes actually change.
+     * On-screen device px per design px beyond DPR (the canvas design fit).
+     * Bitmap glyphs fold it into the rasterization size so they land 1:1 on
+     * screen pixels, hinted at the final size; integer rounding in
+     * pixelSizeFor dedupes near-equal scales.
      */
     setContentScale(scale: number): void {
         this.contentScale_ = Number.isFinite(scale) && scale > 0 ? scale : 1;
     }
 
-    /** Rasterization size for a display size: SDF uses one fixed resolution-independent
-     *  source; bitmap rasterizes per size at the effective on-screen density
-     *  (DPR × content scale) for a crisp 1:1 blit. */
+    /** Rasterization size for a display size: SDF uses one fixed source;
+     *  bitmap rasterizes per size at the effective on-screen density. */
     pixelSizeFor(displaySize: number): number {
         return this.sdf
             ? this.renderSize

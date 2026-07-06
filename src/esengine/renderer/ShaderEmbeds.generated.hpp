@@ -60,10 +60,8 @@ void main() {
     else texColor = texture(u_textures[7], v_texCoord);
 #ifdef SDF
     // The glyph atlas stores a signed distance in the alpha channel (RGB = 1).
-    // Dividing the signed distance by its screen-space derivative converts it
-    // to *screen pixels from the edge*; a ±0.5px clamp is then exactly one
-    // pixel of linear coverage ramp — the msdfgen/TMP standard. (A full-fwidth
-    // smoothstep band spans ~2px and reads as blur, not antialiasing.)
+    // Distance ÷ fwidth = screen px from the edge; the ±0.5px clamp is exactly
+    // one pixel of linear coverage ramp (the msdfgen standard).
     float dist = texColor.a;
     float screenPxDist = (dist - 0.5) / max(fwidth(dist), 1e-6);
     float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);

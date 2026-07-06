@@ -30,11 +30,7 @@ export interface ProgressOptions {
     fill?: { color?: Color; sprite?: number };
     /** Direction the fill grows (linear bars). Default: 'right'. */
     direction?: LinearFillDirection;
-    /**
-     * Radial gauge instead of a linear bar: the fill is a clockwise wedge
-     * sweeping the full circle from 12 o'clock (cooldown / ring meter).
-     * When set, `direction` is ignored.
-     */
+    /** Radial gauge: a clockwise wedge from 12 o'clock; `direction` is ignored. */
     radial?: boolean;
     /** Initial progress 0..1. Default 0. */
     value?: number;

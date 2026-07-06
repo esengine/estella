@@ -40,11 +40,9 @@ export function sdfToAtlasRgba(sdf: Uint8Array, width: number, height: number): 
 }
 
 /**
- * Box-downsample a byte grid by an integer factor (averaging factor² texels
- * per output texel). Used to fold a supersampled SDF back to the stored
- * resolution: the field is computed at `factor²` the resolution — so edge
- * positions carry sub-(stored-)texel accuracy — and averaging a linearly
- * encoded field preserves that accuracy in the stored texels. Pure.
+ * Box-downsample a byte grid by an integer factor. Folds a supersampled SDF
+ * back to the stored resolution; averaging the linearly encoded field keeps
+ * the sub-texel edge accuracy. Pure.
  */
 export function downsampleBytes(src: Uint8Array, width: number, height: number, factor: number): Uint8Array {
     if (factor <= 1) return src;
@@ -79,11 +77,9 @@ export interface CanvasGlyphRasterizerOptions {
 type Canvas2D = HTMLCanvasElement | OffscreenCanvas;
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-// SDF supersampling: rasterize + distance-transform at SS× the stored
-// resolution, then box-downsample the field. Coverage seeding recovers the
-// edge only to ~⅓ texel; computing at 4× and averaging down stores distances
-// at ~1/12-texel accuracy, so magnified glyphs stop showing the source grid
-// as edge wobble. One-time per glyph; atlas memory is unchanged.
+// SDF supersampling: rasterize + distance-transform at 4× the stored
+// resolution, then box-downsample — magnified glyphs stop showing the source
+// grid as edge wobble. One-time per glyph; atlas memory is unchanged.
 const SDF_SUPERSAMPLE = 4;
 
 export class CanvasGlyphRasterizer implements GlyphRasterizer {
@@ -149,10 +145,8 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
 
         const img = ctx.getImageData(0, 0, wSS, hSS);
         const alpha = extractAlpha(img.data, wSS, hSS);
-        // SDF: distance-transform at the supersampled resolution (spread scales
-        // with ss, so the downsampled encoding matches spread = pad in stored
-        // texels exactly), then fold back down. Bitmap: keep the native-AA
-        // coverage as-is for a crisp 1:1 blit. Both pack as (RGB=255, A=coverage).
+        // SDF: distance-transform at ss× (spread scales with ss, so the folded
+        // encoding matches spread = pad exactly). Bitmap: native-AA coverage as-is.
         let coverage = alpha;
         if (this.sdf) {
             const sdf = sdfFromAlpha(this.module, alpha, wSS, hSS, pad * ss);

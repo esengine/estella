@@ -8,14 +8,11 @@
  * primitives (DataSource + LayoutProvider + ViewPool + ListView + ScrollContainer
  * + UIMask) — matching the createButton/createDialog factory-and-handle shape.
  *
- * Layout integration (REARCH_UI_LIST §3): items are positioned by UINode
- * Absolute inset (not Transform, which the UI layout owns); the content frame is
- * translated by the scroll offset; a Scissor UIMask on the viewport clips. Input
- * is handled by the behavior plugin once the viewport is a hovered raycast
- * target: ScrollWheelSystem applies wheel deltas, and ScrollDragSystem grabs
- * pointer drags (the primary touch is funneled into the pointer stream by the
- * platform layer, so touch scrolling rides the same path) with a kinetic fling
- * on release.
+ * Items are positioned by UINode Absolute inset (not Transform, which the UI
+ * layout owns); the content frame is translated by the scroll offset; a
+ * Scissor UIMask on the viewport clips. Wheel and drag/touch scrolling (with
+ * a kinetic fling) are handled by the behavior plugin once the viewport is a
+ * hovered raycast target.
  */
 import { Transform } from '../../component';
 import type { Entity, Vec2 } from '../../types';
@@ -148,7 +145,7 @@ function placeByInset(world: World, entity: Entity, rect: Rect): void {
 }
 
 /**
- * Build a virtualized list (or grid) in one call. See REARCH_UI_LIST.md.
+ * Build a virtualized list (or grid) in one call.
  *
  * @example
  * const list = createListView<Player>({

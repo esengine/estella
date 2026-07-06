@@ -63,9 +63,8 @@ export class UIBehaviorPlugin implements Plugin {
     }
 
     /**
-     * Attach a ScrollContainer to an entity. A wheel-driven system
-     * applies mouse-wheel input to the container whenever the entity's
-     * UIInteraction.hovered flag is true.
+     * Attach a ScrollContainer to an entity. Wheel and drag/touch input drive
+     * it while the entity's UIInteraction.hovered flag is true.
      */
     attachScrollContainer(entity: Entity, container: ScrollContainer): void {
         if (!this.scrollContainers_) {
@@ -112,10 +111,8 @@ export class UIBehaviorPlugin implements Plugin {
             Schedule.Update,
             defineSystem([], () => listViews.tick(), { name: 'ListViewSystem' }),
         );
-        // Kinetic (fling) state per scroll entity — shared between the wheel
-        // and drag systems so either input source interrupts a coast. Kept in
-        // a closure Map (the StateVisualsApplySystem precedent): runtime-only,
-        // invisible to serialization, dropped with detach.
+        // Fling state per scroll entity, shared between the wheel and drag
+        // systems so either input source interrupts a coast.
         const dynamics = new Map<Entity, KineticScroll>();
         const dynamicsFor = (entity: Entity, container: ScrollContainer): KineticScroll => {
             let d = dynamics.get(entity);
@@ -144,12 +141,9 @@ export class UIBehaviorPlugin implements Plugin {
             }, { name: 'ScrollWheelSystem' }),
         );
 
-        // Drag/touch scrolling. The web platform layer already funnels the
-        // primary touch into the pointer stream (touchstart → onPointerDown
-        // etc.), so one pointer-based system covers mouse and touch alike.
-        // Same pending → slop → active capture shape as DragSystem, but the
-        // delta drives the ScrollContainer offset instead of the entity box,
-        // and release hands the sampled velocity to KineticScroll to coast.
+        // Drag/touch scrolling — pointer-based (the platform layer funnels the
+        // primary touch into the pointer stream), same pending → slop → active
+        // capture shape as DragSystem.
         let pendingEntity: Entity | null = null;
         let activeEntity: Entity | null = null;
         let grabStartWorld: Vec2 = { x: 0, y: 0 };
@@ -162,9 +156,8 @@ export class UIBehaviorPlugin implements Plugin {
                 if (!camera.valid) return;
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
 
-                // New press over a hovered container: catch it (stop any
-                // coast) and arm the drag. Deepest hovered wins so a nested
-                // list scrolls itself, not its ancestor.
+                // Press over a hovered container arms the drag; deepest hovered
+                // wins so a nested list scrolls itself, not its ancestor.
                 if (input.isMouseButtonPressed(0)) {
                     let best: Entity | null = null;
                     let bestDepth = -1;
@@ -212,11 +205,9 @@ export class UIBehaviorPlugin implements Plugin {
                     }
                 }
 
-                // Active drag: the content follows the pointer 1:1 (absolute
-                // mapping from the grab point, so clamped overshoot re-tracks
-                // the finger on the way back). World-unit deltas divide by the
-                // viewport's world scale to land in UI px; world y is up while
-                // offset y is down, hence the sign split.
+                // Active drag: absolute mapping from the grab point so clamped
+                // overshoot re-tracks the finger. World deltas ÷ viewport scale
+                // = UI px; world y is up, offset y is down — hence the signs.
                 if (activeEntity !== null) {
                     const container = scrollContainers.get(activeEntity);
                     if (!container || !world.valid(activeEntity)) {
@@ -248,8 +239,7 @@ export class UIBehaviorPlugin implements Plugin {
                     }
                 }
 
-                // Coast phase: tick each flung container, killing an axis the
-                // moment the clamp stops it so the fling dies at the edge.
+                // Coast: tick flung containers; an axis the clamp stops is dead.
                 for (const [entity, dyn] of dynamics) {
                     if (!dyn.isCoasting()) continue;
                     const container = scrollContainers.get(entity);
