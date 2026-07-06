@@ -17,8 +17,9 @@ const obstacles: number[] = [];
 let nextColor = 0;
 
 // Left-click → colored Point light, right-click → box obstacle, C → clear.
-// Placed markers stay unlit (no `lit` flag) so a light always reads as a
-// bright dot and an obstacle as a solid block, regardless of the lighting.
+// Light markers stay unlit (no `lit` flag) — an emissive dot that reads as the
+// source itself. Obstacles are lit AND cast shadows: an occluder never shadows
+// its own interior, so a caster's sprite takes light like any other surface.
 export const placeSystem = defineSystem(
     [Res(Input), Res(UICameraInfo), Commands()],
     (input, camera: UICameraData, cmds) => {
@@ -54,6 +55,7 @@ export const placeSystem = defineSystem(
                         size: OBSTACLE_SIZE,
                         color: { r: 0.22, g: 0.24, b: 0.30, a: 1 },
                         layer: 4,
+                        lit: true,
                     })
                     .insert(ShadowCaster2D, { size: OBSTACLE_SIZE, enabled: true })
                     .id();

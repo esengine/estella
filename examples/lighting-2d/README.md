@@ -25,12 +25,17 @@ Lighting is **multiplicative**: a lit surface renders as
 unlit wall is nearly black — so a light does not just brighten the room, it
 *reveals* it.
 
-- **The room** is a grid of tiles plus a few prop sprites, all with `lit: true`
-  on their `Sprite` — the one-flag way to receive 2D lights (in the editor it is
-  the **Lit** checkbox). A sprite without the flag stays unlit (full-bright) —
-  that is why the light markers and obstacle boxes are always visible. When a
-  surface needs more than the flag (a tint, a normal map), give it a `Lit2D`
+- **The room** — the tile grid, the props, the pillars, and every placed
+  obstacle — has `lit: true` on its `Sprite`, the one-flag way to receive 2D
+  lights (in the editor it is the **Lit** checkbox). A sprite without the flag
+  stays unlit (full-bright) — the light **markers** are left unlit on purpose so
+  they read as emissive dots. Kill every light and the whole room goes black;
+  only the markers keep glowing. When a surface needs more than the flag (a
+  tint, a normal map), give it a `Lit2D`
   material instead — see the [lighting guide](../../docs/astro/src/content/docs/guides/lighting.mdx).
+- **Shadow casters are lit like anything else**: an occluder box never shadows
+  its own interior, so the pillars and obstacles take light on the side facing
+  it while still throwing a shadow cone behind them.
 - **The torch** (`src/systems/torch.ts`) is a `Light2D` of type `Point`. Each
   frame it is moved to `UICameraInfo.worldMouseX/Y`, the cursor already
   projected into world space by the active camera.

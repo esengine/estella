@@ -495,8 +495,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "}\n"
             // 2D hard shadows: a slab test of the fragment->light segment against a world AABB.
             // Returns 1.0 when the segment crosses the box's interior, else 0.0. The [0,1] param
-            // clamp means boxes behind the fragment or beyond the light don't occlude.
+            // clamp means boxes behind the fragment or beyond the light don't occlude. A box
+            // occludes the world OUTSIDE it, never a fragment inside itself — so a lit sprite
+            // that is also a ShadowCaster2D casts shadows without blacking out its own pixels
+            // (and geometry overlapping an occluder isn't spuriously darkened by it).
             "highp float segHitsBox(in highp vec2 p0, in highp vec2 p1, in highp vec4 box) {\n"
+            "    if (p0.x >= box.x && p0.y >= box.y && p0.x <= box.z && p0.y <= box.w) return 0.0;\n"
             "    highp vec2 d = p1 - p0;\n"
             "    highp float tmin = 0.0;\n"
             "    highp float tmax = 1.0;\n"
