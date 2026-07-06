@@ -6,6 +6,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { StatsStore } from '@/engine/StatsStore';
 import { SubsystemIndicator } from './SubsystemIndicator';
+import { Perf } from '@/components/Perf';
 
 // Bottom status strip — live engine telemetry (real FPS / entity count / cursor
 // world position) reads in the mono face. Anchors the Content Drawer.
@@ -32,7 +33,7 @@ export function StatusBar() {
           <span className={`sdot${isPlaying ? ' live' : ''}`} />
           {isPlaying ? 'Running' : 'Edit Mode'}
         </span>
-        <SubsystemIndicator />
+        <Perf id="statusbar.mods"><SubsystemIndicator /></Perf>
         <span className="sitem">
           {selectedIds.size ? `${selectedIds.size} selected` : 'No selection'}
         </span>

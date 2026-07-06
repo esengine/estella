@@ -37,6 +37,7 @@ import { useSelection } from './store/selectionStore';
 import { PlayRealm } from './engine/PlayRealm';
 import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
+import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
 // Register the built-in settings (side effect) and replay persisted ones.
@@ -63,6 +64,7 @@ if (new URLSearchParams(location.search).has('automation')) {
     play: () => useEditorStore.getState().togglePlay(),
     playState: () => PlayRealm.getSnapshot(),
     reveal: (id: string) => dockApi.revealAndExpand(id),
+    togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
     surface: EditorControlSurface,
   };
 }

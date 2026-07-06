@@ -20,6 +20,7 @@ import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 import { PerfOverlay } from '@/components/PerfOverlay';
+import { Perf } from '@/components/Perf';
 import type { ToolMode } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
@@ -893,7 +894,7 @@ export function Viewport() {
       )}
 
       <ViewportHud ready={engine.status === 'ready'} selCount={selCount} zoomPct={zoomPct} tool={tool} />
-      {perfVisible && <PerfOverlay />}
+      {perfVisible && <Perf id="viewport.perfhud"><PerfOverlay /></Perf>}
 
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>

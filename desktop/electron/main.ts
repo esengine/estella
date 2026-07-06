@@ -112,6 +112,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // public/       > static assets (wasm, sdk, examples) in dev
 process.env.APP_ROOT = path.join(__dirname, '..');
 
+// Automation runs get their own profile dir so a shot never fights the user's
+// live editor instance over the Chromium disk cache / userData locks.
+if (process.env.ESTELLA_SHOT) {
+  app.setPath('userData', path.join(app.getPath('temp'), 'estella-shot-profile'));
+}
+
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
 const VITE_PUBLIC = VITE_DEV_SERVER_URL
