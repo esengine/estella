@@ -32,10 +32,14 @@ export const UIVisualType = {
 } as const;
 export type UIVisualType = (typeof UIVisualType)[keyof typeof UIVisualType];
 
-/** Fill axis for Filled visuals (mirrors the C++ UIFillMethod enum). */
+/** Fill mode for Filled visuals (mirrors the C++ UIFillMethod enum). */
 export const FillMethod = {
+    /** Linear crop along X. */
     Horizontal: 0,
+    /** Linear crop along Y. */
     Vertical: 1,
+    /** Angular clockwise sweep of the full circle (cooldown / ring gauge). */
+    Radial360: 2,
 } as const;
 export type FillMethod = (typeof FillMethod)[keyof typeof FillMethod];
 

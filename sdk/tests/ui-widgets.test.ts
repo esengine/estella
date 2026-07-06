@@ -11,8 +11,10 @@ import {
     StateMachine,
     StateVisuals,
     UINode,
-    DimensionUnit,
     UIVisual,
+    UIVisualType,
+    FillMethod,
+    FillOrigin,
     UIEventQueue,
     UIEventType,
     TransitionFlag,
@@ -287,32 +289,63 @@ describe('createProgress', () => {
         expect(q.value()).toBe(0);
     });
 
-    it('setValue updates fill width % (default "right", pinned left)', () => {
+    it('setValue writes fillAmount (default "right" = Filled from the left)', () => {
         const p = createProgress({
             world: world as unknown as World,
             value: 0,
         });
         p.setValue(0.4);
-        const node = world.get(p.fillEntity, UINode) as {
-            width: { value: number; unit: number };
-            insetLeft: { value: number; unit: number };
+        const vis = world.get(p.fillEntity, UIVisual) as {
+            visualType: number;
+            fillAmount: number;
+            fillMethod: number;
+            fillOrigin: number;
         };
-        expect(node.width).toEqual({ value: 40, unit: DimensionUnit.Percent });
-        expect(node.insetLeft).toEqual({ value: 0, unit: DimensionUnit.Px });
+        expect(vis.visualType).toBe(UIVisualType.Filled);
+        expect(vis.fillAmount).toBeCloseTo(0.4);
+        expect(vis.fillMethod).toBe(FillMethod.Horizontal);
+        expect(vis.fillOrigin).toBe(FillOrigin.Left);
     });
 
-    it('pins the fill to the right when direction = "left"', () => {
+    it('anchors the fill to the right when direction = "left"', () => {
         const p = createProgress({
             world: world as unknown as World,
             direction: 'left',
             value: 0.25,
         });
-        const node = world.get(p.fillEntity, UINode) as {
-            width: { value: number; unit: number };
-            insetRight: { value: number; unit: number };
+        const vis = world.get(p.fillEntity, UIVisual) as {
+            fillAmount: number;
+            fillMethod: number;
+            fillOrigin: number;
         };
-        expect(node.width).toEqual({ value: 25, unit: DimensionUnit.Percent });
-        expect(node.insetRight).toEqual({ value: 0, unit: DimensionUnit.Px });
+        expect(vis.fillAmount).toBeCloseTo(0.25);
+        expect(vis.fillMethod).toBe(FillMethod.Horizontal);
+        expect(vis.fillOrigin).toBe(FillOrigin.Right);
+    });
+
+    it('uses the vertical fill axis for "up" / "down"', () => {
+        const up = createProgress({ world: world as unknown as World, direction: 'up', value: 0.5 });
+        const down = createProgress({ world: world as unknown as World, direction: 'down', value: 0.5 });
+        const upVis = world.get(up.fillEntity, UIVisual) as { fillMethod: number; fillOrigin: number };
+        const downVis = world.get(down.fillEntity, UIVisual) as { fillMethod: number; fillOrigin: number };
+        expect(upVis.fillMethod).toBe(FillMethod.Vertical);
+        expect(upVis.fillOrigin).toBe(FillOrigin.Bottom);
+        expect(downVis.fillMethod).toBe(FillMethod.Vertical);
+        expect(downVis.fillOrigin).toBe(FillOrigin.Top);
+    });
+
+    it('radial gauges use Radial360 from the top', () => {
+        const p = createProgress({ world: world as unknown as World, radial: true, value: 0.25 });
+        const vis = world.get(p.fillEntity, UIVisual) as {
+            visualType: number;
+            fillMethod: number;
+            fillOrigin: number;
+            fillAmount: number;
+        };
+        expect(vis.visualType).toBe(UIVisualType.Filled);
+        expect(vis.fillMethod).toBe(FillMethod.Radial360);
+        expect(vis.fillOrigin).toBe(FillOrigin.Top);
+        expect(vis.fillAmount).toBeCloseTo(0.25);
     });
 
     it('dispose despawns the track', () => {

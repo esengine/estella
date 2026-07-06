@@ -134,6 +134,7 @@ export enum TextAlign {
 export enum UIFillMethod {
     Horizontal = 0,
     Vertical = 1,
+    Radial360 = 2,
 }
 
 export enum UIFillOrigin {

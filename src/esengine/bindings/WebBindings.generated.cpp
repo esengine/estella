@@ -187,7 +187,8 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
 
     enum_<esengine::ecs::UIFillMethod>("UIFillMethod")
         .value("Horizontal", esengine::ecs::UIFillMethod::Horizontal)
-        .value("Vertical", esengine::ecs::UIFillMethod::Vertical);
+        .value("Vertical", esengine::ecs::UIFillMethod::Vertical)
+        .value("Radial360", esengine::ecs::UIFillMethod::Radial360);
 
     enum_<esengine::ecs::UIFillOrigin>("UIFillOrigin")
         .value("Left", esengine::ecs::UIFillOrigin::Left)
@@ -1948,7 +1949,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "b5571b685cb3643f";
+static const char* kEsAbiLayoutHash = "d5ee06760541c1d8";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

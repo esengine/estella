@@ -5,6 +5,7 @@ import type { World } from '../../world';
 
 import { UINode, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
+import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from '../core/ui-visual';
 
 import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
 import { themeColors } from '../theme/tokens';
@@ -71,8 +72,14 @@ export function createSlider(opts: SliderOptions): SliderHandle {
     const fill = spawnUIEntity({
         world: opts.world,
         parent: track,
-        node: fillNodeAt(fraction(value, min, max)),
-        visual: opts.fillVisual ?? { color: c.primary },
+        node: { fill: true },
+        visual: {
+            visualType: UIVisualType.Filled,
+            fillMethod: FillMethod.Horizontal,
+            fillOrigin: FillOrigin.Left,
+            fillAmount: fraction(value, min, max),
+            ...(opts.fillVisual ?? { color: c.primary }),
+        },
     });
 
     const handle = spawnUIEntity({
@@ -82,13 +89,13 @@ export function createSlider(opts: SliderOptions): SliderHandle {
         visual: opts.handleVisual ?? { color: c.onPrimary },
     });
 
-    // Value -> geometry: the fill's width is the value fraction; the handle's
-    // left inset tracks it (centered via a -half-width margin). CSS-box version
-    // of the old anchor mutation. (A driver system owns this in the F7 rework.)
+    // Value -> visuals: the fill's Filled amount is the value fraction (a
+    // render-time crop, no relayout); the handle's left inset tracks it,
+    // centered via a -half-width margin.
     function writeVisuals(t: number): void {
-        const fillNode = opts.world.get(fill, UINode) as UINodeData;
-        fillNode.width = percent(t * 100);
-        opts.world.insert(fill, UINode, fillNode);
+        const vis = opts.world.get(fill, UIVisual) as UIVisualData;
+        vis.fillAmount = t;
+        opts.world.insert(fill, UIVisual, vis);
 
         const handleNode = opts.world.get(handle, UINode) as UINodeData;
         handleNode.insetLeft = percent(t * 100);
@@ -126,17 +133,6 @@ export function createSlider(opts: SliderOptions): SliderHandle {
 function fraction(value: number, min: number, max: number): number {
     if (max <= min) return 0;
     return clamp((value - min) / (max - min), 0, 1);
-}
-
-// Fill: absolute, pinned to the track's left/top/bottom, width = value fraction.
-function fillNodeAt(t: number): UINodeInit {
-    return {
-        position: 1, // Absolute
-        insetLeft: px(0),
-        insetTop: px(0),
-        insetBottom: px(0),
-        width: percent(t * 100),
-    };
 }
 
 // Handle: absolute, full height, fixed width, centered at the value fraction

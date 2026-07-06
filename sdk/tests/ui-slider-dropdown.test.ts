@@ -8,6 +8,7 @@ import {
     UIEventType,
     UIRect,
     UINode,
+    UIVisual,
     DimensionUnit,
     Text,
 } from '../src/ui';
@@ -118,16 +119,14 @@ describe('createSlider', () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('updates fill width (percent) on setValue', () => {
+    it('updates fill amount (Filled crop) on setValue', () => {
         const slider = createSlider({
             world: world as unknown as World,
             min: 0, max: 1, value: 0,
         });
         slider.setValue(0.25);
-        const node = world.get(slider.fillEntity, UINode) as {
-            width: { value: number; unit: number };
-        };
-        expect(node.width).toEqual({ value: 25, unit: DimensionUnit.Percent });
+        const vis = world.get(slider.fillEntity, UIVisual) as { fillAmount: number };
+        expect(vis.fillAmount).toBe(0.25);
     });
 
     it('updates handle left inset (percent) to position it at t', () => {

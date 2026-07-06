@@ -30,10 +30,17 @@ enum class UIVisualType : u8 {
     Filled
 };
 
+/**
+ * @brief Fill mode for a Filled UIVisual. Horizontal/Vertical are linear crops
+ *        along the axis; Radial360 is an angular clockwise sweep of the full
+ *        circle (cooldown / ring gauge) starting from the fillOrigin edge
+ *        (12/3/6/9 o'clock), growing by fillAmount.
+ */
 ES_ENUM()
 enum class UIFillMethod : u8 {
     Horizontal,
-    Vertical
+    Vertical,
+    Radial360
 };
 
 ES_ENUM()

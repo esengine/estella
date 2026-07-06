@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'b5571b685cb3643f';
+export const ABI_LAYOUT_HASH = 'd5ee06760541c1d8';
 
 export interface AssetFieldMeta {
     field: string;
@@ -599,7 +599,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'fillAmount'],
         fields: {
             visualType: { enum: [{ label: 'None', value: 0 }, { label: 'SolidColor', value: 1 }, { label: 'Image', value: 2 }, { label: 'NineSlice', value: 3 }, { label: 'Tiled', value: 4 }, { label: 'Filled', value: 5 }] },
-            fillMethod: { enum: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }] },
+            fillMethod: { enum: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }, { label: 'Radial360', value: 2 }] },
             fillOrigin: { enum: [{ label: 'Left', value: 0 }, { label: 'Right', value: 1 }, { label: 'Bottom', value: 2 }, { label: 'Top', value: 3 }] },
         },
     },

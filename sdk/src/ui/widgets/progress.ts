@@ -3,8 +3,13 @@
 import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
-import { UINode, type UINodeData } from '../core/ui-node';
-import { px, percent } from '../core/dimension';
+import {
+    UIVisual,
+    UIVisualType,
+    FillMethod,
+    FillOrigin,
+    type UIVisualData,
+} from '../core/ui-visual';
 
 import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
 import { themeColors } from '../theme/tokens';
@@ -17,8 +22,14 @@ export interface ProgressOptions {
     background?: UIVisualInit;
     /** Fill renderer config (the filled bar). */
     fill?: { color?: Color; sprite?: number };
-    /** Direction the fill grows. Default: 'right'. */
+    /** Direction the fill grows (linear bars). Default: 'right'. */
     direction?: 'right' | 'left' | 'up' | 'down';
+    /**
+     * Radial gauge instead of a linear bar: the fill is a clockwise wedge
+     * sweeping the full circle from 12 o'clock (cooldown / ring meter).
+     * When set, `direction` is ignored.
+     */
+    radial?: boolean;
     /** Initial progress 0..1. Default 0. */
     value?: number;
 }
@@ -32,15 +43,20 @@ export interface ProgressHandle {
 }
 
 /**
- * Linear progress bar. Two entities: a track (background) and a fill
- * child whose rect anchors are rewritten each setValue to grow along
- * the configured direction.
+ * Linear progress bar. Two entities: a track (background) and a fill child
+ * that stretches over the track as a {@link UIVisualType.Filled} visual —
+ * `setValue` writes `fillAmount`, so the bar is a render-time crop with no
+ * per-frame layout pass, and a sprite fill reveals (not stretches). Direction
+ * selects the fill axis/origin.
  */
 export function createProgress(opts: ProgressOptions): ProgressHandle {
     const { world } = opts;
     const direction = opts.direction ?? 'right';
     let value = clamp01(opts.value ?? 0);
     const c = themeColors();
+    const [fillMethod, fillOrigin] = opts.radial
+        ? ([FillMethod.Radial360, FillOrigin.Top] as const)
+        : FILL_AXIS[direction];
 
     const track = spawnUIEntity({
         world,
@@ -52,24 +68,24 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
     const fill = spawnUIEntity({
         world,
         parent: track,
-        node: nodeForProgress(direction, value),
+        node: { fill: true },
         visual: {
+            visualType: UIVisualType.Filled,
             color: opts.fill?.color ?? c.primary,
             texture: opts.fill?.sprite ?? 0,
-            visualType: opts.fill?.sprite ? 2 /* Image */ : 1 /* SolidColor */,
+            fillMethod,
+            fillOrigin,
+            fillAmount: value,
         },
     });
-
-    const horizontal = direction === 'right' || direction === 'left';
 
     function setValue(v: number): void {
         const next = clamp01(v);
         if (next === value) return;
         value = next;
-        const node = world.get(fill, UINode) as UINodeData;
-        if (horizontal) node.width = percent(value * 100);
-        else node.height = percent(value * 100);
-        world.insert(fill, UINode, node);
+        const vis = world.get(fill, UIVisual) as UIVisualData;
+        vis.fillAmount = value;
+        world.insert(fill, UIVisual, vis);
     }
 
     return {
@@ -87,19 +103,10 @@ function clamp01(v: number): number {
     return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-// Fill grows along `dir`: pinned to 3 edges, with width/height = value fraction.
-function nodeForProgress(
-    dir: 'right' | 'left' | 'up' | 'down',
-    t: number,
-): UINodeInit {
-    switch (dir) {
-        case 'right':
-            return { position: 1, insetLeft: px(0), insetTop: px(0), insetBottom: px(0), width: percent(t * 100) };
-        case 'left':
-            return { position: 1, insetRight: px(0), insetTop: px(0), insetBottom: px(0), width: percent(t * 100) };
-        case 'up':
-            return { position: 1, insetLeft: px(0), insetRight: px(0), insetBottom: px(0), height: percent(t * 100) };
-        case 'down':
-            return { position: 1, insetLeft: px(0), insetRight: px(0), insetTop: px(0), height: percent(t * 100) };
-    }
-}
+// Fill grows along `dir`, anchored at the opposite edge.
+const FILL_AXIS: Record<'right' | 'left' | 'up' | 'down', readonly [FillMethod, FillOrigin]> = {
+    right: [FillMethod.Horizontal, FillOrigin.Left],
+    left: [FillMethod.Horizontal, FillOrigin.Right],
+    up: [FillMethod.Vertical, FillOrigin.Bottom],
+    down: [FillMethod.Vertical, FillOrigin.Top],
+};

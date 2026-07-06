@@ -12,6 +12,7 @@
  */
 #include "BatchPlugin.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace esengine {
@@ -112,6 +113,75 @@ void BatchPlugin::emitNineSlice(
             appendQuad(buffers, draw_list, clips, verts, key);
         }
     }
+}
+
+void BatchPlugin::emitRadialFill(
+    TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
+    const glm::vec2& center, const glm::vec2& size, f32 angle,
+    f32 startAngle, f32 amount,
+    const glm::vec2& uvOffset, const glm::vec2& uvScale,
+    const glm::vec4& color, const BatchDrawKey& key
+) {
+    amount = std::clamp(amount, 0.0f, 1.0f);
+    f32 hx = size.x * 0.5f, hy = size.y * 0.5f;
+    if (amount <= 0.0001f || hx <= 0.0f || hy <= 0.0f) return;
+
+    constexpr f32 TWO_PI = 6.2831853071795864f;
+    const f32 sweep = amount * TWO_PI;
+
+    // Sample angles are the two endpoints plus any box corner the sweep crosses,
+    // measured as a clockwise distance from startAngle. Because the box edge
+    // between two corners is straight, a fan vertex at each corner reproduces the
+    // rectangle boundary exactly — no faceting.
+    f32 deltas[6];
+    u32 n = 0;
+    deltas[n++] = 0.0f;
+    const f32 cornerAngle[4] = {
+        std::atan2(hy, hx), std::atan2(hy, -hx),
+        std::atan2(-hy, -hx), std::atan2(-hy, hx),
+    };
+    for (u32 k = 0; k < 4; ++k) {
+        f32 d = startAngle - cornerAngle[k];
+        d -= TWO_PI * std::floor(d / TWO_PI);  // wrap into [0, TWO_PI)
+        if (d > 0.0001f && d < sweep - 0.0001f) deltas[n++] = d;
+    }
+    deltas[n++] = sweep;
+    for (u32 i = 1; i < n; ++i) {  // insertion sort (n <= 6)
+        f32 v = deltas[i];
+        i32 j = static_cast<i32>(i) - 1;
+        while (j >= 0 && deltas[j] > v) { deltas[j + 1] = deltas[j]; --j; }
+        deltas[j + 1] = v;
+    }
+
+    const f32 cosR = std::cos(angle), sinR = std::sin(angle);
+    const u32 pc = packColor(color);
+
+    BatchVertex verts[7];
+    verts[0] = { center, pc, uvOffset + glm::vec2(0.5f, 0.5f) * uvScale };  // fan hub = box center
+    for (u32 i = 0; i < n; ++i) {
+        f32 a = startAngle - deltas[i];
+        f32 ca = std::cos(a), sa = std::sin(a);
+        f32 aca = std::abs(ca), asa = std::abs(sa);
+        // Ray from center at angle a exits the centered box at the nearer axis wall.
+        f32 t = std::min(aca > 1e-6f ? hx / aca : 1e30f,
+                         asa > 1e-6f ? hy / asa : 1e30f);
+        glm::vec2 p{ t * ca, t * sa };  // box-local, centered
+        verts[i + 1] = {
+            rotatePoint(center, center.x + p.x, center.y + p.y, cosR, sinR),
+            pc,
+            uvOffset + glm::vec2(p.x / size.x + 0.5f, p.y / size.y + 0.5f) * uvScale,
+        };
+    }
+
+    u32 indices[15];
+    u32 ic = 0;
+    for (u32 i = 1; i + 1 <= n; ++i) {  // fan triangles (hub, i, i+1)
+        indices[ic++] = 0;
+        indices[ic++] = i;
+        indices[ic++] = i + 1;
+    }
+    if (ic == 0) return;
+    appendIndexedBatch(buffers, draw_list, clips, verts, n + 1, indices, ic, key);
 }
 
 }  // namespace esengine

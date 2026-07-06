@@ -13,6 +13,19 @@
 
 namespace esengine {
 
+// Clockwise Radial360 start direction (box-local, +y = up), by origin edge:
+// Top = 12 o'clock, Right = 3, Bottom = 6, Left = 9.
+static f32 radialStartAngle(ecs::UIFillOrigin origin) {
+    constexpr f32 HALF_PI = 1.57079632679f;
+    switch (origin) {
+        case ecs::UIFillOrigin::Right:  return 0.0f;
+        case ecs::UIFillOrigin::Bottom: return -HALF_PI;
+        case ecs::UIFillOrigin::Left:   return 2.0f * HALF_PI;
+        case ecs::UIFillOrigin::Top:    return HALF_PI;
+    }
+    return HALF_PI;
+}
+
 void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
     auto& frustum = collect_ctx.frustum;
@@ -112,15 +125,52 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (renderer.fillOrigin == ecs::UIFillOrigin::Right) {
                     uvOffset.x = renderer.uvOffset.x + renderer.uvScale.x * (1.0f - amount);
                 }
-            } else {
+            } else if (renderer.fillMethod == ecs::UIFillMethod::Vertical) {
                 uvScale.y = renderer.uvScale.y * amount;
                 if (renderer.fillOrigin == ecs::UIFillOrigin::Top) {
                     uvOffset.y = renderer.uvOffset.y + renderer.uvScale.y * (1.0f - amount);
                 }
             }
+            // Radial360 samples the full base UV per fan vertex — no crop here.
         }
 
         glm::vec2 finalSize = glm::vec2(w, h) * glm::vec2(scale);
+
+        const bool isRadialFill = renderer.visualType == ecs::UIVisualType::Filled
+                               && renderer.fillMethod == ecs::UIFillMethod::Radial360;
+
+        // Filled derives its own UV/geometry, so 9-slice never applies. Linear
+        // fills crop the box in lockstep with the UV crop above: the box shrinks
+        // to fillAmount along the axis, anchored at fillOrigin, its center shifting
+        // toward that edge by half the removed extent (rotated into world space to
+        // match the pivot bake). A UV-only crop would no-op on a solid colour and
+        // stretch a texture; cropping geometry too makes both reveal. Radial360
+        // is emitted as a wedge fan instead (below), so it skips the box crop.
+        if (renderer.visualType == ecs::UIVisualType::Filled) {
+            useNineSlice = false;
+            if (!isRadialFill) {
+                f32 amount = std::clamp(renderer.fillAmount, 0.0f, 1.0f);
+                f32 offX = 0.0f, offY = 0.0f;
+                if (renderer.fillMethod == ecs::UIFillMethod::Horizontal) {
+                    f32 removed = finalSize.x * (1.0f - amount);
+                    offX = (renderer.fillOrigin == ecs::UIFillOrigin::Right ? 0.5f : -0.5f) * removed;
+                    finalSize.x *= amount;
+                } else {
+                    f32 removed = finalSize.y * (1.0f - amount);
+                    offY = (renderer.fillOrigin == ecs::UIFillOrigin::Top ? 0.5f : -0.5f) * removed;
+                    finalSize.y *= amount;
+                }
+                if (std::abs(angle) > 0.001f) {
+                    f32 cosA = std::cos(angle), sinA = std::sin(angle);
+                    f32 rx = offX * cosA - offY * sinA;
+                    f32 ry = offX * sinA + offY * cosA;
+                    offX = rx;
+                    offY = ry;
+                }
+                position.x += offX;
+                position.y += offY;
+            }
+        }
 
         BatchDrawKey key{
             .stage = ctx.current_stage,
@@ -135,7 +185,13 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
 
         constexpr glm::vec2 CENTERED_PIVOT{0.5f, 0.5f};
 
-        if (useNineSlice) {
+        if (isRadialFill) {
+            emitRadialFill(buffers, draw_list, clips,
+                glm::vec2(position), finalSize, angle,
+                radialStartAngle(renderer.fillOrigin),
+                std::clamp(renderer.fillAmount, 0.0f, 1.0f),
+                uvOffset, uvScale, renderer.color, key);
+        } else if (useNineSlice) {
             emitNineSlice(buffers, draw_list, clips,
                 glm::vec2(position), finalSize, CENTERED_PIVOT,
                 angle, texSize, sliceBorder,

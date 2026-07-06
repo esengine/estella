@@ -1106,8 +1106,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "width": {
-                "value": 50,
-                "unit": 1
+                "value": 0,
+                "unit": 2
               },
               "height": {
                 "value": 0,
@@ -1162,7 +1162,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               },
               "insetRight": {
                 "value": 0,
-                "unit": 2
+                "unit": 0
               },
               "insetBottom": {
                 "value": 0,
@@ -1173,7 +1173,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
           {
             "type": "UIVisual",
             "data": {
-              "visualType": 1,
+              "visualType": 5,
               "texture": 0,
               "color": {
                 "r": 0.25,
@@ -1201,7 +1201,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               },
               "fillMethod": 0,
               "fillOrigin": 0,
-              "fillAmount": 1,
+              "fillAmount": 0.5,
               "material": 0,
               "enabled": true
             }
@@ -1417,8 +1417,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "width": {
-                "value": 40,
-                "unit": 1
+                "value": 0,
+                "unit": 2
               },
               "height": {
                 "value": 0,
@@ -1473,7 +1473,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               },
               "insetRight": {
                 "value": 0,
-                "unit": 2
+                "unit": 0
               },
               "insetBottom": {
                 "value": 0,
@@ -1484,7 +1484,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
           {
             "type": "UIVisual",
             "data": {
-              "visualType": 1,
+              "visualType": 5,
               "texture": 0,
               "color": {
                 "r": 0.25,
@@ -1512,7 +1512,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               },
               "fillMethod": 0,
               "fillOrigin": 0,
-              "fillAmount": 1,
+              "fillAmount": 0.4,
               "material": 0,
               "enabled": true
             }

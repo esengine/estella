@@ -1,0 +1,185 @@
+{
+  "version": "1.0",
+  "name": "UIVisual Filled — geometry+UV crop reveals a solid/textured fill along fillMethod/fillOrigin (progress/slider basis)",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2, 4, 6],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "HTrack",
+      "parent": 1,
+      "children": [3],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 80, "unit": 0 },
+            "insetTop": { "value": 270, "unit": 0 },
+            "width": { "value": 280, "unit": 0 },
+            "height": { "value": 60, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "HFill",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 0.5,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "VTrack",
+      "parent": 1,
+      "children": [5],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 440, "unit": 0 },
+            "insetTop": { "value": 80, "unit": 0 },
+            "width": { "value": 60, "unit": 0 },
+            "height": { "value": 440, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "VFill",
+      "parent": 4,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "fillMethod": 1,
+            "fillOrigin": 2,
+            "fillAmount": 0.5,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "RTrack",
+      "parent": 1,
+      "children": [7],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 120, "unit": 0 },
+            "insetTop": { "value": 80, "unit": 0 },
+            "width": { "value": 160, "unit": 0 },
+            "height": { "value": 160, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "RFill",
+      "parent": 6,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "fillMethod": 2,
+            "fillOrigin": 3,
+            "fillAmount": 0.25,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}
