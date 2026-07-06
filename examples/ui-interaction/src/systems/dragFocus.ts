@@ -1,9 +1,9 @@
 import {
     defineSystem, Query, Mut, Res, GetWorld,
-    UIEvents, UINode, UIVisual, Text, Name, Draggable, Focusable, px,
+    UIEvents, UICameraInfo, UINode, UIVisual, Text, Name, Draggable, Focusable, px,
 } from 'esengine';
 import type {
-    World, UIEventQueue, Dimension, UIVisualData, TextData, NameData, FocusableData, Entity, Color,
+    World, UIEventQueue, UICameraData, Dimension, UIVisualData, TextData, NameData, FocusableData, Entity, Color,
 } from 'esengine';
 
 // UINodeData isn't on the public surface; we only read/write these box fields.
@@ -19,21 +19,20 @@ interface CardNode {
 // row to snap into the nearest slot (swapping the occupant). Focused cards brighten.
 // The engine owns dragging (Draggable) + focus; this system owns the resting layout
 // and drop/snap, working in the canvas's y-down pixel-inset space (the DragPlugin's).
+// The canvas layout box is DYNAMIC (scaleMode Expand grows it with the viewport), so
+// every placement derives from the live UICameraInfo box, never the design size.
 const CARD_COUNT = 6;
-const CANVAS_W = 800;
 const CARD_W = 100;
 const CARD_H = 80;
 
 const SLOT_SPACING = 116;
 const ROW_W = (CARD_COUNT - 1) * SLOT_SPACING + CARD_W;
-const FIRST_SLOT_LEFT = (CANVAS_W - ROW_W) / 2;
 const CARD_ROW_TOP = 168;
 const FOCUS_BRIGHTNESS = 0.3;
 
-// Matches the DropZone entity in the scene (percent+margin centring → y[440,560]).
-const DZ_TOP = 440;
+// Mirrors the DropZone entity (insetTop 100% + marginTop -160, height 120).
 const DZ_H = 120;
-const DROP_TOP = DZ_TOP + (DZ_H - CARD_H) / 2;
+const DZ_BOTTOM_GAP = 160;
 const DROP_SPACING = 112;
 
 interface CardInfo {
@@ -47,13 +46,21 @@ const cards: CardInfo[] = [];
 let initialized = false;
 const dropped = new Set<Entity>();
 
+// Live layout-box size (UINode px == box units), updated each frame.
+let boxW = 0;
+let boxH = 0;
+
 function slotLeft(index: number): number {
-    return FIRST_SLOT_LEFT + index * SLOT_SPACING;
+    return (boxW - ROW_W) / 2 + index * SLOT_SPACING;
+}
+
+function dzTop(): number {
+    return boxH - DZ_BOTTOM_GAP;
 }
 
 function dropLeft(dropIndex: number, total: number): number {
     const centersW = (total - 1) * DROP_SPACING;
-    return CANVAS_W / 2 - centersW / 2 - CARD_W / 2 + dropIndex * DROP_SPACING;
+    return boxW / 2 - centersW / 2 - CARD_W / 2 + dropIndex * DROP_SPACING;
 }
 
 function place(world: World, entity: Entity, left: number, top: number): void {
@@ -82,9 +89,18 @@ export const dragFocusSystem = defineSystem(
         Query(Focusable, Draggable, Name),
         Query(Mut(Text), Name),
         Res(UIEvents),
+        Res(UICameraInfo),
         GetWorld(),
     ],
-    (cardQuery, textQuery, events: UIEventQueue, world: World) => {
+    (cardQuery, textQuery, events: UIEventQueue, camera: UICameraData, world: World) => {
+        if (!camera.valid) return;
+        const w = camera.worldRight - camera.worldLeft;
+        const h = camera.worldTop - camera.worldBottom;
+        const resized = w !== boxW || h !== boxH;
+        boxW = w;
+        boxH = h;
+        if (boxW <= 0 || boxH <= 0) return;
+
         if (!initialized) {
             cards.length = 0;
             dropped.clear();
@@ -116,14 +132,14 @@ export const dragFocusSystem = defineSystem(
         }
 
         // Resolve each just-dropped card to a slot or into the drop zone.
-        let layoutDirty = dragStart.size > 0;
+        let layoutDirty = dragStart.size > 0 || resized;
         for (const card of cards) {
             if (!dragEnd.has(card.entity) || !world.has(card.entity, UINode)) continue;
             const node = world.get(card.entity, UINode) as unknown as CardNode;
             const left = node.insetLeft.value;
             const centerY = node.insetTop.value + CARD_H / 2;
 
-            if (centerY >= DZ_TOP && centerY <= DZ_TOP + DZ_H) {
+            if (centerY >= dzTop() && centerY <= dzTop() + DZ_H) {
                 dropped.add(card.entity);
                 layoutDirty = true;
                 continue;
@@ -148,7 +164,7 @@ export const dragFocusSystem = defineSystem(
         for (const card of cards) {
             if (dragStart.has(card.entity)) continue; // don't fight an active drag
             if (dropped.has(card.entity)) {
-                place(world, card.entity, dropLeft(droppedList.indexOf(card), droppedList.length), DROP_TOP);
+                place(world, card.entity, dropLeft(droppedList.indexOf(card), droppedList.length), dzTop() + (DZ_H - CARD_H) / 2);
             } else {
                 place(world, card.entity, slotLeft(card.slot), CARD_ROW_TOP);
             }

@@ -3,8 +3,6 @@ import {
 } from 'esengine';
 import type { Color } from 'esengine';
 
-// Canvas + geometry (design resolution 800×600).
-export const CANVAS_W = 800;
 export const CTRL_W = 142;
 export const CTRL_H = 34;
 export const CTRL_GAP = 10;
