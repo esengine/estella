@@ -47,7 +47,7 @@ export const SceneLoader = {
       assets.resolveSceneAssetPaths(resolved, result);
       // Incremental recreate (duplicate / undo) re-resolves textures from the
       // engine's live cache (just loaded above).
-      Reconciler.setAssetResolver((uuid) => assets.getTexture(UUID_PREFIX + uuid)?.handle ?? 0);
+      Reconciler.setAssetResolver((ref) => assets.getTexture(ref)?.handle ?? 0);
     }
 
     const map = PerfMonitor.measure('scene.load', () => loadSceneData(app.world, resolved as SceneDataArg));

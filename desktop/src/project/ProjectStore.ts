@@ -298,7 +298,7 @@ class ProjectStoreImpl {
     useSelection.getState().select(null);
     // Incremental recreate (duplicate / undo / play-stop) re-resolves @uuid:→handle
     // from the same preload result — for all types, not just textures.
-    Reconciler.setAssetResolver((uuid) => this.handleForUuid(uuid));
+    Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.adopt(expandedRaw, resolved);
     // Re-apply prefab-instance tags (adopt cleared them) so save can collapse.
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
@@ -361,7 +361,7 @@ class ProjectStoreImpl {
     await this.buildAssetRegistry(); // keep the uuid→path registry current for new refs
     EditorHistory.clear();
     useSelection.getState().select(null);
-    Reconciler.setAssetResolver((uuid) => this.handleForUuid(uuid));
+    Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: null } });
@@ -453,11 +453,12 @@ class ProjectStoreImpl {
 
   /** The live GL handle for a uuid. Textures read the engine's live cache (so a
    *  just-assigned texture resolves); material/font fall back to the scene preload. */
-  private handleForUuid(uuid: string): number {
-    const ref = UUID_PREFIX + uuid;
+  private handleForRef(ref: string): number {
     const tex = EngineHost.getResource(Assets)?.getTexture(ref);
     if (tex) return tex.handle;
-    const path = this.uuidToPath.get(uuid.toLowerCase());
+    const path = ref.startsWith(UUID_PREFIX)
+      ? this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase())
+      : ref;
     const r = this.lastAssetResult;
     if (!path || !r) return 0;
     return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
@@ -871,11 +872,16 @@ class ProjectStoreImpl {
     }
   }
 
-  /** Display info for an asset ref (`@uuid:`), or null (none / unresolved). For
-   *  the inspector's asset control: the project-relative path + a leaf name. */
+  /** Display info for an asset ref (`@uuid:` or a project-relative path — the same
+   *  forms the loaders accept), or null (none / unresolved). For the inspector's
+   *  asset control: the project-relative path + a leaf name. */
   assetInfo(ref: unknown): { path: string; name: string } | null {
-    if (typeof ref !== 'string' || !ref.startsWith(UUID_PREFIX)) return null;
-    const path = this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase());
+    if (typeof ref !== 'string' || ref.length === 0) return null;
+    const path = ref.startsWith(UUID_PREFIX)
+      ? this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase())
+      : this.assetRef(ref)
+        ? ref
+        : undefined;
     return path ? { path, name: path.split('/').pop() ?? path } : null;
   }
 

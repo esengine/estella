@@ -11,7 +11,7 @@
  * the scene into the (mocked) headless World; commands flow model→World through it.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { App, Transform, Parent } from 'esengine';
+import { App, Transform, Parent, Sprite } from 'esengine';
 import type { ESEngineModule, SceneData } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -118,6 +118,39 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         const tData = S.model.entityBySource(src)!.components.find((c) => c.type === 'Transform')!.data as Record<string, unknown>;
         expect('rotation' in tData).toBe(false); // absent, not present-and-undefined
         expect(inspectorFields('Transform', tData).some((f) => f.key === 'rotation')).toBe(true);
+    });
+
+    it('visibility toggle re-resolves plain-path asset refs (no white-block)', () => {
+        const raw = (): SceneData => ({
+            version: '1.0',
+            name: 'fx',
+            entities: [
+                {
+                    id: 7,
+                    name: 'FX',
+                    parent: null,
+                    children: [],
+                    components: [
+                        { type: 'Transform', data: { position: { x: 0, y: 0, z: 0 } } },
+                        { type: 'Sprite', data: { texture: 'assets/t.png', material: 'assets/m.esmaterial' } },
+                    ],
+                },
+            ],
+        }) as unknown as SceneData;
+        const resolved = raw();
+        (resolved.entities[0].components[1].data as Record<string, unknown>).texture = 42;
+        (resolved.entities[0].components[1].data as Record<string, unknown>).material = 9;
+        S.reconciler.setAssetResolver((ref) => (ref === 'assets/t.png' ? 42 : ref === 'assets/m.esmaterial' ? 9 : 0));
+        S.reconciler.adopt(raw(), resolved);
+        const rt = S.model.runtimeFor(7)!;
+
+        S.commands.setEntityVisible(7, false);
+        S.commands.setEntityVisible(7, true);
+
+        const sprite = host.world.get(rt, Sprite) as { texture: number; material: number; enabled: boolean };
+        expect(sprite.texture).toBe(42);
+        expect(sprite.material).toBe(9);
+        expect(sprite.enabled).toBe(true);
     });
 
     it('addEntity / undo is reflected in the model', () => {

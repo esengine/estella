@@ -6,7 +6,7 @@ import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { PerfMonitor } from './PerfMonitor';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
-import { componentByName, componentDefaults, isRenderComponent, componentEnable, type AnyComp, type WorldT } from './schema';
+import { assetFieldType, componentByName, componentDefaults, isRenderComponent, componentEnable, type AnyComp, type WorldT } from './schema';
 
 /**
  * Projects the model into the World.
@@ -66,7 +66,8 @@ function foldHidden(c: SceneComp): SceneComp {
   return { ...c, data: { ...c.data, [en.key]: false } };
 }
 
-type AssetResolver = (uuid: string) => number;
+/** Asset ref (`@uuid:<id>` or a project-relative path) → live handle, 0 if unloaded. */
+type AssetResolver = (ref: string) => number;
 const UNRESOLVED: AssetResolver = () => 0;
 
 export class ReconcilerImpl {
@@ -87,9 +88,10 @@ export class ReconcilerImpl {
   }
 
   /**
-   * Install the `@uuid:` → GL-handle resolver. ProjectStore sets this after
-   * loading a scene's textures, so entities recreated incrementally (duplicate,
-   * undo-of-delete) re-resolve their asset refs the same way load does. Defaults
+   * Install the asset-ref → GL-handle resolver (`@uuid:` and plain paths — the
+   * same forms the scene loader accepts). ProjectStore sets this after loading a
+   * scene's assets, so entities re-projected incrementally (duplicate, undo,
+   * visibility toggle) re-resolve their refs the same way load does. Defaults
    * to "unresolved" (blank to 0) — fine for tests and ref-free scenes.
    */
   setAssetResolver(fn: AssetResolver | null): void {
@@ -121,6 +123,7 @@ export class ReconcilerImpl {
     if (!world || !data) return;
     PerfMonitor.measure('world.rebuild', () => {
       const resolved = this.resolveRefs(data) as SceneData;
+      this.resolveAssetFields(resolved);
       const map = resetWorldTo(world, worldProjection(resolved) as never) as Map<number, EntityId>;
       this.model.adopt(data, map);
     });
@@ -196,7 +199,7 @@ export class ReconcilerImpl {
     // Re-fold editor-hidden each time we project a render component, so a field
     // edit on a hidden entity doesn't quietly un-hide it in the viewport.
     const src = this.model.isHidden(sourceId) ? foldHidden(comp) : comp;
-    const data = this.projectData(def, src.data as Record<string, unknown>);
+    const data = this.projectData(type, def, src.data as Record<string, unknown>);
     if (world.has(rt, def)) world.set(rt, def, data as Parameters<WorldT['set']>[2]);
     else world.insert(rt, def, data as never);
   }
@@ -246,27 +249,46 @@ export class ReconcilerImpl {
     if (STRUCTURAL.has(type)) return;
     const def = componentByName(type);
     if (!def) return; // unknown — model only
-    world.insert(rt, def, this.projectData(def, data) as never);
+    world.insert(rt, def, this.projectData(type, def, data) as never);
   }
 
   /**
    * Build the World-facing component data from the model's record: keep only the
    * fields the engine component knows (the World is lossy — schema-extra fields
-   * stay in the model), and resolve `@uuid:` asset refs to live GL handles.
+   * stay in the model), and resolve asset refs to live GL handles. Asset fields
+   * accept the same ref forms the scene loader does — `@uuid:` or a plain path.
    */
-  private projectData(def: AnyComp, data: Record<string, unknown>): Record<string, unknown> {
+  private projectData(type: string, def: AnyComp, data: Record<string, unknown>): Record<string, unknown> {
     const defaults = componentDefaults(def);
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(defaults)) {
-      out[key] = key in data ? this.resolveRefs(data[key]) : defaults[key];
+      if (!(key in data)) {
+        out[key] = defaults[key];
+        continue;
+      }
+      const v = data[key];
+      out[key] = typeof v === 'string' && assetFieldType(type, key) ? this.resolveAsset(v) : this.resolveRefs(v);
     }
     return out;
+  }
+
+  /** Resolve plain-path asset-field refs left after the `@uuid:` pass (rebuild path). */
+  private resolveAssetFields(data: SceneData): void {
+    for (const e of data.entities) {
+      for (const c of e.components ?? []) {
+        const d = c.data as Record<string, unknown> | undefined;
+        if (!d) continue;
+        for (const [k, v] of Object.entries(d)) {
+          if (typeof v === 'string' && assetFieldType(c.type, k)) d[k] = this.resolveAsset(v);
+        }
+      }
+    }
   }
 
   /** Recursively replace `@uuid:<id>` strings with resolved asset handles. */
   private resolveRefs(value: unknown): unknown {
     if (typeof value === 'string') {
-      return value.startsWith(UUID_PREFIX) ? this.resolveAsset(value.slice(UUID_PREFIX.length)) : value;
+      return value.startsWith(UUID_PREFIX) ? this.resolveAsset(value) : value;
     }
     if (Array.isArray(value)) return value.map((v) => this.resolveRefs(v));
     if (value && typeof value === 'object') {
