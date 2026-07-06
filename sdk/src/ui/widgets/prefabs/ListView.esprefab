@@ -329,7 +329,8 @@
             "shadowBlur": 0,
             "shadowOffsetX": 0,
             "shadowOffsetY": 0,
-            "richText": false
+            "richText": false,
+            "renderMode": 0
           }
         }
       ],

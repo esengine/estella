@@ -28,15 +28,17 @@ describe('resolveTextRenderMode', () => {
         expect(resolveTextRenderMode(TextRenderMode.Sdf, 1)).toBe('sdf');
     });
 
-    it('Auto keeps bitmap at (or within 2% of) pixel-exact 1:1', () => {
+    it('Auto keeps bitmap for unscaled entities (within 2% of 1)', () => {
+        // The canvas design-fit is NOT part of this input — the bitmap atlas
+        // compensates it via setContentScale, so only the entity's own world
+        // scale routes here.
         expect(resolveTextRenderMode(TextRenderMode.Auto, 1)).toBe('bitmap');
         expect(resolveTextRenderMode(TextRenderMode.Auto, 1.019)).toBe('bitmap');
         expect(resolveTextRenderMode(TextRenderMode.Auto, 0.981)).toBe('bitmap');
     });
 
-    it('Auto switches to SDF once the text is actually scaled', () => {
-        // The design-fit case that motivated the mode: 800×600 design in a
-        // 1070×494 viewport lands at ~0.82 texels per pixel.
+    it('Auto switches to SDF once the entity itself is scaled', () => {
+        // e.g. a pressed-state scale tween or an animated pop-in.
         expect(resolveTextRenderMode(TextRenderMode.Auto, 0.82)).toBe('sdf');
         expect(resolveTextRenderMode(TextRenderMode.Auto, 1.5)).toBe('sdf');
         expect(resolveTextRenderMode(TextRenderMode.Auto, 0.5)).toBe('sdf');
@@ -52,5 +54,24 @@ describe('resolveTextRenderMode', () => {
     it('treats a missing mode (pre-upgrade scene data) as Auto', () => {
         expect(resolveTextRenderMode(undefined, 1)).toBe('bitmap');
         expect(resolveTextRenderMode(undefined, 0.82)).toBe('sdf');
+    });
+});
+
+describe('GlyphAtlas content scale (bitmap rasterization density)', () => {
+    it('folds the content scale into bitmap pixel sizes, but never SDF', async () => {
+        const { GlyphAtlas } = await import('../src/ui/text/glyph-atlas');
+        const fakeRasterizer = { renderSize: 48, rasterize: () => null };
+        const fakeStore = { createPage: () => 1, uploadRegion: () => {} };
+
+        const bitmap = new GlyphAtlas(fakeRasterizer as never, fakeStore as never, { sdf: false, dpr: 2 });
+        expect(bitmap.pixelSizeFor(13)).toBe(26);          // 13 × dpr2
+        bitmap.setContentScale(0.823);                      // 800×600 design in a smaller view
+        expect(bitmap.pixelSizeFor(13)).toBe(21);          // 13 × 2 × 0.823 ≈ 21.4 → hinted at final px
+        bitmap.setContentScale(NaN);                        // degenerate input resets to 1
+        expect(bitmap.pixelSizeFor(13)).toBe(26);
+
+        const sdf = new GlyphAtlas(fakeRasterizer as never, fakeStore as never, { sdf: true });
+        sdf.setContentScale(0.5);
+        expect(sdf.pixelSizeFor(13)).toBe(48);             // SDF is one fixed source
     });
 });

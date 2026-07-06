@@ -368,7 +368,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "shadowBlur": 0,
               "shadowOffsetX": 0,
               "shadowOffsetY": 0,
-              "richText": false
+              "richText": false,
+              "renderMode": 0
             }
           }
         ],
@@ -1888,7 +1889,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "shadowBlur": 0,
               "shadowOffsetX": 0,
               "shadowOffsetY": 0,
-              "richText": false
+              "richText": false,
+              "renderMode": 0
             }
           }
         ],
@@ -2227,7 +2229,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "shadowBlur": 0,
               "shadowOffsetX": 0,
               "shadowOffsetY": 0,
-              "richText": false
+              "richText": false,
+              "renderMode": 0
             }
           }
         ],

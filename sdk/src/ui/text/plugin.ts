@@ -40,11 +40,13 @@ const BITMAP_SCALE_EPSILON = 0.02;
 
 /**
  * Pure: which glyph pipeline a Text draws with. `effectiveScale` is the
- * on-screen texels-per-source-texel ratio of a bitmap glyph (1 = pixel-exact:
- * design→device scale ÷ DPR × entity world scale). Auto keeps the crisp
- * device-resolution bitmaps only while they truly land 1:1; any real scaling
- * switches to SDF, whose fwidth AA is stable at every zoom. Non-finite or
- * unknown scales (no camera yet) keep the bitmap path.
+ * residual scale the bitmap path CANNOT fold into rasterization — the entity's
+ * own world scale. (The canvas design-fit / camera scale is compensated by
+ * rasterizing bitmap glyphs at the effective on-screen size, see
+ * {@link GlyphAtlas.setContentScale} — so a static UI stays on hinted,
+ * pixel-exact bitmaps at any window size, like DOM/FGUI text.) Auto sends
+ * genuinely scaled text to SDF, whose screen-px-ramp AA is stable at every
+ * zoom. Non-finite or unknown scales keep the bitmap path.
  */
 export function resolveTextRenderMode(
     mode: TextRenderMode | undefined,
@@ -85,13 +87,15 @@ export class TextPlugin implements Plugin {
         const registry = world.getCppRegistry() as CppRegistry;
 
         pipeline.addPreFlushCallback(() => {
-            // Design→device scale of one UI px this frame (vpW is device px);
-            // ÷DPR gives the bitmap texel:pixel ratio Auto switches on.
-            // Resolved per frame — the camera plugin may build after this one.
+            // Design→device scale of one design px this frame beyond DPR (vpW
+            // is device px). The bitmap atlas folds it into rasterization so
+            // static text is hinted at the final on-screen size regardless of
+            // the window/design fit. Resolved per frame — the camera plugin
+            // may build after this one.
             const uiCamera = app.getResource(UICameraInfo) as UICameraData | undefined;
             const dpr = platformDevicePixelRatio();
             const span = uiCamera ? uiCamera.worldRight - uiCamera.worldLeft : 0;
-            const designToTexel = uiCamera?.valid && span > 0
+            const contentScale = uiCamera?.valid && span > 0
                 ? uiCamera.vpW / (span * dpr)
                 : 1;
 
@@ -101,9 +105,12 @@ export class TextPlugin implements Plugin {
                 if (!t.content) continue;
 
                 const tr = world.get(entity, Transform) as TransformData;
+                // Auto routes on the entity's own scale only — the canvas fit
+                // is already compensated in the bitmap rasterization size.
                 const renderer = this.rendererFor(
                     app,
-                    resolveTextRenderMode(t.renderMode, designToTexel * tr.worldScale.x),
+                    resolveTextRenderMode(t.renderMode, tr.worldScale.x),
+                    contentScale,
                 );
                 composeTRS(this.matrix_, tr.worldPosition, tr.worldRotation, tr.worldScale);
 
@@ -188,7 +195,7 @@ export class TextPlugin implements Plugin {
      * the same layout, page-store, and batch-submit path; only the atlas
      * contents and the shader's coverage derivation differ.
      */
-    private rendererFor(app: App, kind: 'bitmap' | 'sdf'): SdfTextRenderer {
+    private rendererFor(app: App, kind: 'bitmap' | 'sdf', contentScale: number): SdfTextRenderer {
         const module = app.wasmModule as ESEngineModule;
         if (kind === 'sdf') {
             if (!this.sdfRenderer_) {
@@ -202,6 +209,7 @@ export class TextPlugin implements Plugin {
                 sdf: false, dpr, renderSize: Math.round(GLYPH_BASE_SIZE * dpr),
             });
         }
+        this.bitmapRenderer_.setContentScale(contentScale);
         return this.bitmapRenderer_;
     }
 }

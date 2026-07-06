@@ -134,6 +134,11 @@ export class SdfTextRenderer {
         );
     }
 
+    /** See {@link GlyphAtlas.setContentScale} — no-op for the SDF atlas. */
+    setContentScale(scale: number): void {
+        this.atlas.setContentScale(scale);
+    }
+
     /**
      * Draw a line of text. `transform` is the entity's column-major world mat4;
      * glyph local positions (baseline y=0, y-up) are transformed at submit.

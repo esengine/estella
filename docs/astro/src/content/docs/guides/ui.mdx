@@ -116,16 +116,16 @@ Add a `FlexContainer` to a node to lay out its children. The enums mirror CSS.
 Text draws from a dynamic glyph atlas with **two pipelines**, chosen per Text by
 `renderMode`:
 
-- **`Bitmap`** — glyphs rasterize at device resolution with Canvas-native
-  antialiasing and blit 1:1: the sharpest possible text, but it blurs the moment
-  it's scaled.
+- **`Bitmap`** — glyphs rasterize at the **effective on-screen pixel size**
+  (device pixels × the canvas design-resolution fit) with Canvas-native
+  antialiasing and font hinting, and blit 1:1 — DOM-crisp at any window size.
 - **`Sdf`** — each glyph rasterizes once into a signed-distance field and the
-  shader derives a stable ~1px antialiased edge from screen-space derivatives
-  (`fwidth`), so text stays crisp at **any** scale — camera zoom, entity scale,
-  or the canvas design-resolution fit.
-- **`Auto`** (default) — bitmap while the text truly lands 1:1 on screen, SDF as
-  soon as any scaling applies. You get DOM-crisp menus *and* zoom-stable world
-  text without thinking about it.
+  shader lays a **1px screen-space coverage ramp** on the edge (the
+  msdfgen/TextMeshPro technique), so text stays crisp under **dynamic** scaling
+  — animated zoom, scale tweens, world-space labels.
+- **`Auto`** (default) — bitmap while the entity itself is unscaled (the canvas
+  fit is already compensated in the bitmap), SDF the moment the entity scales.
+  DOM-crisp static UI *and* zoom-stable animated text, no configuration.
 
 | Property | Type | Default | Description |
 |---|---|---|---|

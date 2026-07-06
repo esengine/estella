@@ -60,12 +60,13 @@ void main() {
     else texColor = texture(u_textures[7], v_texCoord);
 #ifdef SDF
     // The glyph atlas stores a signed distance in the alpha channel (RGB = 1).
-    // fwidth tracks the on-screen scale, so a full-fwidth smoothstep band keeps a
-    // stable ~1px antialiased edge at any size (this is the scalable SDF path;
-    // crisp UI text uses the device-resolution bitmap batch instead).
+    // Dividing the signed distance by its screen-space derivative converts it
+    // to *screen pixels from the edge*; a ±0.5px clamp is then exactly one
+    // pixel of linear coverage ramp — the msdfgen/TMP standard. (A full-fwidth
+    // smoothstep band spans ~2px and reads as blur, not antialiasing.)
     float dist = texColor.a;
-    float aa = fwidth(dist);
-    float coverage = smoothstep(0.5 - aa, 0.5 + aa, dist);
+    float screenPxDist = (dist - 0.5) / max(fwidth(dist), 1e-6);
+    float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
     fragColor = vec4(v_color.rgb, v_color.a * coverage);
 #else
     fragColor = texColor * v_color;
