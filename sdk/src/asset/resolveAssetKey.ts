@@ -19,5 +19,5 @@ import type { AssetsData } from './AssetPlugin';
 
 /** Resolve an authored asset ref to its runtime-store key (or the ref itself). */
 export function resolveAssetKey(assets: AssetsData | null | undefined, ref: string): string {
-    return (assets?.resolveRef(ref) ?? null) ?? ref;
+    return assets?.resolveRef(ref) ?? ref;
 }
