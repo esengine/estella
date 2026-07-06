@@ -64,7 +64,7 @@ precision mediump float;
 in vec4 v_color;
 in highp vec2 v_worldPos;
 out vec4 fragColor;
-void main() { fragColor = vec4(es_applyLighting2D(v_color.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), v_color.a); }
+void main() { fragColor = vec4(applyLighting2D(v_color.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), v_color.a); }
 #pragma end
 )";
 
@@ -92,7 +92,7 @@ static void testFragmentOnly() {
     const std::string lv = ShaderParser::assembleStage(lit, ShaderStage::Vertex);
     CHECK(lv.find("v_worldPos = a_position") != std::string::npos, "Lit2D canonical vertex forwards world position");
     const std::string lf = ShaderParser::assembleStage(lit, ShaderStage::Fragment);
-    CHECK(lf.find("es_applyLighting2D") != std::string::npos, "Lit2D fragment gets the lighting helper injected");
+    CHECK(lf.find("applyLighting2D") != std::string::npos, "Lit2D fragment gets the lighting helper injected");
 
     ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
     CHECK(!pp.valid, "non-2D domain without a vertex stage still errors");
@@ -104,7 +104,15 @@ static void testFragmentOnly() {
     const std::string af = ShaderParser::assembleStage(authored, ShaderStage::Fragment);
     CHECK(av.find("uniform TimeConstants") != std::string::npos &&
           af.find("uniform TimeConstants") != std::string::npos,
-          "u_esTime clock block injected into both stages");
+          "u_time clock block injected into both stages");
+    CHECK(af.find("vec4 u_viewport") != std::string::npos, "u_viewport rides the injected block");
+
+    ParsedShader reserved = ShaderParser::parse(
+        "#pragma shader \"R\"\n#pragma version 300 es\n#pragma domain Unlit2D\n"
+        "#pragma param u_time float default(0)\n"
+        "#pragma fragment\nvoid main() {}\n#pragma end\n");
+    CHECK(!reserved.valid && reserved.errorMessage.find("reserved") != std::string::npos,
+          "a param named after an injected uniform is rejected with a clear error");
 }
 
 int main() {

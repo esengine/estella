@@ -240,7 +240,9 @@ void renderer_resize(u32 width, u32 height) {
 
 void renderer_beginFrame(f32 elapsedSec) {
     ctx().state().transforms_updated = false;
-    if (auto* rc = ctx().tryGet<RenderContext>()) rc->setFrameTime(elapsedSec);
+    if (auto* rc = ctx().tryGet<RenderContext>()) {
+        rc->setFrameTime(elapsedSec, g_viewportWidth, g_viewportHeight);
+    }
 }
 
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {

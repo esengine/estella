@@ -1,0 +1,22 @@
+#pragma shader "Hit Flash"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_flash float default(0) range(0,1) ui(slider)
+#pragma param u_flashColor color default(1,1,1,1)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+// Drive u_flash 1 → 0 from code (tween) for the classic damage blink.
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+    fragColor = vec4(mix(base.rgb, u_flashColor.rgb, u_flash), base.a);
+}
+#pragma end

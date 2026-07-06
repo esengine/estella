@@ -85,11 +85,12 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 
 | 注入项 | 可用范围 | 说明 |
 |---|---|---|
-| `u_esTime` | 总是 | `vec4` 帧时钟:`.x` 累计秒,`.y` 帧间隔秒。 |
+| `u_time` | 总是 | `vec4` 帧时钟:`.x` 累计秒,`.y` 帧间隔秒。 |
+| `u_viewport` | 总是 | `vec4` 画布:`.xy` 像素尺寸,`.zw` = 1/尺寸(屏幕 UV = `gl_FragCoord.xy * u_viewport.zw`)。 |
 | MaterialConstants 块 | 着色器有参数时 | 你的 `#pragma param` 值。 |
-| `es_applyLighting2D(albedo, N, worldPos)` | Lit2D | 应用场景所有灯光(含阴影),返回受光颜色。 |
-| `es_sampleNormal(map, uv)` | Lit2D | 解包切线空间法线贴图(RGB → [-1,1],归一化)。 |
-| `es_shadowFactor2D(worldPos, target, softness)` | Lit2D | 朝向目标点的遮挡系数(`es_applyLighting2D` 内部使用)。 |
+| `applyLighting2D(albedo, N, worldPos)` | Lit2D | 应用场景所有灯光(含阴影),返回受光颜色。 |
+| `sampleNormal(map, uv)` | Lit2D | 解包切线空间法线贴图(RGB → [-1,1],归一化)。 |
+| `shadowFactor2D(worldPos, target, softness)` | Lit2D | 朝向目标点的遮挡系数(`applyLighting2D` 内部使用)。 |
 
 `#pragma switch` 选择编译期烘焙进材质的静态着色器排列(通过 `compileShader` 的 `features` 参数)。
 

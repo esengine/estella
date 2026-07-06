@@ -42,11 +42,13 @@ inline constexpr const char* FRAME_CONSTANTS_BLOCK = "FrameConstants";
 
 /**
  * @brief CPU mirror of the injected TimeConstants block (std140).
- * @details u_esTime = (elapsed seconds, delta seconds, 0, 0). Engine-owned: ShaderParser
- *          injects the block into every assembled stage — shaders never declare it.
+ * @details u_time = (elapsed s, delta s, 0, 0); u_viewport = (w, h, 1/w, 1/h) of the
+ *          canvas in pixels. Engine-owned: ShaderParser injects the block into every
+ *          assembled stage — shaders never declare it.
  */
 struct TimeConstants {
     glm::vec4 time{0.0f};
+    glm::vec4 viewport{0.0f};
 };
 
 inline constexpr u32 TIME_CONSTANTS_BINDING = 3;

@@ -157,8 +157,8 @@ public:
      */
     void updateFrameConstants(const glm::mat4& viewProjection);
 
-    /** @brief Uploads the frame clock into the injected TimeConstants UBO (u_esTime = elapsed, dt). */
-    void setFrameTime(f32 elapsedSec);
+    /** @brief Uploads the frame clock + canvas size into the injected TimeConstants UBO. */
+    void setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH);
 
     /**
      * @brief The engine-side material registry (handle -> resolved render state).

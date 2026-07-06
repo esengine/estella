@@ -101,12 +101,12 @@ in highp vec2 v_worldPos;
 uniform sampler2D u_textures[8];
 out vec4 fragColor;
 
-// #pragma domain Lit2D 让引擎注入 LightConstants 块和 es_applyLighting2D() helper——
+// #pragma domain Lit2D 让引擎注入 LightConstants 块和 applyLighting2D() helper——
 // 你只需用你的基础色和一个法线调用它。
 void main() {
   vec4 base = texture(u_textures[0], v_texCoord) * v_color;
   vec3 N = vec3(0.0, 0.0, 1.0);                 // 平法线,朝向相机
-  vec3 lit = es_applyLighting2D(base.rgb, N, v_worldPos);
+  vec3 lit = applyLighting2D(base.rgb, N, v_worldPos);
   fragColor = vec4(lit, base.a);
 }
 #pragma end
@@ -136,7 +136,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 
 ### 法线贴图
 
-你传给 `es_applyLighting2D` 的 `N` 是表面法线。传一个常量 `vec3(0, 0, 1)` 得到平坦、均匀受光的
+你传给 `applyLighting2D` 的 `N` 是表面法线。传一个常量 `vec3(0, 0, 1)` 得到平坦、均匀受光的
 表面。要有逐像素的凹凸感,就在着色器里采样一张**法线贴图**并用它作 `N`——同一张基础色便会随每盏
 灯的方向产生高光和阴影。把法线纹理作为一个 `#pragma param … texture` 加到你的受光材质上
 (见[材质与着色器](/docs/zh-cn/guides/material/))。

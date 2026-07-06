@@ -1,0 +1,31 @@
+#pragma shader "Outline"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_outlineColor color default(1,1,1,1)
+#pragma param u_outlineWidth float default(1) range(0,8)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+    highp vec2 texel = u_outlineWidth / vec2(textureSize(u_textures[0], 0));
+    float edge = 0.0;
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2( texel.x, 0.0)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x, 0.0)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(0.0,  texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(0.0, -texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2( texel.x,  texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2( texel.x, -texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x,  texel.y)).a);
+    edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x, -texel.y)).a);
+    fragColor = mix(vec4(u_outlineColor.rgb, edge * u_outlineColor.a), base, base.a);
+}
+#pragma end

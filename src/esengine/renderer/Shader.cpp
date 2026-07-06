@@ -179,7 +179,7 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         device_->uniformBlockBinding(programId_, lightBlock, LIGHT_CONSTANTS_BINDING);
     }
 
-    // Same for the injected frame clock (u_esTime).
+    // Same for the injected frame clock (u_time).
     u32 timeBlock = device_->getUniformBlockIndex(programId_, TIME_CONSTANTS_BLOCK);
     if (timeBlock != GFX_INVALID_UNIFORM_BLOCK) {
         device_->uniformBlockBinding(programId_, timeBlock, TIME_CONSTANTS_BINDING);

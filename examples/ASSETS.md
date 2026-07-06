@@ -9,7 +9,7 @@ starting point for a real game. This credit is a courtesy, not an obligation.
 
 | Pack | License | Used by |
 | --- | --- | --- |
-| [Platformer Art Deluxe](https://kenney.nl/assets/platformer-art-deluxe) | CC0 | platformer, sprite-animation (walk/idle frames), hello-world (gem) |
+| [Platformer Art Deluxe](https://kenney.nl/assets/platformer-art-deluxe) | CC0 | platformer, sprite-animation (walk/idle frames), hello-world (gem), effects-gallery (character + ground) |
 | [Space Shooter Remastered](https://kenney.nl/assets/space-shooter-remastered) | CC0 | space-shooter (ships, lasers, enemies, life icon, starfield), input-demo (cursor), sprite-rendering (star) |
 | [Simple Space](https://kenney.nl/assets/simple-space) | CC0 | input-demo (player ship) |
 | [Particle Pack](https://kenney.nl/assets/particle-pack) | CC0 | particle-demo, space-shooter (explosion) |

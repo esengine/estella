@@ -27,6 +27,7 @@ for your own game.
 | **particle-demo** | Effects | A configurable particle emitter with additive blending. |
 | **postprocess-effects** | Effects | Full-screen post-processing: bloom, vignette, color grading. |
 | **lighting-2d** | Rendering | 2D lights and shadow casters with a normal-mapped, Lit-2D material. |
+| **effects-gallery** | Rendering | The built-in material effect templates — hit flash, outline, dissolve, pixelate, UV scroll — with params driven from code. |
 | **tilemap-demo** | Tilemap | Two scenes: a Tiled `.tmj` import and an engine-native `.estileset` — multi-tileset, parallax, animated water, per-tile collision. |
 | **ui-controls** | UI | Buttons, sliders, toggles and progress bars. |
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |

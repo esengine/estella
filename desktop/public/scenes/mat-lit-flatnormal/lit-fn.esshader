@@ -41,8 +41,8 @@ out vec4 fragColor;
 // straight-on light, a flat normal gives N·L = 1 (full bright); a wrong default would not.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color;
-    vec3 N = es_sampleNormal(u_normal, v_texCoord);
-    vec3 lit = es_applyLighting2D(base.rgb, N, v_worldPos);
+    vec3 N = sampleNormal(u_normal, v_texCoord);
+    vec3 lit = applyLighting2D(base.rgb, N, v_worldPos);
     fragColor = vec4(lit, base.a);
 }
 #pragma end

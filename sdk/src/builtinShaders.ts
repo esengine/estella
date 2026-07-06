@@ -56,8 +56,8 @@ out vec4 fragColor;
 // Unset u_normalMap = flat normal, so lighting works with no normal map assigned.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
-    vec3 N = es_sampleNormal(u_normalMap, v_texCoord);
-    fragColor = vec4(es_applyLighting2D(base.rgb, N, v_worldPos), base.a);
+    vec3 N = sampleNormal(u_normalMap, v_texCoord);
+    fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos), base.a);
 }
 #pragma end
 `;
@@ -137,19 +137,19 @@ uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
-float es_hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-float es_noise(vec2 p) {
+float hash2d(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float noise2d(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(es_hash(i), es_hash(i + vec2(1.0, 0.0)), f.x),
-               mix(es_hash(i + vec2(0.0, 1.0)), es_hash(i + vec2(1.0, 1.0)), f.x), f.y);
+    return mix(mix(hash2d(i), hash2d(i + vec2(1.0, 0.0)), f.x),
+               mix(hash2d(i + vec2(0.0, 1.0)), hash2d(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
 // u_progress 0 = intact, 1 = fully dissolved; a glowing edge leads the cut.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color;
-    float n = es_noise(v_texCoord * u_noiseScale);
+    float n = noise2d(v_texCoord * u_noiseScale);
     float cut = u_progress * (1.0 + u_edgeWidth);
     if (n < cut - u_edgeWidth) discard;
     vec3 rgb = (n < cut) ? u_edgeColor.rgb : base.rgb;
@@ -195,9 +195,9 @@ uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
-// u_esTime.x is the engine frame clock (seconds), injected into every shader.
+// u_time.x is the engine frame clock (seconds), injected into every shader.
 void main() {
-    vec2 uv = fract(v_texCoord + u_esTime.x * u_scrollSpeed);
+    vec2 uv = fract(v_texCoord + u_time.x * u_scrollSpeed);
     fragColor = texture(u_textures[0], uv) * v_color;
 }
 #pragma end

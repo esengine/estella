@@ -6,7 +6,7 @@
  * @details The render collect path turns each enabled caster into a world-space AABB (centered
  *          on the entity's Transform, `size` wide/tall) and feeds it to LightStore as an occluder.
  *          A point/spot light is then blocked at any fragment whose segment to the light crosses
- *          the box (see ShaderParser's injected es_shadowFactor2D). Carries no geometry of its own.
+ *          the box (see ShaderParser's injected shadowFactor2D). Carries no geometry of its own.
  *
  * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the Apache License, Version 2.0.

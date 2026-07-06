@@ -36,13 +36,13 @@ uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
-// es_sampleNormal + es_applyLighting2D + the LightConstants block are injected by ShaderParser
+// sampleNormal + applyLighting2D + the LightConstants block are injected by ShaderParser
 // for `#pragma domain Lit2D`. The surface normal comes from the material's u_normal map, so
 // lighting varies per texel.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color;
-    vec3 N = es_sampleNormal(u_normal, v_texCoord);
-    vec3 lit = es_applyLighting2D(base.rgb, N, v_worldPos);
+    vec3 N = sampleNormal(u_normal, v_texCoord);
+    vec3 lit = applyLighting2D(base.rgb, N, v_worldPos);
     fragColor = vec4(lit, base.a);
 }
 #pragma end

@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Effects Gallery",
+  "description": "The built-in material effect templates in one scene — hit flash, outline, dissolve, pixelate, and a time-scrolled conveyor — with their parameters driven from code.",
+  "tag": "Rendering",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "spineVersion": "none"
+}

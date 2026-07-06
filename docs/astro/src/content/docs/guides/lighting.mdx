@@ -105,11 +105,11 @@ uniform sampler2D u_textures[8];
 out vec4 fragColor;
 
 // #pragma domain Lit2D makes the engine inject the LightConstants block and the
-// es_applyLighting2D() helper — you just call it with your base color and a normal.
+// applyLighting2D() helper — you just call it with your base color and a normal.
 void main() {
   vec4 base = texture(u_textures[0], v_texCoord) * v_color;
   vec3 N = vec3(0.0, 0.0, 1.0);                 // flat normal, facing the camera
-  vec3 lit = es_applyLighting2D(base.rgb, N, v_worldPos);
+  vec3 lit = applyLighting2D(base.rgb, N, v_worldPos);
   fragColor = vec4(lit, base.a);
 }
 #pragma end
@@ -140,7 +140,7 @@ You can also build a lit material visually — set the **Material Graph**'s doma
 
 ### Normal maps
 
-The `N` you pass to `es_applyLighting2D` is the surface normal. Passing a constant
+The `N` you pass to `applyLighting2D` is the surface normal. Passing a constant
 `vec3(0, 0, 1)` gives flat, evenly-lit surfaces. For per-pixel relief, sample a
 **normal map** in the shader and use that as `N` instead — the same base color then
 catches highlights and shadow from each light's direction. Add the normal texture as a

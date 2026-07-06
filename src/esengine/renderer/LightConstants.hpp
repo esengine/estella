@@ -33,7 +33,7 @@ inline constexpr u32 MAX_LIGHTS_2D = 16;
 
 /**
  * @brief Max 2D shadow occluders packed into the UBO (axis-aligned boxes in world space).
- *        The injected es_applyLighting2D loops up to the active count; 0 occluders = no
+ *        The injected applyLighting2D loops up to the active count; 0 occluders = no
  *        shadowing (identity), so the feature is inert until the render path feeds boxes.
  *        Must match the `u_occluders[..]` array size in ShaderParser's injected GLSL.
  */
@@ -49,7 +49,7 @@ inline constexpr u32 MAX_OCCLUDERS_2D = 8;
  *          LightConstants::ambient instead of occupying a slot.
  *          shadow: x = penumbra softness (light-source half-extent in world units; 0 = hard,
  *          backward-compatible); y = directional shadow march distance (world units; 0 = a
- *          directional light casts no shadow). zw reserved (0). Read by es_shadowFactor2D.
+ *          directional light casts no shadow). zw reserved (0). Read by shadowFactor2D.
  */
 struct GpuLight2D {
     glm::vec4 posDir{0.0f};

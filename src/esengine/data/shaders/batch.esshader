@@ -7,7 +7,7 @@
 #pragma feature SDF
 
 // Compile-time variant: lit by the scene's 2D lights (Sprite.lit). Compiled as a
-// Lit2D-domain shader, so es_applyLighting2D + LightConstants are injected.
+// Lit2D-domain shader, so applyLighting2D + LightConstants are injected.
 #pragma feature LIT
 
 #pragma vertex
@@ -78,7 +78,7 @@ void main() {
 #elif defined(LIT)
     // Flat normal; the tinted color is the albedo. Normal maps need a material.
     vec4 base = texColor * v_color;
-    fragColor = vec4(es_applyLighting2D(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), base.a);
+    fragColor = vec4(applyLighting2D(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), base.a);
 #else
     fragColor = texColor * v_color;
 #endif

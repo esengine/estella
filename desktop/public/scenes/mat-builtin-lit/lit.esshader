@@ -18,7 +18,7 @@ out vec4 fragColor;
 // Unset u_normalMap = flat normal, so lighting works with no normal map assigned.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
-    vec3 N = es_sampleNormal(u_normalMap, v_texCoord);
-    fragColor = vec4(es_applyLighting2D(base.rgb, N, v_worldPos), base.a);
+    vec3 N = sampleNormal(u_normalMap, v_texCoord);
+    fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos), base.a);
 }
 #pragma end

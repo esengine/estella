@@ -202,7 +202,15 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             // Declarative material parameter: ShaderParser owns its std140 slot in the
             // generated MaterialConstants block (or a sampler unit for textures).
             ShaderProperty prop = parseParamDirective(argument);
-            if (!prop.name.empty()) result.properties.push_back(prop);
+            if (!prop.name.empty()) {
+                // Engine-injected uniforms — a param with the same name would redeclare them.
+                if (prop.name == "u_time" || prop.name == "u_viewport" || prop.name == "u_projection") {
+                    result.errorMessage = "#pragma param '" + prop.name +
+                                          "' is reserved (engine-injected uniform)";
+                    return result;
+                }
+                result.properties.push_back(prop);
+            }
             continue;
         }
 
@@ -429,10 +437,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         ++headerLines;
     }
 
-    // Engine-owned frame clock, injected into every stage (identical in both, so the
-    // program links). u_esTime = (elapsed s, delta s, 0, 0); binding 3 (Shader::compile).
+    // Engine-owned frame block, injected into every stage (identical in both, so the
+    // program links). u_time = (elapsed s, delta s, 0, 0); u_viewport = canvas
+    // (w, h, 1/w, 1/h) in pixels; binding 3 (Shader::compile).
     static const char* kTimeHeader =
-        "layout(std140) uniform TimeConstants { highp vec4 u_esTime; };\n";
+        "layout(std140) uniform TimeConstants { highp vec4 u_time; highp vec4 u_viewport; };\n";
     assembled << kTimeHeader;
     headerLines += countNewlines(kTimeHeader);
 
@@ -461,7 +470,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         }
     }
 
-    // Lit2D domain: inject the shared LightConstants block (std140) + the es_applyLighting2D()
+    // Lit2D domain: inject the shared LightConstants block (std140) + the applyLighting2D()
     // helper into the fragment stage. Authors write the surface (albedo) and a world-position
     // varying, then call the helper — the engine owns the std140 layout so a hand-written struct
     // can't silently mismatch renderer/LightConstants.hpp and corrupt lighting. Members + locals
@@ -471,23 +480,23 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // GpuLight2D = four vec4s).
     if (stage == ShaderStage::Fragment && parsed.domain == "Lit2D") {
         static const char* kLit2DHeader =
-            "struct es_Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow; };\n"
+            "struct Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow; };\n"
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
-            "    es_Light2D u_lights[16];\n"
+            "    Light2D u_lights[16];\n"
             "    highp vec4 u_occluderCount;\n"   // x = active occluder count
             "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
             "};\n"
             // Engine-owned normal-map convention (RGB[0,1] -> normal[-1,1], normalized), so every
             // Lit2D shader unpacks tangent-space normals the same way. 2D applies it screen-space
             // (no per-sprite tangent frame); a flat surface uses vec3(0,0,1).
-            "highp vec3 es_sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
+            "highp vec3 sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
             "    return normalize(texture(map, uv).xyz * 2.0 - 1.0);\n"
             "}\n"
             // 2D hard shadows: a slab test of the fragment->light segment against a world AABB.
             // Returns 1.0 when the segment crosses the box's interior, else 0.0. The [0,1] param
             // clamp means boxes behind the fragment or beyond the light don't occlude.
-            "highp float es_segHitsBox(in highp vec2 p0, in highp vec2 p1, in highp vec4 box) {\n"
+            "highp float segHitsBox(in highp vec2 p0, in highp vec2 p1, in highp vec4 box) {\n"
             "    highp vec2 d = p1 - p0;\n"
             "    highp float tmin = 0.0;\n"
             "    highp float tmax = 1.0;\n"
@@ -515,13 +524,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // `target` is the point the rays aim at — the light position for point/spot, or a far
             // point along the light direction for directional — so one primitive shadows every type.
             // No occluders (count 0) -> always 1.0, inert until the render path feeds boxes.
-            "highp float es_shadowFactor2D(in highp vec2 worldPos, in highp vec2 target, in highp float softness) {\n"
+            "highp float shadowFactor2D(in highp vec2 worldPos, in highp vec2 target, in highp float softness) {\n"
             "    int n = int(u_occluderCount.x);\n"
             "    if (n <= 0) return 1.0;\n"
             "    if (softness < 1e-4) {\n"
             "        for (int i = 0; i < 8; ++i) {\n"
             "            if (i >= n) break;\n"
-            "            if (es_segHitsBox(worldPos, target, u_occluders[i]) > 0.5) return 0.0;\n"
+            "            if (segHitsBox(worldPos, target, u_occluders[i]) > 0.5) return 0.0;\n"
             "        }\n"
             "        return 1.0;\n"
             "    }\n"
@@ -535,12 +544,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        highp vec2 tp = target + perp * (t * softness);\n"
             "        for (int i = 0; i < 8; ++i) {\n"
             "            if (i >= n) break;\n"
-            "            if (es_segHitsBox(worldPos, tp, u_occluders[i]) > 0.5) { blocked += 1.0; break; }\n"
+            "            if (segHitsBox(worldPos, tp, u_occluders[i]) > 0.5) { blocked += 1.0; break; }\n"
             "        }\n"
             "    }\n"
             "    return 1.0 - blocked / float(K);\n"
             "}\n"
-            "highp vec3 es_applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
+            "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    highp vec3 lit = u_ambient.rgb;\n"
             "    for (int i = 0; i < 16; ++i) {\n"
             "        highp vec4 pd = u_lights[i].posDir;\n"
@@ -575,7 +584,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Only pay for the shadow test when the light actually reaches this fragment (skips the
             // zeroed/inactive slots and unlit fragments — cheaper than the old unconditional call).
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
-            "            atten *= es_shadowFactor2D(worldPos, target, sh.x);\n"
+            "            atten *= shadowFactor2D(worldPos, target, sh.x);\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        lit += col.rgb * (col.a * ndotl * atten);\n"

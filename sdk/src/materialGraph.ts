@@ -20,7 +20,8 @@ export type GraphNodeType =
   | 'output' // the root: its `color` input becomes fragColor
   | 'uv' // v_texCoord
   | 'vertexColor' // v_color (the sprite's per-instance tint)
-  | 'time' // u_esTime.x — the injected engine frame clock (seconds)
+  | 'time' // u_time.x — the injected engine frame clock (seconds)
+  | 'screenUV' // gl_FragCoord over the canvas size (0..1, y-up)
   | 'constFloat' // a scalar material param (#pragma param ... float)
   | 'constColor' // an RGBA material param (#pragma param ... color)
   | 'textureSample' // sample a texture material param at a UV (#pragma param ... texture)
@@ -118,8 +119,14 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
         out = { expr: 'v_color', type: 'vec4' };
         break;
       case 'time':
-        out = { expr: 'u_esTime.x', type: 'float' };
+        out = { expr: 'u_time.x', type: 'float' };
         break;
+      case 'screenUV': {
+        const t = `n${tmp++}`;
+        body.push(`vec2 ${t} = gl_FragCoord.xy * u_viewport.zw;`);
+        out = { expr: t, type: 'vec2' };
+        break;
+      }
       case 'constFloat': {
         const name = paramName(n);
         const v = typeof n.params?.value === 'number' ? n.params.value : 0;
@@ -188,14 +195,14 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
         helpers.add(NOISE_HELPER);
         const uv = n.inputs?.uv ? input('uv').expr : 'v_texCoord';
         const t = `n${tmp++}`;
-        body.push(`float ${t} = es_noise(${uv} * ${numParam(n, 'scale', 12)});`);
+        body.push(`float ${t} = noise2d(${uv} * ${numParam(n, 'scale', 12)});`);
         out = { expr: t, type: 'float' };
         break;
       }
       case 'panner': {
         const uv = n.inputs?.uv ? input('uv').expr : 'v_texCoord';
         const t = `n${tmp++}`;
-        body.push(`vec2 ${t} = fract(${uv} + u_esTime.x * vec2(${numParam(n, 'speedX', 0.1)}, ${numParam(n, 'speedY', 0)}));`);
+        body.push(`vec2 ${t} = fract(${uv} + u_time.x * vec2(${numParam(n, 'speedX', 0.1)}, ${numParam(n, 'speedY', 0)}));`);
         out = { expr: t, type: 'vec2' };
         break;
       }
@@ -246,13 +253,13 @@ ${bodyBlock}
 `;
 }
 
-const NOISE_HELPER = `float es_hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-float es_noise(vec2 p) {
+const NOISE_HELPER = `float hash2d(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float noise2d(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(es_hash(i), es_hash(i + vec2(1.0, 0.0)), f.x),
-               mix(es_hash(i + vec2(0.0, 1.0)), es_hash(i + vec2(1.0, 1.0)), f.x), f.y);
+    return mix(mix(hash2d(i), hash2d(i + vec2(1.0, 0.0)), f.x),
+               mix(hash2d(i + vec2(0.0, 1.0)), hash2d(i + vec2(1.0, 1.0)), f.x), f.y);
 }`;
 
 // =============================================================================
@@ -289,6 +296,7 @@ export const NODE_SPECS: Record<GraphNodeType, NodeSpec> = {
   uv: { label: 'UV', inputs: [], output: 'vec2', params: [], addable: true },
   vertexColor: { label: 'Vertex Color', inputs: [], output: 'vec4', params: [], addable: true },
   time: { label: 'Time', inputs: [], output: 'float', params: [], addable: true },
+  screenUV: { label: 'Screen UV', inputs: [], output: 'vec2', params: [], addable: true },
   constFloat: { label: 'Float', inputs: [], output: 'float', params: [{ key: 'value', label: 'Value', kind: 'float' }], addable: true },
   constColor: { label: 'Color', inputs: [], output: 'vec4', params: [{ key: 'value', label: 'Color', kind: 'color' }], addable: true },
   textureSample: { label: 'Texture', inputs: [{ name: 'uv', type: 'vec2' }], output: 'vec4', params: [{ key: 'name', label: 'Param', kind: 'texture' }], addable: true },

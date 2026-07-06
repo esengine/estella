@@ -92,11 +92,12 @@ The engine injects these into every compiled `.esshader` — never declare them 
 
 | Injected | Available | What |
 |---|---|---|
-| `u_esTime` | always | `vec4` frame clock: `.x` elapsed seconds, `.y` delta seconds. |
+| `u_time` | always | `vec4` frame clock: `.x` elapsed seconds, `.y` delta seconds. |
+| `u_viewport` | always | `vec4` canvas: `.xy` size in pixels, `.zw` = 1/size (screen UV = `gl_FragCoord.xy * u_viewport.zw`). |
 | MaterialConstants block | when the shader has params | Your `#pragma param` values. |
-| `es_applyLighting2D(albedo, N, worldPos)` | Lit2D | Applies every scene light (+shadows); returns the lit color. |
-| `es_sampleNormal(map, uv)` | Lit2D | Unpacks a tangent-space normal map (RGB → [-1,1], normalized). |
-| `es_shadowFactor2D(worldPos, target, softness)` | Lit2D | Occlusion factor toward a point (used by `es_applyLighting2D`). |
+| `applyLighting2D(albedo, N, worldPos)` | Lit2D | Applies every scene light (+shadows); returns the lit color. |
+| `sampleNormal(map, uv)` | Lit2D | Unpacks a tangent-space normal map (RGB → [-1,1], normalized). |
+| `shadowFactor2D(worldPos, target, softness)` | Lit2D | Occlusion factor toward a point (used by `applyLighting2D`). |
 
 A `#pragma switch` selects a static shader permutation baked into the material at
 compile time (via the `features` argument to `compileShader`).

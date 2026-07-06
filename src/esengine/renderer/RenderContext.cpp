@@ -125,10 +125,15 @@ void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
                           sizeof(glm::mat4));
 }
 
-void RenderContext::setFrameTime(f32 elapsedSec) {
+void RenderContext::setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH) {
     const f32 dt = (lastElapsed_ > 0.0f && elapsedSec > lastElapsed_) ? elapsedSec - lastElapsed_ : 0.0f;
     lastElapsed_ = elapsedSec;
-    TimeConstants time{ glm::vec4(elapsedSec, dt, 0.0f, 0.0f) };
+    const f32 w = static_cast<f32>(viewportW);
+    const f32 h = static_cast<f32>(viewportH);
+    TimeConstants time{
+        glm::vec4(elapsedSec, dt, 0.0f, 0.0f),
+        glm::vec4(w, h, w > 0.0f ? 1.0f / w : 0.0f, h > 0.0f ? 1.0f / h : 0.0f),
+    };
     device_.bindUniformBuffer(timeUbo_);
     device_.bufferSubData(GfxBufferTarget::Uniform, 0, &time, sizeof(TimeConstants));
 }

@@ -64,11 +64,23 @@ describe('compileMaterialGraph', () => {
       ],
     };
     const src = compileMaterialGraph(g);
-    expect(src).toContain('fract(v_texCoord + u_esTime.x * vec2(0.2500, 0.0000))');
-    expect(src).toContain('sin(u_esTime.x)');
-    expect(src).toContain('es_noise(v_texCoord * 8.0000)');
+    expect(src).toContain('fract(v_texCoord + u_time.x * vec2(0.2500, 0.0000))');
+    expect(src).toContain('sin(u_time.x)');
+    expect(src).toContain('noise2d(v_texCoord * 8.0000)');
     expect(src).toContain('smoothstep(0.2000, 0.8000,');
-    expect(src.match(/float es_noise/g)?.length).toBe(1); // helper emitted once
+    expect(src.match(/float noise2d/g)?.length).toBe(1); // helper emitted once
+  });
+
+  it('compiles the screenUV node from the injected viewport', () => {
+    const g: MaterialGraph = {
+      output: 'out',
+      nodes: [
+        { id: 'suv', type: 'screenUV' },
+        { id: 'tex', type: 'textureSample', inputs: { uv: 'suv' }, params: { name: 'u_albedo', default: 'white' } },
+        { id: 'out', type: 'output', inputs: { color: 'tex' } },
+      ],
+    };
+    expect(compileMaterialGraph(g)).toContain('gl_FragCoord.xy * u_viewport.zw');
   });
 
   it('reuses a shared node once (DAG, not a tree)', () => {
