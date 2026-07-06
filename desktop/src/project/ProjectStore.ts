@@ -1009,6 +1009,7 @@ class ProjectStoreImpl {
     await this.persistLastScene(st.currentScene);
     EditorHistory.markSaved();
     Toasts.push(`Saved ${st.currentScene.split('/').pop()}`, 'success');
+    void this.captureThumbnail();
   }
 
   /** Write the current world to a project-relative path (explicit, no lossy guard). */
@@ -1018,6 +1019,39 @@ class ProjectStoreImpl {
     await this.persistLastScene(relPath);
     EditorHistory.markSaved();
     Toasts.push(`Saved ${relPath.split('/').pop()}`, 'success');
+    void this.captureThumbnail();
+  }
+
+  /**
+   * Refresh the project's cover (`thumbnail.png` at the root — the launcher card
+   * image): capture the composited viewport, center-cropped to the card's 16:9.
+   * Editor chrome overlaid on the viewport (gizmos, perf HUD) is hidden for the
+   * capture frame via a body class. Fire-and-forget from save — a cover refresh
+   * must never turn into a save failure.
+   */
+  async captureThumbnail(): Promise<void> {
+    try {
+      const capture = window.estella.project.thumbnail;
+      const canvas = EngineHost.canvas;
+      if (!capture || !canvas || !this.state) return;
+      const r = canvas.getBoundingClientRect();
+      if (r.width < 64 || r.height < 64) return; // no meaningful cover from a collapsed viewport
+      let w = r.width;
+      let h = (r.width * 9) / 16;
+      if (h > r.height) {
+        h = r.height;
+        w = (r.height * 16) / 9;
+      }
+      document.body.classList.add('thumb-capture');
+      // Two frames + a beat, so the overlay-hidden state has been PRESENTED before
+      // the grab — capturePage samples the last composited frame, not the DOM.
+      await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(res, 60))));
+      await capture({ x: r.x + (r.width - w) / 2, y: r.y + (r.height - h) / 2, width: w, height: h });
+    } catch {
+      // never surface — the cover is cosmetic
+    } finally {
+      document.body.classList.remove('thumb-capture');
+    }
   }
 
   /**

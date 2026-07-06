@@ -414,6 +414,22 @@ ipcMain.handle('project:createAsset', (_e, destDir: string, baseName: string, co
   createAsset(requireRoot(), destDir, baseName, content, type),
 );
 
+// The project's launcher cover: capture the composited page region the renderer
+// passes (its viewport canvas, center-cropped to 16:9) and write it to the project
+// root as thumbnail.png, downscaled to a 640-wide PNG. Called on scene save, so a
+// project's card always shows its last-saved look.
+ipcMain.handle('project:thumbnail', async (_e, rect: { x: number; y: number; width: number; height: number }) => {
+  if (!win) return;
+  const img = await win.webContents.capturePage({
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  });
+  const scaled = img.getSize().width > 640 ? img.resize({ width: 640 }) : img;
+  await writeFile(path.join(requireRoot(), 'thumbnail.png'), scaled.toPNG());
+});
+
 ipcMain.handle('fs:read', (_e, relPath: string) => readInRoot(requireRoot(), relPath));
 ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
   writeInRoot(requireRoot(), relPath, contents),

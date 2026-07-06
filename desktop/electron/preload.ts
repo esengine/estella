@@ -59,6 +59,9 @@ const api = {
     /** Show a Save-As dialog; returns a project-relative scene path (null if cancelled). */
     saveSceneDialog: (defaultRel?: string): Promise<string | null> =>
       ipcRenderer.invoke('project:saveDialog', defaultRel),
+    /** Capture a page region (CSS px) and write it as the project's cover (`thumbnail.png`). */
+    thumbnail: (rect: { x: number; y: number; width: number; height: number }): Promise<void> =>
+      ipcRenderer.invoke('project:thumbnail', rect),
     /** Copy a template into `<location>/<name>`; returns the new project root. */
     createFromTemplate: (templateDir: string, location: string, name: string): Promise<string> =>
       ipcRenderer.invoke('project:createFromTemplate', templateDir, location, name),

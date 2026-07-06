@@ -68,6 +68,7 @@ if (new URLSearchParams(location.search).has('automation')) {
     playState: () => PlayRealm.getSnapshot(),
     reveal: (id: string) => dockApi.revealAndExpand(id),
     togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
+    captureThumbnail: () => ProjectStore.captureThumbnail(),
     surface: EditorControlSurface,
   };
 }
