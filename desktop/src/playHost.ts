@@ -194,6 +194,10 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     physicsConfig: msg.physicsConfig,
     enableStats: true, // editor profiler: per-phase / per-system frame timing
   });
+  // Realm-local debug handle for automation/diagnostics (mirrors the headless
+  // host's __estellaHeadless): the editor can't reach into this OOPIF except by
+  // main-process frame eval, and the eval needs SOMETHING to query.
+  (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = { app };
 }
 
 async function boot(msg: InitMessage): Promise<void> {

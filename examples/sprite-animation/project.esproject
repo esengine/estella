@@ -1,7 +1,7 @@
 {
   "formatVersion": "1",
   "name": "Sprite Animation",
-  "description": "Frame-based sprite animation driven by .esanim clips and a state switcher.",
+  "description": "Frame animation, bottom to top: .esanim clips, SpriteAnimator playback, an Animator state machine (speed blend + hop trigger + exit time), and footstep frame events. Arrows/A-D walk, Shift runs, Space hops.",
   "tag": "Animation",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",

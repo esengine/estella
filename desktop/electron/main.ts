@@ -135,6 +135,12 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
   const exec = (code: string): Promise<unknown> =>
     w.webContents.executeJavaScript(code, true).catch(() => undefined);
 
+  // Pipe renderer console (all frames, incl. the play OOPIF) to the shot log —
+  // headless failures otherwise die silently inside the window.
+  w.webContents.on('console-message', (_e, level, message) => {
+    if (level >= 2) console.log(`[console:${level === 3 ? 'error' : 'warn'}]`, message);
+  });
+
   // Deterministic waits — poll a real in-page condition instead of guessing at a
   // wall-clock delay (the delay is either flaky-short on a slow machine or wasted
   // on a fast one). Returns false + warns on timeout so a screenshot of a
@@ -230,6 +236,22 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
         console.log('[drag]', `${x0},${y0} → ${x1},${y1}`, result);
       }
       await settleFrames(8); // let a kinetic fling play out before the capture
+    }
+    // Eval INSIDE the play realm (the estella:// OOPIF) — the same main-process
+    // frame routing as SHOT_DRAG, since neither SHOT_EVAL nor sendInputEvent can
+    // reach the iframe. Lets a shot drive gameplay input, e.g. dispatching
+    // KeyboardEvents on the frame's document.
+    if (process.env.ESTELLA_SHOT_PLAY_EVAL) {
+      const playFrame = w.webContents.mainFrame.frames.find((f) => f.url.startsWith('estella://'));
+      if (!playFrame) {
+        console.log('[playEval] no estella:// play frame found');
+      } else {
+        const result = await playFrame
+          .executeJavaScript(process.env.ESTELLA_SHOT_PLAY_EVAL)
+          .catch((e: Error) => `error: ${e.message}`);
+        console.log('[playEval]', typeof result === 'string' ? result : JSON.stringify(result));
+        await settleFrames(8);
+      }
     }
     if (process.env.ESTELLA_SHOT_EVAL) {
       const result = await exec(process.env.ESTELLA_SHOT_EVAL);

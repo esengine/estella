@@ -8,87 +8,193 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
       ],
       "visible": true
     },
     {
       "id": 1,
-      "name": "Character0",
+      "name": "Ground",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -240, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
-        { "type": "SpriteAnimator", "data": {
-          "clip": "assets/animations/walk.esanim",
-          "speed": 0.8
-        }},
-        { "type": "AnimSwitcher", "data": { "switchTimer": 2 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -84,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 700,
+              "y": 16
+            },
+            "color": {
+              "r": 0.16,
+              "g": 0.19,
+              "b": 0.26,
+              "a": 1
+            },
+            "layer": 1
+          }
+        }
       ],
       "visible": true
     },
     {
       "id": 2,
-      "name": "Character1",
+      "name": "Player",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -120, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
-        { "type": "SpriteAnimator", "data": {
-          "clip": "assets/animations/idle.esanim"
-        }},
-        { "type": "AnimSwitcher", "data": { "isWalking": false, "switchTimer": 2.5 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -27,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 72,
+              "y": 98
+            },
+            "layer": 5,
+            "texture": "assets/textures/idle_0.png"
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": {
+            "clip": "assets/animations/idle.esanim"
+          }
+        },
+        {
+          "type": "Animator",
+          "data": {
+            "controller": "alien"
+          }
+        },
+        {
+          "type": "Player",
+          "data": {}
+        }
       ],
       "visible": true
     },
     {
       "id": 3,
-      "name": "Character2",
+      "name": "Bystander",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
-        { "type": "SpriteAnimator", "data": {
-          "clip": "assets/animations/walk.esanim",
-          "speed": 1.2
-        }},
-        { "type": "AnimSwitcher", "data": {} }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -260,
+              "y": -27,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 72,
+              "y": 98
+            },
+            "color": {
+              "r": 0.78,
+              "g": 0.82,
+              "b": 0.88,
+              "a": 1
+            },
+            "layer": 4,
+            "texture": "assets/textures/idle_0.png"
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": {
+            "clip": "assets/animations/idle.esanim",
+            "speed": 0.75
+          }
+        }
       ],
       "visible": true
     },
     {
       "id": 4,
-      "name": "Character3",
+      "name": "Pacer",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 120, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
-        { "type": "SpriteAnimator", "data": {
-          "clip": "assets/animations/idle.esanim",
-          "speed": 1.4
-        }},
-        { "type": "AnimSwitcher", "data": { "isWalking": false, "switchTimer": 3.5 } }
-      ],
-      "visible": true
-    },
-    {
-      "id": 5,
-      "name": "Character4",
-      "parent": null,
-      "children": [],
-      "components": [
-        { "type": "Transform", "data": { "position": { "x": 240, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 72, "y": 98 } } },
-        { "type": "SpriteAnimator", "data": {
-          "clip": "assets/animations/walk.esanim",
-          "speed": 1.6
-        }},
-        { "type": "AnimSwitcher", "data": { "switchTimer": 4 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 260,
+              "y": -27,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 72,
+              "y": 98
+            },
+            "color": {
+              "r": 0.78,
+              "g": 0.82,
+              "b": 0.88,
+              "a": 1
+            },
+            "flipX": true,
+            "layer": 4,
+            "texture": "assets/textures/walk_0.png"
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": {
+            "clip": "assets/animations/walk.esanim",
+            "speed": 1.25
+          }
+        }
       ],
       "visible": true
     }
