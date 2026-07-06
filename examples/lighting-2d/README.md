@@ -25,12 +25,12 @@ Lighting is **multiplicative**: a lit surface renders as
 unlit wall is nearly black — so a light does not just brighten the room, it
 *reveals* it.
 
-- **The room** is a grid of tiles plus a few prop sprites, all using the
-  `assets/materials/lit.esmaterial` material. Its shader declares
-  `#pragma domain Lit2D`, which makes the engine inject the per-frame light
-  uniforms and the `es_applyLighting2D()` helper the fragment shader calls. A
-  sprite with no material stays unlit (full-bright) — that is why the light
-  markers and obstacle boxes are always visible.
+- **The room** is a grid of tiles plus a few prop sprites, all with `lit: true`
+  on their `Sprite` — the one-flag way to receive 2D lights (in the editor it is
+  the **Lit** checkbox). A sprite without the flag stays unlit (full-bright) —
+  that is why the light markers and obstacle boxes are always visible. When a
+  surface needs more than the flag (a tint, a normal map), give it a `Lit2D`
+  material instead — see the [lighting guide](../../docs/astro/src/content/docs/guides/lighting.mdx).
 - **The torch** (`src/systems/torch.ts`) is a `Light2D` of type `Point`. Each
   frame it is moved to `UICameraInfo.worldMouseX/Y`, the cursor already
   projected into world space by the active camera.
@@ -47,11 +47,8 @@ larger value for a wide penumbra, placed lights a smaller one for crisper edges.
 
 ```
 assets/
-  materials/
-    lit.esshader      # #pragma domain Lit2D — flat-normal lit surface
-    lit.esmaterial    # material that binds the shader (no texture → color = albedo)
   scenes/
-    main.esscene      # camera, ambient, torch, the tile/prop room, two pillars
+    main.esscene      # camera, ambient, torch, the lit tile/prop room, two pillars
 src/
   main.ts             # registers the three systems
   config.ts           # shared tuning (colors, radii, caps, fade)

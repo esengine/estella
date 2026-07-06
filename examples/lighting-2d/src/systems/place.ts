@@ -17,7 +17,7 @@ const obstacles: number[] = [];
 let nextColor = 0;
 
 // Left-click → colored Point light, right-click → box obstacle, C → clear.
-// Placed markers use the default (unlit) material so a light always reads as a
+// Placed markers stay unlit (no `lit` flag) so a light always reads as a
 // bright dot and an obstacle as a solid block, regardless of the lighting.
 export const placeSystem = defineSystem(
     [Res(Input), Res(UICameraInfo), Commands()],

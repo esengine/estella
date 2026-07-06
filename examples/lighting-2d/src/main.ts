@@ -1,6 +1,6 @@
 // 2D Lighting — the engine's dynamic Light2D + ShadowCaster2D system shown
-// interactively. The scene is a near-black room whose walls and props use a
-// `Lit2D` material, so they are only visible where light reaches them.
+// interactively. The scene is a near-black room whose walls and props have
+// `lit: true` on their Sprite, so they are only visible where light reaches them.
 //
 //   • Move the mouse — a torch (Point light) follows the cursor, revealing the
 //     room and casting soft shadows off the pillars.
