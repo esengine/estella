@@ -245,9 +245,18 @@ void GLDevice::clear(bool color, bool depth, bool stencil) {
     if (color)   mask |= GL_COLOR_BUFFER_BIT;
     if (depth)   mask |= GL_DEPTH_BUFFER_BIT;
     if (stencil) mask |= GL_STENCIL_BUFFER_BIT;
-    if (mask != 0) {
-        glClear(mask);
-    }
+    if (mask == 0) return;
+
+    // Load-op semantics, same as beginRenderPass: glClear honors write masks, so a
+    // restrictive mask left by the previous pipeline would silently veto the clear.
+    // Force the cleared attachments' masks open and drop the cached pipeline (the
+    // next setPipeline re-applies its own masks). The scissor rectangle is honored —
+    // the TS multi-camera flow clears per-camera regions through it.
+    if (color)   setColorMask(true, true, true, true);
+    if (depth)   setDepthWrite(true);
+    if (stencil) setStencilMask(0xFF);
+    glClear(mask);
+    invalidatePipelineCache();
 }
 
 // =============================================================================
@@ -909,17 +918,7 @@ void GLDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
 
 void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
     glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(desc.target));
-    if (desc.clearColor || desc.clearDepth || desc.clearStencil) {
-        // Load-op semantics: a clear must not be vetoed by write masks a prior
-        // pipeline left restrictive (glClear honors them), so force the cleared
-        // attachments' masks open and drop the cached pipeline — the next
-        // setPipeline re-applies its own masks.
-        if (desc.clearColor) setColorMask(true, true, true, true);
-        if (desc.clearDepth) setDepthWrite(true);
-        if (desc.clearStencil) setStencilMask(0xFF);
-        clear(desc.clearColor, desc.clearDepth, desc.clearStencil);
-        invalidatePipelineCache();
-    }
+    clear(desc.clearColor, desc.clearDepth, desc.clearStencil);
 }
 
 void GLDevice::endRenderPass() {

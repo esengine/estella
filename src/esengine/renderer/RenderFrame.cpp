@@ -345,11 +345,9 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
 
-    // Leave scissor/stencil disabled for whatever renders next; invalidate so the next
-    // setPipeline re-applies (we changed stencil/scissor outside the pipeline here).
+    // Leave scissor disabled for whatever renders next; invalidate so the next
+    // setPipeline re-applies its full state (stencil included).
     device_.setScissorTest(false);
-    device_.setStencilTest(false);
-    device_.setStencilMask(0xFF);
     device_.invalidatePipelineCache();
 
     frame_capture_.clearReplayMode();

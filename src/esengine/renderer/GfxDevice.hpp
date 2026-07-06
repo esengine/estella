@@ -73,50 +73,17 @@ public:
     /** @brief Sets the value written to the stencil buffer by clear() */
     virtual void setClearStencil(i32 value) = 0;
 
-    /** @brief Clears framebuffer attachments */
+    /**
+     * @brief Clears attachments of the current pass target with load-op semantics.
+     * @details Write masks left by the previous pipeline are forced open (and the
+     *          cached pipeline dropped); the scissor rectangle is honored. Prefer
+     *          the clears in RenderPassDesc — this exists for the SDK-driven
+     *          multi-camera flow and mid-pass stencil clears.
+     */
     virtual void clear(bool color, bool depth, bool stencil) = 0;
 
     // =========================================================================
-    // Blend State
-    // =========================================================================
-
-    /** @brief Enables or disables blending */
-    virtual void setBlendEnabled(bool enabled) = 0;
-
-    /** @brief Sets blend mode using predefined BlendMode */
-    virtual void setBlendMode(BlendMode mode) = 0;
-
-    // =========================================================================
-    // Depth State
-    // =========================================================================
-
-    /** @brief Enables or disables depth testing */
-    virtual void setDepthTest(bool enabled) = 0;
-
-    /** @brief Enables or disables depth buffer writes */
-    virtual void setDepthWrite(bool enabled) = 0;
-
-    // =========================================================================
-    // Stencil State
-    // =========================================================================
-
-    /** @brief Enables or disables stencil testing */
-    virtual void setStencilTest(bool enabled) = 0;
-
-    /** @brief Sets stencil function */
-    virtual void setStencilFunc(GfxStencilFunc func, i32 ref, u32 mask) = 0;
-
-    /** @brief Sets stencil operations */
-    virtual void setStencilOp(GfxStencilOp sfail, GfxStencilOp dpfail, GfxStencilOp dppass) = 0;
-
-    /** @brief Sets stencil write mask */
-    virtual void setStencilMask(u32 mask) = 0;
-
-    /** @brief Sets color write mask */
-    virtual void setColorMask(bool r, bool g, bool b, bool a) = 0;
-
-    // =========================================================================
-    // Scissor State
+    // Dynamic Per-Draw State (deliberately outside the pipeline; see PipelineState.hpp)
     // =========================================================================
 
     /** @brief Enables or disables scissor test */
@@ -124,16 +91,6 @@ public:
 
     /** @brief Sets the scissor rectangle */
     virtual void setScissor(i32 x, i32 y, i32 w, i32 h) = 0;
-
-    // =========================================================================
-    // Culling
-    // =========================================================================
-
-    /** @brief Enables or disables face culling */
-    virtual void setCulling(bool enabled) = 0;
-
-    /** @brief Sets which face to cull (true = front, false = back) */
-    virtual void setCullFace(bool front) = 0;
 
     // =========================================================================
     // Buffers

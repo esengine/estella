@@ -75,23 +75,8 @@ struct MockGfxDevice final : GfxDevice {
     void setClearStencil(i32) override {}
     void clear(bool, bool, bool) override {}
 
-    void setBlendEnabled(bool) override {}
-    void setBlendMode(BlendMode) override {}
-
-    void setDepthTest(bool) override {}
-    void setDepthWrite(bool) override {}
-
-    void setStencilTest(bool) override {}
-    void setStencilFunc(GfxStencilFunc, i32, u32) override {}
-    void setStencilOp(GfxStencilOp, GfxStencilOp, GfxStencilOp) override {}
-    void setStencilMask(u32) override {}
-    void setColorMask(bool, bool, bool, bool) override {}
-
     void setScissorTest(bool) override {}
     void setScissor(i32, i32, i32, i32) override {}
-
-    void setCulling(bool) override {}
-    void setCullFace(bool) override {}
 
     BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override {
         ++createBufferCalls;

@@ -44,23 +44,8 @@ public:
     void setClearStencil(i32 value) override;
     void clear(bool color, bool depth, bool stencil) override;
 
-    void setBlendEnabled(bool enabled) override;
-    void setBlendMode(BlendMode mode) override;
-
-    void setDepthTest(bool enabled) override;
-    void setDepthWrite(bool enabled) override;
-
-    void setStencilTest(bool enabled) override;
-    void setStencilFunc(GfxStencilFunc func, i32 ref, u32 mask) override;
-    void setStencilOp(GfxStencilOp sfail, GfxStencilOp dpfail, GfxStencilOp dppass) override;
-    void setStencilMask(u32 mask) override;
-    void setColorMask(bool r, bool g, bool b, bool a) override;
-
     void setScissorTest(bool enabled) override;
     void setScissor(i32 x, i32 y, i32 w, i32 h) override;
-
-    void setCulling(bool enabled) override;
-    void setCullFace(bool front) override;
 
     BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override;
     void deleteBuffer(BufferHandle buffer) override;
@@ -134,6 +119,20 @@ public:
     i32 getInt(GfxIntParam name) override;
 
 private:
+    // The loose state setters a pipeline bundles (blend/depth/stencil/cull/masks):
+    // backend-internal since the pipeline became the only way to set them.
+    void setBlendEnabled(bool enabled);
+    void setBlendMode(BlendMode mode);
+    void setDepthTest(bool enabled);
+    void setDepthWrite(bool enabled);
+    void setStencilTest(bool enabled);
+    void setStencilFunc(GfxStencilFunc func, i32 ref, u32 mask);
+    void setStencilOp(GfxStencilOp sfail, GfxStencilOp dpfail, GfxStencilOp dppass);
+    void setStencilMask(u32 mask);
+    void setColorMask(bool r, bool g, bool b, bool a);
+    void setCulling(bool enabled);
+    void setCullFace(bool front);
+
     // Pipeline cache: a handle is (index + 1) into pipelines_; PipelineHandle::Invalid is 0.
     // WebGL2 has no native pipeline object, so a pipeline is applied as a bundle of GL
     // state, deduped by comparing handles (same pipeline -> skip the whole state apply).
