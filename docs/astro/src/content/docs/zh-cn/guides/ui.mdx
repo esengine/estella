@@ -109,7 +109,15 @@ addStartupSystem(buildPauseMenu);
 
 ## `Text`
 
-文本从 SDF 字形图集渲染,所以缩放清晰。
+文本从动态字形图集渲染,有**两条管线**,由 `renderMode` 逐 Text 选择:
+
+- **`Bitmap`** —— 字形按设备分辨率光栅化(Canvas 原生抗锯齿)并 1:1 贴屏:
+  最锐利,但一旦被缩放就会模糊。
+- **`Sdf`** —— 每个字形只光栅化一次为有向距离场(SDF),着色器用屏幕空间导数
+  (`fwidth`)推导出稳定的 ~1px 抗锯齿边缘,任何缩放下都清晰——相机变焦、
+  实体缩放、画布设计分辨率适配都不在话下。
+- **`Auto`**(默认)—— 文本真正 1:1 落屏时用 Bitmap,一旦有任何缩放立即切换
+  SDF。菜单像 DOM 一样锐利,世界文本随缩放稳定,无需操心。
 
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
@@ -126,6 +134,7 @@ addStartupSystem(buildPauseMenu);
 | `strokeColor` / `strokeWidth` | Color / number | — | 描边。 |
 | `shadowColor` / `shadowBlur` / `shadowOffsetX` / `shadowOffsetY` | — | 投影。 |
 | `richText` | boolean | `false` | 解析内联富文本标记。 |
+| `renderMode` | `TextRenderMode` | `Auto` | 字形管线:`Auto` / `Bitmap` / `Sdf`(见上)。 |
 
 ## `UIVisual` —— 填充
 

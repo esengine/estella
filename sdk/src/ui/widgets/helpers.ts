@@ -10,7 +10,7 @@ import type { World } from '../../world';
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { px, percent, auto, type Dimension } from '../core/dimension';
 import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from '../core/ui-visual';
-import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
+import { Text, TextAlign, TextVerticalAlign, TextRenderMode, type TextData } from '../core/text';
 
 /** Identity Transform. Fresh object per call — safe to insert into ECS. */
 export function identityTransform(): TransformData {
@@ -148,6 +148,7 @@ export function buildText(init: TextInit = {}): TextData {
         shadowOffsetX: init.shadowOffsetX ?? 0,
         shadowOffsetY: init.shadowOffsetY ?? 0,
         richText: init.richText ?? false,
+        renderMode: init.renderMode ?? TextRenderMode.Auto,
     };
 }
 

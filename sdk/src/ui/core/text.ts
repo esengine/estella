@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineComponent } from '../../component';
+import { defineComponent, enumOptions } from '../../component';
 import type { Color } from '../../types';
 
 export const TextAlign = {
@@ -24,6 +24,25 @@ export const TextOverflow = {
 } as const;
 export type TextOverflow = (typeof TextOverflow)[keyof typeof TextOverflow];
 
+/**
+ * Glyph pipeline for a Text (mirrors Unity's TMP-vs-UI-Text split, unified in
+ * one component). Both pipelines share the atlas, layout, and batch path —
+ * the difference is what the atlas stores and how the shader derives coverage.
+ */
+export const TextRenderMode = {
+    /**
+     * Per-frame choice: device-resolution bitmap when the text lands ~1:1 on
+     * screen (crisp like the DOM), SDF whenever it's scaled — by the canvas
+     * design-resolution fit, a zooming camera, or the entity transform.
+     */
+    Auto: 0,
+    /** Canvas2D native AA at device resolution. Sharpest at 1:1; blurs when scaled. */
+    Bitmap: 1,
+    /** Signed-distance field, fwidth-smoothstep AA — a stable ~1px edge at any scale. */
+    Sdf: 2,
+} as const;
+export type TextRenderMode = (typeof TextRenderMode)[keyof typeof TextRenderMode];
+
 export interface TextData {
     content: string;
     fontFamily: string;
@@ -43,6 +62,8 @@ export interface TextData {
     shadowOffsetX: number;
     shadowOffsetY: number;
     richText: boolean;
+    /** Glyph pipeline: Auto (default) picks bitmap at 1:1, SDF when scaled. */
+    renderMode: TextRenderMode;
 }
 
 export const Text = defineComponent<TextData>('Text', {
@@ -64,4 +85,14 @@ export const Text = defineComponent<TextData>('Text', {
     shadowOffsetX: 0,
     shadowOffsetY: 0,
     richText: false,
+    renderMode: TextRenderMode.Auto,
+}, {
+    // Editor dropdowns from the same constants the runtime switches on, so the
+    // labels can never drift (the ParticleEmitter TS-enum precedent).
+    fields: {
+        align: { enum: enumOptions(TextAlign) },
+        verticalAlign: { enum: enumOptions(TextVerticalAlign) },
+        overflow: { enum: enumOptions(TextOverflow) },
+        renderMode: { enum: enumOptions(TextRenderMode) },
+    },
 });

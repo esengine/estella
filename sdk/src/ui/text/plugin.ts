@@ -2,12 +2,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/plugin.ts
- * @brief   TextPlugin — renders the `Text` component via the dynamic SDF glyph
- *          atlas, replacing the legacy Canvas2D-per-entity
- *          path. A pre-flush callback scans Text entities, composes the world
- *          transform, places the text inside its UINode box (no auto-size — the
- *          UINode is the box; rendering never mutates layout) and draws batched
- *          SDF glyph quads, layered to interleave with sibling UI elements.
+ * @brief   TextPlugin — renders the `Text` component via the dynamic glyph
+ *          atlas, replacing the legacy Canvas2D-per-entity path. A pre-flush
+ *          callback scans Text entities, composes the world transform, places
+ *          the text inside its UINode box (no auto-size — the UINode is the
+ *          box; rendering never mutates layout) and draws batched glyph quads,
+ *          layered to interleave with sibling UI elements.
+ *
+ *          Two glyph pipelines, routed per Text by {@link resolveTextRenderMode}
+ *          (Text.renderMode, default Auto): device-resolution bitmaps when the
+ *          text lands 1:1 on screen, SDF + fwidth AA whenever it's scaled by
+ *          the design-resolution fit, a camera zoom, or the entity transform.
  */
 import type { App, Plugin } from '../../app';
 import { Transform, type TransformData, registerComponent } from '../../component';
@@ -17,8 +22,9 @@ import type { Entity } from '../../types';
 import { SdfTextRenderer } from './text-renderer';
 import type { RGBA } from './layout';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
-import { Text, type TextData } from '../core/text';
+import { Text, TextRenderMode, type TextData } from '../core/text';
 import { UINode } from '../core/ui-node';
+import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { platformDevicePixelRatio } from '../../platform';
 
@@ -29,10 +35,32 @@ const GLYPH_BASE_SIZE = 64;
 // Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
 const UI_BASE_LAYER = 1000;
 
+// Auto tolerance: a bitmap glyph still reads as pixel-exact within ±2% of 1:1.
+const BITMAP_SCALE_EPSILON = 0.02;
+
+/**
+ * Pure: which glyph pipeline a Text draws with. `effectiveScale` is the
+ * on-screen texels-per-source-texel ratio of a bitmap glyph (1 = pixel-exact:
+ * design→device scale ÷ DPR × entity world scale). Auto keeps the crisp
+ * device-resolution bitmaps only while they truly land 1:1; any real scaling
+ * switches to SDF, whose fwidth AA is stable at every zoom. Non-finite or
+ * unknown scales (no camera yet) keep the bitmap path.
+ */
+export function resolveTextRenderMode(
+    mode: TextRenderMode | undefined,
+    effectiveScale: number,
+): 'bitmap' | 'sdf' {
+    if (mode === TextRenderMode.Bitmap) return 'bitmap';
+    if (mode === TextRenderMode.Sdf) return 'sdf';
+    if (!Number.isFinite(effectiveScale) || effectiveScale <= 0) return 'bitmap';
+    return Math.abs(effectiveScale - 1) <= BITMAP_SCALE_EPSILON ? 'bitmap' : 'sdf';
+}
+
 export class TextPlugin implements Plugin {
     name = 'text';
 
-    private renderer_: SdfTextRenderer | null = null;
+    private bitmapRenderer_: SdfTextRenderer | null = null;
+    private sdfRenderer_: SdfTextRenderer | null = null;
     private readonly matrix_ = new Float32Array(16);
 
     build(app: App): void {
@@ -57,21 +85,26 @@ export class TextPlugin implements Plugin {
         const registry = world.getCppRegistry() as CppRegistry;
 
         pipeline.addPreFlushCallback(() => {
+            // Design→device scale of one UI px this frame (vpW is device px);
+            // ÷DPR gives the bitmap texel:pixel ratio Auto switches on.
+            // Resolved per frame — the camera plugin may build after this one.
+            const uiCamera = app.getResource(UICameraInfo) as UICameraData | undefined;
+            const dpr = platformDevicePixelRatio();
+            const span = uiCamera ? uiCamera.worldRight - uiCamera.worldLeft : 0;
+            const designToTexel = uiCamera?.valid && span > 0
+                ? uiCamera.vpW / (span * dpr)
+                : 1;
+
             for (const e of world.getEntitiesWithComponents([Text, Transform])) {
                 const entity = e as Entity;
                 const t = world.get(entity, Text) as TextData;
                 if (!t.content) continue;
 
-                if (!this.renderer_) {
-                    // Device-resolution bitmap text: glyphs rasterize per size at DPR
-                    // and blit 1:1, keeping Canvas's native AA — crisp like the DOM.
-                    // (SDF stays available via sdf:true for scalable / world text.)
-                    const dpr = platformDevicePixelRatio();
-                    this.renderer_ = new SdfTextRenderer(app.wasmModule as ESEngineModule, {
-                        sdf: false, dpr, renderSize: Math.round(GLYPH_BASE_SIZE * dpr),
-                    });
-                }
                 const tr = world.get(entity, Transform) as TransformData;
+                const renderer = this.rendererFor(
+                    app,
+                    resolveTextRenderMode(t.renderMode, designToTexel * tr.worldScale.x),
+                );
                 composeTRS(this.matrix_, tr.worldPosition, tr.worldRotation, tr.worldScale);
 
                 const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
@@ -120,7 +153,7 @@ export class TextPlugin implements Plugin {
                     }
                     : undefined;
 
-                this.renderer_.drawText(
+                renderer.drawText(
                     {
                         text: t.content,
                         fontFamily: t.fontFamily,
@@ -145,6 +178,31 @@ export class TextPlugin implements Plugin {
                 );
             }
         });
+    }
+
+    /**
+     * The two glyph pipelines, created lazily and kept for the app's lifetime.
+     * Bitmap: per-size rasterization at DPR, Canvas-native AA, blits 1:1.
+     * SDF: one fixed-size rasterization per glyph, fwidth-AA in the shader —
+     * resolution-independent, so scaled/zoomed text stays crisp. Both share
+     * the same layout, page-store, and batch-submit path; only the atlas
+     * contents and the shader's coverage derivation differ.
+     */
+    private rendererFor(app: App, kind: 'bitmap' | 'sdf'): SdfTextRenderer {
+        const module = app.wasmModule as ESEngineModule;
+        if (kind === 'sdf') {
+            if (!this.sdfRenderer_) {
+                this.sdfRenderer_ = new SdfTextRenderer(module, { sdf: true });
+            }
+            return this.sdfRenderer_;
+        }
+        if (!this.bitmapRenderer_) {
+            const dpr = platformDevicePixelRatio();
+            this.bitmapRenderer_ = new SdfTextRenderer(module, {
+                sdf: false, dpr, renderSize: Math.round(GLYPH_BASE_SIZE * dpr),
+            });
+        }
+        return this.bitmapRenderer_;
     }
 }
 

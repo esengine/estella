@@ -80,6 +80,7 @@ export {
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
+    TextRenderMode,
     type TextData,
 } from './core/text';
 
@@ -251,7 +252,7 @@ export { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES } from './widgets/prefabs/g
 
 // All text — display (Text) and editable (TextInput) — now renders through the
 // SDF glyph atlas; the Canvas2D TextRenderer was retired.
-export { TextPlugin, textPlugin } from './text/plugin';
+export { TextPlugin, textPlugin, resolveTextRenderMode } from './text/plugin';
 
 // UI Math Utilities
 export {

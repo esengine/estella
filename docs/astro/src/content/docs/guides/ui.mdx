@@ -113,7 +113,19 @@ Add a `FlexContainer` to a node to lay out its children. The enums mirror CSS.
 
 ## `Text`
 
-Text is rendered from an SDF glyph atlas, so it scales crisply.
+Text draws from a dynamic glyph atlas with **two pipelines**, chosen per Text by
+`renderMode`:
+
+- **`Bitmap`** — glyphs rasterize at device resolution with Canvas-native
+  antialiasing and blit 1:1: the sharpest possible text, but it blurs the moment
+  it's scaled.
+- **`Sdf`** — each glyph rasterizes once into a signed-distance field and the
+  shader derives a stable ~1px antialiased edge from screen-space derivatives
+  (`fwidth`), so text stays crisp at **any** scale — camera zoom, entity scale,
+  or the canvas design-resolution fit.
+- **`Auto`** (default) — bitmap while the text truly lands 1:1 on screen, SDF as
+  soon as any scaling applies. You get DOM-crisp menus *and* zoom-stable world
+  text without thinking about it.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
@@ -130,6 +142,7 @@ Text is rendered from an SDF glyph atlas, so it scales crisply.
 | `strokeColor` / `strokeWidth` | Color / number | — | Outline. |
 | `shadowColor` / `shadowBlur` / `shadowOffsetX` / `shadowOffsetY` | — | Drop shadow. |
 | `richText` | boolean | `false` | Parse inline rich-text markup. |
+| `renderMode` | `TextRenderMode` | `Auto` | Glyph pipeline: `Auto` / `Bitmap` / `Sdf` (see above). |
 
 ## `UIVisual` — the fill
 

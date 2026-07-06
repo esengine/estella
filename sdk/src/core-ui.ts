@@ -20,6 +20,7 @@ export {
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
+    TextRenderMode,
     UINode,
     UIVisual,
     UIVisualType,
