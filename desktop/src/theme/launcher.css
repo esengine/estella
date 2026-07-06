@@ -244,6 +244,16 @@
   padding: 14px 34px 28px;
   overflow-y: auto;
   align-content: start;
+  /* Rows size to their content, full stop. `auto` rows in a definite-height grid
+     get redistributed to FIT the box (the cards' overflow:hidden zeroes their
+     min size), which squeezed 24 template cards into one screen instead of
+     scrolling. max-content rows can't be squeezed — overflow goes to the
+     scrollbar, where it belongs. */
+  grid-auto-rows: max-content;
+  /* The scroll region of its column: takes exactly the leftover height and lets
+     rows overflow INSIDE it (flex default would shrink the box, not scroll it). */
+  flex: 1;
+  min-height: 0;
 }
 
 .proj-card {
@@ -273,6 +283,9 @@
 .proj-card__thumb {
   position: relative;
   aspect-ratio: 16 / 10;
+  /* The cover never gives up its shape: without this, a height-squeezed card
+     flex-shrinks the thumb into a sliver before anything scrolls. */
+  flex-shrink: 0;
   background: var(--void);
   border-bottom: 1px solid var(--line);
   display: grid;
@@ -346,6 +359,8 @@
 .proj-list {
   overflow-y: auto;
   padding: 6px 34px 28px;
+  flex: 1;
+  min-height: 0;
 }
 .proj-list__head,
 .proj-row {
