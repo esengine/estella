@@ -17,7 +17,7 @@
       "id": 1,
       "name": "Canvas",
       "parent": null,
-      "children": [2, 4, 6],
+      "children": [2, 4, 6, 8],
       "components": [
         { "type": "Transform", "data": {} },
         { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
@@ -175,6 +175,58 @@
             "fillMethod": 2,
             "fillOrigin": 3,
             "fillAmount": 0.25,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "R90Track",
+      "parent": 1,
+      "children": [9],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 120, "unit": 0 },
+            "insetTop": { "value": 380, "unit": 0 },
+            "width": { "value": 160, "unit": 0 },
+            "height": { "value": 160, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "R90Fill",
+      "parent": 8,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "fillMethod": 3,
+            "fillOrigin": 1,
+            "fillAmount": 1.0,
             "enabled": true
           }
         }

@@ -38,8 +38,12 @@ export const FillMethod = {
     Horizontal: 0,
     /** Linear crop along Y. */
     Vertical: 1,
-    /** Angular clockwise sweep of the full circle (cooldown / ring gauge). */
+    /** Clockwise sweep of the full circle (cooldown / ring gauge). */
     Radial360: 2,
+    /** Clockwise sweep of a 90° arc from the origin edge (corner meter). */
+    Radial90: 3,
+    /** Clockwise sweep of a 180° arc from the origin edge (speedometer). */
+    Radial180: 4,
 } as const;
 export type FillMethod = (typeof FillMethod)[keyof typeof FillMethod];
 

@@ -13,7 +13,13 @@
 
 namespace esengine {
 
-// Clockwise Radial360 start direction (box-local, +y = up), by origin edge:
+static bool isRadialMethod(ecs::UIFillMethod m) {
+    return m == ecs::UIFillMethod::Radial360
+        || m == ecs::UIFillMethod::Radial90
+        || m == ecs::UIFillMethod::Radial180;
+}
+
+// Clockwise radial start direction (box-local, +y = up), by origin edge:
 // Top = 12 o'clock, Right = 3, Bottom = 6, Left = 9.
 static f32 radialStartAngle(ecs::UIFillOrigin origin) {
     constexpr f32 HALF_PI = 1.57079632679f;
@@ -24,6 +30,16 @@ static f32 radialStartAngle(ecs::UIFillOrigin origin) {
         case ecs::UIFillOrigin::Top:    return HALF_PI;
     }
     return HALF_PI;
+}
+
+// The mode's full arc; fillAmount scales the swept angle within it.
+static f32 radialMaxSweep(ecs::UIFillMethod m) {
+    constexpr f32 HALF_PI = 1.57079632679f;
+    switch (m) {
+        case ecs::UIFillMethod::Radial90:  return HALF_PI;
+        case ecs::UIFillMethod::Radial180: return 2.0f * HALF_PI;
+        default:                           return 4.0f * HALF_PI;  // Radial360
+    }
 }
 
 void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
@@ -137,15 +153,15 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec2 finalSize = glm::vec2(w, h) * glm::vec2(scale);
 
         const bool isRadialFill = renderer.visualType == ecs::UIVisualType::Filled
-                               && renderer.fillMethod == ecs::UIFillMethod::Radial360;
+                               && isRadialMethod(renderer.fillMethod);
 
         // Filled derives its own UV/geometry, so 9-slice never applies. Linear
         // fills crop the box in lockstep with the UV crop above: the box shrinks
         // to fillAmount along the axis, anchored at fillOrigin, its center shifting
         // toward that edge by half the removed extent (rotated into world space to
         // match the pivot bake). A UV-only crop would no-op on a solid colour and
-        // stretch a texture; cropping geometry too makes both reveal. Radial360
-        // is emitted as a wedge fan instead (below), so it skips the box crop.
+        // stretch a texture; cropping geometry too makes both reveal. Radial fills
+        // are emitted as a wedge fan instead (below), so they skip the box crop.
         if (renderer.visualType == ecs::UIVisualType::Filled) {
             useNineSlice = false;
             if (!isRadialFill) {
@@ -186,10 +202,11 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
         constexpr glm::vec2 CENTERED_PIVOT{0.5f, 0.5f};
 
         if (isRadialFill) {
+            f32 sweep = std::clamp(renderer.fillAmount, 0.0f, 1.0f)
+                      * radialMaxSweep(renderer.fillMethod);
             emitRadialFill(buffers, draw_list, clips,
                 glm::vec2(position), finalSize, angle,
-                radialStartAngle(renderer.fillOrigin),
-                std::clamp(renderer.fillAmount, 0.0f, 1.0f),
+                radialStartAngle(renderer.fillOrigin), sweep,
                 uvOffset, uvScale, renderer.color, key);
         } else if (useNineSlice) {
             emitNineSlice(buffers, draw_list, clips,

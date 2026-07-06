@@ -118,16 +118,14 @@ void BatchPlugin::emitNineSlice(
 void BatchPlugin::emitRadialFill(
     TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
     const glm::vec2& center, const glm::vec2& size, f32 angle,
-    f32 startAngle, f32 amount,
+    f32 startAngle, f32 sweep,
     const glm::vec2& uvOffset, const glm::vec2& uvScale,
     const glm::vec4& color, const BatchDrawKey& key
 ) {
-    amount = std::clamp(amount, 0.0f, 1.0f);
-    f32 hx = size.x * 0.5f, hy = size.y * 0.5f;
-    if (amount <= 0.0001f || hx <= 0.0f || hy <= 0.0f) return;
-
     constexpr f32 TWO_PI = 6.2831853071795864f;
-    const f32 sweep = amount * TWO_PI;
+    sweep = std::clamp(sweep, 0.0f, TWO_PI);
+    f32 hx = size.x * 0.5f, hy = size.y * 0.5f;
+    if (sweep <= 0.0001f || hx <= 0.0f || hy <= 0.0f) return;
 
     // Sample angles are the two endpoints plus any box corner the sweep crosses,
     // measured as a clockwise distance from startAngle. Because the box edge

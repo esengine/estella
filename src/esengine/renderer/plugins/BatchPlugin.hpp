@@ -54,20 +54,22 @@ protected:
                        const glm::vec4& color, const BatchDrawKey& key);
 
     /**
-     * @brief Emits a centered angular wedge (Radial360 Filled): a triangle fan
-     *        from the box center out to its perimeter, swept clockwise from
-     *        @p startAngle by @p amount of the full circle.
+     * @brief Emits a centered angular wedge (Radial Filled): a triangle fan from
+     *        the box center out to its perimeter, swept clockwise from @p startAngle
+     *        over @p sweep radians.
      * @details The wedge boundary follows the rectangle exactly — box corners
      *          crossed by the sweep become fan vertices, so edges stay straight
      *          and corners sharp (≤5 triangles, no per-frame tessellation).
      *          One BatchVertex stream, same shader as emitQuad — a radial gauge
-     *          batches with every other UI quad.
+     *          batches with every other UI quad. Radial90/180/360 differ only in
+     *          the caller's @p sweep (fillAmount times the mode arc); the geometry
+     *          is identical.
      * @param startAngle Sweep start in radians, box-local (before @p angle rotation).
-     * @param amount Filled fraction of the full circle, [0,1].
+     * @param sweep Total swept angle in radians, [0, 2π].
      */
     void emitRadialFill(TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
                         const glm::vec2& center, const glm::vec2& size, f32 angle,
-                        f32 startAngle, f32 amount,
+                        f32 startAngle, f32 sweep,
                         const glm::vec2& uvOffset, const glm::vec2& uvScale,
                         const glm::vec4& color, const BatchDrawKey& key);
 

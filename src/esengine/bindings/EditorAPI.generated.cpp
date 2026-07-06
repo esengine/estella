@@ -466,7 +466,7 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"sliceBorder.w","type":"float","group":"UIVisual"},
   {"key":"tileSize.x","type":"float","group":"UIVisual"},
   {"key":"tileSize.y","type":"float","group":"UIVisual"},
-  {"key":"fillMethod","type":"enum","group":"UIVisual","values":["Horizontal","Vertical","Radial360"]},
+  {"key":"fillMethod","type":"enum","group":"UIVisual","values":["Horizontal","Vertical","Radial360","Radial90","Radial180"]},
   {"key":"fillOrigin","type":"enum","group":"UIVisual","values":["Left","Right","Bottom","Top"]},
   {"key":"fillAmount","type":"float","group":"UIVisual"},
   {"key":"material","type":"asset","group":"UIVisual"},

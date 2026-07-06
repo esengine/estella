@@ -135,6 +135,8 @@ export enum UIFillMethod {
     Horizontal = 0,
     Vertical = 1,
     Radial360 = 2,
+    Radial90 = 3,
+    Radial180 = 4,
 }
 
 export enum UIFillOrigin {
